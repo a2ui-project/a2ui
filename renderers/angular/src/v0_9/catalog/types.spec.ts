@@ -14,30 +14,58 @@
  * limitations under the License.
  */
 
-import {Component} from '@angular/core';
-import {ComponentApi} from '@a2ui/web_core/v0_9';
-import {createComponentImplementation} from './types';
-import {CatalogComponent} from '../core/catalog_component';
+import {Component, Injector} from '@angular/core';
+import {TestBed} from '@angular/core/testing';
+import {AngularCatalog} from './types';
+import {BASIC_COMPONENTS} from './basic/basic-catalog';
+import {toWebComponent} from './to_web_component';
 import {z} from 'zod';
 
 @Component({
-  selector: 'test-comp',
-  template: '',
+  selector: 'test-custom-comp',
+  template: '<div>custom angular component</div>',
   standalone: true,
 })
-class TestComponent extends CatalogComponent<ComponentApi> {}
+class TestCustomComponent {}
 
-describe('createComponentImplementation', () => {
-  it('should map ComponentApi and Angular Component Type correctly', () => {
-    const api: ComponentApi = {
-      name: 'TestComp',
-      schema: z.object({}),
-    };
+describe('Angular Catalog & toWebComponent', () => {
+  let injector: Injector;
 
-    const impl = createComponentImplementation(api, TestComponent);
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [TestCustomComponent],
+    });
+    injector = TestBed.inject(Injector);
+  });
 
-    expect(impl.name).toBe('TestComp');
-    expect(impl.schema).toEqual(api.schema);
-    expect(impl.component).toBe(TestComponent);
+  it('instantiates AngularCatalog wrapping universal WebComponentImplementation catalog', () => {
+    const catalog = new AngularCatalog();
+    expect(catalog.id).toBe('https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json');
+    expect(catalog.components.size).toBe(18);
+    expect(catalog.components.get('Button')?.tagName).toBe('a2ui-basic-button');
+  });
+
+  it('exports BASIC_COMPONENTS with 18 universal components', () => {
+    expect(BASIC_COMPONENTS.length).toBe(18);
+    const textComp = BASIC_COMPONENTS.find(c => c.name === 'Text');
+    expect(textComp).toBeDefined();
+    expect(textComp?.tagName).toBe('a2ui-basic-text');
+  });
+
+  it('converts Angular Component to Web Component via toWebComponent', () => {
+    const impl = toWebComponent(
+      {
+        name: 'CustomTest',
+        schema: z.object({}),
+        component: TestCustomComponent,
+      },
+      injector,
+    );
+    expect(impl.name).toBe('CustomTest');
+    expect(impl.tagName).toBe('a2ui-ng-customtest');
+    expect(customElements.get(impl.tagName)).toBeDefined();
+
+    const el = document.createElement(impl.tagName);
+    expect(el).toBeDefined();
   });
 });

@@ -29,8 +29,9 @@ import {
   ActionListener as ActionHandler,
   A2uiMessage,
   A2uiClientAction as Action,
+  WebComponentImplementation,
 } from '@a2ui/web_core/v0_9';
-import {AngularComponentImplementation, AngularCatalog} from '../catalog/types';
+import {AngularCatalog} from '../catalog/types';
 import {initializeAngularReactivity} from './reactivity';
 
 /**
@@ -83,7 +84,7 @@ export function provideA2Ui(
  */
 @Injectable({providedIn: 'root'})
 export class A2uiRendererService implements OnDestroy {
-  private _messageProcessor: MessageProcessor<AngularComponentImplementation>;
+  private _messageProcessor: MessageProcessor<WebComponentImplementation>;
   private _catalogs: AngularCatalog[] = [];
   private _config = inject(A2UI_RENDERER_CONFIG);
 
@@ -91,7 +92,7 @@ export class A2uiRendererService implements OnDestroy {
     initializeAngularReactivity(inject(EnvironmentInjector));
     this._catalogs = this._config.catalogs;
     console.log('[A2uiRendererService] constructor, config:', this._config);
-    this._messageProcessor = new MessageProcessor<AngularComponentImplementation>(
+    this._messageProcessor = new MessageProcessor<WebComponentImplementation>(
       this._catalogs,
       this._config.actionHandler as ActionHandler,
     );
@@ -113,7 +114,7 @@ export class A2uiRendererService implements OnDestroy {
    *
    * Surfaces can be retrieved from this group using their `surfaceId`.
    */
-  get surfaceGroup(): SurfaceGroupModel<AngularComponentImplementation> {
+  get surfaceGroup(): SurfaceGroupModel<WebComponentImplementation> {
     return this._messageProcessor.model;
   }
 

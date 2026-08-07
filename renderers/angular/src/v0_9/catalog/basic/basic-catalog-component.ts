@@ -34,7 +34,12 @@ export abstract class BasicCatalogComponent<
   protected rendererService = inject(A2uiRendererService);
 
   readonly surface = computed(() => {
-    return this.rendererService.surfaceGroup.getSurface(this.surfaceId());
+    try {
+      const id = this.surfaceId();
+      return id ? this.rendererService.surfaceGroup.getSurface(id) : undefined;
+    } catch {
+      return undefined;
+    }
   });
 
   readonly theme = computed(() => {

@@ -28,7 +28,7 @@ import {
 import {NgComponentOutlet} from '@angular/common';
 import {ComponentContext, ComponentModel, SurfaceModel, Subscription} from '@a2ui/web_core/v0_9';
 import {A2uiRendererService} from './a2ui-renderer.service';
-import {AngularCatalog} from '../catalog/types';
+import {AngularComponentImplementation} from '../catalog/types';
 import {ComponentBinder} from './component-binder.service';
 import {BoundProperty} from './types';
 
@@ -54,10 +54,10 @@ import {BoundProperty} from './types';
         *ngComponentOutlet="
           componentType()!;
           inputs: {
-            'props': props(),
-            'surfaceId': surfaceId(),
-            'componentId': resolvedComponentId,
-            'dataContextPath': resolvedDataContextPath,
+            props: props(),
+            surfaceId: surfaceId(),
+            componentId: resolvedComponentId,
+            dataContextPath: resolvedDataContextPath,
           }
         "
       ></ng-container>
@@ -174,14 +174,18 @@ export class ComponentHostComponent {
     basePath: string,
   ): void {
     // Resolve component from the surface's catalog
-    const catalog = surface.catalog as AngularCatalog;
-    const api = catalog.components.get(componentModel.type);
+    const catalog = surface.catalog;
+    const api = catalog.components.get(componentModel.type) as
+      | AngularComponentImplementation
+      | undefined;
 
     if (!api) {
       console.error(`Component type "${componentModel.type}" not found in catalog "${catalog.id}"`);
       return;
     }
-    this.componentType.set(api.component);
+    if (api.component) {
+      this.componentType.set(api.component);
+    }
 
     // Create context
     this.context = new ComponentContext(surface, id, basePath);
