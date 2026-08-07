@@ -70,6 +70,10 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 
 14. Required actions: Parameters named 'action' (or annotated in component signatures) are strictly required. You must pass a valid Event (e.g. Event("click")) or function call. If no specific action is described in the user request, you must provide a dummy click event like Event("click") instead of passing null or omitting the parameter.
 
+15. Surface targeting: Output `surface(surfaceId)` to specify or target a user interface surface:
+    surface("dashboard-surface-1")
+    root = Card(...)
+
 ## Positional Component Signatures
 
 Use these exact positional signatures to instantiate components. Do not output property keys:
@@ -78,11 +82,11 @@ Use these exact positional signatures to instantiate components. Do not output p
   - description: A description of the audio, such as a title or summary.
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 • Button(child (static), variant? (static), action (static), weight? (static), checks? (static))
-  - child: The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button. Do NOT define the child component inline.
+  - child: The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button.
   - variant: A hint for the button style. If omitted, a default button style is used. 'primary' indicates this is the main call-to-action button. 'borderless' means the button has no visual border or background, making its child content appear like a clickable link. Must be one of: 'default', 'primary', 'borderless'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 • Card(child (static), weight? (static))
-  - child: The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID. Do NOT define the child component inline.
+  - child: The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID.
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 • CheckBox(label, value, weight? (static), checks? (static))
   - label: The text to display next to the checkbox.
@@ -132,8 +136,8 @@ Use these exact positional signatures to instantiate components. Do not output p
   - align: Defines the alignment of children along the cross axis. Must be one of: 'start', 'center', 'end', 'stretch'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 • Modal(trigger (static), content (static), weight? (static))
-  - trigger: The ID of the component that opens the modal when interacted with (e.g., a button). Do NOT define the component inline.
-  - content: The ID of the component to be displayed inside the modal. Do NOT define the component inline.
+  - trigger: The ID of the component that opens the modal when interacted with (e.g., a button).
+  - content: The ID of the component to be displayed inside the modal.
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 • Row(children, justify? (static), align? (static), weight? (static))
   - Description: A layout component that arranges its children horizontally. To create a grid layout, nest Columns within this Row.
@@ -152,7 +156,7 @@ Use these exact positional signatures to instantiate components. Do not output p
   - tabs: An array of objects, where each object defines a tab with a title and a child component.
     List of maps keys:
     * title - The tab title.
-    * child - The ID of the child component. Do NOT define the component inline.
+    * child - The ID of the child component.
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 • Text(text, variant? (static), weight? (static))
   - text: The text content to display. While simple Markdown formatting is supported (i.e. without HTML, images, or links), utilizing dedicated UI components is generally preferred for a richer and more structured presentation.
@@ -219,6 +223,7 @@ For layout, use the Row and Column components to organize other components.
 Example 1: Dynamic text form
 ```
 <a2ui>
+surface("main")
 $/form/rep = "John Doe"
 $/form/value = 1500.0
 root = Column([repField, valueField])
@@ -230,6 +235,7 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?None)
 Example 2: Dynamic list with templates
 ```
 <a2ui>
+surface("main")
 $/breeds = [{url: "https://example.com/poodle.jpg"}, {url: "https://example.com/lab.jpg"}]
 root = Card(breedList)
 breedList = List(_template($/breeds, breedTemplate), "horizontal")
@@ -278,113 +284,115 @@ itemTemp = Text($temp)
 The A2UI Express compiler parsed the compact DSL above, dynamically generated component IDs, constructed parent-child reference links, and resolved positional arguments to form a standard A2UI v1.0 `createSurface` message structure.
 
 ```json
-{
-  "version": "v1.0",
-  "createSurface": {
-    "surfaceId": "main",
-    "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-    "components": [
-      {
-        "id": "root",
-        "component": "Column",
-        "children": ["cityName", "currentRow", "divider", "forecastList"]
-      },
-      {
-        "id": "cityName",
-        "component": "Text",
-        "text": "New York"
-      },
-      {
-        "id": "currentRow",
-        "component": "Row",
-        "children": ["currentTemp", "currentIcon"],
-        "justify": "center",
-        "align": "center"
-      },
-      {
-        "id": "currentTemp",
-        "component": "Text",
-        "text": "68\u00b0F"
-      },
-      {
-        "id": "currentIcon",
-        "component": "Image",
-        "url": "https://img.icons8.com/color/96/000000/sun.png",
-        "description": "Sunny"
-      },
-      {
-        "id": "divider",
-        "component": "Divider",
-        "axis": "horizontal"
-      },
-      {
-        "id": "forecastList",
-        "component": "List",
-        "children": {
-          "path": "/forecast",
-          "componentId": "forecastItem"
+[
+  {
+    "version": "v1.0",
+    "createSurface": {
+      "surfaceId": "main",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["cityName", "currentRow", "divider", "forecastList"]
         },
-        "direction": "vertical"
-      },
-      {
-        "id": "forecastItem",
-        "component": "Row",
-        "children": ["itemDay", "itemIcon", "itemTemp"],
-        "justify": "spaceBetween",
-        "align": "center"
-      },
-      {
-        "id": "itemDay",
-        "component": "Text",
-        "text": {
-          "path": "day"
-        }
-      },
-      {
-        "id": "itemIcon",
-        "component": "Image",
-        "url": {
-          "path": "icon"
+        {
+          "id": "cityName",
+          "component": "Text",
+          "text": "New York"
         },
-        "description": "Weather icon"
-      },
-      {
-        "id": "itemTemp",
-        "component": "Text",
-        "text": {
-          "path": "temp"
+        {
+          "id": "currentRow",
+          "component": "Row",
+          "children": ["currentTemp", "currentIcon"],
+          "justify": "center",
+          "align": "center"
+        },
+        {
+          "id": "currentTemp",
+          "component": "Text",
+          "text": "68\u00b0F"
+        },
+        {
+          "id": "currentIcon",
+          "component": "Image",
+          "url": "https://img.icons8.com/color/96/000000/sun.png",
+          "description": "Sunny"
+        },
+        {
+          "id": "divider",
+          "component": "Divider",
+          "axis": "horizontal"
+        },
+        {
+          "id": "forecastList",
+          "component": "List",
+          "children": {
+            "path": "/forecast",
+            "componentId": "forecastItem"
+          },
+          "direction": "vertical"
+        },
+        {
+          "id": "forecastItem",
+          "component": "Row",
+          "children": ["itemDay", "itemIcon", "itemTemp"],
+          "justify": "spaceBetween",
+          "align": "center"
+        },
+        {
+          "id": "itemDay",
+          "component": "Text",
+          "text": {
+            "path": "day"
+          }
+        },
+        {
+          "id": "itemIcon",
+          "component": "Image",
+          "url": {
+            "path": "icon"
+          },
+          "description": "Weather icon"
+        },
+        {
+          "id": "itemTemp",
+          "component": "Text",
+          "text": {
+            "path": "temp"
+          }
         }
+      ],
+      "dataModel": {
+        "forecast": [
+          {
+            "day": "Monday",
+            "icon": "https://img.icons8.com/color/48/000000/sun.png",
+            "temp": "72\u00b0F / 55\u00b0F"
+          },
+          {
+            "day": "Tuesday",
+            "icon": "https://img.icons8.com/color/48/000000/partly-cloudy-day.png",
+            "temp": "68\u00b0F / 50\u00b0F"
+          },
+          {
+            "day": "Wednesday",
+            "icon": "https://img.icons8.com/color/48/000000/rain.png",
+            "temp": "60\u00b0F / 48\u00b0F"
+          },
+          {
+            "day": "Thursday",
+            "icon": "https://img.icons8.com/color/48/000000/partly-cloudy-day.png",
+            "temp": "65\u00b0F / 52\u00b0F"
+          },
+          {
+            "day": "Friday",
+            "icon": "https://img.icons8.com/color/48/000000/sun.png",
+            "temp": "70\u00b0F / 54\u00b0F"
+          }
+        ]
       }
-    ],
-    "dataModel": {
-      "forecast": [
-        {
-          "day": "Monday",
-          "icon": "https://img.icons8.com/color/48/000000/sun.png",
-          "temp": "72\u00b0F / 55\u00b0F"
-        },
-        {
-          "day": "Tuesday",
-          "icon": "https://img.icons8.com/color/48/000000/partly-cloudy-day.png",
-          "temp": "68\u00b0F / 50\u00b0F"
-        },
-        {
-          "day": "Wednesday",
-          "icon": "https://img.icons8.com/color/48/000000/rain.png",
-          "temp": "60\u00b0F / 48\u00b0F"
-        },
-        {
-          "day": "Thursday",
-          "icon": "https://img.icons8.com/color/48/000000/partly-cloudy-day.png",
-          "temp": "65\u00b0F / 52\u00b0F"
-        },
-        {
-          "day": "Friday",
-          "icon": "https://img.icons8.com/color/48/000000/sun.png",
-          "temp": "70\u00b0F / 54\u00b0F"
-        }
-      ]
     }
   }
-}
+]
 ```

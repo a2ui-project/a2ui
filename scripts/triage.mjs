@@ -331,6 +331,8 @@ export default async function issueTriage({github, context}) {
   // whose labels need to change. The snapshot from `listForRepo` can be stale
   // if another run (the daily schedule overlapping an issue event) already
   // changed a label, so the actual mutation re-checks the live state below.
+  // Include contributions so we can re-evaluate safely after
+  // re-reading the live issue.
   const itemsToUpdate = itemsWithContributions
     .map(({item, contributions, waitingSince}) => {
       const labels = labelNames(item);
@@ -343,7 +345,14 @@ export default async function issueTriage({github, context}) {
         ? {...item, labels: labels.filter(label => label !== WAITING_LABEL)}
         : item;
 
-      return {item, clearWaiting, reason: flagReason(scored, contributions, now)};
+      // Retain contributions so the mutation step can recompute the
+      // desired flag state from the live issue snapshot (avoids flip-flops).
+      return {
+        item,
+        contributions,
+        clearWaiting,
+        reason: flagReason(scored, contributions, now),
+      };
     })
     .filter(
       ({item, clearWaiting, reason}) =>
@@ -354,29 +363,45 @@ export default async function issueTriage({github, context}) {
   let removed = 0;
   let waitingCleared = 0;
 
-  await mapInBatches(itemsToUpdate, async ({item, clearWaiting, reason}) => {
+  await mapInBatches(itemsToUpdate, async ({item, contributions, clearWaiting, reason}) => {
     const target = {owner, repo, issue_number: item.number};
-    const wantsFlag = Boolean(reason);
+    // We'll re-read the live labels and recompute the desired flag state from
+    // the fresh data to avoid races where another concurrent run added/removed
+    // the flag between our snapshot and the mutation.
     try {
       // Re-read the live labels so a concurrent run cannot make us add or remove
       // a label twice.
       const {data: fresh} = await github.rest.issues.get(target);
       const freshLabels = labelNames(fresh);
 
-      if (clearWaiting && freshLabels.includes(WAITING_LABEL)) {
+      // Check whether the waiting label should be cleared against the live
+      // labels. Since contributions and waitingSince are not re-fetched, the
+      // author response status is unchanged from the snapshot.
+      const clearWaitingNow = clearWaiting && freshLabels.includes(WAITING_LABEL);
+
+      if (clearWaitingNow) {
         await github.rest.issues.removeLabel({...target, name: WAITING_LABEL});
         waitingCleared += 1;
         console.log(`Cleared ${WAITING_LABEL} on ${item.html_url} — the author responded.`);
       }
 
+      // Recompute desired flag state from the fresh issue snapshot (with the
+      // waiting label removed if we just cleared it) to avoid flip-flopping when
+      // runs overlap.
+      const scoredFresh = clearWaitingNow
+        ? {...fresh, labels: freshLabels.filter(l => l !== WAITING_LABEL)}
+        : fresh;
+      const freshReason = flagReason(scoredFresh, contributions, now);
+      const wantsFlag = Boolean(freshReason);
+
       if (wantsFlag === freshLabels.includes(FLAG_LABEL)) {
-        return; // Another run already reconciled the flag.
+        return; // Another run already reconciled the flag or no change needed.
       }
 
       if (wantsFlag) {
         await github.rest.issues.addLabels({...target, labels: [FLAG_LABEL]});
         added += 1;
-        console.log(`Flagged ${item.html_url} — ${reason}`);
+        console.log(`Flagged ${item.html_url} — ${freshReason}`);
       } else {
         await github.rest.issues.removeLabel({...target, name: FLAG_LABEL});
         removed += 1;
