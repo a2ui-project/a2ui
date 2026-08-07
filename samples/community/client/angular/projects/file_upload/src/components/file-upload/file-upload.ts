@@ -152,7 +152,11 @@ export class FileUploadComponent extends CatalogComponent<any> {
     }
   }
 
-  private async uploadSingleFile(file: File, index: number, totalFiles: number): Promise<UploadedFile> {
+  private async uploadSingleFile(
+    file: File,
+    index: number,
+    totalFiles: number,
+  ): Promise<UploadedFile> {
     let pointerUri: string;
 
     if (this.config.onUploadFile) {

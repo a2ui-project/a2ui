@@ -75,7 +75,11 @@ html {
   --a2ui-file-upload-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 
   --a2ui-file-upload-hover-border-color: rgba(0, 242, 255, 0.4);
-  --a2ui-file-upload-hover-bg: linear-gradient(145deg, rgba(20, 26, 50, 0.7), rgba(13, 18, 35, 0.9));
+  --a2ui-file-upload-hover-bg: linear-gradient(
+    145deg,
+    rgba(20, 26, 50, 0.7),
+    rgba(13, 18, 35, 0.9)
+  );
   --a2ui-file-upload-hover-shadow: 0 15px 35px var(--border-glow);
 
   --a2ui-file-upload-uploading-bg: rgba(168, 85, 247, 0.05);
