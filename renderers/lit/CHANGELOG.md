@@ -1,6 +1,11 @@
 ## Unreleased
 
 - (v0_9) Migrate basic catalog components from Shadow DOM to Light DOM rendering with shared basic catalog styling.
+- (v0_9) Updated basic catalog component behaviors to match Angular implementations:
+  - Text: Caption variant (`variant: caption`) now wraps text in `<em>`, rendering in italic style by default.
+  - TextField: Validation error messages now display all failed validation messages simultaneously instead of only the first one.
+  - Column: Column container element now defaults to `width: 100%`.
+  - Image: No longer sets `width: 100%` by default on the image container element.
 
 ## 0.10.3
 
