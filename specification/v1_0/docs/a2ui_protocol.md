@@ -358,7 +358,7 @@ This message is sent by the agent to execute a function registered on the render
 
 Execution boundary verification (`agentOnly` vs `rendererOnly`) is enforced strictly at runtime by the renderer application:
 
-- When a renderer receives a `callRendererFunction` message, it MUST look up the requested function name in its active catalog registry. (Note: The renderer determines the execution boundary of a function by reading the `callableFrom` metadata property or schema annotation declared in the catalog; if omitted, the boundary defaults to `"rendererOnly"`.)
+- When a renderer receives a `callRendererFunction` message, it determines the function's execution boundary (e.g., `callableFrom` status) at runtime by reading its configuration from the active catalog definition.
 - If the requested function is configured in the catalog as `agentOnly`, or if the function is not registered at all, the renderer MUST immediately reject the call and return a renderer-to-agent `error` message with `code: "INVALID_FUNCTION_CALL"`.
 
 **Example:**

@@ -104,6 +104,8 @@ export class Validator {
             );
           } else if (message.functionResponse) {
             validated = this.ajv.validate(`${schemaUri}#/$defs/FunctionResponseMessage`, message);
+          } else if (message.actionResponse) {
+            validated = this.ajv.validate(`${schemaUri}#/$defs/ActionResponseMessage`, message);
           } else {
             // Fallback to top-level validation if no known key matches (or if it's empty/invalid structure)
             validated = this.validateFn(message);
@@ -353,6 +355,13 @@ export class Validator {
           }
           activeSurfaces.delete(surfaceId);
         }
+      } else if (
+        message.callRendererFunction ||
+        message.functionResponse ||
+        message.actionResponse
+      ) {
+        // Valid v1.0 RPC messages without custom referential integrity requirements
+        continue;
       } else {
         errors.push(`Unknown message type in output: ${JSON.stringify(message)}`);
       }
