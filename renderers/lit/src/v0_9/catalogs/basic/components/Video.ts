@@ -29,7 +29,8 @@ export class A2uiVideoElement extends BasicCatalogA2uiLitElement<typeof VideoApi
    * - `--a2ui-video-border-radius`: Controls the rounded corners of the video. Defaults to `0`.
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-video {
       display: block;
       width: 100%;
     }

@@ -108,7 +108,7 @@ describe('Button Component', () => {
       e.context = context;
     });
 
-    const button = el.shadowRoot?.querySelector('button');
+    const button = el.querySelector('button');
     assert.ok(button);
     assert.strictEqual(button.disabled, false);
 
@@ -133,7 +133,7 @@ describe('Button Component', () => {
       e.context = context;
     });
 
-    const button = el.shadowRoot?.querySelector('button');
+    const button = el.querySelector('button');
     assert.ok(button);
     assert.strictEqual(button.disabled, true);
 

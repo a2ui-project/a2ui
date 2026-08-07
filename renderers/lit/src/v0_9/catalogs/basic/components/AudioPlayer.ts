@@ -23,7 +23,8 @@ import {A2uiController} from '../../../a2ui-controller.js';
 @customElement('a2ui-audioplayer')
 export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<typeof AudioPlayerApi> {
   static override styles = css`
-    :host {
+    :host,
+    a2ui-audioplayer {
       display: flex;
       flex-direction: column;
       gap: var(--a2ui-spacing-xs, 0.25rem);

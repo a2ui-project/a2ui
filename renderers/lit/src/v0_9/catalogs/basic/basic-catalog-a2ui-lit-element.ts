@@ -37,9 +37,71 @@ export type ResolvedChildList = ResolvedChildRef[];
 export abstract class BasicCatalogA2uiLitElement<
   Api extends ComponentApi,
 > extends A2uiLitElement<Api> {
+  /**
+   * Renders into the element's direct children (Light DOM) instead of a ShadowRoot.
+   */
+  override createRenderRoot() {
+    return this;
+  }
+
+  private adoptStyles() {
+    if (typeof document === 'undefined') return;
+    const root = this.getRootNode() as Document | ShadowRoot;
+
+    const constructor = this.constructor as typeof BasicCatalogA2uiLitElement & {
+      _processedSheet?: CSSStyleSheet;
+      _processedCss?: string;
+    };
+    const styles = constructor.styles;
+    if (!styles) return;
+
+    const tagName = this.tagName.toLowerCase();
+
+    if (!constructor._processedSheet && constructor._processedCss === undefined) {
+      const styleList = Array.isArray(styles) ? styles : [styles];
+      const rawCss = styleList
+        .map(s =>
+          s && typeof s === 'object' && 'cssText' in s ? String((s as any).cssText) : String(s),
+        )
+        .join('\n');
+
+      // In Light DOM, replace :host selectors with the specific tagName
+      // to avoid leaking styles to parent ShadowRoot hosts (such as explorer shells).
+      const processedCss = rawCss
+        .replace(/:where\(:host\)/g, `:where(${tagName})`)
+        .replace(/:host\(([^)]+)\)/g, `${tagName}$1`)
+        .replace(/:host/g, tagName);
+
+      constructor._processedCss = processedCss;
+
+      try {
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync(processedCss);
+        constructor._processedSheet = sheet;
+      } catch {
+        // Fallback for environments lacking CSSStyleSheet support
+      }
+    }
+
+    if (constructor._processedSheet && root && 'adoptedStyleSheets' in root) {
+      if (!root.adoptedStyleSheets.includes(constructor._processedSheet)) {
+        root.adoptedStyleSheets = [...root.adoptedStyleSheets, constructor._processedSheet];
+      }
+    } else if (constructor._processedCss) {
+      const target = root && root !== document ? (root as unknown as HTMLElement) : document.head;
+      if (target && !target.querySelector(`style[data-a2ui-tag="${tagName}"]`)) {
+        const styleEl = document.createElement('style');
+        styleEl.setAttribute('data-a2ui-tag', tagName);
+        styleEl.textContent = constructor._processedCss;
+        target.appendChild(styleEl);
+      }
+    }
+  }
+
   override connectedCallback() {
     super.connectedCallback();
     injectBasicCatalogStyles();
+    this.adoptStyles();
   }
 
   override willUpdate(changedProperties: Map<string, any>) {

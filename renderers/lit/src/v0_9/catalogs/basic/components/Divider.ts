@@ -31,7 +31,8 @@ export class A2uiDividerElement extends BasicCatalogA2uiLitElement<typeof Divide
    * - `--a2ui-divider-spacing`: The spacing around the divider. Defaults to `--a2ui-spacing-m`.
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-divider {
       display: block;
       align-self: stretch;
     }

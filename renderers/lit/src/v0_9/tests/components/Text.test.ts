@@ -100,7 +100,7 @@ describe('Text Component', () => {
       e.context = context;
     });
 
-    const span = el.shadowRoot?.querySelector('.no-markdown-renderer');
+    const span = el.querySelector('.no-markdown-renderer');
     assert.ok(span);
     assert.strictEqual(span.textContent?.trim(), 'Hello static text');
   });
@@ -115,7 +115,7 @@ describe('Text Component', () => {
       e.context = context;
     });
 
-    const span = el.shadowRoot?.querySelector('.no-markdown-renderer');
+    const span = el.querySelector('.no-markdown-renderer');
     assert.ok(span);
     assert.strictEqual(span.textContent?.trim(), 'Hello dynamic text');
 
@@ -136,7 +136,7 @@ describe('Text Component', () => {
       e.context = context;
     });
 
-    const captionSpan = el.shadowRoot?.querySelector('span.a2ui-caption');
+    const captionSpan = el.querySelector('span.a2ui-caption');
     assert.ok(captionSpan);
     const innerSpan = captionSpan.querySelector('.no-markdown-renderer');
     assert.ok(innerSpan);

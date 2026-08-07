@@ -50,7 +50,8 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowAp
    * - `--a2ui-row-gap`: The gap between items in the row. Defaults to `--a2ui-spacing-m`.
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-basic-row {
       display: flex;
       flex-direction: row;
       gap: var(--a2ui-row-gap, var(--a2ui-spacing-m));

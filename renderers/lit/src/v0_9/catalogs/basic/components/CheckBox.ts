@@ -36,7 +36,8 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof Check
    * - `--a2ui-checkbox-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-checkbox {
       display: block;
     }
     .container {
