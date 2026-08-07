@@ -32,21 +32,9 @@ if TYPE_CHECKING:
 
 from .config import RuntimeProfile, SkillConfig
 from .templates import (
-    BUILDER_INLINE_JS_TEMPLATE,
-    BUILDER_LIB_JS_TEMPLATE,
-    BUILDER_LIB_TEMPLATE,
-    EMITTER_LIB_JS_TEMPLATE,
-    EMITTER_LIB_TEMPLATE,
-    RUNTIME_BRIDGE_JS_TEMPLATE,
-    RUNTIME_BRIDGE_TEMPLATE,
-    SKILL_MD_JS_TEMPLATE,
-    SKILL_MD_TEMPLATE,
     RUNTIME_SHIM_JS,
-    SKILL_MD_WEBVIEW_TEMPLATE,
-    VALIDATE_UI_SCRIPT_JS_TEMPLATE,
-    VALIDATE_UI_SCRIPT_TEMPLATE,
-    VALIDATE_UI_WEBVIEW_TEMPLATE,
-    VALIDATOR_LIB_TEMPLATE,
+    SKILL_MD_TEMPLATE,
+    VALIDATE_UI_TEMPLATE,
 )
 
 
@@ -116,29 +104,15 @@ class SkillGenerator:
 
         Args:
             config: What skill to build -- name, output dir, catalogs, examples.
-            runtime: REQUIRED. Which host the skill must run on. There is deliberately no
-                default: every way of getting this wrong fails silently (the emitted code is
-                well formed and simply never reaches a renderer), so an explicit choice is
-                safer than a plausible guess.
+            runtime: Which host the skill must run on (defaults to RuntimeProfile.webview()).
             catalogs: Override for config.catalogs.
             capabilities: Override for config.capabilities.
             examples_path: Override for config.examples_path.
             examples: Override for config.examples.
             version: A2UI protocol version used to resolve a default basic catalog.
-
-        Raises:
-            ValueError: If no runtime profile is supplied.
         """
         self.config = config or SkillConfig()
-        if runtime is None:
-            raise ValueError(
-                "SkillGenerator(runtime=...) is required: a generated skill is only valid "
-                "against a specific host contract, and guessing wrong fails SILENTLY (the "
-                "module renders nothing). Use RuntimeProfile.antigravity_webview() for a "
-                "managed-agent webview host, RuntimeProfile.code_mode() for a "
-                "stdout-scraping sandbox host, or construct RuntimeProfile(...) directly."
-            )
-        self.runtime = runtime
+        self.runtime = runtime or RuntimeProfile.webview()
         self.version = version
         self.catalogs_raw = catalogs or self.config.catalogs
         self.capabilities_path = capabilities or self.config.capabilities
@@ -354,110 +328,6 @@ class SkillGenerator:
                 lines.append(f"- if unavailable: {c['fallback']}")
             lines.append("")
         return "\n".join(lines) if lines else "_No capabilities declared._"
-
-    def _build_component_helpers_js(self) -> str:
-        """Generates INLINE arrow-function helpers over the injected `h`.
-
-        Used when the host already injects a compiler (bundle_builder=False), so the module
-        does not carry a second builder. These are meant to be pasted inside the entry
-        function, which is why they are plain consts rather than exported classes.
-        """
-        comps = self._extract_components()
-        lines = []
-        for comp_name, comp_info in comps.items():
-            props = list(comp_info.get("properties", {}).keys())
-            hint = (", ".join(props[:8]) + ("..." if len(props) > 8 else "")) if props else "no documented props"
-            lines.append(f"// {comp_name}: {hint}")
-            lines.append(f"const {comp_name} = (props, ...children) => h('{comp_name}', props || {{}}, ...children);")
-        return "\n".join(lines)
-
-    def _build_component_classes_python(self) -> str:
-        """Generates Python builder classes for lib/builder.py."""
-        comps = self._extract_components()
-        code_blocks = []
-        for comp_name, comp_info in comps.items():
-            props = list(comp_info.get("properties", {}).keys())
-
-            class_code = (
-                f"class {comp_name}(Component):\n"
-                f'    """Builder for {comp_name} component."""\n'
-                f"    def __init__(self, *args, **kwargs):\n"
-                f"        prop_names = {props}\n"
-                f"        props = {{}}\n"
-                f"        for i, arg in enumerate(args):\n"
-                f"            if i < len(prop_names):\n"
-                f"                props[prop_names[i]] = arg\n"
-                f"        for k, v in kwargs.items():\n"
-                f"            props[k] = v\n"
-                f"        super().__init__('{comp_name}', props)\n"
-            )
-            code_blocks.append(class_code)
-        return "\n\n".join(code_blocks)
-
-    def _build_component_classes_js(self) -> str:
-        """Generates JavaScript builder classes for lib/builder.js."""
-        comps = self._extract_components()
-        code_blocks = []
-        for comp_name in comps.keys():
-            class_code = (
-                f"export class {comp_name} extends Component {{\n"
-                f"  constructor(props = {{}}) {{\n"
-                f"    super('{comp_name}', props);\n"
-                f"  }}\n"
-                f"}}"
-            )
-            code_blocks.append(class_code)
-        return "\n\n".join(code_blocks)
-
-    def _convert_a2ui_message_to_js(self, msg_data: Dict[str, Any]) -> str:
-        """Converts an A2UI message payload into bespoke executable JavaScript builder code."""
-        payload = msg_data.get("payload", msg_data)
-        used_components = set()
-
-        def format_node(node: Any, indent_level: int = 1) -> str:
-            if not isinstance(node, dict):
-                return json.dumps(node)
-
-            comp_type = node.get("type") or node.get("component")
-            if not comp_type:
-                return json.dumps(node)
-
-            used_components.add(comp_type)
-            indent = "  " * indent_level
-            inner_indent = "  " * (indent_level + 1)
-
-            props_str_list = []
-            for k, v in node.items():
-                if k in ("type", "component", "id"):
-                    continue
-                if k == "children" and isinstance(v, list):
-                    child_lines = [format_node(child, indent_level + 2) for child in v]
-                    props_str_list.append(
-                        f"children: [\n{'  ' * (indent_level + 2)}"
-                        + f",\n{'  ' * (indent_level + 2)}".join(child_lines)
-                        + f"\n{inner_indent}]"
-                    )
-                elif isinstance(v, dict) and ("type" in v or "component" in v):
-                    props_str_list.append(f"{k}: {format_node(v, indent_level + 1)}")
-                else:
-                    props_str_list.append(f"{k}: {json.dumps(v)}")
-
-            props_body = f",\n{inner_indent}".join(props_str_list)
-            if props_body:
-                return f"new {comp_type}({{\n{inner_indent}{props_body}\n{indent}}})"
-            else:
-                return f"new {comp_type}()"
-
-        js_ui_code = format_node(payload)
-        comp_imports = ", ".join(sorted(used_components)) or "Component"
-
-        return (
-            f"import {{ {comp_imports} }} from '../lib/builder.js';\n"
-            f"import {{ updateComponents }} from '../lib/emitter.js';\n\n"
-            f"const ui = {js_ui_code};\n\n"
-            f"updateComponents(ui);\n"
-        )
-
 
     @staticmethod
     def _parse_a2ui_example(raw: Any) -> Dict[str, Any]:
@@ -1030,67 +900,21 @@ async function {entry}(input) {{
 {draw_js}{tail}}}
 """
 
-    def _convert_a2ui_message_to_python(self, msg_data: Dict[str, Any]) -> str:
-        """Converts an A2UI message payload into bespoke executable Python builder code."""
-        payload = msg_data.get("payload", msg_data)
-        used_components = set()
-
-        def format_node(node: Any, indent_level: int = 1) -> str:
-            if not isinstance(node, dict):
-                return repr(node)
-
-            comp_type = node.get("type") or node.get("component")
-            if not comp_type:
-                return repr(node)
-
-            used_components.add(comp_type)
-            indent = "    " * indent_level
-            inner_indent = "    " * (indent_level + 1)
-
-            props_str_list = []
-            for k, v in node.items():
-                if k in ("type", "component", "id"):
-                    continue
-                if k == "children" and isinstance(v, list):
-                    child_lines = [format_node(child, indent_level + 2) for child in v]
-                    props_str_list.append(
-                        f"children=[\n{'    ' * (indent_level + 2)}"
-                        + f",\n{'    ' * (indent_level + 2)}".join(child_lines)
-                        + f"\n{inner_indent}]"
-                    )
-                elif isinstance(v, dict) and ("type" in v or "component" in v):
-                    props_str_list.append(f"{k}={format_node(v, indent_level + 1)}")
-                else:
-                    props_str_list.append(f"{k}={repr(v)}")
-
-            props_body = f",\n{inner_indent}".join(props_str_list)
-            if props_body:
-                return f"{comp_type}(\n{inner_indent}{props_body}\n{indent})"
-            else:
-                return f"{comp_type}()"
-
-        py_ui_code = format_node(payload)
-        comp_imports = ", ".join(sorted(used_components)) or "Component"
-
-        return (
-            "import sys\n"
-            "from pathlib import Path\n"
-            "sys.path.insert(0, str(Path(__file__).parent.parent))\n"
-            f"from lib.builder import {comp_imports}\n"
-            "from lib.emitter import emit_ui\n\n"
-            f"ui = {py_ui_code}\n"
-            "emit_ui(ui)\n"
-        )
-
-    def _generate_references(self, references_dir: Path, is_js: bool) -> None:
+    def _generate_references(self, references_dir: Path) -> None:
         """Generates bespoke code snippets in references/ from provided A2UI example messages and writes README.md."""
-        ext = "js" if is_js else "py"
         collected_examples: List[Dict[str, Any]] = []
 
         # 1. Parse example messages provided via list
-        for item in self.examples_raw:
-            if isinstance(item, dict) or isinstance(item, list):
-                collected_examples.append(("example", item))
+        for idx, item in enumerate(self.examples_raw, 1):
+            if isinstance(item, dict):
+                stem = (
+                    item.get("name")
+                    or (item.get("payload", {}).get("type") if isinstance(item.get("payload"), dict) else None)
+                    or f"example_{idx}"
+                )
+                collected_examples.append((str(stem), item))
+            elif isinstance(item, list):
+                collected_examples.append((f"example_{idx}", item))
             elif isinstance(item, str):
                 if os.path.exists(item):
                     with open(item, "r", encoding="utf-8") as f:
@@ -1098,7 +922,13 @@ async function {entry}(input) {{
                             os.path.splitext(os.path.basename(item))[0], json.load(f)))
                 else:
                     try:
-                        collected_examples.append(("example", json.loads(item)))
+                        parsed = json.loads(item)
+                        stem = (
+                            parsed.get("name")
+                            or (parsed.get("payload", {}).get("type") if isinstance(parsed.get("payload"), dict) else None)
+                            if isinstance(parsed, dict) else f"example_{idx}"
+                        )
+                        collected_examples.append((str(stem or f"example_{idx}"), parsed))
                     except Exception:
                         pass
 
@@ -1127,83 +957,52 @@ async function {entry}(input) {{
             for stem, raw in collected_examples:
                 ex_msg = self._parse_a2ui_example(raw)
                 msg_name = stem
-                sanitized_name = f"{stem}.{ext}"
+                sanitized_name = f"{stem}.js"
 
-                if is_js and self.runtime.is_classic_main:
-                    code_content = self._convert_a2ui_message_to_webview_js(ex_msg, str(msg_name))
-                elif is_js:
-                    code_content = self._convert_a2ui_message_to_js(ex_msg)
-                else:
-                    code_content = self._convert_a2ui_message_to_python(ex_msg)
+                code_content = self._convert_a2ui_message_to_webview_js(ex_msg, str(msg_name))
 
                 with open(references_dir / sanitized_name, "w", encoding="utf-8") as f:
                     f.write(code_content)
                 created_files.append((sanitized_name, str(msg_name)))
 
-        # index.json -- the reference library, materialized.
-        #
-        # A browser cannot list a directory over plain HTTP, so a host that resolves
-        # references by name needs the listing as a file. It belongs HERE because this is
-        # what wrote the directory: owned by anything else, it goes missing the first time
-        # the skill is regenerated into a clean tree, and the host then fails to resolve a
-        # reference that exists on disk.
-        if created_files:
-            names = sorted(n for n, _ in created_files)
-            with open(references_dir / "index.json", "w", encoding="utf-8") as f:
-                json.dump(names, f, indent=2)
-                f.write("\n")
-        else:
+        if not created_files:
             # Fallback reference if no example messages provided
-            sanitized_name = f"01_basic_reference.{ext}"
-            if is_js and self.runtime.is_classic_main:
-                # Must match the host contract, not the code-mode default: an ES import here
-                # is a syntax error inside a classic <script> and there is no lib/ on device.
-                entry = self.runtime.entry or "main"
-                ref_code = (
-                    "// Minimal reference for a classic-main host. Generated by "
-                    "a2ui_agent.skill_generator.\n"
-                    f"async function {entry}(input) {{\n"
-                    "  const Text = (props) => h('Text', props);\n"
-                    "  const Button = (props) => h('Button', props);\n"
-                    "  const Column = (props, ...kids) => h('Column', props || {}, ...kids);\n\n"
-                    "  render(Column({},\n"
-                    "    Text({ text: 'Basic A2UI Reference Example' }),\n"
-                    "    Button({ label: 'Continue', action: { event: { name: 'confirm' } } })\n"
-                    "  ));\n\n"
-                    "  return await new Promise((resolve) => {\n"
-                    "    onEvent(async (name) => {\n"
-                    "      if (name !== 'confirm') return;\n"
-                    "      resolve({ status: 'ok', userText: 'Continued.' });\n"
-                    "    });\n"
-                    "  });\n"
-                    "}\n"
-                )
-            elif is_js:
-                ref_code = (
-                    "import { Text, Button } from '../lib/builder.js';\n"
-                    "import { updateComponents } from '../lib/emitter.js';\n\n"
-                    "const ui = new Text({ text: 'Basic A2UI Reference Example' });\n\n"
-                    "updateComponents(ui);\n"
-                )
-            else:
-                ref_code = (
-                    "import sys\n"
-                    "from pathlib import Path\n"
-                    "sys.path.insert(0, str(Path(__file__).parent.parent))\n"
-                    "from lib.builder import Text\n"
-                    "from lib.emitter import emit_ui\n\n"
-                    "ui = Text(text='Basic A2UI Reference Example')\n"
-                    "emit_ui(ui)\n"
-                )
+            sanitized_name = "01_basic_reference.js"
+            entry = self.runtime.entry or "main"
+            ref_code = (
+                "// Minimal reference for a classic-main host. Generated by "
+                "a2ui_agent.skill_generator.\n"
+                f"async function {entry}(input) {{\n"
+                "  const Text = (props) => h('Text', props);\n"
+                "  const Button = (props) => h('Button', props);\n"
+                "  const Column = (props, ...kids) => h('Column', props || {}, ...kids);\n\n"
+                "  render(Column({},\n"
+                "    Text({ text: 'Basic A2UI Reference Example' }),\n"
+                "    Button({ label: 'Continue', action: { event: { name: 'confirm' } } })\n"
+                "  ));\n\n"
+                "  return await new Promise((resolve) => {\n"
+                "    onEvent(async (name) => {\n"
+                "      if (name !== 'confirm') return;\n"
+                "      resolve({ status: 'ok', userText: 'Continued.' });\n"
+                "    });\n"
+                "  });\n"
+                "}\n"
+            )
             with open(references_dir / sanitized_name, "w", encoding="utf-8") as f:
                 f.write(ref_code)
             created_files.append((sanitized_name, "basic_reference"))
 
+        # index.json -- the reference library, materialized.
+        names = sorted(n for n, _ in created_files)
+        with open(references_dir / "index.json", "w", encoding="utf-8") as f:
+            json.dump(names, f, indent=2)
+            f.write("\n")
+
         # 4. Generate references/README.md index file
         readme_lines = [
             "# Reference Examples Index\n",
-            "This directory contains executable reference code examples demonstrating how to construct and emit A2UI components using `lib/builder` and `lib/emitter`.\n",
-            "## Available Reference Modules\n"
+            "This directory contains executable reference code examples demonstrating how to construct and emit A2UI components.\n",
+            "## Available Reference Modules\n",
         ]
 
         for filename, title in created_files:
@@ -1211,18 +1010,12 @@ async function {entry}(input) {{
 
         readme_lines.extend([
             "\n## How to Execute Reference Self-Test\n",
-            "You can run any reference script directly via CLI to test execution and A2UI protocol bounding:\n"
+            "You can run the pre-flight validator to test reference execution and A2UI schema compliance:\n",
+            f"```bash\nnode scripts/validate_ui.mjs --code-file references/{created_files[0][0]}\n```\n",
         ])
-
-        if is_js:
-            readme_lines.append(f"```bash\nnode references/{created_files[0][0]}\n```")
-        else:
-            readme_lines.append(f"```bash\npython3 references/{created_files[0][0]}\n```")
 
         with open(references_dir / "README.md", "w", encoding="utf-8") as f:
             f.write("\n".join(readme_lines) + "\n")
-
-
 
     def _collect_examples(self):
         """(stem, raw) for every example, keyed by FILE NAME."""
@@ -1244,13 +1037,7 @@ async function {entry}(input) {{
         return out
 
     def _reference_contracts(self) -> str:
-        """Documents, per reference, the input each one actually reads.
-
-        The absolute {path:'/...'} bindings in an example ARE its input contract: a surface
-        that binds /options/flights cannot render without it. Without this section the agent
-        knows a reference exists but not what to feed it, and sends an empty surface -- which
-        renders correctly and uselessly.
-        """
+        """Documents, per reference, the input each one actually reads."""
         cases = []
         for stem, raw in self._collect_examples():
             ex = self._parse_a2ui_example(raw)
@@ -1261,14 +1048,9 @@ async function {entry}(input) {{
                     p = node.get("path")
                     if isinstance(p, str) and p.startswith("/"):
                         paths.add(p)
-                    # A List's repetition source is the biggest input requirement of all -- a
-                    # surface bound to /options/flights renders NOTHING without it -- and after
-                    # normalization it lives in `template`, not in a {path} descriptor.
                     t = node.get("template")
                     if isinstance(t, str) and t.startswith("/"):
                         paths.add(t)
-                    # A computed string reads its inputs too. They are just as required as a
-                    # binding -- the field is simply interpolated rather than bound.
                     f_ = node.get("format")
                     if isinstance(f_, str):
                         for m in re.findall(r"\{([^}]+)\}", f_):
@@ -1280,8 +1062,6 @@ async function {entry}(input) {{
                     for v in node:
                         scan(v)
 
-            # Relative paths inside a template describe the ITEM shape -- without them the
-            # agent knows a list is needed but not what each entry must contain.
             rel: set = set()
 
             def scan_rel(node, inside):
@@ -1291,9 +1071,6 @@ async function {entry}(input) {{
                     p_ = node.get("path")
                     if here and isinstance(p_, str) and not p_.startswith("/"):
                         rel.add(p_)
-                    # `format` interpolations and `when` predicates read the item too. Leaving
-                    # them out is how the agent learns a list is needed but not that a leg it
-                    # drives has to say `ground`, or a two-ticket leg `passengers`.
                     f_ = node.get("format")
                     if here and isinstance(f_, str):
                         for m in re.findall(r"\{([^}]+)\}", f_):
@@ -1308,7 +1085,6 @@ async function {entry}(input) {{
             scan(ex.get("components"))
             scan_rel(ex.get("components"), False)
             if paths:
-                # collapse /a/b/c -> the top-level key the agent must supply
                 roots = sorted({"/" + p.strip("/").split("/")[0] for p in paths})
                 cases.append((stem, sorted(paths), roots, sorted(rel)))
         if not cases:
@@ -1326,26 +1102,24 @@ async function {entry}(input) {{
             out.append("")
         return "\n".join(out)
 
-    def _generate_webview(
-        self,
-        target_dir: Path,
-        scripts_dir: Path,
-        references_dir: Path,
-        lib_dir: Path,
-    ) -> str:
-        """Emits a skill for a classic-main / injected-emit host.
+    def generate(self) -> str:
+        """Generates the full agent skill directory and returns its absolute path."""
+        target_dir = Path(self.config.output_dir).resolve()
+        target_dir.mkdir(parents=True, exist_ok=False)
 
-        Differences from the stdout-scraping path, each of which is load-bearing: modules are
-        self-contained classic scripts (no imports, no lib/), UI reaches the renderer through
-        injected globals rather than stdout markers, and the pre-flight is generated from the
-        catalog so its allowed component set cannot drift.
-        """
+        scripts_dir = target_dir / "scripts"
+        references_dir = target_dir / "references"
+        runtime_dir = target_dir / "runtime"
+
+        for d in [scripts_dir, references_dir]:
+            d.mkdir(exist_ok=True)
+
         rt = self.runtime
         components = list(self._extract_components().keys())
 
-        # SKILL.md -- the contract plus the catalog projection.
+        # 1. Write SKILL.md
         cap_names = self._client_capability_names()
-        skill_md = SKILL_MD_WEBVIEW_TEMPLATE.format(
+        skill_md = SKILL_MD_TEMPLATE.format(
             skill_name=self.config.skill_name,
             skill_name_title=self.config.skill_name.replace("-", " ").title(),
             description=self.config.description,
@@ -1365,115 +1139,27 @@ async function {entry}(input) {{
         with open(target_dir / "SKILL.md", "w", encoding="utf-8") as f:
             f.write(skill_md)
 
-        # Inline component helpers -- pasted into a module, never imported. Opt-in: the
-        # component signatures are already in SKILL.md, so emitting this by default just
-        # adds an unread file to every mount.
-        if not rt.bundle_builder and self.config.include_builder_lib:
-            lib_dir.mkdir(exist_ok=True)
-            with open(lib_dir / "component-helpers.js", "w", encoding="utf-8") as f:
-                f.write(BUILDER_INLINE_JS_TEMPLATE.format(
-                    component_helpers=self._build_component_helpers_js()))
-
-        # The webview runtime shim. The DEVICE injects its own copy, so this one exists for
-        # the pre-flight to simulate the device exactly -- and so the skill is self-sufficient
-        # rather than assuming a shim was already present in the output directory.
+        # 2. Webview runtime shim
         if rt.ui_transport == "injected-emit":
-            runtime_dir = target_dir / "runtime"
             runtime_dir.mkdir(exist_ok=True)
             with open(runtime_dir / "a2ui-react.js", "w", encoding="utf-8") as f:
                 f.write(RUNTIME_SHIM_JS)
 
-        # The pre-flight, generated so its palette comes from the catalog.
+        # 3. Pre-flight validation script
         globals_args = ", ".join(f"'{g}'" for g in rt.injected_globals)
-        validator = VALIDATE_UI_WEBVIEW_TEMPLATE.format(
+        validator = VALIDATE_UI_TEMPLATE.format(
             catalog_components=json.dumps(components),
             entry=rt.entry or "main",
             globals_args=globals_args,
             globals_args_bare=", ".join(rt.injected_globals),
         )
-        validator_name = "validate_ui.mjs"  # .mjs: always ESM, regardless of package "type"
+        validator_name = "validate_ui.mjs"
         with open(scripts_dir / validator_name, "w", encoding="utf-8") as f:
             f.write(validator)
         os.chmod(scripts_dir / validator_name, 0o755)
 
-        self._generate_references(references_dir, is_js=True)
+        # 4. References
+        self._generate_references(references_dir)
 
         return str(target_dir)
 
-    def generate(self, output_dir: Optional[str] = None) -> str:
-        """Generates the full agent skill directory and returns its absolute path."""
-        target_dir = Path(output_dir or self.config.output_dir).resolve()
-        target_dir.mkdir(parents=True, exist_ok=True)
-
-        is_js = self.config.target_language.lower() in ["javascript", "js", "typescript", "ts"]
-        webview = is_js and self.runtime.is_classic_main
-
-        lib_dir = target_dir / "lib"
-        runtime_dir = target_dir / "runtime"
-        scripts_dir = target_dir / "scripts"
-        references_dir = target_dir / "references"
-
-        dirs = [scripts_dir, references_dir]
-        # A host that injects its own compiler needs neither a bundled builder nor a stdout
-        # bridge; emitting them would put a second, unused runtime on the device.
-        if self.runtime.bundle_builder:
-            dirs.append(lib_dir)
-        if self.config.include_runtime_bridge and self.runtime.ui_transport == "stdout-markers":
-            dirs.append(runtime_dir)
-        for d in dirs:
-            d.mkdir(exist_ok=True)
-
-        if webview:
-            return self._generate_webview(
-                target_dir, scripts_dir, references_dir, lib_dir
-            )
-
-        # 2. Write lib/ files
-        if is_js:
-            component_classes_code = self._build_component_classes_js()
-            with open(lib_dir / "builder.js", "w", encoding="utf-8") as f:
-                f.write(BUILDER_LIB_JS_TEMPLATE.format(component_classes=component_classes_code))
-            with open(lib_dir / "emitter.js", "w", encoding="utf-8") as f:
-                f.write(EMITTER_LIB_JS_TEMPLATE)
-        else:
-            component_classes_code = self._build_component_classes_python()
-            with open(lib_dir / "builder.py", "w", encoding="utf-8") as f:
-                f.write(BUILDER_LIB_TEMPLATE.format(component_classes=component_classes_code))
-            with open(lib_dir / "emitter.py", "w", encoding="utf-8") as f:
-                f.write(EMITTER_LIB_TEMPLATE)
-            with open(lib_dir / "validator.py", "w", encoding="utf-8") as f:
-                f.write(VALIDATOR_LIB_TEMPLATE)
-            with open(lib_dir / "__init__.py", "w", encoding="utf-8") as f:
-                f.write("# lib package for A2UI skill\n")
-
-        # 3. Write runtime/ and scripts/
-        if is_js:
-            with open(runtime_dir / "bridge.js", "w", encoding="utf-8") as f:
-                f.write(RUNTIME_BRIDGE_JS_TEMPLATE)
-            with open(scripts_dir / "validate_ui.js", "w", encoding="utf-8") as f:
-                f.write(VALIDATE_UI_SCRIPT_JS_TEMPLATE)
-            os.chmod(scripts_dir / "validate_ui.js", 0o755)
-        else:
-            with open(runtime_dir / "bridge.py", "w", encoding="utf-8") as f:
-                f.write(RUNTIME_BRIDGE_TEMPLATE)
-            with open(scripts_dir / "validate_ui.py", "w", encoding="utf-8") as f:
-                f.write(VALIDATE_UI_SCRIPT_TEMPLATE)
-            os.chmod(scripts_dir / "validate_ui.py", 0o755)
-
-        # 4. Write SKILL.md
-        skill_name_title = self.config.skill_name.replace("-", " ").title()
-        catalog_docs = self._build_catalog_documentation()
-        template_to_use = SKILL_MD_JS_TEMPLATE if is_js else SKILL_MD_TEMPLATE
-        skill_md_content = template_to_use.format(
-            skill_name=self.config.skill_name,
-            skill_name_title=skill_name_title,
-            description=self.config.description,
-            catalog_documentation=catalog_docs,
-        )
-        with open(target_dir / "SKILL.md", "w", encoding="utf-8") as f:
-            f.write(skill_md_content)
-
-        # 5. Write reference examples in references/
-        self._generate_references(references_dir, is_js)
-
-        return str(target_dir)

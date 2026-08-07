@@ -23,11 +23,8 @@ from typing import List, Optional
 from .config import RuntimeProfile, SkillConfig
 from .generator import SkillGenerator
 
-# Named host contracts selectable from the command line. A profile is REQUIRED because
-# guessing wrong fails silently -- the emitted module is well formed and never renders.
 RUNTIME_PROFILES = {
-    "antigravity-webview": RuntimeProfile.antigravity_webview,
-    "code-mode": RuntimeProfile.code_mode,
+    "webview": RuntimeProfile.webview,
 }
 
 
@@ -52,12 +49,6 @@ def main(args: Optional[List[str]] = None) -> None:
         help="Path to component catalog JSON/YAML definition file (can specify multiple)",
     )
     parser.add_argument(
-        "--target-language",
-        default="javascript",
-        choices=["python", "javascript", "js", "typescript", "ts"],
-        help="Target language for generated builder DSL and references (default: javascript)",
-    )
-    parser.add_argument(
         "--examples",
         help="Path to directory containing example A2UI JSON payload files",
     )
@@ -73,12 +64,9 @@ def main(args: Optional[List[str]] = None) -> None:
     )
     parser.add_argument(
         "--runtime",
-        required=True,
+        default="webview",
         choices=sorted(RUNTIME_PROFILES),
-        help="REQUIRED host contract. 'antigravity-webview': module source is shipped to a "
-        "confined webview that injects h/render/invoke/emit and renders A2UI natively. "
-        "'code-mode': script runs in a sandbox and a bridge scrapes markers from stdout. "
-        "There is no default because the wrong choice fails silently.",
+        help="Host runtime contract (default: webview).",
     )
     parser.add_argument(
         "--capabilities",
@@ -95,7 +83,6 @@ def main(args: Optional[List[str]] = None) -> None:
         skill_name=parsed_args.name,
         description=parsed_args.description,
         output_dir=out_dir,
-        target_language=parsed_args.target_language,
         catalogs=catalogs,
         capabilities=parsed_args.capabilities,
         examples_path=parsed_args.examples,

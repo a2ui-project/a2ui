@@ -44,12 +44,11 @@ class RuntimeProfile:
         mount_root: Where skills are mounted in the agent's filesystem.
     """
 
-    name: str = "custom"
-    module_form: str = "esm-toplevel"
+    name: str
+    module_form: str
+    ui_transport: str
     entry: Optional[str] = None
-    ui_transport: str = "stdout-markers"
     injected_globals: List[str] = field(default_factory=list)
-    bundle_builder: bool = True
     preflight_cmd: Optional[str] = None
     tool_name: Optional[str] = None
     mount_root: str = ".agents/skills"
@@ -60,10 +59,9 @@ class RuntimeProfile:
         return self.module_form == "classic-global-main"
 
     @classmethod
-    def antigravity_webview(
+    def webview(
         cls,
         tool_name: str = "send_client_app",
-        bundle_builder: bool = False,
         preflight_cmd: Optional[str] = None,
         mount_root: str = ".agents/skills",
     ) -> "RuntimeProfile":
@@ -76,31 +74,15 @@ class RuntimeProfile:
         event.
         """
         return cls(
-            name="antigravity-webview",
+            name="webview",
             module_form="classic-global-main",
             entry="main",
             ui_transport="injected-emit",
             injected_globals=["h", "render", "invoke", "emit", "onUpdate", "onEvent"],
-            bundle_builder=bundle_builder,
             preflight_cmd=preflight_cmd
             or "node {skill_root}/scripts/validate_ui.mjs --code-file {app} --client={components}",
             tool_name=tool_name,
             mount_root=mount_root,
-        )
-
-    @classmethod
-    def code_mode(cls) -> "RuntimeProfile":
-        """Script runs in a sandbox; a bridge scrapes delimited JSON from stdout.
-
-        The generator's original built-in assumption (Codex-style / Cloudflare Code Mode).
-        """
-        return cls(
-            name="code-mode",
-            module_form="esm-toplevel",
-            entry=None,
-            ui_transport="stdout-markers",
-            injected_globals=[],
-            bundle_builder=True,
         )
 
 
@@ -112,16 +94,12 @@ class SkillConfig:
         skill_name: Unique identifier for the skill (e.g. 'render-ui' or 'render-travel-ui').
         description: Description of what the skill does, used in SKILL.md YAML frontmatter.
         output_dir: Target directory path where the skill folder will be created.
-        target_language: Programming language for reference scripts and lib helpers
-            (default: 'javascript' -- device modules run in a JS engine).
         catalogs: Optional list of CatalogConfig instances or catalog file paths.
         capabilities: Optional path to a capability catalog JSON. Same kind of input as
             `catalogs`: it documents invoke()'s typed args/results, which a client handshake
             (names only) does not carry.
         examples_path: Optional path to directory containing example A2UI JSON payloads.
         examples: Optional list of A2UI JSON messages (dicts, JSON strings, or file paths).
-        include_builder_lib: Whether to generate the fluent component builder helper in lib/ (default: True).
-        include_runtime_bridge: Whether to generate runtime webview bridge adapter (default: True).
     """
 
     skill_name: str = "render-ui"
@@ -130,10 +108,7 @@ class SkillConfig:
         "and function bindings."
     )
     output_dir: str = ".agents/skills/render-ui"
-    target_language: str = "javascript"
     catalogs: List[Any] = field(default_factory=list)
     capabilities: Optional[str] = None
     examples_path: Optional[str] = None
     examples: Optional[List[Any]] = None
-    include_builder_lib: bool = False
-    include_runtime_bridge: bool = True
