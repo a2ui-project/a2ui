@@ -24,12 +24,13 @@ provided.
 
 ## Examples
 
-Check out the sample renderer apps: 
-  * [Angular](https://github.com/a2ui-project/composer/tree/main/samples/ng-basic-catalog)
-  * [Lit](https://github.com/a2ui-project/composer/tree/main/samples/lit-basic-catalog)
-  * [React](https://github.com/a2ui-project/composer/tree/main/samples/react-basic-catalog)
+Check out the sample renderer apps:
 
-The all serve the same version of the Basic catalog.
+- [Angular](https://github.com/a2ui-project/composer/tree/main/samples/ng-basic-catalog)
+- [Lit](https://github.com/a2ui-project/composer/tree/main/samples/lit-basic-catalog)
+- [React](https://github.com/a2ui-project/composer/tree/main/samples/react-basic-catalog)
+
+They all serve the same version of the Basic catalog.
 
 When running the hosted [A2UI Composer](https://a2ui-project.github.io/composer/),
 you can see each of these renderer applications in action by going to the
