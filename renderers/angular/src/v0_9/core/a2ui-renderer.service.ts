@@ -20,32 +20,37 @@ import {
   InjectionToken,
   inject,
   EnvironmentInjector,
-  EnvironmentProviders,
-  makeEnvironmentProviders,
+  Injector,
 } from '@angular/core';
 import {
   MessageProcessor,
   SurfaceGroupModel,
   ActionListener as ActionHandler,
   A2uiMessage,
-  A2uiClientAction as Action,
 } from '@a2ui/web_core/v0_9';
-import {AngularComponentImplementation, AngularCatalog} from '../catalog/types';
+import {AngularCatalog, CatalogComponentImplementation} from '../catalog/types';
+import {prepareUniversalCatalog} from '../catalog/prepare_universal_catalog';
 import {initializeAngularReactivity} from './reactivity';
 
 /**
  * Configuration for the A2UI renderer.
  */
 export interface RendererConfiguration {
-  /** The catalogs containing the available components and functions. */
-  catalogs: AngularCatalog[];
+  /**
+   * The catalogs containing the available components and functions.
+   * If omitted, defaults to an empty list of catalogs.
+   */
+  catalogs?: AngularCatalog[];
+  /**
+   * When true, uses W3C universal web components application-wide across all catalogs
+   * instead of native Angular components.
+   * When false (default), uses native Angular component implementations.
+   */
+  useUniversalComponents?: boolean;
   /**
    * Optional handler for actions dispatched from any surface.
-   *
-   * This callback is invoked whenever a component in any surface triggers an action
-   * (e.g., clicking a button with an `onTap` property).
    */
-  actionHandler?: (action: Action) => void;
+  actionHandler?: ActionHandler;
 }
 
 /**
@@ -56,23 +61,18 @@ export const A2UI_RENDERER_CONFIG = new InjectionToken<RendererConfiguration>(
 );
 
 /**
- * Provides the A2UI renderer configuration.
+ * Injection token to specify whether universal W3C web components should be used
+ * application-wide across all catalogs instead of native Angular components.
  *
- * @param configOrFactory The configuration or a factory function that returns the configuration.
- * @returns The providers for the A2UI renderer.
+ * Defaults to `false` (native Angular components).
  */
-export function provideA2Ui(
-  configOrFactory: RendererConfiguration | (() => RendererConfiguration),
-): EnvironmentProviders {
-  return makeEnvironmentProviders([
-    {
-      provide: A2UI_RENDERER_CONFIG,
-      ...(typeof configOrFactory === 'function'
-        ? {useFactory: configOrFactory}
-        : {useValue: configOrFactory}),
-    },
-  ]);
-}
+export const A2UI_USE_UNIVERSAL_COMPONENTS = new InjectionToken<boolean>(
+  'A2UI_USE_UNIVERSAL_COMPONENTS',
+  {
+    providedIn: 'root',
+    factory: () => false,
+  },
+);
 
 /**
  * Manages A2UI v0.9 rendering sessions by bridging the MessageProcessor to Angular.
@@ -83,18 +83,30 @@ export function provideA2Ui(
  */
 @Injectable({providedIn: 'root'})
 export class A2uiRendererService implements OnDestroy {
-  private _messageProcessor: MessageProcessor<AngularComponentImplementation>;
+  private _messageProcessor: MessageProcessor<CatalogComponentImplementation>;
   private _catalogs: AngularCatalog[] = [];
-  private _config = inject(A2UI_RENDERER_CONFIG);
+  private _config = inject(A2UI_RENDERER_CONFIG, {optional: true});
+  readonly useUniversalComponents: boolean;
 
   constructor() {
-    initializeAngularReactivity(inject(EnvironmentInjector));
-    this._catalogs = this._config.catalogs;
-    console.log('[A2uiRendererService] constructor, config:', this._config);
-    this._messageProcessor = new MessageProcessor<AngularComponentImplementation>(
+    const injector = inject(Injector);
+    initializeAngularReactivity(injector.get(EnvironmentInjector));
+    const injectedUniversal = inject(A2UI_USE_UNIVERSAL_COMPONENTS, {optional: true}) ?? false;
+    this.useUniversalComponents = this._config?.useUniversalComponents ?? injectedUniversal;
+    this.initCatalogs(injector);
+    this._messageProcessor = new MessageProcessor<CatalogComponentImplementation>(
       this._catalogs,
-      this._config.actionHandler as ActionHandler,
+      this._config?.actionHandler as ActionHandler,
     );
+  }
+
+  private initCatalogs(injector: Injector): void {
+    this._catalogs = this._config?.catalogs ?? [];
+    if (this.useUniversalComponents) {
+      for (const catalog of this._catalogs) {
+        prepareUniversalCatalog(catalog, injector);
+      }
+    }
   }
 
   /**
@@ -113,7 +125,7 @@ export class A2uiRendererService implements OnDestroy {
    *
    * Surfaces can be retrieved from this group using their `surfaceId`.
    */
-  get surfaceGroup(): SurfaceGroupModel<AngularComponentImplementation> {
+  get surfaceGroup(): SurfaceGroupModel<CatalogComponentImplementation> {
     return this._messageProcessor.model;
   }
 

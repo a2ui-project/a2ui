@@ -24,7 +24,8 @@ import {
   SurfaceComponentsModel,
   SurfaceModel,
 } from '@a2ui/web_core/v0_9';
-import {Component, EnvironmentInjector, EventEmitter, Input, NgZone} from '@angular/core';
+import {Component, EnvironmentInjector, EventEmitter, Injector, Input, NgZone} from '@angular/core';
+import {prepareUniversalCatalog} from '../catalog/prepare_universal_catalog';
 import {initializeAngularReactivity} from './reactivity';
 
 @Component({
@@ -262,6 +263,52 @@ describe('ComponentHostComponent', () => {
       expect(childDebugElement).toBeTruthy();
       const childInstance = childDebugElement.componentInstance as TestChildComponent;
       expect(childInstance.dataContextPath).toBe('/some/path');
+    });
+
+    it('should render and update universal Web Components when catalog entry defines tagName', () => {
+      class MockWcElement extends HTMLElement {
+        context: any;
+      }
+      if (!customElements.get('mock-host-wc')) {
+        customElements.define('mock-host-wc', MockWcElement);
+      }
+
+      mockCatalog.components.set('WcType', {tagName: 'mock-host-wc'});
+      mockSurface.componentsModel.addComponent(
+        new ComponentModel('wc1', 'WcType', {label: 'Click me'}),
+      );
+
+      fixture.componentRef.setInput('componentKey', {id: 'wc1', basePath: '/test/wc'});
+      fixture.detectChanges();
+
+      const wcEl = fixture.nativeElement.querySelector('mock-host-wc') as MockWcElement;
+      expect(wcEl).toBeTruthy();
+      expect(wcEl.context).toBeTruthy();
+      expect(wcEl.context.componentModel.id).toBe('wc1');
+      expect(wcEl.context.dataContext.path).toBe('/test/wc');
+
+      // Update component model properties
+      const wcModel = mockSurface.componentsModel.get('wc1')!;
+      wcModel.properties = {label: 'Updated label'};
+      fixture.detectChanges();
+
+      expect(wcEl.context).toBeTruthy();
+    });
+
+    it('should render Web Component when useUniversalComponents is true and catalog is prepared', () => {
+      mockCatalog.components.set('TestType', {
+        name: 'TestType',
+        component: TestChildComponent,
+      });
+      prepareUniversalCatalog(mockCatalog, TestBed.inject(Injector));
+      mockRendererService.useUniversalComponents = true;
+      const testFixture = TestBed.createComponent(ComponentHostComponent);
+      testFixture.componentRef.setInput('componentKey', {id: 'comp1', basePath: '/'});
+      testFixture.componentRef.setInput('surfaceId', 'surf1');
+      testFixture.detectChanges();
+
+      const wcEl = testFixture.nativeElement.querySelector('a2ui-ng-testtype');
+      expect(wcEl).toBeTruthy();
     });
   });
 });

@@ -112,6 +112,21 @@ export interface WebComponentImplementation<
 }
 
 /**
+ * Type guard to check if a component API or implementation is a WebComponentImplementation.
+ *
+ * @param api The ComponentApi or component declaration to check.
+ * @returns True if the object defines a valid string `tagName`.
+ */
+export function isWebComponentImplementation(api: unknown): api is WebComponentImplementation {
+  return (
+    typeof api === 'object' &&
+    api !== null &&
+    'tagName' in api &&
+    typeof (api as {tagName?: unknown}).tagName === 'string'
+  );
+}
+
+/**
  * Infers the schema type from a ComponentApi.
  *
  * This type uses `z.infer` on the `schema` property of a `ComponentApi` object.
