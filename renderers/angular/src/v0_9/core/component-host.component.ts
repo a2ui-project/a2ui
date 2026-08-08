@@ -16,8 +16,11 @@
 
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   DestroyRef,
+  ElementRef,
+  Injector,
   Type,
   inject,
   input,
@@ -27,17 +30,29 @@ import {
 } from '@angular/core';
 import {NgComponentOutlet} from '@angular/common';
 import {ComponentContext, ComponentModel, SurfaceModel, Subscription} from '@a2ui/web_core/v0_9';
+import {
+  isWebComponentImplementation,
+  registerUniversalElement,
+  type WebComponentImplementation,
+} from '@a2ui/web_core/v0_9/universal';
 import {A2uiRendererService} from './a2ui-renderer.service';
-import {AngularCatalog} from '../catalog/types';
 import {ComponentBinder} from './component-binder.service';
 import {BoundProperty} from './types';
+
+import type {AngularComponentImplementation} from '../catalog/types';
+import {CatalogComponentInstance} from './catalog_component_instance';
+
+interface UniversalComponentHostElement extends HTMLElement {
+  context: ComponentContext;
+  injector?: Injector;
+}
 
 /**
  * Dynamically renders an A2UI component as defined in the current surface model.
  *
- * This component acts as a bridge between the A2UI surface model and Angular components.
- * It resolves the appropriate component from the catalog based on the component's type,
- * and uses {@link ComponentBinder} to create reactive property bindings.
+ * This component acts as a bridge between the A2UI surface model and UI components.
+ * It can render both native Angular `@Component` implementations (via `NgComponentOutlet`)
+ * and universal W3C Web Components (by instantiating and appending the custom element tag).
  *
  * Usually, you'll use the higher-level {@link SurfaceComponent} which automatically
  * sets up a host for the 'root' component.
@@ -48,6 +63,8 @@ import {BoundProperty} from './types';
   host: {
     style: 'display: contents;',
   },
+  // The quotes around the input keys passed to *ngComponentOutlet are critical to survive Closure
+  // minification. Prettier keeps them (`quoteProps: "preserve"` in the root `.prettierrc`).
   template: `
     @if (componentType()) {
       <ng-container
@@ -72,14 +89,18 @@ export class ComponentHostComponent {
   /** The unique identifier of the surface this component belongs to. */
   surfaceId = input.required<string>();
 
+  private readonly elementRef = inject(ElementRef<HTMLElement>);
   private readonly rendererService = inject(A2uiRendererService);
   private readonly binder = inject(ComponentBinder);
   private readonly destroyRef = inject(DestroyRef);
   private readonly ngZone = inject(NgZone);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly injector = inject(Injector);
 
-  protected readonly componentType = signal<Type<unknown> | null>(null);
+  protected readonly componentType = signal<Type<CatalogComponentInstance> | null>(null);
   protected readonly props = signal<Record<string, BoundProperty>>({});
   private context?: ComponentContext;
+  private mountedWcEl: UniversalComponentHostElement | null = null;
 
   protected resolvedComponentId: string = '';
   protected resolvedDataContextPath: string = '/';
@@ -99,9 +120,7 @@ export class ComponentHostComponent {
     });
 
     this.destroyRef.onDestroy(() => {
-      this.propsSub?.unsubscribe();
-      this.createSub?.unsubscribe();
-      this.surfaceSub?.unsubscribe();
+      this.resetState();
     });
   }
 
@@ -168,31 +187,91 @@ export class ComponentHostComponent {
   }
 
   private initializeComponent(
-    surface: SurfaceModel,
+    surface: SurfaceModel<AngularComponentImplementation>,
     componentModel: ComponentModel,
     id: string,
     basePath: string,
   ): void {
     // Resolve component from the surface's catalog
-    const catalog = surface.defaultCatalog as AngularCatalog;
-    const api = catalog.components.get(componentModel.type);
+    const catalog = surface.defaultCatalog;
+    const componentImpl = catalog.components.get(componentModel.type);
 
-    if (!api) {
+    if (!componentImpl) {
       console.error(`Component type "${componentModel.type}" not found in catalog "${catalog.id}"`);
       return;
     }
-    this.componentType.set(api.component);
 
-    // Create context
     this.context = new ComponentContext(surface, id, basePath);
-    this.props.set(this.binder.bind(this.context));
     this.resolvedDataContextPath = this.context.dataContext.path;
 
-    // Subscribes to updates to the component model properties, to get the
-    // component to react when a new prop is added after creation.
+    // Entries from `createComponentImplementation` carry both an Angular component and a Custom
+    // Element; the flag picks which one to mount. Web Component-only entries render only with the
+    // flag on (their placeholder `component` reports the misconfiguration otherwise).
+    if (
+      this.rendererService.useUniversalComponents &&
+      isWebComponentImplementation(componentImpl)
+    ) {
+      this.setupWebComponent(componentImpl, surface, componentModel, id, basePath);
+    } else {
+      this.setupAngularComponent(componentImpl.component, componentModel);
+    }
+  }
+
+  private setupAngularComponent(
+    componentClass: Type<CatalogComponentInstance>,
+    componentModel: ComponentModel,
+  ): void {
+    if (this.mountedWcEl) {
+      this.mountedWcEl.remove();
+      this.mountedWcEl = null;
+    }
+    this.componentType.set(componentClass);
+    this.updateProps();
+
+    this.propsSub = componentModel.onUpdated.subscribe(() => {
+      this.ngZone.run(() => this.updateProps());
+    });
+  }
+
+  /** Re-binds the props of the mounted Angular component and schedules change detection. */
+  private updateProps(): void {
+    this.props.set(this.binder.bind(this.context!));
+    this.cdr.markForCheck();
+  }
+
+  private setupWebComponent(
+    implementation: WebComponentImplementation,
+    surface: SurfaceModel<AngularComponentImplementation>,
+    componentModel: ComponentModel,
+    id: string,
+    basePath: string,
+  ): void {
+    this.componentType.set(null);
+    this.props.set({});
+
+    registerUniversalElement(implementation);
+    const tagName = implementation.tagName;
+
+    if (this.mountedWcEl && this.mountedWcEl.tagName.toLowerCase() === tagName.toLowerCase()) {
+      this.mountedWcEl.injector = this.injector;
+      this.mountedWcEl.context = this.context!;
+    } else {
+      if (this.mountedWcEl) {
+        this.mountedWcEl.remove();
+        this.mountedWcEl = null;
+      }
+      const el = document.createElement(tagName) as UniversalComponentHostElement;
+      el.injector = this.injector;
+      el.context = this.context!;
+      this.mountedWcEl = el;
+      this.elementRef.nativeElement.appendChild(el);
+    }
+
     this.propsSub = componentModel.onUpdated.subscribe(() => {
       this.ngZone.run(() => {
-        this.props.set(this.binder.bind(this.context!));
+        if (this.mountedWcEl) {
+          this.mountedWcEl.context = new ComponentContext(surface, id, basePath);
+        }
       });
     });
   }
@@ -204,11 +283,19 @@ export class ComponentHostComponent {
    */
   private resetState(): void {
     this.propsSub?.unsubscribe();
+    this.propsSub = undefined;
     this.createSub?.unsubscribe();
+    this.createSub = undefined;
     this.surfaceSub?.unsubscribe();
+    this.surfaceSub = undefined;
 
     this.componentType.set(null);
     this.props.set({});
     this.resolvedDataContextPath = '/';
+
+    if (this.mountedWcEl) {
+      this.mountedWcEl.remove();
+      this.mountedWcEl = null;
+    }
   }
 }

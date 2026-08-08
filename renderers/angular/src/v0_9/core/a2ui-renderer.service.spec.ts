@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+import {Injectable} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {A2uiRendererService, A2UI_RENDERER_CONFIG, provideA2Ui} from './a2ui-renderer.service';
+import {BasicCatalog} from '../catalog/basic/basic-catalog';
+import {isWebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
 
 describe('A2uiRendererService', () => {
   let service: A2uiRendererService;
@@ -114,5 +117,61 @@ describe('provideA2Ui', () => {
 
     const service = TestBed.inject(A2uiRendererService);
     expect(service).toBeTruthy();
+  });
+
+  it('should provide BasicCatalog in configuration', () => {
+    const basicCat = new BasicCatalog();
+    TestBed.configureTestingModule({
+      providers: [provideA2Ui({catalogs: [basicCat]})],
+    });
+    const config = TestBed.inject(A2UI_RENDERER_CONFIG);
+    expect(config.catalogs).toBeDefined();
+    expect(config.catalogs!.length).toBe(1);
+    const catalog = config.catalogs![0];
+    expect(catalog.components.size).toBeGreaterThan(1);
+    for (const comp of catalog.components.values()) {
+      expect(comp.component).toEqual(jasmine.any(Function));
+    }
+  });
+
+  it('should support useUniversalComponents option in configuration', () => {
+    const basicCat = new BasicCatalog();
+    TestBed.configureTestingModule({
+      providers: [provideA2Ui({catalogs: [basicCat], useUniversalComponents: true})],
+    });
+    const config = TestBed.inject(A2UI_RENDERER_CONFIG);
+    expect(config.useUniversalComponents).toBeTrue();
+    expect(TestBed.inject(A2uiRendererService).useUniversalComponents).toBeTrue();
+  });
+
+  it('should keep basic catalog entries renderable both natively and as Web Components regardless of the flag', () => {
+    const basicCat = new BasicCatalog();
+    TestBed.configureTestingModule({
+      providers: [provideA2Ui({catalogs: [basicCat], useUniversalComponents: false})],
+    });
+    TestBed.inject(A2uiRendererService);
+    expect(basicCat.components.size).toBeGreaterThan(1);
+    for (const comp of basicCat.components.values()) {
+      expect(comp.component).toEqual(jasmine.any(Function));
+      expect(isWebComponentImplementation(comp)).toBeTrue();
+    }
+  });
+
+  it('should support custom catalogs extending BasicCatalog', () => {
+    @Injectable()
+    class CustomCatalog extends BasicCatalog {}
+
+    TestBed.configureTestingModule({
+      providers: [
+        provideA2Ui({catalogs: [new CustomCatalog()], useUniversalComponents: true}),
+        {provide: CustomCatalog, useClass: CustomCatalog},
+      ],
+    });
+
+    const customCatalog = TestBed.inject(CustomCatalog);
+    expect(customCatalog.components.size).toBeGreaterThan(1);
+    for (const comp of customCatalog.components.values()) {
+      expect(comp.component).toEqual(jasmine.any(Function));
+    }
   });
 });
