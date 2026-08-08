@@ -14,39 +14,178 @@
  * limitations under the License.
  */
 
-import {ChangeDetectionStrategy, Component, input} from '@angular/core';
-import {ComponentHostComponent} from './component-host.component';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  OnDestroy,
+  effect,
+  inject,
+  input,
+} from '@angular/core';
+import {
+  ComponentContext,
+  SurfaceModel,
+  WebComponentImplementation,
+  Subscription,
+} from '@a2ui/web_core/v0_9';
+import {Context} from '@a2ui/web_core/v0_9/basic_catalog';
+import {ContextProvider} from '@lit/context';
+import {A2uiRendererService} from './a2ui-renderer.service';
+import {MarkdownRenderer, type MarkdownRendererOptions} from './markdown';
 
 /**
- * High-level component for rendering an entire A2UI surface.
+ * Renders an A2UI v0.9 surface using Universal Web Components.
  *
- * This component handles the boilerplate of setting up a {@link ComponentHostComponent}
- * for the 'root' component of a surface. It is the recommended way to embed an
- * A2UI surface in an Angular application.
+ * Can receive a SurfaceModel directly via the `surface` input or look it up
+ * by `surfaceId` from the injected `A2uiRendererService`.
+ * Automatically mounts the root custom element and re-renders on changes to the
+ * component subtree.
  */
 @Component({
   selector: 'a2ui-v09-surface',
   standalone: true,
-  imports: [ComponentHostComponent],
+  template: '',
   host: {
-    style: 'display: contents;',
+    '[style.display]': '"contents"',
   },
-  template: `
-    <a2ui-v09-component-host
-      [componentKey]="{id: 'root', basePath: dataContextPath()}"
-      [surfaceId]="surfaceId()"
-    >
-    </a2ui-v09-component-host>
-  `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class SurfaceComponent {
-  /** The unique identifier of the surface to render. */
-  surfaceId = input.required<string>();
+export class SurfaceComponent implements OnDestroy {
+  /** Directly provided SurfaceModel instance. */
+  surface = input<SurfaceModel<WebComponentImplementation>>();
+
+  /** The unique identifier of the surface to look up from A2uiRendererService. */
+  surfaceId = input<string>();
 
   /**
    * The path within the surface's data model that represents the current state.
    * Defaults to the root ('/').
    */
   dataContextPath = input<string>('/');
+
+  private readonly elementRef = inject(ElementRef<HTMLElement>);
+  private readonly rendererService = inject(A2uiRendererService, {optional: true});
+  private currentRootEl: HTMLElement | null = null;
+  private unsubscribe?: () => void;
+  private surfaceCreatedSub?: Subscription;
+
+  constructor() {
+    const md = inject(MarkdownRenderer, {optional: true});
+    if (md) {
+      new ContextProvider(this.elementRef.nativeElement, {
+        context: Context.markdown,
+        initialValue: (val: string, opts?: MarkdownRendererOptions) => md.render(val, opts),
+      });
+    }
+
+    effect(() => {
+      this.surface();
+      this.surfaceId();
+      this.dataContextPath();
+      this.mountRoot();
+    });
+  }
+
+  private getEffectiveSurface(): SurfaceModel<WebComponentImplementation> | undefined {
+    const directSurface = this.surface();
+    if (directSurface) return directSurface;
+
+    const id = this.surfaceId();
+    if (id && this.rendererService) {
+      return this.rendererService.surfaceGroup?.getSurface(id) as
+        | SurfaceModel<WebComponentImplementation>
+        | undefined;
+    }
+    return undefined;
+  }
+
+  private mountRoot(): void {
+    this.cleanup();
+
+    const surface = this.getEffectiveSurface();
+    if (!surface) {
+      const id = this.surfaceId();
+      if (id && this.rendererService?.surfaceGroup) {
+        this.surfaceCreatedSub = this.rendererService.surfaceGroup.onSurfaceCreated.subscribe(s => {
+          if (s.id === id) {
+            this.surfaceCreatedSub?.unsubscribe();
+            this.surfaceCreatedSub = undefined;
+            this.mountRoot();
+          }
+        });
+      }
+      this.elementRef.nativeElement.innerHTML = '';
+      this.currentRootEl = null;
+      return;
+    }
+
+    const basePath = this.dataContextPath() || '/';
+
+    const renderRoot = () => {
+      const rootModel = surface.componentsModel.get('root');
+      if (!rootModel) {
+        this.elementRef.nativeElement.innerHTML = '';
+        this.currentRootEl = null;
+        return;
+      }
+
+      const rootImpl = surface.catalog.components.get(rootModel.type) as
+        | WebComponentImplementation
+        | undefined;
+      if (!rootImpl) {
+        console.error(`Root component "${rootModel.type}" not found in catalog.`);
+        return;
+      }
+
+      interface ContextConsumerElement extends HTMLElement {
+        context: ComponentContext;
+      }
+
+      if (
+        this.currentRootEl &&
+        this.currentRootEl.tagName.toLowerCase() === rootImpl.tagName.toLowerCase()
+      ) {
+        (this.currentRootEl as ContextConsumerElement).context = new ComponentContext(
+          surface,
+          'root',
+          basePath,
+        );
+        return;
+      }
+
+      this.elementRef.nativeElement.innerHTML = '';
+      const rootEl = document.createElement(rootImpl.tagName) as ContextConsumerElement;
+      rootEl.context = new ComponentContext(surface, 'root', basePath);
+      this.currentRootEl = rootEl;
+      this.elementRef.nativeElement.appendChild(this.currentRootEl);
+    };
+
+    renderRoot();
+
+    const subCreated = surface.componentsModel.onCreated.subscribe(comp => {
+      if (comp.id === 'root') renderRoot();
+    });
+    const subDeleted = surface.componentsModel.onDeleted.subscribe(id => {
+      if (id === 'root') renderRoot();
+    });
+
+    this.unsubscribe = () => {
+      subCreated.unsubscribe();
+      subDeleted.unsubscribe();
+    };
+  }
+
+  private cleanup(): void {
+    this.surfaceCreatedSub?.unsubscribe();
+    this.surfaceCreatedSub = undefined;
+    this.unsubscribe?.();
+    this.unsubscribe = undefined;
+  }
+
+  ngOnDestroy(): void {
+    this.cleanup();
+    this.elementRef.nativeElement.innerHTML = '';
+    this.currentRootEl = null;
+  }
 }

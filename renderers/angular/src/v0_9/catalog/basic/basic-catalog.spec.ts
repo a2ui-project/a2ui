@@ -14,8 +14,24 @@
  * limitations under the License.
  */
 
+import {Component} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
+import {z} from 'zod';
 import {BasicCatalog, BASIC_CATALOG_OPTIONS} from './basic-catalog';
+import {AngularComponentImplementation} from '../types';
+
+@Component({
+  selector: 'test-custom-slider',
+  template: '<div>custom slider</div>',
+  standalone: true,
+})
+class TestCustomSliderComponent {}
+
+const customSliderDeclaration: AngularComponentImplementation = {
+  name: 'CustomSlider',
+  schema: z.object({}),
+  component: TestCustomSliderComponent,
+};
 
 describe('BasicCatalog', () => {
   it('should be created with default options when no token is provided', () => {
@@ -44,5 +60,25 @@ describe('BasicCatalog', () => {
     const catalog = TestBed.inject(BasicCatalog);
     expect(catalog).toBeTruthy();
     expect(catalog.id).toBe('https://example.com/custom-catalog.json');
+  });
+
+  it('automatically converts AngularComponentImplementation in extraComponents to custom elements', () => {
+    TestBed.configureTestingModule({
+      providers: [
+        BasicCatalog,
+        {
+          provide: BASIC_CATALOG_OPTIONS,
+          useValue: {
+            extraComponents: [customSliderDeclaration],
+          },
+        },
+      ],
+    });
+
+    const catalog = TestBed.inject(BasicCatalog);
+    expect(catalog.components.has('CustomSlider')).toBeTrue();
+    const converted = catalog.components.get('CustomSlider');
+    expect(converted?.tagName).toBe('a2ui-ng-customslider');
+    expect(customElements.get('a2ui-ng-customslider')).toBeDefined();
   });
 });

@@ -14,84 +14,81 @@
  * limitations under the License.
  */
 
-import {Component, Input, ChangeDetectionStrategy} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {SurfaceComponent} from './surface.component';
-import {ComponentHostComponent} from './component-host.component';
-import {By} from '@angular/platform-browser';
-import {A2uiRendererService} from './a2ui-renderer.service';
-import {ComponentBinder} from './component-binder.service';
-import {ComponentModel} from '@a2ui/web_core/v0_9';
-
-@Component({
-  selector: 'test-text',
-  template: '<div>{{props?.["text"]?.value()}}</div>',
-  standalone: true,
-  changeDetection: ChangeDetectionStrategy.OnPush,
-})
-class TestTextComponent {
-  @Input() props: any;
-  @Input() surfaceId?: string;
-  @Input() componentId?: string;
-  @Input() dataContextPath?: string;
-}
+import {provideA2Ui} from './a2ui-renderer.service';
+import {
+  ComponentContext,
+  MessageProcessor,
+  SurfaceModel,
+  WebComponentImplementation,
+} from '@a2ui/web_core/v0_9';
+import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+import {AngularCatalog} from '../catalog/types';
 
 describe('SurfaceComponent', () => {
   let component: SurfaceComponent;
   let fixture: ComponentFixture<SurfaceComponent>;
-  let mockRendererService: any;
-  let mockBinder: any;
+  let processor: MessageProcessor<WebComponentImplementation>;
+  let surface: SurfaceModel<WebComponentImplementation>;
 
   beforeEach(async () => {
-    mockRendererService = {
-      surfaceGroup: {
-        getSurface: jasmine.createSpy('getSurface').and.returnValue({
-          componentsModel: new Map([
-            ['root', new ComponentModel('root', 'Text', {text: {value: 'Hello'}})],
-          ]),
-          catalog: {
-            id: 'mock-catalog',
-            components: new Map([['Text', {type: 'Text', component: TestTextComponent}]]),
-          },
-        }),
+    processor = new MessageProcessor<WebComponentImplementation>([basicCatalog]);
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'test-surface',
+          catalogId: basicCatalog.id,
+        },
       },
-    };
-    mockBinder = jasmine.createSpyObj('ComponentBinder', ['bind']);
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'Text',
+              text: 'Hello from test',
+            },
+          ],
+        },
+      },
+    ]);
+    surface = processor.model.getSurface('test-surface')!;
 
     await TestBed.configureTestingModule({
       imports: [SurfaceComponent],
-      providers: [
-        {provide: A2uiRendererService, useValue: mockRendererService},
-        {provide: ComponentBinder, useValue: mockBinder},
-      ],
+      providers: [provideA2Ui({catalogs: [new AngularCatalog()]})],
     }).compileComponents();
 
     fixture = TestBed.createComponent(SurfaceComponent);
     component = fixture.componentInstance;
   });
 
-  it('should create', () => {
-    fixture.componentRef.setInput('surfaceId', 'test-surface');
+  it('should create and mount root custom element when surface is provided', async () => {
+    fixture.componentRef.setInput('surface', surface);
     fixture.detectChanges();
+    await fixture.whenStable();
+
     expect(component).toBeTruthy();
+    const rootEl = fixture.nativeElement.querySelector('a2ui-basic-text') as HTMLElement & {
+      context?: ComponentContext;
+    };
+    expect(rootEl).toBeTruthy();
+    expect(rootEl!.context).toBeDefined();
+    expect(rootEl!.context!.componentModel.id).toBe('root');
   });
 
-  it('should render component-host with correct inputs', () => {
-    fixture.componentRef.setInput('surfaceId', 'test-surface');
-    fixture.componentRef.setInput('dataContextPath', '/custom/path');
+  it('should clear element on destroy', async () => {
+    fixture.componentRef.setInput('surface', surface);
     fixture.detectChanges();
+    await fixture.whenStable();
 
-    const host = fixture.debugElement.query(By.directive(ComponentHostComponent));
-    expect(host).toBeTruthy();
-    expect(host.componentInstance.surfaceId()).toBe('test-surface');
-    expect(host.componentInstance.componentKey()).toEqual({id: 'root', basePath: '/custom/path'});
-  });
+    expect(fixture.nativeElement.querySelector('a2ui-basic-text')).toBeTruthy();
 
-  it('should use default dataContextPath of "/"', () => {
-    fixture.componentRef.setInput('surfaceId', 'test-surface');
-    fixture.detectChanges();
-
-    const host = fixture.debugElement.query(By.directive(ComponentHostComponent));
-    expect(host.componentInstance.componentKey()).toEqual({id: 'root', basePath: '/'});
+    fixture.destroy();
+    expect(fixture.nativeElement.innerHTML).toBe('');
   });
 });
