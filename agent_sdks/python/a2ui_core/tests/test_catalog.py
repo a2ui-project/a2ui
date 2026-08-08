@@ -621,9 +621,17 @@ def test_extract_ref_fields_dynamic_json():
                 "properties": {
                     "component": {"const": "AdvancedLayout"},
                     # 1. Direct $ref to ComponentId (custom property name)
-                    "customChild": {"$ref": "common_types.json#/$defs/ComponentId"},
+                    "customChild": {
+                        "$ref": (
+                            "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+                        )
+                    },
                     # 2. Direct $ref to ChildList (custom property name)
-                    "customList": {"$ref": "common_types.json#/$defs/ChildList"},
+                    "customList": {
+                        "$ref": (
+                            "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+                        )
+                    },
                     # 3. Nested $ref to ComponentId inside allOf
                     "nestedChild": {"allOf": [{"$ref": "#/$defs/ComponentId"}]},
                     # 4. Nested $ref to ChildList inside oneOf
@@ -726,7 +734,11 @@ def test_extract_ref_fields_common_types_resolution():
                 "type": "object",
                 "properties": {
                     "component": {"const": "Box"},
-                    "color": {"$ref": "common_types.json#/$defs/ColorHex"},
+                    "color": {
+                        "$ref": (
+                            "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ColorHex"
+                        )
+                    },
                 },
                 "required": ["color"],
                 "additionalProperties": False,

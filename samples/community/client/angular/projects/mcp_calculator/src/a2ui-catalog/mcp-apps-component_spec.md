@@ -375,13 +375,13 @@ The `McpApp` component is registered in the A2UI Component Catalog.
     "description": "Renders a sandboxed Model Context Protocol application using double-iframe isolation.",
     "properties": {
       "id": {
-        "$ref": "common_types.json#/$defs/ComponentId"
+        "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
       },
       "component": {
         "const": "McpApp"
       },
       "htmlContent": {
-        "$ref": "common_types.json#/$defs/DynamicString",
+        "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
         "description": "The raw HTML string to render via srcdoc. Can be URL-encoded."
       },
       "allowedTools": {
@@ -413,7 +413,7 @@ The `McpApp` component is registered in the A2UI Component Catalog.
         "additionalProperties": false
       },
       "title": {
-        "$ref": "common_types.json#/$defs/DynamicString",
+        "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
         "description": "The title attribute for accessibility."
       }
     },

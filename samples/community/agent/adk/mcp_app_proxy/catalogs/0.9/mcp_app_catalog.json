@@ -7,7 +7,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "type": "object",
@@ -22,10 +22,7 @@
               "type": "string"
             },
             "children": {
-              "type": "array",
-              "items": {
-                "$ref": "common_types.json#/$defs/ComponentId"
-              }
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
             }
           },
           "required": ["component"]
@@ -37,7 +34,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "type": "object",
@@ -46,11 +43,11 @@
               "const": "McpApp"
             },
             "htmlContent": {
-              "$ref": "common_types.json#/$defs/DynamicString",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "The HTML content of the app."
             },
             "title": {
-              "$ref": "common_types.json#/$defs/DynamicString",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "The title of the app."
             },
             "allowedTools": {
@@ -91,7 +88,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "type": "object",
@@ -101,11 +98,11 @@
               "description": "The component type identifier."
             },
             "url": {
-              "$ref": "common_types.json#/$defs/DynamicString",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "The external URL to load inside the iframe."
             },
             "height": {
-              "$ref": "common_types.json#/$defs/DynamicNumber",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
               "description": "The height of the iframe in pixels."
             },
             "allowedEvents": {
@@ -150,7 +147,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "type": "object",
@@ -164,7 +161,7 @@
               "description": "The raw HTML string to render via srcdoc."
             },
             "height": {
-              "$ref": "common_types.json#/$defs/DynamicNumber",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
               "description": "The height of the iframe in pixels."
             },
             "allowedEvents": {
@@ -209,7 +206,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "type": "object",
@@ -218,15 +215,15 @@
               "const": "PongScoreBoard"
             },
             "playerScore": {
-              "$ref": "common_types.json#/$defs/DynamicNumber",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
               "description": "Player score value or path."
             },
             "cpuScore": {
-              "$ref": "common_types.json#/$defs/DynamicNumber",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
               "description": "CPU score value or path."
             },
             "commentary": {
-              "$ref": "common_types.json#/$defs/DynamicString",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "AI Live commentary value or path."
             }
           },
@@ -239,7 +236,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "type": "object",
@@ -248,10 +245,10 @@
               "const": "PongLayout"
             },
             "mcpComponent": {
-              "$ref": "common_types.json#/$defs/ComponentId"
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
             },
             "scoreboardComponent": {
-              "$ref": "common_types.json#/$defs/ComponentId"
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
             }
           },
           "required": ["component"]

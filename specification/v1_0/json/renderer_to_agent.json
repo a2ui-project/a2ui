@@ -61,7 +61,7 @@
     "functionResponse": {
       "properties": {
         "functionCallId": {
-          "$ref": "common_types.json#/$defs/CallId",
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/CallId",
           "description": "Unique ID for the instance of this function. MUST be copied verbatim from the function invocation."
         },
         "call": {
@@ -121,7 +121,7 @@
               "description": "The id of the surface where the error occurred. It must be globally unique for the renderer's lifetime."
             },
             "functionCallId": {
-              "$ref": "common_types.json#/$defs/CallId",
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/CallId",
               "description": "The unique ID of the function invocation, which must be identical to the value specified in the function invocation."
             }
           },

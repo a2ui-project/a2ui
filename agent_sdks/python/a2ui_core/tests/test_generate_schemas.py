@@ -29,13 +29,23 @@ def test_map_json_type_to_python():
     # Ref mappings
     assert (
         generate_schemas.map_json_type_to_python(
-            "id", {"$ref": "common_types.json#/$defs/ComponentId"}
+            "id",
+            {
+                "$ref": (
+                    "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+                )
+            },
         )
         == "ComponentId"
     )
     assert (
         generate_schemas.map_json_type_to_python(
-            "val", {"$ref": "common_types.json#/$defs/DynamicString"}
+            "val",
+            {
+                "$ref": (
+                    "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+                )
+            },
         )
         == "DynamicString"
     )
@@ -67,7 +77,11 @@ def test_map_json_type_to_python():
     # allOf schema composition
     allof_prop = {
         "allOf": [
-            {"$ref": "common_types.json#/$defs/DynamicString"},
+            {
+                "$ref": (
+                    "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+                )
+            },
             {"if": {"type": "string"}},
         ]
     }
@@ -172,7 +186,14 @@ def test_compile_object_def():
 
 def test_compile_union_def():
     spec = {
-        "oneOf": [{"type": "string"}, {"$ref": "common_types.json#/$defs/DataBinding"}]
+        "oneOf": [
+            {"type": "string"},
+            {
+                "$ref": (
+                    "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DataBinding"
+                )
+            },
+        ]
     }
     code = generate_schemas.compile_union_def("StringOrBinding", spec)
     assert code == "StringOrBinding = Union[str, DataBinding]\n"
@@ -318,7 +339,11 @@ def test_generate_basic_catalog_components():
         "components": {
             "Icon": {
                 "allOf": [
-                    {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                    {
+                        "$ref": (
+                            "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+                        )
+                    },
                     {
                         "properties": {
                             "name": {

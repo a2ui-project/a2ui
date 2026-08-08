@@ -376,7 +376,7 @@ To dynamically generate the `A2uiRendererCapabilities` payload (specifically `in
 
 **Schema Types Location**: Foundational schema types _should_ be defined in a dedicated directory like `schema`. You can see the `renderers/web_core/src/v1_0/schema/common-types.ts` file in the reference web implementation as an example.
 
-**Detectable Common Types**: Shared definitions (like `DynamicString`) must emit external JSON Schema `$ref` pointers. This is achieved by "tagging" the schemas using their `description` property (e.g., `REF:common_types.json#/$defs/DynamicString`).
+**Detectable Common Types**: Shared definitions (like `DynamicString`) must emit external JSON Schema `$ref` pointers. This is achieved by "tagging" the schemas using their `description` property (e.g., `REF:https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString`).
 
 When `getRendererCapabilities()` converts internal schemas to generate `inlineCatalogs`:
 

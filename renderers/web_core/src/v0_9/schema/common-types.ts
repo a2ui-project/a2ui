@@ -21,7 +21,7 @@ export const DataBindingSchema = z
     'path': z.string().describe('A JSON Pointer path to a value in the data model.'),
   })
   .describe(
-    'REF:common_types.json#/$defs/DataBinding|A JSON Pointer path to a value in the data model.',
+    'REF:https://a2ui.org/specification/v0_9/common_types.json#/$defs/DataBinding|A JSON Pointer path to a value in the data model.',
   );
 export type DataBindingType = z.infer<typeof DataBindingSchema>;
 
@@ -33,13 +33,15 @@ export const FunctionCallSchema = z
       .enum(['string', 'number', 'boolean', 'array', 'object', 'any', 'void'])
       .default('boolean'),
   })
-  .describe('REF:common_types.json#/$defs/FunctionCall|Invokes a named function on the client.');
+  .describe(
+    'REF:https://a2ui.org/specification/v0_9/common_types.json#/$defs/FunctionCall|Invokes a named function on the client.',
+  );
 export type FunctionCallType = z.infer<typeof FunctionCallSchema>;
 
 export const DynamicBooleanSchema = z
   .union([z.boolean(), DataBindingSchema, FunctionCallSchema])
   .describe(
-    'REF:common_types.json#/$defs/DynamicBoolean|A boolean value that can be a literal, a path, or a function call returning a boolean.',
+    'REF:https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean|A boolean value that can be a literal, a path, or a function call returning a boolean.',
   );
 
 export const DynamicStringSchema = z
@@ -49,18 +51,20 @@ export const DynamicStringSchema = z
     // FunctionCall returning string (simplified schema for Zod, stricter in JSON Schema)
     FunctionCallSchema,
   ])
-  .describe('REF:common_types.json#/$defs/DynamicString|Represents a string');
+  .describe(
+    'REF:https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString|Represents a string',
+  );
 
 export const DynamicNumberSchema = z
   .union([z.number(), DataBindingSchema, FunctionCallSchema])
   .describe(
-    'REF:common_types.json#/$defs/DynamicNumber|Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number.',
+    'REF:https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber|Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number.',
   );
 
 export const DynamicStringListSchema = z
   .union([z.array(z.string()), DataBindingSchema, FunctionCallSchema])
   .describe(
-    'REF:common_types.json#/$defs/DynamicStringList|Represents a value that can be either a literal array of strings, a path to a string array in the data model, or a function call returning a string array.',
+    'REF:https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicStringList|Represents a value that can be either a literal array of strings, a path to a string array in the data model, or a function call returning a string array.',
   );
 
 export const DynamicValueSchema = z
@@ -73,7 +77,7 @@ export const DynamicValueSchema = z
     FunctionCallSchema,
   ])
   .describe(
-    'REF:common_types.json#/$defs/DynamicValue|A value that can be a literal, a path, or a function call returning any type.',
+    'REF:https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue|A value that can be a literal, a path, or a function call returning any type.',
   );
 
 /** A JSON Pointer path to a value in the data model. */
@@ -93,7 +97,9 @@ export type DynamicValue = z.infer<typeof DynamicValueSchema>;
 
 export const ComponentIdSchema = z
   .string()
-  .describe('REF:common_types.json#/$defs/ComponentId|The unique identifier for a component.');
+  .describe(
+    'REF:https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId|The unique identifier for a component.',
+  );
 /** The unique identifier for a component. */
 export type ComponentId = z.infer<typeof ComponentIdSchema>;
 
@@ -109,7 +115,7 @@ export const ChildListSchema = z
       })
       .describe('A template for generating a dynamic list of children.'),
   ])
-  .describe('REF:common_types.json#/$defs/ChildList');
+  .describe('REF:https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList');
 /** A static list of child component IDs or a dynamic list template. */
 export type ChildList = z.infer<typeof ChildListSchema>;
 
@@ -129,7 +135,7 @@ export const ActionSchema = z
       })
       .describe('Executes a local client-side function.'),
   ])
-  .describe('REF:common_types.json#/$defs/Action');
+  .describe('REF:https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action');
 /** Triggers a server-side event or a local client-side function. */
 export type Action = z.infer<typeof ActionSchema>;
 
@@ -139,7 +145,7 @@ export const CheckRuleSchema = z
     'message': z.string().describe('The error message to display if the check fails.'),
   })
   .describe(
-    'REF:common_types.json#/$defs/CheckRule|A check rule consisting of a condition and an error message.',
+    'REF:https://a2ui.org/specification/v0_9/common_types.json#/$defs/CheckRule|A check rule consisting of a condition and an error message.',
   );
 /** A check rule consisting of a condition and an error message. */
 export type CheckRule = z.infer<typeof CheckRuleSchema>;
@@ -154,7 +160,7 @@ export const CheckableSchema = z
       .describe('Current validation error messages.'),
   })
   .describe(
-    'REF:common_types.json#/$defs/Checkable|Properties for components that support client-side checks.',
+    'REF:https://a2ui.org/specification/v0_9/common_types.json#/$defs/Checkable|Properties for components that support client-side checks.',
   );
 /** An object that contains checks. */
 export type Checkable = z.infer<typeof CheckableSchema>;
@@ -162,14 +168,14 @@ export type Checkable = z.infer<typeof CheckableSchema>;
 export const AccessibilityAttributesSchema = z
   .object({
     'label': DynamicStringSchema.optional().describe(
-      'REF:common_types.json#/$defs/DynamicString|A short string used by assistive technologies to convey the purpose of an element.',
+      'REF:https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString|A short string used by assistive technologies to convey the purpose of an element.',
     ),
     'description': DynamicStringSchema.optional().describe(
-      'REF:common_types.json#/$defs/DynamicString|Additional information provided by assistive technologies about an element.',
+      'REF:https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString|Additional information provided by assistive technologies about an element.',
     ),
   })
   .describe(
-    'REF:common_types.json#/$defs/AccessibilityAttributes|Attributes to enhance accessibility.',
+    'REF:https://a2ui.org/specification/v0_9/common_types.json#/$defs/AccessibilityAttributes|Attributes to enhance accessibility.',
   );
 
 /** Accessibility attributes like label and description. */

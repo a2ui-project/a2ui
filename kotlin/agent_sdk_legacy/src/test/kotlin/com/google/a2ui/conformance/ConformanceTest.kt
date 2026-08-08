@@ -488,7 +488,7 @@ class ConformanceTest {
 
             val dummyCatalog =
               Json.parseToJsonElement(
-                  "{\"catalogId\": \"https://a2ui.org/specification/v0_8/standard_catalog_definition.json\", \"components\": {\"Text\": {\"\$ref\": \"common_types.json#/\$defs/DynamicString\"}}}"
+                  "{\"catalogId\": \"https://a2ui.org/specification/v0_8/standard_catalog_definition.json\", \"components\": {\"Text\": {\"\$ref\": \"https://a2ui.org/specification/v0_8/common_types.json#/\$defs/DynamicString\"}}}"
                 )
                 .jsonObject
             val dummyConfig =

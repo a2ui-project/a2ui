@@ -364,13 +364,13 @@ Used to load an external web application hosted on a remote domain.
     "description": "Renders a secure, allowlisted external web application URL in an iframe.",
     "properties": {
       "id": {
-        "$ref": "common_types.json#/$defs/ComponentId"
+        "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
       },
       "component": {
         "const": "WebAppFrameUrl"
       },
       "url": {
-        "$ref": "common_types.json#/$defs/DynamicString",
+        "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
         "description": "The external URL to load inside the iframe."
       },
       "config": {
@@ -392,7 +392,7 @@ Used to load an external web application hosted on a remote domain.
         "additionalProperties": false
       },
       "height": {
-        "$ref": "common_types.json#/$defs/DynamicNumber"
+        "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
       },
       "allowedEvents": {
         "type": "object",
@@ -441,7 +441,7 @@ Used to load standalone, sandboxed, model-generated HTML/JS layouts.
     "description": "Renders rich, model-generated HTML/JS bundles securely in a sandboxed safe content frame.",
     "properties": {
       "id": {
-        "$ref": "common_types.json#/$defs/ComponentId"
+        "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
       },
       "component": {
         "const": "WebAppFrameSrcdoc"
@@ -469,7 +469,7 @@ Used to load standalone, sandboxed, model-generated HTML/JS layouts.
         "additionalProperties": false
       },
       "height": {
-        "$ref": "common_types.json#/$defs/DynamicNumber"
+        "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
       },
       "allowedEvents": {
         "type": "object",

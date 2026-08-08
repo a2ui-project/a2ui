@@ -130,7 +130,11 @@ def mock_catalog():
             "Container": {
                 "type": "object",
                 "allOf": [
-                    {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                    {
+                        "$ref": (
+                            "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+                        )
+                    },
                     {"$ref": "#/$defs/CatalogComponentCommon"},
                 ],
                 "properties": {
@@ -145,51 +149,85 @@ def mock_catalog():
             "Card": {
                 "type": "object",
                 "allOf": [
-                    {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                    {
+                        "$ref": (
+                            "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+                        )
+                    },
                     {"$ref": "#/$defs/CatalogComponentCommon"},
                 ],
                 "properties": {
                     "component": {"const": "Card"},
-                    "child": {"$ref": "common_types.json#/$defs/ComponentId"},
+                    "child": {
+                        "$ref": (
+                            "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+                        )
+                    },
                 },
                 "required": ["component", "child"],
             },
             "Text": {
                 "type": "object",
                 "allOf": [
-                    {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                    {
+                        "$ref": (
+                            "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+                        )
+                    },
                     {"$ref": "#/$defs/CatalogComponentCommon"},
                 ],
                 "properties": {
                     "component": {"const": "Text"},
-                    "text": {"$ref": "common_types.json#/$defs/DynamicString"},
+                    "text": {
+                        "$ref": (
+                            "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+                        )
+                    },
                 },
                 "required": ["component", "text"],
             },
             "Column": {
                 "type": "object",
                 "allOf": [
-                    {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                    {
+                        "$ref": (
+                            "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+                        )
+                    },
                     {"$ref": "#/$defs/CatalogComponentCommon"},
                 ],
                 "properties": {
                     "component": {"const": "Column"},
-                    "children": {"$ref": "common_types.json#/$defs/ChildList"},
+                    "children": {
+                        "$ref": (
+                            "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+                        )
+                    },
                 },
                 "required": ["component", "children"],
             },
             "AudioPlayer": {
                 "type": "object",
                 "allOf": [
-                    {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                    {
+                        "$ref": (
+                            "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+                        )
+                    },
                     {"$ref": "#/$defs/CatalogComponentCommon"},
                     {
                         "type": "object",
                         "properties": {
                             "component": {"const": "AudioPlayer"},
-                            "url": {"$ref": "common_types.json#/$defs/DynamicString"},
+                            "url": {
+                                "$ref": (
+                                    "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+                                )
+                            },
                             "description": {
-                                "$ref": "common_types.json#/$defs/DynamicString"
+                                "$ref": (
+                                    "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+                                )
                             },
                         },
                         "required": ["component", "url"],
@@ -199,13 +237,21 @@ def mock_catalog():
             "List": {
                 "type": "object",
                 "allOf": [
-                    {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                    {
+                        "$ref": (
+                            "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+                        )
+                    },
                     {"$ref": "#/$defs/CatalogComponentCommon"},
                     {
                         "type": "object",
                         "properties": {
                             "component": {"const": "List"},
-                            "children": {"$ref": "common_types.json#/$defs/ChildList"},
+                            "children": {
+                                "$ref": (
+                                    "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+                                )
+                            },
                             "direction": {
                                 "type": "string",
                                 "enum": ["vertical", "horizontal"],
@@ -218,13 +264,21 @@ def mock_catalog():
             "Row": {
                 "type": "object",
                 "allOf": [
-                    {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                    {
+                        "$ref": (
+                            "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+                        )
+                    },
                     {"$ref": "#/$defs/CatalogComponentCommon"},
                     {
                         "type": "object",
                         "properties": {
                             "component": {"const": "Row"},
-                            "children": {"$ref": "common_types.json#/$defs/ChildList"},
+                            "children": {
+                                "$ref": (
+                                    "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+                                )
+                            },
                         },
                         "required": ["component", "children"],
                     },

@@ -7,7 +7,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
@@ -19,7 +19,7 @@
               "const": "Text"
             },
             "text": {
-              "$ref": "common_types.json#/$defs/DynamicString",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "The text content to display. While simple Markdown formatting is supported (i.e. without HTML, images, or links), utilizing dedicated UI components is generally preferred for a richer and more structured presentation."
             },
             "variant": {
@@ -38,7 +38,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
@@ -50,7 +50,7 @@
               "const": "Image"
             },
             "url": {
-              "$ref": "common_types.json#/$defs/DynamicString",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "The URL of the image to display."
             },
             "fit": {
@@ -75,7 +75,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
@@ -175,7 +175,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
@@ -187,7 +187,7 @@
               "const": "Video"
             },
             "url": {
-              "$ref": "common_types.json#/$defs/DynamicString",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "The URL of the video to display."
             }
           },
@@ -200,7 +200,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
@@ -212,12 +212,12 @@
               "const": "AudioPlayer"
             },
             "url": {
-              "$ref": "common_types.json#/$defs/DynamicString",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "The URL of the audio to be played."
             },
             "description": {
               "description": "A description of the audio, such as a title or summary.",
-              "$ref": "common_types.json#/$defs/DynamicString"
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
             }
           },
           "required": ["component", "url"]
@@ -229,7 +229,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
@@ -243,7 +243,7 @@
             },
             "children": {
               "description": "Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.",
-              "$ref": "common_types.json#/$defs/ChildList"
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
             },
             "justify": {
               "type": "string",
@@ -275,7 +275,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
@@ -289,7 +289,7 @@
             },
             "children": {
               "description": "Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.",
-              "$ref": "common_types.json#/$defs/ChildList"
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
             },
             "justify": {
               "type": "string",
@@ -321,7 +321,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
@@ -334,7 +334,7 @@
             },
             "children": {
               "description": "Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list.",
-              "$ref": "common_types.json#/$defs/ChildList"
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
             },
             "direction": {
               "type": "string",
@@ -358,7 +358,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
@@ -370,7 +370,7 @@
               "const": "Card"
             },
             "child": {
-              "$ref": "common_types.json#/$defs/ComponentId",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId",
               "description": "The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID. Do NOT define the child component inline."
             }
           },
@@ -383,7 +383,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
@@ -402,10 +402,10 @@
                 "properties": {
                   "title": {
                     "description": "The tab title.",
-                    "$ref": "common_types.json#/$defs/DynamicString"
+                    "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
                   },
                   "child": {
-                    "$ref": "common_types.json#/$defs/ComponentId",
+                    "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId",
                     "description": "The ID of the child component. Do NOT define the component inline."
                   }
                 },
@@ -423,7 +423,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
@@ -435,11 +435,11 @@
               "const": "Modal"
             },
             "trigger": {
-              "$ref": "common_types.json#/$defs/ComponentId",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId",
               "description": "The ID of the component that opens the modal when interacted with (e.g., a button). Do NOT define the component inline."
             },
             "content": {
-              "$ref": "common_types.json#/$defs/ComponentId",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId",
               "description": "The ID of the component to be displayed inside the modal. Do NOT define the component inline."
             }
           },
@@ -452,7 +452,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
@@ -479,13 +479,13 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
         },
         {
-          "$ref": "common_types.json#/$defs/Checkable"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Checkable"
         },
         {
           "type": "object",
@@ -494,7 +494,7 @@
               "const": "Button"
             },
             "child": {
-              "$ref": "common_types.json#/$defs/ComponentId",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId",
               "description": "The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button. Do NOT define the child component inline."
             },
             "variant": {
@@ -504,7 +504,7 @@
               "default": "default"
             },
             "action": {
-              "$ref": "common_types.json#/$defs/Action"
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action"
             }
           },
           "required": ["component", "child", "action"]
@@ -516,13 +516,13 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
         },
         {
-          "$ref": "common_types.json#/$defs/Checkable"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Checkable"
         },
         {
           "type": "object",
@@ -531,11 +531,11 @@
               "const": "TextField"
             },
             "label": {
-              "$ref": "common_types.json#/$defs/DynamicString",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "The text label for the input field."
             },
             "value": {
-              "$ref": "common_types.json#/$defs/DynamicString",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "The value of the text field."
             },
             "variant": {
@@ -558,13 +558,13 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
         },
         {
-          "$ref": "common_types.json#/$defs/Checkable"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Checkable"
         },
         {
           "type": "object",
@@ -573,11 +573,11 @@
               "const": "CheckBox"
             },
             "label": {
-              "$ref": "common_types.json#/$defs/DynamicString",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "The text to display next to the checkbox."
             },
             "value": {
-              "$ref": "common_types.json#/$defs/DynamicBoolean",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean",
               "description": "The current state of the checkbox (true for checked, false for unchecked)."
             }
           },
@@ -590,13 +590,13 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
         },
         {
-          "$ref": "common_types.json#/$defs/Checkable"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Checkable"
         },
         {
           "type": "object",
@@ -606,7 +606,7 @@
               "const": "ChoicePicker"
             },
             "label": {
-              "$ref": "common_types.json#/$defs/DynamicString",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "The label for the group of options."
             },
             "variant": {
@@ -623,7 +623,7 @@
                 "properties": {
                   "label": {
                     "description": "The text to display for this option.",
-                    "$ref": "common_types.json#/$defs/DynamicString"
+                    "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
                   },
                   "value": {
                     "type": "string",
@@ -635,7 +635,7 @@
               }
             },
             "value": {
-              "$ref": "common_types.json#/$defs/DynamicStringList",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicStringList",
               "description": "The list of currently selected values. This should be bound to a string array in the data model."
             },
             "displayStyle": {
@@ -659,13 +659,13 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
         },
         {
-          "$ref": "common_types.json#/$defs/Checkable"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Checkable"
         },
         {
           "type": "object",
@@ -674,7 +674,7 @@
               "const": "Slider"
             },
             "label": {
-              "$ref": "common_types.json#/$defs/DynamicString",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "The label for the slider."
             },
             "min": {
@@ -687,7 +687,7 @@
               "description": "The maximum value of the slider."
             },
             "value": {
-              "$ref": "common_types.json#/$defs/DynamicNumber",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
               "description": "The current value of the slider."
             }
           },
@@ -700,13 +700,13 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
         },
         {
-          "$ref": "common_types.json#/$defs/Checkable"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Checkable"
         },
         {
           "type": "object",
@@ -715,7 +715,7 @@
               "const": "DateTimeInput"
             },
             "value": {
-              "$ref": "common_types.json#/$defs/DynamicString",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "The selected date and/or time value in ISO 8601 format. If not yet set, initialize with an empty string."
             },
             "enableDate": {
@@ -731,7 +731,7 @@
             "min": {
               "allOf": [
                 {
-                  "$ref": "common_types.json#/$defs/DynamicString"
+                  "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
                 },
                 {
                   "if": {
@@ -757,7 +757,7 @@
             "max": {
               "allOf": [
                 {
-                  "$ref": "common_types.json#/$defs/DynamicString"
+                  "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
                 },
                 {
                   "if": {
@@ -781,7 +781,7 @@
               "description": "The maximum allowed date/time in ISO 8601 format."
             },
             "label": {
-              "$ref": "common_types.json#/$defs/DynamicString",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "The text label for the input field."
             }
           },
@@ -794,7 +794,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
@@ -807,7 +807,7 @@
               "const": "Canvas"
             },
             "children": {
-              "$ref": "common_types.json#/$defs/ChildList",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList",
               "description": "Defines the children of the canvas."
             }
           },
@@ -820,7 +820,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
@@ -838,7 +838,7 @@
               "enum": ["doughnut", "pie"]
             },
             "title": {
-              "$ref": "common_types.json#/$defs/DynamicString",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "The title of the chart."
             },
             "chartData": {
@@ -851,7 +851,7 @@
                   }
                 },
                 {
-                  "$ref": "common_types.json#/$defs/DataBinding"
+                  "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DataBinding"
                 }
               ]
             }
@@ -865,7 +865,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/ComponentCommon"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
         },
         {
           "$ref": "#/$defs/CatalogComponentCommon"
@@ -882,7 +882,7 @@
               "description": "The center point of the map, containing latitude and longitude."
             },
             "zoom": {
-              "$ref": "common_types.json#/$defs/DynamicNumber",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
               "description": "The zoom level of the map."
             },
             "pins": {
@@ -895,7 +895,7 @@
                   }
                 },
                 {
-                  "$ref": "common_types.json#/$defs/DataBinding"
+                  "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DataBinding"
                 }
               ]
             }
@@ -911,7 +911,7 @@
       "type": "object",
       "properties": {
         "weight": {
-          "$ref": "common_types.json#/$defs/DynamicNumber"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
         }
       }
     },
@@ -959,7 +959,7 @@
           "additionalProperties": false
         },
         {
-          "$ref": "common_types.json#/$defs/DataBinding"
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DataBinding"
         }
       ]
     },

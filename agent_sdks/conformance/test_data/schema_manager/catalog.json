@@ -2,7 +2,7 @@
   "catalogId": "basic",
   "components": {
     "Text": {
-      "$ref": "common_types.json#/$defs/Common"
+      "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Common"
     },
     "Button": {}
   }

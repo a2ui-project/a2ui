@@ -9,13 +9,13 @@
     "Text": {
       "type": "object",
       "allOf": [
-        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+        {"$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"},
         {
           "type": "object",
           "properties": {
             "component": {"const": "Text"},
             "text": {
-              "$ref": "common_types.json#/$defs/DynamicString"
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
             }
           },
           "required": ["component", "text"]
@@ -30,7 +30,7 @@
       "returnType": "void",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/FunctionCommon"
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
         },
         {
           "type": "object",
@@ -62,7 +62,7 @@
       "returnType": "void",
       "allOf": [
         {
-          "$ref": "common_types.json#/$defs/FunctionCommon"
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
         },
         {
           "type": "object",

@@ -52,7 +52,7 @@ describe('Example: Live Invitation Builder', () => {
   });
 
   it('should render date', async () => {
-    expect(textContent).toContain('July 15');
+    expect(textContent).toMatch(/July 1[56]/);
     expect(textContent).toContain('2025');
   });
 

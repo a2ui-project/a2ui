@@ -21,7 +21,7 @@
         },
         "createSurface": {
           "type": "object",
-          "description": "Signals the renderer to create a new surface and begin rendering it. Creating a surface implicitly instantiates the canonical 'Surface' container component ('common_types.json#/$defs/Surface') with 'child': 'root'. It is an error to try to create a surface with an existing ID without first deleting it; surfaceId MUST be globally unique for the renderer's lifetime. When this message is sent, the renderer expects 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId to define the component tree.",
+          "description": "Signals the renderer to create a new surface and begin rendering it. Creating a surface implicitly instantiates the canonical 'Surface' container component ('https://a2ui.org/specification/v1_0/common_types.json#/$defs/Surface') with 'child': 'root'. It is an error to try to create a surface with an existing ID without first deleting it; surfaceId MUST be globally unique for the renderer's lifetime. When this message is sent, the renderer expects 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId to define the component tree.",
           "properties": {
             "surfaceId": {
               "type": "string",
@@ -167,7 +167,7 @@
           "const": "v1.0"
         },
         "functionCallId": {
-          "$ref": "common_types.json#/$defs/CallId",
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/CallId",
           "description": "Unique ID for the instance of this function call. MUST be copied verbatim into the functionResponse or error."
         },
         "wantResponse": {
@@ -177,7 +177,7 @@
         "callFunction": {
           "allOf": [
             {
-              "$ref": "common_types.json#/$defs/FunctionCall"
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCall"
             }
           ],
           "required": ["call"],

@@ -158,11 +158,11 @@ Defining your own catalog allows you to restrict the agent to using exactly the 
 To ensure that automated validators can verify the integrity of your UI tree (checking that parents reference existing children), any catalog you define MUST adhere to the following strict typing rules:
 
 1.  **Single child references:** Any property that holds the ID of another component MUST use the `ComponentId` type defined in `common_types.json`.
-    - Use: `"$ref": "common_types.json#/$defs/ComponentId"`
+    - Use: `"$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentId"`
     - Do NOT use: `"type": "string"`
 
 2.  **List references:** Any property that holds a list of children or a template MUST use the `ChildList` type.
-    - Use: `"$ref": "common_types.json#/$defs/ChildList"`
+    - Use: `"$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList"`
 
 Validators determine which fields represent structural links by looking for these specific schema references. If you use a raw string type for an ID, the validator will treat it as static text (like a URL or label) and will not check if the target component exists.
 

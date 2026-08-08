@@ -127,8 +127,8 @@
     catalog_schema:
       catalogId: basic
       components:
-        CompA: {$ref: "common_types.json#/$defs/TypeForCompA"}
-        CompB: {$ref: "common_types.json#/$defs/TypeForCompB"}
+        CompA: {$ref: "https://a2ui.org/specification/v0_8/common_types.json#/$defs/TypeForCompA"}
+        CompB: {$ref: "https://a2ui.org/specification/v0_8/common_types.json#/$defs/TypeForCompB"}
   action: prune
   args:
     allowed_components: [CompA]
@@ -150,8 +150,8 @@
         - $ref: "#/$defs/MessageA"
         - $ref: "#/$defs/MessageB"
       $defs:
-        MessageA: {$ref: "common_types.json#/$defs/TypeForA"}
-        MessageB: {$ref: "common_types.json#/$defs/TypeForB"}
+        MessageA: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/TypeForA"}
+        MessageB: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/TypeForB"}
     catalog_schema: {catalogId: basic}
   action: prune
   args:
@@ -409,8 +409,8 @@
     catalog_schema:
       catalogId: basic
       components:
-        CompA: {$ref: "common_types.json#/$defs/TypeForCompA"}
-        CompB: {$ref: "common_types.json#/$defs/TypeForCompB"}
+        CompA: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/TypeForCompA"}
+        CompB: {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/TypeForCompB"}
   action: prune
   args:
     allowed_components: [CompA]

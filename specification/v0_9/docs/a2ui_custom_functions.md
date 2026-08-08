@@ -27,11 +27,11 @@ Use the `functions` property to define a map of function schemas.
           "type": "object",
           "properties": {
             "value": {
-              "$ref": "common_types.json#/$defs/DynamicString",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "The string to trim."
             },
             "chars": {
-              "$ref": "common_types.json#/$defs/DynamicString",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "Optional. A set of characters to remove. Defaults to whitespace."
             }
           },
@@ -52,7 +52,7 @@ Use the `functions` property to define a map of function schemas.
           "type": "object",
           "properties": {
             "screenIndex": {
-              "$ref": "common_types.json#/$defs/DynamicNumber",
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
               "description": "Optional. The index of the screen to query. Defaults to 0 (primary screen)."
             }
           },
@@ -92,7 +92,9 @@ those can be added too:
       "oneOf": [
         {"$ref": "#/functions/trim"},
         {"$ref": "#/functions/getScreenResolution"},
-        {"$ref": "catalogs/basic/catalog.json#/$defs/anyFunction"}
+        {
+          "$ref": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json#/$defs/anyFunction"
+        }
       ]
     }
   }

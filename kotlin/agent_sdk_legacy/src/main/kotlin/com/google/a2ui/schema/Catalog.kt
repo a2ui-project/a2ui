@@ -213,9 +213,9 @@ data class A2uiCatalog(
     collectRefs(catalogSchema, externalRefs)
     collectRefs(serverToClientSchema, externalRefs)
 
-    val prefix = "common_types.json#/\$defs/"
+    val marker = "common_types.json#/\$defs/"
     val rootDefs =
-      externalRefs.mapNotNull { if (it.startsWith(prefix)) it.substring(prefix.length) else null }
+      externalRefs.mapNotNull { if (it.contains(marker)) it.substringAfter(marker) else null }
 
     val newDefs = pruneDefsByReachability(defs, rootDefs)
     val newCommonTypes =

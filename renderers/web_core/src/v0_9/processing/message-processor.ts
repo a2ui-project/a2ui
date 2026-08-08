@@ -112,7 +112,7 @@ export class MessageProcessor<T extends ComponentApi> {
       // Wrap in standard A2UI component envelope (ComponentCommon)
       components[name] = {
         allOf: [
-          {$ref: 'common_types.json#/$defs/ComponentCommon'},
+          {$ref: 'https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon'},
           {
             properties: {
               component: {const: name},

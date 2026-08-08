@@ -137,12 +137,20 @@ class TestValidator:
                 "Text": {
                     "type": "object",
                     "allOf": [
-                        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                        {
+                            "$ref": (
+                                "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+                            )
+                        },
                         {"$ref": "#/$defs/CatalogComponentCommon"},
                     ],
                     "properties": {
                         "component": {"const": "Text"},
-                        "text": {"$ref": "common_types.json#/$defs/DynamicString"},
+                        "text": {
+                            "$ref": (
+                                "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+                            )
+                        },
                     },
                     "required": ["component", "text"],
                     "unevaluatedProperties": False,
@@ -150,7 +158,11 @@ class TestValidator:
                 "Image": {
                     "type": "object",
                     "allOf": [
-                        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                        {
+                            "$ref": (
+                                "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+                            )
+                        },
                         {"$ref": "#/$defs/CatalogComponentCommon"},
                     ],
                     "properties": {
@@ -163,7 +175,11 @@ class TestValidator:
                 "Icon": {
                     "type": "object",
                     "allOf": [
-                        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                        {
+                            "$ref": (
+                                "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+                            )
+                        },
                         {"$ref": "#/$defs/CatalogComponentCommon"},
                     ],
                     "properties": {
@@ -176,12 +192,20 @@ class TestValidator:
                 "Column": {
                     "type": "object",
                     "allOf": [
-                        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                        {
+                            "$ref": (
+                                "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+                            )
+                        },
                         {"$ref": "#/$defs/CatalogComponentCommon"},
                     ],
                     "properties": {
                         "component": {"const": "Column"},
-                        "children": {"$ref": "common_types.json#/$defs/ChildList"},
+                        "children": {
+                            "$ref": (
+                                "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+                            )
+                        },
                     },
                     "required": ["component", "children"],
                     "unevaluatedProperties": False,
@@ -189,12 +213,20 @@ class TestValidator:
                 "Card": {
                     "type": "object",
                     "allOf": [
-                        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                        {
+                            "$ref": (
+                                "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+                            )
+                        },
                         {"$ref": "#/$defs/CatalogComponentCommon"},
                     ],
                     "properties": {
                         "component": {"const": "Card"},
-                        "child": {"$ref": "common_types.json#/$defs/ComponentId"},
+                        "child": {
+                            "$ref": (
+                                "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+                            )
+                        },
                     },
                     "required": ["component", "child"],
                     "unevaluatedProperties": False,
@@ -202,13 +234,21 @@ class TestValidator:
                 "Button": {
                     "type": "object",
                     "allOf": [
-                        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                        {
+                            "$ref": (
+                                "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+                            )
+                        },
                         {"$ref": "#/$defs/CatalogComponentCommon"},
                     ],
                     "properties": {
                         "component": {"const": "Button"},
                         "text": {"type": "string"},
-                        "action": {"$ref": "common_types.json#/$defs/Action"},
+                        "action": {
+                            "$ref": (
+                                "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action"
+                            )
+                        },
                     },
                     "required": ["component", "text", "action"],
                     "unevaluatedProperties": False,
@@ -216,14 +256,20 @@ class TestValidator:
                 "List": {
                     "type": "object",
                     "allOf": [
-                        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                        {
+                            "$ref": (
+                                "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+                            )
+                        },
                         {"$ref": "#/$defs/CatalogComponentCommon"},
                         {
                             "type": "object",
                             "properties": {
                                 "component": {"const": "List"},
                                 "children": {
-                                    "$ref": "common_types.json#/$defs/ChildList"
+                                    "$ref": (
+                                        "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+                                    )
                                 },
                                 "direction": {
                                     "type": "string",
@@ -623,8 +669,16 @@ class TestValidator:
                 "components": {
                     "MyComp": {
                         "properties": {
-                            "ref": {"$ref": "common_types.json#/$defs/ComponentId"},
-                            "multi": {"$ref": "common_types.json#/$defs/ChildList"},
+                            "ref": {
+                                "$ref": (
+                                    "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+                                )
+                            },
+                            "multi": {
+                                "$ref": (
+                                    "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+                                )
+                            },
                         }
                     }
                 },
