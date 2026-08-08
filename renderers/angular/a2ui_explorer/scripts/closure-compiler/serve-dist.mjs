@@ -59,7 +59,15 @@ const server = http.createServer((req, res) => {
   let filePath = path.join(distDir, pathname === '/' ? 'index.html' : pathname);
   const relative = path.relative(distDir, filePath);
   const isSafe = !relative.startsWith('..') && !path.isAbsolute(relative);
-  if (!isSafe || !fs.existsSync(filePath)) {
+  let isFile = false;
+  if (isSafe && fs.existsSync(filePath)) {
+    try {
+      isFile = fs.statSync(filePath).isFile();
+    } catch {
+      isFile = false;
+    }
+  }
+  if (!isFile) {
     filePath = path.join(distDir, 'index.html'); // SPA routing fallback
   }
   const ext = path.extname(filePath);
@@ -67,8 +75,15 @@ const server = http.createServer((req, res) => {
 
   fs.readFile(filePath, (err, content) => {
     if (err) {
-      res.writeHead(500);
-      res.end(`Server Error: ${err.code}`);
+      fs.readFile(path.join(distDir, 'index.html'), (fallbackErr, fallbackContent) => {
+        if (fallbackErr) {
+          res.writeHead(404, {'Content-Type': 'text/plain'});
+          res.end('Not Found');
+        } else {
+          res.writeHead(200, {'Content-Type': 'text/html'});
+          res.end(fallbackContent, 'utf-8');
+        }
+      });
     } else {
       res.writeHead(200, {'Content-Type': contentType});
       res.end(content, 'utf-8');

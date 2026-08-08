@@ -15,7 +15,9 @@
  */
 
 import {TestBed} from '@angular/core/testing';
-import {A2uiRendererService, A2UI_RENDERER_CONFIG, provideA2Ui} from './a2ui-renderer.service';
+import {A2uiRendererService, A2UI_RENDERER_CONFIG} from './a2ui-renderer.service';
+import {provideA2Ui} from './provide-a2ui';
+import {BasicCatalogBase} from '../catalog/basic/basic-catalog';
 
 describe('A2uiRendererService', () => {
   let service: A2uiRendererService;
@@ -114,5 +116,43 @@ describe('provideA2Ui', () => {
 
     const service = TestBed.inject(A2uiRendererService);
     expect(service).toBeTruthy();
+  });
+
+  it('should default to native BasicCatalog when no catalogs or useUniversalComponents are specified', () => {
+    TestBed.configureTestingModule({
+      providers: [provideA2Ui()],
+    });
+    const config = TestBed.inject(A2UI_RENDERER_CONFIG);
+    expect(config.catalogs).toBeDefined();
+    expect(config.catalogs!.length).toBe(1);
+    const catalog = config.catalogs![0];
+    // Native catalog maps native TextComponent
+    expect((catalog.components.get('Text') as any)?.component).toBeDefined();
+  });
+
+  it('should provide UniversalBasicCatalog when useUniversalComponents is true', () => {
+    TestBed.configureTestingModule({
+      providers: [provideA2Ui({useUniversalComponents: true})],
+    });
+    const config = TestBed.inject(A2UI_RENDERER_CONFIG);
+    expect(config.catalogs).toBeDefined();
+    expect(config.catalogs!.length).toBe(1);
+    const catalog = config.catalogs![0];
+    // Universal catalog maps custom element tagName
+    expect((catalog.components.get('Text') as any)?.tagName).toBe('a2ui-basic-text');
+  });
+
+  it('should automatically apply useUniversalComponents to custom catalogs extending BasicCatalogBase', () => {
+    class CustomCatalog extends BasicCatalogBase {}
+
+    TestBed.configureTestingModule({
+      providers: [
+        provideA2Ui({useUniversalComponents: true}),
+        {provide: CustomCatalog, useClass: CustomCatalog},
+      ],
+    });
+
+    const customCatalog = TestBed.inject(CustomCatalog);
+    expect((customCatalog.components.get('Text') as any)?.tagName).toBe('a2ui-basic-text');
   });
 });

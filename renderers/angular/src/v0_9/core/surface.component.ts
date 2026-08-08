@@ -14,39 +14,76 @@
  * limitations under the License.
  */
 
-import {ChangeDetectionStrategy, Component, input} from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  OnDestroy,
+  computed,
+  inject,
+  input,
+} from '@angular/core';
+import {SurfaceModel} from '@a2ui/web_core/v0_9';
+import {A2uiRendererService} from './a2ui-renderer.service';
 import {ComponentHostComponent} from './component-host.component';
+import {CatalogComponent} from '../catalog/types';
 
 /**
  * High-level component for rendering an entire A2UI surface.
  *
- * This component handles the boilerplate of setting up a {@link ComponentHostComponent}
- * for the 'root' component of a surface. It is the recommended way to embed an
- * A2UI surface in an Angular application.
+ * This component sets up a {@link ComponentHostComponent} for the 'root'
+ * component of a surface, seamlessly supporting both native Angular components
+ * and universal Web Components.
  */
 @Component({
   selector: 'a2ui-v09-surface',
   standalone: true,
   imports: [ComponentHostComponent],
   host: {
-    style: 'display: contents;',
+    '[style.display]': '"contents"',
   },
   template: `
-    <a2ui-v09-component-host
-      [componentKey]="{id: 'root', basePath: dataContextPath()}"
-      [surfaceId]="surfaceId()"
-    >
-    </a2ui-v09-component-host>
+    @if (effectiveSurfaceId()) {
+      <a2ui-v09-component-host
+        [componentKey]="{id: 'root', basePath: dataContextPath()}"
+        [surfaceId]="effectiveSurfaceId()!"
+      >
+      </a2ui-v09-component-host>
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class SurfaceComponent {
-  /** The unique identifier of the surface to render. */
-  surfaceId = input.required<string>();
+export class SurfaceComponent implements OnDestroy {
+  /** Directly provided SurfaceModel instance. */
+  surface = input<SurfaceModel<CatalogComponent>>();
+
+  /** The unique identifier of the surface to look up from A2uiRendererService. */
+  surfaceId = input<string>();
 
   /**
    * The path within the surface's data model that represents the current state.
    * Defaults to the root ('/').
    */
   dataContextPath = input<string>('/');
+
+  private readonly elementRef = inject(ElementRef<HTMLElement>);
+  private readonly rendererService = inject(A2uiRendererService, {optional: true});
+
+  protected readonly effectiveSurfaceId = computed(() => {
+    const s = this.surface();
+    if (s) {
+      if (
+        this.rendererService?.surfaceGroup &&
+        !this.rendererService.surfaceGroup.getSurface(s.id)
+      ) {
+        this.rendererService.surfaceGroup.addSurface(s);
+      }
+      return s.id;
+    }
+    return this.surfaceId();
+  });
+
+  ngOnDestroy(): void {
+    this.elementRef.nativeElement.innerHTML = '';
+  }
 }

@@ -27,7 +27,7 @@ import {CatalogComponentInstance} from './catalog_component_instance';
  * fields.
  */
 @Directive()
-export abstract class CatalogComponent<
+export abstract class CatalogComponentBase<
   Api extends ComponentApi,
 > implements CatalogComponentInstance {
   /**

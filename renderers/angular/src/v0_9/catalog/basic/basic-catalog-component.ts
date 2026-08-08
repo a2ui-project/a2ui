@@ -18,7 +18,7 @@ import {Directive, computed, HostBinding, inject} from '@angular/core';
 import {injectBasicCatalogStyles} from '@a2ui/web_core/v0_9/basic_catalog';
 import {A2uiRendererService} from '../../core/a2ui-renderer.service';
 import {ComponentApi} from '@a2ui/web_core/v0_9';
-import {CatalogComponent} from '../../core/catalog_component';
+import {CatalogComponentBase} from '../../core/catalog_component';
 import {BoundProperty} from '../../core/types';
 
 /**
@@ -30,11 +30,16 @@ import {BoundProperty} from '../../core/types';
 @Directive()
 export abstract class BasicCatalogComponent<
   Api extends ComponentApi,
-> extends CatalogComponent<Api> {
+> extends CatalogComponentBase<Api> {
   protected rendererService = inject(A2uiRendererService);
 
   readonly surface = computed(() => {
-    return this.rendererService.surfaceGroup.getSurface(this.surfaceId());
+    try {
+      const id = this.surfaceId();
+      return id ? this.rendererService.surfaceGroup.getSurface(id) : undefined;
+    } catch {
+      return undefined;
+    }
   });
 
   readonly theme = computed(() => {
