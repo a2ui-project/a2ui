@@ -2,6 +2,10 @@
 
 - (v0_9) Fix `ChoicePicker` radio groups colliding across surfaces: the radio group `name` now combines the surface id, component id, and data context path instead of using the surface-scoped component id alone, and checkboxes no longer receive a `name`. [#2447](https://github.com/a2ui-project/a2ui/issues/2447)
 - (v0_9) Implement `createComponentImplementation` helper and deprecate `extraComponents` and `functions` in `BasicCatalogOptions` to align with the core API. [#2060](https://github.com/a2ui-project/a2ui/pull/2060)
+- (v0_9) Support universal Web Components in the v0.9 renderer:
+  - Update `AngularCatalog` and `BasicCatalog` to support both universal Web Components from `@a2ui/web_core` and native Angular `@Component` implementations.
+  - Update `ComponentHostComponent` to dynamically mount either universal Web Components or native Angular components based on catalog definitions.
+  - Expose `useUniversalComponents` configuration option in `provideA2Ui` and `A2UI_USE_UNIVERSAL_COMPONENTS` injection token for Angular applications. [#2273](https://github.com/a2ui-project/a2ui/pull/2273)
 
 ## 0.10.5
 

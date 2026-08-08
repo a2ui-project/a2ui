@@ -46,6 +46,8 @@ describe('Example: Modal', () => {
     expect(closeBtn).toBeTruthy();
     closeBtn.click();
     fixture.detectChanges();
+    await wait(50);
+    fixture.detectChanges();
 
     // Check modal is closed
     expect(fixture.nativeElement.querySelector('.a2ui-modal-overlay')).toBeFalsy();
