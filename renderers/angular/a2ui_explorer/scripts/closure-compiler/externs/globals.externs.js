@@ -32,6 +32,15 @@ let Hammer;
 /** @type {?} */ Object.prototype.kind;
 /** @type {?} */ Object.prototype.access;
 /** @type {?} */ Object.prototype.addInitializer;
+/** @type {?} */ Object.prototype.adoptedStyleSheets;
+/** @type {?} */ Object.prototype.replaceSync;
+/** @type {?} */ Object.prototype._$litStatic$;
+/** @type {?} */ Object.prototype.strings;
+/** @type {?} */ Object.prototype.values;
+/** @type {?} */ Object.prototype.r;
+/** @type {?} */ Object.prototype.raw;
+/** @type {?} */ Object.prototype._processedSheet;
+/** @type {?} */ Object.prototype._processedCss;
 
 /**
  * Externs for Lit (`@lit/reactive-element`, `lit-element`, `lit-html`).
@@ -45,6 +54,9 @@ function LitElementExterns() {}
 /** @type {?} */ LitElementExterns.prototype.renderOptions;
 /** @type {?} */ LitElementExterns.prototype.styles;
 /** @type {?} */ LitElementExterns.prototype.properties;
+/** @type {?} */ LitElementExterns.prototype.enabledWarnings;
+/** @type {?} */ LitElementExterns.prototype.enableWarning;
+/** @type {?} */ LitElementExterns.prototype.disableWarning;
 
 /**
  * Externs for TC39 2023 Decorators context object (`kind`, `name`, `static`, `private`, `access`, `addInitializer`).

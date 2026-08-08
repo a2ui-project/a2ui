@@ -16,8 +16,11 @@
 
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   DestroyRef,
+  ElementRef,
+  Injector,
   Type,
   inject,
   input,
@@ -27,17 +30,22 @@ import {
 } from '@angular/core';
 import {NgComponentOutlet} from '@angular/common';
 import {ComponentContext, ComponentModel, SurfaceModel, Subscription} from '@a2ui/web_core/v0_9';
-import {A2uiRendererService} from './a2ui-renderer.service';
-import {AngularCatalog} from '../catalog/types';
+import {A2uiRendererService, A2UI_USE_UNIVERSAL_COMPONENTS} from './a2ui-renderer.service';
 import {ComponentBinder} from './component-binder.service';
 import {BoundProperty} from './types';
+
+import {isAngularComponentImplementation, isWebComponentImplementation} from '../catalog/types';
+
+interface ContextConsumerElement extends HTMLElement {
+  context: ComponentContext;
+}
 
 /**
  * Dynamically renders an A2UI component as defined in the current surface model.
  *
- * This component acts as a bridge between the A2UI surface model and Angular components.
- * It resolves the appropriate component from the catalog based on the component's type,
- * and uses {@link ComponentBinder} to create reactive property bindings.
+ * This component acts as a bridge between the A2UI surface model and UI components.
+ * It can render both native Angular `@Component` implementations (via `NgComponentOutlet`)
+ * and universal W3C Web Components (by instantiating and appending the custom element tag).
  *
  * Usually, you'll use the higher-level {@link SurfaceComponent} which automatically
  * sets up a host for the 'root' component.
@@ -50,6 +58,8 @@ import {BoundProperty} from './types';
   },
   template: `
     @if (componentType()) {
+      <!-- Note: The quotes around input keys in *ngComponentOutlet are critical to survive Closure minification -->
+      <!-- prettier-ignore -->
       <ng-container
         *ngComponentOutlet="
           componentType()!;
@@ -72,14 +82,19 @@ export class ComponentHostComponent {
   /** The unique identifier of the surface this component belongs to. */
   surfaceId = input.required<string>();
 
+  private readonly elementRef = inject(ElementRef<HTMLElement>);
   private readonly rendererService = inject(A2uiRendererService);
   private readonly binder = inject(ComponentBinder);
   private readonly destroyRef = inject(DestroyRef);
   private readonly ngZone = inject(NgZone);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly injector = inject(Injector);
+  private readonly useUniversal = inject(A2UI_USE_UNIVERSAL_COMPONENTS, {optional: true}) ?? false;
 
   protected readonly componentType = signal<Type<unknown> | null>(null);
   protected readonly props = signal<Record<string, BoundProperty>>({});
   private context?: ComponentContext;
+  private mountedWcEl: HTMLElement | null = null;
 
   protected resolvedComponentId: string = '';
   protected resolvedDataContextPath: string = '/';
@@ -99,9 +114,7 @@ export class ComponentHostComponent {
     });
 
     this.destroyRef.onDestroy(() => {
-      this.propsSub?.unsubscribe();
-      this.createSub?.unsubscribe();
-      this.surfaceSub?.unsubscribe();
+      this.resetState();
     });
   }
 
@@ -174,25 +187,97 @@ export class ComponentHostComponent {
     basePath: string,
   ): void {
     // Resolve component from the surface's catalog
-    const catalog = surface.catalog as AngularCatalog;
+    const catalog = surface.catalog;
     const api = catalog.components.get(componentModel.type);
 
     if (!api) {
       console.error(`Component type "${componentModel.type}" not found in catalog "${catalog.id}"`);
       return;
     }
-    this.componentType.set(api.component);
 
-    // Create context
     this.context = new ComponentContext(surface, id, basePath);
-    this.props.set(this.binder.bind(this.context));
     this.resolvedDataContextPath = this.context.dataContext.path;
 
-    // Subscribes to updates to the component model properties, to get the
-    // component to react when a new prop is added after creation.
+    const useUniversal = this.rendererService.useUniversalComponents ?? this.useUniversal;
+
+    if (useUniversal) {
+      const resolvedApi = surface.catalog.components.get(componentModel.type) ?? api;
+      if (isWebComponentImplementation(resolvedApi)) {
+        this.setupWebComponent(resolvedApi.tagName, surface, componentModel, id, basePath);
+      } else if (isAngularComponentImplementation(resolvedApi)) {
+        this.setupAngularComponent(resolvedApi.component as Type<unknown>, componentModel);
+      } else {
+        console.error(
+          `Component type "${componentModel.type}" does not define a Web Component tagName or Angular component.`,
+        );
+      }
+    } else {
+      if (isAngularComponentImplementation(api)) {
+        this.setupAngularComponent(api.component as Type<unknown>, componentModel);
+      } else if (isWebComponentImplementation(api)) {
+        this.setupWebComponent(api.tagName, surface, componentModel, id, basePath);
+      } else {
+        console.error(
+          `Component type "${componentModel.type}" does not define an Angular component or Web Component tagName.`,
+        );
+      }
+    }
+  }
+
+  private setupAngularComponent(
+    componentClass: Type<unknown>,
+    componentModel: ComponentModel,
+  ): void {
+    if (this.mountedWcEl) {
+      this.mountedWcEl.remove();
+      this.mountedWcEl = null;
+    }
+    this.componentType.set(componentClass);
+    this.props.set(this.binder.bind(this.context!));
+    this.cdr.markForCheck();
+
     this.propsSub = componentModel.onUpdated.subscribe(() => {
       this.ngZone.run(() => {
         this.props.set(this.binder.bind(this.context!));
+        this.cdr.markForCheck();
+      });
+    });
+  }
+
+  private setupWebComponent(
+    tagName: string,
+    surface: SurfaceModel,
+    componentModel: ComponentModel,
+    id: string,
+    basePath: string,
+  ): void {
+    this.componentType.set(null);
+    this.props.set({});
+
+    if (this.mountedWcEl && this.mountedWcEl.tagName.toLowerCase() === tagName.toLowerCase()) {
+      (this.mountedWcEl as any).injector = this.injector;
+      (this.mountedWcEl as ContextConsumerElement).context = this.context!;
+    } else {
+      if (this.mountedWcEl) {
+        this.mountedWcEl.remove();
+        this.mountedWcEl = null;
+      }
+      const el = document.createElement(tagName) as any;
+      el.injector = this.injector;
+      el.context = this.context!;
+      this.mountedWcEl = el;
+      this.elementRef.nativeElement.appendChild(el);
+    }
+
+    this.propsSub = componentModel.onUpdated.subscribe(() => {
+      this.ngZone.run(() => {
+        if (this.mountedWcEl) {
+          (this.mountedWcEl as ContextConsumerElement).context = new ComponentContext(
+            surface,
+            id,
+            basePath,
+          );
+        }
       });
     });
   }
@@ -204,11 +289,19 @@ export class ComponentHostComponent {
    */
   private resetState(): void {
     this.propsSub?.unsubscribe();
+    this.propsSub = undefined;
     this.createSub?.unsubscribe();
+    this.createSub = undefined;
     this.surfaceSub?.unsubscribe();
+    this.surfaceSub = undefined;
 
     this.componentType.set(null);
     this.props.set({});
     this.resolvedDataContextPath = '/';
+
+    if (this.mountedWcEl) {
+      this.mountedWcEl.remove();
+      this.mountedWcEl = null;
+    }
   }
 }

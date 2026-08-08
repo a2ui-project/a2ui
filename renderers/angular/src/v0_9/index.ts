@@ -17,17 +17,16 @@
 /**
  * Public API surface for A2UI Angular Renderer v0.9.
  *
- * This module provides the core services, components, and catalogs required
- * to render A2UI surfaces using the v0.9 protocol.
- *
  * @module v0.9
  */
 
 // Core Services and Components
 export * from './core/a2ui-renderer.service';
+export * from './core/provide-a2ui';
 export * from './core/component-host.component';
 export * from './core/surface.component';
 export * from './core/catalog_component';
+export * from './core/catalog_component_instance';
 export * from './core/component-binder.service';
 export * from './core/types';
 export * from './core/utils';
