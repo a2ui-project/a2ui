@@ -15,7 +15,12 @@
  */
 
 import {Type} from '@angular/core';
-import {Catalog, ComponentApi} from '@a2ui/web_core/v0_9';
+import {
+  Catalog,
+  ComponentApi,
+  WebComponentImplementation,
+  isWebComponentImplementation,
+} from '@a2ui/web_core/v0_9';
 import {CatalogComponentInstance} from '../core/catalog_component_instance';
 
 /**
@@ -41,32 +46,84 @@ export interface AngularComponentImplementation extends ComponentApi {
 }
 
 /**
- * A collection of Angular component and function implementations mapped to
+ * A component implementation supported by the Angular catalog, which can be
+ * either a native W3C Custom Element or an Angular `@Component` declaration.
+ */
+export type CatalogComponentImplementation =
+  | WebComponentImplementation
+  | AngularComponentImplementation;
+
+/**
+ * A collection of component and function implementations mapped to
  * A2UI protocol types.
+ *
+ * Supports both native Angular component declarations (`.component`) and
+ * W3C Custom Elements (`WebComponentImplementation`).
  *
  * Catalogs are used by the {@link MessageProcessor} to resolve component
  * definitions and by {@link ComponentHostComponent} to instantiate the
  * correct Angular components.
  */
-export class AngularCatalog extends Catalog<AngularComponentImplementation> {}
+export class AngularCatalog extends Catalog<CatalogComponentImplementation> {}
+
+/**
+ * Type guard to check if a component declaration is an AngularComponentImplementation.
+ *
+ * Uses structural duck-typing (`'component' in api && typeof api.component === 'function'`)
+ * to preserve backwards compatibility with existing applications and catalogs constructed
+ * using plain JavaScript/TypeScript object literals without requiring class inheritance or
+ * private brand symbols.
+ *
+ * @note This duck-typing check may be replaced or removed in a future major version release.
+ */
+export function isAngularComponentImplementation(
+  api: unknown,
+): api is AngularComponentImplementation {
+  return (
+    typeof api === 'object' &&
+    api !== null &&
+    'component' in api &&
+    typeof (api as {component?: unknown}).component === 'function'
+  );
+}
+
+// TEMPORARY WORKAROUND:
+// Internal WeakMap to associate pre-built universal Web Component tag names with Angular components
+// without increasing the public API surface of AngularComponentImplementation.
+//
+// This enables dynamic toggling between native Angular components and universal web_core basic catalog
+// Web Components. This workaround will be removed once Angular uses the basic catalog from web_core
+// and the Angular native implementation of the basic catalog is removed.
+const componentToUniversalTagMap = new WeakMap<Type<CatalogComponentInstance>, string>();
+
+/**
+ * Internal helper to retrieve the pre-built universal Web Component tag name associated with an
+ * AngularComponentImplementation, if one was provided during createComponentImplementation.
+ *
+ * @internal
+ */
+export function getUniversalTagName(impl: AngularComponentImplementation): string | undefined {
+  return componentToUniversalTagMap.get(impl.component);
+}
 
 /**
  * Helper function to create an {@link AngularComponentImplementation}.
  *
- * It extracts the name and schema from a generic {@link ComponentApi} and
- * associates it with the given Angular component type.
- *
- * @param api The generic component API definition.
- * @param component The Angular component class implementing the API.
- * @returns The structured Angular component implementation.
+ * @param componentApi The ComponentApi or WebComponentImplementation defining the schema and name.
+ * @param component The Angular Component class.
+ * @returns The structured AngularComponentImplementation.
  */
 export function createComponentImplementation(
-  api: ComponentApi,
+  componentApi: ComponentApi | WebComponentImplementation,
   component: Type<CatalogComponentInstance>,
 ): AngularComponentImplementation {
+  if (isWebComponentImplementation(componentApi)) {
+    componentToUniversalTagMap.set(component, componentApi.tagName);
+  }
+
   return {
-    name: api.name,
-    schema: api.schema,
+    name: componentApi.name,
+    schema: componentApi.schema,
     component,
   };
 }

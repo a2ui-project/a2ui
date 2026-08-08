@@ -20,6 +20,30 @@ import {
   AngularComponentImplementation,
   createComponentImplementation,
 } from '../types';
+import {
+  BASIC_FUNCTIONS,
+  createBasicCatalogFunctions,
+  A2uiText,
+  A2uiRow,
+  A2uiColumn,
+  A2uiButton,
+  A2uiTextField,
+  A2uiImage,
+  A2uiIcon,
+  A2uiVideo,
+  A2uiAudioPlayer,
+  A2uiList,
+  A2uiCard,
+  A2uiTabs,
+  A2uiModal,
+  A2uiDivider,
+  A2uiCheckBox,
+  A2uiChoicePicker,
+  A2uiSlider,
+  A2uiDateTimeInput,
+} from '@a2ui/web_core/v0_9/basic_catalog';
+import {FunctionImplementation} from '@a2ui/web_core/v0_9';
+
 import {TextComponent} from './text.component';
 import {RowComponent} from './row.component';
 import {ColumnComponent} from './column.component';
@@ -39,30 +63,6 @@ import {ChoicePickerComponent} from './choice-picker.component';
 import {SliderComponent} from './slider.component';
 import {DateTimeInputComponent} from './date-time-input.component';
 
-import {
-  BASIC_FUNCTIONS,
-  createBasicCatalogFunctions,
-  TextApi,
-  RowApi,
-  ColumnApi,
-  ButtonApi,
-  TextFieldApi,
-  ImageApi,
-  IconApi,
-  VideoApi,
-  AudioPlayerApi,
-  ListApi,
-  CardApi,
-  TabsApi,
-  ModalApi,
-  DividerApi,
-  CheckBoxApi,
-  ChoicePickerApi,
-  SliderApi,
-  DateTimeInputApi,
-} from '@a2ui/web_core/v0_9/basic_catalog';
-import {FunctionImplementation} from '@a2ui/web_core/v0_9';
-
 /**
  * The set of default Angular implementations for each component in the basic catalog.
  * Using string literals as keys, to survive property renaming, as these names need to match the JSON payload.
@@ -70,24 +70,24 @@ import {FunctionImplementation} from '@a2ui/web_core/v0_9';
 // Ignore Prettier to preserve quoted keys, needed to survive property renaming.
 // prettier-ignore
 const DEFAULT_COMPONENT_IMPLEMENTATIONS: Record<string, AngularComponentImplementation> = {
-  'text': createComponentImplementation(TextApi, TextComponent),
-  'row': createComponentImplementation(RowApi, RowComponent),
-  'column': createComponentImplementation(ColumnApi, ColumnComponent),
-  'button': createComponentImplementation(ButtonApi, ButtonComponent),
-  'textField': createComponentImplementation(TextFieldApi, TextFieldComponent),
-  'image': createComponentImplementation(ImageApi, ImageComponent),
-  'icon': createComponentImplementation(IconApi, IconComponent),
-  'video': createComponentImplementation(VideoApi, VideoComponent),
-  'audioPlayer': createComponentImplementation(AudioPlayerApi, AudioPlayerComponent),
-  'list': createComponentImplementation(ListApi, ListComponent),
-  'card': createComponentImplementation(CardApi, CardComponent),
-  'tabs': createComponentImplementation(TabsApi, TabsComponent),
-  'modal': createComponentImplementation(ModalApi, ModalComponent),
-  'divider': createComponentImplementation(DividerApi, DividerComponent),
-  'checkBox': createComponentImplementation(CheckBoxApi, CheckBoxComponent),
-  'choicePicker': createComponentImplementation(ChoicePickerApi, ChoicePickerComponent),
-  'slider': createComponentImplementation(SliderApi, SliderComponent),
-  'dateTimeInput': createComponentImplementation(DateTimeInputApi, DateTimeInputComponent),
+  'text': createComponentImplementation(A2uiText, TextComponent),
+  'row': createComponentImplementation(A2uiRow, RowComponent),
+  'column': createComponentImplementation(A2uiColumn, ColumnComponent),
+  'button': createComponentImplementation(A2uiButton, ButtonComponent),
+  'textField': createComponentImplementation(A2uiTextField, TextFieldComponent),
+  'image': createComponentImplementation(A2uiImage, ImageComponent),
+  'icon': createComponentImplementation(A2uiIcon, IconComponent),
+  'video': createComponentImplementation(A2uiVideo, VideoComponent),
+  'audioPlayer': createComponentImplementation(A2uiAudioPlayer, AudioPlayerComponent),
+  'list': createComponentImplementation(A2uiList, ListComponent),
+  'card': createComponentImplementation(A2uiCard, CardComponent),
+  'tabs': createComponentImplementation(A2uiTabs, TabsComponent),
+  'modal': createComponentImplementation(A2uiModal, ModalComponent),
+  'divider': createComponentImplementation(A2uiDivider, DividerComponent),
+  'checkBox': createComponentImplementation(A2uiCheckBox, CheckBoxComponent),
+  'choicePicker': createComponentImplementation(A2uiChoicePicker, ChoicePickerComponent),
+  'slider': createComponentImplementation(A2uiSlider, SliderComponent),
+  'dateTimeInput': createComponentImplementation(A2uiDateTimeInput, DateTimeInputComponent),
 } as const;
 
 /**
