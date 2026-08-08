@@ -14,59 +14,70 @@
  * limitations under the License.
  */
 
-import {Type} from '@angular/core';
-import {Catalog, ComponentApi} from '@a2ui/web_core/v0_9';
-import {CatalogComponentInstance} from '../core/catalog_component_instance';
+import {Type, Injector} from '@angular/core';
+import type {ZodTypeAny} from 'zod';
+import {Catalog, ComponentApi, WebComponentImplementation} from '@a2ui/web_core/v0_9';
+import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+
+export type {WebComponentImplementation} from '@a2ui/web_core/v0_9';
 
 /**
- * Temporary type used during basic catalog schema alignment to bypass strict type checking.
+ * Describes an Angular-specific component implementation.
  *
- * To be removed once all properties implemented in Angular basic catalog components conform
- * to the basic catalog schema.
- * @see https://github.com/a2ui-project/a2ui/issues/1303
+ * In addition to the standard A2UI ComponentApi, this interface accepts
+ * an Angular component class (`component`).
  */
-export type AnyDuringSchemaAlignment = any;
-
-/**
- * Extends the generic {@link ComponentApi} to include Angular-specific component metadata.
- */
-export interface AngularComponentImplementation extends ComponentApi {
+export interface AngularComponentImplementation<
+  Schema extends ZodTypeAny = ZodTypeAny,
+> extends ComponentApi<Schema> {
   /**
    * The Angular component class used to render this component.
-   *
-   * This class must be an Angular {@link Type} (e.g., a standalone component class)
-   * that accepts `props`, `surfaceId`, and `dataContextPath` as inputs.
    */
-  readonly component: Type<CatalogComponentInstance>;
+  readonly component: Type<object>;
+
+  /**
+   * The custom element tag name for the web component (if bridged).
+   */
+  readonly tagName?: string;
 }
 
 /**
- * A collection of Angular component and function implementations mapped to
+ * A component implementation supported by the Angular catalog, which can be
+ * either a native W3C Custom Element or an Angular `@Component` declaration.
+ */
+export type BasicCatalogComponent = WebComponentImplementation | AngularComponentImplementation;
+
+/**
+ * A collection of component and function implementations mapped to
  * A2UI protocol types.
  *
- * Catalogs are used by the {@link MessageProcessor} to resolve component
- * definitions and by {@link ComponentHostComponent} to instantiate the
- * correct Angular components.
+ * Supports both native Angular component declarations (`.component`) and
+ * W3C Custom Elements (`WebComponentImplementation`).
  */
-export class AngularCatalog extends Catalog<AngularComponentImplementation> {}
+export class AngularCatalog extends Catalog<BasicCatalogComponent> {
+  constructor(
+    id: string = basicCatalog.id,
+    components: BasicCatalogComponent[] = Array.from(basicCatalog.components.values()),
+    functions = Array.from(basicCatalog.functions.values()),
+    _injector?: Injector,
+  ) {
+    super(id, components, functions);
+  }
+}
 
 /**
  * Helper function to create an {@link AngularComponentImplementation}.
  *
- * It extracts the name and schema from a generic {@link ComponentApi} and
- * associates it with the given Angular component type.
- *
- * @param api The generic component API definition.
- * @param component The Angular component class implementing the API.
- * @returns The structured Angular component implementation.
+ * @param api The ComponentApi defining the schema and name.
+ * @param component The Angular Component class.
+ * @returns The structured AngularComponentImplementation.
  */
-export function createComponentImplementation(
-  api: ComponentApi,
-  component: Type<CatalogComponentInstance>,
-): AngularComponentImplementation {
+export function createComponentImplementation<Schema extends ZodTypeAny = ZodTypeAny>(
+  api: ComponentApi<Schema>,
+  component: Type<object>,
+): AngularComponentImplementation<Schema> {
   return {
-    name: api.name,
-    schema: api.schema,
+    ...api,
     component,
   };
 }
