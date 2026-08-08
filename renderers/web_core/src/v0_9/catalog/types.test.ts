@@ -21,6 +21,7 @@ import {
   ComponentApi,
   InferredComponentApiSchemaType,
   createFunctionImplementation,
+  isWebComponentImplementation,
 } from './types.js';
 import {A2uiExpressionError} from '../errors.js';
 import {z} from 'zod';
@@ -134,5 +135,24 @@ describe('InferredComponentApiSchemaType', () => {
     assert.ok(mockApi);
     assert.strictEqual(inferredIsAny, false);
     assert.strictEqual(typesMatchExact, true);
+  });
+
+  describe('isWebComponentImplementation', () => {
+    it('returns true when tagName is a string', () => {
+      const mockWc = {
+        name: 'CustomButton',
+        schema: z.object({}),
+        tagName: 'custom-btn',
+      };
+      assert.strictEqual(isWebComponentImplementation(mockWc), true);
+    });
+
+    it('returns false when tagName is missing or not a string', () => {
+      assert.strictEqual(isWebComponentImplementation({name: 'Comp', schema: z.object({})}), false);
+      assert.strictEqual(isWebComponentImplementation({tagName: 123}), false);
+      assert.strictEqual(isWebComponentImplementation(null), false);
+      assert.strictEqual(isWebComponentImplementation(undefined), false);
+      assert.strictEqual(isWebComponentImplementation('a2ui-text'), false);
+    });
   });
 });

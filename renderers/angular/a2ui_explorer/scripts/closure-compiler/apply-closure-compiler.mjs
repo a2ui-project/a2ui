@@ -174,6 +174,24 @@ for (const f of files) {
     'if(t!==void 0&&t!==null){if(typeof t!=="object")throw new TypeError("Object expected");if(l=g(t.get))',
   );
 
+  // Safe fallback for Lit directive constructor resultType check in Closure Compiler minified bundle
+  if (c.includes('this.constructor.resultType')) {
+    c = c.replace(
+      /this\.constructor\.resultType\s*===\s*void 0/g,
+      '(this.constructor.resultType || 1) === void 0',
+    );
+    changed = true;
+  }
+
+  // Safe fallback for Lit DEV_MODE enabledWarnings check in Closure Compiler minified bundle
+  if (c.includes('this.constructor.enabledWarnings')) {
+    c = c.replace(
+      /this\.constructor\.enabledWarnings\.includes/g,
+      '(this.constructor.enabledWarnings||[]).includes',
+    );
+    changed = true;
+  }
+
   // 3. Inject /** @nocollapse */ onto static Ivy fields (static ɵcmp, ɵfac, __NG_ELEMENT_ID__, etc.).
   // Why: Closure Compiler normally "collapses" static properties, flattening Class.prop into global
   // variables (Class$prop) to compress names. If it collapses Ivy definitions off class constructors,
