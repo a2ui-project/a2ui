@@ -1,9 +1,11 @@
 ## Unreleased
 
+- (v0_9) Remove legacy Angular component implementations of the Basic Catalog in favor of universal Web Components from `@a2ui/web_core`.
 - (v0_9) Support universal Web Components in the v0.9 renderer:
   - Migrate default Basic Catalog implementations from Angular components to universal Web Components from `@a2ui/web_core`.
   - Add `toWebComponent` adapter to convert custom Angular `@Component` implementations into Web Components.
   - Update `SurfaceComponent` and `AngularCatalog` to dynamically render custom element tags and manage component lifecycle reactively.
+- (v0_9) Implement `createComponentImplementation` helper and deprecate `extraComponents` and `functions` in `BasicCatalogOptions` to align with the core API. [#2060](https://github.com/a2ui-project/a2ui/pull/2060)
 
 ## 0.10.5
 
