@@ -57,6 +57,8 @@ func makeTestCatalog() throws -> Catalog {
           "component": { "type": "string" },
           "label": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString" },
           "enabled": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicBoolean" },
+          "count": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicNumber" },
+          "details": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicValue" },
           "onClick": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/Action" },
           "children": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ChildList" }
         },
@@ -245,6 +247,116 @@ struct SurfaceViewModelTests {
     )
     let root = surface.componentsModel.get("root")
     #expect(root?.properties["enabled"]?.boolValue == true)
+  }
+
+  // MARK: - Dynamic Resolution on Root Node
+
+  @Test func dynamicStringResolvesLiteralValueOnRootNode() async throws {
+    let (processor, surface, _) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        ["id": "root", "component": "button", "label": "Hello"]
+      ]
+    )
+    await Task.yield()
+    let binding = try #require(surface.rootNode?.properties["label"] as? DataBinding<String>)
+    #expect(binding.value == "Hello")
+  }
+
+  @Test func dynamicStringResolvesDataBindingPathOnRootNode() async throws {
+    let (processor, surface, _) = try makeProcessor()
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/user/name", value: "Alice")
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        ["id": "root", "component": "button", "label": ["path": "/user/name"]]
+      ]
+    )
+    await Task.yield()
+    let binding = try #require(surface.rootNode?.properties["label"] as? DataBinding<String>)
+    #expect(binding.value == "Alice")
+
+    // Update via binding.set(value:)
+    binding.set(value: "Bob")
+    #expect(surface.dataModel.get("/user/name")?.stringValue == "Bob")
+    await Task.yield()
+    let updatedBinding = try #require(surface.rootNode?.properties["label"] as? DataBinding<String>)
+    #expect(updatedBinding.value == "Bob")
+  }
+
+  @Test func dynamicStringResolvesFunctionCallOnRootNode() async throws {
+    let (processor, surface, _) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "label": [
+            "call": "concat",
+            "args": ["a": "Hello, ", "b": "World!"]
+          ]
+        ]
+      ]
+    )
+    await Task.yield()
+    let binding = try #require(surface.rootNode?.properties["label"] as? DataBinding<String>)
+    #expect(binding.value == "Hello, World!")
+  }
+
+  @Test func dynamicBooleanResolvesLiteralAndPathOnRootNode() async throws {
+    let (processor, surface, _) = try makeProcessor()
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/isReady", value: true)
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        ["id": "root", "component": "button", "enabled": ["path": "/isReady"]]
+      ]
+    )
+    await Task.yield()
+    let binding = try #require(surface.rootNode?.properties["enabled"] as? DataBinding<Bool>)
+    #expect(binding.value == true)
+
+    binding.set(value: false)
+    #expect(surface.dataModel.get("/isReady")?.boolValue == false)
+    await Task.yield()
+    let updatedBinding = try #require(surface.rootNode?.properties["enabled"] as? DataBinding<Bool>)
+    #expect(updatedBinding.value == false)
+  }
+
+  @Test func dynamicNumberResolvesLiteralAndPathOnRootNode() async throws {
+    let (processor, surface, _) = try makeProcessor()
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/score", value: 42.5)
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        ["id": "root", "component": "button", "count": ["path": "/score"]]
+      ]
+    )
+    await Task.yield()
+    let binding = try #require(surface.rootNode?.properties["count"] as? DataBinding<Double>)
+    #expect(binding.value == 42.5)
+
+    binding.set(value: 100.0)
+    #expect(surface.dataModel.get("/score")?.doubleValue == 100.0)
+    await Task.yield()
+    let updatedBinding = try #require(surface.rootNode?.properties["count"] as? DataBinding<Double>)
+    #expect(updatedBinding.value == 100.0)
+  }
+
+  @Test func dynamicValueResolvesPathOnRootNode() async throws {
+    let (processor, surface, _) = try makeProcessor()
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/info", value: ["key": "val"])
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        ["id": "root", "component": "button", "details": ["path": "/info"]]
+      ]
+    )
+    await Task.yield()
+    let binding = try #require(surface.rootNode?.properties["details"] as? DataBinding<JSONValue>)
+    #expect(binding.value?["key"]?.stringValue == "val")
   }
 
   // MARK: - Action Resolution

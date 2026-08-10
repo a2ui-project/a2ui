@@ -383,23 +383,19 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
   ) -> DataBinding<Bool> {
     if let dict = value.dictionaryValue, let pathStr = dict["path"]?.stringValue {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+      let resolvedValue = data[absPath]?.boolValue
       return DataBinding<Bool>(
         identity: .path(absPath),
-        get: { [weak self] in
-          self?.dataModel.get(absPath)?.boolValue ?? false
-        },
+        value: resolvedValue,
         set: { [weak self] newValue in
           self?.dataModel.set(absPath, value: .boolean(newValue))
         }
       )
     }
+    let resolvedValue = evaluateDynamicValue(value, basePath: basePath, data: data).boolValue
     return DataBinding<Bool>(
       identity: .literal(value),
-      get: { [weak self] in
-        guard let self else { return value.boolValue ?? false }
-        return self.evaluateDynamicValue(value, basePath: basePath, data: self.dataModel.data)
-          .boolValue ?? false
-      },
+      value: resolvedValue,
       set: { _ in }
     )
   }
@@ -411,23 +407,19 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
   ) -> DataBinding<String> {
     if let dict = value.dictionaryValue, let pathStr = dict["path"]?.stringValue {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+      let resolvedValue = data[absPath]?.stringValue
       return DataBinding<String>(
         identity: .path(absPath),
-        get: { [weak self] in
-          self?.dataModel.get(absPath)?.stringValue ?? ""
-        },
+        value: resolvedValue,
         set: { [weak self] newValue in
           self?.dataModel.set(absPath, value: .string(newValue))
         }
       )
     }
+    let resolvedValue = evaluateDynamicValue(value, basePath: basePath, data: data).stringValue
     return DataBinding<String>(
       identity: .literal(value),
-      get: { [weak self] in
-        guard let self else { return value.stringValue ?? "" }
-        return self.evaluateDynamicValue(value, basePath: basePath, data: self.dataModel.data)
-          .stringValue ?? ""
-      },
+      value: resolvedValue,
       set: { _ in }
     )
   }
@@ -439,23 +431,19 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
   ) -> DataBinding<Double> {
     if let dict = value.dictionaryValue, let pathStr = dict["path"]?.stringValue {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+      let resolvedValue = data[absPath]?.doubleValue
       return DataBinding<Double>(
         identity: .path(absPath),
-        get: { [weak self] in
-          self?.dataModel.get(absPath)?.doubleValue ?? 0.0
-        },
+        value: resolvedValue,
         set: { [weak self] newValue in
           self?.dataModel.set(absPath, value: .number(newValue))
         }
       )
     }
+    let resolvedValue = evaluateDynamicValue(value, basePath: basePath, data: data).doubleValue
     return DataBinding<Double>(
       identity: .literal(value),
-      get: { [weak self] in
-        guard let self else { return value.doubleValue ?? 0.0 }
-        return self.evaluateDynamicValue(value, basePath: basePath, data: self.dataModel.data)
-          .doubleValue ?? 0.0
-      },
+      value: resolvedValue,
       set: { _ in }
     )
   }
@@ -467,22 +455,19 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
   ) -> DataBinding<JSONValue> {
     if let dict = value.dictionaryValue, let pathStr = dict["path"]?.stringValue {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+      let resolvedValue = data[absPath]
       return DataBinding<JSONValue>(
         identity: .path(absPath),
-        get: { [weak self] in
-          self?.dataModel.get(absPath) ?? .null
-        },
+        value: resolvedValue,
         set: { [weak self] newValue in
           self?.dataModel.set(absPath, value: newValue)
         }
       )
     }
+    let resolvedValue = evaluateDynamicValue(value, basePath: basePath, data: data)
     return DataBinding<JSONValue>(
       identity: .literal(value),
-      get: { [weak self] in
-        guard let self else { return value }
-        return self.evaluateDynamicValue(value, basePath: basePath, data: self.dataModel.data)
-      },
+      value: resolvedValue,
       set: { _ in }
     )
   }

@@ -165,86 +165,106 @@ struct DataBindingTests {
 
   // MARK: - Path-based Binding
 
-  @Test func dataBindingGetReturnsCurrentValue() {
-    let box = Box("initial")
+  @Test func dataBindingValueReturnsResolvedValue() {
     let binding = DataBinding<String>(
       identity: .path("/user/name"),
-      get: { box.value },
-      set: { box.value = $0 }
+      value: "initial",
+      set: { _ in }
     )
-    #expect(binding.get() == "initial")
+    #expect(binding.value == "initial")
   }
 
-  @Test func dataBindingSetUpdatesValue() {
+  @Test func dataBindingSetUpdatesViaSetter() {
     let box = Box("initial")
     let binding = DataBinding<String>(
       identity: .path("/user/name"),
-      get: { box.value },
+      value: "initial",
+      set: { box.value = $0 }
+    )
+    binding.set(value: "updated")
+    #expect(box.value == "updated")
+  }
+
+  @Test func dataBindingConvenienceSetUpdatesViaSetter() {
+    let box = Box("initial")
+    let binding = DataBinding<String>(
+      identity: .path("/user/name"),
+      value: "initial",
       set: { box.value = $0 }
     )
     binding.set("updated")
-    #expect(binding.get() == "updated")
+    #expect(box.value == "updated")
+  }
+
+  @Test func dataBindingWithNilValue() {
+    let binding = DataBinding<String>(
+      identity: .path("/user/name"),
+      value: nil
+    )
+    #expect(binding.value == nil)
   }
 
   // MARK: - Literal Binding
 
-  @Test func literalDataBindingHasLiteralIdentity() {
-    let box = Box(JSONValue.string("hello"))
+  @Test func literalDataBindingHasLiteralIdentityAndValue() {
     let binding = DataBinding<JSONValue>(
       identity: .literal(.string("hello")),
-      get: { box.value },
-      set: { box.value = $0 }
+      value: .string("hello")
     )
     if case .literal(let val) = binding.identity {
       #expect(val.stringValue == "hello")
     } else {
       Issue.record("Expected .literal identity")
     }
+    #expect(binding.value?.stringValue == "hello")
   }
 
   // MARK: - Equality
 
-  @Test func dataBindingsEqualByIdentity() {
-    let box = Box("")
+  @Test func dataBindingsEqualByIdentityAndValue() {
     let a = DataBinding<String>(
       identity: .path("/user/name"),
-      get: { box.value },
-      set: { box.value = $0 }
+      value: "Alice"
     )
     let b = DataBinding<String>(
       identity: .path("/user/name"),
-      get: { box.value },
-      set: { box.value = $0 }
+      value: "Alice"
     )
     #expect(a == b)
   }
 
-  @Test func dataBindingsNotEqualByDifferentPath() {
-    let box = Box("")
+  @Test func dataBindingsNotEqualByDifferentValue() {
     let a = DataBinding<String>(
       identity: .path("/user/name"),
-      get: { box.value },
-      set: { box.value = $0 }
+      value: "Alice"
+    )
+    let b = DataBinding<String>(
+      identity: .path("/user/name"),
+      value: "Bob"
+    )
+    #expect(a != b)
+  }
+
+  @Test func dataBindingsNotEqualByDifferentPath() {
+    let a = DataBinding<String>(
+      identity: .path("/user/name"),
+      value: "Alice"
     )
     let b = DataBinding<String>(
       identity: .path("/user/email"),
-      get: { box.value },
-      set: { box.value = $0 }
+      value: "Alice"
     )
     #expect(a != b)
   }
 
   @Test func dataBindingsNotEqualByDifferentIdentityType() {
-    let box = Box("")
     let a = DataBinding<String>(
       identity: .path("/user/name"),
-      get: { box.value },
-      set: { box.value = $0 }
+      value: "name"
     )
     let b = DataBinding<String>(
       identity: .literal(.string("name")),
-      get: { box.value },
-      set: { box.value = $0 }
+      value: "name"
     )
     #expect(a != b)
   }

@@ -100,7 +100,7 @@ struct DataBindingSwiftUITests {
     let box = TestBox("hello")
     let binding = DataBinding<String>(
       identity: .path("/text"),
-      get: { box.value },
+      value: "hello",
       set: { box.value = $0 }
     )
     let swiftBinding = binding.swiftUIBinding
@@ -111,25 +111,51 @@ struct DataBindingSwiftUITests {
     let box = TestBox("hello")
     let binding = DataBinding<String>(
       identity: .path("/text"),
-      get: { box.value },
+      value: "hello",
       set: { box.value = $0 }
     )
     let swiftBinding = binding.swiftUIBinding
     swiftBinding.wrappedValue = "world"
-    #expect(binding.get() == "world")
+    #expect(box.value == "world")
   }
 
   @Test func swiftUIBindingGetsAndSetsValue() {
     let box = TestBox(42.0)
     let binding = DataBinding<Double>(
       identity: .path("/value"),
-      get: { box.value },
+      value: 42.0,
       set: { box.value = $0 }
     )
     let swiftBinding = binding.swiftUIBinding
     #expect(swiftBinding.wrappedValue == 42.0)
     swiftBinding.wrappedValue = 99.0
-    #expect(binding.get() == 99.0)
+    #expect(box.value == 99.0)
+  }
+
+  @Test func swiftUIBindingWithDefaultFallback() {
+    let box = TestBox("default")
+    let binding = DataBinding<String>(
+      identity: .path("/text"),
+      value: nil,
+      set: { box.value = $0 }
+    )
+    let swiftBinding = binding.swiftUIBinding(default: "fallback")
+    #expect(swiftBinding.wrappedValue == "fallback")
+    swiftBinding.wrappedValue = "updated"
+    #expect(box.value == "updated")
+  }
+
+  @Test func stringBindingDefaultsToEmptyString() {
+    let box = TestBox("")
+    let binding = DataBinding<String>(
+      identity: .path("/text"),
+      value: nil,
+      set: { box.value = $0 }
+    )
+    let swiftBinding = binding.stringBinding
+    #expect(swiftBinding.wrappedValue == "")
+    swiftBinding.wrappedValue = "typed"
+    #expect(box.value == "typed")
   }
 }
 
