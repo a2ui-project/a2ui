@@ -45,6 +45,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@a2ui/file_upload@workspace:client/angular/projects/file_upload":
+  version: 0.0.0-use.local
+  resolution: "@a2ui/file_upload@workspace:client/angular/projects/file_upload"
+  dependencies:
+    "@a2ui/angular": "npm:^0.10.0"
+    "@a2ui/web_core": "npm:^0.10.0"
+    ajv: "npm:^8.20.0"
+    wireit: "npm:^0.15.0-pre.2"
+  languageName: unknown
+  linkType: soft
+
 "@a2ui/lit@npm:^0.10.0":
   version: 0.10.0
   resolution: "@a2ui/lit@npm:0.10.0"

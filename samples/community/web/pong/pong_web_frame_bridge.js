@@ -62,23 +62,39 @@ let localCpuScore = 0;
 let winningScore;
 
 let functionCallId = 0;
+let appPort = null;
+
+function validateAppPort() {
+  if (!appPort) {
+    throw new Error('A2UI Protocol Violation: appPort is not initialized.');
+  }
+}
 
 function dispatchAction(action, data = {}) {
-  window.parent.postMessage({type: MSG_TYPE_ACTION, action, data}, PARENT_ORIGIN);
+  validateAppPort();
+  const msg = {type: MSG_TYPE_ACTION, action, data};
+  appPort.postMessage(msg);
 }
 
 function dispatchDataModelChange(key, subpath, value) {
-  window.parent.postMessage({type: MSG_TYPE_DATA_MODEL_CHANGE, key, subpath, value}, PARENT_ORIGIN);
+  validateAppPort();
+  const msg = {type: MSG_TYPE_DATA_MODEL_CHANGE, key, subpath, value};
+  appPort.postMessage(msg);
 }
 
 function dispatchFunctionCall(call, args = {}) {
+  validateAppPort();
+  // Capture a local reference to ensure the listener is cleaned up on the correct port instance
+  // even if the global appPort is reassigned while this call is pending.
+  const port = appPort;
   const callId = String(++functionCallId);
-  window.parent.postMessage({type: MSG_TYPE_FUNCTION_CALL, call, callId, args}, PARENT_ORIGIN);
+  const msg = {type: MSG_TYPE_FUNCTION_CALL, call, callId, args};
+  port.postMessage(msg);
 
   return new Promise((resolve, reject) => {
     const listener = event => {
       if (event.data?.type === MSG_TYPE_FUNCTION_RESULT && event.data?.callId === callId) {
-        window.removeEventListener('message', listener);
+        port.removeEventListener('message', listener);
         if (event.data.status === 'success') {
           resolve(event.data.result);
         } else {
@@ -86,7 +102,8 @@ function dispatchFunctionCall(call, args = {}) {
         }
       }
     };
-    window.addEventListener('message', listener);
+    port.addEventListener('message', listener);
+    port.start();
   });
 }
 
@@ -119,7 +136,7 @@ function applyContainerDimensions(containerDimensions) {
   if (typeof resize === 'function') resize();
 }
 
-function handleAppFrameInit(data) {
+function applyInitialPayload(data) {
   const configData = data.value.config;
   const matchingScore = configData?.matchingScore;
   if (typeof matchingScore === 'number' && matchingScore > 0) {
@@ -183,16 +200,51 @@ function handleDataModelUpdate(data) {
   }
 }
 
-window.addEventListener('message', event => {
+function configureAppPort(port) {
+  if (appPort) {
+    appPort.close();
+  }
+  appPort = port;
+
+  // Stop listening to window messages once the MessagePort is established
+  window.removeEventListener('message', handleWindowMessage);
+
+  // 2. Subsequent messages over the port do NOT need origin checks
+  appPort.addEventListener('message', portEvent => {
+    const portData = portEvent.data;
+    if (portData?.type === MSG_TYPE_HOST_CONTEXT_UPDATE) {
+      handleHostContextUpdate(portData);
+    } else if (portData?.type === MSG_TYPE_DATA_MODEL_UPDATE) {
+      handleDataModelUpdate(portData);
+    }
+  });
+  appPort.start();
+}
+
+function handleWindowMessage(event) {
+  // 1. Initial Handshake MUST still verify origin!
+  if (PARENT_ORIGIN !== '*' && event.origin !== PARENT_ORIGIN) {
+    return; // Ignore messages from untrusted origins
+  }
+
   const data = event.data;
   if (data?.type === MSG_TYPE_APP_FRAME_INIT) {
-    handleAppFrameInit(data);
-  } else if (data?.type === MSG_TYPE_HOST_CONTEXT_UPDATE) {
-    handleHostContextUpdate(data);
-  } else if (data?.type === MSG_TYPE_DATA_MODEL_UPDATE) {
-    handleDataModelUpdate(data);
+    if (!event.ports || !event.ports[0]) {
+      const errorMsg =
+        'A2UI Protocol Violation: Host failed to provide a MessagePort during initialization. Ambient postMessage will be ignored by the host.';
+      console.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+    configureAppPort(event.ports[0]);
+    applyInitialPayload(data);
+  } else {
+    console.warn(
+      `A2UI Web Frame: Ignored ambient message of type "${data?.type}" received before MSG_TYPE_APP_FRAME_INIT.`,
+    );
   }
-});
+}
+
+window.addEventListener('message', handleWindowMessage);
 
 // Initialize
 window.parent.postMessage({type: MSG_TYPE_APP_FRAME_READY}, PARENT_ORIGIN);

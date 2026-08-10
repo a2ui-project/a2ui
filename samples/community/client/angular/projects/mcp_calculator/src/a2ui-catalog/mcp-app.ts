@@ -36,6 +36,7 @@ import {
   viewChild,
 } from '@angular/core';
 import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
+import {validateMessageSecurity} from './web-frame-messages';
 
 @Component({
   selector: 'a2ui-mcp-app',
@@ -355,6 +356,15 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
 
     bridge.setNotificationHandler(DataModelChangeNotificationSchema, notification => {
       const params = notification.params;
+      const securityCheck = validateMessageSecurity(params.value);
+      if (!securityCheck.valid) {
+        console.warn(
+          `[McpApp] Data change for ${params.key} failed security check:`,
+          securityCheck.reason,
+        );
+        return;
+      }
+
       if (surface && dataPaths[params.key]) {
         const dataPath = dataPaths[params.key];
         const subpath = params.subpath;
@@ -388,6 +398,15 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
 
     bridge.setRequestHandler(FunctionCallRequestSchema, async request => {
       const params = request.params;
+      const securityCheck = validateMessageSecurity(params.args);
+      if (!securityCheck.valid) {
+        console.warn(
+          `[McpApp] Function ${params.call} args failed security check:`,
+          securityCheck.reason,
+        );
+        throw new Error(`Security validation error: ${securityCheck.reason}`);
+      }
+
       const allowed = this.props()['allowedFunctions']?.value() || [];
       if (!allowed.includes(params.call)) {
         throw new Error(`Local function '${params.call}' is not allowed`);
@@ -408,6 +427,17 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
 
     bridge.oncalltool = async params => {
       console.log(`[MCP App] Tool call requested: ${params.name}`, params);
+
+      if (params.arguments) {
+        const securityCheck = validateMessageSecurity(params.arguments);
+        if (!securityCheck.valid) {
+          console.warn(
+            `[McpApp] Tool '${params.name}' arguments failed security check:`,
+            securityCheck.reason,
+          );
+          throw new Error(`Security validation error: ${securityCheck.reason}`);
+        }
+      }
 
       if (!this.allowedTools().includes(params.name)) {
         console.warn(`[MCP App] Tool '${params.name}' not allowed.`);
