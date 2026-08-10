@@ -32,7 +32,7 @@
         },
         "hidden": {
           "$ref": "#/$defs/DynamicBoolean",
-          "description": "Hides the element and its children from assistive technologies when set to true."
+          "description": "Hides the element and its children from assistive technologies when true. Default is false."
         }
       },
       "additionalProperties": false
