@@ -36,7 +36,7 @@ import {
   viewChild,
 } from '@angular/core';
 import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
-import {validatePayloadSecurity} from './web-frame-messages';
+import {validateMessageSecurity} from './web-frame-messages';
 
 @Component({
   selector: 'a2ui-mcp-app',
@@ -356,7 +356,7 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
 
     bridge.setNotificationHandler(DataModelChangeNotificationSchema, notification => {
       const params = notification.params;
-      const securityCheck = validatePayloadSecurity(params.value);
+      const securityCheck = validateMessageSecurity(params.value);
       if (!securityCheck.valid) {
         console.warn(
           `[McpApp] Data change for ${params.key} failed security check:`,
@@ -398,7 +398,7 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
 
     bridge.setRequestHandler(FunctionCallRequestSchema, async request => {
       const params = request.params;
-      const securityCheck = validatePayloadSecurity(params.args);
+      const securityCheck = validateMessageSecurity(params.args);
       if (!securityCheck.valid) {
         console.warn(
           `[McpApp] Function ${params.call} args failed security check:`,
@@ -429,7 +429,7 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
       console.log(`[MCP App] Tool call requested: ${params.name}`, params);
 
       if (params.arguments) {
-        const securityCheck = validatePayloadSecurity(params.arguments);
+        const securityCheck = validateMessageSecurity(params.arguments);
         if (!securityCheck.valid) {
           console.warn(
             `[McpApp] Tool '${params.name}' arguments failed security check:`,

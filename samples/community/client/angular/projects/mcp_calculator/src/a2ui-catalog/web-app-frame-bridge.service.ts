@@ -24,7 +24,6 @@ import {
   IncomingWebFrameMessage,
   IncomingWebFrameMessageSchema,
   validateMessageSecurity,
-  validatePayloadSecurity,
 } from './web-frame-messages';
 
 export interface WebAppFrameBridgeConfig {
@@ -174,17 +173,6 @@ export class WebAppFrameBridgeService {
     const props = this.config.props();
     const allowedEvents = this.allowedEvents(props);
 
-    if (data.data) {
-      const securityCheck = validatePayloadSecurity(data.data);
-      if (!securityCheck.valid) {
-        console.warn(
-          `[WebAppFrameBridge] Action ${data.action} payload failed security check:`,
-          securityCheck.reason,
-        );
-        return;
-      }
-    }
-
     if (data.action in allowedEvents) {
       const schema = allowedEvents[data.action];
       if (!this.disableSchemaValidation(props) && schema) {
@@ -217,15 +205,6 @@ export class WebAppFrameBridgeService {
     if (!this.config) return;
     const props = this.config.props();
     const mutableData = this.mutableData(props);
-
-    const securityCheck = validatePayloadSecurity(data.value);
-    if (!securityCheck.valid) {
-      console.warn(
-        `[WebAppFrameBridge] Data change for ${data.key} failed security check:`,
-        securityCheck.reason,
-      );
-      return;
-    }
 
     if (!(data.key in mutableData)) {
       console.warn(`Data key ${data.key} not authorized for mutation`);
@@ -269,27 +248,6 @@ export class WebAppFrameBridgeService {
     if (!this.appPort) {
       console.warn('Cannot handle function call: appPort is not initialized.');
       return;
-    }
-
-    if (data.args) {
-      const securityCheck = validatePayloadSecurity(data.args);
-      if (!securityCheck.valid) {
-        console.warn(
-          `[WebAppFrameBridge] Function ${data.call} args failed security check:`,
-          securityCheck.reason,
-        );
-        this.appPort.postMessage({
-          type: A2uiMessageType.FunctionResult,
-          call: data.call,
-          callId: data.callId,
-          status: 'error',
-          error: {
-            code: 'SECURITY_ERROR',
-            message: securityCheck.reason || 'Arguments failed security validation',
-          },
-        });
-        return;
-      }
     }
 
     const props = this.config.props();

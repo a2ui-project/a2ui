@@ -105,7 +105,7 @@ export interface PayloadSecurityResult {
  * @param currentDepth Current recursion depth level.
  * @returns An object indicating whether the payload is safe, with an error reason if not.
  */
-export function validatePayloadSecurity(
+function validatePayloadSecurity(
   value: unknown,
   maxDepth = MAX_PAYLOAD_NESTING_DEPTH,
   currentDepth = 0,
@@ -163,6 +163,11 @@ export function validateMessageSecurity(rawMessage: unknown): PayloadSecurityRes
     return {valid: true};
   }
 
+  const securityCheck = validatePayloadSecurity(rawMessage);
+  if (!securityCheck.valid) {
+    return securityCheck;
+  }
+
   let serialized: string;
   try {
     serialized = JSON.stringify(rawMessage);
@@ -180,5 +185,5 @@ export function validateMessageSecurity(rawMessage: unknown): PayloadSecurityRes
     };
   }
 
-  return validatePayloadSecurity(rawMessage);
+  return {valid: true};
 }
