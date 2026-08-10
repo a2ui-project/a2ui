@@ -1,0 +1,94 @@
+<!--
+ Copyright 2026 Google LLC
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+      https://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+ -->
+
+<div
+  class="upload-zone"
+  [class.state-uploading]="uploadState() === 'uploading'"
+  [class.state-success]="uploadState() === 'success'"
+  [class.state-error]="uploadState() === 'error'"
+  (dragover)="onDragOver($event)"
+  (drop)="onDrop($event)"
+>
+  <input
+    type="file"
+    #fileInput
+    class="file-input-hidden"
+    [accept]="accept()"
+    [multiple]="multiple()"
+    (change)="onFileSelected($event)"
+  />
+
+  <div class="zone-content" (click)="fileInput.click()">
+    <div class="icon-wrapper">
+      @if (uploadState() === 'success') {
+        <span class="material-icons-outlined success-icon">cloud_done</span>
+      } @else if (uploadState() === 'uploading') {
+        <span class="material-icons-outlined uploading-icon">cloud_upload</span>
+      } @else if (uploadState() === 'error') {
+        <span class="material-icons-outlined error-icon">cloud_off</span>
+      } @else {
+        <span class="material-icons-outlined default-icon">add_to_drive</span>
+      }
+    </div>
+
+    <div class="text-group">
+      <h4 class="primary-label">{{ label() }}</h4>
+      <p class="secondary-label">
+        Supports {{ accept() }} • Max size {{ (maxSize() / 1048576).toFixed(0) }} MB
+      </p>
+    </div>
+
+    @if (uploadState() === 'uploading') {
+      <div class="progress-bar-container">
+        <div class="progress-bar-fill" [style.width.%]="progress()"></div>
+      </div>
+      <span class="status-caption">Uploading to Mock Drive ({{ progress() }}%)...</span>
+    }
+
+    @if (uploadState() === 'success') {
+      <div class="uploaded-files-list">
+        @for (file of uploadedFiles(); track file.fileId; let i = $index) {
+          <div class="success-badge-container" (click)="$event.stopPropagation()">
+            <span class="badge-chip">IOC UPLOADED</span>
+            <div class="file-info-row">
+              <span class="file-name">{{ file.metadata.fileName }}</span>
+              <code class="pointer-uri">{{ file.fileId }}</code>
+            </div>
+            <button class="remove-btn" (click)="removeFile(i); $event.stopPropagation()">
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                stroke="currentColor"
+                stroke-width="2"
+                fill="none"
+              >
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+        }
+      </div>
+    }
+
+    @if (uploadState() === 'error') {
+      <div class="error-badge">
+        <span>Error: {{ errorMessage() }}</span>
+      </div>
+    }
+  </div>
+</div>
