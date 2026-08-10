@@ -661,20 +661,23 @@ When the embedded app dispatches a message over the dedicated `MessagePort`, the
     and validates the arguments against the function's schema.
 - **Automatic Rejection:** If the payload fails schema validation, contains prototype pollution keys, exceeds nesting/size limits, references an unauthorized key, or if the action does not exist in the allowed list, the component **silently drops the message** and logs a security violation warning to the host console. It must not forward malformed data to the backend.
 
-### 5.5.3. JSON Payload Protection and Denial of Service (DoS) Prevention
+### 5.5.3. Denial of Service (DoS) Prevention and Rate Limiting
 
-To prevent a compromised iframe from exhausting host resources, causing parser call stack crashes, or launching a DoS attack against the A2UI server:
+To prevent a compromised iframe from exhausting host resources, thrashing the main UI thread, or flooding the A2UI server:
 
 - **Rate Limiting:** The WebAppFrame component must implement a configurable **Rate Limiter / Debouncer** on the message event listener, dropping messages that exceed a safe threshold (e.g., > 10 events per second) and logging a rate-limit warning.
-- **Prototype Pollution and Deep JSON Stack Overflow Protection:**
-  - **Threat Classification:** Likelihood: MED | Impact: HIGH | Relevant trust tiers: Tier 3 (Zero-trust untrusted) and Tier 2 (Semi-trusted partner).
-  - **Security Concern:** An embedded application could dispatch `a2ui_action` or `a2ui_data_model_change` payloads with properties named `__proto__`, `constructor`, or `prototype`, or with deeply nested JSON structures (>100 levels) to crash parsers via call stack exhaustion or pollute Object prototypes across downstream host services and backend agents.
-  - **Mandated Host & Backend Guardrails:**
-    1. **Prototype Pollution Key Rejection:** Host bridge services and backend parsers MUST recursively scan incoming message payloads and reject any payload containing `__proto__`, `constructor`, or `prototype` property keys at any depth.
-    2. **Maximum JSON Nesting Depth:** Enforce a strict maximum nesting depth of 10 levels. Any message with nesting deeper than 10 levels must be rejected immediately to prevent recursion stack overflow.
-    3. **Maximum Message Payload Size:** Enforce a maximum payload size limit of 64 KB (65,536 bytes) per message to mitigate memory exhaustion attacks.
+- **Dynamic Resize Throttling & Clamping:** The host must clamp and throttle resize events (as specified in Section 5.4) to prevent rapid redraw thrashing and UI jitter.
+- **Deep-Equality Cycle Prevention:** The host and embedded app must enforce structural equality checks on state updates to prevent infinite update ping-pong loops.
 
-### 5.5.4. Trusted Source Bypass
+### 5.5.4. JSON Payload Protection and Prototype Pollution Defense
+
+To prevent untrusted applications from crashing host parsers via stack exhaustion, exhausting memory, or polluting JavaScript object prototypes, the host bridge enforces the following guardrails on all incoming `a2ui_action`, `a2ui_data_model_change`, and `a2ui_function_call` messages:
+
+- **Prototype Pollution Key Rejection:** Host bridge services and backend parsers must recursively inspect all incoming message payloads and reject any payload containing `__proto__`, `constructor`, or `prototype` property keys at any depth.
+- **Maximum JSON Nesting Depth:** The host enforces a strict maximum nesting depth of 10 levels for JSON objects and arrays. Messages exceeding this threshold must be rejected before serialization to prevent call stack exhaustion and `RangeError` crashes.
+- **Maximum Message Payload Size:** The host enforces a maximum serialized payload size limit of 64 KB (65,536 bytes) per message to mitigate memory exhaustion and denial-of-service attacks.
+
+### 5.5.5. Trusted Source Bypass
 
 In scenarios where the embedded application is a trusted first-party tool, the strict schema
 validation overhead can be bypassed to improve performance and allow arbitrary data payloads.
