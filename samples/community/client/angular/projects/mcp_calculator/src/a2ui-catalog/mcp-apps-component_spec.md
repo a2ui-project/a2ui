@@ -445,16 +445,16 @@ The host receives the `htmlContent` property from the catalog definition:
 
 ### Content Security Policy configuration
 
-To prevent the application from sending network requests, the proxy injects a Content Security Policy (CSP) tag into the inner frame document head:
+To prevent the application from sending network requests or submitting forms externally, the proxy injects a Content Security Policy (CSP) tag into the inner frame document head:
 
 ```html
 <meta
   http-equiv="Content-Security-Policy"
-  content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none';"
+  content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none'; form-action 'none';"
 />
 ```
 
-This blocks connection protocols like fetch, XHR, WebSockets, and Server-Sent Events, forcing all communication to be routed through the `AppBridge` channel to the host.
+This blocks connection protocols like fetch, XHR, WebSockets, and Server-Sent Events, as well as form submissions and navigations (`form-action 'none'`), forcing all communication to be routed through the `AppBridge` channel to the host.
 
 ### Dynamic resizing controls
 
@@ -463,6 +463,14 @@ To prevent layout instability, the host enforces the following rules on `ui/noti
 1. **Clamping:** Height must be clamped between 100px and 2000px; width must be clamped between 200px and 3000px.
 2. **Throttling:** Consecutive size changes must be throttled to a maximum of one redraw per 100 milliseconds.
 3. **Threshold Gate:** Size changes of less than 5 pixels are ignored.
+
+### JSON payload protection over the bridge
+
+To prevent untrusted applications from crashing host parsers via stack exhaustion, exhausting memory, or polluting JavaScript object prototypes, the host bridge enforces the following rules on all incoming `tools/call`, `ui/notifications/data-model-change`, and `ui/requests/function-call` messages:
+
+1. **Prototype Pollution Key Rejection:** The host bridge recursively inspects all incoming payloads and rejects any message containing `__proto__`, `constructor`, or `prototype` property keys at any depth.
+2. **Maximum Nesting Depth:** The host bridge limits JSON object and array nesting depth to a configurable threshold (defaulting to 10 levels). Payloads exceeding this threshold are dropped immediately.
+3. **Maximum Payload Size:** The host bridge enforces a configurable payload size limit (defaulting to 64 KB / 65,536 bytes) per message to mitigate denial-of-service and memory exhaustion attacks.
 
 # 6. Implementation guidelines
 

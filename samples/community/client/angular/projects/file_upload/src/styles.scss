@@ -1,0 +1,120 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@use '@angular/material' as mat;
+
+@mixin styled-scrollbar {
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 242, 255, 0.4);
+  }
+}
+
+html {
+  color-scheme: dark;
+  @include mat.theme(
+    (
+      color: mat.$blue-palette,
+      typography: Roboto,
+      density: 0,
+    )
+  );
+  @include styled-scrollbar;
+}
+
+:root {
+  --primary: #00f2ff;
+  --secondary: #a855f7;
+  --accent: #ec4899;
+  --text-color: #f8fafc;
+  --text-muted: #94a3b8;
+  --bg-dark: #070913;
+  --bg-card: rgba(15, 20, 38, 0.7);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-glow: rgba(0, 242, 255, 0.3);
+
+  // A2UI Component Theming Override
+  --a2ui-color-primary: var(--primary);
+  --a2ui-color-accent: var(--secondary);
+  --a2ui-color-success: var(--primary);
+  --a2ui-color-error: var(--accent);
+  --a2ui-color-text-primary: var(--text-color);
+  --a2ui-color-text-secondary: var(--text-muted);
+  --a2ui-color-text-muted: rgba(255, 255, 255, 0.5);
+
+  --a2ui-file-upload-bg: linear-gradient(145deg, rgba(15, 20, 38, 0.6), rgba(10, 14, 28, 0.8));
+  --a2ui-file-upload-border: 2px dashed rgba(255, 255, 255, 0.15);
+  --a2ui-file-upload-border-radius: 16px;
+  --a2ui-file-upload-backdrop-filter: blur(12px);
+  --a2ui-file-upload-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+
+  --a2ui-file-upload-hover-border-color: rgba(0, 242, 255, 0.4);
+  --a2ui-file-upload-hover-bg: linear-gradient(
+    145deg,
+    rgba(20, 26, 50, 0.7),
+    rgba(13, 18, 35, 0.9)
+  );
+  --a2ui-file-upload-hover-shadow: 0 15px 35px var(--border-glow);
+
+  --a2ui-file-upload-uploading-bg: rgba(168, 85, 247, 0.05);
+  --a2ui-file-upload-success-bg: rgba(0, 242, 255, 0.04);
+  --a2ui-file-upload-success-shadow: 0 0 25px rgba(0, 242, 255, 0.1);
+  --a2ui-file-upload-error-bg: rgba(236, 72, 153, 0.05);
+
+  --a2ui-file-upload-icon-bg: rgba(255, 255, 255, 0.05);
+  --a2ui-file-upload-icon-border: 1px solid rgba(255, 255, 255, 0.1);
+
+  --a2ui-file-upload-progress-track: rgba(255, 255, 255, 0.08);
+  --a2ui-file-upload-progress-fill: linear-gradient(90deg, var(--primary), var(--secondary));
+
+  --a2ui-file-upload-badge-success-bg: rgba(0, 242, 255, 0.08);
+  --a2ui-file-upload-badge-success-border: 1px solid rgba(0, 242, 255, 0.3);
+  --a2ui-file-upload-chip-bg: rgba(0, 242, 255, 0.15);
+  --a2ui-file-upload-uri-bg: rgba(0, 0, 0, 0.3);
+  --a2ui-file-upload-btn-hover-bg: rgba(255, 255, 255, 0.1);
+
+  --a2ui-file-upload-badge-error-bg: rgba(236, 72, 153, 0.1);
+  --a2ui-file-upload-badge-error-border: 1px solid rgba(236, 72, 153, 0.3);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  font-family: 'Outfit', 'Inter', sans-serif;
+  margin: 0;
+  padding: 0;
+  width: 100svw;
+  height: 100svh;
+  background-color: var(--bg-dark);
+  color: var(--text-color);
+  overflow: hidden;
+}
