@@ -978,24 +978,68 @@ A2UI v1.0 generalizes renderer-side logic into **Functions**. These can be used 
 
 The renderer supports a set of named **Functions** (e.g., `required`, `regex`, `email`, `add`, `concat`) which are defined in the JSON schema (e.g. `catalogs/basic/catalog.json`) alongside the component definitions. The agent references these functions by name in `FunctionCall` objects. This avoids sending executable code.
 
-Input components (like `TextField`, `CheckBox`) can define a list of checks. Each failure produces a specific error message that can be displayed when the component is rendered. Note that for validation checks, the function must return a boolean.
+### Component Validation & Check Rules
+
+Input components (like `TextField`, `ChoicePicker`) and interactive elements (like `Button`) can define a list of `checks` (`CheckRule` objects).
+
+A `CheckRule` contains a `condition` (which can be a literal boolean, a `DataBinding` path, or a `FunctionCall`) and an optional fallback `message`.
+
+#### 1. Boolean Conditions
+When the condition function or data binding returns a `boolean`:
+- `true`: The check passes.
+- `false`: The check fails, using the static `message` string (or default fallback) as the error message.
 
 ```json
 "checks": [
   {
-    "call": "required",
-    "args": { "value": { "path": "/formData/zip" } },
+    "condition": {
+      "call": "required",
+      "args": { "value": { "path": "/formData/zip" } }
+    },
     "message": "Zip code is required"
   },
   {
-    "call": "regex",
-    "args": {
-      "value": { "path": "/formData/zip" },
-      "pattern": "^[0-9]{5}$"
+    "condition": {
+      "call": "regex",
+      "args": {
+        "value": { "path": "/formData/zip" },
+        "pattern": "^[0-9]{5}$"
+      }
     },
     "message": "Must be a 5-digit zip code"
   }
 ]
+```
+
+#### 2. Dynamic ValidationResult Objects
+Validation functions can return a dynamic `ValidationResult` object directly to the renderer:
+- **`valid`** (`boolean`, required): Whether the check passed.
+- **`code`** (`string`, optional): Machine-readable error code (e.g., `EXPIRED_CARD`, `OUT_OF_RANGE`).
+- **`message`** (`string`, optional): Human-readable error or warning message. If omitted on the return object, the renderer falls back to `CheckRule.message`.
+- **`severity`** (`"error" | "warning" | "info"`, optional, default `"error"`).
+
+*Example Component Definition:*
+```json
+"checks": [
+  {
+    "condition": {
+      "call": "validateCreditCard",
+      "args": {
+        "cardNumber": { "path": "/payment/cardNumber" }
+      }
+    }
+  }
+]
+```
+
+*Example Dynamic `ValidationResult` Returned by `validateCreditCard`:*
+```json
+{
+  "valid": false,
+  "code": "EXPIRED_CARD",
+  "message": "The card expiration date (05/24) has passed.",
+  "severity": "error"
+}
 ```
 
 ### Example: button validation
