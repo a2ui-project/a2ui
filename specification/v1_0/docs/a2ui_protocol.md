@@ -1018,6 +1018,8 @@ Validation functions can return a dynamic `ValidationResult` object directly to 
 - **`message`** (`string`, optional): Human-readable error or warning message. If omitted on the return object, the renderer falls back to `CheckRule.message`.
 - **`severity`** (`"error" | "warning" | "info"`, optional, default `"error"`).
 
+Because `ValidationResult` permits additional unconstrained properties, validation functions and specialized components can extend the object with custom domain-specific metadata (such as suggested fix values, field paths, or retry parameters).
+
 *Example Component Definition:*
 ```json
 "checks": [

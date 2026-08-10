@@ -273,8 +273,7 @@
           "description": "Severity level of the validation result."
         }
       },
-      "required": ["valid"],
-      "additionalProperties": false
+      "required": ["valid"]
     },
     "CheckRule": {
       "type": "object",
