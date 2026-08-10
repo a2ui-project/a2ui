@@ -30,13 +30,13 @@ Use the fetch script to retrieve all open issues lacking a priority label (`P0`,
 
 Process the raw issues and generate recommended triage fields based on the project's triage criteria.
 
-1. Read the triage criteria reference document: [triage_criteria.md](references/triage_criteria.md).
+1. Read the triage criteria reference document: [triage_criteria.md](references/triage_criteria.md) and repository canonical templates: [triage-templates.md](../../../docs/contributing/triage-templates.md).
 2. For each issue in `raw_issues.json`, evaluate its description and comments to determine:
-   - **Priority**: `P0` (Urgent), `P1` (High), `P2` (Medium), `P3` (Low), or `None`.
+   - **Priority**: `P0` (Urgent), `P1` (High), `P2` (Medium), `P3` (Low), `P4` (Unplanned/Out of Scope), or `None`. `P0` and `P1` require assignees.
    - **Assignee**: Recommended owner based on the affected component or area.
-   - **Action**: `investigate`, `assign_and_fix`, `needs_info`, `close_duplicate`, `close_invalid`, or `close_resolved`.
-   - **Labels**: Applicable repository labels (e.g. `type: bug`, `component: lit renderer`).
-   - **Reply**: A polite, structured draft response addressing the author.
+   - **Action**: `investigate`, `assign_and_fix`, `needs_info`, `backlog`, `close_duplicate`, `close_invalid`, or `close_resolved`.
+   - **Labels**: Applicable repository labels (e.g. `type: bug`, `component: lit renderer`, `status: first-line-handled`, `status: waiting-for-author-response`).
+   - **Reply**: A polite, structured draft response addressing the author using canonical templates.
 3. If an issue is a potential duplicate, perform at most three targeted GitHub searches to find matching canonical issues before suggesting `close_duplicate`.
 4. **Natively Orchestrate Subagents**: Instead of running a Python script to spawn subagents (which can fail due to local workstation gRPC credential policies), the parent agent should natively orchestrate the parallel evaluations:
    - Load the first N issues (defaulting to 10, or as requested) from `raw_issues.json`.

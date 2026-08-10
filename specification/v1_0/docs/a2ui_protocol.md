@@ -176,7 +176,7 @@ This message signals the renderer to create a new surface and begin rendering it
 
 It is an error to try to create a surface with a `surfaceId` that already exists without first deleting it; `surfaceId` must be globally unique for the renderer's lifetime. Orchestrators with subagents are empowered to manage surface IDs as needed to prevent conflicts (e.g., prefixing the subagent's name to the `surfaceId` or requiring subagents to use UUIDs).
 
-One of the components in one of the component lists MUST have an `id` of `root` to serve as the root of the component tree.
+The `createSurface` message implicitly instantiates the canonical `Surface` container component (`common_types.json#/$defs/Surface`). The `Surface` component always has `"child": "root"` and cannot be modified using `updateComponents`. To render the component tree, one of the components sent to the surface MUST have `"id": "root"`, which mounts as the child of `Surface`.
 
 **Properties:**
 
@@ -216,7 +216,7 @@ One of the components in one of the component lists MUST have an `id` of `root` 
 
 ### `updateComponents`
 
-This message provides a list of UI components to be added to or updated within a specific surface. The components are provided as a flat list, and their relationships are defined by ID references in an adjacency list. This message may only be sent to a surface that has already been created. Note that components may reference children or data bindings that do not yet exist; renderers should handle this gracefully by rendering placeholders (progressive rendering).
+This message provides a flat list of UI components to add or update within a specific surface. Relationships between components are defined by ID references in an adjacency list. The component with `"id": "root"` mounts as the child of the surface's canonical `Surface` container. You cannot modify the `Surface` container itself using `updateComponents`. This message may only be sent to a surface that has already been created. Because components may reference children or data bindings that do not yet exist, renderers should handle missing references gracefully by rendering placeholders (progressive rendering).
 
 **Properties:**
 
@@ -462,6 +462,7 @@ To ensure complete cross-language compatibility across renderer SDKs, parsers, a
 1. **Permitted Characters**: Identifiers must begin with a character in the Unicode property class `XID_Start` or an underscore (`_`, `U+005F`). Subsequent characters must belong to the Unicode property class `XID_Continue`.
 2. **Prohibited Initial Characters**: Identifiers MUST NOT begin with a decimal digit (Unicode general category `Nd`).
 3. **Prohibited Symbols and Whitespace**: Identifiers MUST NOT contain any whitespace or symbols matching the Unicode character property classes `Pattern_Syntax` or `Pattern_White_Space`, other than underscores.
+4. **Reserved Component Names**: The protocol reserves the component type name `"Surface"` for the canonical surface container created by `createSurface`. Catalogs MUST NOT define a standard UI component named `"Surface"`.
 
 ##### Canonical Regular Expression
 
@@ -673,6 +674,56 @@ flowchart TD
     A -- "Parsed and stored" --> E
 
 ```
+
+#### Composition validation rules
+
+To validate component nesting hierarchies, A2UI component catalogs support composition constraints via `allowedParents` and `allowedChildren`. You define these constraints on component type definitions in the catalog JSON Schema, and the renderer evaluates them against the component tree at runtime.
+
+1. **Composition Constraints**:
+   - `allowedParents` (array of strings, optional): The list of parent component type names that can contain this component type. If omitted, all parent component types are allowed.
+   - `allowedChildren` (array of strings, optional): The list of child component type names allowed inside this container or slot. If omitted, all child component types are allowed.
+2. **`"Surface"` Container Component**:
+   - The protocol reserves the component type name `"Surface"` for the canonical surface container.
+   - The `createSurface` message implicitly creates this container (`common_types.json#/$defs/Surface`) with `"child": "root"`. You cannot modify `Surface` using `updateComponents`.
+   - Parent-child validation applies uniformly across the entire component tree, with `Surface` acting as the top-level container parent.
+3. **Catalog Schema Examples**:
+   - **Top-Level Component**: To restrict a component so it can appear only as the top-level component (`"id": "root"`) of a surface:
+     ```json
+     {
+       "AppLayout": {
+         "type": "object",
+         "allowedParents": ["Surface"],
+         "properties": {
+           "component": {"const": "AppLayout"}
+         }
+       }
+     }
+     ```
+   - **Top-Level or Container Union**: To allow a component as either the top-level component (`"id": "root"`) of a surface or a child of a specific container:
+     ```json
+     {
+       "Card": {
+         "type": "object",
+         "allowedParents": ["Surface", "CanvasContainer"]
+       }
+     }
+     ```
+   - **Container-Restricted Components**: To restrict a child component so it can appear only within a specific parent container:
+     ```json
+     {
+       "Menu": {
+         "type": "object",
+         "allowedChildren": ["MenuItem"]
+       },
+       "MenuItem": {
+         "type": "object",
+         "allowedParents": ["Menu"]
+       }
+     }
+     ```
+4. **Validation Error Codes**:
+   - If a component is placed under an unallowed parent, the renderer emits a validation error message with `code` set to `"UNALLOWED_PARENT"`.
+   - If an unallowed child component is placed inside a container, the renderer emits a validation error message with `code` set to `"UNALLOWED_CHILD"`.
 
 ### Defining actions
 
@@ -1038,7 +1089,7 @@ The [`catalogs/basic/catalog.json`] provides the baseline set of components and 
 | **formatCurrency** | Formats a number as a currency string.                                   |
 | **formatDate**     | Formats a date/time using a pattern.                                     |
 | **pluralize**      | Selects a localized string based on a numeric count.                     |
-| **openUrl**        | Opens a URL in a browser.                                                |
+| **openUrl**        | Opens a URL in a browser (requires user activation).                     |
 | **and**            | Logical AND operation on a list of boolean values.                       |
 | **or**             | Logical OR operation on a list of boolean values.                        |
 | **not**            | Logical NOT operation on a boolean value.                                |
@@ -1145,7 +1196,7 @@ This loop allows for a high degree of flexibility and robustness, as the system 
 
 If validation fails, the renderer (or the system acting on behalf of the renderer) should send an `error` message back to the LLM. To ensure the LLM can understand and correct the error, use the following standard format within the `error` message payload:
 
-- `code` (string, required): Must be `"VALIDATION_FAILED"`.
+- `code` (string, required): Must be `"VALIDATION_FAILED"`, `"UNALLOWED_PARENT"`, or `"UNALLOWED_CHILD"`. Use `"UNALLOWED_PARENT"` if a component is placed under an unallowed parent, and `"UNALLOWED_CHILD"` if an unallowed child is placed inside a container.
 - `surfaceId` (string, required): The ID of the surface where the error occurred.
 - `path` (string, required): The JSON pointer to the field that failed validation (e.g. `/components/0/text`).
 - `message` (string, required): A short one-sentence description of why validation failed.
@@ -1282,12 +1333,45 @@ When `sendDataModel` is enabled for a surface, the renderer includes the `a2uiRe
 - `version` (string, required): Must be the constant `"v1.0"`.
 - `surfaces` (object, required): A map of surface IDs to their current local data models.
 
+### Extensions
+
+In A2UI v1.0, strict schema validation (`additionalProperties: false`) protects components and wire messages from unrecognized fields. To enable non-visual metadata (such as access constraints, audit tags, and telemetry identifiers, etc.) without allowing arbitrary properties that would weaken schema validation, A2UI defines a centralized `Extensions` type in `common_types.json#/$defs/Extensions`.
+
+#### Architectural Principles
+
+1.  **Optional Schema Fields**: All `metadata.extensions` fields are strictly optional on the wire. When omitted, they incur zero token overhead.
+2.  **Parser Conformance Rule**: Conformant renderers MUST NOT reject payloads containing extension keys within an `extensions` object. Renderers MAY inspect and process extension keys they recognize, and MUST ignore unrecognized extension keys without error.
+3.  **Unicode Identifiers (UAX #31) and Prefix Reservation**: Extension names MUST be valid [Unicode UAX #31] identifiers (`^[\p{XID_Start}_][\p{XID_Continue}]*$`). To prevent key collisions:
+    - Official A2UI extensions are strictly reserved under the prefix `a2ui_`.
+    - Third-party extensions MUST be prefixed with a distinct organization or product identifier separated by an underscore (e.g. an extension from a company with the domain `company.com` might be named `com_company_extension`).
+      - Use of names derived from reversed domain names is encouraged for public facing extensions.
+    - Extension namespace uniqueness is self-managed by extension authors; no central registry is maintained.
+
+#### Wire Containers
+
+A2UI defines optional `metadata.extensions` containers across four scopes:
+
+- **Surface Scope** (`CreateSurfaceMessage.createSurface.metadata.extensions` in [`agent_to_renderer.json`]): Attach surface-level security metadata, access policies, or telemetry session identifiers.
+- **Component Scope** (`ComponentCommon.metadata.extensions` in [`common_types.json`]): Attach component-instance styling overrides, telemetry markers, or custom validation rules.
+- **Catalog Component Definition Scope** (`ComponentDefinition.metadata.extensions` in [`catalog_definition.json`]): Attach static component metadata or default telemetry tagging directly to catalog component schemas.
+- **Action Egress Scope** (`UserActionMessage.action.metadata.extensions` in [`renderer_to_agent.json`]): Send client-side action attestations, audit signatures, or authorization tokens back to the agent when user actions are triggered.
+
+#### SDK Accessor Pattern
+
+Renderers and client SDKs expose surface and component metadata using uniform accessors and change notification callbacks:
+
+- `getMetadata()`: Retrieves the metadata object containing extensions.
+- `setMetadata(metadata)`: Updates the metadata object and notifies listeners.
+- `onMetadataChanged(callback)`: Registers a callback that fires whenever metadata updates.
+
+[json pointer]: https://datatracker.ietf.org/doc/html/rfc6901
+[rfc 6901]: https://datatracker.ietf.org/doc/html/rfc6901
+[unicode uax #31]: https://www.unicode.org/reports/tr31/
+[`agent_capabilities.json`]: ../json/agent_capabilities.json
+[`agent_to_renderer.json`]: ../json/agent_to_renderer.json
+[`catalog_definition.json`]: ../json/catalog_definition.json
 [`catalogs/basic/catalog.json`]: ../catalogs/basic/catalog.json
 [`common_types.json`]: ../json/common_types.json
-[`agent_to_renderer.json`]: ../json/agent_to_renderer.json
-[`renderer_to_agent.json`]: ../json/renderer_to_agent.json
-[`agent_capabilities.json`]: ../json/agent_capabilities.json
 [`renderer_capabilities.json`]: ../json/renderer_capabilities.json
 [`renderer_data_model.json`]: ../json/renderer_data_model.json
-[JSON Pointer]: https://datatracker.ietf.org/doc/html/rfc6901
-[RFC 6901]: https://datatracker.ietf.org/doc/html/rfc6901
+[`renderer_to_agent.json`]: ../json/renderer_to_agent.json

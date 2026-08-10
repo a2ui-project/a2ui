@@ -19,6 +19,9 @@ import urllib.parse
 
 PORT = 8081
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+PONG_WEB_FRAME_PATH = "/pong_app_web_frame.html"
+PONG_WEB_FRAME_SRCDOC_PATH = "/pong_app_web_frame_srcdoc.html"
+PONG_APP_PATHS = (PONG_WEB_FRAME_PATH, PONG_WEB_FRAME_SRCDOC_PATH)
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -28,7 +31,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed_path = urllib.parse.urlparse(self.path)
-        if parsed_path.path == "/pong_app_web_frame.html":
+        if parsed_path.path in PONG_APP_PATHS:
             self.send_response(200)
             self.send_header("Content-type", "text/html")
             self.send_header("Access-Control-Allow-Origin", "http://localhost:4200")
@@ -55,9 +58,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             html_content = html_content.replace("// {{BRIDGE_SCRIPT}}", bridge).replace(
                 "// {{ENGINE_SCRIPT}}", engine
             )
-            html_content = html_content.replace(
-                "🔌 Embedded MCP App", "🌐 Embedded Web App (URL)"
-            )
+            if parsed_path.path == PONG_WEB_FRAME_SRCDOC_PATH:
+                html_content = html_content.replace(
+                    "🔌 Embedded MCP App", "📦 Embedded Web App (Srcdoc)"
+                )
+            else:
+                html_content = html_content.replace(
+                    "🔌 Embedded MCP App", "🌐 Embedded Web App (URL)"
+                )
             self.wfile.write(html_content.encode("utf-8"))
             return
 
@@ -65,7 +73,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def end_headers(self):
         parsed_path = urllib.parse.urlparse(self.path)
-        if not parsed_path.path == "/pong_app_web_frame.html":
+        if parsed_path.path not in PONG_APP_PATHS:
             self.send_header("Access-Control-Allow-Origin", "http://localhost:4200")
         super().end_headers()
 

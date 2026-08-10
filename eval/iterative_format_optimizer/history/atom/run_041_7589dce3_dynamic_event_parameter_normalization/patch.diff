@@ -1,0 +1,76 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+index 5ce9bad2..6cc9fea9 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+@@ -965,13 +965,28 @@ class AtomCompiler:
+         event_name = str(expr[1]) if len(expr) > 1 else ""
+         context = {}
+         i = 2
++        pos_idx = 0
+         while i < len(expr):
+             item = expr[i]
+             if isinstance(item, str) and item.startswith(":") and len(item) > 1:
+                 k = item[1:]
+                 if i + 1 < len(expr):
+                     v = expr[i + 1]
+-                    if k not in ("name", "action"):
++                    if k == "context":
++                        if isinstance(v, dict):
++                            for sub_k, sub_v in v.items():
++                                context[sub_k] = sub_v
++                        elif isinstance(v, list):
++                            j = 0
++                            while j < len(v) - 1:
++                                if isinstance(v[j], str) and v[j].startswith(":"):
++                                    context[v[j][1:]] = v[j + 1]
++                                    j += 2
++                                else:
++                                    j += 1
++                        else:
++                            context["value"] = v
++                    elif k not in ("name", "action"):
+                         context[k] = v
+                     i += 2
+                 else:
+@@ -982,6 +997,10 @@ class AtomCompiler:
+                         context[k] = v
+                 i += 1
+             else:
++                if isinstance(item, str) and not item.startswith(":") and item not in ("]", ")", "[", "("):
++                    if pos_idx == 0:
++                        context["id"] = item
++                    pos_idx += 1
+                 i += 1
+         ev_obj: Dict[str, Any] = {"name": event_name}
+         resolved_context = {
+diff --git a/eval/baselines/atom/results.json b/eval/baselines/atom/results.json
+index 59f11b0b..148d4f9d 100644
+--- a/eval/baselines/atom/results.json
++++ b/eval/baselines/atom/results.json
+@@ -2,12 +2,12 @@
+   "version": 2,
+   "status": "started",
+   "eval": {
+-    "eval_set_id": "GkTCXLVPrkrARLE98sVYhN",
+-    "eval_id": "d3LNd7sdPDFYomeg77zPWn",
+-    "run_id": "cxVsCkDNqkpG59uPirwWUz",
+-    "created": "2026-07-21T07:49:30+00:00",
++    "eval_set_id": "3rCuhZJpdedPsFWAgDmWKW",
++    "eval_id": "JForXa2kAwiAujioWjPYVy",
++    "run_id": "4TwaDokwwtQTrLxPhHGuSw",
++    "created": "2026-07-21T07:51:20+00:00",
+     "task": "a2ui_v1_0_eval",
+-    "task_id": "2c98hmKvcc2koFfrHVJXAE",
++    "task_id": "AXtnfQmuRP9zVQzksi8Tx3",
+     "task_version": 0,
+     "task_file": "tasks.py",
+     "task_display_name": "a2ui_v1_0_eval",
+@@ -53,7 +53,7 @@
+     "revision": {
+       "type": "git",
+       "origin": "git@github.com:gspencergoog/A2UI.git",
+-      "commit": "349b68a2",
++      "commit": "7589dce3",
+       "dirty": true
+     },
+     "packages": {

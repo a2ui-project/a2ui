@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import json
 import re
 from inspect_ai.solver import Solver, solver, TaskState, Generate
@@ -108,6 +109,107 @@ def format_system_prompt(format_name: str, version: str) -> Solver:
     return solve
 
 
+import multiprocessing
+
+
+def _parse_and_validate_in_process(
+    format_name: str,
+    version: str,
+    resolved_catalog_path: str,
+    surface_id: str,
+    completion: str,
+) -> list:
+    catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
+    strategy = _get_strategy(
+        format_name,
+        version,
+        catalog_config,
+        surface_id=surface_id,
+    )
+    catalog = (
+        strategy.get_selected_catalog()
+        if isinstance(strategy, DirectJsonFormat)
+        else getattr(strategy, "catalog")
+    )
+    validator = catalog.validator
+
+    parts = strategy.parser.parse_response(completion)
+    compiled_jsons = []
+    for p in parts:
+        a2ui_json = getattr(p, "a2ui_json", None)
+        if a2ui_json:
+            if isinstance(a2ui_json, list):
+                compiled_jsons.extend(a2ui_json)
+            else:
+                compiled_jsons.append(a2ui_json)
+
+    if not compiled_jsons:
+        raise ValueError(
+            f"No compiled A2UI {format_name} user interface found in parsed parts."
+        )
+
+    validator.validate(compiled_jsons)
+    return compiled_jsons
+
+
+import traceback
+
+
+def _process_target_wrapper(
+    format_name: str,
+    version: str,
+    resolved_catalog_path: str,
+    surface_id: str,
+    completion: str,
+    return_dict: dict,
+):
+    try:
+        res = _parse_and_validate_in_process(
+            format_name, version, resolved_catalog_path, surface_id, completion
+        )
+        return_dict["result"] = res
+    except Exception as e:
+        return_dict["error"] = f"{e}\n{traceback.format_exc()}"
+
+
+def parse_with_hard_kill_timeout(
+    format_name: str,
+    version: str,
+    resolved_catalog_path: str,
+    surface_id: str,
+    completion: str,
+    timeout_sec: float = 5.0,
+) -> list:
+    with multiprocessing.Manager() as manager:
+        return_dict = manager.dict()
+        p = multiprocessing.Process(
+            target=_process_target_wrapper,
+            args=(
+                format_name,
+                version,
+                resolved_catalog_path,
+                surface_id,
+                completion,
+                return_dict,
+            ),
+        )
+        p.start()
+        p.join(timeout=timeout_sec)
+        if p.is_alive():
+            p.kill()
+            p.join()
+            raise TimeoutError(
+                f"Format compilation timed out after {timeout_sec}s and process was"
+                " killed."
+            )
+
+        if "error" in return_dict:
+            raise ValueError(return_dict["error"])
+        if "result" not in return_dict:
+            raise ValueError("Compilation produced no output.")
+        return return_dict["result"]
+
+
 @solver
 def compile_format_payload(format_name: str, version: str) -> Solver:
     """Solver to compile format-specific output back to standard A2UI JSON."""
@@ -119,7 +221,6 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
         catalog_path = state.metadata["catalog"]
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
-        catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
         completion = state.output.completion.strip()
 
         allowed_surface_ids = state.metadata.get("allowed_surface_ids", ["main"])
@@ -136,37 +237,16 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
             if found_id in allowed_surface_ids:
                 surface_id = found_id
 
-        strategy = _get_strategy(
-            format_name,
-            version,
-            catalog_config,
-            surface_id=surface_id,
-        )
-        catalog = (
-            strategy.get_selected_catalog()
-            if isinstance(strategy, DirectJsonFormat)
-            else getattr(strategy, "catalog")
-        )
-        validator = catalog.validator
-
         try:
-            parts = strategy.parser.parse_response(completion)
-            compiled_jsons = []
-            for p in parts:
-                a2ui_json = getattr(p, "a2ui_json", None)
-                if a2ui_json:
-                    if isinstance(a2ui_json, list):
-                        compiled_jsons.extend(a2ui_json)
-                    else:
-                        compiled_jsons.append(a2ui_json)
-
-            if not compiled_jsons:
-                raise ValueError(
-                    f"No compiled A2UI {format_name} user interface found "
-                    "in parsed parts."
-                )
-
-            validator.validate(compiled_jsons)
+            compiled_jsons = await asyncio.to_thread(
+                parse_with_hard_kill_timeout,
+                format_name,
+                version,
+                resolved_catalog_path,
+                surface_id,
+                completion,
+                timeout_sec=5.0,
+            )
 
             formatted = (
                 f"<a2ui-json>\n{json.dumps(compiled_jsons, indent=2)}\n</a2ui-json>"

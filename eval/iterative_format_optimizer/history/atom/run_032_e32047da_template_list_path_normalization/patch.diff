@@ -1,0 +1,19 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+index 546d191e..44b1062d 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+@@ -555,7 +555,13 @@ class AtomCompiler:
+                 key = item[1:]
+                 val = expr[i + 1] if i + 1 < len(expr) else None
+                 if key in ("items", "dataset", "source", "path") and key not in prop_keys:
+-                    items_path_var = self._resolve_val(val, components)
++                    raw_items_val = self._resolve_val(val, components)
++                    if isinstance(raw_items_val, dict) and "path" in raw_items_val:
++                        items_path_var = raw_items_val["path"]
++                    elif isinstance(raw_items_val, str):
++                        items_path_var = self._normalize_path_str(raw_items_val)
++                    else:
++                        items_path_var = raw_items_val
+                 elif (key == "children" or key == child_list_prop or self.schema_helper.get_property_type(comp_type, key) == "ChildList") and isinstance(val, list):
+                     if val and str(val[0]) == "template":
+                         template_data = self._compile_template(val, components)

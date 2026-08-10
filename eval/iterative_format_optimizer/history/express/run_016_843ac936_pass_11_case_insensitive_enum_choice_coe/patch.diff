@@ -1,0 +1,81 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
+index c5367b27..3e28fc6a 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
+@@ -145,6 +145,11 @@ class ExpressCompiler:
+             catalog: A Catalog or an A2uiCatalog.
+         """
+         self.helper = CatalogSchemaHelper(catalog)
++        self._enum_map = {}
++        for enums in self.helper.component_property_enums.values():
++            for enum_val in enums:
++                if isinstance(enum_val, str):
++                    self._enum_map[enum_val.lower()] = enum_val
+ 
+     def compile(
+         self,
+@@ -371,11 +376,13 @@ class ExpressCompiler:
+                     comp_dict[prop_name] = None
+                     continue
+ 
++                enum_vals = self.helper.get_property_enum(comp_name, prop_name)
+                 mapped_val = self._compile_value(
+                     arg,
+                     raw_symbols,
+                     ctx,
+                     is_action=(prop_name in ["action", "submitAction"]),
++                    enum_vals=enum_vals,
+                 )
+                 prop_schema = self.helper.get_property_schema(comp_name, prop_name)
+                 if prop_schema and not _schema_allows_databinding(prop_schema):
+@@ -494,7 +501,12 @@ class ExpressCompiler:
+         return {k: v for k, v in comp_dict.items() if v is not None}
+ 
+     def _compile_value(
+-        self, val: Any, raw_symbols: dict, ctx: _CompileContext, is_action: bool = False
++        self,
++        val: Any,
++        raw_symbols: dict,
++        ctx: _CompileContext,
++        is_action: bool = False,
++        enum_vals: Optional[list[str]] = None,
+     ) -> Any:
+         """Compiles an individual AST node value into valid A2UI equivalents.
+ 
+@@ -670,8 +682,17 @@ class ExpressCompiler:
+             # If this is a list of elements, compile each element
+             compiled_list = []
+             for item in val:
+-                comp_item = self._compile_value(item, raw_symbols, ctx, is_action)
++                comp_item = self._compile_value(
++                    item, raw_symbols, ctx, is_action, enum_vals=enum_vals
++                )
+                 compiled_list.append(comp_item)
+             return compiled_list
+ 
++        if isinstance(val, str):
++            if enum_vals:
++                enum_map = {e.lower(): e for e in enum_vals if isinstance(e, str)}
++                if val.lower() in enum_map:
++                    return enum_map[val.lower()]
++            return val
++
+         return val
+diff --git a/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py b/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py
+index 38b98d60..8427be31 100644
+--- a/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py
++++ b/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py
+@@ -525,6 +525,13 @@ btnLabel = Text("Click Thread 2")
+             "is not a valid enum choice for property 'variant'", str(context.exception)
+         )
+ 
++    def test_case_insensitive_enum_coercion(self):
++        """Verifies that enum values with non-canonical casing are coerced to canonical enum choice."""
++        compiler = ExpressCompiler(self.catalog)
++        dsl = 'root = Button("Click", "PRIMARY")'
++        res = compiler.compile(dsl)
++        self.assertEqual(res["createSurface"]["components"][0]["variant"], "primary")
++
+     def test_nested_databinding_validation(self):
+         """Verifies that the compiler recursively blocks nested data bindings on static properties."""
+         compiler = ExpressCompiler(self.catalog)

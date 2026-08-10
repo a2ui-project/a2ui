@@ -11,8 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 import os
 import urllib.parse
+import urllib.request
 import traceback
 import logging
 
@@ -26,6 +28,12 @@ logger = logging.getLogger(__name__)
 # Global variables for Pong game.
 PONG_SURFACE_ID = "pong_surface"
 PONG_CURRENT_SCORE = {"player": 0, "cpu": 0}
+
+
+def _fetch_url(url: str, headers: dict[str, str], timeout: float = 2.0) -> str:
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+        return response.read().decode("utf-8")
 
 
 # Define get_calculator_app tool in a way that the LlmAgent can use.
@@ -252,6 +260,101 @@ async def get_pong_app_web_frame_json(tool_context: ToolContext):
                         "id": "web_frame_app_root",
                         "component": "WebAppFrameUrl",
                         "url": "http://localhost:8081/pong_app_web_frame.html",
+                        "allowedEvents": {
+                            "commentate_pong": {
+                                "type": "object",
+                                "properties": {
+                                    "game_event": {"type": "string"},
+                                    "silent": {"type": "boolean"},
+                                },
+                            }
+                        },
+                        "allowedFunctions": {
+                            "showWinnerModal": {
+                                "type": "object",
+                                "properties": {"winner": {"type": "string"}},
+                            }
+                        },
+                        "mutableData": {"state": {}},
+                        "config": {"matchingScore": 5},
+                        "data": {"paths": {"state": "/pong_state"}},
+                    },
+                    {
+                        "id": "scoreboard_root",
+                        "component": "PongScoreBoard",
+                        "playerScore": {"path": "/pong_state/player_score"},
+                        "cpuScore": {"path": "/pong_state/cpu_score"},
+                        "commentary": {"path": "/pong_state/commentary"},
+                    },
+                ],
+            },
+        },
+    ]
+    tool_context.actions.skip_summarization = True
+    return {"validated_a2ui_json": messages}
+
+
+async def get_pong_app_web_frame_srcdoc_json(tool_context: ToolContext):
+    """Fetches the Pong game app using the WebAppFrameSrcdoc component."""
+
+    # Reset score on reload
+    global PONG_CURRENT_SCORE
+    PONG_CURRENT_SCORE = {"player": 0, "cpu": 0}
+
+    remote_url = os.getenv(
+        "PONG_SERVER_URL", "http://localhost:8081/pong_app_web_frame_srcdoc.html"
+    )
+    loop = asyncio.get_running_loop()
+    try:
+        html_content = await loop.run_in_executor(
+            None,
+            _fetch_url,
+            remote_url,
+            {"User-Agent": "A2UI-Agent"},
+        )
+    except Exception as e:
+        logger.error(f"Could not fetch remote pong app from {remote_url}: {e}.")
+        return {"error": f"Could not fetch pong app from remote server ({e})"}
+
+    messages = [
+        {
+            "version": "v0.9",
+            "createSurface": {
+                "surfaceId": PONG_SURFACE_ID,
+                "catalogId": (
+                    "https://a2ui.org/samples/community/agent/adk/mcp_app_proxy/catalogs/0.9/mcp_app_catalog.json"
+                ),
+            },
+        },
+        {
+            "version": "v0.9",
+            "updateDataModel": {
+                "surfaceId": PONG_SURFACE_ID,
+                "path": "/",
+                "value": {
+                    "pong_state": {
+                        "player_score": PONG_CURRENT_SCORE["player"],
+                        "cpu_score": PONG_CURRENT_SCORE["cpu"],
+                        "commentary": "Let the match begin!",
+                    }
+                },
+            },
+        },
+        {
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": PONG_SURFACE_ID,
+                "components": [
+                    {
+                        "id": "root",
+                        "component": "PongLayout",
+                        "mcpComponent": "web_frame_app_root",
+                        "scoreboardComponent": "scoreboard_root",
+                    },
+                    {
+                        "id": "web_frame_app_root",
+                        "component": "WebAppFrameSrcdoc",
+                        "htmlContent": html_content,
                         "allowedEvents": {
                             "commentate_pong": {
                                 "type": "object",
