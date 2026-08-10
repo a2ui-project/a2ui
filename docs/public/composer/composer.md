@@ -1,7 +1,7 @@
 # A2UI Composer
 
 Try building A2UI widgets interactively with the **A2UI Composer**.
-![A2UI Composer Workspace](assets/composer_workspace.png)
+![A2UI Composer Workspace](../assets/composer_workspace.png)
 
 1. Navigate to the [A2UI Composer](https://a2ui-project.github.io/composer/)
 
@@ -21,10 +21,10 @@ developing and debugging A2UI surfaces:
   existing JSON, or modify visual attributes.
 - You can **upload an attachment** (a mock, for example) by clicking the
   paper clip icon
-  <img src="assets/composer_paperclip.png" alt="paper clip icon" style="width:30px;height:30px;display:inline;vertical-align:middle;"/>.
+  ![paper clip icon](../assets/composer_paperclip.png){style="width:30px;height:30px;display:inline;vertical-align:middle;"}.
 - You can **include a screenshot** of the
   current A2UI interface by clicking the camera icon
-  <img src="assets/composer_camera.png" alt="camera icon" style="width:30px;height:30px;display:inline;vertical-align:middle;">.
+  ![camera icon](../assets/composer_camera.png){style="width:30px;height:30px;display:inline;vertical-align:middle;"}.
 
 - **Rendered A2UI Preview:** Displays the live visual preview of the active
   component.
@@ -32,7 +32,7 @@ developing and debugging A2UI surfaces:
 - **A2UI JSON Editor:** Displays the raw JSON payload defining the UI
   structure and component hierarchy. You can edit this directly to instantly
   update the rendered preview.
-- The editor has **[tooltips on hover](assets/composer_editor_tooltip.png)**,
+- The editor has **[tooltips on hover](../assets/composer_editor_tooltip.png)**,
   showing the description of the A2UI element.
 - If you have A2UI JSON from another source, you can paste it into this
   panel. You can right-click to format the JSON if you want.
@@ -50,12 +50,12 @@ developing and debugging A2UI surfaces:
 
 ## Components Gallery
 
-![screenshot of a component with A2UI usage and properties](assets/composer_components_gallery.png)
+![screenshot of a component with A2UI usage and properties](../assets/composer_components_gallery.png)
 
 The Components gallery allows you to browse through all the components which
 are provided in the current A2UI catalog. Each component has an example
 rendered, along with the A2UI JSON to produce that rendering. Use the copy icon
-<img src="assets/composer_copy.png" alt="copy icon" style="width:30px;height:30px;display:inline;vertical-align:middle;">
+![copy icon](../assets/composer_copy.png){style="width:30px;height:30px;display:inline;vertical-align:middle;"}
 at the top of the Usage panel to copy the full A2UI JSON for this component.
 
 At the bottom of the page is a table listing all the properties of the
