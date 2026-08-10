@@ -86,7 +86,14 @@ class TestApplyTriage(unittest.TestCase):
         expected_calls = [
             call(["gh", "issue", "view", "101", "--json", "labels"]),
             call(["gh", "issue", "edit", "101", "--remove-label", "P1"]),
-            call(["gh", "issue", "edit", "101", "--add-label", "P0"]),
+            call([
+                "gh",
+                "issue",
+                "edit",
+                "101",
+                "--add-label",
+                "P0,status: first-line-handled",
+            ]),
             call(["gh", "issue", "edit", "101", "--add-assignee", "gspencer"]),
             call(["gh", "issue", "view", "101", "--json", "comments"]),
             call([
@@ -99,6 +106,14 @@ class TestApplyTriage(unittest.TestCase):
             ]),
             call(["gh", "issue", "view", "102", "--json", "labels"]),
             call(["gh", "issue", "edit", "102", "--remove-label", "P3"]),
+            call([
+                "gh",
+                "issue",
+                "edit",
+                "102",
+                "--add-label",
+                "status: first-line-handled",
+            ]),
             call(["gh", "issue", "close", "102", "--reason", "duplicate"]),
         ]
         mock_run.assert_has_calls(expected_calls, any_order=False)
@@ -154,7 +169,14 @@ class TestApplyTriage(unittest.TestCase):
 
         self.assertEqual(cm.exception.code, 0)
         # It should fallback to treating current labels as empty and successfully add P2
-        mock_run.assert_any_call(["gh", "issue", "edit", "105", "--add-label", "P2"])
+        mock_run.assert_any_call([
+            "gh",
+            "issue",
+            "edit",
+            "105",
+            "--add-label",
+            "P2,status: first-line-handled",
+        ])
 
     @patch("argparse.ArgumentParser.parse_args")
     @patch("apply_triage.run_cmd")
@@ -305,7 +327,14 @@ class TestApplyTriage(unittest.TestCase):
         # Verify that both issues were processed
         mock_run.assert_any_call(["gh", "issue", "view", "201", "--json", "labels"])
         mock_run.assert_any_call(["gh", "issue", "view", "202", "--json", "labels"])
-        mock_run.assert_any_call(["gh", "issue", "edit", "202", "--add-label", "P2"])
+        mock_run.assert_any_call([
+            "gh",
+            "issue",
+            "edit",
+            "202",
+            "--add-label",
+            "P2,status: first-line-handled",
+        ])
 
 
 if __name__ == "__main__":

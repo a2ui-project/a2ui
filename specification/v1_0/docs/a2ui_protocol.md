@@ -131,6 +131,7 @@ The [`common_types.json`] schema defines reusable primitives used throughout the
   - `object`: A template for generating children from a data binding list (requires a template `componentId` and a data binding `path`).
 
 - **`ComponentId`**: A reference to the unique ID of another component within the same surface.
+- **`AccessibilityAttributes`**: Standardized accessibility properties attached via `ComponentCommon` to any component, supporting `label` (`DynamicString`), `description` (`DynamicString`), `live` (`"off"` | `"polite"` | `"assertive"`), and `hidden` (`DynamicBoolean`).
 
 ### Agent to renderer message structure: the envelope
 
@@ -441,6 +442,16 @@ When resolving a component (or function call), the renderer evaluates catalog id
 
 > [!IMPORTANT]
 > There is **no fallback** to the list of catalogs declared in `rendererCapabilities` (even if the renderer only advertises a single supported catalog). Every component and function call must resolve through either its explicit `catalogId` or the surface default `catalogId`.
+
+### Catalog-Agnostic Accessibility Requirements
+
+Because JSON Schema cannot inspect arbitrary catalog component property semantics to infer which properties represent visible text labels or which components accept user interaction, accessibility rules are enforced through normative specification requirements and SDK tooling:
+
+**Catalog and renderer implementations MUST:**
+
+- **Plumb Accessibility Attributes**: Map all relevant A2UI `AccessibilityAttributes` (`label`, `description`, `live`, `hidden`) to the underlying UI framework's accessibility APIs (e.g., WAI-ARIA `aria-label`, `aria-describedby`, `aria-live`, and `aria-hidden` for web renderers; `Semantics` properties for Flutter; `AccessibilityNodeInfo` / `accessibilityLabel` for Android and iOS renderers).
+- **Infer Default Semantics**: Use component types and non-accessibility properties (such as visible titles or text labels) to configure accessibility defaults automatically. When explicit `AccessibilityAttributes` (e.g., `label` or `description`) are provided, they MUST override inferred visual defaults. For example, a button component with a title of `"Submit"` and an explicit `accessibility.label` of `"Send Form"` must be announced by assistive technologies as `"Send Form"`.
+- **SDK Linter Checks**: SDK tooling and catalog linters MUST verify that component schemas accepting actions or input bindings declare accessible label requirements or fallbacks.
 
 ### The component catalog
 
@@ -1333,12 +1344,45 @@ When `sendDataModel` is enabled for a surface, the renderer includes the `a2uiRe
 - `version` (string, required): Must be the constant `"v1.0"`.
 - `surfaces` (object, required): A map of surface IDs to their current local data models.
 
+### Extensions
+
+In A2UI v1.0, strict schema validation (`additionalProperties: false`) protects components and wire messages from unrecognized fields. To enable non-visual metadata (such as access constraints, audit tags, and telemetry identifiers, etc.) without allowing arbitrary properties that would weaken schema validation, A2UI defines a centralized `Extensions` type in `common_types.json#/$defs/Extensions`.
+
+#### Architectural Principles
+
+1.  **Optional Schema Fields**: All `metadata.extensions` fields are strictly optional on the wire. When omitted, they incur zero token overhead.
+2.  **Parser Conformance Rule**: Conformant renderers MUST NOT reject payloads containing extension keys within an `extensions` object. Renderers MAY inspect and process extension keys they recognize, and MUST ignore unrecognized extension keys without error.
+3.  **Unicode Identifiers (UAX #31) and Prefix Reservation**: Extension names MUST be valid [Unicode UAX #31] identifiers (`^[\p{XID_Start}_][\p{XID_Continue}]*$`). To prevent key collisions:
+    - Official A2UI extensions are strictly reserved under the prefix `a2ui_`.
+    - Third-party extensions MUST be prefixed with a distinct organization or product identifier separated by an underscore (e.g. an extension from a company with the domain `company.com` might be named `com_company_extension`).
+      - Use of names derived from reversed domain names is encouraged for public facing extensions.
+    - Extension namespace uniqueness is self-managed by extension authors; no central registry is maintained.
+
+#### Wire Containers
+
+A2UI defines optional `metadata.extensions` containers across four scopes:
+
+- **Surface Scope** (`CreateSurfaceMessage.createSurface.metadata.extensions` in [`agent_to_renderer.json`]): Attach surface-level security metadata, access policies, or telemetry session identifiers.
+- **Component Scope** (`ComponentCommon.metadata.extensions` in [`common_types.json`]): Attach component-instance styling overrides, telemetry markers, or custom validation rules.
+- **Catalog Component Definition Scope** (`ComponentDefinition.metadata.extensions` in [`catalog_definition.json`]): Attach static component metadata or default telemetry tagging directly to catalog component schemas.
+- **Action Egress Scope** (`UserActionMessage.action.metadata.extensions` in [`renderer_to_agent.json`]): Send client-side action attestations, audit signatures, or authorization tokens back to the agent when user actions are triggered.
+
+#### SDK Accessor Pattern
+
+Renderers and client SDKs expose surface and component metadata using uniform accessors and change notification callbacks:
+
+- `getMetadata()`: Retrieves the metadata object containing extensions.
+- `setMetadata(metadata)`: Updates the metadata object and notifies listeners.
+- `onMetadataChanged(callback)`: Registers a callback that fires whenever metadata updates.
+
+[json pointer]: https://datatracker.ietf.org/doc/html/rfc6901
+[rfc 6901]: https://datatracker.ietf.org/doc/html/rfc6901
+[unicode uax #31]: https://www.unicode.org/reports/tr31/
+[`agent_capabilities.json`]: ../json/agent_capabilities.json
+[`agent_to_renderer.json`]: ../json/agent_to_renderer.json
+[`catalog_definition.json`]: ../json/catalog_definition.json
 [`catalogs/basic/catalog.json`]: ../catalogs/basic/catalog.json
 [`common_types.json`]: ../json/common_types.json
-[`agent_to_renderer.json`]: ../json/agent_to_renderer.json
-[`renderer_to_agent.json`]: ../json/renderer_to_agent.json
-[`agent_capabilities.json`]: ../json/agent_capabilities.json
 [`renderer_capabilities.json`]: ../json/renderer_capabilities.json
 [`renderer_data_model.json`]: ../json/renderer_data_model.json
-[JSON Pointer]: https://datatracker.ietf.org/doc/html/rfc6901
-[RFC 6901]: https://datatracker.ietf.org/doc/html/rfc6901
+[`renderer_to_agent.json`]: ../json/renderer_to_agent.json

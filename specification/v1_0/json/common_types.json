@@ -14,7 +14,7 @@
     },
     "AccessibilityAttributes": {
       "type": "object",
-      "description": "Attributes to enhance accessibility when using assistive technologies like screen readers.",
+      "description": "Attributes to enhance accessibility when using assistive technologies like screen readers or model understanding.",
       "properties": {
         "label": {
           "$ref": "#/$defs/DynamicString",
@@ -23,8 +23,27 @@
         "description": {
           "$ref": "#/$defs/DynamicString",
           "description": "Additional information provided by assistive technologies about an element such as instructions, format requirements, or result of an action. For example, a mute button might have a label of 'Mute' and a description of 'Silences notifications about this conversation'."
+        },
+        "live": {
+          "type": "string",
+          "enum": ["off", "polite", "assertive"],
+          "default": "off",
+          "description": "Controls screen reader announcements for dynamic updates (WAI-ARIA aria-live). 'polite' waits for user pause; 'assertive' interrupts immediately for alerts."
+        },
+        "hidden": {
+          "$ref": "#/$defs/DynamicBoolean",
+          "description": "Hides the element and its children from assistive technologies when true. Default is false."
         }
-      }
+      },
+      "additionalProperties": false
+    },
+    "Extensions": {
+      "type": "object",
+      "description": "Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions.",
+      "patternProperties": {
+        "^[\\p{XID_Start}_][\\p{XID_Continue}]*$": {}
+      },
+      "additionalProperties": false
     },
     "ComponentCommon": {
       "type": "object",
@@ -38,6 +57,16 @@
         },
         "accessibility": {
           "$ref": "#/$defs/AccessibilityAttributes"
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Optional component-level metadata for vendor extensions.",
+          "properties": {
+            "extensions": {
+              "$ref": "#/$defs/Extensions"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "required": ["id"]

@@ -82,3 +82,108 @@ export const WebAppFrameBasePropsSchema = z.object({
   mutableData: z.record(z.unknown()).optional(),
   disableSchemaValidation: z.boolean().optional(),
 });
+
+/**
+ * Security constants for cross-frame message payload validation.
+ */
+export const MAX_PAYLOAD_NESTING_DEPTH = 10;
+export const MAX_PAYLOAD_SIZE_BYTES = 64 * 1024; // 64 KB
+export const FORBIDDEN_PROTOTYPE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+export interface PayloadSecurityResult {
+  valid: boolean;
+  reason?: string;
+}
+
+/**
+ * Recursively scans a value or payload object for prototype pollution keys
+ * (`__proto__`, `constructor`, `prototype`) and verifies that the nesting depth
+ * does not exceed the maximum allowed depth (default 10 levels).
+ *
+ * @param value The value to inspect.
+ * @param maxDepth The maximum permitted nesting depth (defaults to 10).
+ * @param currentDepth Current recursion depth level.
+ * @returns An object indicating whether the payload is safe, with an error reason if not.
+ */
+function validatePayloadSecurity(
+  value: unknown,
+  maxDepth = MAX_PAYLOAD_NESTING_DEPTH,
+  currentDepth = 0,
+): PayloadSecurityResult {
+  if (currentDepth > maxDepth) {
+    return {
+      valid: false,
+      reason: `Exceeded maximum allowed nesting depth of ${maxDepth} levels`,
+    };
+  }
+
+  if (value === null || typeof value !== 'object') {
+    return {valid: true};
+  }
+
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const result = validatePayloadSecurity(value[i], maxDepth, currentDepth + 1);
+      if (!result.valid) {
+        return result;
+      }
+    }
+    return {valid: true};
+  }
+
+  const obj = value as Record<string, unknown>;
+  const keys = Object.getOwnPropertyNames(obj);
+  for (const key of keys) {
+    if (FORBIDDEN_PROTOTYPE_KEYS.has(key)) {
+      return {
+        valid: false,
+        reason: `Detected forbidden prototype pollution property key: "${key}"`,
+      };
+    }
+    const propVal = obj[key];
+    const result = validatePayloadSecurity(propVal, maxDepth, currentDepth + 1);
+    if (!result.valid) {
+      return result;
+    }
+  }
+
+  return {valid: true};
+}
+
+/**
+ * Validates the overall security of an incoming message from a sandboxed frame,
+ * checking that its serialized byte length does not exceed 64 KB, that it does
+ * not contain prototype pollution keys, and that its nesting depth does not exceed 10 levels.
+ *
+ * @param rawMessage The incoming raw message data.
+ * @returns An object indicating whether the message is safe to process.
+ */
+export function validateMessageSecurity(rawMessage: unknown): PayloadSecurityResult {
+  if (rawMessage === null || rawMessage === undefined) {
+    return {valid: true};
+  }
+
+  const securityCheck = validatePayloadSecurity(rawMessage);
+  if (!securityCheck.valid) {
+    return securityCheck;
+  }
+
+  let serialized: string;
+  try {
+    serialized = JSON.stringify(rawMessage);
+  } catch {
+    return {
+      valid: false,
+      reason: 'Failed to serialize message payload for size inspection',
+    };
+  }
+
+  if (serialized && serialized.length > MAX_PAYLOAD_SIZE_BYTES) {
+    return {
+      valid: false,
+      reason: `Message payload exceeds maximum allowed size of ${MAX_PAYLOAD_SIZE_BYTES} bytes (${serialized.length} bytes)`,
+    };
+  }
+
+  return {valid: true};
+}

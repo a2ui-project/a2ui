@@ -214,6 +214,16 @@
               },
               "description": "The list of child component type names allowed inside this container or slot. If omitted, all child component types are allowed.",
               "uniqueItems": true
+            },
+            "metadata": {
+              "type": "object",
+              "description": "Optional static metadata.",
+              "properties": {
+                "extensions": {
+                  "$ref": "common_types.json#/$defs/Extensions"
+                }
+              },
+              "additionalProperties": false
             }
           }
         }

@@ -141,10 +141,27 @@ def guess_triage_heuristics(title, body):
     # Default suggestions
     priority = "None"
     action = "investigate"
-    labels = []
+    labels = ["status: first-line-handled"]
     reply = ""
 
     text = (title + " " + body).lower()
+
+    # Special Case: Weekly A2UI Compliance Report
+    if "weekly a2ui compliance report" in text:
+        labels.append("type: documentation")
+        priority = "P3"
+        action = "backlog"
+        reply = (
+            "As agreed, this has been assigned a P3 priority. Once the current"
+            " triage queue is cleared, we will begin reviewing AI-generated"
+            " issues."
+        )
+        return {
+            "priority": priority,
+            "action": action,
+            "labels": list(set(labels)),
+            "reply": reply,
+        }
 
     # Guess Component Labels
     if "lit" in text:
@@ -168,9 +185,22 @@ def guess_triage_heuristics(title, body):
         reply = "Thanks. We will update the documentation."
     elif "feature" in text or "enhancement" in text or "request" in text:
         labels.append("type: feature/enhancement")
-        priority = "P3"
-        action = "investigate"
-        reply = "Thanks for the suggestion. We will evaluate this against our roadmap."
+        if "out of scope" in text or "not planned" in text:
+            priority = "P4"
+            action = "backlog"
+            reply = (
+                "Thanks for the suggestion. This falls outside the current scope"
+                " of the A2UI protocol roadmap.\n\nMarked as `P4`: we do not"
+                " plan to invest in it, and PRs against it will not be reviewed."
+                " Leaving it open as a record of the request — comment here if"
+                " you have new arguments to share."
+            )
+        else:
+            priority = "P3"
+            action = "backlog"
+            reply = (
+                "Thanks for the suggestion. We will evaluate this against our roadmap."
+            )
     else:
         # Default to bug if not documentation/feature and contains words like error, fail, crash, bug
         if any(
@@ -185,14 +215,16 @@ def guess_triage_heuristics(title, body):
                 " diagnose this."
             )
 
-    # Guess waiting-for-author-response if repro steps are obviously missing in bug reports
+    # Guess status: waiting-for-author-response if repro steps are obviously missing in bug reports
     if "type: bug" in labels:
         if not any(w in text for w in ["reproduce", "repro", "steps", "run", "how to"]):
-            labels.append("waiting-for-author-response")
+            labels.append("status: waiting-for-author-response")
             action = "needs_info"
             reply = (
-                "Please provide a minimal reproduction schema or code snippet to help"
-                " us investigate."
+                "To help us diagnose this, please provide:\n\n1. Browser console logs"
+                " or exact protocol payload\n2. Minimal reproduction schema or code"
+                " snippet\n\nMarked as `status: waiting-for-author-response` for"
+                " now."
             )
 
     return {
@@ -259,12 +291,26 @@ def main():
         suggestions["suggested_assignees"] = suggested
 
         # If the issue already has an assignee, preserve it!
+        # Rule from triage-templates.md: Assigned issue without a priority gets P2 and assign_and_fix (unless compliance report)
         existing_assignees = issue.get("assignees", [])
         if existing_assignees:
             suggestions["assignee"] = existing_assignees[0]
             suggestions["assignee_reason"] = (
                 f"Preserving existing assignee: {existing_assignees[0]}."
             )
+            text = (issue.get("title", "") + " " + issue.get("body", "")).lower()
+            if (
+                "weekly a2ui compliance report" not in text
+                and suggestions.get("action") != "needs_info"
+                and suggestions.get("priority") not in ("P0", "P1")
+            ):
+                suggestions["priority"] = "P2"
+                suggestions["action"] = "assign_and_fix"
+                suggestions["reply"] = (
+                    "I assigned a P2 priority to move this out of the triage"
+                    " queue. Please adjust the priority if needed to better"
+                    " reflect the issue's status."
+                )
         else:
             # 3. Add assignee reason
             if suggested:
