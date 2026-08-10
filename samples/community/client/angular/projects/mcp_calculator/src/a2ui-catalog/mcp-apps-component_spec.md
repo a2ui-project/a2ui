@@ -445,16 +445,16 @@ The host receives the `htmlContent` property from the catalog definition:
 
 ### Content Security Policy configuration
 
-To prevent the application from sending network requests, the proxy injects a Content Security Policy (CSP) tag into the inner frame document head:
+To prevent the application from sending network requests or submitting forms externally, the proxy injects a Content Security Policy (CSP) tag into the inner frame document head:
 
 ```html
 <meta
   http-equiv="Content-Security-Policy"
-  content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none';"
+  content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none'; form-action 'none';"
 />
 ```
 
-This blocks connection protocols like fetch, XHR, WebSockets, and Server-Sent Events, forcing all communication to be routed through the `AppBridge` channel to the host.
+This blocks connection protocols like fetch, XHR, WebSockets, and Server-Sent Events, as well as form submissions and navigations (`form-action 'none'`), forcing all communication to be routed through the `AppBridge` channel to the host.
 
 ### Dynamic resizing controls
 
