@@ -250,19 +250,50 @@
       ],
       "unevaluatedProperties": false
     },
-    "CheckRule": {
+    "ValidationResult": {
       "type": "object",
-      "description": "A single validation rule applied to an input component.",
+      "description": "Dynamic validation result object returned by a validation condition function or data binding.",
       "properties": {
-        "condition": {
-          "$ref": "#/$defs/DynamicBoolean"
+        "valid": {
+          "type": "boolean",
+          "description": "Whether the check passed."
+        },
+        "code": {
+          "type": "string",
+          "description": "Machine-readable error code (e.g. EXPIRED_CARD, OUT_OF_RANGE)."
         },
         "message": {
           "type": "string",
-          "description": "The error message to display if the check fails."
+          "description": "Human-readable error or warning message."
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["error", "warning", "info"],
+          "default": "error",
+          "description": "Severity level of the validation result."
         }
       },
-      "required": ["condition", "message"],
+      "required": ["valid"],
+      "additionalProperties": false
+    },
+    "CheckRule": {
+      "type": "object",
+      "description": "A single validation check rule applied to an input component. The condition function can return a boolean or a dynamic ValidationResult object.",
+      "properties": {
+        "condition": {
+          "oneOf": [
+            { "type": "boolean" },
+            { "$ref": "#/$defs/DataBinding" },
+            { "$ref": "#/$defs/FunctionCall" }
+          ],
+          "description": "Condition boolean expression, path, or function call returning a boolean or dynamic ValidationResult object."
+        },
+        "message": {
+          "type": "string",
+          "description": "Fallback error message used if condition evaluates to false and no dynamic message is returned by the function."
+        }
+      },
+      "required": ["condition"],
       "additionalProperties": false
     },
     "Checkable": {

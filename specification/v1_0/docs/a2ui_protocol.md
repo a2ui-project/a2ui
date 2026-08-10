@@ -502,6 +502,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `DynamicStringList`
      - `DynamicValue`
      - `CheckRule`
+     - `ValidationResult`
      - `ComponentCommon`
      - `Checkable`
      - `Action`
