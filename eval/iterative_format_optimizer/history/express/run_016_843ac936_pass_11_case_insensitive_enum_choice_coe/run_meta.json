@@ -1,0 +1,15 @@
+{
+  "format": "express",
+  "hypothesis": "Pass 11: Case-insensitive enum choice coercion in compiler.py",
+  "status": "Kept",
+  "notes": "Case-insensitive enum choice coercion added to ExpressCompiler._compile_value. Pytest passed (61/61), Quality Score 100.0%, Output Tokens expansion +4.64%.",
+  "metrics": {
+    "schema_acc": 1.0,
+    "quality_acc": 1.0,
+    "code_tokens_median": 272.5,
+    "reasoning_tokens_median": 2325.0,
+    "input_tokens_median": 5936.5,
+    "latency_seconds_median": 14.472916997037828,
+    "total_samples": 6
+  }
+}

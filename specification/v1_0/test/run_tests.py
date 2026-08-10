@@ -35,6 +35,7 @@ SCHEMAS = {
     "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
     "catalog.json": TEMP_CATALOG_FILE,
     "renderer_to_agent.json": os.path.join(SCHEMA_DIR, "renderer_to_agent.json"),
+    "catalog_definition.json": os.path.join(SCHEMA_DIR, "catalog_definition.json"),
 }
 
 
@@ -431,7 +432,8 @@ def validate_a2a_schemas():
             "refs": {
                 "catalog_definition.json": os.path.join(
                     SCHEMA_DIR, "catalog_definition.json"
-                )
+                ),
+                "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
             },
         },
         {

@@ -1,0 +1,247 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+:host {
+  display: block;
+  width: 100%;
+  margin: var(--a2ui-file-upload-margin, 8px 0);
+}
+
+.upload-zone {
+  position: relative;
+  width: 100%;
+  border: var(--a2ui-file-upload-border, 1px dashed #79747e);
+  border-radius: var(--a2ui-file-upload-border-radius, 12px);
+  background: var(--a2ui-file-upload-bg, #ffffff);
+  backdrop-filter: var(--a2ui-file-upload-backdrop-filter, none);
+  padding: var(--a2ui-file-upload-padding, 28px 24px);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  box-shadow: var(--a2ui-file-upload-shadow, none);
+
+  &:hover {
+    border-color: var(--a2ui-file-upload-hover-border-color, #0b57d0);
+    background: var(--a2ui-file-upload-hover-bg, #f8f9fd);
+    transform: none;
+    box-shadow: var(--a2ui-file-upload-hover-shadow, none);
+  }
+
+  &.state-uploading {
+    border-color: var(--a2ui-color-accent, #0b57d0);
+    border-style: solid;
+    background: var(--a2ui-file-upload-uploading-bg, #f8f9fd);
+  }
+
+  &.state-success {
+    border-color: var(--a2ui-color-success, #146c2e);
+    border-style: solid;
+    background: var(--a2ui-file-upload-success-bg, #f2f7f4);
+    box-shadow: var(--a2ui-file-upload-success-shadow, none);
+  }
+
+  &.state-error {
+    border-color: var(--a2ui-color-error, #b3261e);
+    border-style: solid;
+    background: var(--a2ui-file-upload-error-bg, #fef7f6);
+  }
+}
+
+.file-input-hidden {
+  display: none;
+}
+
+.zone-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--a2ui-file-upload-content-gap, 14px);
+}
+
+.icon-wrapper {
+  width: var(--a2ui-file-upload-icon-size, 56px);
+  height: var(--a2ui-file-upload-icon-size, 56px);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--a2ui-file-upload-icon-bg, #f0f4f9);
+  border: var(--a2ui-file-upload-icon-border, none);
+  transition: transform 0.2s ease;
+
+  .material-icons-outlined {
+    font-size: var(--a2ui-file-upload-icon-font-size, 28px);
+
+    &.default-icon {
+      color: var(--a2ui-color-primary, #0b57d0);
+    }
+    &.uploading-icon {
+      color: var(--a2ui-color-accent, #0b57d0);
+      animation: pulse 1.5s infinite;
+    }
+    &.success-icon {
+      color: var(--a2ui-color-success, #146c2e);
+    }
+    &.error-icon {
+      color: var(--a2ui-color-error, #b3261e);
+    }
+  }
+}
+
+.text-group {
+  .primary-label {
+    margin: 0 0 6px 0;
+    font-size: var(--a2ui-file-upload-title-size, 1.05rem);
+    font-weight: 600;
+    color: var(--a2ui-color-text-primary, #1d1b20);
+  }
+
+  .secondary-label {
+    margin: 0;
+    font-size: var(--a2ui-file-upload-subtitle-size, 0.85rem);
+    color: var(--a2ui-color-text-secondary, #49454f);
+  }
+}
+
+.progress-bar-container {
+  width: 80%;
+  height: 6px;
+  background: var(--a2ui-file-upload-progress-track, #e0e0e0);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 8px;
+
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--a2ui-file-upload-progress-fill, #0b57d0);
+    transition: width 0.3s ease;
+  }
+}
+
+.status-caption {
+  font-size: 0.8rem;
+  color: var(--a2ui-color-accent, #0b57d0);
+  font-weight: 500;
+}
+
+.uploaded-files-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.success-badge-container {
+  margin-top: 8px;
+  background: var(--a2ui-file-upload-badge-success-bg, #e6f4ea);
+  border: var(--a2ui-file-upload-badge-success-border, 1px solid #ceead6);
+  border-radius: var(--a2ui-file-upload-badge-radius, 12px);
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 100%;
+  box-sizing: border-box;
+
+  .badge-chip {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--a2ui-color-success, #146c2e);
+    background: var(--a2ui-file-upload-chip-bg, #ceead6);
+    padding: 3px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+  }
+
+  .file-info-row {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    flex-grow: 1;
+    overflow: hidden;
+
+    .file-name {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--a2ui-color-text-primary, #1d1b20);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      width: 100%;
+      text-align: left;
+    }
+
+    .pointer-uri {
+      font-family: var(--a2ui-font-family-monospace, 'Google Sans Code', monospace);
+      font-size: 0.8rem;
+      color: var(--a2ui-color-primary, #0b57d0);
+      background: var(--a2ui-file-upload-uri-bg, #f1f3f4);
+      padding: 4px 10px;
+      border-radius: 6px;
+      word-break: break-all;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+  }
+
+  .remove-btn {
+    background: transparent;
+    border: none;
+    color: var(--a2ui-color-text-muted, #5f6368);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+
+    &:hover {
+      background: var(--a2ui-file-upload-btn-hover-bg, rgba(0, 0, 0, 0.08));
+      color: var(--a2ui-color-text-primary, #202124);
+    }
+  }
+}
+
+.error-badge {
+  margin-top: 8px;
+  background: var(--a2ui-file-upload-badge-error-bg, #fce8e6);
+  border: var(--a2ui-file-upload-badge-error-border, 1px solid #fad2cf);
+  border-radius: var(--a2ui-file-upload-badge-error-radius, 8px);
+  padding: 8px 12px;
+  color: var(--a2ui-color-error, #b3261e);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.7;
+  }
+}

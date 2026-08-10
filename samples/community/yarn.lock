@@ -45,6 +45,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@a2ui/file_upload@workspace:client/angular/projects/file_upload":
+  version: 0.0.0-use.local
+  resolution: "@a2ui/file_upload@workspace:client/angular/projects/file_upload"
+  dependencies:
+    "@a2ui/angular": "npm:^0.10.0"
+    "@a2ui/web_core": "npm:^0.10.0"
+    ajv: "npm:^8.20.0"
+    wireit: "npm:^0.15.0-pre.2"
+  languageName: unknown
+  linkType: soft
+
 "@a2ui/lit@npm:^0.10.0":
   version: 0.10.0
   resolution: "@a2ui/lit@npm:0.10.0"
@@ -6031,6 +6042,20 @@ __metadata:
   checksum: 10c0/590329e773d8103dcc4f2aefa48d824d5b934b53baae7d8bcc3b61f0a917a0d6b6a1154d7319c6416421e7eb3b1c94704ec21924c485f4b174f0218416211fd9
   languageName: node
   linkType: hard
+
+"custom-lit-components@workspace:custom-lit-components":
+  version: 0.0.0-use.local
+  resolution: "custom-lit-components@workspace:custom-lit-components"
+  dependencies:
+    "@a2ui/lit": "npm:^0.10.0"
+    "@a2ui/web_core": "npm:^0.10.0"
+    "@modelcontextprotocol/ext-apps": "npm:^1.7.4"
+    eslint: "npm:^10.4.1"
+    lit: "npm:^3.3.3"
+    typescript: "npm:5.9.3"
+    vite: "npm:^8.0.16"
+  languageName: unknown
+  linkType: soft
 
 "data-uri-to-buffer@npm:^4.0.0":
   version: 4.0.1

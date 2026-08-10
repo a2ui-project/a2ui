@@ -179,6 +179,6 @@ The typical interaction flow consists of these steps:
 
 ### A2UI Composer
 
-CopilotKit has a public [A2UI Widget Builder](https://go.copilotkit.ai/A2UI-widget-builder) to try out as well.
+We have a public [A2UI Composer](https://a2ui-project.github.io/composer/).
 
-[![A2UI Composer](assets/A2UI-widget-builder.png)](https://go.copilotkit.ai/A2UI-widget-builder)
+[Documentation for the A2UI Composer](./composer.md)

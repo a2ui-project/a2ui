@@ -12205,6 +12205,7 @@ __metadata:
     chartjs-plugin-datalabels: "npm:^2.2.0"
     concurrently: "npm:^10.0.3"
     cypress: "npm:^15.17.0"
+    dotenv: "npm:^17.4.2"
     eslint: "npm:^10.4.1"
     excalibur: "npm:0.32.0"
     express: "npm:^5.2.1"

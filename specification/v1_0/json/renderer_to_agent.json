@@ -44,6 +44,16 @@
         "actionId": {
           "type": "string",
           "description": "Unique ID for this action call. Only needed if wantResponse is true."
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Optional client-side metadata to send back to the agent with the action.",
+          "properties": {
+            "extensions": {
+              "$ref": "common_types.json#/$defs/Extensions"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "required": ["name", "surfaceId", "sourceComponentId", "timestamp", "context"]
@@ -74,7 +84,7 @@
           "title": "Validation Failed Error",
           "properties": {
             "code": {
-              "const": "VALIDATION_FAILED"
+              "enum": ["VALIDATION_FAILED", "UNALLOWED_PARENT", "UNALLOWED_CHILD"]
             },
             "surfaceId": {
               "type": "string",
@@ -97,8 +107,9 @@
           "title": "Generic Error",
           "properties": {
             "code": {
+              "type": "string",
               "not": {
-                "const": "VALIDATION_FAILED"
+                "enum": ["VALIDATION_FAILED", "UNALLOWED_PARENT", "UNALLOWED_CHILD"]
               }
             },
             "message": {

@@ -38,6 +38,7 @@
     "@modelcontextprotocol/ext-apps": "^1.7.4",
     "chart.js": "^4.5.1",
     "chartjs-plugin-datalabels": "^2.2.0",
+    "dotenv": "^17.4.2",
     "excalibur": "0.32.0",
     "express": "^5.2.1",
     "markdown-it": "^14.2.0",
