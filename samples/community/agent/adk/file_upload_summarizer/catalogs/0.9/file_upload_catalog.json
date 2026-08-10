@@ -125,16 +125,20 @@
               "description": "FileUpload component with Host-Delegated IoC upload callback."
             },
             "label": {
-              "$ref": "common_types.json#/$defs/DynamicString"
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "The text label or prompt displayed on the file upload drop zone (e.g., \"Drag and drop files or click to upload\")."
             },
             "accept": {
-              "$ref": "common_types.json#/$defs/DynamicString"
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "Comma-separated list of allowed MIME types or file extensions (e.g., \"image/*, application/pdf\")."
             },
             "maxSize": {
-              "$ref": "common_types.json#/$defs/DynamicNumber"
+              "$ref": "common_types.json#/$defs/DynamicNumber",
+              "description": "Maximum allowed file size in bytes for each uploaded file."
             },
             "multiple": {
-              "type": "boolean"
+              "type": "boolean",
+              "description": "Whether multiple files can be selected and uploaded concurrently. Defaults to false."
             }
           },
           "required": ["component"]

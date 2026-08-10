@@ -22,12 +22,27 @@ import {FileUploadComponent} from '../components/file-upload/file-upload';
 export const FILE_UPLOAD_CATALOG_ID =
   'https://a2ui.org/samples/community/agent/adk/file_upload_summarizer/catalogs/0.9/file_upload_catalog.json';
 
-const FileUploadSchema = z.object({
-  label: DynamicStringSchema.optional(),
-  accept: DynamicStringSchema.optional(),
-  maxSize: DynamicNumberSchema.optional(),
-  multiple: z.boolean().optional(),
-});
+const FileUploadSchema = z
+  .object({
+    label: DynamicStringSchema.optional().describe(
+      'The text label or prompt displayed on the file upload drop zone (e.g., "Drag and drop files or click to upload").',
+    ),
+    accept: DynamicStringSchema.optional().describe(
+      'Comma-separated list of allowed MIME types or file extensions (e.g., "image/*, application/pdf").',
+    ),
+    maxSize: DynamicNumberSchema.optional().describe(
+      'Maximum allowed file size in bytes for each uploaded file.',
+    ),
+    multiple: z
+      .boolean()
+      .optional()
+      .describe(
+        'Whether multiple files can be selected and uploaded concurrently. Defaults to false.',
+      ),
+  })
+  .describe(
+    'FileUpload component for selecting and uploading files via host delegation or inline fallback.',
+  );
 
 export const DEMO_CATALOG = new Catalog(
   FILE_UPLOAD_CATALOG_ID,
