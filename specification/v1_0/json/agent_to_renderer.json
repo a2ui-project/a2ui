@@ -10,7 +10,7 @@
     {"$ref": "#/$defs/UpdateDataModelMessage"},
     {"$ref": "#/$defs/DeleteSurfaceMessage"},
     {"$ref": "#/$defs/CallRendererFunctionMessage"},
-    {"$ref": "#/$defs/FunctionResponseMessage"}
+    {"$ref": "#/$defs/AgentFunctionResponseMessage"}
   ],
   "$defs": {
     "CreateSurfaceMessage": {
@@ -191,17 +191,17 @@
       "required": ["callRendererFunction", "version"],
       "additionalProperties": false
     },
-    "FunctionResponseMessage": {
+    "AgentFunctionResponseMessage": {
       "type": "object",
       "properties": {
         "version": {
           "const": "v1.0"
         },
-        "functionResponse": {
+        "agentFunctionResponse": {
           "$ref": "common_types.json#/$defs/FunctionResponse"
         }
       },
-      "required": ["functionResponse", "version"],
+      "required": ["agentFunctionResponse", "version"],
       "additionalProperties": false
     }
   }

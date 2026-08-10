@@ -2,11 +2,11 @@
   "schema": "renderer_to_agent.json",
   "tests": [
     {
-      "description": "functionResponse: Valid message with value object",
+      "description": "rendererFunctionResponse: Valid message with value object",
       "valid": true,
       "data": {
         "version": "v1.0",
-        "functionResponse": {
+        "rendererFunctionResponse": {
           "functionCallId": "unique-call-id-130",
           "value": {
             "result": "success",
@@ -16,11 +16,11 @@
       }
     },
     {
-      "description": "functionResponse: Valid message with error payload",
+      "description": "rendererFunctionResponse: Valid message with error payload",
       "valid": true,
       "data": {
         "version": "v1.0",
-        "functionResponse": {
+        "rendererFunctionResponse": {
           "functionCallId": "unique-call-id-130e",
           "error": {
             "code": "EXECUTION_FAILED",
@@ -30,11 +30,11 @@
       }
     },
     {
-      "description": "functionResponse: Invalid (missing functionCallId)",
+      "description": "rendererFunctionResponse: Invalid (missing functionCallId)",
       "valid": false,
       "data": {
         "version": "v1.0",
-        "functionResponse": {
+        "rendererFunctionResponse": {
           "value": {
             "result": "success"
           }
@@ -42,66 +42,66 @@
       }
     },
     {
-      "description": "functionResponse: Valid (scalar string value)",
+      "description": "rendererFunctionResponse: Valid (scalar string value)",
       "valid": true,
       "data": {
         "version": "v1.0",
-        "functionResponse": {
+        "rendererFunctionResponse": {
           "functionCallId": "unique-call-id-131a",
           "value": "success"
         }
       }
     },
     {
-      "description": "functionResponse: Valid (scalar number value)",
+      "description": "rendererFunctionResponse: Valid (scalar number value)",
       "valid": true,
       "data": {
         "version": "v1.0",
-        "functionResponse": {
+        "rendererFunctionResponse": {
           "functionCallId": "unique-call-id-131b",
           "value": 42
         }
       }
     },
     {
-      "description": "functionResponse: Valid (scalar boolean value)",
+      "description": "rendererFunctionResponse: Valid (scalar boolean value)",
       "valid": true,
       "data": {
         "version": "v1.0",
-        "functionResponse": {
+        "rendererFunctionResponse": {
           "functionCallId": "unique-call-id-131c",
           "value": true
         }
       }
     },
     {
-      "description": "functionResponse: Valid (scalar null value)",
+      "description": "rendererFunctionResponse: Valid (scalar null value)",
       "valid": true,
       "data": {
         "version": "v1.0",
-        "functionResponse": {
+        "rendererFunctionResponse": {
           "functionCallId": "unique-call-id-131d",
           "value": null
         }
       }
     },
     {
-      "description": "functionResponse: Valid (array value)",
+      "description": "rendererFunctionResponse: Valid (array value)",
       "valid": true,
       "data": {
         "version": "v1.0",
-        "functionResponse": {
+        "rendererFunctionResponse": {
           "functionCallId": "unique-call-id-131e",
           "value": ["one", 2, true, null]
         }
       }
     },
     {
-      "description": "functionResponse: Invalid (both value and error provided)",
+      "description": "rendererFunctionResponse: Invalid (both value and error provided)",
       "valid": false,
       "data": {
         "version": "v1.0",
-        "functionResponse": {
+        "rendererFunctionResponse": {
           "functionCallId": "unique-call-id-135",
           "value": "success",
           "error": {
@@ -112,11 +112,11 @@
       }
     },
     {
-      "description": "functionResponse: Invalid (neither value nor error provided)",
+      "description": "rendererFunctionResponse: Invalid (neither value nor error provided)",
       "valid": false,
       "data": {
         "version": "v1.0",
-        "functionResponse": {
+        "rendererFunctionResponse": {
           "functionCallId": "unique-call-id-136"
         }
       }

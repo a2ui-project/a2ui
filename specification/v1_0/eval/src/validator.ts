@@ -102,10 +102,11 @@ export class Validator {
               `${schemaUri}#/$defs/CallRendererFunctionMessage`,
               message,
             );
-          } else if (message.functionResponse) {
-            validated = this.ajv.validate(`${schemaUri}#/$defs/FunctionResponseMessage`, message);
-          } else if (message.actionResponse) {
-            validated = this.ajv.validate(`${schemaUri}#/$defs/ActionResponseMessage`, message);
+          } else if (message.agentFunctionResponse) {
+            validated = this.ajv.validate(
+              `${schemaUri}#/$defs/AgentFunctionResponseMessage`,
+              message,
+            );
           } else {
             // Fallback to top-level validation if no known key matches (or if it's empty/invalid structure)
             validated = this.validateFn(message);

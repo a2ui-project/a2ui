@@ -34,7 +34,7 @@ End of agent turn is signaled by [transport layer](../../../docs/public/concepts
 
 The major differences between version 1.0 and 0.9 (including 0.9.1) are:
 
-- **Bidirectional Function Calls**: Supports explicit, typed function invocation messages (`callRendererFunction`, `callAgentFunction`, and `functionResponse`) verified against runtime catalog definitions.
+- **Bidirectional Function Calls**: Supports explicit, typed function invocation messages (`callRendererFunction`, `callAgentFunction`, `rendererFunctionResponse`, and `agentFunctionResponse`) verified against runtime catalog definitions.
 - **Single-Message UI Instantiation**: Allows initial component trees and data models to be embedded directly within `createSurface`, enabling complete UI composition in a single payload.
 - **Decoupled Branding**: Removes rigid theme properties (removing hardcoded brand colors) to defer visual styling entirely to the target framework's native theme.
 - **Enhanced Catalog Schemas**: Refactors function definitions into object maps for direct O(1) lookups and supports standard JSON Schema metadata fields (`$schema`, `$id`) on inline catalogs.
@@ -169,7 +169,7 @@ Validators determine which fields represent structural links by looking for thes
 
 ## Envelope message structure
 
-The envelope defines several message types, and every message streamed by the agent must be a JSON object containing exactly one of the following keys: `createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`, `callRendererFunction`, or `functionResponse`. The key indicates the type of message, and these are the messages that make up each message in the protocol stream.
+The envelope defines several message types, and every message streamed by the agent must be a JSON object containing exactly one of the following keys: `createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`, `callRendererFunction`, or `agentFunctionResponse`. The key indicates the type of message, and these are the messages that make up each message in the protocol stream.
 
 ### `createSurface`
 
@@ -334,14 +334,13 @@ Agent sends this message to the renderer:
 }
 ```
 
-If the function executes successfully, the renderer responds with:
+If the function executes successfully, the renderer responds with a `rendererFunctionResponse`:
 
 ```json
 {
   "version": "v1.0",
-  "functionResponse": {
+  "rendererFunctionResponse": {
     "functionCallId": "get_device_resolution_123",
-    "call": "getScreenResolution",
     "value": [1920, 1080]
   }
 }
@@ -356,6 +355,49 @@ If the agent attempts to call a `rendererOnly` function (e.g., a local-only comp
     "code": "INVALID_FUNCTION_CALL",
     "message": "Function 'validateLocalInput' is rendererOnly and cannot be invoked remotely.",
     "functionCallId": "get_device_resolution_123"
+  }
+}
+```
+
+### `agentFunctionResponse`
+
+This message is streamed by the agent to return the execution result or error of a renderer-initiated `callAgentFunction` request.
+
+**Properties:**
+
+- `agentFunctionResponse` (object, required):
+  - `functionCallId` (string, required): The unique invocation ID matching the initiating `callAgentFunction` call.
+  - `value` (any, optional): The returned execution value of the function call.
+  - `error` (object, optional): An error object containing `code` (string) and `message` (string) describing execution failure.
+
+The payload MUST include either `value` or `error`.
+
+**Example (Success):**
+
+```json
+{
+  "version": "v1.0",
+  "agentFunctionResponse": {
+    "functionCallId": "verify_provider_99",
+    "value": {
+      "valid": true,
+      "name": "Acme Provider"
+    }
+  }
+}
+```
+
+**Example (Failure):**
+
+```json
+{
+  "version": "v1.0",
+  "agentFunctionResponse": {
+    "functionCallId": "verify_provider_99",
+    "error": {
+      "code": "PROVIDER_NOT_FOUND",
+      "message": "Provider ID PRV-102 was not found."
+    }
   }
 }
 ```
@@ -1241,7 +1283,7 @@ If validation fails, the renderer (or the system acting on behalf of the rendere
 
 ## Renderer-to-agent event messages
 
-The protocol defines messages that the renderer can send to the agent to report user interactions, execution results of agent-initiated function calls, or renderer-side runtime errors. Every renderer-to-agent message must validate against the [`renderer_to_agent.json`] schema and contain exactly one of the following top-level keys: `action`, `functionResponse`, or `error`.
+The protocol defines messages that the renderer can send to the agent to report user interactions, execution results of agent-initiated function calls, or renderer-side runtime errors. Every renderer-to-agent message must validate against the [`renderer_to_agent.json`] schema and contain exactly one of the following top-level keys: `action`, `callAgentFunction`, `rendererFunctionResponse`, or `error`.
 
 ### `action`
 
@@ -1282,13 +1324,13 @@ When the renderer evaluates a `FunctionCall` (from an action handler, validation
 
 1. **Local Lookup:** The renderer checks if a local renderer-side function with that name is registered in its local catalog/registry. If found, the renderer executes the function locally.
 2. **Fallback to Agent RPC:** If the function is not registered in the local renderer catalog, the renderer assumes it is an agent-side function and dispatches a `callAgentFunction` message over the protocol.
-3. **Agent Error Handling:** If the agent does not recognize the function name (or if parameter validation fails on the server), the agent MUST return a `functionResponse` message containing an `error` payload (`code: "UNKNOWN_FUNCTION"` or `"INVALID_FUNCTION_CALL"`). The renderer then handles the error state locally (e.g., via component error boundaries or fallbacks).
+3. **Agent Error Handling:** If the agent does not recognize the function name (or if parameter validation fails on the server), the agent MUST return an `agentFunctionResponse` message containing an `error` payload (`code: "UNKNOWN_FUNCTION"` or `"INVALID_FUNCTION_CALL"`). The renderer then handles the error state locally (e.g., via component error boundaries or fallbacks).
 
 **Properties:**
 
 - `callAgentFunction` (object, required):
   - `surfaceId` (string, required): The surface ID where the call originated.
-  - `functionCallId` (string, required): A unique identifier for this invocation instance. The agent MUST copy this ID verbatim into the return `functionResponse`.
+  - `functionCallId` (string, required): A unique identifier for this invocation instance. The agent MUST copy this ID verbatim into the return `agentFunctionResponse`.
   - `callFunction` (object, required): The description of the function call (`call`, `catalogId`, `args`).
 
 **Example:**
@@ -1309,15 +1351,16 @@ When the renderer evaluates a `FunctionCall` (from an action handler, validation
 }
 ```
 
-### `functionResponse`
+### `rendererFunctionResponse`
 
-This message is sent by either party (renderer or agent) to return the execution result of an initiating function call (`callAgentFunction` or `callRendererFunction`).
+This message is sent by the renderer to return the execution result or error of an agent-initiated `callRendererFunction` request.
 
 **Properties:**
 
-- `functionCallId` (string, required): The unique invocation ID matching the initiating function call.
-- `value` (any, optional): The returned execution value of the function call.
-- `error` (object, optional): An error object containing `code` (string) and `message` (string) describing execution failure.
+- `rendererFunctionResponse` (object, required):
+  - `functionCallId` (string, required): The unique invocation ID matching the initiating `callRendererFunction` call.
+  - `value` (any, optional): The returned execution value of the function call.
+  - `error` (object, optional): An error object containing `code` (string) and `message` (string) describing execution failure.
 
 The payload MUST include either `value` or `error`.
 
@@ -1326,12 +1369,9 @@ The payload MUST include either `value` or `error`.
 ```json
 {
   "version": "v1.0",
-  "functionResponse": {
-    "functionCallId": "verify_provider_99",
-    "value": {
-      "valid": true,
-      "name": "Acme Provider"
-    }
+  "rendererFunctionResponse": {
+    "functionCallId": "get_device_resolution_123",
+    "value": [1920, 1080]
   }
 }
 ```
@@ -1341,11 +1381,11 @@ The payload MUST include either `value` or `error`.
 ```json
 {
   "version": "v1.0",
-  "functionResponse": {
-    "functionCallId": "verify_provider_99",
+  "rendererFunctionResponse": {
+    "functionCallId": "get_device_resolution_123",
     "error": {
-      "code": "PROVIDER_NOT_FOUND",
-      "message": "Provider ID PRV-102 was not found."
+      "code": "EXECUTION_FAILED",
+      "message": "Failed to query screen resolution."
     }
   }
 }

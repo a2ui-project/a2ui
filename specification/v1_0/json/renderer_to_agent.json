@@ -68,7 +68,7 @@
       "required": ["surfaceId", "functionCallId", "callFunction"],
       "additionalProperties": false
     },
-    "functionResponse": {
+    "rendererFunctionResponse": {
       "$ref": "common_types.json#/$defs/FunctionResponse"
     },
     "error": {
@@ -148,7 +148,7 @@
       "required": ["callAgentFunction", "version"]
     },
     {
-      "required": ["functionResponse", "version"]
+      "required": ["rendererFunctionResponse", "version"]
     },
     {
       "required": ["error", "version"]
