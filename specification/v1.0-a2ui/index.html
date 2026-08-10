@@ -945,6 +945,15 @@
 </nav>
 </li>
 <li class="md-nav__item">
+<a class="md-nav__link" href="#catalog-agnostic-accessibility-requirements">
+<span class="md-ellipsis">
+      
+        Catalog-Agnostic Accessibility Requirements
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
 <a class="md-nav__link" href="#the-component-catalog">
 <span class="md-ellipsis">
       
@@ -2082,6 +2091,15 @@
 </nav>
 </li>
 <li class="md-nav__item">
+<a class="md-nav__link" href="#catalog-agnostic-accessibility-requirements">
+<span class="md-ellipsis">
+      
+        Catalog-Agnostic Accessibility Requirements
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
 <a class="md-nav__link" href="#the-component-catalog">
 <span class="md-ellipsis">
       
@@ -2812,6 +2830,7 @@
 <li>
 <p><strong><code>ComponentId</code></strong>: A reference to the unique ID of another component within the same surface.</p>
 </li>
+<li><strong><code>AccessibilityAttributes</code></strong>: Standardized accessibility properties attached via <code>ComponentCommon</code> to any component, supporting <code>label</code> (<code>DynamicString</code>), <code>description</code> (<code>DynamicString</code>), <code>live</code> (<code>"off"</code> | <code>"polite"</code> | <code>"assertive"</code>), and <code>hidden</code> (<code>DynamicBoolean</code>).</li>
 </ul>
 <h3 id="agent-to-renderer-message-structure-the-envelope">Agent to renderer message structure: the envelope<a class="headerlink" href="#agent-to-renderer-message-structure-the-envelope" title="Permanent link">¶</a></h3>
 <p>The [<code>agent_to_renderer.json</code>] schema is the top-level entry point. Every message streamed by the agent must validate against this schema. It handles the message dispatching.</p>
@@ -3066,6 +3085,14 @@
 <p>[!IMPORTANT]
 There is <strong>no fallback</strong> to the list of catalogs declared in <code>rendererCapabilities</code> (even if the renderer only advertises a single supported catalog). Every component and function call must resolve through either its explicit <code>catalogId</code> or the surface default <code>catalogId</code>.</p>
 </blockquote>
+<h3 id="catalog-agnostic-accessibility-requirements">Catalog-Agnostic Accessibility Requirements<a class="headerlink" href="#catalog-agnostic-accessibility-requirements" title="Permanent link">¶</a></h3>
+<p>Because JSON Schema cannot inspect arbitrary catalog component property semantics to infer which properties represent visible text labels or which components accept user interaction, accessibility rules are enforced through normative specification requirements and SDK tooling:</p>
+<p><strong>Catalog and renderer implementations MUST:</strong></p>
+<ul>
+<li><strong>Plumb Accessibility Attributes</strong>: Map all relevant A2UI <code>AccessibilityAttributes</code> (<code>label</code>, <code>description</code>, <code>live</code>, <code>hidden</code>) to the underlying UI framework's accessibility APIs (e.g., WAI-ARIA <code>aria-label</code>, <code>aria-describedby</code>, <code>aria-live</code>, and <code>aria-hidden</code> for web renderers; <code>Semantics</code> properties for Flutter; <code>AccessibilityNodeInfo</code> / <code>accessibilityLabel</code> for Android and iOS renderers).</li>
+<li><strong>Infer Default Semantics</strong>: Use component types and non-accessibility properties (such as visible titles or text labels) to configure accessibility defaults automatically. When explicit <code>AccessibilityAttributes</code> (e.g., <code>label</code> or <code>description</code>) are provided, they MUST override inferred visual defaults. For example, a button component with a title of <code>"Submit"</code> and an explicit <code>accessibility.label</code> of <code>"Send Form"</code> must be announced by assistive technologies as <code>"Send Form"</code>.</li>
+<li><strong>SDK Linter Checks</strong>: SDK tooling and catalog linters MUST verify that component schemas accepting actions or input bindings declare accessible label requirements or fallbacks.</li>
+</ul>
 <h3 id="the-component-catalog">The component catalog<a class="headerlink" href="#the-component-catalog" title="Permanent link">¶</a></h3>
 <p>The set of available UI components and functions is defined in a <strong>Catalog</strong>. The basic catalog is defined in [<code>catalogs/basic/catalog.json</code>]. While the Basic Catalog is useful for starting out, most production applications will define their own catalog to reflect their specific design system. The agent must generate messages that conform to the catalog understood by the renderer.</p>
 <h4 id="catalog-structure">Catalog structure<a class="headerlink" href="#catalog-structure" title="Permanent link">¶</a></h4>

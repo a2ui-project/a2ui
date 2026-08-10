@@ -1584,8 +1584,9 @@
 </ul>
 </li>
 <li><strong>Embedded App (Inner Iframe)</strong>: The innermost <code>iframe</code>. Injected dynamically via <code>srcdoc</code> with restricted permissions.<ul>
-<li>Permissions: <code>sandbox="allow-scripts allow-forms allow-popups allow-modals"</code> (<strong>MUST NOT</strong> include <code>allow-same-origin</code>).</li>
+<li>Permissions: <code>sandbox="allow-scripts allow-forms allow-popups allow-modals"</code> (<strong>MUST NOT</strong> include <code>allow-same-origin</code>, <code>allow-top-navigation</code>, or <code>allow-top-navigation-by-user-activation</code>).</li>
 <li>Isolation: Removes access to <code>localStorage</code>, <code>sessionStorage</code>, <code>IndexedDB</code>, and cookies due to unique origin.</li>
+<li>Top-level window hijacking defense: Omitting <code>allow-top-navigation</code> and <code>allow-top-navigation-by-user-activation</code> prevents embedded scripts from executing frame-busting attacks (such as <code>window.top.location = "..."</code>) to redirect the host window away.</li>
 </ul>
 </li>
 </ol>
