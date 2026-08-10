@@ -464,6 +464,14 @@ To prevent layout instability, the host enforces the following rules on `ui/noti
 2. **Throttling:** Consecutive size changes must be throttled to a maximum of one redraw per 100 milliseconds.
 3. **Threshold Gate:** Size changes of less than 5 pixels are ignored.
 
+### JSON payload protection over the bridge
+
+To prevent untrusted applications from crashing host parsers via stack exhaustion, exhausting memory, or polluting JavaScript object prototypes, the host bridge enforces the following rules on all incoming `tools/call`, `ui/notifications/data-model-change`, and `ui/requests/function-call` messages:
+
+1. **Prototype Pollution Key Rejection:** The host bridge recursively inspects all incoming payloads and rejects any message containing `__proto__`, `constructor`, or `prototype` property keys at any depth.
+2. **Maximum Nesting Depth:** The host bridge limits JSON object and array nesting depth to a configurable threshold (defaulting to 10 levels). Payloads exceeding this threshold are dropped immediately.
+3. **Maximum Payload Size:** The host bridge enforces a configurable payload size limit (defaulting to 64 KB / 65,536 bytes) per message to mitigate denial-of-service and memory exhaustion attacks.
+
 # 6. Implementation guidelines
 
 For web-based platforms, developers SHOULD reuse the official `@modelcontextprotocol/ext-apps` SDK to handle the host-side bridge and sandbox proxy:
