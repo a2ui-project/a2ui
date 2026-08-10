@@ -36,15 +36,6 @@
           "description": "A JSON object containing the key-value pairs from the component's action.event.context, after resolving all data bindings.",
           "additionalProperties": true
         },
-        "wantResponse": {
-          "type": "boolean",
-          "description": "If true, the renderer expects an actionResponse from the agent.",
-          "default": false
-        },
-        "actionId": {
-          "type": "string",
-          "description": "Unique ID for this action call. Only needed if wantResponse is true."
-        },
         "metadata": {
           "type": "object",
           "description": "Optional client-side metadata to send back to the agent with the action.",
