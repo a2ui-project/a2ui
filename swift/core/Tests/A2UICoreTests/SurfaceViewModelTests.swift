@@ -277,8 +277,8 @@ struct SurfaceViewModelTests {
     let binding = try #require(surface.rootNode?.properties["label"] as? DataBinding<String>)
     #expect(binding.value == "Alice")
 
-    // Update via binding.set(value:)
-    binding.set(value: "Bob")
+    // Update via binding.set(...)
+    binding.set("Bob")
     #expect(surface.dataModel.get("/user/name")?.stringValue == "Bob")
     await Task.yield()
     let updatedBinding = try #require(surface.rootNode?.properties["label"] as? DataBinding<String>)
@@ -318,7 +318,7 @@ struct SurfaceViewModelTests {
     let binding = try #require(surface.rootNode?.properties["enabled"] as? DataBinding<Bool>)
     #expect(binding.value == true)
 
-    binding.set(value: false)
+    binding.set(false)
     #expect(surface.dataModel.get("/isReady")?.boolValue == false)
     await Task.yield()
     let updatedBinding = try #require(surface.rootNode?.properties["enabled"] as? DataBinding<Bool>)
@@ -338,7 +338,7 @@ struct SurfaceViewModelTests {
     let binding = try #require(surface.rootNode?.properties["count"] as? DataBinding<Double>)
     #expect(binding.value == 42.5)
 
-    binding.set(value: 100.0)
+    binding.set(100.0)
     #expect(surface.dataModel.get("/score")?.doubleValue == 100.0)
     await Task.yield()
     let updatedBinding = try #require(surface.rootNode?.properties["count"] as? DataBinding<Double>)

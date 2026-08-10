@@ -181,17 +181,6 @@ struct DataBindingTests {
       value: "initial",
       set: { box.value = $0 }
     )
-    binding.set(value: "updated")
-    #expect(box.value == "updated")
-  }
-
-  @Test func dataBindingConvenienceSetUpdatesViaSetter() {
-    let box = Box("initial")
-    let binding = DataBinding<String>(
-      identity: .path("/user/name"),
-      value: "initial",
-      set: { box.value = $0 }
-    )
     binding.set("updated")
     #expect(box.value == "updated")
   }

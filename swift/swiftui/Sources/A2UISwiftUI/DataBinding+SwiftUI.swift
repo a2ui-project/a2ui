@@ -29,7 +29,7 @@ extension DataBinding {
       },
       set: { newValue in
         if let newValue {
-          self.set(value: newValue)
+          self.set(newValue)
         }
       }
     )
@@ -42,7 +42,7 @@ extension DataBinding {
         self.value ?? defaultValue
       },
       set: { newValue in
-        self.set(value: newValue)
+        self.set(newValue)
       }
     )
   }
