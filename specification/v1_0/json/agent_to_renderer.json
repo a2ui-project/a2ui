@@ -85,7 +85,7 @@
     },
     "ComponentsList": {
       "type": "array",
-      "description": "A list containing UI components for the surface.",      
+      "description": "A list containing UI components for the surface.",
       "items": {
         "$ref": "#/$defs/Component"
       }

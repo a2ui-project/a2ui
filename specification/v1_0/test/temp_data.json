@@ -1,0 +1,1 @@
+{"version": "v1.0", "updateComponents": {"surfaceId": "test", "components": [{"id": "tf1", "component": "TextField", "label": "L", "value": "", "checks": [{"condition": {"call": "length", "args": {"value": {"path": "/val"}}}, "message": "Msg"}]}]}}

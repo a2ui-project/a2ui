@@ -528,8 +528,8 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      ```
      This enables route-dispatch matching via the `discriminator` block inside `anyComponent` (designating `"propertyName": "component"`).
 5. **Standard Component Structure:**
-   - Catalog components define their discriminator (`component: { const: "<Name>" }`) and local properties (e.g., its children, variant, specific layouts), and can optionally import common property sets (such as `AccessibilityAttributes` or `Checkable`) via `$ref`.
-   - Base component envelope properties (`id`, `catalogId` via `ComponentCommon`) are composed at the envelope level in `agent_to_renderer.json` via `allOf` inside `ComponentsList.items`, and therefore MUST NOT be redundantly wrapped with `ComponentCommon` via `allOf` inside individual catalog component definitions.
+   - Catalog components define their discriminator (`component: { const: "<Name>" }`) and local properties (e.g., its children, variant, specific layouts), and can optionally import common property sets (such as `Checkable`) via `$ref`.
+   - Base component envelope properties (`id`, `catalogId`, and `accessibility` via `ComponentCommon`) are composed at the envelope level in `agent_to_renderer.json` via `allOf` inside `ComponentsList.items`, and therefore MUST NOT be redundantly wrapped with `ComponentCommon` via `allOf` inside individual catalog component definitions.
 6. **Strict Function Interface Pattern:**
    - Every function schema defined inside the `functions` map must validate a wire-level `FunctionCall` object. This requires:
      - A `properties` block with a `call` property containing a constant of the function's name (e.g., `"call": { "const": "email" }`).
@@ -579,9 +579,6 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
         "text": {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
           "description": "Text content to display.",
-        },
-        "accessibility": {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/AccessibilityAttributes",
         },
       },
       "required": ["component", "text"],
