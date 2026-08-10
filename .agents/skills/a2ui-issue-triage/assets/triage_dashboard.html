@@ -801,9 +801,10 @@ limitations under the License.
             <select id="triagePriority" onchange="updateActiveDecision('priority', this.value)">
               <option value="None">None</option>
               <option value="P0">P0 - Urgent (Assignee Required)</option>
-              <option value="P1">P1 - High Priority (Active/Soon)</option>
+              <option value="P1">P1 - High Priority (Assignee Required)</option>
               <option value="P2">P2 - Medium Priority (Upcoming)</option>
               <option value="P3">P3 - Low Priority (Community Help)</option>
+              <option value="P4">P4 - Unplanned (Out of Scope)</option>
             </select>
           </div>
 
@@ -851,7 +852,10 @@ limitations under the License.
             <select id="triageAction" onchange="updateActiveDecision('action', this.value)">
               <option value="investigate">Keep open, mark for research</option>
               <option value="assign_and_fix">Keep open, assign to developer</option>
-              <option value="needs_info">Ask for info, apply waiting-for-author-response</option>
+              <option value="needs_info">
+                Ask for info, apply status: waiting-for-author-response
+              </option>
+              <option value="backlog">Keep open in backlog</option>
               <option value="close_duplicate">Close as duplicate</option>
               <option value="close_invalid">Close as invalid/spam</option>
               <option value="close_resolved">Close as resolved/answered</option>
@@ -1444,7 +1448,8 @@ limitations under the License.
               const actionLabels = {
                 investigate: 'Keep open, mark for research',
                 assign_and_fix: 'Keep open, assign to developer',
-                needs_info: 'Ask for info, waiting-for-author-response',
+                needs_info: 'Ask for info, status: waiting-for-author-response',
+                backlog: 'Keep open in backlog',
                 close_duplicate: 'Close as duplicate',
                 close_invalid: 'Close as invalid/spam',
                 close_resolved: 'Close as resolved/answered',

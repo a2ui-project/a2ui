@@ -1,0 +1,115 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: test_accessibility_attributes_plumbing
+  description: Verifies plumbing of AccessibilityAttributes (label, description, live, hidden) to accessibility node trees and axe-core rules.
+  catalog:
+    version: "1.0"
+  action: accessibility_check
+  surface:
+    id: root
+    component: Column
+    children: [btn1, status_text]
+    components:
+      btn1:
+        component: Button
+        title: "Mute"
+        accessibility:
+          label: "Mute Notifications"
+          description: "Silences notifications about this conversation"
+      status_text:
+        component: Text
+        text: "Status: Active"
+        accessibility:
+          live: "polite"
+  assertions:
+    axe_core:
+      - "button-name"
+      - "aria-valid-attr-value"
+      - "aria-allowed-attr"
+    accessibility_tree:
+      btn1:
+        label: "Mute Notifications"
+        description: "Silences notifications about this conversation"
+      status_text:
+        live: "polite"
+
+- name: test_accessibility_live_region_assertive
+  description: Verifies assertive live region announcement for critical alert banner updates.
+  catalog:
+    version: "1.0"
+  action: accessibility_check
+  surface:
+    id: root
+    component: Container
+    child: alert_box
+    components:
+      alert_box:
+        component: Text
+        text: "Connection Lost!"
+        accessibility:
+          label: "Critical Alert"
+          live: "assertive"
+  assertions:
+    axe_core:
+      - "aria-valid-attr-value"
+    accessibility_tree:
+      alert_box:
+        label: "Critical Alert"
+        live: "assertive"
+
+- name: test_accessibility_hidden_subtree
+  description: Verifies that setting hidden=true hides the component and its children from assistive technologies.
+  catalog:
+    version: "1.0"
+  action: accessibility_check
+  surface:
+    id: root
+    component: Column
+    accessibility:
+      hidden: true
+    children: [visible_text, decorative_icon]
+    components:
+      visible_text:
+        component: Text
+        text: "Visible Content"
+      decorative_icon:
+        component: Icon
+        name: "star"
+  assertions:
+    axe_core:
+      - "aria-hidden-focus"
+    accessibility_tree:
+      root:
+        hidden: true
+
+- name: test_accessibility_implicit_label_inference
+  description: Verifies default screen reader semantic inference from visible text properties when explicit accessibility attributes are omitted.
+  catalog:
+    version: "1.0"
+  action: accessibility_check
+  surface:
+    id: root
+    component: Column
+    children: [submit_btn]
+    components:
+      submit_btn:
+        component: Button
+        title: "Submit Form"
+  assertions:
+    axe_core:
+      - "button-name"
+    accessibility_tree:
+      submit_btn:
+        label: "Submit Form"

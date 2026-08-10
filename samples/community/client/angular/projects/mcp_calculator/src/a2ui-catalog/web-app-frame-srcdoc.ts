@@ -111,13 +111,15 @@ export class WebAppFrameSrcdoc extends CatalogComponent<WebAppFrameSrcdocApi> {
    * Injects a Content-Security-Policy (CSP) meta tag into the provided HTML string.
    *
    * Any existing CSP meta tags in the HTML are stripped and replaced with a restricted
-   * default policy (`default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none';`).
+   * default policy (`default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none'; form-action 'none';`).
    * The CSP meta tag is injected into the `<head>` element, creating one if necessary.
    *
    * **Expected Effects of the Injected CSP:**
    * - Prevents untrusted HTML from relaxing security policies by overriding preexisting CSP tags.
    * - Blocks all outgoing network connections (`connect-src 'none'`), disabling `fetch`, `XMLHttpRequest`,
    *   `WebSocket`, and `EventSource` calls from within the sandbox iframe.
+   * - Blocks form-based exfiltration (`form-action 'none'`), closing HTML form navigation and submission
+   *   bypasses to external endpoints even when `allow-forms` is enabled in sandbox attributes.
    * - Restricts resource loading (`default-src`) to same-origin scripts/styles (`'self'`), inline code
    *   (`'unsafe-inline'`), dynamic eval execution (`'unsafe-eval'`), and `data:` URIs.
    *
@@ -130,7 +132,7 @@ export class WebAppFrameSrcdoc extends CatalogComponent<WebAppFrameSrcdocApi> {
       '',
     );
 
-    const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none';">`;
+    const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none'; form-action 'none';">`;
 
     if (/(<head[^>]*>)/i.test(result)) {
       result = result.replace(/(<head[^>]*>)/i, `$1\n    ${cspMeta}`);
@@ -152,6 +154,7 @@ export class WebAppFrameSrcdoc extends CatalogComponent<WebAppFrameSrcdocApi> {
           type: A2uiMessageType.SandboxResourceReady,
           html: securedHtml,
           htmlContent: securedHtml,
+          // Omits allow-same-origin (origin isolation) and allow-top-navigation (frame-busting defense)
           sandbox: 'allow-scripts allow-forms allow-popups allow-modals',
         },
         window.location.origin,
