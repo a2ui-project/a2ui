@@ -21,76 +21,63 @@ import Testing
 
 // MARK: - Test Catalog for Integration Tests
 
-/// A catalog with button and text component schemas for integration tests.
-struct IntegrationCatalog: ComponentCatalog {
-  let buttonSchema: Schema
-  let textSchema: Schema
-  let textFieldSchema: Schema
+/// Builds a catalog with button, text, and textField component schemas for integration tests.
+func makeIntegrationCatalog() throws -> Catalog {
+  let remote = A2UICommonSchema.allSchemas
+  let buttonSchema = try Schema(
+    instance: """
+      {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "component": {"type": "string"},
+          "label": {"$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString"},
+          "onClick": {"$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/Action"},
+          "children": {"$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ChildList"}
+        },
+        "required": ["id", "component"]
+      }
+      """,
+    remoteSchemas: remote
+  )
+  let textSchema = try Schema(
+    instance: """
+      {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "component": {"type": "string"},
+          "text": {"$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString"}
+        },
+        "required": ["id", "component"]
+      }
+      """,
+    remoteSchemas: remote
+  )
+  let textFieldSchema = try Schema(
+    instance: """
+      {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "component": {"type": "string"},
+          "value": {"$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString"},
+          "placeholder": {"$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString"}
+        },
+        "required": ["id", "component"]
+      }
+      """,
+    remoteSchemas: remote
+  )
 
-  init() throws {
-    let remote = A2UICommonSchema.allSchemas
-    buttonSchema = try Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "id": {"type": "string"},
-            "component": {"type": "string"},
-            "label": {"$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString"},
-            "onClick": {"$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/Action"}
-          },
-          "required": ["id", "component"]
-        }
-        """,
-      remoteSchemas: remote
-    )
-    textSchema = try Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "id": {"type": "string"},
-            "component": {"type": "string"},
-            "text": {"$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString"}
-          },
-          "required": ["id", "component"]
-        }
-        """,
-      remoteSchemas: remote
-    )
-    textFieldSchema = try Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "id": {"type": "string"},
-            "component": {"type": "string"},
-            "value": {"$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString"},
-            "placeholder": {"$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString"}
-          },
-          "required": ["id", "component"]
-        }
-        """,
-      remoteSchemas: remote
-    )
-  }
-
-  func schema(forType type: String) -> Schema? {
-    switch type {
-    case "button": return buttonSchema
-    case "text": return textSchema
-    case "textField": return textFieldSchema
-    default: return nil
-    }
-  }
-
-  func makeTheme(jsonObject: JSONValue) -> (any SurfaceTheme)? {
-    nil
-  }
-
-  func localFunction(for name: String) -> (any LocalFunction)? {
-    nil
-  }
+  return Catalog(
+    id: "default",
+    components: [
+      ComponentAPI(name: "button", schema: buttonSchema),
+      ComponentAPI(name: "text", schema: textSchema),
+      ComponentAPI(name: "textField", schema: textFieldSchema),
+    ]
+  )
 }
 
 /// A simple action handler that records actions for integration tests.
@@ -109,145 +96,172 @@ final class IntegrationActionHandler: ActionHandling, @unchecked Sendable {
 
 // MARK: - Integration Tests
 
+@MainActor
 struct IntegrationTests {
 
   // MARK: - Button + Text Binding
 
   @Test func buttonWithDynamicLabelResolvesFromDataModel() throws {
-    let catalog = try IntegrationCatalog()
+    let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
-    let vm = SurfaceViewModel(
-      surfaceID: "s1",
-      catalog: catalog,
+    let processor = MessageProcessor(
+      catalogs: ["default": catalog],
       actionHandler: handler
     )
 
-    vm.updateDataModel(path: "/buttonLabel", value: "Submit")
-    vm.updateComponents([
-      [
-        "id": "root",
-        "component": "button",
-        "label": ["path": "/buttonLabel"],
-      ],
-    ])
+    try processor.process(line: """
+      {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
+      """)
+    try processor.process(line: """
+      {"version": "v0.9.1", "updateDataModel": {"surfaceId": "s1", "path": "/buttonLabel", "value": "Submit"}}
+      """)
+    try processor.process(line: """
+      {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
+        {
+          "id": "root",
+          "component": "button",
+          "label": {"path": "/buttonLabel"}
+        }
+      ]}}
+      """)
 
-    let data = vm.getDataModel()
-    #expect(data["buttonLabel"]?.stringValue == "Submit")
-    let components = vm.getComponents()
-    #expect(components["root"] != nil)
+    let vm = processor.surfaceGroupModel.surfacesMap["s1"]
+    #expect(vm?.dataModel.get("/buttonLabel")?.stringValue == "Submit")
+    let component = vm?.componentsModel.get("root")
+    #expect(component != nil)
   }
 
   @Test func buttonWithActionResolvesEvent() throws {
-    let catalog = try IntegrationCatalog()
+    let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
-    let vm = SurfaceViewModel(
-      surfaceID: "s1",
-      catalog: catalog,
+    let processor = MessageProcessor(
+      catalogs: ["default": catalog],
       actionHandler: handler
     )
 
-    vm.updateComponents([
-      [
-        "id": "root",
-        "component": "button",
-        "label": "Click Me",
-        "onClick": [
-          "event": [
-            "name": "submit",
-            "context": ["formId": "contact"],
-          ],
-        ],
-      ],
-    ])
+    try processor.process(line: """
+      {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
+      """)
+    try processor.process(line: """
+      {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
+        {
+          "id": "root",
+          "component": "button",
+          "label": "Click Me",
+          "onClick": {
+            "event": {
+              "name": "submit",
+              "context": {"formId": "contact"}
+            }
+          }
+        }
+      ]}}
+      """)
 
-    let components = vm.getComponents()
-    let root = try #require(components["root"])
-    let action = try #require(root["onClick"]?.dictionaryValue)
+    let vm = processor.surfaceGroupModel.surfacesMap["s1"]
+    let root = try #require(vm?.componentsModel.get("root"))
+    let action = try #require(root.properties["onClick"]?.dictionaryValue)
     let event = try #require(action["event"]?.dictionaryValue)
     #expect(event["name"]?.stringValue == "submit")
   }
 
   @Test func textComponentResolvesLiteralString() throws {
-    let catalog = try IntegrationCatalog()
+    let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
-    let vm = SurfaceViewModel(
-      surfaceID: "s1",
-      catalog: catalog,
+    let processor = MessageProcessor(
+      catalogs: ["default": catalog],
       actionHandler: handler
     )
 
-    vm.updateComponents([
-      [
-        "id": "label1",
-        "component": "text",
-        "text": "Hello, World!",
-      ],
-    ])
+    try processor.process(line: """
+      {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
+      """)
+    try processor.process(line: """
+      {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
+        {
+          "id": "label1",
+          "component": "text",
+          "text": "Hello, World!"
+        }
+      ]}}
+      """)
 
-    let components = vm.getComponents()
-    #expect(components["label1"]?["text"]?.stringValue == "Hello, World!")
+    let vm = processor.surfaceGroupModel.surfacesMap["s1"]
+    let textComp = vm?.componentsModel.get("label1")
+    #expect(textComp?.properties["text"]?.stringValue == "Hello, World!")
   }
 
   // MARK: - Multi-Step Form
 
   @Test func multiStepFormWithLiveValidation() throws {
-    let catalog = try IntegrationCatalog()
+    let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
-    let vm = SurfaceViewModel(
-      surfaceID: "form-surface",
-      catalog: catalog,
+    let processor = MessageProcessor(
+      catalogs: ["default": catalog],
       actionHandler: handler
     )
 
+    try processor.process(line: """
+      {"version": "v0.9.1", "createSurface": {"surfaceId": "form-surface", "catalogId": "default"}}
+      """)
+
     // Step 1: Create form with text fields bound to data model
-    vm.updateComponents([
-      [
-        "id": "nameField",
-        "component": "textField",
-        "value": ["path": "/form/name"],
-        "placeholder": "Enter your name",
-      ],
-      [
-        "id": "emailField",
-        "component": "textField",
-        "value": ["path": "/form/email"],
-        "placeholder": "Enter your email",
-      ],
-      [
-        "id": "submitBtn",
-        "component": "button",
-        "label": ["path": "/form/submitLabel"],
-        "onClick": [
-          "event": ["name": "submitForm"],
-        ],
-      ],
-    ])
+    try processor.process(line: """
+      {"version": "v0.9.1", "updateComponents": {"surfaceId": "form-surface", "components": [
+        {
+          "id": "nameField",
+          "component": "textField",
+          "value": {"path": "/form/name"},
+          "placeholder": "Enter your name"
+        },
+        {
+          "id": "emailField",
+          "component": "textField",
+          "value": {"path": "/form/email"},
+          "placeholder": "Enter your email"
+        },
+        {
+          "id": "submitBtn",
+          "component": "button",
+          "label": {"path": "/form/submitLabel"},
+          "onClick": {
+            "event": {"name": "submitForm"}
+          }
+        }
+      ]}}
+      """)
 
     // Step 2: Update data model with user input
-    vm.updateDataModel(path: "/form/name", value: "Alice")
-    vm.updateDataModel(path: "/form/email", value: "alice@example.com")
-    vm.updateDataModel(path: "/form/submitLabel", value: "Submit Form")
+    try processor.process(line: """
+      {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/name", "value": "Alice"}}
+      """)
+    try processor.process(line: """
+      {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/email", "value": "alice@example.com"}}
+      """)
+    try processor.process(line: """
+      {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/submitLabel", "value": "Submit Form"}}
+      """)
 
     // Verify data model state
-    let data = vm.getDataModel()
-    #expect(data["form/name"]?.stringValue == "Alice")
-    #expect(data["form/email"]?.stringValue == "alice@example.com")
-    #expect(data["form/submitLabel"]?.stringValue == "Submit Form")
+    let vm = try #require(processor.surfaceGroupModel.surfacesMap["form-surface"])
+    #expect(vm.dataModel.get("/form/name")?.stringValue == "Alice")
+    #expect(vm.dataModel.get("/form/email")?.stringValue == "alice@example.com")
+    #expect(vm.dataModel.get("/form/submitLabel")?.stringValue == "Submit Form")
 
     // Verify components are stored
-    let components = vm.getComponents()
-    #expect(components.count == 3)
+    #expect(vm.componentsModel.components.count == 3)
 
     // Step 3: Update name and verify
-    vm.updateDataModel(path: "/form/name", value: "Bob")
-    let updatedData = vm.getDataModel()
-    #expect(updatedData["form/name"]?.stringValue == "Bob")
+    try processor.process(line: """
+      {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/name", "value": "Bob"}}
+      """)
+    #expect(vm.dataModel.get("/form/name")?.stringValue == "Bob")
   }
 
   // MARK: - End-to-End Message Processing
 
   @Test func endToEndCreateSurfaceAndUpdateComponents() throws {
-    let catalog = try IntegrationCatalog()
+    let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
       catalogs: ["default": catalog],
@@ -255,22 +269,22 @@ struct IntegrationTests {
     )
 
     try processor.process(line: """
-      {"createSurface": {"surfaceId": "s1", "catalogId": "default"}}
+      {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
       """)
 
     try processor.process(line: """
-      {"updateComponents": {"surfaceId": "s1", "components": [
+      {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
         {"id": "root", "component": "text", "text": "Hello"}
       ]}}
       """)
 
-    let vm = processor.getSurface(id: "s1")
-    let components = vm?.getComponents()
-    #expect(components?["root"]?["text"]?.stringValue == "Hello")
+    let vm = processor.surfaceGroupModel.surfacesMap["s1"]
+    let components = vm?.componentsModel.components
+    #expect(components?["root"]?.properties["text"]?.stringValue == "Hello")
   }
 
   @Test func endToEndDataModelUpdateAndComponentBinding() throws {
-    let catalog = try IntegrationCatalog()
+    let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
       catalogs: ["default": catalog],
@@ -278,21 +292,21 @@ struct IntegrationTests {
     )
 
     try processor.process(line: """
-      {"createSurface": {"surfaceId": "s1", "catalogId": "default"}}
+      {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
       """)
 
     try processor.process(line: """
-      {"updateComponents": {"surfaceId": "s1", "components": [
+      {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
         {"id": "lbl", "component": "text", "text": {"path": "/title"}}
       ]}}
       """)
 
     try processor.process(line: """
-      {"updateDataModel": {"surfaceId": "s1", "path": "/title", "value": "Dynamic Title"}}
+      {"version": "v0.9.1", "updateDataModel": {"surfaceId": "s1", "path": "/title", "value": "Dynamic Title"}}
       """)
 
-    let vm = processor.getSurface(id: "s1")
-    let data = vm?.getDataModel()
-    #expect(data?["title"]?.stringValue == "Dynamic Title")
+    let vm = processor.surfaceGroupModel.surfacesMap["s1"]
+    #expect(vm?.dataModel.get("/title")?.stringValue == "Dynamic Title")
   }
 }
+
