@@ -61,26 +61,34 @@
       "required": ["createSurface", "version"],
       "additionalProperties": false
     },
+    "Component": {
+      "description": "A UI component for the surface, combining baseline envelope properties with the catalog component definition.",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "$ref": "catalog.json#/$defs/anyComponent"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "not": {
+                "const": "Surface"
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
     "ComponentsList": {
       "type": "array",
       "description": "A list containing UI components for the surface.",
       "minItems": 1,
       "items": {
-        "allOf": [
-          {
-            "$ref": "catalog.json#/$defs/anyComponent"
-          },
-          {
-            "type": "object",
-            "properties": {
-              "component": {
-                "not": {
-                  "const": "Surface"
-                }
-              }
-            }
-          }
-        ]
+        "$ref": "#/$defs/Component"
       }
     },
     "UpdateComponentsMessage": {

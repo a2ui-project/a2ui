@@ -17,8 +17,9 @@ import OrderedJSON
 /// A thread-safe, generic two-way data binding.
 ///
 /// `DataBinding` connects a component property to a value in the data
-/// model via a JSON Pointer path, or wraps a literal value. It provides
-/// get/set closures for reading and writing the bound value.
+/// model via a JSON Pointer path, or wraps a literal value. It holds
+/// the resolved value at the time the node was resolved, and provides
+/// a `set` method for updating the underlying data model.
 public struct DataBinding<Value: Sendable>: Sendable {
   /// Defines the identity of the binding source for structural equality.
   public enum Identity: Equatable, Sendable {
@@ -29,24 +30,20 @@ public struct DataBinding<Value: Sendable>: Sendable {
   /// The unique identity of this binding.
   public let identity: Identity
 
-  private let getter: @Sendable () -> Value
+  /// The resolved value at the time the Node was resolved.
+  public let value: Value?
   private let setter: @Sendable (Value) -> Void
 
-  /// Creates a new data binding with the specified identity, getter,
+  /// Creates a new data binding with the specified identity, resolved value,
   /// and setter.
   public init(
     identity: Identity,
-    get: @escaping @Sendable () -> Value,
-    set: @escaping @Sendable (Value) -> Void
+    value: Value? = nil,
+    set: @escaping @Sendable (Value) -> Void = { _ in }
   ) {
     self.identity = identity
-    self.getter = get
+    self.value = value
     self.setter = set
-  }
-
-  /// Retrieves the current bound value.
-  public func get() -> Value {
-    getter()
   }
 
   /// Updates the bound value.
@@ -55,10 +52,10 @@ public struct DataBinding<Value: Sendable>: Sendable {
   }
 }
 
-extension DataBinding: Equatable {
+extension DataBinding: Equatable where Value: Equatable {
   public static func == (lhs: DataBinding<Value>, rhs: DataBinding<Value>) -> Bool {
-    lhs.identity == rhs.identity
+    lhs.identity == rhs.identity && lhs.value == rhs.value
   }
 }
 
-extension DataBinding: Resolved {}
+extension DataBinding: Resolved where Value: Equatable {}
