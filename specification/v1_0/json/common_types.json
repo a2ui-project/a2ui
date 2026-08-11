@@ -250,31 +250,6 @@
       ],
       "unevaluatedProperties": false
     },
-    "ValidationResult": {
-      "type": "object",
-      "description": "Dynamic validation result object returned by a validation condition function or data binding.",
-      "properties": {
-        "valid": {
-          "type": "boolean",
-          "description": "Whether the check passed."
-        },
-        "code": {
-          "type": "string",
-          "description": "Machine-readable error code (e.g. EXPIRED_CARD, OUT_OF_RANGE)."
-        },
-        "message": {
-          "type": "string",
-          "description": "Human-readable error or warning message."
-        },
-        "severity": {
-          "type": "string",
-          "enum": ["error", "warning", "info"],
-          "default": "error",
-          "description": "Severity level of the validation result."
-        }
-      },
-      "required": ["valid"]
-    },
     "CheckRule": {
       "type": "object",
       "description": "A single validation check rule applied to an input component. The condition function can return a boolean or a dynamic ValidationResult object.",

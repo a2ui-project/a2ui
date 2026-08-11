@@ -502,7 +502,6 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `DynamicStringList`
      - `DynamicValue`
      - `CheckRule`
-     - `ValidationResult`
      - `ComponentCommon`
      - `Checkable`
      - `Action`
@@ -1012,7 +1011,7 @@ When the condition function or data binding returns a `boolean`:
 ```
 
 #### 2. Dynamic ValidationResult Objects
-Validation functions can return a dynamic `ValidationResult` object directly to the renderer:
+Validation functions (declared with `"returnType": "validationResult"`) can return a dynamic `ValidationResult` object (defined in [`catalog_definition.json#/$defs/ValidationResult`](../json/catalog_definition.json)) directly to the renderer:
 - **`valid`** (`boolean`, required): Whether the check passed.
 - **`code`** (`string`, optional): Machine-readable error code (e.g., `EXPIRED_CARD`, `OUT_OF_RANGE`).
 - **`message`** (`string`, optional): Human-readable error or warning message. If omitted on the return object, the renderer falls back to `CheckRule.message`.

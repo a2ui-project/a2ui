@@ -64,7 +64,8 @@ Version 1.0 differs from 0.9 in the following ways:
 
 - Added an optional `instructions` field to the `Catalog` object definition (`catalog_definition.json`) as a plain Markdown string to embed design guidelines directly.
 - Removed `theme` capability block from the Catalog definition in `catalog_definition.json`.
-- Added static `callableFrom` and `returnType` metadata properties to `FunctionDefinition` inside `catalog_definition.json` to advertise execution boundaries and return types to the agent.
+- Added static `callableFrom` and `returnType` metadata properties to `FunctionDefinition` inside `catalog_definition.json` to advertise execution boundaries and return types to the agent (including `"validationResult"` as a return type).
+- Added `$defs/ValidationResult` schema (`valid`, `code`, `message`, `severity`) to `catalog_definition.json` as the standard definition for validation function return payloads.
 
 ### 2.6. Agent card and transport metadata
 
