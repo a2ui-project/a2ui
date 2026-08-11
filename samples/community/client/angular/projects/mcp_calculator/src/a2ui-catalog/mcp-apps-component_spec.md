@@ -485,6 +485,7 @@ To prevent untrusted applications from accessing hardware sensors or clipboard d
 ```
 
 When an application declares required capabilities (e.g. `permissions: ["camera", "clipboard-write"]`):
+
 1. **Dynamic Policy Construction:** The sandbox proxy uses `buildAllowAttribute(permissions)` to construct the `allow` attribute.
 2. **Capability Activation:** If granted, the `allow` attribute delegates capability access to the iframe (e.g. `allow="camera; clipboard-write;"`), enabling standard browser permission prompts and W3C Web APIs without requiring custom shims. If omitted, the default deny-all baseline remains enforced.
 
