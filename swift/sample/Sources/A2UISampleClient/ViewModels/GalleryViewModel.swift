@@ -46,8 +46,8 @@ final class GalleryActionHandler: ActionHandling, @unchecked Sendable {
       type: .action,
       message: "Action dispatched on surface '\(surfaceID)': \(desc)"
     )
-    Task { @MainActor [weak viewModel] in
-      viewModel?.appendLogEntry(entry)
+    Task { @MainActor [weak self] in
+      self?.viewModel?.appendLogEntry(entry)
     }
   }
 
@@ -63,8 +63,8 @@ final class GalleryActionHandler: ActionHandling, @unchecked Sendable {
       type: .error,
       message: "Surface '\(surfaceID)': \(text)"
     )
-    Task { @MainActor [weak viewModel] in
-      viewModel?.appendLogEntry(entry)
+    Task { @MainActor [weak self] in
+      self?.viewModel?.appendLogEntry(entry)
     }
   }
 }

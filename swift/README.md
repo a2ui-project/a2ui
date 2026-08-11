@@ -25,10 +25,10 @@ All non-application library targets and unit test suites are managed via Swift P
 
 ```bash
 # Build library targets from repo root:
-swift build --package-path /Users/piebie/Documents/GitHub/a2ui
+swift build
 
 # Execute unit tests:
-swift test --package-path /Users/piebie/Documents/GitHub/a2ui
+swift test
 ```
 
 ### Running the Sample Gallery App
