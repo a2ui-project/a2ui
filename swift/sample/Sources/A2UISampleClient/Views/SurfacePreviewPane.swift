@@ -38,7 +38,7 @@ public struct SurfacePreviewPane: View {
       ScrollView {
         VStack(spacing: 16) {
           if let surfaceVM = viewModel.activeSurfaceViewModel {
-            A2UISwiftUI.Surface(viewModel: surfaceVM, registry: ComponentRegistry())
+            A2UISwiftUI.Surface(viewModel: surfaceVM)
               .frame(minWidth: 100, minHeight: 100)
               .padding()
 
