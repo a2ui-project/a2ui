@@ -42,6 +42,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added `placeholder` prop to the `TextField` component schema.
 - Added a `steps` property to the `Slider` component schema to snap values to discrete intervals.
 - Added an optional `instructions` field to the `Catalog` schema (`catalogs/basic/catalog.json`) to embed Markdown guidelines/rules directly, replacing the external `rules.txt` file.
+- Updated return types on standard validation check functions (`required`, `regex`, `length`, `numeric`, `email`) in `catalogs/basic/catalog.json` from `"boolean"` to `"validationResult"`.
 - Removed `$defs/theme` from the basic catalog.
 
 ### 2.3. Agent-to-renderer messages

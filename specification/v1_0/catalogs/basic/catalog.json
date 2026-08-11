@@ -834,7 +834,7 @@
     "required": {
       "type": "object",
       "description": "Checks that the value is not null, undefined, or empty.",
-      "returnType": "boolean",
+      "returnType": "validationResult",
       "allOf": [
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
@@ -864,7 +864,7 @@
     "regex": {
       "type": "object",
       "description": "Checks that the value matches a regular expression string.",
-      "returnType": "boolean",
+      "returnType": "validationResult",
       "allOf": [
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
@@ -898,7 +898,7 @@
     "length": {
       "type": "object",
       "description": "Checks string length constraints.",
-      "returnType": "boolean",
+      "returnType": "validationResult",
       "allOf": [
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
@@ -946,7 +946,7 @@
     "numeric": {
       "type": "object",
       "description": "Checks numeric range constraints.",
-      "returnType": "boolean",
+      "returnType": "validationResult",
       "allOf": [
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
@@ -992,7 +992,7 @@
     "email": {
       "type": "object",
       "description": "Checks that the value is a valid email address.",
-      "returnType": "boolean",
+      "returnType": "validationResult",
       "allOf": [
         {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
