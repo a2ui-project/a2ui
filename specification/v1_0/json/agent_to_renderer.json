@@ -86,6 +86,7 @@
     "ComponentsList": {
       "type": "array",
       "description": "A list containing UI components for the surface.",
+      "minItems": 1,
       "items": {
         "$ref": "#/$defs/Component"
       }
