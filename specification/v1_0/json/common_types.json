@@ -260,6 +260,10 @@
             { "$ref": "#/$defs/FunctionCall" }
           ],
           "description": "Path or function call evaluating to a ValidationResult object."
+        },
+        "message": {
+          "type": "string",
+          "description": "Optional fallback error message."
         }
       },
       "required": ["condition"],
