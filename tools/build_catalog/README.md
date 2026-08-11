@@ -84,24 +84,21 @@ uv run tools/build_catalog/assemble_catalog.py my_catalog.json --output-name ext
 ```json
 {
   "$id": "sample_popup_catalog",
+  "catalogId": "sample_popup_catalog",
   "components": {
-    "allOf": [
-      {
-        "$ref": "basic_catalog.json#/components/Text"
-      },
-      {
-        "Popup": {
-          "type": "object",
-          "description": "A modal overlay that displays an icon and text.",
-          "properties": {
-            "text": {
-              "$ref": "common_types.json#/$defs/ComponentId"
-            }
-          },
-          "required": ["text"]
+    "Text": {
+      "$ref": "basic_catalog.json#/components/Text"
+    },
+    "Popup": {
+      "type": "object",
+      "description": "A modal overlay that displays an icon and text.",
+      "properties": {
+        "text": {
+          "$ref": "common_types.json#/$defs/ComponentId"
         }
-      }
-    ]
+      },
+      "required": ["text"]
+    }
   }
 }
 ```

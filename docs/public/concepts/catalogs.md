@@ -164,23 +164,24 @@ This catalog imports all elements from the Basic Catalog and adds a new `Suggest
 ```json
 {
   "$id": "https://github.com/.../hello_world_with_all_basic/v1/catalog.json",
+  "catalogId": "https://github.com/.../hello_world_with_all_basic/v1/catalog.json",
+  "allOf": [
+    {
+      "$ref": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    }
+  ],
   "components": {
-    "allOf": [
-      {"$ref": "basic_catalog_definition.json#/components"},
-      {
-        "SuggestionChips": {
-          "type": "object",
-          "description": "A list of suggested prompts",
-          "properties": {
-            "suggestions": {
-              "type": "array",
-              "description": "The suggested prompts."
-            }
-          },
-          "required": ["suggestions"]
+    "SuggestionChips": {
+      "type": "object",
+      "description": "A list of suggested prompts",
+      "properties": {
+        "suggestions": {
+          "type": "array",
+          "description": "The suggested prompts."
         }
-      }
-    ]
+      },
+      "required": ["suggestions"]
+    }
   }
 }
 ```
@@ -194,20 +195,21 @@ This catalog imports only `Text` from the Basic Catalog to build a simple Popup 
 ```json
 {
   "$id": "https://github.com/.../hello_world_with_some_basic/v1/catalog.json",
+  "catalogId": "https://github.com/.../hello_world_with_some_basic/v1/catalog.json",
   "components": {
-    "allOf": [
-      {"$ref": "catalogs/basic/catalog.json#/components/Text"},
-      {
-        "Popup": {
-          "type": "object",
-          "description": "A modal overlay that displays an icon and text.",
-          "properties": {
-            "text": {"$ref": "common_types.json#/$defs/ComponentId"}
-          },
-          "required": ["text"]
+    "Text": {
+      "$ref": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json#/components/Text"
+    },
+    "Popup": {
+      "type": "object",
+      "description": "A modal overlay that displays an icon and text.",
+      "properties": {
+        "text": {
+          "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
         }
-      }
-    ]
+      },
+      "required": ["text"]
+    }
   }
 }
 ```
