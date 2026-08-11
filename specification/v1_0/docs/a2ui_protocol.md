@@ -981,40 +981,13 @@ The renderer supports a set of named **Functions** (e.g., `required`, `regex`, `
 
 Input components (like `TextField`, `ChoicePicker`) and interactive elements (like `Button`) can define a list of `checks` (`CheckRule` objects).
 
-A `CheckRule` contains a `condition` (which can be a `DataBinding` path or a `FunctionCall`) and an optional fallback `message`.
+A `CheckRule` contains a `condition` (a `DataBinding` path or a `FunctionCall`) that evaluates to a `ValidationResult` object (defined in [`catalog_definition.json#/$defs/ValidationResult`](../json/catalog_definition.json)).
 
-#### 1. Boolean Conditions
-When the condition function or data binding returns a `boolean`:
-- `true`: The check passes.
-- `false`: The check fails, using the static `message` string (or default fallback) as the error message.
-
-```json
-"checks": [
-  {
-    "condition": {
-      "call": "required",
-      "args": { "value": { "path": "/formData/zip" } }
-    },
-    "message": "Zip code is required"
-  },
-  {
-    "condition": {
-      "call": "regex",
-      "args": {
-        "value": { "path": "/formData/zip" },
-        "pattern": "^[0-9]{5}$"
-      }
-    },
-    "message": "Must be a 5-digit zip code"
-  }
-]
-```
-
-#### 2. Dynamic ValidationResult Objects
-Validation functions (declared with `"returnType": "validationResult"`) can return a dynamic `ValidationResult` object (defined in [`catalog_definition.json#/$defs/ValidationResult`](../json/catalog_definition.json)) directly to the renderer:
+#### `ValidationResult` Structure
+Validation functions (declared with `"returnType": "validationResult"`) or data model bindings evaluate directly to a `ValidationResult` object:
 - **`valid`** (`boolean`, required): Whether the check passed.
 - **`code`** (`string`, optional): Machine-readable error code (e.g., `EXPIRED_CARD`, `OUT_OF_RANGE`).
-- **`message`** (`string`, optional): Human-readable error or warning message. If omitted on the return object, the renderer falls back to `CheckRule.message`.
+- **`message`** (`string`, optional): Human-readable error or warning message to display.
 - **`severity`** (`"error" | "warning" | "info"`, optional, default `"error"`).
 
 Because `ValidationResult` permits additional unconstrained properties, validation functions and specialized components can extend the object with custom domain-specific metadata (such as suggested fix values, field paths, or retry parameters).
