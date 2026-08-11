@@ -19,7 +19,8 @@ import SwiftUI
 ///
 /// Supports catalog-qualified lookups when a node specifies a catalog ID,
 /// with automatic fallback to an unqualified component type match.
-public final class CatalogImplementation: @unchecked Sendable {
+@MainActor
+public final class CatalogImplementation {
   private var builders: [ComponentKey: ComponentViewBuilder] = [:]
 
   public init() {}
