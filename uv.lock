@@ -27,6 +27,7 @@ members = [
     "a2ui-restaurant-finder",
     "a2ui-scripts",
     "a2ui-workspace",
+    "file-upload-summarizer",
     "mcp-app-proxy",
     "orchestrator",
     "personalized-learning-agent",
@@ -1367,6 +1368,43 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/e0/c8/2ce1c78f983a2c4987ea865d9516dbdfb141a120fd3abb977ae6f02ba7ca/fastuuid-0.14.0-cp314-cp314-musllinux_1_1_x86_64.whl", hash = "sha256:ec27778c6ca3393ef662e2762dba8af13f4ec1aaa32d08d77f71f2a70ae9feb8", size = 450837, upload-time = "2025-10-19T22:34:37.178Z" },
     { url = "https://files.pythonhosted.org/packages/df/60/dad662ec9a33b4a5fe44f60699258da64172c39bd041da2994422cdc40fe/fastuuid-0.14.0-cp314-cp314-win32.whl", hash = "sha256:e23fc6a83f112de4be0cc1990e5b127c27663ae43f866353166f87df58e73d06", size = 154532, upload-time = "2025-10-19T22:35:18.217Z" },
     { url = "https://files.pythonhosted.org/packages/1f/f6/da4db31001e854025ffd26bc9ba0740a9cbba2c3259695f7c5834908b336/fastuuid-0.14.0-cp314-cp314-win_amd64.whl", hash = "sha256:df61342889d0f5e7a32f7284e55ef95103f2110fee433c2ae7c2c0956d76ac8a", size = 156457, upload-time = "2025-10-19T22:33:44.579Z" },
+]
+
+[[package]]
+name = "file-upload-summarizer"
+version = "0.1.0"
+source = { editable = "samples/community/agent/adk/file_upload_summarizer" }
+dependencies = [
+    { name = "a2a-sdk", extra = ["http-server"] },
+    { name = "a2ui-agent-sdk" },
+    { name = "anyio" },
+    { name = "click" },
+    { name = "google-adk" },
+    { name = "google-genai" },
+    { name = "httpx" },
+    { name = "jsonschema" },
+    { name = "litellm" },
+    { name = "python-dotenv" },
+    { name = "python-multipart" },
+    { name = "starlette" },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "a2a-sdk", extras = ["http-server"], specifier = ">=0.3.0,<0.4.0" },
+    { name = "a2ui-agent-sdk", editable = "agent_sdks/python/a2ui_agent" },
+    { name = "anyio" },
+    { name = "click", specifier = ">=8.1.8" },
+    { name = "google-adk", specifier = ">=1.28.1" },
+    { name = "google-genai", specifier = ">=1.27.0" },
+    { name = "httpx" },
+    { name = "jsonschema", specifier = ">=4.0.0" },
+    { name = "litellm", specifier = ">=1.83.7" },
+    { name = "python-dotenv", specifier = ">=1.1.0" },
+    { name = "python-multipart", specifier = ">=0.0.12" },
+    { name = "starlette" },
+    { name = "uvicorn" },
 ]
 
 [[package]]

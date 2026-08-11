@@ -131,6 +131,7 @@ The [`common_types.json`] schema defines reusable primitives used throughout the
   - `object`: A template for generating children from a data binding list (requires a template `componentId` and a data binding `path`).
 
 - **`ComponentId`**: A reference to the unique ID of another component within the same surface.
+- **`AccessibilityAttributes`**: Standardized accessibility properties attached via `ComponentCommon` to any component, supporting `label` (`DynamicString`), `description` (`DynamicString`), `live` (`"off"` | `"polite"` | `"assertive"`), and `hidden` (`DynamicBoolean`).
 
 ### Agent to renderer message structure: the envelope
 
@@ -142,7 +143,7 @@ The [`catalogs/basic/catalog.json`] schema contains the definitions for all spec
 
 **Swappable Catalogs & Validation:**
 
-The [`agent_to_renderer.json`] envelope schema is designed to be catalog-agnostic. It references components using a placeholder filename: `catalog.json` (specifically `$ref: "catalog.json#/$defs/anyComponent"`).
+The [`agent_to_renderer.json`] envelope schema is designed to be catalog-agnostic. Within its `Component` definition (referenced by `ComponentsList`), it validates base properties against `common_types.json#/$defs/ComponentCommon` and references components using a placeholder filename: `catalog.json` (specifically `$ref: "catalog.json#/$defs/anyComponent"`).
 
 To validate A2UI messages:
 
@@ -442,6 +443,16 @@ When resolving a component (or function call), the renderer evaluates catalog id
 > [!IMPORTANT]
 > There is **no fallback** to the list of catalogs declared in `rendererCapabilities` (even if the renderer only advertises a single supported catalog). Every component and function call must resolve through either its explicit `catalogId` or the surface default `catalogId`.
 
+### Catalog-Agnostic Accessibility Requirements
+
+Because JSON Schema cannot inspect arbitrary catalog component property semantics to infer which properties represent visible text labels or which components accept user interaction, accessibility rules are enforced through normative specification requirements and SDK tooling:
+
+**Catalog and renderer implementations MUST:**
+
+- **Plumb Accessibility Attributes**: Map all relevant A2UI `AccessibilityAttributes` (`label`, `description`, `live`, `hidden`) to the underlying UI framework's accessibility APIs (e.g., WAI-ARIA `aria-label`, `aria-describedby`, `aria-live`, and `aria-hidden` for web renderers; `Semantics` properties for Flutter; `AccessibilityNodeInfo` / `accessibilityLabel` for Android and iOS renderers).
+- **Infer Default Semantics**: Use component types and non-accessibility properties (such as visible titles or text labels) to configure accessibility defaults automatically. When explicit `AccessibilityAttributes` (e.g., `label` or `description`) are provided, they MUST override inferred visual defaults. For example, a button component with a title of `"Submit"` and an explicit `accessibility.label` of `"Send Form"` must be announced by assistive technologies as `"Send Form"`.
+- **SDK Linter Checks**: SDK tooling and catalog linters MUST verify that component schemas accepting actions or input bindings declare accessible label requirements or fallbacks.
+
 ### The component catalog
 
 The set of available UI components and functions is defined in a **Catalog**. The basic catalog is defined in [`catalogs/basic/catalog.json`]. While the Basic Catalog is useful for starting out, most production applications will define their own catalog to reflect their specific design system. The agent must generate messages that conform to the catalog understood by the renderer.
@@ -501,8 +512,8 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `DynamicBoolean`
      - `DynamicStringList`
      - `DynamicValue`
+     - `AccessibilityAttributes`
      - `CheckRule`
-     - `ComponentCommon`
      - `Checkable`
      - `Action`
 4. **Component Discriminator Rule:**
@@ -517,10 +528,8 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      ```
      This enables route-dispatch matching via the `discriminator` block inside `anyComponent` (designating `"propertyName": "component"`).
 5. **Standard Component Structure:**
-   - All components defined in the `components` object must use an `allOf` structure that combines:
-     1. An external reference to the baseline identity and accessibility attributes:
-        `{"$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"}`
-     2. A local object schema defining the unique properties of that specific component (e.g., its children, variant, specific layouts).
+   - Catalog components define their discriminator (`component: { const: "<Name>" }`) and local properties (e.g., its children, variant, specific layouts), and can optionally import common property sets (such as `Checkable`) via `$ref`.
+   - Base component envelope properties (`id`, `catalogId`, and `accessibility` via `ComponentCommon`) are composed at the envelope level in `agent_to_renderer.json` via `allOf` inside the `Component` definition (referenced by `ComponentsList`), and therefore MUST NOT be redundantly wrapped with `ComponentCommon` via `allOf` inside individual catalog component definitions.
 6. **Strict Function Interface Pattern:**
    - Every function schema defined inside the `functions` map must validate a wire-level `FunctionCall` object. This requires:
      - A `properties` block with a `call` property containing a constant of the function's name (e.g., `"call": { "const": "email" }`).
@@ -561,29 +570,18 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
   "components": {
     "Text": {
       "type": "object",
-      // Components must combine ComponentCommon and local properties using "allOf".
-      "allOf": [
-        {
-          // External references must reference standard types in common_types.json.
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon",
+      "properties": {
+        // Required "component" property must be a constant matching the component key.
+        "component": {
+          "const": "Text",
         },
-        {
-          "type": "object",
-          "properties": {
-            // Required "component" property must be a constant matching the component key.
-            "component": {
-              "const": "Text",
-            },
-            // Leaf properties can be standard JSON primitives or Dynamic wrappers
-            "text": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
-              "description": "Text content to display.",
-            },
-          },
-          "required": ["component", "text"],
+        // Leaf properties can be standard JSON primitives or Dynamic wrappers
+        "text": {
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+          "description": "Text content to display.",
         },
-      ],
-      "unevaluatedProperties": false,
+      },
+      "required": ["component", "text"],
     },
   },
 

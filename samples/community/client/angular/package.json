@@ -6,7 +6,7 @@
     "ng": "ng",
     "start": "yarn build:sandbox && ng serve",
     "build:sandbox": "mkdir -p projects/mcp_calculator/public/mcp_apps_inner_iframe && npx esbuild ../../client/shared/mcp_apps_inner_iframe/sandbox.ts --bundle --outfile=projects/mcp_calculator/public/mcp_apps_inner_iframe/sandbox.js --format=esm --platform=browser && cp ../../client/shared/mcp_apps_inner_iframe/sandbox.html projects/mcp_calculator/public/mcp_apps_inner_iframe/sandbox.html && cp ../../client/shared/mcp_apps_inner_iframe/sandbox-url.html projects/mcp_calculator/public/mcp_apps_inner_iframe/sandbox-url.html",
-    "build": "ng build a2a-chat-canvas && ng build orchestrator && ng build mcp_calculator",
+    "build": "ng build a2a-chat-canvas && ng build orchestrator && ng build mcp_calculator && ng build file_upload",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "echo \"Workspace has no tests.\" && exit 0",

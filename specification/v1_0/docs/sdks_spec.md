@@ -24,7 +24,8 @@ flowchart TD
 - **Protocol Models:** Strongly-typed classes representing Catalog declarations (`Catalog`, `ComponentApi`, `FunctionApi`) and A2UI message types (`RendererToAgent`, `AgentToRenderer`, etc.).
 - **Surface State Management:** Mutable models representing active UI surfaces (`SurfaceModel`, `ComponentModel`, `DataModel`).
 - **Processing Layer (`MessageProcessor`):** Evaluates incoming JSON message arrays, resolves relative JSON pointers, and updates surface state models.
-- **Validation:** Performs strict validation of message schema structures and reference checks.
+- **Validation:** Performs strict validation of message schema structures, reference checks, and `AccessibilityAttributes` (`label`, `description`, `live`, `hidden`).
+- **Catalog Linters:** Verifies component schemas accepting actions or input bindings declare accessible label requirements or fallbacks.
 - **Incremental Snapshotting:** Supports tracking and collapsing incremental updates into flat snapshots (e.g., `ComponentNode` trees).
 
 ### Inference SDK (`a2ui_inference` / `@a2ui/inference`)
@@ -44,4 +45,5 @@ flowchart TD
 
 - **Framework Entry View (`Surface`):** Observes Core state and boots the recursive layout loop.
 - **Component Renderers (`ComponentImplementation`):** Individual native views implementing visual specs (e.g., standard layout, text, or inputs from the Basic Catalog).
+- **Accessibility Plumbing & Semantic Inference:** Maps `AccessibilityAttributes` (`label`, `description`, `live`, `hidden`) to native UI framework accessibility APIs (Web ARIA, Flutter Semantics, Android/iOS accessibility nodes) and infers default screen reader semantics from visible text properties.
 - **Lifecycle Bindings:** Standardizes lazy-mounting, reactive value propagation, and memory leak prevention (`dispose`).
