@@ -22,8 +22,14 @@ This section describes goals at a high level. See concrete steps in the section 
     - **P2**: is expected to be converted to P1 within quarter, as part of regular planning process
     - **P3**: not planned, but may become a priority
     - **P4**: we do not plan to invest into it
-2. **PRs**: We will review PRs from external contributors if they contribute to a **P0-P3** issue that is assigned to the contributor (the issue should be linked in the first line of description).
+
+2. **PRs**: We will review PRs from external contributors if:
+   - the PR contributes to a **P0-P3** issue
+   - the issue is linked in the first line of the PR description
+   - the issue is assigned to the contributor (as assignee or in the first line of issue description) or has label `type: contributions-welcome`
+
    **Exception**: the change is absolutely clear and obviously needed.
+
 3. **Branches**: [list of stale branches](https://github.com/a2ui-project/a2ui/branches/stale) should fit on one screen and should not have a button ‘Next’.
 
 ## GitHub labels used in triage
