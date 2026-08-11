@@ -22,10 +22,6 @@ import OrderedJSON
 ///
 /// Mirrors `MessageProcessor` in the core blueprint and `web_core`.
 /// Accepts strongly-typed ``ServerToClientMessage`` values or raw JSON lines,
-///// The central processor for A2UI server-to-client messages.
-///
-/// Mirrors `MessageProcessor` in the core blueprint and `web_core`.
-/// Accepts strongly-typed ``ServerToClientMessage`` values or raw JSON lines,
 /// validates component declarations against catalog schemas, and mutates
 /// the corresponding ``SurfaceViewModel`` state via ``SurfaceGroupModel``.
 @MainActor
@@ -62,7 +58,7 @@ public final class MessageProcessor: ObservableObject {
   }
 
   /// Returns the aggregated data model for surfaces with `sendDataModel` enabled.
-  public func getClientDataModel() -> JSONValue? {
+  public func getRendererDataModel() -> JSONValue? {
     var result: OrderedDictionary<String, JSONValue> = [:]
     for (surfaceID, vm) in surfaceGroupModel.surfacesMap {
       if vm.sendDataModel {
@@ -116,7 +112,7 @@ public final class MessageProcessor: ObservableObject {
   ///
   /// - Parameter options: Configuration options for capability generation.
   /// - Returns: A `JSONValue` representing the capabilities structure.
-  public func getClientCapabilities(
+  public func getRendererCapabilities(
     options: CapabilitiesOptions
   ) -> JSONValue {
     let supportedCatalogIDs = Array(catalogs.keys).sorted()
@@ -140,10 +136,10 @@ public final class MessageProcessor: ObservableObject {
   @available(
     *,
     deprecated,
-    message: "Specify capabilities options explicitly using getClientCapabilities(options:)"
+    message: "Specify capabilities options explicitly using getRendererCapabilities(options:)"
   )
-  public func getClientCapabilities() -> JSONValue {
-    getClientCapabilities(
+  public func getRendererCapabilities() -> JSONValue {
+    getRendererCapabilities(
       options: CapabilitiesOptions(includeInlineCatalogs: false, version: "v0.9.1")
     )
   }
