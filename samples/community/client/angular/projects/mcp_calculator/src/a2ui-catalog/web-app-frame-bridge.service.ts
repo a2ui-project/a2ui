@@ -23,6 +23,7 @@ import {
   A2uiMessageType,
   IncomingWebFrameMessage,
   IncomingWebFrameMessageSchema,
+  validateMessageSecurity,
 } from './web-frame-messages';
 
 export interface WebAppFrameBridgeConfig {
@@ -242,9 +243,13 @@ export class WebAppFrameBridgeService {
 
   private async handleFunctionCall(
     data: Extract<IncomingWebFrameMessage, {type: typeof A2uiMessageType.FunctionCall}>,
-    iframeEl: HTMLIFrameElement,
   ) {
     if (!this.config) return;
+    if (!this.appPort) {
+      console.warn('Cannot handle function call: appPort is not initialized.');
+      return;
+    }
+
     const props = this.config.props();
     const allowedFunctions = this.allowedFunctions(props);
 
@@ -254,21 +259,16 @@ export class WebAppFrameBridgeService {
         const validate = this.getValidator(schema as object);
         if (!validate(data.args || {})) {
           console.warn(`Function ${data.call} failed schema validation:`, validate.errors);
-          if (iframeEl.contentWindow) {
-            iframeEl.contentWindow.postMessage(
-              {
-                type: A2uiMessageType.FunctionResult,
-                call: data.call,
-                callId: data.callId,
-                status: 'error',
-                error: {
-                  code: 'VALIDATION_ERROR',
-                  message: 'Arguments failed schema validation',
-                },
-              },
-              window.location.origin,
-            );
-          }
+          this.appPort.postMessage({
+            type: A2uiMessageType.FunctionResult,
+            call: data.call,
+            callId: data.callId,
+            status: 'error',
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Arguments failed schema validation',
+            },
+          });
           return;
         }
       }
@@ -277,36 +277,26 @@ export class WebAppFrameBridgeService {
         const dataContext = new DataContext(surface, '/');
         try {
           const result = await surface.catalog.invoker(data.call, data.args || {}, dataContext);
-          if (iframeEl.contentWindow) {
-            iframeEl.contentWindow.postMessage(
-              {
-                type: A2uiMessageType.FunctionResult,
-                call: data.call,
-                callId: data.callId,
-                status: 'success',
-                result: result,
-              },
-              window.location.origin,
-            );
-          }
+          this.appPort?.postMessage({
+            type: A2uiMessageType.FunctionResult,
+            call: data.call,
+            callId: data.callId,
+            status: 'success',
+            result: result,
+          });
         } catch (err: unknown) {
-          if (iframeEl.contentWindow) {
-            const errorMessage =
-              err instanceof Error ? err.message : String(err) || 'Error executing function';
-            iframeEl.contentWindow.postMessage(
-              {
-                type: A2uiMessageType.FunctionResult,
-                call: data.call,
-                callId: data.callId,
-                status: 'error',
-                error: {
-                  code: 'EXECUTION_ERROR',
-                  message: errorMessage,
-                },
-              },
-              window.location.origin,
-            );
-          }
+          const errorMessage =
+            err instanceof Error ? err.message : String(err) || 'Error executing function';
+          this.appPort?.postMessage({
+            type: A2uiMessageType.FunctionResult,
+            call: data.call,
+            callId: data.callId,
+            status: 'error',
+            error: {
+              code: 'EXECUTION_ERROR',
+              message: errorMessage,
+            },
+          });
         }
       }
     } else {
@@ -345,14 +335,6 @@ export class WebAppFrameBridgeService {
 
       if (data.type === A2uiMessageType.AppFrameReady) {
         this.initializeBridge();
-      } else if (data.type === A2uiMessageType.Action) {
-        this.handleAction(data);
-      } else if (data.type === A2uiMessageType.DataModelChange) {
-        this.handleDataModelChange(data);
-      } else if (data.type === A2uiMessageType.FunctionCall) {
-        await this.handleFunctionCall(data, iframeEl);
-      } else if (data.type === A2uiMessageType.SizeChanged) {
-        this.handleSizeChange(data.width, data.height);
       }
     };
 
@@ -389,27 +371,21 @@ export class WebAppFrameBridgeService {
             for (const [k, v] of Object.entries(value)) {
               const oldVal = prev ? prev[k] : undefined;
               if (stringify(oldVal) !== stringify(v)) {
-                iframeEl.contentWindow.postMessage(
-                  {
-                    type: A2uiMessageType.DataModelUpdate,
-                    key,
-                    subpath: `/${k}`,
-                    value: v,
-                  },
-                  window.location.origin,
-                );
+                this.appPort?.postMessage({
+                  type: A2uiMessageType.DataModelUpdate,
+                  key,
+                  subpath: `/${k}`,
+                  value: v,
+                });
               }
             }
           } else {
             if (stringify(prev) !== stringify(value)) {
-              iframeEl.contentWindow.postMessage(
-                {
-                  type: A2uiMessageType.DataModelUpdate,
-                  key,
-                  value,
-                },
-                window.location.origin,
-              );
+              this.appPort?.postMessage({
+                type: A2uiMessageType.DataModelUpdate,
+                key,
+                value,
+              });
             }
           }
         });
@@ -419,8 +395,47 @@ export class WebAppFrameBridgeService {
 
     const iframeEl = this.config.iframe().nativeElement;
     if (iframeEl && iframeEl.contentWindow) {
+      // 1. Create a secure, dedicated 1-to-1 communication pipe
       const channel = new MessageChannel();
+
+      // 2. The Host keeps port1 for itself to listen for and send messages
+      if (this.appPort) {
+        this.appPort.close();
+      }
       this.appPort = channel.port1;
+
+      // 3. We package port2 to be physically transferred to the embedded application (the iframe).
+      // The embedded app will extract this port and use it to communicate back to the Host.
+      const transferrablePorts = [channel.port2];
+
+      this.appPort.onmessage = async (event: MessageEvent) => {
+        if (!this.config) return;
+
+        const securityCheck = validateMessageSecurity(event.data);
+        if (!securityCheck.valid) {
+          console.warn('[WebAppFrameBridge] Dropping insecure message:', securityCheck.reason);
+          return;
+        }
+
+        const parsedData = IncomingWebFrameMessageSchema.safeParse(event.data);
+        if (!parsedData.success) {
+          return;
+        }
+
+        const data = parsedData.data;
+
+        if (data.type === A2uiMessageType.Action) {
+          this.handleAction(data);
+        } else if (data.type === A2uiMessageType.DataModelChange) {
+          this.handleDataModelChange(data);
+        } else if (data.type === A2uiMessageType.FunctionCall) {
+          await this.handleFunctionCall(data);
+        } else if (data.type === A2uiMessageType.SizeChanged) {
+          this.handleSizeChange(data.width, data.height);
+        }
+      };
+
+      this.appPort.start();
 
       const rect = iframeEl.getBoundingClientRect();
       const hostContext = {
@@ -429,7 +444,6 @@ export class WebAppFrameBridgeService {
           height: rect.height,
         },
       };
-
       iframeEl.contentWindow.postMessage(
         {
           type: A2uiMessageType.AppFrameInit,
@@ -443,7 +457,7 @@ export class WebAppFrameBridgeService {
           },
         },
         window.location.origin,
-        [channel.port2],
+        transferrablePorts,
       );
 
       if (this.hostResizeObserver) {
@@ -451,19 +465,16 @@ export class WebAppFrameBridgeService {
       }
       this.hostResizeObserver = new ResizeObserver(entries => {
         const entry = entries[0];
-        if (entry && iframeEl.contentWindow) {
-          iframeEl.contentWindow.postMessage(
-            {
-              type: A2uiMessageType.HostContextUpdate,
-              value: {
-                containerDimensions: {
-                  width: entry.contentRect.width,
-                  height: entry.contentRect.height,
-                },
+        if (entry && this.appPort) {
+          this.appPort.postMessage({
+            type: A2uiMessageType.HostContextUpdate,
+            value: {
+              containerDimensions: {
+                width: entry.contentRect.width,
+                height: entry.contentRect.height,
               },
             },
-            window.location.origin,
-          );
+          });
         }
       });
       this.hostResizeObserver.observe(iframeEl);

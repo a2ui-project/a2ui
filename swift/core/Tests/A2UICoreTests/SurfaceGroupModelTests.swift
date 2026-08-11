@@ -19,6 +19,7 @@ import JSONSchema
 import OrderedJSON
 import Testing
 
+@MainActor
 struct SurfaceGroupModelTests {
 
   @Test func addSurfacePublishesToSurfacesMap() throws {
@@ -26,8 +27,8 @@ struct SurfaceGroupModelTests {
     let catalog = try makeTestCatalog()
     let vm = SurfaceViewModel(surfaceID: "s1", catalog: catalog)
     group.addSurface(vm)
-    #expect(group.surfaces["s1"] != nil)
-    #expect(group.surfaces.count == 1)
+    #expect(group.surfacesMap["s1"] != nil)
+    #expect(group.surfacesMap.count == 1)
   }
 
   @Test func addDuplicateSurfaceIsIgnored() throws {
@@ -37,7 +38,7 @@ struct SurfaceGroupModelTests {
     let vm2 = SurfaceViewModel(surfaceID: "s1", catalog: catalog)
     group.addSurface(vm1)
     group.addSurface(vm2)
-    #expect(group.surfaces.count == 1)
+    #expect(group.surfacesMap.count == 1)
   }
 
   @Test func removeSurfaceRemovesFromGroup() throws {
@@ -46,7 +47,7 @@ struct SurfaceGroupModelTests {
     let vm = SurfaceViewModel(surfaceID: "s1", catalog: catalog)
     group.addSurface(vm)
     group.removeSurface(id: "s1")
-    #expect(group.surfaces["s1"] == nil)
-    #expect(group.surfaces.isEmpty)
+    #expect(group.surfacesMap["s1"] == nil)
+    #expect(group.surfacesMap.isEmpty)
   }
 }

@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Compact rule formatting for action event context maps in ATOM_RULES.",
+  "notes": "Pytest 100% pass (507 passed). Algorithmic Schema Acc maintained at 100.0%. However, Quality Score regressed from 100.0% to 83.3% (-16.7%). Reverted per Rule 1 correctness guardrail.",
+  "status": "Backtracked",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 217.5,
+    "reasoning_tokens_median": 4875.0,
+    "input_tokens_median": 4431.5,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

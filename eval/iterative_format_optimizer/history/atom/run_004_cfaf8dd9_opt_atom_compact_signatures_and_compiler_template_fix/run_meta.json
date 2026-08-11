@@ -1,0 +1,11 @@
+{
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 183.0,
+    "reasoning_tokens_median": 5192.0,
+    "input_tokens_median": 4347.0,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/samples/community/agent/adk/file_upload_summarizer/catalogs/0.9/file_upload_catalog.json",
+  "catalogId": "https://a2ui.org/samples/community/agent/adk/file_upload_summarizer/catalogs/0.9/file_upload_catalog.json",
+  "components": {
+    "Column": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "Column"
+            },
+            "alignment": {
+              "type": "string"
+            },
+            "distribution": {
+              "type": "string"
+            },
+            "children": {
+              "type": "array",
+              "items": {
+                "$ref": "common_types.json#/$defs/ComponentId"
+              }
+            }
+          },
+          "required": ["component"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Text": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "Text"
+            },
+            "text": {
+              "$ref": "common_types.json#/$defs/DynamicString"
+            },
+            "variant": {
+              "type": "string"
+            }
+          },
+          "required": ["component", "text"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Button": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "Button"
+            },
+            "child": {
+              "$ref": "common_types.json#/$defs/ComponentId"
+            },
+            "variant": {
+              "type": "string"
+            },
+            "action": {
+              "type": "object"
+            },
+            "checks": {
+              "type": "array"
+            }
+          },
+          "required": ["component"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "Card": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "Card"
+            },
+            "title": {
+              "$ref": "common_types.json#/$defs/DynamicString"
+            },
+            "content": {
+              "$ref": "common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["component"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "FileUpload": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "FileUpload",
+              "description": "FileUpload component with Host-Delegated IoC upload callback."
+            },
+            "label": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "The text label or prompt displayed on the file upload drop zone (e.g., \"Drag and drop files or click to upload\")."
+            },
+            "accept": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "Comma-separated list of allowed MIME types or file extensions (e.g., \"image/*, application/pdf\")."
+            },
+            "maxSize": {
+              "$ref": "common_types.json#/$defs/DynamicNumber",
+              "description": "Maximum allowed file size in bytes for each uploaded file."
+            },
+            "multiple": {
+              "type": "boolean",
+              "description": "Whether multiple files can be selected and uploaded concurrently. Defaults to false."
+            }
+          },
+          "required": ["component"]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/components/Column"
+        },
+        {
+          "$ref": "#/components/Text"
+        },
+        {
+          "$ref": "#/components/Button"
+        },
+        {
+          "$ref": "#/components/Card"
+        },
+        {
+          "$ref": "#/components/FileUpload"
+        }
+      ]
+    }
+  }
+}

@@ -8,19 +8,13 @@
   "components": {
     "Text": {
       "type": "object",
-      "allOf": [
-        {"$ref": "common_types.json#/$defs/ComponentCommon"},
-        {
-          "type": "object",
-          "properties": {
-            "component": {"const": "Text"},
-            "text": {
-              "$ref": "common_types.json#/$defs/DynamicString"
-            }
-          },
-          "required": ["component", "text"]
+      "properties": {
+        "component": {"const": "Text"},
+        "text": {
+          "$ref": "common_types.json#/$defs/DynamicString"
         }
-      ]
+      },
+      "required": ["component", "text"]
     }
   },
   "functions": {
