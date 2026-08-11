@@ -95,6 +95,7 @@ struct MessageParserTests {
   }
 }
 
+@MainActor
 struct MessageProcessorTests {
 
   // MARK: - Setup
@@ -123,7 +124,7 @@ struct MessageProcessorTests {
           }
         }
         """)
-    #expect(processor.surfaceGroupModel.surfaces["s1"] != nil)
+    #expect(processor.surfaceGroupModel.surfacesMap["s1"] != nil)
   }
 
   @Test func processCreateSurfaceWithUnknownCatalogThrows() throws {
@@ -140,7 +141,7 @@ struct MessageProcessorTests {
           }
           """)
     }
-    #expect(handler.capturedErrors.isEmpty)
+    #expect(handler.capturedErrors.count == 1)
   }
 
   @Test func processCreateSurfaceWithTheme() throws {
@@ -158,7 +159,7 @@ struct MessageProcessorTests {
           }
         }
         """)
-    let surface = processor.surfaceGroupModel.surfaces["s1"]
+    let surface = processor.surfaceGroupModel.surfacesMap["s1"]
     #expect(surface != nil)
     #expect(surface?.theme != nil)
   }
@@ -193,7 +194,7 @@ struct MessageProcessorTests {
           }
         }
         """)
-    let vm = processor.surfaceGroupModel.surfaces["s1"]
+    let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     let components = vm?.componentsModel.components
     #expect(components?["root"] != nil)
   }
@@ -212,7 +213,7 @@ struct MessageProcessorTests {
           }
           """)
     }
-    #expect(handler.capturedErrors.isEmpty)
+    #expect(handler.capturedErrors.count == 1)
   }
 
   // MARK: - Update Data Model
@@ -240,7 +241,7 @@ struct MessageProcessorTests {
           }
         }
         """)
-    let vm = processor.surfaceGroupModel.surfaces["s1"]
+    let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     #expect(vm?.dataModel.get("/user/name")?.stringValue == "Alice")
   }
 
@@ -267,7 +268,7 @@ struct MessageProcessorTests {
           }
         }
         """)
-    #expect(processor.surfaceGroupModel.surfaces["s1"] == nil)
+    #expect(processor.surfaceGroupModel.surfacesMap["s1"] == nil)
   }
 
   @Test func processDeleteSurfaceForMissingSurfaceThrows() throws {
@@ -283,7 +284,7 @@ struct MessageProcessorTests {
           }
           """)
     }
-    #expect(handler.capturedErrors.isEmpty)
+    #expect(handler.capturedErrors.count == 1)
   }
 
   // MARK: - Error Handling
@@ -320,7 +321,7 @@ struct MessageProcessorTests {
           }
         }
         """)
-    let surfaces = processor.surfaceGroupModel.surfaces
+    let surfaces = processor.surfaceGroupModel.surfacesMap
     #expect(surfaces.count == 2)
     #expect(surfaces["s1"] != nil)
     #expect(surfaces["s2"] != nil)
@@ -328,7 +329,7 @@ struct MessageProcessorTests {
 
   @Test func groupSurfaceReturnsNilForUnknownID() throws {
     let (processor, _) = try makeProcessor()
-    #expect(processor.surfaceGroupModel.surfaces["unknown"] == nil)
+    #expect(processor.surfaceGroupModel.surfacesMap["unknown"] == nil)
   }
 
   // MARK: - sendDataModel
@@ -363,5 +364,123 @@ struct MessageProcessorTests {
         }
         """)
     #expect(processor.getClientDataModel() == nil)
+  }
+
+  // MARK: - getClientCapabilities
+
+  @Test func getClientCapabilitiesReturnsSupportedCatalogIDs() throws {
+    let (processor, _) = try makeProcessor()
+    let caps = processor.getClientCapabilities()
+    #expect(caps["v0.9.1"]?["supportedCatalogIds"]?.arrayValue?.first?.stringValue == "default")
+  }
+
+  @Test func getClientCapabilitiesIncludesInlineCatalogs() throws {
+    let (processor, _) = try makeProcessor()
+    let caps = processor.getClientCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(includeInlineCatalogs: true)
+    )
+    let inlineCatalogs = caps["v0.9.1"]?["inlineCatalogs"]?.arrayValue
+    #expect(inlineCatalogs?.count == 1)
+    let firstCatalog = inlineCatalogs?.first
+    #expect(firstCatalog?["catalogId"]?.stringValue == "default")
+    #expect(firstCatalog?["components"]?["text"] != nil)
+  }
+
+  @Test func getClientCapabilitiesTransformsRefDescriptions() throws {
+    let customSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "REF:common_types.json#/$defs/DynamicString|The title"
+            }
+          }
+        }
+        """
+    )
+    let catalog = Catalog(
+      id: "cat-ref",
+      components: [ComponentAPI(name: "Custom", schema: customSchema)]
+    )
+    let processor = MessageProcessor(catalogs: [catalog])
+    let caps = processor.getClientCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(includeInlineCatalogs: true)
+    )
+
+    let inlineCatalog = caps["v0.9.1"]?["inlineCatalogs"]?.arrayValue?.first
+    let customComponent = inlineCatalog?["components"]?["Custom"]
+    let titleProp = customComponent?["allOf/1/properties/title"]
+
+    #expect(titleProp?["$ref"]?.stringValue == "common_types.json#/$defs/DynamicString")
+    #expect(titleProp?["description"]?.stringValue == "The title")
+    #expect(titleProp?["type"] == nil)
+  }
+
+  @Test func getClientCapabilitiesGeneratesFunctionsAndThemeSchema() throws {
+    let funcSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "description": "Adds two numbers",
+          "properties": {
+            "a": { "type": "number" },
+            "b": { "type": "number" }
+          }
+        }
+        """
+    )
+
+    let addFunc = TestAddFunction(schema: funcSchema)
+
+    let themeSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "primaryColor": {
+              "type": "string",
+              "description": "REF:common_types.json#/$defs/Color|The main color"
+            }
+          }
+        }
+        """
+    )
+
+    let textSchema = try Schema(instance: "{\"type\": \"object\"}")
+    let catalog = Catalog(
+      id: "cat-full",
+      components: [ComponentAPI(name: "Button", schema: textSchema)],
+      functions: [addFunc],
+      themeSchema: themeSchema
+    )
+    let processor = MessageProcessor(catalogs: [catalog])
+    let caps = processor.getClientCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(includeInlineCatalogs: true)
+    )
+
+    let inlineCatalog = caps["v0.9.1"]?["inlineCatalogs"]?.arrayValue?.first
+    #expect(inlineCatalog?["catalogId"]?.stringValue == "cat-full")
+
+    let functions = inlineCatalog?["functions"]?.arrayValue
+    #expect(functions?.count == 1)
+    #expect(functions?.first?["name"]?.stringValue == "add")
+    #expect(functions?.first?["returnType"]?.stringValue == "number")
+    #expect(functions?.first?["description"]?.stringValue == "Adds two numbers")
+
+    let theme = inlineCatalog?["theme"]
+    #expect(theme?["primaryColor"]?["$ref"]?.stringValue == "common_types.json#/$defs/Color")
+    #expect(theme?["primaryColor"]?["description"]?.stringValue == "The main color")
+  }
+}
+
+private struct TestAddFunction: FunctionImplementation {
+  let api: FunctionAPI
+  init(schema: Schema) {
+    self.api = FunctionAPI(name: "add", returnType: .number, schema: schema)
+  }
+  func evaluate(arguments: [String: JSONValue]) throws -> JSONValue {
+    .null
   }
 }

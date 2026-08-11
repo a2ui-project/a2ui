@@ -26,6 +26,9 @@ public struct ComponentModel: Sendable, Equatable {
   /// The component type name (e.g., "Button", "Text").
   public let type: String
 
+  /// The optional catalog ID for this component, overriding any surface-level default catalog ID.
+  public let catalogID: String?
+
   /// The raw, unresolved properties of the component.
   ///
   /// This excludes the `id` and `component` keys from the original
@@ -37,10 +40,12 @@ public struct ComponentModel: Sendable, Equatable {
   /// - Parameters:
   ///   - id: The unique identifier for this component.
   ///   - type: The component type name.
-  ///   - properties: The raw properties (excluding `id` and `component`).
-  public init(id: String, type: String, properties: [String: JSONValue]) {
+  ///   - catalogID: Optional catalog identifier overriding surface default.
+  ///   - properties: The raw properties (excluding `id`, `component`, and `catalogId`).
+  public init(id: String, type: String, catalogID: String? = nil, properties: [String: JSONValue]) {
     self.id = id
     self.type = type
+    self.catalogID = catalogID
     self.properties = properties
   }
 }
