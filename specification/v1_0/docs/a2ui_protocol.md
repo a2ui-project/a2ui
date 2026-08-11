@@ -461,7 +461,7 @@ The set of available UI components and functions is defined in a **Catalog**. Th
 
 Every catalog follows the standard `Catalog` object definition:
 
-- **catalogId** (string, required): A unique string identifier for this catalog. While conventionally formatted as a URI to avoid naming collisions across organizations, it is an arbitrary string ID and not a resolvable URI. Renderer and agent developers must agree on shared catalogs with well-known IDs in order to build systems that are compatible with each other.
+- **catalogId** (string, required): A unique string identifier for this catalog. While conventionally formatted as a URI to avoid naming collisions across organizations, it is an arbitrary string ID and not a resolvable URI. Because A2UI catalogs are represented as JSON Schema documents, catalog definitions should include both `$id` (used by JSON Schema tooling) and `catalogId` (used by A2UI SDKs and catalog negotiation), setting both fields to the same URI. Renderer and agent developers must agree on shared catalogs with well-known IDs in order to build systems that are compatible with each other.
 - **instructions** (string, optional): Markdown-formatted design principles, rules, or developer guidelines specific to this catalog. These rules guide LLMs when generating UI layouts under this catalog.
 - **components** (object, optional): A map of supported UI components, where each key is the component type (e.g., `Text`) and its value is its JSON Schema definition. All keys MUST conform to the UAX #31 entity naming rules defined below.
 - **functions** (object, optional): A map of renderer-side validation or utility functions supported by the catalog, where each key is the function name and its value is its definition. All function names MUST conform to the UAX #31 entity naming rules defined below. The renderer determines a function's execution boundary (e.g., rendererOnly status) at runtime by reading its configuration from the active catalog definition.
@@ -563,7 +563,7 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
   "protocolVersion": "1.0",
   "title": "A2UI Basic Catalog Template",
   "description": "An annotated example showcasing structural rules and conventions.",
-  "catalogId": "https://example.com/catalogs/custom-v1",
+  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
   "instructions": "Design instructions for LLMs when generating layouts under this catalog.",
 
   // Top-level components declared under top-level "components" map.
