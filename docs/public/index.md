@@ -181,4 +181,4 @@ The typical interaction flow consists of these steps:
 
 We have a public [A2UI Composer](https://a2ui-project.github.io/composer/).
 
-[Documentation for the A2UI Composer](./composer.md)
+[Documentation for the A2UI Composer](./composer/index.md)

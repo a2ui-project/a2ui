@@ -40,7 +40,9 @@ nav:
       - How Can I Use It?: introduction/how-to-use.md
       - How Does A2UI Compare?: introduction/agent-ui-ecosystem.md
   - Quickstart: quickstart.md
-  - A2UI Composer ⭐: composer.md
+  - A2UI Composer ⭐:
+      - composer/index.md
+      - Composer Integration: composer/composer_renderer_integration.md
   - Concepts:
       - Overview: concepts/overview.md
       - Glossary: concepts/glossary.md
