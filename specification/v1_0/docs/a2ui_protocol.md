@@ -981,7 +981,7 @@ The renderer supports a set of named **Functions** (e.g., `required`, `regex`, `
 
 Input components (like `TextField`, `ChoicePicker`) and interactive elements (like `Button`) can define a list of `checks` (`CheckRule` objects).
 
-A `CheckRule` contains a `condition` (which can be a literal boolean, a `DataBinding` path, or a `FunctionCall`) and an optional fallback `message`.
+A `CheckRule` contains a `condition` (which can be a `DataBinding` path or a `FunctionCall`) and an optional fallback `message`.
 
 #### 1. Boolean Conditions
 When the condition function or data binding returns a `boolean`:

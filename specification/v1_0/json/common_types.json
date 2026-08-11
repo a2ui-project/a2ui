@@ -252,15 +252,14 @@
     },
     "CheckRule": {
       "type": "object",
-      "description": "A single validation check rule applied to an input component. The condition function can return a boolean or a dynamic ValidationResult object.",
+      "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a boolean or dynamic ValidationResult object.",
       "properties": {
         "condition": {
           "oneOf": [
-            { "type": "boolean" },
             { "$ref": "#/$defs/DataBinding" },
             { "$ref": "#/$defs/FunctionCall" }
           ],
-          "description": "Condition boolean expression, path, or function call returning a boolean or dynamic ValidationResult object."
+          "description": "Path or function call evaluating to a boolean or dynamic ValidationResult object."
         },
         "message": {
           "type": "string",
@@ -268,14 +267,6 @@
         }
       },
       "required": ["condition"],
-      "if": {
-        "properties": {
-          "condition": { "type": "boolean" }
-        }
-      },
-      "then": {
-        "required": ["message"]
-      },
       "additionalProperties": false
     },
     "Checkable": {
