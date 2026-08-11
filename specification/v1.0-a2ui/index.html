@@ -234,7 +234,9 @@
   </span>
 </a>
 </li>
-<li class="md-nav__item">
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" id="__nav_4" type="checkbox"/>
+<div class="md-nav__link md-nav__container">
 <a class="md-nav__link" href="../../composer/">
 <span class="md-ellipsis">
     
@@ -245,6 +247,34 @@
     
   </span>
 </a>
+<label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+<span class="md-nav__icon md-icon"></span>
+</label>
+</div>
+<nav aria-expanded="false" aria-labelledby="__nav_4_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_4">
+<span class="md-nav__icon md-icon"></span>
+            
+  
+    A2UI Composer ⭐
+  
+
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../composer/composer_renderer_integration/">
+<span class="md-ellipsis">
+    
+  
+    Composer Integration
+  
+
+    
+  </span>
+</a>
+</li>
+</ul>
+</nav>
 </li>
 <li class="md-nav__item md-nav__item--nested">
 <input class="md-nav__toggle md-toggle" id="__nav_5" type="checkbox"/>
@@ -2837,7 +2867,7 @@
 <h3 id="the-basic-catalog">The Basic Catalog<a class="headerlink" href="#the-basic-catalog" title="Permanent link">¶</a></h3>
 <p>The [<code>catalogs/basic/catalog.json</code>] schema contains the definitions for all specific UI components (e.g., <code>Text</code>, <code>Button</code>, <code>Row</code>) and functions (e.g., <code>required</code>, <code>email</code>).</p>
 <p><strong>Swappable Catalogs &amp; Validation:</strong></p>
-<p>The [<code>agent_to_renderer.json</code>] envelope schema is designed to be catalog-agnostic. It references components using a placeholder filename: <code>catalog.json</code> (specifically <code>$ref: "catalog.json#/$defs/anyComponent"</code>).</p>
+<p>The [<code>agent_to_renderer.json</code>] envelope schema is designed to be catalog-agnostic. Within its <code>Component</code> definition (referenced by <code>ComponentsList</code>), it validates base properties against <code>common_types.json#/$defs/ComponentCommon</code> and references components using a placeholder filename: <code>catalog.json</code> (specifically <code>$ref: "catalog.json#/$defs/anyComponent"</code>).</p>
 <p>To validate A2UI messages:</p>
 <ol>
 <li><strong>Basic Catalog</strong>: Map <code>catalog.json</code> to <code>catalogs/basic/catalog.json</code>.</li>
@@ -3146,8 +3176,8 @@ There is <strong>no fallback</strong> to the list of catalogs declared in <code>
 <li><code>DynamicBoolean</code></li>
 <li><code>DynamicStringList</code></li>
 <li><code>DynamicValue</code></li>
+<li><code>AccessibilityAttributes</code></li>
 <li><code>CheckRule</code></li>
-<li><code>ComponentCommon</code></li>
 <li><code>Checkable</code></li>
 <li><code>Action</code></li>
 </ul>
@@ -3163,12 +3193,8 @@ There is <strong>no fallback</strong> to the list of catalogs declared in <code>
 </span></code></pre></div>
      This enables route-dispatch matching via the <code>discriminator</code> block inside <code>anyComponent</code> (designating <code>"propertyName": "component"</code>).</li>
 <li><strong>Standard Component Structure:</strong></li>
-<li>All components defined in the <code>components</code> object must use an <code>allOf</code> structure that combines:<ol>
-<li>An external reference to the baseline identity and accessibility attributes:
-    <code>{"$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"}</code></li>
-<li>A local object schema defining the unique properties of that specific component (e.g., its children, variant, specific layouts).</li>
-</ol>
-</li>
+<li>Catalog components define their discriminator (<code>component: { const: "&lt;Name&gt;" }</code>) and local properties (e.g., its children, variant, specific layouts), and can optionally import common property sets (such as <code>Checkable</code>) via <code>$ref</code>.</li>
+<li>Base component envelope properties (<code>id</code>, <code>catalogId</code>, and <code>accessibility</code> via <code>ComponentCommon</code>) are composed at the envelope level in <code>agent_to_renderer.json</code> via <code>allOf</code> inside the <code>Component</code> definition (referenced by <code>ComponentsList</code>), and therefore MUST NOT be redundantly wrapped with <code>ComponentCommon</code> via <code>allOf</code> inside individual catalog component definitions.</li>
 <li><strong>Strict Function Interface Pattern:</strong></li>
 <li>Every function schema defined inside the <code>functions</code> map must validate a wire-level <code>FunctionCall</code> object. This requires:<ul>
 <li>A <code>properties</code> block with a <code>call</code> property containing a constant of the function's name (e.g., <code>"call": { "const": "email" }</code>).</li>
@@ -3210,85 +3236,74 @@ There is <strong>no fallback</strong> to the list of catalogs declared in <code>
 </span><span id="__span-12-12"><a href="#__codelineno-12-12" id="__codelineno-12-12" name="__codelineno-12-12"></a>  "components": {
 </span><span id="__span-12-13"><a href="#__codelineno-12-13" id="__codelineno-12-13" name="__codelineno-12-13"></a>    "Text": {
 </span><span id="__span-12-14"><a href="#__codelineno-12-14" id="__codelineno-12-14" name="__codelineno-12-14"></a>      "type": "object",
-</span><span id="__span-12-15"><a href="#__codelineno-12-15" id="__codelineno-12-15" name="__codelineno-12-15"></a>      // Components must combine ComponentCommon and local properties using "allOf".
-</span><span id="__span-12-16"><a href="#__codelineno-12-16" id="__codelineno-12-16" name="__codelineno-12-16"></a>      "allOf": [
-</span><span id="__span-12-17"><a href="#__codelineno-12-17" id="__codelineno-12-17" name="__codelineno-12-17"></a>        {
-</span><span id="__span-12-18"><a href="#__codelineno-12-18" id="__codelineno-12-18" name="__codelineno-12-18"></a>          // External references must reference standard types in common_types.json.
-</span><span id="__span-12-19"><a href="#__codelineno-12-19" id="__codelineno-12-19" name="__codelineno-12-19"></a>          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon",
-</span><span id="__span-12-20"><a href="#__codelineno-12-20" id="__codelineno-12-20" name="__codelineno-12-20"></a>        },
-</span><span id="__span-12-21"><a href="#__codelineno-12-21" id="__codelineno-12-21" name="__codelineno-12-21"></a>        {
-</span><span id="__span-12-22"><a href="#__codelineno-12-22" id="__codelineno-12-22" name="__codelineno-12-22"></a>          "type": "object",
-</span><span id="__span-12-23"><a href="#__codelineno-12-23" id="__codelineno-12-23" name="__codelineno-12-23"></a>          "properties": {
-</span><span id="__span-12-24"><a href="#__codelineno-12-24" id="__codelineno-12-24" name="__codelineno-12-24"></a>            // Required "component" property must be a constant matching the component key.
-</span><span id="__span-12-25"><a href="#__codelineno-12-25" id="__codelineno-12-25" name="__codelineno-12-25"></a>            "component": {
-</span><span id="__span-12-26"><a href="#__codelineno-12-26" id="__codelineno-12-26" name="__codelineno-12-26"></a>              "const": "Text",
-</span><span id="__span-12-27"><a href="#__codelineno-12-27" id="__codelineno-12-27" name="__codelineno-12-27"></a>            },
-</span><span id="__span-12-28"><a href="#__codelineno-12-28" id="__codelineno-12-28" name="__codelineno-12-28"></a>            // Leaf properties can be standard JSON primitives or Dynamic wrappers
-</span><span id="__span-12-29"><a href="#__codelineno-12-29" id="__codelineno-12-29" name="__codelineno-12-29"></a>            "text": {
-</span><span id="__span-12-30"><a href="#__codelineno-12-30" id="__codelineno-12-30" name="__codelineno-12-30"></a>              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
-</span><span id="__span-12-31"><a href="#__codelineno-12-31" id="__codelineno-12-31" name="__codelineno-12-31"></a>              "description": "Text content to display.",
-</span><span id="__span-12-32"><a href="#__codelineno-12-32" id="__codelineno-12-32" name="__codelineno-12-32"></a>            },
-</span><span id="__span-12-33"><a href="#__codelineno-12-33" id="__codelineno-12-33" name="__codelineno-12-33"></a>          },
-</span><span id="__span-12-34"><a href="#__codelineno-12-34" id="__codelineno-12-34" name="__codelineno-12-34"></a>          "required": ["component", "text"],
-</span><span id="__span-12-35"><a href="#__codelineno-12-35" id="__codelineno-12-35" name="__codelineno-12-35"></a>        },
-</span><span id="__span-12-36"><a href="#__codelineno-12-36" id="__codelineno-12-36" name="__codelineno-12-36"></a>      ],
-</span><span id="__span-12-37"><a href="#__codelineno-12-37" id="__codelineno-12-37" name="__codelineno-12-37"></a>      "unevaluatedProperties": false,
-</span><span id="__span-12-38"><a href="#__codelineno-12-38" id="__codelineno-12-38" name="__codelineno-12-38"></a>    },
-</span><span id="__span-12-39"><a href="#__codelineno-12-39" id="__codelineno-12-39" name="__codelineno-12-39"></a>  },
-</span><span id="__span-12-40"><a href="#__codelineno-12-40" id="__codelineno-12-40" name="__codelineno-12-40"></a>
-</span><span id="__span-12-41"><a href="#__codelineno-12-41" id="__codelineno-12-41" name="__codelineno-12-41"></a>  // Top-level functions declared under top-level "functions" map.
-</span><span id="__span-12-42"><a href="#__codelineno-12-42" id="__codelineno-12-42" name="__codelineno-12-42"></a>  "functions": {
-</span><span id="__span-12-43"><a href="#__codelineno-12-43" id="__codelineno-12-43" name="__codelineno-12-43"></a>    "required": {
-</span><span id="__span-12-44"><a href="#__codelineno-12-44" id="__codelineno-12-44" name="__codelineno-12-44"></a>      "type": "object",
-</span><span id="__span-12-45"><a href="#__codelineno-12-45" id="__codelineno-12-45" name="__codelineno-12-45"></a>      "description": "Checks that the value is not null, undefined, or empty.",
-</span><span id="__span-12-46"><a href="#__codelineno-12-46" id="__codelineno-12-46" name="__codelineno-12-46"></a>      // Strict function metadata defined outside the properties block.
-</span><span id="__span-12-47"><a href="#__codelineno-12-47" id="__codelineno-12-47" name="__codelineno-12-47"></a>      "returnType": "boolean",
-</span><span id="__span-12-48"><a href="#__codelineno-12-48" id="__codelineno-12-48" name="__codelineno-12-48"></a>      "callableFrom": "rendererOnly",
-</span><span id="__span-12-49"><a href="#__codelineno-12-49" id="__codelineno-12-49" name="__codelineno-12-49"></a>      "properties": {
-</span><span id="__span-12-50"><a href="#__codelineno-12-50" id="__codelineno-12-50" name="__codelineno-12-50"></a>        // Function call schema requires constant with function's name.
-</span><span id="__span-12-51"><a href="#__codelineno-12-51" id="__codelineno-12-51" name="__codelineno-12-51"></a>        "call": {
-</span><span id="__span-12-52"><a href="#__codelineno-12-52" id="__codelineno-12-52" name="__codelineno-12-52"></a>          "const": "required",
-</span><span id="__span-12-53"><a href="#__codelineno-12-53" id="__codelineno-12-53" name="__codelineno-12-53"></a>        },
-</span><span id="__span-12-54"><a href="#__codelineno-12-54" id="__codelineno-12-54" name="__codelineno-12-54"></a>        "args": {
-</span><span id="__span-12-55"><a href="#__codelineno-12-55" id="__codelineno-12-55" name="__codelineno-12-55"></a>          "type": "object",
-</span><span id="__span-12-56"><a href="#__codelineno-12-56" id="__codelineno-12-56" name="__codelineno-12-56"></a>          "properties": {
-</span><span id="__span-12-57"><a href="#__codelineno-12-57" id="__codelineno-12-57" name="__codelineno-12-57"></a>            "value": {
-</span><span id="__span-12-58"><a href="#__codelineno-12-58" id="__codelineno-12-58" name="__codelineno-12-58"></a>              "description": "The value to check.",
-</span><span id="__span-12-59"><a href="#__codelineno-12-59" id="__codelineno-12-59" name="__codelineno-12-59"></a>            },
-</span><span id="__span-12-60"><a href="#__codelineno-12-60" id="__codelineno-12-60" name="__codelineno-12-60"></a>          },
-</span><span id="__span-12-61"><a href="#__codelineno-12-61" id="__codelineno-12-61" name="__codelineno-12-61"></a>          "required": ["value"],
-</span><span id="__span-12-62"><a href="#__codelineno-12-62" id="__codelineno-12-62" name="__codelineno-12-62"></a>          "additionalProperties": false,
-</span><span id="__span-12-63"><a href="#__codelineno-12-63" id="__codelineno-12-63" name="__codelineno-12-63"></a>        },
-</span><span id="__span-12-64"><a href="#__codelineno-12-64" id="__codelineno-12-64" name="__codelineno-12-64"></a>      },
-</span><span id="__span-12-65"><a href="#__codelineno-12-65" id="__codelineno-12-65" name="__codelineno-12-65"></a>      "required": ["call", "args"],
-</span><span id="__span-12-66"><a href="#__codelineno-12-66" id="__codelineno-12-66" name="__codelineno-12-66"></a>      "unevaluatedProperties": false,
-</span><span id="__span-12-67"><a href="#__codelineno-12-67" id="__codelineno-12-67" name="__codelineno-12-67"></a>    },
-</span><span id="__span-12-68"><a href="#__codelineno-12-68" id="__codelineno-12-68" name="__codelineno-12-68"></a>  },
-</span><span id="__span-12-69"><a href="#__codelineno-12-69" id="__codelineno-12-69" name="__codelineno-12-69"></a>
-</span><span id="__span-12-70"><a href="#__codelineno-12-70" id="__codelineno-12-70" name="__codelineno-12-70"></a>  // $defs is restricted strictly to anyComponent and anyFunction.
-</span><span id="__span-12-71"><a href="#__codelineno-12-71" id="__codelineno-12-71" name="__codelineno-12-71"></a>  // Custom definitions or helpers inside a catalog are strictly prohibited under $defs.
-</span><span id="__span-12-72"><a href="#__codelineno-12-72" id="__codelineno-12-72" name="__codelineno-12-72"></a>  "$defs": {
-</span><span id="__span-12-73"><a href="#__codelineno-12-73" id="__codelineno-12-73" name="__codelineno-12-73"></a>    "anyComponent": {
+</span><span id="__span-12-15"><a href="#__codelineno-12-15" id="__codelineno-12-15" name="__codelineno-12-15"></a>      "properties": {
+</span><span id="__span-12-16"><a href="#__codelineno-12-16" id="__codelineno-12-16" name="__codelineno-12-16"></a>        // Required "component" property must be a constant matching the component key.
+</span><span id="__span-12-17"><a href="#__codelineno-12-17" id="__codelineno-12-17" name="__codelineno-12-17"></a>        "component": {
+</span><span id="__span-12-18"><a href="#__codelineno-12-18" id="__codelineno-12-18" name="__codelineno-12-18"></a>          "const": "Text",
+</span><span id="__span-12-19"><a href="#__codelineno-12-19" id="__codelineno-12-19" name="__codelineno-12-19"></a>        },
+</span><span id="__span-12-20"><a href="#__codelineno-12-20" id="__codelineno-12-20" name="__codelineno-12-20"></a>        // Leaf properties can be standard JSON primitives or Dynamic wrappers
+</span><span id="__span-12-21"><a href="#__codelineno-12-21" id="__codelineno-12-21" name="__codelineno-12-21"></a>        "text": {
+</span><span id="__span-12-22"><a href="#__codelineno-12-22" id="__codelineno-12-22" name="__codelineno-12-22"></a>          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+</span><span id="__span-12-23"><a href="#__codelineno-12-23" id="__codelineno-12-23" name="__codelineno-12-23"></a>          "description": "Text content to display.",
+</span><span id="__span-12-24"><a href="#__codelineno-12-24" id="__codelineno-12-24" name="__codelineno-12-24"></a>        },
+</span><span id="__span-12-25"><a href="#__codelineno-12-25" id="__codelineno-12-25" name="__codelineno-12-25"></a>      },
+</span><span id="__span-12-26"><a href="#__codelineno-12-26" id="__codelineno-12-26" name="__codelineno-12-26"></a>      "required": ["component", "text"],
+</span><span id="__span-12-27"><a href="#__codelineno-12-27" id="__codelineno-12-27" name="__codelineno-12-27"></a>    },
+</span><span id="__span-12-28"><a href="#__codelineno-12-28" id="__codelineno-12-28" name="__codelineno-12-28"></a>  },
+</span><span id="__span-12-29"><a href="#__codelineno-12-29" id="__codelineno-12-29" name="__codelineno-12-29"></a>
+</span><span id="__span-12-30"><a href="#__codelineno-12-30" id="__codelineno-12-30" name="__codelineno-12-30"></a>  // Top-level functions declared under top-level "functions" map.
+</span><span id="__span-12-31"><a href="#__codelineno-12-31" id="__codelineno-12-31" name="__codelineno-12-31"></a>  "functions": {
+</span><span id="__span-12-32"><a href="#__codelineno-12-32" id="__codelineno-12-32" name="__codelineno-12-32"></a>    "required": {
+</span><span id="__span-12-33"><a href="#__codelineno-12-33" id="__codelineno-12-33" name="__codelineno-12-33"></a>      "type": "object",
+</span><span id="__span-12-34"><a href="#__codelineno-12-34" id="__codelineno-12-34" name="__codelineno-12-34"></a>      "description": "Checks that the value is not null, undefined, or empty.",
+</span><span id="__span-12-35"><a href="#__codelineno-12-35" id="__codelineno-12-35" name="__codelineno-12-35"></a>      // Strict function metadata defined outside the properties block.
+</span><span id="__span-12-36"><a href="#__codelineno-12-36" id="__codelineno-12-36" name="__codelineno-12-36"></a>      "returnType": "boolean",
+</span><span id="__span-12-37"><a href="#__codelineno-12-37" id="__codelineno-12-37" name="__codelineno-12-37"></a>      "callableFrom": "rendererOnly",
+</span><span id="__span-12-38"><a href="#__codelineno-12-38" id="__codelineno-12-38" name="__codelineno-12-38"></a>      "properties": {
+</span><span id="__span-12-39"><a href="#__codelineno-12-39" id="__codelineno-12-39" name="__codelineno-12-39"></a>        // Function call schema requires constant with function's name.
+</span><span id="__span-12-40"><a href="#__codelineno-12-40" id="__codelineno-12-40" name="__codelineno-12-40"></a>        "call": {
+</span><span id="__span-12-41"><a href="#__codelineno-12-41" id="__codelineno-12-41" name="__codelineno-12-41"></a>          "const": "required",
+</span><span id="__span-12-42"><a href="#__codelineno-12-42" id="__codelineno-12-42" name="__codelineno-12-42"></a>        },
+</span><span id="__span-12-43"><a href="#__codelineno-12-43" id="__codelineno-12-43" name="__codelineno-12-43"></a>        "args": {
+</span><span id="__span-12-44"><a href="#__codelineno-12-44" id="__codelineno-12-44" name="__codelineno-12-44"></a>          "type": "object",
+</span><span id="__span-12-45"><a href="#__codelineno-12-45" id="__codelineno-12-45" name="__codelineno-12-45"></a>          "properties": {
+</span><span id="__span-12-46"><a href="#__codelineno-12-46" id="__codelineno-12-46" name="__codelineno-12-46"></a>            "value": {
+</span><span id="__span-12-47"><a href="#__codelineno-12-47" id="__codelineno-12-47" name="__codelineno-12-47"></a>              "description": "The value to check.",
+</span><span id="__span-12-48"><a href="#__codelineno-12-48" id="__codelineno-12-48" name="__codelineno-12-48"></a>            },
+</span><span id="__span-12-49"><a href="#__codelineno-12-49" id="__codelineno-12-49" name="__codelineno-12-49"></a>          },
+</span><span id="__span-12-50"><a href="#__codelineno-12-50" id="__codelineno-12-50" name="__codelineno-12-50"></a>          "required": ["value"],
+</span><span id="__span-12-51"><a href="#__codelineno-12-51" id="__codelineno-12-51" name="__codelineno-12-51"></a>          "additionalProperties": false,
+</span><span id="__span-12-52"><a href="#__codelineno-12-52" id="__codelineno-12-52" name="__codelineno-12-52"></a>        },
+</span><span id="__span-12-53"><a href="#__codelineno-12-53" id="__codelineno-12-53" name="__codelineno-12-53"></a>      },
+</span><span id="__span-12-54"><a href="#__codelineno-12-54" id="__codelineno-12-54" name="__codelineno-12-54"></a>      "required": ["call", "args"],
+</span><span id="__span-12-55"><a href="#__codelineno-12-55" id="__codelineno-12-55" name="__codelineno-12-55"></a>      "unevaluatedProperties": false,
+</span><span id="__span-12-56"><a href="#__codelineno-12-56" id="__codelineno-12-56" name="__codelineno-12-56"></a>    },
+</span><span id="__span-12-57"><a href="#__codelineno-12-57" id="__codelineno-12-57" name="__codelineno-12-57"></a>  },
+</span><span id="__span-12-58"><a href="#__codelineno-12-58" id="__codelineno-12-58" name="__codelineno-12-58"></a>
+</span><span id="__span-12-59"><a href="#__codelineno-12-59" id="__codelineno-12-59" name="__codelineno-12-59"></a>  // $defs is restricted strictly to anyComponent and anyFunction.
+</span><span id="__span-12-60"><a href="#__codelineno-12-60" id="__codelineno-12-60" name="__codelineno-12-60"></a>  // Custom definitions or helpers inside a catalog are strictly prohibited under $defs.
+</span><span id="__span-12-61"><a href="#__codelineno-12-61" id="__codelineno-12-61" name="__codelineno-12-61"></a>  "$defs": {
+</span><span id="__span-12-62"><a href="#__codelineno-12-62" id="__codelineno-12-62" name="__codelineno-12-62"></a>    "anyComponent": {
+</span><span id="__span-12-63"><a href="#__codelineno-12-63" id="__codelineno-12-63" name="__codelineno-12-63"></a>      "oneOf": [
+</span><span id="__span-12-64"><a href="#__codelineno-12-64" id="__codelineno-12-64" name="__codelineno-12-64"></a>        {
+</span><span id="__span-12-65"><a href="#__codelineno-12-65" id="__codelineno-12-65" name="__codelineno-12-65"></a>          // Local refs restricted to top-level components map.
+</span><span id="__span-12-66"><a href="#__codelineno-12-66" id="__codelineno-12-66" name="__codelineno-12-66"></a>          "$ref": "#/components/Text",
+</span><span id="__span-12-67"><a href="#__codelineno-12-67" id="__codelineno-12-67" name="__codelineno-12-67"></a>        },
+</span><span id="__span-12-68"><a href="#__codelineno-12-68" id="__codelineno-12-68" name="__codelineno-12-68"></a>      ],
+</span><span id="__span-12-69"><a href="#__codelineno-12-69" id="__codelineno-12-69" name="__codelineno-12-69"></a>      "discriminator": {
+</span><span id="__span-12-70"><a href="#__codelineno-12-70" id="__codelineno-12-70" name="__codelineno-12-70"></a>        "propertyName": "component",
+</span><span id="__span-12-71"><a href="#__codelineno-12-71" id="__codelineno-12-71" name="__codelineno-12-71"></a>      },
+</span><span id="__span-12-72"><a href="#__codelineno-12-72" id="__codelineno-12-72" name="__codelineno-12-72"></a>    },
+</span><span id="__span-12-73"><a href="#__codelineno-12-73" id="__codelineno-12-73" name="__codelineno-12-73"></a>    "anyFunction": {
 </span><span id="__span-12-74"><a href="#__codelineno-12-74" id="__codelineno-12-74" name="__codelineno-12-74"></a>      "oneOf": [
 </span><span id="__span-12-75"><a href="#__codelineno-12-75" id="__codelineno-12-75" name="__codelineno-12-75"></a>        {
-</span><span id="__span-12-76"><a href="#__codelineno-12-76" id="__codelineno-12-76" name="__codelineno-12-76"></a>          // Local refs restricted to top-level components map.
-</span><span id="__span-12-77"><a href="#__codelineno-12-77" id="__codelineno-12-77" name="__codelineno-12-77"></a>          "$ref": "#/components/Text",
+</span><span id="__span-12-76"><a href="#__codelineno-12-76" id="__codelineno-12-76" name="__codelineno-12-76"></a>          // Local refs restricted to top-level functions map.
+</span><span id="__span-12-77"><a href="#__codelineno-12-77" id="__codelineno-12-77" name="__codelineno-12-77"></a>          "$ref": "#/functions/required",
 </span><span id="__span-12-78"><a href="#__codelineno-12-78" id="__codelineno-12-78" name="__codelineno-12-78"></a>        },
 </span><span id="__span-12-79"><a href="#__codelineno-12-79" id="__codelineno-12-79" name="__codelineno-12-79"></a>      ],
-</span><span id="__span-12-80"><a href="#__codelineno-12-80" id="__codelineno-12-80" name="__codelineno-12-80"></a>      "discriminator": {
-</span><span id="__span-12-81"><a href="#__codelineno-12-81" id="__codelineno-12-81" name="__codelineno-12-81"></a>        "propertyName": "component",
-</span><span id="__span-12-82"><a href="#__codelineno-12-82" id="__codelineno-12-82" name="__codelineno-12-82"></a>      },
-</span><span id="__span-12-83"><a href="#__codelineno-12-83" id="__codelineno-12-83" name="__codelineno-12-83"></a>    },
-</span><span id="__span-12-84"><a href="#__codelineno-12-84" id="__codelineno-12-84" name="__codelineno-12-84"></a>    "anyFunction": {
-</span><span id="__span-12-85"><a href="#__codelineno-12-85" id="__codelineno-12-85" name="__codelineno-12-85"></a>      "oneOf": [
-</span><span id="__span-12-86"><a href="#__codelineno-12-86" id="__codelineno-12-86" name="__codelineno-12-86"></a>        {
-</span><span id="__span-12-87"><a href="#__codelineno-12-87" id="__codelineno-12-87" name="__codelineno-12-87"></a>          // Local refs restricted to top-level functions map.
-</span><span id="__span-12-88"><a href="#__codelineno-12-88" id="__codelineno-12-88" name="__codelineno-12-88"></a>          "$ref": "#/functions/required",
-</span><span id="__span-12-89"><a href="#__codelineno-12-89" id="__codelineno-12-89" name="__codelineno-12-89"></a>        },
-</span><span id="__span-12-90"><a href="#__codelineno-12-90" id="__codelineno-12-90" name="__codelineno-12-90"></a>      ],
-</span><span id="__span-12-91"><a href="#__codelineno-12-91" id="__codelineno-12-91" name="__codelineno-12-91"></a>    },
-</span><span id="__span-12-92"><a href="#__codelineno-12-92" id="__codelineno-12-92" name="__codelineno-12-92"></a>  },
-</span><span id="__span-12-93"><a href="#__codelineno-12-93" id="__codelineno-12-93" name="__codelineno-12-93"></a>}
+</span><span id="__span-12-80"><a href="#__codelineno-12-80" id="__codelineno-12-80" name="__codelineno-12-80"></a>    },
+</span><span id="__span-12-81"><a href="#__codelineno-12-81" id="__codelineno-12-81" name="__codelineno-12-81"></a>  },
+</span><span id="__span-12-82"><a href="#__codelineno-12-82" id="__codelineno-12-82" name="__codelineno-12-82"></a>}
 </span></code></pre></div>
 <h3 id="ui-composition-the-adjacency-list-model">UI composition: the adjacency list model<a class="headerlink" href="#ui-composition-the-adjacency-list-model" title="Permanent link">¶</a></h3>
 <p>The A2UI protocol defines the UI as a flat list of components. The tree structure is built implicitly using ID references. This is known as an adjacency list model.</p>

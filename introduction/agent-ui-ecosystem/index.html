@@ -681,9 +681,29 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../../composer/" class="md-nav__link">
+    
+    
+      
         
+          
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../composer/" class="md-nav__link ">
+              
   
   
   <span class="md-ellipsis">
@@ -697,7 +717,59 @@
   
   
 
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    A2UI Composer ⭐
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../composer/composer_renderer_integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composer Integration
+  
+
+    
+  </span>
+  
+  
+
       </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2648,7 +2720,7 @@
 <h2 id="a2ui-vs-mcp-apps">A2UI vs MCP Apps<a class="headerlink" href="#a2ui-vs-mcp-apps" title="Permanent link">&para;</a></h2>
 <p><a href="https://blog.modelcontextprotocol.io/posts/2025-11-21-mcp-apps/">MCP Apps</a> treat UI as a <strong>resource</strong>: servers provide pre-built HTML via <code>ui://</code> URIs, rendered in sandboxed iframes. The remote integration controls all content and appearance, with configuration happening through tool calling. A2UI takes a <strong>declarative UI</strong> approach: agents send component blueprints, but the host application controls styling, theming, and how those components are configured and rendered. Choose MCP Apps when the server should own the full UI experience; choose A2UI when you want dynamic, cross-platform UI that fits naturally into your app.</p>
 <h2 id="a2ui-vs-ag-ui-copilotkit">A2UI vs AG-UI / CopilotKit<a class="headerlink" href="#a2ui-vs-ag-ui-copilotkit" title="Permanent link">&para;</a></h2>
-<p><a href="https://ag-ui.com/">AG-UI</a> is a <strong>transport protocol</strong> connecting agent backends to frontends with real-time state sync. A2UI is a <strong>UI format</strong>: the payload that describes what to render. They're complementary: use AG-UI as the pipe, A2UI as the content. AG-UI is a project by the <a href="https://copilotkit.ai">CopilotKit</a> team, who also contributed the <a href="../../composer/">A2UI Composer</a>. AG-UI has day-zero A2UI compatibility.</p>
+<p><a href="https://ag-ui.com/">AG-UI</a> is a <strong>transport protocol</strong> connecting agent backends to frontends with real-time state sync. A2UI is a <strong>UI format</strong>: the payload that describes what to render. They're complementary: use AG-UI as the pipe, A2UI as the content. AG-UI is a project by the <a href="https://copilotkit.ai">CopilotKit</a> team. AG-UI has day-zero A2UI compatibility.</p>
 <h2 id="a2ui-vs-chatkit-openai">A2UI vs ChatKit (OpenAI)<a class="headerlink" href="#a2ui-vs-chatkit-openai" title="Permanent link">&para;</a></h2>
 <p><a href="https://platform.openai.com/docs/guides/chatkit">ChatKit</a> offers a tightly integrated experience within the OpenAI ecosystem. A2UI shares some design philosophy with ChatKit: both define a set of basic components and use a configurable, declarative abstraction layer. A2UI is <strong>platform-agnostic</strong> and designed for developers building their own agentic surfaces across web, mobile, and desktop, or for multi-agent systems where agents need to render UI across trust boundaries.</p>
 <h2 id="using-them-together">Using Them Together<a class="headerlink" href="#using-them-together" title="Permanent link">&para;</a></h2>

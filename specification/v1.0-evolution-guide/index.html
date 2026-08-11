@@ -566,9 +566,29 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../../composer/" class="md-nav__link">
+    
+    
+      
         
+          
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../composer/" class="md-nav__link ">
+              
   
   
   <span class="md-ellipsis">
@@ -582,7 +602,59 @@
   
   
 
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    A2UI Composer ⭐
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../composer/composer_renderer_integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composer Integration
+  
+
+    
+  </span>
+  
+  
+
       </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2491,6 +2563,7 @@
 <li>Added <code>callFunction</code> message structure (<code>CallFunctionMessage</code>) to support agent-initiated function execution. Removed <code>callableFrom</code> and <code>returnType</code> properties from the wire payload, relying on runtime catalog verification.</li>
 <li>Updated the <code>createSurface</code> message (<code>CreateSurfaceMessage</code>) to remove the <code>theme</code> field, allowed passing initial <code>components</code> and <code>dataModel</code> directly inside the payload, and made <code>catalogId</code> an optional parameter that acts as the surface's default catalog.</li>
 <li>Added an optional <code>catalogId</code> property to <code>ComponentCommon</code> and <code>FunctionCall</code> in <code>common_types.json</code> to enable mixing catalogs and explicitly designating the catalog on individual components or function calls.</li>
+<li>Added the <code>Component</code> definition in <code>agent_to_renderer.json</code> (referenced by <code>ComponentsList</code>) to compose <code>ComponentCommon</code> (<code>$ref: "common_types.json#/$defs/ComponentCommon"</code>) so base component properties are validated at the envelope level regardless of catalog structure.</li>
 <li>Updated all protocol version references and envelopes from <code>v0.9</code> or <code>v0.9.1</code> to <code>v1.0</code>.</li>
 </ul>
 <h3 id="24-renderer-to-agent-events">2.4. Renderer-to-agent events<a class="headerlink" href="#24-renderer-to-agent-events" title="Permanent link">&para;</a></h3>
