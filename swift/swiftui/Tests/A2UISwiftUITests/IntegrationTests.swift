@@ -109,21 +109,24 @@ struct IntegrationTests {
       actionHandler: handler
     )
 
-    try processor.process(line: """
-      {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-      """)
-    try processor.process(line: """
-      {"version": "v0.9.1", "updateDataModel": {"surfaceId": "s1", "path": "/buttonLabel", "value": "Submit"}}
-      """)
-    try processor.process(line: """
-      {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
-        {
-          "id": "root",
-          "component": "button",
-          "label": {"path": "/buttonLabel"}
-        }
-      ]}}
-      """)
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
+        """)
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "updateDataModel": {"surfaceId": "s1", "path": "/buttonLabel", "value": "Submit"}}
+        """)
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
+          {
+            "id": "root",
+            "component": "button",
+            "label": {"path": "/buttonLabel"}
+          }
+        ]}}
+        """)
 
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     #expect(vm?.dataModel.get("/buttonLabel")?.stringValue == "Submit")
@@ -139,24 +142,26 @@ struct IntegrationTests {
       actionHandler: handler
     )
 
-    try processor.process(line: """
-      {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-      """)
-    try processor.process(line: """
-      {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
-        {
-          "id": "root",
-          "component": "button",
-          "label": "Click Me",
-          "onClick": {
-            "event": {
-              "name": "submit",
-              "context": {"formId": "contact"}
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
+        """)
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
+          {
+            "id": "root",
+            "component": "button",
+            "label": "Click Me",
+            "onClick": {
+              "event": {
+                "name": "submit",
+                "context": {"formId": "contact"}
+              }
             }
           }
-        }
-      ]}}
-      """)
+        ]}}
+        """)
 
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     let root = try #require(vm?.componentsModel.get("root"))
@@ -173,18 +178,20 @@ struct IntegrationTests {
       actionHandler: handler
     )
 
-    try processor.process(line: """
-      {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-      """)
-    try processor.process(line: """
-      {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
-        {
-          "id": "label1",
-          "component": "text",
-          "text": "Hello, World!"
-        }
-      ]}}
-      """)
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
+        """)
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
+          {
+            "id": "label1",
+            "component": "text",
+            "text": "Hello, World!"
+          }
+        ]}}
+        """)
 
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     let textComp = vm?.componentsModel.get("label1")
@@ -201,46 +208,51 @@ struct IntegrationTests {
       actionHandler: handler
     )
 
-    try processor.process(line: """
-      {"version": "v0.9.1", "createSurface": {"surfaceId": "form-surface", "catalogId": "default"}}
-      """)
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "createSurface": {"surfaceId": "form-surface", "catalogId": "default"}}
+        """)
 
     // Step 1: Create form with text fields bound to data model
-    try processor.process(line: """
-      {"version": "v0.9.1", "updateComponents": {"surfaceId": "form-surface", "components": [
-        {
-          "id": "nameField",
-          "component": "textField",
-          "value": {"path": "/form/name"},
-          "placeholder": "Enter your name"
-        },
-        {
-          "id": "emailField",
-          "component": "textField",
-          "value": {"path": "/form/email"},
-          "placeholder": "Enter your email"
-        },
-        {
-          "id": "submitBtn",
-          "component": "button",
-          "label": {"path": "/form/submitLabel"},
-          "onClick": {
-            "event": {"name": "submitForm"}
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "updateComponents": {"surfaceId": "form-surface", "components": [
+          {
+            "id": "nameField",
+            "component": "textField",
+            "value": {"path": "/form/name"},
+            "placeholder": "Enter your name"
+          },
+          {
+            "id": "emailField",
+            "component": "textField",
+            "value": {"path": "/form/email"},
+            "placeholder": "Enter your email"
+          },
+          {
+            "id": "submitBtn",
+            "component": "button",
+            "label": {"path": "/form/submitLabel"},
+            "onClick": {
+              "event": {"name": "submitForm"}
+            }
           }
-        }
-      ]}}
-      """)
+        ]}}
+        """)
 
     // Step 2: Update data model with user input
-    try processor.process(line: """
-      {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/name", "value": "Alice"}}
-      """)
-    try processor.process(line: """
-      {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/email", "value": "alice@example.com"}}
-      """)
-    try processor.process(line: """
-      {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/submitLabel", "value": "Submit Form"}}
-      """)
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/name", "value": "Alice"}}
+        """)
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/email", "value": "alice@example.com"}}
+        """)
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/submitLabel", "value": "Submit Form"}}
+        """)
 
     // Verify data model state
     let vm = try #require(processor.surfaceGroupModel.surfacesMap["form-surface"])
@@ -252,9 +264,10 @@ struct IntegrationTests {
     #expect(vm.componentsModel.components.count == 3)
 
     // Step 3: Update name and verify
-    try processor.process(line: """
-      {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/name", "value": "Bob"}}
-      """)
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/name", "value": "Bob"}}
+        """)
     #expect(vm.dataModel.get("/form/name")?.stringValue == "Bob")
   }
 
@@ -268,15 +281,17 @@ struct IntegrationTests {
       actionHandler: handler
     )
 
-    try processor.process(line: """
-      {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-      """)
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
+        """)
 
-    try processor.process(line: """
-      {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
-        {"id": "root", "component": "text", "text": "Hello"}
-      ]}}
-      """)
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
+          {"id": "root", "component": "text", "text": "Hello"}
+        ]}}
+        """)
 
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     let components = vm?.componentsModel.components
@@ -291,22 +306,24 @@ struct IntegrationTests {
       actionHandler: handler
     )
 
-    try processor.process(line: """
-      {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-      """)
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
+        """)
 
-    try processor.process(line: """
-      {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
-        {"id": "lbl", "component": "text", "text": {"path": "/title"}}
-      ]}}
-      """)
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
+          {"id": "lbl", "component": "text", "text": {"path": "/title"}}
+        ]}}
+        """)
 
-    try processor.process(line: """
-      {"version": "v0.9.1", "updateDataModel": {"surfaceId": "s1", "path": "/title", "value": "Dynamic Title"}}
-      """)
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "updateDataModel": {"surfaceId": "s1", "path": "/title", "value": "Dynamic Title"}}
+        """)
 
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     #expect(vm?.dataModel.get("/title")?.stringValue == "Dynamic Title")
   }
 }
-

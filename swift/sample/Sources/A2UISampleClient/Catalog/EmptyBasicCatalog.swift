@@ -39,6 +39,6 @@ public enum EmptyBasicCatalog: Sendable {
   public static let allCatalogs: [String: Catalog] = [
     v09Catalog.id: v09Catalog,
     v091Catalog.id: v091Catalog,
-    v10Catalog.id: v10Catalog
+    v10Catalog.id: v10Catalog,
   ]
 }

@@ -34,7 +34,9 @@ public struct MessageStreamPane: View {
             HStack {
               Text("Step \(index + 1)")
                 .font(.caption.weight(.bold))
-                .foregroundStyle(index < currentStepIndex ? .green : (index == currentStepIndex ? .blue : .secondary))
+                .foregroundStyle(
+                  index < currentStepIndex
+                    ? .green : (index == currentStepIndex ? .blue : .secondary))
               Spacer()
               if index < currentStepIndex {
                 Image(systemName: "checkmark.circle.fill")
@@ -55,7 +57,10 @@ public struct MessageStreamPane: View {
               .font(.system(.caption, design: .monospaced))
               .lineLimit(nil)
               .padding(10)
-              .background(index == currentStepIndex ? Color.blue.opacity(0.1) : Color(.secondarySystemBackground))
+              .background(
+                index == currentStepIndex
+                  ? Color.blue.opacity(0.1) : Color(.secondarySystemBackground)
+              )
               .cornerRadius(6)
               .overlay(
                 RoundedRectangle(cornerRadius: 6)

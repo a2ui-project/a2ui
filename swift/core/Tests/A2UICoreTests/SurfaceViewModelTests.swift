@@ -295,8 +295,8 @@ struct SurfaceViewModelTests {
           "component": "button",
           "label": [
             "call": "concat",
-            "args": ["a": "Hello, ", "b": "World!"]
-          ]
+            "args": ["a": "Hello, ", "b": "World!"],
+          ],
         ]
       ]
     )

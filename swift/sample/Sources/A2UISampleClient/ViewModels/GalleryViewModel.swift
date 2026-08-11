@@ -124,7 +124,8 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
     self.logEntries = [
       DiagnosticLogEntry(
         type: .info,
-        message: "Stream reset. Ready to process step 1 of \(selectedSample?.rawMessages.count ?? 0)."
+        message:
+          "Stream reset. Ready to process step 1 of \(selectedSample?.rawMessages.count ?? 0)."
       )
     ]
   }
@@ -159,7 +160,9 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
   }
 
   private func updateActiveSurfaceObservation() {
-    if activeSurfaceViewModel == nil, let firstSurface = processor.surfaceGroupModel.surfacesMap.values.first {
+    if activeSurfaceViewModel == nil,
+      let firstSurface = processor.surfaceGroupModel.surfacesMap.values.first
+    {
       activeSurfaceViewModel = firstSurface
       firstSurface.actionHandler = self.handler
 

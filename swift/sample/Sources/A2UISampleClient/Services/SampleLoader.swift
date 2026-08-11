@@ -24,10 +24,13 @@ public enum SampleLoader: Sendable {
     let fm = FileManager.default
 
     // Search for copied folder reference named "examples" (from specification/v0_9_1/catalogs/basic/examples)
-    if let examplesURL = Bundle.main.url(forResource: "examples", withExtension: nil) ??
-        findSubdirectory(named: "examples", in: Bundle.main.bundleURL) {
+    if let examplesURL = Bundle.main.url(forResource: "examples", withExtension: nil)
+      ?? findSubdirectory(named: "examples", in: Bundle.main.bundleURL)
+    {
       if let files = try? fm.contentsOfDirectory(at: examplesURL, includingPropertiesForKeys: nil) {
-        let jsonFiles = files.filter { $0.pathExtension.lowercased() == "json" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        let jsonFiles = files.filter { $0.pathExtension.lowercased() == "json" }.sorted {
+          $0.lastPathComponent < $1.lastPathComponent
+        }
         for url in jsonFiles {
           if let stream = parseJSONExampleFile(at: url) {
             streams.append(stream)
@@ -37,10 +40,13 @@ public enum SampleLoader: Sendable {
     }
 
     // Search for copied folder reference named "cases" (from specification/v0_9_1/test/cases)
-    if let casesURL = Bundle.main.url(forResource: "cases", withExtension: nil) ??
-        findSubdirectory(named: "cases", in: Bundle.main.bundleURL) {
+    if let casesURL = Bundle.main.url(forResource: "cases", withExtension: nil)
+      ?? findSubdirectory(named: "cases", in: Bundle.main.bundleURL)
+    {
       if let files = try? fm.contentsOfDirectory(at: casesURL, includingPropertiesForKeys: nil) {
-        let jsonlFiles = files.filter { $0.pathExtension.lowercased() == "jsonl" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        let jsonlFiles = files.filter { $0.pathExtension.lowercased() == "jsonl" }.sorted {
+          $0.lastPathComponent < $1.lastPathComponent
+        }
         for url in jsonlFiles {
           if let stream = parseJSONLStreamFile(at: url) {
             streams.append(stream)
@@ -56,7 +62,8 @@ public enum SampleLoader: Sendable {
 
   private static func findSubdirectory(named name: String, in root: URL) -> URL? {
     let fm = FileManager.default
-    guard let enumerator = fm.enumerator(at: root, includingPropertiesForKeys: [.isDirectoryKey]) else {
+    guard let enumerator = fm.enumerator(at: root, includingPropertiesForKeys: [.isDirectoryKey])
+    else {
       return nil
     }
     for case let url as URL in enumerator {
@@ -72,12 +79,15 @@ public enum SampleLoader: Sendable {
 
   private static func parseJSONExampleFile(at url: URL) -> SampleStream? {
     guard let data = try? Data(contentsOf: url),
-          let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+      let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else {
       return nil
     }
 
     let rawSlug = url.deletingPathExtension().lastPathComponent
-    let title = (jsonObject["name"] as? String) ?? rawSlug.replacingOccurrences(of: "_", with: " ").capitalized
+    let title =
+      (jsonObject["name"] as? String)
+      ?? rawSlug.replacingOccurrences(of: "_", with: " ").capitalized
     let description = jsonObject["description"] as? String
 
     guard let messagesArray = jsonObject["messages"] as? [Any] else {
@@ -87,7 +97,8 @@ public enum SampleLoader: Sendable {
     var messageLines: [String] = []
     for msg in messagesArray {
       if let msgData = try? JSONSerialization.data(withJSONObject: msg, options: []),
-         let msgString = String(data: msgData, encoding: .utf8) {
+        let msgString = String(data: msgData, encoding: .utf8)
+      {
         messageLines.append(msgString)
       }
     }

@@ -68,11 +68,13 @@ public struct GalleryMainView: View {
             .foregroundStyle(.secondary)
           Text("Select an A2UI Sample")
             .font(.title2.weight(.medium))
-          Text("Choose a JSON or JSONL specification stream from the sidebar to inspect progressive rendering and reactive message evaluation.")
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, 40)
+          Text(
+            "Choose a JSON or JSONL specification stream from the sidebar to inspect progressive rendering and reactive message evaluation."
+          )
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
+          .padding(.horizontal, 40)
         }
       }
     }

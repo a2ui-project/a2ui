@@ -20,6 +20,7 @@ Adhering to the A2UI Spec-Driven Development framework adapter blueprint (`a2ui_
 ## 2. Zero-Duplication Resource Streaming
 
 To preserve Git repository efficiency, this application **does not duplicate** sample JSON files in source control. Instead, `A2UISampleClient.xcodeproj` uses native **Xcode Folder References** to point directly to authoritative repository specifications at build time:
+
 - `specification/v0_9_1/catalogs/basic/examples/` (.json streams)
 - `specification/v0_9_1/test/cases/` (.jsonl test streams)
 
@@ -37,7 +38,7 @@ The sample app is built exclusively as an iOS Application via Xcode (`A2UISample
    ```bash
    open swift/sample/A2UISampleClient.xcodeproj
    ```
-2. In the Xcode scheme picker, select **A2UISampleClient** and choose an iOS Simulator destination (e.g., *iPhone 16 Pro, iOS 18*).
+2. In the Xcode scheme picker, select **A2UISampleClient** and choose an iOS Simulator destination (e.g., _iPhone 16 Pro, iOS 18_).
 3. Press **⌘R** (or navigate to **Product > Run**) to build and launch the application in Simulator.
 
 ### Option B: Using Command Line (`xcodebuild` + `simctl`)

@@ -21,6 +21,7 @@ The Swift library packages are governed by the root monorepo `Package.swift`, se
 ## Getting Started & Building
 
 ### Library Targets & Running Unit Tests
+
 All non-application library targets and unit test suites are managed via Swift Package Manager (SPM) at the monorepo root:
 
 ```bash
@@ -32,6 +33,7 @@ swift test
 ```
 
 ### Running the Sample Gallery App
+
 The iOS sample client application is built and executed using native Xcode project tools. Consult **[swift/sample/README.md](sample/README.md)** for step-by-step instructions on opening in Xcode or executing via command line (`xcodebuild` + `simctl`).
 
 ---
