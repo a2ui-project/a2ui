@@ -23,9 +23,13 @@ import {buildAllowAttribute} from '@modelcontextprotocol/ext-apps/app-bridge';
 // Allow configuring the expected host origin via environment variable for production
 const meta = import.meta as any;
 const allowedHostOrigin = meta && meta.env ? meta.env.VITE_ALLOWED_HOST_ORIGIN : undefined;
-export const ALLOWED_REFERRER_PATTERN = allowedHostOrigin
-  ? new RegExp(`^${allowedHostOrigin.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}`)
-  : /^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/;
+export function createAllowedReferrerPattern(allowedHostOrigin?: string): RegExp {
+  return allowedHostOrigin
+    ? new RegExp(`^${allowedHostOrigin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(:|\\/|$)`)
+    : /^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/;
+}
+
+export const ALLOWED_REFERRER_PATTERN = createAllowedReferrerPattern(allowedHostOrigin);
 
 export const SENSITIVE_PERMISSIONS = [
   'camera',

@@ -20,6 +20,7 @@ import {
   normalizeOrigin,
   SENSITIVE_PERMISSIONS,
   ALLOWED_REFERRER_PATTERN,
+  createAllowedReferrerPattern,
   RESOURCE_READY_NOTIFICATION,
   PROXY_READY_NOTIFICATION,
 } from './sandbox';
@@ -126,12 +127,14 @@ describe('mcp_apps_inner_iframe sandbox', () => {
     });
   });
 
-  describe('ALLOWED_REFERRER_PATTERN', () => {
+  describe('ALLOWED_REFERRER_PATTERN and createAllowedReferrerPattern', () => {
     it('matches valid localhost and 127.0.0.1 referrers', () => {
       expect(ALLOWED_REFERRER_PATTERN.test('http://localhost:4200/')).toBe(true);
       expect(ALLOWED_REFERRER_PATTERN.test('http://localhost/app')).toBe(true);
       expect(ALLOWED_REFERRER_PATTERN.test('http://127.0.0.1:8080/')).toBe(true);
       expect(ALLOWED_REFERRER_PATTERN.test('http://127.0.0.1/')).toBe(true);
+      expect(ALLOWED_REFERRER_PATTERN.test('http://localhost:4200')).toBe(true);
+      expect(ALLOWED_REFERRER_PATTERN.test('http://127.0.0.1')).toBe(true);
     });
 
     it('rejects attacker/phishing referrers imitating localhost', () => {
@@ -139,6 +142,20 @@ describe('mcp_apps_inner_iframe sandbox', () => {
       expect(ALLOWED_REFERRER_PATTERN.test('http://localhost.evil.com/')).toBe(false);
       expect(ALLOWED_REFERRER_PATTERN.test('http://127.0.0.1.attacker.org/')).toBe(false);
       expect(ALLOWED_REFERRER_PATTERN.test('https://sub.localhost.phishing.io/')).toBe(false);
+    });
+
+    it('matches configured custom host origin with boundary checks and rejects spoofing', () => {
+      const customPattern = createAllowedReferrerPattern('https://a2ui.org');
+      expect(customPattern.test('https://a2ui.org')).toBe(true);
+      expect(customPattern.test('https://a2ui.org/')).toBe(true);
+      expect(customPattern.test('https://a2ui.org:8443/app')).toBe(true);
+      expect(customPattern.test('https://a2ui.org/dashboard')).toBe(true);
+
+      // Boundary checks: rejects subdomains/prefixes spoofing the configured origin
+      expect(customPattern.test('https://a2ui.org.attacker.com')).toBe(false);
+      expect(customPattern.test('https://a2ui.org-phishing.com')).toBe(false);
+      expect(customPattern.test('https://a2ui.org.attacker.com/path')).toBe(false);
+      expect(customPattern.test('https://evil.com/?origin=https://a2ui.org')).toBe(false);
     });
   });
 });
