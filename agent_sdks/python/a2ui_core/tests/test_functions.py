@@ -293,6 +293,21 @@ def test_formatting_format_date():
         invoke("formatDate", {"value": "2025-01-01T12:00:00Z", "format": "yyyy-MM-dd"})
         == "2025-01-01"
     )
+    # Test extended date formatting tokens
+    dt_str = "2026-03-05T08:04:09Z"
+    assert (
+        invoke("formatDate", {"value": dt_str, "format": "yy-M-d H:mm:ss"})
+        == "26-3-5 8:04:09"
+    )
+    assert (
+        invoke("formatDate", {"value": dt_str, "format": "MMM MMMM E EEEE hh:mm:ss a"})
+        == "Mar March Thu Thursday 08:04:09 AM"
+    )
+    dt_pm_str = "2026-03-05T15:04:09Z"
+    assert (
+        invoke("formatDate", {"value": dt_pm_str, "format": "h:mm:ss a HH"})
+        == "3:04:09 PM 15"
+    )
     # Format ISO
     assert (
         invoke("formatDate", {"value": "2025-01-01T12:00:00Z", "format": "ISO"})
