@@ -128,7 +128,17 @@
           "type": "array"
         },
         {
-          "type": "object"
+          "type": "object",
+          "not": {
+            "anyOf": [
+              {
+                "required": ["path"]
+              },
+              {
+                "required": ["call"]
+              }
+            ]
+          }
         },
         {
           "$ref": "#/$defs/DataBinding"
