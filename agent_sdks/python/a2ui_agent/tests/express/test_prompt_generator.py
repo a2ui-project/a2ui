@@ -216,6 +216,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
 
     def test_express_schema_helper_methods(self):
         from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper as ExpressCatalogSchemaHelper
+
         cat = A2uiCatalog(
             version=VERSION_1_0,
             name="express_helper_catalog",
@@ -242,18 +243,14 @@ class TestExpressPromptGenerator(unittest.TestCase):
                                 ]
                             }
                         }
-                    }
+                    },
                 },
                 "functions": {
                     "openUrl": {
                         "description": "Opens URL",
                         "properties": {
-                            "args": {
-                                "properties": {
-                                    "url": {"type": "string"}
-                                }
-                            }
-                        }
+                            "args": {"properties": {"url": {"type": "string"}}}
+                        },
                     }
                 },
             },
@@ -265,9 +262,10 @@ class TestExpressPromptGenerator(unittest.TestCase):
         self.assertEqual(helper.get_property_type("Button", "children"), "ChildList")
         self.assertEqual(helper.get_property_type("Button", "child"), "Child")
         self.assertEqual(helper.get_property_type("Card", "content"), "ChildList")
-        self.assertEqual(helper.get_function_property_schema("openUrl", "url"), {"type": "string"})
+        self.assertEqual(
+            helper.get_function_property_schema("openUrl", "url"), {"type": "string"}
+        )
 
 
 if __name__ == "__main__":
     unittest.main()
-

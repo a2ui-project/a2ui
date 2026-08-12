@@ -169,6 +169,22 @@ describe('GenericBinder Checkable Trait', () => {
     assert.deepStrictEqual(binder.snapshot.validationErrors, ['Validation failed']);
   });
 
+  it('should default to valid if checks array is empty', () => {
+    const {surface, schema} = setupSurfaceAndMocks();
+
+    const compModel = new ComponentModel('c4', 'Test', {
+      value: 'hello',
+      checks: [],
+    });
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c4');
+    const binder = new GenericBinder<any>(context, schema);
+
+    assert.strictEqual(binder.snapshot.isValid, true);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, []);
+  });
+
   it('should resolve ACTION binding and dispatch resolved payload', () => {
     const {surface} = setupSurfaceAndMocks();
     surface.dataModel.set('/user/name', 'Alice');
@@ -294,8 +310,11 @@ describe('GenericBinder Checkable Trait', () => {
     assert.strictEqual(notificationCount, 1);
 
     sub.unsubscribe();
-    // After unsubscribe, dispose is called automatically
-    binder.dispose();
+    // After unsubscribe, further updates should not notify
+    compModel.properties = {
+      value: {path: '/val'},
+      extra: 'another_prop',
+    };
+    assert.strictEqual(notificationCount, 1);
   });
 });
-

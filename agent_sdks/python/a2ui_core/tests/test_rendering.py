@@ -407,6 +407,7 @@ def test_data_context_expression_error_dispatching():
     errors: List[Dict[str, Any]] = []
 
     class FailingCatalog(BasicCatalog):
+
         def get_function(self, name: str) -> Any:
             if name == "buggy_fn":
                 return lambda args, ctx, abort: 1 / 0
@@ -423,4 +424,3 @@ def test_data_context_expression_error_dispatching():
     assert errors[0]["code"] == "EXPRESSION_ERROR"
     assert errors[0]["expression"] == "buggy_fn"
     assert "division by zero" in errors[0]["message"].lower()
-

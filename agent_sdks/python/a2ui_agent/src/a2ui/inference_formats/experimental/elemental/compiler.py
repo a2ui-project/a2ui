@@ -185,6 +185,31 @@ def _get_enum_values(schema: Any) -> Optional[List[Any]]:
     return None
 
 
+def _get_primitive_property_type(schema: Any) -> Optional[str]:
+    """Resolves primitive type or Dynamic* reference type from a property schema."""
+    if not isinstance(schema, dict):
+        return None
+    if "type" in schema and isinstance(schema["type"], str):
+        return schema["type"]
+    if "$ref" in schema and isinstance(schema["$ref"], str):
+        ref = schema["$ref"]
+        if "DynamicBoolean" in ref or ref.endswith("/Boolean"):
+            return "boolean"
+        if "DynamicInteger" in ref or ref.endswith("/Integer"):
+            return "integer"
+        if "DynamicNumber" in ref or ref.endswith("/Number"):
+            return "number"
+        if "DynamicString" in ref or ref.endswith("/String"):
+            return "string"
+    for key in ["oneOf", "anyOf", "allOf"]:
+        if key in schema and isinstance(schema[key], list):
+            for sub in schema[key]:
+                res = _get_primitive_property_type(sub)
+                if res:
+                    return res
+    return None
+
+
 def _escape_nested_script_tags(html: str) -> str:
     """Escapes nested </script> tags inside <script type="application/json"> blocks.
 
@@ -658,7 +683,7 @@ class ElementalCompiler:
             prop_schema = self.helper.get_property_schema(comp_name, prop_name)
 
             if isinstance(parsed_val, str) and prop_schema:
-                prop_type = prop_schema.get("type")
+                prop_type = _get_primitive_property_type(prop_schema)
                 # 1. Coerce boolean values
                 if prop_type == "boolean":
                     if parsed_val.lower() == "true":

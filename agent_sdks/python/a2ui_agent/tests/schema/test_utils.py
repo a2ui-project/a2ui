@@ -148,22 +148,30 @@ class TestSchemaUtils(unittest.TestCase):
                             "args": {
                                 "type": "object",
                                 "properties": {
-                                    "param1": {"type": "string", "description": "Param 1"}
-                                }
+                                    "param1": {
+                                        "type": "string",
+                                        "description": "Param 1",
+                                    }
+                                },
                             }
-                        }
+                        },
                     }
-                }
-            }
+                },
+            },
         )
 
         helper = CatalogSchemaHelper(catalog)
-        self.assertEqual(helper.get_component_description("CustomButton"), "A test button component.")
-        self.assertEqual(helper.get_function_description("testFunc"), "A test function.")
+        self.assertEqual(
+            helper.get_component_description("CustomButton"), "A test button component."
+        )
+        self.assertEqual(
+            helper.get_function_description("testFunc"), "A test function."
+        )
         self.assertEqual(helper.get_property_type("CustomButton", "action"), "Action")
-        self.assertEqual(helper.get_property_type("CustomButton", "children"), "ChildList")
+        self.assertEqual(
+            helper.get_property_type("CustomButton", "children"), "ChildList"
+        )
         self.assertEqual(helper.get_property_type("CustomButton", "child"), "Child")
-        
         fn_prop_schema = helper.get_function_property_schema("testFunc", "param1")
         self.assertEqual(fn_prop_schema, {"type": "string", "description": "Param 1"})
 
@@ -174,4 +182,3 @@ class TestSchemaUtils(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

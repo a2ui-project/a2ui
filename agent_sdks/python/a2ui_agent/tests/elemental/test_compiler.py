@@ -735,25 +735,20 @@ class TestElementalCompiler(unittest.TestCase):
         )
 
     def test_compiler_string_coercion_types(self):
-        """Test type coercion of string boolean and number attributes."""
-        orig_get_prop = self.compiler.helper.get_property_schema
-        try:
-            self.compiler.helper.get_property_schema = lambda comp, prop: (
-                {"type": "boolean"} if prop == "value" else orig_get_prop(comp, prop)
-            )
-            html_coercion = (
-                '<body id="test-surf">\n'
-                '  <ui-check-box id="input_1" value="true" label="Agree" />\n'
-                '</body>'
-            )
-            res = self.compiler.compile(html_coercion)
-            comps = res["createSurface"]["components"]
-            cb = comps[0]
-            self.assertEqual(cb["value"], True)
-        finally:
-            self.compiler.helper.get_property_schema = orig_get_prop
+        """Test type coercion of string boolean attributes using real catalog schemas."""
+        html_coercion = (
+            '<body id="test-surf">\n'
+            '  <ui-check-box id="input_1" value="true" label="Agree" />\n'
+            '  <ui-check-box id="input_2" value="false" label="Disagree" />\n'
+            "</body>"
+        )
+        res = self.compiler.compile(html_coercion)
+        comps = res["createSurface"]["components"]
+        cb1 = next(c for c in comps if c["id"] == "input_1")
+        cb2 = next(c for c in comps if c["id"] == "input_2")
+        self.assertEqual(cb1["value"], True)
+        self.assertEqual(cb2["value"], False)
 
 
 if __name__ == "__main__":
     unittest.main()
-
