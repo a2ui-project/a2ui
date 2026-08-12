@@ -331,10 +331,10 @@ async def test_file_resolver_lifecycle():
 @pytest.mark.asyncio
 async def test_as_tool_decorator():
     resolver = FileResolver()
-    
+
     file1_bytes = b"%PDF-1.4 Doc 1"
     b64_1 = base64.b64encode(file1_bytes).decode("utf-8")
-    
+
     def on_error(e: Exception):
         return {"error": str(e)}
 
@@ -355,7 +355,7 @@ async def test_as_tool_decorator():
     # Test successful resolution
     files = [{"fileId": f"data:application/pdf;base64,{b64_1}"}]
     out_files, out_parts = await my_tool(my_files=files)
-    
+
     assert out_files[0].get("preprocessed") is True
     assert len(out_parts) == 1
     assert out_parts[0].inline_data.mime_type == "application/pdf"

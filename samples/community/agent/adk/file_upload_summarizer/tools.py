@@ -23,6 +23,7 @@ from file_resolution import resolve_files
 
 logger = logging.getLogger(__name__)
 
+
 async def show_file_uploader_tool(tool_context: ToolContext, multiple: bool = False):
     """Displays the A2UI FileUpload demonstration surface with uploader and button.
 
@@ -140,7 +141,7 @@ async def summarize_file_tool(
                 "summary_text": "Expected a list of files.",
                 "status": "error",
             }
-        
+
         if not files:
             return {
                 "summary_title": "Invalid Input",
@@ -201,8 +202,6 @@ async def summarize_file_tool(
         logger.error(f"Error summarizing files: {e}\n{traceback.format_exc()}")
         return {
             "summary_title": "Summarization Error",
-            "summary_text": (
-                f"Could not generate summary: {str(e)}"
-            ),
+            "summary_text": f"Could not generate summary: {str(e)}",
             "status": "error",
         }

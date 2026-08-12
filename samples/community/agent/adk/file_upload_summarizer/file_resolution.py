@@ -16,7 +16,7 @@
 
 This module sets up the FileResolver used by the File Upload Summarizer sample agent.
 It configures custom file resolution handlers (e.g., mockdrive://) and security
-constraints (allowed MIME types). Finally, it exports a configured `resolve_files` 
+constraints (allowed MIME types). Finally, it exports a configured `resolve_files`
 decorator to automatically download and inject file contents directly into tools.
 """
 
@@ -43,6 +43,7 @@ ALLOWED_MIME_TYPES = [
 
 _http_client = httpx.AsyncClient()
 
+
 async def _mock_drive_handler(file_id: str, file_info: Dict[str, Any]) -> bytes:
     drive_id = file_id.removeprefix(MOCK_DRIVE_SCHEME)
     base_url = file_info.get("base_url") or DEFAULT_BASE_URL
@@ -51,11 +52,13 @@ async def _mock_drive_handler(file_id: str, file_info: Dict[str, Any]) -> bytes:
     response.raise_for_status()
     return response.content
 
+
 resolver = FileResolver(
     allowed_mime_types=ALLOWED_MIME_TYPES,
     custom_schemes={MOCK_DRIVE_SCHEME: _mock_drive_handler},
     http_client=_http_client,
 )
+
 
 def _handle_resolution_error(e: Exception) -> dict:
     if isinstance(e, FileResolverSecurityError):
@@ -72,15 +75,17 @@ def _handle_resolution_error(e: Exception) -> dict:
         "status": "error",
     }
 
+
 def _preprocess_mockdrive(file_info: dict, args: tuple, kwargs: dict) -> None:
     tool_context = kwargs.get("tool_context")
     if not tool_context and args and hasattr(args[0], "session"):
         tool_context = args[0]
-        
+
     base_url = DEFAULT_BASE_URL
     if tool_context and hasattr(tool_context, "session"):
         base_url = tool_context.session.state.get(STATE_KEY_BASE_URL, DEFAULT_BASE_URL)
     file_info.setdefault("base_url", base_url)
+
 
 resolve_files = resolver.as_tool_decorator(
     arg_name="files",
