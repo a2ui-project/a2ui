@@ -337,41 +337,8 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
     basePath: String?,
     data: JSONValue
   ) -> JSONValue {
-    switch value {
-    case .object(let dict):
-      if let pathStr = dict["path"]?.stringValue {
-        let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-        return data[absPath] ?? .null
-      } else if let callName = dict["call"]?.stringValue {
-        let callCatalogID = dict["catalogId"]?.stringValue ?? defaultCatalogID
-        var function = getCatalog(id: callCatalogID)?.functions[callName]
-        if function == nil && dict["catalogId"] == nil {
-          for catalog in catalogs.values {
-            if let matchingFunction = catalog.functions[callName] {
-              function = matchingFunction
-              break
-            }
-          }
-        }
-        guard let function else {
-          return .null
-        }
-        var resolvedArgs: [String: JSONValue] = [:]
-        if let argsObj = dict["args"]?.dictionaryValue {
-          for (argKey, argVal) in argsObj {
-            resolvedArgs[argKey] = evaluateDynamicValue(argVal, basePath: basePath, data: data)
-          }
-        }
-        do {
-          return try function.evaluate(arguments: resolvedArgs)
-        } catch {
-          return .null
-        }
-      }
-      return value
-    default:
-      return value
-    }
+    let context = DataContext(dataModel: dataModel, path: basePath ?? "", functionHandler: self)
+    return context.resolveDynamicValue(value)
   }
 
   // MARK: - Dynamic Type-Specific Resolvers
@@ -623,3 +590,22 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
     }
   }
 }
+
+// MARK: - FunctionHandler
+
+extension SurfaceViewModel: FunctionHandler {
+  public func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
+    let callCatalogID = catalogID ?? defaultCatalogID
+    var function = getCatalog(id: callCatalogID)?.functions[name]
+    if function == nil && catalogID == nil {
+      for catalog in catalogs.values {
+        if let matchingFunction = catalog.functions[name] {
+          function = matchingFunction
+          break
+        }
+      }
+    }
+    return function
+  }
+}
+
