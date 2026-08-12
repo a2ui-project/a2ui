@@ -264,7 +264,7 @@
       }
     },
     {
-      "description": "Button action with optional displayName",
+      "description": "Button action with optional userMessage (literal and path binding)",
       "valid": true,
       "data": {
         "version": "v1.0",
@@ -278,7 +278,20 @@
               "action": {
                 "event": {
                   "name": "submit_deal",
-                  "displayName": "Saved deal"
+                  "userMessage": "Saved deal"
+                }
+              }
+            },
+            {
+              "id": "btn_path",
+              "component": "Button",
+              "child": "txt_dn",
+              "action": {
+                "event": {
+                  "name": "submit_deal",
+                  "userMessage": {
+                    "path": "/form/userMsg"
+                  }
                 }
               }
             },

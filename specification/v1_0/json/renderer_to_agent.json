@@ -18,9 +18,9 @@
           "type": "string",
           "description": "The name of the action, taken from the component's action.event.name property."
         },
-        "displayName": {
+        "userMessage": {
           "type": "string",
-          "description": "An optional human-readable string associated with the action, taken from the component's action.event.displayName property."
+          "description": "An optional human-readable string describing the action performed by the user, taken from the component's action.event.userMessage property after resolving bindings."
         },
         "surfaceId": {
           "type": "string",
