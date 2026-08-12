@@ -189,17 +189,22 @@ def _get_primitive_property_type(schema: Any) -> Optional[str]:
     """Resolves primitive type or Dynamic* reference type from a property schema."""
     if not isinstance(schema, dict):
         return None
-    if "type" in schema and isinstance(schema["type"], str):
-        return schema["type"]
+    if "type" in schema:
+        if isinstance(schema["type"], str):
+            return schema["type"]
+        if isinstance(schema["type"], list):
+            for t in schema["type"]:
+                if isinstance(t, str) and t != "null":
+                    return t
     if "$ref" in schema and isinstance(schema["$ref"], str):
-        ref = schema["$ref"]
-        if "DynamicBoolean" in ref or ref.endswith("/Boolean"):
+        ref_lower = schema["$ref"].lower()
+        if "dynamicboolean" in ref_lower or ref_lower.endswith("/boolean"):
             return "boolean"
-        if "DynamicInteger" in ref or ref.endswith("/Integer"):
+        if "dynamicinteger" in ref_lower or ref_lower.endswith("/integer"):
             return "integer"
-        if "DynamicNumber" in ref or ref.endswith("/Number"):
+        if "dynamicnumber" in ref_lower or ref_lower.endswith("/number"):
             return "number"
-        if "DynamicString" in ref or ref.endswith("/String"):
+        if "dynamicstring" in ref_lower or ref_lower.endswith("/string"):
             return "string"
     for key in ["oneOf", "anyOf", "allOf"]:
         if key in schema and isinstance(schema[key], list):

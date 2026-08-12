@@ -749,6 +749,43 @@ class TestElementalCompiler(unittest.TestCase):
         self.assertEqual(cb1["value"], True)
         self.assertEqual(cb2["value"], False)
 
+    def test_get_primitive_property_type_edge_cases(self):
+        """Test _get_primitive_property_type with nullable list types and case-insensitive refs."""
+        from a2ui.inference_formats.experimental.elemental.compiler import _get_primitive_property_type
+
+        # 1. Non-dict input
+        self.assertIsNone(_get_primitive_property_type(None))
+        self.assertIsNone(_get_primitive_property_type("not_a_dict"))
+
+        # 2. List type / nullable
+        self.assertEqual(
+            _get_primitive_property_type({"type": ["string", "null"]}), "string"
+        )
+        self.assertEqual(
+            _get_primitive_property_type({"type": ["null", "boolean"]}), "boolean"
+        )
+        self.assertIsNone(_get_primitive_property_type({"type": ["null"]}))
+
+        # 3. Case-insensitive $ref
+        self.assertEqual(
+            _get_primitive_property_type({"$ref": "#/$defs/dynamicboolean"}), "boolean"
+        )
+        self.assertEqual(
+            _get_primitive_property_type(
+                {"$ref": "common_types.json#/definitions/boolean"}
+            ),
+            "boolean",
+        )
+        self.assertEqual(
+            _get_primitive_property_type({"$ref": "#/$defs/dynamicinteger"}), "integer"
+        )
+        self.assertEqual(
+            _get_primitive_property_type({"$ref": "#/$defs/dynamicnumber"}), "number"
+        )
+        self.assertEqual(
+            _get_primitive_property_type({"$ref": "#/$defs/dynamicstring"}), "string"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
