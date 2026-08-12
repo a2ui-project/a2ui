@@ -39,7 +39,6 @@ on:
 
 jobs:
   changes:
-    name: Detect Changes
     if: github.repository == 'a2ui-project/a2ui'
     runs-on: ubuntu-latest
     permissions:
@@ -66,7 +65,6 @@ jobs:
               - "**.md"
 
   build_and_deploy:
-    name: Build and Deploy Docs
     needs: changes
     if: github.repository == 'a2ui-project/a2ui' && (github.event_name == 'push' || needs.changes.outputs.docs == 'true')
     runs-on: ubuntu-latest
