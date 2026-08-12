@@ -454,9 +454,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/web_core@workspace:*, @a2ui/web_core@workspace:renderers/web_core":
+"@a2ui/web_core@workspace:*, @a2ui/web_core@workspace:typescript/web_core":
   version: 0.0.0-use.local
-  resolution: "@a2ui/web_core@workspace:renderers/web_core"
+  resolution: "@a2ui/web_core@workspace:typescript/web_core"
   dependencies:
     "@angular/core": "npm:^21.2.5"
     "@preact/signals-core": "npm:^1.14.2"

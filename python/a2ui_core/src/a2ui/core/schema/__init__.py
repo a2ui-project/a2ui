@@ -12,45 +12,58 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Auto-generated. Do not edit manually.
-from .common_types import (
-    StrictBaseModel as StrictBaseModel,
-    DataBinding as DataBinding,
-    FunctionCall as FunctionCall,
-    AccessibilityAttributes as AccessibilityAttributes,
-    CheckRule as CheckRule,
-    ActionEvent as ActionEvent,
-    Action as Action,
-    ComponentCommon as ComponentCommon,
-)
-from .constants import *
-from .server_to_client import (
-    CreateSurfaceMessage as CreateSurfaceMessage,
-    CreateSurface as CreateSurface,
-    UpdateComponentsMessage as UpdateComponentsMessage,
-    UpdateComponents as UpdateComponents,
-    UpdateDataModelMessage as UpdateDataModelMessage,
-    UpdateDataModel as UpdateDataModel,
-    DeleteSurfaceMessage as DeleteSurfaceMessage,
-    DeleteSurface as DeleteSurface,
-    A2uiMessage as A2uiMessage,
-    A2uiMessageListWrapper as A2uiMessageListWrapper,
-)
+"""A2UI Core Schema package providing protocol version models and multi-version union types."""
+
+from typing import Union
+
 from .client_capabilities import (
     A2uiClientCapabilities as A2uiClientCapabilities,
-    V09Capabilities as V09Capabilities,
-    InlineCatalog as InlineCatalog,
     FunctionDefinition as FunctionDefinition,
+    InlineCatalog as InlineCatalog,
+    V09Capabilities as V09Capabilities,
 )
 from .client_to_server import (
-    A2uiClientMessage as A2uiClientMessage,
-    A2uiClientActionMessage as A2uiClientActionMessage,
-    A2uiClientErrorMessage as A2uiClientErrorMessage,
     A2uiClientAction as A2uiClientAction,
-    A2uiValidationError as A2uiValidationError,
-    A2uiGenericError as A2uiGenericError,
-    A2uiClientError as A2uiClientError,
+    A2uiClientActionMessage as A2uiClientActionMessage,
     A2uiClientDataModel as A2uiClientDataModel,
+    A2uiClientError as A2uiClientError,
+    A2uiClientErrorMessage as A2uiClientErrorMessage,
+    A2uiClientMessage as A2uiClientMessage,
     A2uiClientMessageList as A2uiClientMessageList,
     A2uiClientMessageListWrapper as A2uiClientMessageListWrapper,
+    A2uiGenericError as A2uiGenericError,
+    A2uiValidationError as A2uiValidationError,
 )
+from .common_types import (
+    AccessibilityAttributes as AccessibilityAttributes,
+    Action as Action,
+    ActionEvent as ActionEvent,
+    CheckRule as CheckRule,
+    ComponentCommon as ComponentCommon,
+    DataBinding as DataBinding,
+    FunctionCall as FunctionCall,
+    StrictBaseModel as StrictBaseModel,
+)
+from .constants import A2uiProtocolVersion as A2uiProtocolVersion
+from .constants import *
+from .server_to_client import (
+    A2uiMessage as A2uiMessage,
+    A2uiMessageListWrapper as A2uiMessageListWrapper,
+    CreateSurface as CreateSurface,
+    CreateSurfaceMessage as CreateSurfaceMessage,
+    DeleteSurface as DeleteSurface,
+    DeleteSurfaceMessage as DeleteSurfaceMessage,
+    UpdateComponents as UpdateComponents,
+    UpdateComponentsMessage as UpdateComponentsMessage,
+    UpdateDataModel as UpdateDataModel,
+    UpdateDataModelMessage as UpdateDataModelMessage,
+)
+from . import v1_0 as v1_0
+
+# Aliases for v0.9 envelope types
+ServerToClientMessage = A2uiMessage
+ClientToServerMessage = A2uiClientMessage
+
+# Cross-version envelope union types
+AgentToRendererMessage = Union[ServerToClientMessage, v1_0.AgentToRendererMessage]
+RendererToAgentMessage = Union[ClientToServerMessage, v1_0.RendererToAgentMessage]

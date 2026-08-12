@@ -12,18 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI Processing Package."""
+"""A2UI Processing Version Adapters package."""
 
-from .adapters import (
-    VersionAdapter as VersionAdapter,
-    VersionAdapterFactory as VersionAdapterFactory,
-    VersionAdapterV09 as VersionAdapterV09,
-    VersionAdapterV10 as VersionAdapterV10,
-)
-from .message_processor import MessageProcessor as MessageProcessor
+from .base import VersionAdapter as VersionAdapter
+from .factory import VersionAdapterFactory as VersionAdapterFactory
+from .v0_9 import VersionAdapterV09 as VersionAdapterV09
+from .v1_0 import VersionAdapterV10 as VersionAdapterV10
 
 __all__ = [
-    "MessageProcessor",
     "VersionAdapter",
     "VersionAdapterFactory",
     "VersionAdapterV09",

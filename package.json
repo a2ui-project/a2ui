@@ -3,7 +3,10 @@
   "private": true,
   "packageManager": "yarn@4.13.0",
   "workspaces": [
+    "typescript/web_core",
+    "typescript/*",
     "renderers/*",
+    "!renderers/web_core",
     "renderers/angular/*",
     "renderers/lit/*",
     "renderers/markdown/*",
