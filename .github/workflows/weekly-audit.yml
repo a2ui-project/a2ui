@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,13 +22,16 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   run-audit:
     name: Execute Antigravity Compliance Audit
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # Requires issue write permissions to create compliance audit reports
+    permissions:
+      contents: read
+      issues: write
 
     steps:
       - name: Checkout code
