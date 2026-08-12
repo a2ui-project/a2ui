@@ -1,4 +1,4 @@
-// Copyright 2026 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,9 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import A2UICore
 import SwiftUI
 
-// A2UISwiftUI — Thin SwiftUI rendering layer for A2UI.
-// This file is intentionally a placeholder; real types (Surface, CatalogView,
-// DataBinding+SwiftUI, A2UIThemeKey) will be added in a future PR.
+/// Environment key for propagating the catalog implementation through
+/// the SwiftUI view hierarchy.
+public struct A2UICatalogImplementationKey: EnvironmentKey {
+  public static let defaultValue: CatalogImplementation? = nil
+}
+
+extension EnvironmentValues {
+  /// The active A2UI catalog implementation, if any.
+  public var a2uiCatalogImplementation: CatalogImplementation? {
+    get { self[A2UICatalogImplementationKey.self] }
+    set { self[A2UICatalogImplementationKey.self] = newValue }
+  }
+}

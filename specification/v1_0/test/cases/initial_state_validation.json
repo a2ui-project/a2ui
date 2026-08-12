@@ -289,6 +289,64 @@
           ]
         }
       }
+    },
+    {
+      "description": "Invalid: component missing id required by ComponentCommon",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "components": [
+            {
+              "component": "Text",
+              "text": "Missing ID component"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Valid component with accessibility attributes",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "components": [
+            {
+              "id": "root",
+              "component": "Text",
+              "text": "Accessible component",
+              "accessibility": {
+                "label": "Greeting text",
+                "description": "Welcomes the user to the application"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Invalid: component with unexpected property on envelope",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "components": [
+            {
+              "id": "root",
+              "component": "Text",
+              "text": "Invalid prop component",
+              "unknownEnvelopeProp": "invalid"
+            }
+          ]
+        }
+      }
     }
   ]
 }
