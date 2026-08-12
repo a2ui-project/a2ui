@@ -26,7 +26,7 @@ This section describes goals at a high level. See concrete steps in the section 
 2. **PRs**: We will review PRs from external contributors if:
     - the PR contributes to a **P0-P3** issue
     - the issue is linked in the first line of the PR description
-    - the issue is assigned to the contributor (as assignee or in the first line of issue description) or has label `type: contributions-welcome`
+    - the issue is assigned to the contributor by the A2UI team (as assignee or in the first line of issue description) or has label `type: contributions-welcome`
 
     **Exception**: the change is absolutely clear and obviously needed.
 
