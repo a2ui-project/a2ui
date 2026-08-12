@@ -899,6 +899,59 @@ class TestAtomFormat(unittest.TestCase):
         ast2 = parser2.parse()
         self.assertEqual(ast2, [["Text", ":text", 'Line1\nLine2 "quoted"']])
 
+    def test_compile_open_url_and_event_context_list(self):
+        """Test openUrl call resolution and Event context list parsing."""
+        # openUrl with keyword URL
+        text_url = '(callFunction "openUrl" :url "https://example.com/test")'
+        compiled_url = self.compiler.compile(text_url)
+        self.assertEqual(
+            compiled_url["callFunction"],
+            {"call": "openUrl", "args": {"url": "https://example.com/test"}},
+        )
+
+        # Event with context key-value list
+        text_event = '(Button :action (Event "submit_form" :user $/name :age 30) (Text "Submit"))'
+        compiled_event = self.compiler.compile(text_event)
+        comps = compiled_event["createSurface"]["components"]
+        btn = next(c for c in comps if c["component"] == "Button")
+        self.assertEqual(
+            btn["action"],
+            {
+                "event": {
+                    "name": "submit_form",
+                    "context": {"user": {"path": "/name"}, "age": 30},
+                }
+            },
+        )
+
+    def test_compile_children_wrapper_and_template_nodes(self):
+        """Test explicit :children wrapper list unwrapping and template node compilation."""
+        # 1. Explicit :children wrapper list
+        text_wrapper = '(Column (:children (Text "First") "Second"))'
+        compiled_w = self.compiler.compile(text_wrapper)
+        comps_w = compiled_w["createSurface"]["components"]
+        col_w = next(c for c in comps_w if c["component"] == "Column")
+        self.assertEqual(len(col_w["children"]), 2)
+
+        # 2. Template node compilation
+        text_template = '(Column (template :itemsPath $/users (Card (Text $/item/name))))'
+        compiled_t = self.compiler.compile(text_template)
+        comps_t = compiled_t["createSurface"]["components"]
+        col_t = next(c for c in comps_t if c["component"] == "Column")
+        self.assertIn("componentId", col_t["children"])
+
+        # 3. Event with positional name and keyword context
+        text_act = '(Button :action (Event "remove_item" :id "99") (Text "Remove"))'
+        compiled_act = self.compiler.compile(text_act)
+        comps_act = compiled_act["createSurface"]["components"]
+        btn_act = next(c for c in comps_act if c["component"] == "Button")
+        self.assertEqual(
+            btn_act["action"],
+            {"event": {"name": "remove_item", "context": {"id": "99"}}},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
+
+

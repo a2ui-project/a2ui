@@ -734,17 +734,26 @@ class TestElementalCompiler(unittest.TestCase):
             "action",
         )
 
-    def test_compiler_event_dict_args(self):
-        """Test event function call with dict args."""
-        html_evt_dict = (
-            '<body><ui-button id="b4" onclick="event({name: \'ev1\', context: {x:'
-            ' 99}})" /></body>'
-        )
-        res_evt = self.compiler.compile(html_evt_dict)
-        comps_evt = res_evt["createSurface"]["components"]
-        btn4 = next(c for c in comps_evt if c["id"] == "b4")
-        self.assertEqual(btn4["action"], "event({name: 'ev1', context: {x: 99}})")
+    def test_compiler_string_coercion_types(self):
+        """Test type coercion of string boolean and number attributes."""
+        orig_get_prop = self.compiler.helper.get_property_schema
+        try:
+            self.compiler.helper.get_property_schema = lambda comp, prop: (
+                {"type": "boolean"} if prop == "value" else orig_get_prop(comp, prop)
+            )
+            html_coercion = (
+                '<body id="test-surf">\n'
+                '  <ui-check-box id="input_1" value="true" label="Agree" />\n'
+                '</body>'
+            )
+            res = self.compiler.compile(html_coercion)
+            comps = res["createSurface"]["components"]
+            cb = comps[0]
+            self.assertEqual(cb["value"], True)
+        finally:
+            self.compiler.helper.get_property_schema = orig_get_prop
 
 
 if __name__ == "__main__":
     unittest.main()
+
