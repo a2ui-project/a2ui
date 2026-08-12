@@ -45,7 +45,7 @@ Every newly created source file must begin with the standard Google Apache 2.0 c
 the very top. Please use the following template exactly as shown:
 
 ```swift
-// Copyright 2026 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
