@@ -105,9 +105,8 @@ class _RestaurantScreenState extends State<RestaurantScreen> {
           const SizedBox(height: 16),
           Text(
             'Restaurant Finder',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context).textTheme.headlineMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 32),
           Row(
