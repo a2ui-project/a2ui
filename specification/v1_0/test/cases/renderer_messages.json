@@ -18,6 +18,23 @@
       }
     },
     {
+      "description": "Valid action message with optional userMessage",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "action": {
+          "name": "submit",
+          "userMessage": "Submitted form",
+          "surfaceId": "main",
+          "sourceComponentId": "btn_submit",
+          "timestamp": "2023-10-27T10:00:00Z",
+          "context": {
+            "foo": "bar"
+          }
+        }
+      }
+    },
+    {
       "description": "Valid error message (validation failed)",
       "valid": true,
       "data": {

@@ -18,6 +18,10 @@
           "type": "string",
           "description": "The name of the action, taken from the component's action.event.name property."
         },
+        "userMessage": {
+          "type": "string",
+          "description": "An optional human-readable string describing the action performed by the user, taken from the component's action.event.userMessage property after resolving bindings."
+        },
         "surfaceId": {
           "type": "string",
           "description": "The id of the surface where the event originated. It must be globally unique for the renderer's lifetime."
