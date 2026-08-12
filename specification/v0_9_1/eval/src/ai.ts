@@ -19,6 +19,7 @@ import {genkit} from 'genkit';
 import {openAI} from '@genkit-ai/compat-oai/openai';
 import {anthropic} from 'genkitx-anthropic';
 import {logger} from './logger';
+import {orcarouter} from './models';
 
 const plugins = [];
 
@@ -38,6 +39,10 @@ if (process.env.OPENAI_API_KEY) {
 if (process.env.ANTHROPIC_API_KEY) {
   logger.info('Initializing Anthropic plugin...');
   plugins.push(anthropic({apiKey: process.env.ANTHROPIC_API_KEY!}));
+}
+if (process.env.ORCAROUTER_API_KEY) {
+  logger.info('Initializing OrcaRouter plugin...');
+  plugins.push(orcarouter);
 }
 
 export const ai = genkit({

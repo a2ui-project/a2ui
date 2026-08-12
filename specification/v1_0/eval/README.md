@@ -11,6 +11,7 @@ To use the models, you need to set the following environment variables with your
 - `GEMINI_API_KEY`
 - `OPENAI_API_KEY`
 - `ANTHROPIC_API_KEY`
+- `ORCAROUTER_API_KEY` (optional; enables [OrcaRouter](https://www.orcarouter.ai), an OpenAI-compatible router that serves models from OpenAI, Anthropic, Google and others through one endpoint and one key)
 
 You can set these in a `.env` file in the root of the project, or in your shell's configuration file (e.g., `.bashrc`, `.zshrc`).
 

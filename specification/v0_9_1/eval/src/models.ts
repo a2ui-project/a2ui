@@ -16,7 +16,19 @@
 
 import {googleAI} from '@genkit-ai/google-genai';
 import {openAI} from '@genkit-ai/compat-oai/openai';
+import {openAICompatible} from '@genkit-ai/compat-oai';
 import {claude35Haiku, claude4Sonnet} from 'genkitx-anthropic';
+
+// OrcaRouter is an OpenAI-compatible model router that serves models from OpenAI,
+// Anthropic, Google, DeepSeek and others behind a single endpoint and API key.
+// Model names use the `provider/model` namespace (e.g. `anthropic/claude-sonnet-4.6`).
+const orcarouter = openAICompatible({
+  name: 'orcarouter',
+  apiKey: process.env.ORCAROUTER_API_KEY,
+  baseURL: 'https://api.orcarouter.ai/v1',
+});
+
+export {orcarouter};
 
 export interface ModelConfiguration {
   model: any;
@@ -96,5 +108,19 @@ export const modelsToTest: ModelConfiguration[] = [
     config: {},
     requestsPerMinute: 50,
     tokensPerMinute: 50000,
+  },
+  {
+    model: 'orcarouter/anthropic/claude-sonnet-4.6',
+    name: 'orcarouter-claude-sonnet-4.6',
+    config: {},
+    requestsPerMinute: 50,
+    tokensPerMinute: 30000,
+  },
+  {
+    model: 'orcarouter/openai/gpt-4o',
+    name: 'orcarouter-gpt-4o',
+    config: {},
+    requestsPerMinute: 500,
+    tokensPerMinute: 30000,
   },
 ];
