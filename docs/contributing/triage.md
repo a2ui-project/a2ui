@@ -20,10 +20,16 @@ This section describes goals at a high level. See concrete steps in the section 
     - **P0**: very urgent, should be assigned
     - **P1**: we are actively working on it, should be assigned
     - **P2**: is expected to be converted to P1 within quarter, as part of regular planning process
-    - **P3**: not planned, but we will accept contributions
-    - **P4**: we do not plan to invest into it, no PRs will be reviewed
-2. **PRs**: We will review PRs from external contributors if they contribute to a **P0-P3** issue that is assigned to the contributor (the issue should be linked in the first line of description).  
-   **Exception**: the change is absolutely clear and obviously needed.
+    - **P3**: not planned, but may become a priority
+    - **P4**: we do not plan to invest into it
+
+2. **PRs**: We will review PRs from external contributors if:
+    - the PR contributes to a **P0-P3** issue
+    - the issue is linked in the first line of the PR description
+    - the issue is assigned to the contributor by the A2UI team (as assignee or in the first line of issue description) or has label `type: contributions-welcome`
+
+    **Exception**: the change is absolutely clear and obviously needed.
+
 3. **Branches**: [list of stale branches](https://github.com/a2ui-project/a2ui/branches/stale) should fit on one screen and should not have a button ‘Next’.
 
 ## GitHub labels used in triage
@@ -33,7 +39,8 @@ This section describes goals at a high level. See concrete steps in the section 
 3. status: needs-triage
 4. status: first-line-handled
 5. size: small
-6. status: waiting-for-author-response
+6. type: contributions-welcome
+7. status: waiting-for-author-response
 
 See [all github labels](https://github.com/a2ui-project/a2ui/labels).
 

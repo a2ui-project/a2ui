@@ -1,4 +1,4 @@
-// Copyright 2025 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -105,9 +105,8 @@ class _RestaurantScreenState extends State<RestaurantScreen> {
           const SizedBox(height: 16),
           Text(
             'Restaurant Finder',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context).textTheme.headlineMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 32),
           Row(

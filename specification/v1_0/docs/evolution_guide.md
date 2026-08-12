@@ -20,6 +20,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - The `@index` built-in function dynamically retrieves iteration indices during list template rendering. The `@` prefix is reserved for core system context evaluations.
 - Standardized the names of core architectural components, renaming "client" to _renderer_ and "server" to _agent_ (e.g., `server_to_client` schemas are renamed to `agent_to_renderer`), because A2UI is sometimes generated on clients, and rendering sometimes happens on servers, making those terms ambiguous.
 - Catalogs can now define composition constraints (`allowedParents` and `allowedChildren`) on component definitions, using `"Surface"` as the canonical root component type. Because JSON Schema cannot natively restrict child component types across a flat adjacency list of ID references, these rules allow catalogs to declare valid parent-child relationships without altering the wire format.
+- `CheckRule` in `common_types.json` supports dynamic structured validation result objects (`ValidationResult`) returned directly by function evaluations or data bindings (containing `valid`, `code`, `message`, and `severity`), and `message` on `CheckRule` is made optional as a fallback error message.
 - Enhanced `AccessibilityAttributes` in `common_types.json` with WAI-ARIA `live` region support (`"off"`, `"polite"`, `"assertive"`) and `hidden` (`DynamicBoolean`), while setting `"additionalProperties": false`. Established normative specification prose requiring catalog and renderer implementations to plumb accessibility attributes, infer default screen reader semantics from visible text properties, and enforce SDK linter checks.
 
 ## 2. Changes
@@ -42,6 +43,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added `placeholder` prop to the `TextField` component schema.
 - Added a `steps` property to the `Slider` component schema to snap values to discrete intervals.
 - Added an optional `instructions` field to the `Catalog` schema (`catalogs/basic/catalog.json`) to embed Markdown guidelines/rules directly, replacing the external `rules.txt` file.
+- Updated return types on standard validation check functions (`required`, `regex`, `length`, `numeric`, `email`) in `catalogs/basic/catalog.json` from `"boolean"` to `"validationResult"`.
 - Removed `$defs/theme` from the basic catalog.
 
 ### 2.3. Agent-to-renderer messages
@@ -65,7 +67,8 @@ Version 1.0 differs from 0.9 in the following ways:
 
 - Added an optional `instructions` field to the `Catalog` object definition (`catalog_definition.json`) as a plain Markdown string to embed design guidelines directly.
 - Removed `theme` capability block from the Catalog definition in `catalog_definition.json`.
-- Added static `callableFrom` and `returnType` metadata properties to `FunctionDefinition` inside `catalog_definition.json` to advertise execution boundaries and return types to the agent.
+- Added static `callableFrom` and `returnType` metadata properties to `FunctionDefinition` inside `catalog_definition.json` to advertise execution boundaries and return types to the agent (including `"validationResult"` as a return type).
+- Added `$defs/ValidationResult` schema (`valid`, `code`, `message`, `severity`) to `catalog_definition.json` as the standard definition for validation function return payloads.
 
 ### 2.6. Agent card and transport metadata
 
@@ -78,6 +81,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Standardized data deletion behavior in `updateDataModel` by making the `value` property required. Setting a path's value to `null` deletes the key at that path. Omitting the `value` property is now a schema validation error.
 - Removed `callableFrom` and `returnType` properties and validation constraints from `FunctionCall` and dynamic value schemas in `common_types.json`, deferring boundary checking and return type validation entirely to runtime execution.
 - Added built-in `@index` function (with optional `offset` parameter) under `FunctionCall` to retrieve the iteration index during list template rendering. Reserved the `@` prefix for core system context evaluations.
+- Updated `CheckRule` in `common_types.json` to support dynamic `ValidationResult` objects returned directly by function evaluations or data model bindings, adding the `$defs/ValidationResult` schema (`valid`, `code`, `message`, `severity`) and making `CheckRule.message` optional as a fallback message.
 
 ### 2.8. Processing rules
 
@@ -129,4 +133,5 @@ This section outlines the steps required to migrate existing applications and co
 - Update error reporting to handle `functionCallId` and enforce mutual exclusivity with `surfaceId`.
 - Enforce Unicode identifier naming by verifying that all catalog entity names (components, functions, prop keys) conform to UAX #31 identifier rules.
 - Support built-in `@index` evaluation during list template rendering (Collection Scope) to provide the 0-based iteration index, adjusted by any `offset` parameter.
+- Support dynamic `ValidationResult` objects (`valid`, `code`, `message`, `severity`) returned by component validation check conditions, falling back to static `CheckRule.message` if present.
 - Rename all references, constants, and endpoints mapping to `client_to_server.json` or `client_capabilities.json` to use `renderer_to_agent.json` and `renderer_capabilities.json`.

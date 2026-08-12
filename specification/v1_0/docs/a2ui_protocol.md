@@ -461,7 +461,7 @@ The set of available UI components and functions is defined in a **Catalog**. Th
 
 Every catalog follows the standard `Catalog` object definition:
 
-- **catalogId** (string, required): A unique string identifier for this catalog. While conventionally formatted as a URI to avoid naming collisions across organizations, it is an arbitrary string ID and not a resolvable URI. Renderer and agent developers must agree on shared catalogs with well-known IDs in order to build systems that are compatible with each other.
+- **catalogId** (string, required): A unique string identifier for this catalog. While conventionally formatted as a URI to avoid naming collisions across organizations, it is an arbitrary string ID and not a resolvable URI. Because A2UI catalogs are represented as JSON Schema documents, catalog definitions should include both `$id` (used by JSON Schema tooling) and `catalogId` (used by A2UI SDKs and catalog negotiation), setting both fields to the same URI. Renderer and agent developers must agree on shared catalogs with well-known IDs in order to build systems that are compatible with each other.
 - **instructions** (string, optional): Markdown-formatted design principles, rules, or developer guidelines specific to this catalog. These rules guide LLMs when generating UI layouts under this catalog.
 - **components** (object, optional): A map of supported UI components, where each key is the component type (e.g., `Text`) and its value is its JSON Schema definition. All keys MUST conform to the UAX #31 entity naming rules defined below.
 - **functions** (object, optional): A map of renderer-side validation or utility functions supported by the catalog, where each key is the function name and its value is its definition. All function names MUST conform to the UAX #31 entity naming rules defined below. The renderer determines a function's execution boundary (e.g., rendererOnly status) at runtime by reading its configuration from the active catalog definition.
@@ -563,7 +563,7 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
   "protocolVersion": "1.0",
   "title": "A2UI Basic Catalog Template",
   "description": "An annotated example showcasing structural rules and conventions.",
-  "catalogId": "https://example.com/catalogs/custom-v1",
+  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
   "instructions": "Design instructions for LLMs when generating layouts under this catalog.",
 
   // Top-level components declared under top-level "components" map.
@@ -975,24 +975,47 @@ A2UI v1.0 generalizes renderer-side logic into **Functions**. These can be used 
 
 The renderer supports a set of named **Functions** (e.g., `required`, `regex`, `email`, `add`, `concat`) which are defined in the JSON schema (e.g. `catalogs/basic/catalog.json`) alongside the component definitions. The agent references these functions by name in `FunctionCall` objects. This avoids sending executable code.
 
-Input components (like `TextField`, `CheckBox`) can define a list of checks. Each failure produces a specific error message that can be displayed when the component is rendered. Note that for validation checks, the function must return a boolean.
+### Component Validation & Check Rules
+
+Input components (like `TextField`, `ChoicePicker`) and interactive elements (like `Button`) can define a list of `checks` (`CheckRule` objects).
+
+A `CheckRule` contains a `condition` (a `DataBinding` path or a `FunctionCall`) that evaluates to a `ValidationResult` object (defined in [`catalog_definition.json#/$defs/ValidationResult`](../json/catalog_definition.json)).
+
+#### `ValidationResult` Structure
+
+Validation functions (declared with `"returnType": "validationResult"`) or data model bindings evaluate directly to a `ValidationResult` object:
+
+- **`valid`** (`boolean`, required): Whether the check passed.
+- **`code`** (`string`, optional): Machine-readable error code (e.g., `EXPIRED_CARD`, `OUT_OF_RANGE`).
+- **`message`** (`string`, optional): Human-readable error or warning message to display.
+- **`severity`** (`"error" | "warning" | "info"`, optional, default `"error"`).
+
+Because `ValidationResult` permits additional unconstrained properties, validation functions and specialized components can extend the object with custom domain-specific metadata (such as suggested fix values, field paths, or retry parameters).
+
+_Example Component Definition:_
 
 ```json
 "checks": [
   {
-    "call": "required",
-    "args": { "value": { "path": "/formData/zip" } },
-    "message": "Zip code is required"
-  },
-  {
-    "call": "regex",
-    "args": {
-      "value": { "path": "/formData/zip" },
-      "pattern": "^[0-9]{5}$"
-    },
-    "message": "Must be a 5-digit zip code"
+    "condition": {
+      "call": "validateCreditCard",
+      "args": {
+        "cardNumber": { "path": "/payment/cardNumber" }
+      }
+    }
   }
 ]
+```
+
+_Example Dynamic `ValidationResult` Returned by `validateCreditCard`:_
+
+```json
+{
+  "valid": false,
+  "code": "EXPIRED_CARD",
+  "message": "The card expiration date (05/24) has passed.",
+  "severity": "error"
+}
 ```
 
 ### Example: button validation
