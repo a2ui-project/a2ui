@@ -6,7 +6,7 @@ This document serves as a comprehensive guide to the changes between A2UI versio
 
 Version 1.0 differs from 0.9 in the following ways:
 
-- Bidirectional RPC function calls are supported via explicit role-based messages: `callRendererFunction` for agent-initiated calls on the renderer (returning `agentFunctionResponse`), and `callAgentFunction` for renderer-initiated calls on the agent (returning `rendererFunctionResponse`). Execution results or errors are returned via shared `FunctionResponse` payloads. Runtime execution boundaries (`callableFrom`) and return types are defined in catalogs and verified at runtime, rather than being validated on the wire.
+- Bidirectional RPC function calls are supported via explicit role-based messages: `callRendererFunction` for agent-initiated calls on the renderer (returning `rendererFunctionResponse`), and `callAgentFunction` for renderer-initiated calls on the agent (returning `agentFunctionResponse`). Execution results or errors are returned via shared `FunctionResponse` payloads. Runtime execution boundaries (`callableFrom`) and return types are defined in catalogs and verified at runtime, rather than being validated on the wire.
 - Catalogs can now be mixed within a single UI surface. Advertised `supportedCatalogIds` are mixable, allowing UI trees to combine components and functions from multiple catalogs simultaneously.
 - Added an optional `catalogId` property to `ComponentCommon` and `FunctionCall` to allow individual components and function calls to explicitly declare their source catalog. Added `$defs/FunctionCommon` in `common_types.json` for function-level catalog overrides.
 - Retained `catalogId` on `createSurface` as an optional parameter that defines the default catalog for that surface.
@@ -58,7 +58,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added `agentFunctionResponse` message structure (`AgentFunctionResponseMessage`) to `agent_to_renderer.json` so agents can return execution results or error payloads for renderer-initiated function calls (referencing `common_types.json#/$defs/FunctionResponse`).
 - Updated the `createSurface` message (`CreateSurfaceMessage`) to remove the `theme` field, allowed passing initial `components` and `dataModel` directly inside the payload, made `catalogId` an optional parameter that acts as the surface's default catalog, and added optional surface-level `metadata` (containing `extensions`).
 - Added an optional `catalogId` property to `ComponentCommon` and `FunctionCall` in `common_types.json` to enable mixing catalogs and explicitly designating the catalog on individual components or function calls.
-- Added `$defs/Extensions` to `common_types.json` and added optional `metadata` (`$ref: "#/$defs/Extensions"`) to `ComponentCommon`.
+- Added `$defs/Extensions` to `common_types.json` and added optional `metadata` (containing `extensions`, `$ref: "#/$defs/Extensions"`) to `ComponentCommon`.
 - Added `$defs/Child` (`"$ref": "#/$defs/ComponentId"`), `$defs/FunctionCommon`, and `$defs/IndexSystemFunction` to `common_types.json`.
 - Added the `Component` definition in `agent_to_renderer.json` (referenced by `ComponentsList`) to compose `ComponentCommon` (`$ref: "common_types.json#/$defs/ComponentCommon"`) so base component properties are validated at the envelope level regardless of catalog structure.
 - Updated all protocol version references and envelopes from `v0.9` or `v0.9.1` to `v1.0`.
