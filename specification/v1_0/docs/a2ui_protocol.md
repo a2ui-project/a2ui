@@ -1320,14 +1320,13 @@ This message is sent by the renderer to execute a function remotely on the agent
 
 **Function Location Resolution & Execution Target Routing:**
 
-When the renderer evaluates a `FunctionCall` (from an action handler, validation check, or dynamic value), it determines the execution target using target prefixes or fallback routing:
+When the renderer evaluates a `FunctionCall` (from an action handler, validation check, or dynamic value), it determines the execution target using the function name prefix:
 
-1. **Explicit `agent:` Prefix:** If the function name begins with the `agent:` prefix (e.g., `"call": "agent:verifyProvider"`), the renderer strips the prefix and dispatches a `callAgentFunction` RPC to the agent without attempting local lookup.
-2. **Explicit `renderer:` Prefix:** If the function name begins with the `renderer:` prefix (e.g., `"call": "renderer:formatDate"`), the renderer strips the prefix and looks up the function in its local catalog/registry. If not found locally, execution fails immediately with a local error (`code: "UNKNOWN_FUNCTION"`) without sending a request to the agent.
-3. **Unprefixed Function Names (Implicit Fallback):** If the function name contains no prefix (e.g., `"call": "formatDate"`):
-   - **Local Lookup:** The renderer first checks if a local renderer-side function with that name is registered in its catalog/registry. If found, it executes the function locally.
-   - **Fallback to Agent RPC:** If the function is not registered in the local catalog, the renderer assumes it is an agent-side function and dispatches a `callAgentFunction` message over the protocol.
-4. **Agent Error Handling:** If the agent does not recognize the function name (or if parameter validation fails on the server), the agent MUST return an `agentFunctionResponse` message containing an `error` payload (`code: "UNKNOWN_FUNCTION"` or `"INVALID_FUNCTION_CALL"`). The renderer then handles the error state locally (e.g., via component error boundaries or fallbacks).
+1. **Explicit `agent:` Prefix:** If the function name begins with the `agent:` prefix (e.g., `"call": "agent:verifyProvider"`), the renderer strips the prefix and dispatches a `callAgentFunction` RPC to the agent without performing a local catalog lookup.
+2. **Local Renderer Functions (Unprefixed or `renderer:` Prefix):** If the function name is unprefixed (e.g., `"call": "formatDate"`) or begins with `renderer:` (e.g., `"call": "renderer:formatDate"`), the renderer strips any `renderer:` prefix and looks up the function in its local catalog/registry:
+   - If registered in the local catalog/registry, the renderer executes the function locally.
+   - If not registered in the local catalog/registry, execution fails immediately with a local error (`code: "UNKNOWN_FUNCTION"`). Unprefixed functions do **not** fall back to agent RPC calls.
+3. **Agent Error Handling:** If the agent receives a `callAgentFunction` request for an agent function it does not recognize (or if parameter validation fails on the server), the agent MUST return an `agentFunctionResponse` message containing an `error` payload (`code: "UNKNOWN_FUNCTION"` or `"INVALID_FUNCTION_CALL"`). The renderer then handles the error state locally (e.g., via component error boundaries or fallbacks).
 
 **Properties:**
 
