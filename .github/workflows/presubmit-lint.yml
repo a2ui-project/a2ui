@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -57,22 +57,13 @@ jobs:
           go-version: "1.21"
 
       - name: Install addlicense
-        run: go install github.com/google/addlicense@latest
+        run: go install github.com/google/addlicense@v1.1.1
+
+      - name: Run fix_licenses unit tests
+        run: python3 -m unittest scripts.test_fix_licenses
 
       - name: Check license headers
-        run: |
-          if ! addlicense -check \
-            -l apache \
-            -c "Google LLC" \
-            -ignore "**/pnpm-lock.yaml" \
-            -ignore "**/package-lock.json" \
-            -ignore "**/yarn.lock" \
-            -ignore "eval/datasets/*.yaml" \
-            -ignore "**/generated/**" \
-            .; then
-            echo "License check failed."
-            exit 1
-          fi
+        run: ./scripts/fix_licenses.py --check
 
   format-check:
     runs-on: ubuntu-latest

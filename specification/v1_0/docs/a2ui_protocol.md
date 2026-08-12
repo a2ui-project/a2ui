@@ -975,24 +975,47 @@ A2UI v1.0 generalizes renderer-side logic into **Functions**. These can be used 
 
 The renderer supports a set of named **Functions** (e.g., `required`, `regex`, `email`, `add`, `concat`) which are defined in the JSON schema (e.g. `catalogs/basic/catalog.json`) alongside the component definitions. The agent references these functions by name in `FunctionCall` objects. This avoids sending executable code.
 
-Input components (like `TextField`, `CheckBox`) can define a list of checks. Each failure produces a specific error message that can be displayed when the component is rendered. Note that for validation checks, the function must return a boolean.
+### Component Validation & Check Rules
+
+Input components (like `TextField`, `ChoicePicker`) and interactive elements (like `Button`) can define a list of `checks` (`CheckRule` objects).
+
+A `CheckRule` contains a `condition` (a `DataBinding` path or a `FunctionCall`) that evaluates to a `ValidationResult` object (defined in [`catalog_definition.json#/$defs/ValidationResult`](../json/catalog_definition.json)).
+
+#### `ValidationResult` Structure
+
+Validation functions (declared with `"returnType": "validationResult"`) or data model bindings evaluate directly to a `ValidationResult` object:
+
+- **`valid`** (`boolean`, required): Whether the check passed.
+- **`code`** (`string`, optional): Machine-readable error code (e.g., `EXPIRED_CARD`, `OUT_OF_RANGE`).
+- **`message`** (`string`, optional): Human-readable error or warning message to display.
+- **`severity`** (`"error" | "warning" | "info"`, optional, default `"error"`).
+
+Because `ValidationResult` permits additional unconstrained properties, validation functions and specialized components can extend the object with custom domain-specific metadata (such as suggested fix values, field paths, or retry parameters).
+
+_Example Component Definition:_
 
 ```json
 "checks": [
   {
-    "call": "required",
-    "args": { "value": { "path": "/formData/zip" } },
-    "message": "Zip code is required"
-  },
-  {
-    "call": "regex",
-    "args": {
-      "value": { "path": "/formData/zip" },
-      "pattern": "^[0-9]{5}$"
-    },
-    "message": "Must be a 5-digit zip code"
+    "condition": {
+      "call": "validateCreditCard",
+      "args": {
+        "cardNumber": { "path": "/payment/cardNumber" }
+      }
+    }
   }
 ]
+```
+
+_Example Dynamic `ValidationResult` Returned by `validateCreditCard`:_
+
+```json
+{
+  "valid": false,
+  "code": "EXPIRED_CARD",
+  "message": "The card expiration date (05/24) has passed.",
+  "severity": "error"
+}
 ```
 
 ### Example: button validation

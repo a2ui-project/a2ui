@@ -369,8 +369,8 @@
       }
     },
     {
-      "description": "TextField with invalid check (missing message)",
-      "valid": false,
+      "description": "TextField with check without static message (valid)",
+      "valid": true,
       "data": {
         "version": "v1.0",
         "updateComponents": {
