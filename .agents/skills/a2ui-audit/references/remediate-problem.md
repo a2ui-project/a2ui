@@ -43,14 +43,16 @@ The agent execution environment must provide the following environment variables
 
 ### Step 3: Configure Git & Create Branch
 
-1. Configure git bot identity:
+1. Configure git bot identity and HTTP authorization header:
    ```bash
    git config user.name "github-actions[bot]"
    git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+   git config http.extraheader "AUTHORIZATION: bearer ${GITHUB_TOKEN}"
    ```
-2. Create and checkout a new branch named `remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}`:
+2. Fetch `main` and create a clean branch named `remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}` based on `origin/main`:
    ```bash
-   git checkout -b "remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}"
+   git fetch origin main
+   git checkout -b "remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}" origin/main
    ```
 
 ---
@@ -74,18 +76,24 @@ The agent execution environment must provide the following environment variables
 
 ### Step 5: Create Draft PR & Notify Issue
 
-1. Create a Draft Pull Request against the `main` branch:
+1. Generate a clear, descriptive PR title following the Conventional Commits format that concisely explains the specific fix being made (e.g. `fix(swift): create missing top-level README in swift/core`). **Do NOT include generic issue or recommendation numbers in the PR title.**
+2. Draft the PR description into a temporary file `pr_description.md` following the exact guidelines and structure in `.agents/skills/a2ui-audit/references/pr-description-template.md`. Ensure that `${ISSUE_NUMBER}` and `${RECOMMENDATION_INDEX}` are referenced in the `## Summary` section of the body and the local checkout/inspection block is included.
+3. Create a Draft Pull Request against the `main` branch using `--title` and `--body-file`:
    ```bash
    PR_URL=$(gh pr create --draft \
      --repo a2ui-project/a2ui \
      --head "remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}" \
      --base main \
-     --title "remediation: address issue #${ISSUE_NUMBER} recommendation ${RECOMMENDATION_INDEX}" \
-     --body "This draft PR automatically remediates recommendation #${RECOMMENDATION_INDEX} from compliance report issue #${ISSUE_NUMBER}. Please review carefully.")
+     --title "${PR_TITLE}" \
+     --body-file pr_description.md)
    ```
-2. Comment on the original issue to notify maintainers of the new Draft PR:
+4. Clean up the temporary PR description file:
+   ```bash
+   rm -f pr_description.md
+   ```
+5. Comment on the original issue to notify maintainers of the new Draft PR and branch:
    ```bash
    gh issue comment "${ISSUE_NUMBER}" \
      --repo a2ui-project/a2ui \
-     --body "🤖 Automated remediation triggered! Created draft PR to address recommendation #${RECOMMENDATION_INDEX}: ${PR_URL}"
+     --body "🤖 Automated remediation triggered! Created draft PR (${PR_URL}) on branch \`remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}\` to address recommendation #${RECOMMENDATION_INDEX}."
    ```

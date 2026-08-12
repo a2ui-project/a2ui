@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -97,6 +97,16 @@ export class Validator {
             validated = this.ajv.validate(`${schemaUri}#/$defs/UpdateDataModelMessage`, message);
           } else if (message.deleteSurface) {
             validated = this.ajv.validate(`${schemaUri}#/$defs/DeleteSurfaceMessage`, message);
+          } else if (message.callRendererFunction) {
+            validated = this.ajv.validate(
+              `${schemaUri}#/$defs/CallRendererFunctionMessage`,
+              message,
+            );
+          } else if (message.agentFunctionResponse) {
+            validated = this.ajv.validate(
+              `${schemaUri}#/$defs/AgentFunctionResponseMessage`,
+              message,
+            );
           } else {
             // Fallback to top-level validation if no known key matches (or if it's empty/invalid structure)
             validated = this.validateFn(message);
@@ -346,6 +356,13 @@ export class Validator {
           }
           activeSurfaces.delete(surfaceId);
         }
+      } else if (
+        message.callRendererFunction ||
+        message.functionResponse ||
+        message.actionResponse
+      ) {
+        // Valid v1.0 RPC messages without custom referential integrity requirements
+        continue;
       } else {
         errors.push(`Unknown message type in output: ${JSON.stringify(message)}`);
       }

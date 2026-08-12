@@ -9,8 +9,8 @@
     {"$ref": "#/$defs/UpdateComponentsMessage"},
     {"$ref": "#/$defs/UpdateDataModelMessage"},
     {"$ref": "#/$defs/DeleteSurfaceMessage"},
-    {"$ref": "#/$defs/CallFunctionMessage"},
-    {"$ref": "#/$defs/ActionResponseMessage"}
+    {"$ref": "#/$defs/CallRendererFunctionMessage"},
+    {"$ref": "#/$defs/AgentFunctionResponseMessage"}
   ],
   "$defs": {
     "CreateSurfaceMessage": {
@@ -167,67 +167,49 @@
       "required": ["deleteSurface", "version"],
       "additionalProperties": false
     },
-    "CallFunctionMessage": {
+    "CallRendererFunctionMessage": {
       "type": "object",
-      "description": "A function invoked from the agent.",
       "properties": {
         "version": {
           "const": "v1.0"
         },
-        "functionCallId": {
-          "$ref": "common_types.json#/$defs/CallId",
-          "description": "Unique ID for the instance of this function call. MUST be copied verbatim into the functionResponse or error."
-        },
-        "wantResponse": {
-          "type": "boolean",
-          "default": false
-        },
-        "callFunction": {
-          "allOf": [
-            {
-              "$ref": "common_types.json#/$defs/FunctionCall"
-            }
-          ],
-          "required": ["call"],
-          "unevaluatedProperties": false
-        }
-      },
-      "required": ["version", "callFunction", "functionCallId"],
-      "additionalProperties": false
-    },
-    "ActionResponseMessage": {
-      "type": "object",
-      "description": "A response to a renderer-initiated action.",
-      "properties": {
-        "version": {
-          "const": "v1.0"
-        },
-        "actionId": {
-          "type": "string",
-          "description": "The ID of the action call this response belongs to."
-        },
-        "actionResponse": {
+        "callRendererFunction": {
           "type": "object",
+          "description": "Signals the renderer to execute a function locally on behalf of the agent.",
           "properties": {
-            "value": {
-              "description": "The return value of the action.",
-              "type": ["string", "number", "boolean", "array", "object", "null"]
+            "functionCallId": {
+              "$ref": "common_types.json#/$defs/CallId",
+              "description": "Unique ID for this instance of the function call. The renderer MUST copy this ID into the return response."
             },
-            "error": {
-              "type": "object",
-              "properties": {
-                "code": {"type": "string"},
-                "message": {"type": "string"}
-              },
-              "required": ["code", "message"],
-              "additionalProperties": false
+            "callFunction": {
+              "allOf": [
+                {
+                  "$ref": "common_types.json#/$defs/FunctionCall"
+                },
+                {
+                  "required": ["catalogId"]
+                }
+              ]
             }
           },
-          "oneOf": [{"required": ["value"]}, {"required": ["error"]}],
+          "required": ["functionCallId", "callFunction"],
           "additionalProperties": false
         }
       },
-      "required": ["version", "actionResponse", "actionId"],
+      "required": ["callRendererFunction", "version"],
+      "additionalProperties": false
+    },
+    "AgentFunctionResponseMessage": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": "v1.0"
+        },
+        "agentFunctionResponse": {
+          "$ref": "common_types.json#/$defs/FunctionResponse"
+        }
+      },
+      "required": ["agentFunctionResponse", "version"],
       "additionalProperties": false
     }
   }

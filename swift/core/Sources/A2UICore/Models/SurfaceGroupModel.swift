@@ -1,4 +1,4 @@
-// Copyright 2026 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -58,20 +58,4 @@ public final class SurfaceGroupModel: ObservableObject {
     surfacesMap
   }
 
-  // MARK: - Data Model Aggregation
-
-  /// Aggregates the data models of all surfaces that have
-  /// `sendDataModel` enabled.
-  ///
-  /// Returns `nil` if no surfaces have the flag set.
-  public func getClientDataModel() -> JSONValue? {
-    var result: OrderedDictionary<String, JSONValue> = [:]
-    for (surfaceID, vm) in surfacesMap {
-      if vm.sendDataModel {
-        result[surfaceID] = vm.dataModel.data
-      }
-    }
-    guard !result.isEmpty else { return nil }
-    return .object(result)
-  }
 }
