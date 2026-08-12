@@ -94,8 +94,16 @@ def test_version_adapter_v10_methods():
         },
     }
 
-    assert adapter.extract_surface_properties(payload_env) == {"layout": "responsive"}
-    assert adapter.extract_initial_state(payload_env) == {"active": True}
+    assert adapter.extract_surface_properties(payload_env) == {
+        "surface_id": "s1",
+        "catalog_id": None,
+        "send_data_model": None,
+        "metadata": None,
+    }
+    assert adapter.extract_initial_state(payload_env) == {
+        "components": None,
+        "data_model": {"active": True},
+    }
     assert adapter.extract_message_type(payload_env) == "createSurface"
 
     normalized = adapter.normalize_message({"createSurface": {"surfaceId": "s1"}})

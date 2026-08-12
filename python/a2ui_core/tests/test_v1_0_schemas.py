@@ -129,6 +129,7 @@ def test_agent_to_renderer_call_renderer_function():
             "functionCallId": "call-123",
             "callFunction": {
                 "call": "showNotification",
+                "catalogId": "basic_catalog",
                 "args": {"title": "Alert", "message": "Test message"},
             },
         },
