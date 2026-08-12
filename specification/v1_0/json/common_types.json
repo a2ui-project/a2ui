@@ -304,6 +304,10 @@
                   "type": "string",
                   "description": "The name of the action to be dispatched to the agent."
                 },
+                "displayName": {
+                  "type": "string",
+                  "description": "An optional human-readable description or display name of the action to present in conversation history or user feedback."
+                },
                 "context": {
                   "type": "object",
                   "description": "A JSON object containing the key-value pairs for the action context. Values can be literals or paths. Use literal values unless the value must be dynamically bound to the data model. Do NOT use paths for static IDs.",

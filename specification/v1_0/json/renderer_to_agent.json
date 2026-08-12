@@ -18,6 +18,10 @@
           "type": "string",
           "description": "The name of the action, taken from the component's action.event.name property."
         },
+        "displayName": {
+          "type": "string",
+          "description": "An optional human-readable string associated with the action, taken from the component's action.event.displayName property."
+        },
         "surfaceId": {
           "type": "string",
           "description": "The id of the surface where the event originated. It must be globally unique for the renderer's lifetime."

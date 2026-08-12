@@ -262,6 +262,34 @@
           ]
         }
       }
+    },
+    {
+      "description": "Button action with optional displayName",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "btn_dn",
+              "component": "Button",
+              "child": "txt_dn",
+              "action": {
+                "event": {
+                  "name": "submit_deal",
+                  "displayName": "Saved deal"
+                }
+              }
+            },
+            {
+              "id": "txt_dn",
+              "component": "Text",
+              "text": "Save"
+            }
+          ]
+        }
+      }
     }
   ]
 }
