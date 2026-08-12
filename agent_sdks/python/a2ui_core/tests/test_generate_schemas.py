@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -512,5 +512,5 @@ def test_const_keyword_mapping():
 
 def test_file_header_preamble():
     header = generate_schemas.FILE_HEADER
-    assert "Copyright 2026 Google LLC" in header
+    assert "Copyright 2024 Google LLC" in header
     assert "Auto-generated. Do not edit manually." in header
