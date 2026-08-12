@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -770,6 +770,43 @@ root = Column(children=[Text("Top Header"), card1, Button("Click", action=Event(
         with self.assertRaises(ValueError) as ctx:
             compiler.compile('root = Text("Hello", variant="invalid_variant_enum")')
         self.assertIn("is not a valid enum choice", str(ctx.exception))
+
+    def test_compilation_surface_directive(self):
+        """Validates surface("id") directive sets surfaceId in compiled output."""
+        compiler = ExpressCompiler(self.catalog)
+        dsl = """surface(surfaceId="custom-surface-123", catalogId="custom-catalog-uri")
+root = Text("Hello Surface")"""
+        envelopes = compiler.compile(dsl)
+        self.assertEqual(len(envelopes), 1)
+        self.assertEqual(
+            envelopes[0]["createSurface"]["surfaceId"], "custom-surface-123"
+        )
+        self.assertEqual(
+            envelopes[0]["createSurface"]["catalogId"], "custom-catalog-uri"
+        )
+
+    def test_compilation_delete_surface_kwargs(self):
+        """Validates deleteSurface directive with keyword argument surfaceId."""
+        compiler = ExpressCompiler(self.catalog)
+        dsl = 'deleteSurface(surfaceId="custom-surface-456")'
+        envelopes = compiler.compile(dsl)
+        self.assertEqual(len(envelopes), 1)
+        self.assertEqual(
+            envelopes[0]["deleteSurface"]["surfaceId"], "custom-surface-456"
+        )
+
+    def test_compilation_multi_surface(self):
+        """Validates sequential multi-surface scopes in a single DSL block."""
+        compiler = ExpressCompiler(self.catalog)
+        dsl = """surface("header-surface")
+root = Text("Header")
+
+surface("body-surface")
+root = Text("Body")"""
+        envelopes = compiler.compile(dsl)
+        self.assertEqual(len(envelopes), 2)
+        self.assertEqual(envelopes[0]["createSurface"]["surfaceId"], "header-surface")
+        self.assertEqual(envelopes[1]["createSurface"]["surfaceId"], "body-surface")
 
 
 if __name__ == "__main__":

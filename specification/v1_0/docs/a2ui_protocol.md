@@ -131,6 +131,7 @@ The [`common_types.json`] schema defines reusable primitives used throughout the
   - `object`: A template for generating children from a data binding list (requires a template `componentId` and a data binding `path`).
 
 - **`ComponentId`**: A reference to the unique ID of another component within the same surface.
+- **`AccessibilityAttributes`**: Standardized accessibility properties attached via `ComponentCommon` to any component, supporting `label` (`DynamicString`), `description` (`DynamicString`), `live` (`"off"` | `"polite"` | `"assertive"`), and `hidden` (`DynamicBoolean`).
 
 ### Agent to renderer message structure: the envelope
 
@@ -142,7 +143,7 @@ The [`catalogs/basic/catalog.json`] schema contains the definitions for all spec
 
 **Swappable Catalogs & Validation:**
 
-The [`agent_to_renderer.json`] envelope schema is designed to be catalog-agnostic. It references components using a placeholder filename: `catalog.json` (specifically `$ref: "catalog.json#/$defs/anyComponent"`).
+The [`agent_to_renderer.json`] envelope schema is designed to be catalog-agnostic. Within its `Component` definition (referenced by `ComponentsList`), it validates base properties against `common_types.json#/$defs/ComponentCommon` and references components using a placeholder filename: `catalog.json` (specifically `$ref: "catalog.json#/$defs/anyComponent"`).
 
 To validate A2UI messages:
 
@@ -176,7 +177,7 @@ This message signals the renderer to create a new surface and begin rendering it
 
 It is an error to try to create a surface with a `surfaceId` that already exists without first deleting it; `surfaceId` must be globally unique for the renderer's lifetime. Orchestrators with subagents are empowered to manage surface IDs as needed to prevent conflicts (e.g., prefixing the subagent's name to the `surfaceId` or requiring subagents to use UUIDs).
 
-One of the components in one of the component lists MUST have an `id` of `root` to serve as the root of the component tree.
+The `createSurface` message implicitly instantiates the canonical `Surface` container component (`common_types.json#/$defs/Surface`). The `Surface` component always has `"child": "root"` and cannot be modified using `updateComponents`. To render the component tree, one of the components sent to the surface MUST have `"id": "root"`, which mounts as the child of `Surface`.
 
 **Properties:**
 
@@ -216,7 +217,7 @@ One of the components in one of the component lists MUST have an `id` of `root` 
 
 ### `updateComponents`
 
-This message provides a list of UI components to be added to or updated within a specific surface. The components are provided as a flat list, and their relationships are defined by ID references in an adjacency list. This message may only be sent to a surface that has already been created. Note that components may reference children or data bindings that do not yet exist; renderers should handle this gracefully by rendering placeholders (progressive rendering).
+This message provides a flat list of UI components to add or update within a specific surface. Relationships between components are defined by ID references in an adjacency list. The component with `"id": "root"` mounts as the child of the surface's canonical `Surface` container. You cannot modify the `Surface` container itself using `updateComponents`. This message may only be sent to a surface that has already been created. Because components may reference children or data bindings that do not yet exist, renderers should handle missing references gracefully by rendering placeholders (progressive rendering).
 
 **Properties:**
 
@@ -442,6 +443,16 @@ When resolving a component (or function call), the renderer evaluates catalog id
 > [!IMPORTANT]
 > There is **no fallback** to the list of catalogs declared in `rendererCapabilities` (even if the renderer only advertises a single supported catalog). Every component and function call must resolve through either its explicit `catalogId` or the surface default `catalogId`.
 
+### Catalog-Agnostic Accessibility Requirements
+
+Because JSON Schema cannot inspect arbitrary catalog component property semantics to infer which properties represent visible text labels or which components accept user interaction, accessibility rules are enforced through normative specification requirements and SDK tooling:
+
+**Catalog and renderer implementations MUST:**
+
+- **Plumb Accessibility Attributes**: Map all relevant A2UI `AccessibilityAttributes` (`label`, `description`, `live`, `hidden`) to the underlying UI framework's accessibility APIs (e.g., WAI-ARIA `aria-label`, `aria-describedby`, `aria-live`, and `aria-hidden` for web renderers; `Semantics` properties for Flutter; `AccessibilityNodeInfo` / `accessibilityLabel` for Android and iOS renderers).
+- **Infer Default Semantics**: Use component types and non-accessibility properties (such as visible titles or text labels) to configure accessibility defaults automatically. When explicit `AccessibilityAttributes` (e.g., `label` or `description`) are provided, they MUST override inferred visual defaults. For example, a button component with a title of `"Submit"` and an explicit `accessibility.label` of `"Send Form"` must be announced by assistive technologies as `"Send Form"`.
+- **SDK Linter Checks**: SDK tooling and catalog linters MUST verify that component schemas accepting actions or input bindings declare accessible label requirements or fallbacks.
+
 ### The component catalog
 
 The set of available UI components and functions is defined in a **Catalog**. The basic catalog is defined in [`catalogs/basic/catalog.json`]. While the Basic Catalog is useful for starting out, most production applications will define their own catalog to reflect their specific design system. The agent must generate messages that conform to the catalog understood by the renderer.
@@ -450,7 +461,7 @@ The set of available UI components and functions is defined in a **Catalog**. Th
 
 Every catalog follows the standard `Catalog` object definition:
 
-- **catalogId** (string, required): A unique string identifier for this catalog. While conventionally formatted as a URI to avoid naming collisions across organizations, it is an arbitrary string ID and not a resolvable URI. Renderer and agent developers must agree on shared catalogs with well-known IDs in order to build systems that are compatible with each other.
+- **catalogId** (string, required): A unique string identifier for this catalog. While conventionally formatted as a URI to avoid naming collisions across organizations, it is an arbitrary string ID and not a resolvable URI. Because A2UI catalogs are represented as JSON Schema documents, catalog definitions should include both `$id` (used by JSON Schema tooling) and `catalogId` (used by A2UI SDKs and catalog negotiation), setting both fields to the same URI. Renderer and agent developers must agree on shared catalogs with well-known IDs in order to build systems that are compatible with each other.
 - **instructions** (string, optional): Markdown-formatted design principles, rules, or developer guidelines specific to this catalog. These rules guide LLMs when generating UI layouts under this catalog.
 - **components** (object, optional): A map of supported UI components, where each key is the component type (e.g., `Text`) and its value is its JSON Schema definition. All keys MUST conform to the UAX #31 entity naming rules defined below.
 - **functions** (object, optional): A map of renderer-side validation or utility functions supported by the catalog, where each key is the function name and its value is its definition. All function names MUST conform to the UAX #31 entity naming rules defined below. The renderer determines a function's execution boundary (e.g., rendererOnly status) at runtime by reading its configuration from the active catalog definition.
@@ -462,6 +473,7 @@ To ensure complete cross-language compatibility across renderer SDKs, parsers, a
 1. **Permitted Characters**: Identifiers must begin with a character in the Unicode property class `XID_Start` or an underscore (`_`, `U+005F`). Subsequent characters must belong to the Unicode property class `XID_Continue`.
 2. **Prohibited Initial Characters**: Identifiers MUST NOT begin with a decimal digit (Unicode general category `Nd`).
 3. **Prohibited Symbols and Whitespace**: Identifiers MUST NOT contain any whitespace or symbols matching the Unicode character property classes `Pattern_Syntax` or `Pattern_White_Space`, other than underscores.
+4. **Reserved Component Names**: The protocol reserves the component type name `"Surface"` for the canonical surface container created by `createSurface`. Catalogs MUST NOT define a standard UI component named `"Surface"`.
 
 ##### Canonical Regular Expression
 
@@ -500,8 +512,8 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `DynamicBoolean`
      - `DynamicStringList`
      - `DynamicValue`
+     - `AccessibilityAttributes`
      - `CheckRule`
-     - `ComponentCommon`
      - `Checkable`
      - `Action`
 4. **Component Discriminator Rule:**
@@ -516,10 +528,8 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      ```
      This enables route-dispatch matching via the `discriminator` block inside `anyComponent` (designating `"propertyName": "component"`).
 5. **Standard Component Structure:**
-   - All components defined in the `components` object must use an `allOf` structure that combines:
-     1. An external reference to the baseline identity and accessibility attributes:
-        `{"$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"}`
-     2. A local object schema defining the unique properties of that specific component (e.g., its children, variant, specific layouts).
+   - Catalog components define their discriminator (`component: { const: "<Name>" }`) and local properties (e.g., its children, variant, specific layouts), and can optionally import common property sets (such as `Checkable`) via `$ref`.
+   - Base component envelope properties (`id`, `catalogId`, and `accessibility` via `ComponentCommon`) are composed at the envelope level in `agent_to_renderer.json` via `allOf` inside the `Component` definition (referenced by `ComponentsList`), and therefore MUST NOT be redundantly wrapped with `ComponentCommon` via `allOf` inside individual catalog component definitions.
 6. **Strict Function Interface Pattern:**
    - Every function schema defined inside the `functions` map must validate a wire-level `FunctionCall` object. This requires:
      - A `properties` block with a `call` property containing a constant of the function's name (e.g., `"call": { "const": "email" }`).
@@ -553,36 +563,25 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
   "protocolVersion": "1.0",
   "title": "A2UI Basic Catalog Template",
   "description": "An annotated example showcasing structural rules and conventions.",
-  "catalogId": "https://example.com/catalogs/custom-v1",
+  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
   "instructions": "Design instructions for LLMs when generating layouts under this catalog.",
 
   // Top-level components declared under top-level "components" map.
   "components": {
     "Text": {
       "type": "object",
-      // Components must combine ComponentCommon and local properties using "allOf".
-      "allOf": [
-        {
-          // External references must reference standard types in common_types.json.
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon",
+      "properties": {
+        // Required "component" property must be a constant matching the component key.
+        "component": {
+          "const": "Text",
         },
-        {
-          "type": "object",
-          "properties": {
-            // Required "component" property must be a constant matching the component key.
-            "component": {
-              "const": "Text",
-            },
-            // Leaf properties can be standard JSON primitives or Dynamic wrappers
-            "text": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
-              "description": "Text content to display.",
-            },
-          },
-          "required": ["component", "text"],
+        // Leaf properties can be standard JSON primitives or Dynamic wrappers
+        "text": {
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+          "description": "Text content to display.",
         },
-      ],
-      "unevaluatedProperties": false,
+      },
+      "required": ["component", "text"],
     },
   },
 
@@ -673,6 +672,56 @@ flowchart TD
     A -- "Parsed and stored" --> E
 
 ```
+
+#### Composition validation rules
+
+To validate component nesting hierarchies, A2UI component catalogs support composition constraints via `allowedParents` and `allowedChildren`. You define these constraints on component type definitions in the catalog JSON Schema, and the renderer evaluates them against the component tree at runtime.
+
+1. **Composition Constraints**:
+   - `allowedParents` (array of strings, optional): The list of parent component type names that can contain this component type. If omitted, all parent component types are allowed.
+   - `allowedChildren` (array of strings, optional): The list of child component type names allowed inside this container or slot. If omitted, all child component types are allowed.
+2. **`"Surface"` Container Component**:
+   - The protocol reserves the component type name `"Surface"` for the canonical surface container.
+   - The `createSurface` message implicitly creates this container (`common_types.json#/$defs/Surface`) with `"child": "root"`. You cannot modify `Surface` using `updateComponents`.
+   - Parent-child validation applies uniformly across the entire component tree, with `Surface` acting as the top-level container parent.
+3. **Catalog Schema Examples**:
+   - **Top-Level Component**: To restrict a component so it can appear only as the top-level component (`"id": "root"`) of a surface:
+     ```json
+     {
+       "AppLayout": {
+         "type": "object",
+         "allowedParents": ["Surface"],
+         "properties": {
+           "component": {"const": "AppLayout"}
+         }
+       }
+     }
+     ```
+   - **Top-Level or Container Union**: To allow a component as either the top-level component (`"id": "root"`) of a surface or a child of a specific container:
+     ```json
+     {
+       "Card": {
+         "type": "object",
+         "allowedParents": ["Surface", "CanvasContainer"]
+       }
+     }
+     ```
+   - **Container-Restricted Components**: To restrict a child component so it can appear only within a specific parent container:
+     ```json
+     {
+       "Menu": {
+         "type": "object",
+         "allowedChildren": ["MenuItem"]
+       },
+       "MenuItem": {
+         "type": "object",
+         "allowedParents": ["Menu"]
+       }
+     }
+     ```
+4. **Validation Error Codes**:
+   - If a component is placed under an unallowed parent, the renderer emits a validation error message with `code` set to `"UNALLOWED_PARENT"`.
+   - If an unallowed child component is placed inside a container, the renderer emits a validation error message with `code` set to `"UNALLOWED_CHILD"`.
 
 ### Defining actions
 
@@ -926,24 +975,47 @@ A2UI v1.0 generalizes renderer-side logic into **Functions**. These can be used 
 
 The renderer supports a set of named **Functions** (e.g., `required`, `regex`, `email`, `add`, `concat`) which are defined in the JSON schema (e.g. `catalogs/basic/catalog.json`) alongside the component definitions. The agent references these functions by name in `FunctionCall` objects. This avoids sending executable code.
 
-Input components (like `TextField`, `CheckBox`) can define a list of checks. Each failure produces a specific error message that can be displayed when the component is rendered. Note that for validation checks, the function must return a boolean.
+### Component Validation & Check Rules
+
+Input components (like `TextField`, `ChoicePicker`) and interactive elements (like `Button`) can define a list of `checks` (`CheckRule` objects).
+
+A `CheckRule` contains a `condition` (a `DataBinding` path or a `FunctionCall`) that evaluates to a `ValidationResult` object (defined in [`catalog_definition.json#/$defs/ValidationResult`](../json/catalog_definition.json)).
+
+#### `ValidationResult` Structure
+
+Validation functions (declared with `"returnType": "validationResult"`) or data model bindings evaluate directly to a `ValidationResult` object:
+
+- **`valid`** (`boolean`, required): Whether the check passed.
+- **`code`** (`string`, optional): Machine-readable error code (e.g., `EXPIRED_CARD`, `OUT_OF_RANGE`).
+- **`message`** (`string`, optional): Human-readable error or warning message to display.
+- **`severity`** (`"error" | "warning" | "info"`, optional, default `"error"`).
+
+Because `ValidationResult` permits additional unconstrained properties, validation functions and specialized components can extend the object with custom domain-specific metadata (such as suggested fix values, field paths, or retry parameters).
+
+_Example Component Definition:_
 
 ```json
 "checks": [
   {
-    "call": "required",
-    "args": { "value": { "path": "/formData/zip" } },
-    "message": "Zip code is required"
-  },
-  {
-    "call": "regex",
-    "args": {
-      "value": { "path": "/formData/zip" },
-      "pattern": "^[0-9]{5}$"
-    },
-    "message": "Must be a 5-digit zip code"
+    "condition": {
+      "call": "validateCreditCard",
+      "args": {
+        "cardNumber": { "path": "/payment/cardNumber" }
+      }
+    }
   }
 ]
+```
+
+_Example Dynamic `ValidationResult` Returned by `validateCreditCard`:_
+
+```json
+{
+  "valid": false,
+  "code": "EXPIRED_CARD",
+  "message": "The card expiration date (05/24) has passed.",
+  "severity": "error"
+}
 ```
 
 ### Example: button validation
@@ -1038,7 +1110,7 @@ The [`catalogs/basic/catalog.json`] provides the baseline set of components and 
 | **formatCurrency** | Formats a number as a currency string.                                   |
 | **formatDate**     | Formats a date/time using a pattern.                                     |
 | **pluralize**      | Selects a localized string based on a numeric count.                     |
-| **openUrl**        | Opens a URL in a browser.                                                |
+| **openUrl**        | Opens a URL in a browser (requires user activation).                     |
 | **and**            | Logical AND operation on a list of boolean values.                       |
 | **or**             | Logical OR operation on a list of boolean values.                        |
 | **not**            | Logical NOT operation on a boolean value.                                |
@@ -1145,7 +1217,7 @@ This loop allows for a high degree of flexibility and robustness, as the system 
 
 If validation fails, the renderer (or the system acting on behalf of the renderer) should send an `error` message back to the LLM. To ensure the LLM can understand and correct the error, use the following standard format within the `error` message payload:
 
-- `code` (string, required): Must be `"VALIDATION_FAILED"`.
+- `code` (string, required): Must be `"VALIDATION_FAILED"`, `"UNALLOWED_PARENT"`, or `"UNALLOWED_CHILD"`. Use `"UNALLOWED_PARENT"` if a component is placed under an unallowed parent, and `"UNALLOWED_CHILD"` if an unallowed child is placed inside a container.
 - `surfaceId` (string, required): The ID of the surface where the error occurred.
 - `path` (string, required): The JSON pointer to the field that failed validation (e.g. `/components/0/text`).
 - `message` (string, required): A short one-sentence description of why validation failed.
@@ -1282,12 +1354,45 @@ When `sendDataModel` is enabled for a surface, the renderer includes the `a2uiRe
 - `version` (string, required): Must be the constant `"v1.0"`.
 - `surfaces` (object, required): A map of surface IDs to their current local data models.
 
+### Extensions
+
+In A2UI v1.0, strict schema validation (`additionalProperties: false`) protects components and wire messages from unrecognized fields. To enable non-visual metadata (such as access constraints, audit tags, and telemetry identifiers, etc.) without allowing arbitrary properties that would weaken schema validation, A2UI defines a centralized `Extensions` type in `common_types.json#/$defs/Extensions`.
+
+#### Architectural Principles
+
+1.  **Optional Schema Fields**: All `metadata.extensions` fields are strictly optional on the wire. When omitted, they incur zero token overhead.
+2.  **Parser Conformance Rule**: Conformant renderers MUST NOT reject payloads containing extension keys within an `extensions` object. Renderers MAY inspect and process extension keys they recognize, and MUST ignore unrecognized extension keys without error.
+3.  **Unicode Identifiers (UAX #31) and Prefix Reservation**: Extension names MUST be valid [Unicode UAX #31] identifiers (`^[\p{XID_Start}_][\p{XID_Continue}]*$`). To prevent key collisions:
+    - Official A2UI extensions are strictly reserved under the prefix `a2ui_`.
+    - Third-party extensions MUST be prefixed with a distinct organization or product identifier separated by an underscore (e.g. an extension from a company with the domain `company.com` might be named `com_company_extension`).
+      - Use of names derived from reversed domain names is encouraged for public facing extensions.
+    - Extension namespace uniqueness is self-managed by extension authors; no central registry is maintained.
+
+#### Wire Containers
+
+A2UI defines optional `metadata.extensions` containers across four scopes:
+
+- **Surface Scope** (`CreateSurfaceMessage.createSurface.metadata.extensions` in [`agent_to_renderer.json`]): Attach surface-level security metadata, access policies, or telemetry session identifiers.
+- **Component Scope** (`ComponentCommon.metadata.extensions` in [`common_types.json`]): Attach component-instance styling overrides, telemetry markers, or custom validation rules.
+- **Catalog Component Definition Scope** (`ComponentDefinition.metadata.extensions` in [`catalog_definition.json`]): Attach static component metadata or default telemetry tagging directly to catalog component schemas.
+- **Action Egress Scope** (`UserActionMessage.action.metadata.extensions` in [`renderer_to_agent.json`]): Send client-side action attestations, audit signatures, or authorization tokens back to the agent when user actions are triggered.
+
+#### SDK Accessor Pattern
+
+Renderers and client SDKs expose surface and component metadata using uniform accessors and change notification callbacks:
+
+- `getMetadata()`: Retrieves the metadata object containing extensions.
+- `setMetadata(metadata)`: Updates the metadata object and notifies listeners.
+- `onMetadataChanged(callback)`: Registers a callback that fires whenever metadata updates.
+
+[json pointer]: https://datatracker.ietf.org/doc/html/rfc6901
+[rfc 6901]: https://datatracker.ietf.org/doc/html/rfc6901
+[unicode uax #31]: https://www.unicode.org/reports/tr31/
+[`agent_capabilities.json`]: ../json/agent_capabilities.json
+[`agent_to_renderer.json`]: ../json/agent_to_renderer.json
+[`catalog_definition.json`]: ../json/catalog_definition.json
 [`catalogs/basic/catalog.json`]: ../catalogs/basic/catalog.json
 [`common_types.json`]: ../json/common_types.json
-[`agent_to_renderer.json`]: ../json/agent_to_renderer.json
-[`renderer_to_agent.json`]: ../json/renderer_to_agent.json
-[`agent_capabilities.json`]: ../json/agent_capabilities.json
 [`renderer_capabilities.json`]: ../json/renderer_capabilities.json
 [`renderer_data_model.json`]: ../json/renderer_data_model.json
-[JSON Pointer]: https://datatracker.ietf.org/doc/html/rfc6901
-[RFC 6901]: https://datatracker.ietf.org/doc/html/rfc6901
+[`renderer_to_agent.json`]: ../json/renderer_to_agent.json

@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -196,3 +196,16 @@ class TestCreateComplianceReport(unittest.TestCase):
 
         output = mock_stdout.getvalue()
         self.assertIn("Error: 'gh' CLI tool not found", output)
+
+    def test_inject_remediation_links(self) -> None:
+        """Verifies that ChatOps remediation instructions are injected."""
+        from create_compliance_report import inject_remediation_links
+
+        report = (
+            "## Recommendations\n\n"
+            "1. **P0 (Critical)**: First fix.\n"
+            "2. **P1 (High)**: Second fix.\n"
+        )
+        injected = inject_remediation_links(report)
+        self.assertIn("Comment `/remediate 1` on this issue", injected)
+        self.assertIn("Comment `/remediate 2` on this issue", injected)

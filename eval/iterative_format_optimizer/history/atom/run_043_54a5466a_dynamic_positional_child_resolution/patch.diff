@@ -1,0 +1,445 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+index c14acb8e..dc187a14 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+@@ -690,7 +690,8 @@ class AtomCompiler:
+                 i += 1
+             else:
+                 # Positional attribute matching schema definition order
+-                if self.schema_helper.get_property_type(comp_type, "children") == "ChildList" or "children" in prop_keys or "child" in prop_keys:
++                single_child_p = self.schema_helper.get_single_child_property(comp_type)
++                if child_list_prop or single_child_p or self.schema_helper.get_property_type(comp_type, "children") == "ChildList" or "children" in prop_keys or "child" in prop_keys:
+                     if isinstance(item, str) and item not in ("]", ")", "[", "(") and item != "...":
+                         children.append(self._auto_wrap_text_child(item, components, data_model))
+                 else:
+diff --git a/eval/iterative/current_report.md b/eval/iterative/current_report.md
+index 139e0010..6ccf9b72 100644
+--- a/eval/iterative/current_report.md
++++ b/eval/iterative/current_report.md
+@@ -5,108 +5,311 @@
+ ## Summary Table
+ | Metric | Baseline | Current | Diff |
+ | :--- | :--- | :--- | :--- |
+-| **Pytest Conformance** | PASS | PASS | - |
+-| **Overall Pass Rate** | 100.0% | 50.0% | -50.0% |
+-| **Algorithmic Schema Pass Rate** | 100.0% | 50.0% | -50.0% |
+-| **Inference Duration (sec)** | 8.05s | 8.10s | +0.6% |
++| **Pytest Conformance** | PASS | FAIL | - |
++| **Overall Pass Rate** | 0.0% | 100.0% | - |
++| **Algorithmic Schema Pass Rate** | 0.0% | 100.0% | - |
++| **Inference Duration (sec)** | 0.00s | 7.45s | - |
+ | **Avg Input Tokens** | 0 | 0 | - |
+ | **Avg Output Tokens** | 0 | 0 | - |
+ 
+-## Active Git Diff
+-*No files modified under `agent_sdks`.*
++## ❌ Pytest Unit Test Failures
++```
++============================= test session starts ==============================
++platform linux -- Python 3.13.14, pytest-9.1.1, pluggy-1.6.0
++rootdir: /usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43
++configfile: pyproject.toml
++plugins: asyncio-1.4.0
++asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
++collected 8 items / 28 errors
++
++==================================== ERRORS ====================================
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/adk/a2a/test_event_converter.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/adk/a2a/test_event_converter.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/adk/a2a/test_event_converter.py:20: in <module>
++    from a2ui.adk.a2a.event_converter import A2uiEventConverter
++E   ModuleNotFoundError: No module named 'a2ui'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py:21: in <module>
++    from a2a import types as a2a_types
++E   ModuleNotFoundError: No module named 'a2a'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/adk/orchestration/test_a2ui_subagent_map.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/adk/orchestration/test_a2ui_subagent_map.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/adk/orchestration/test_a2ui_subagent_map.py:18: in <module>
++    from google.adk.sessions.session import Session
++E   ModuleNotFoundError: No module named 'google'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/adk/test_send_a2ui_to_client_toolset.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/adk/test_send_a2ui_to_client_toolset.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/adk/test_send_a2ui_to_client_toolset.py:20: in <module>
++    from a2ui.adk.send_a2ui_to_client_toolset import SendA2uiToClientToolset
++E   ModuleNotFoundError: No module named 'a2ui'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/conformance/test_a2a_integration.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/conformance/test_a2a_integration.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/conformance/test_a2a_integration.py:16: in <module>
++    import yaml
++E   ModuleNotFoundError: No module named 'yaml'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/conformance/test_adk_extensions.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/conformance/test_adk_extensions.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/conformance/test_adk_extensions.py:16: in <module>
++    import yaml
++E   ModuleNotFoundError: No module named 'yaml'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py:16: in <module>
++    import yaml
++E   ModuleNotFoundError: No module named 'yaml'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/elemental/test_compiler.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/elemental/test_compiler.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/elemental/test_compiler.py:20: in <module>
++    from a2ui.core.catalog import Catalog
++E   ModuleNotFoundError: No module named 'a2ui'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/elemental/test_format.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/elemental/test_format.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/elemental/test_format.py:21: in <module>
++    from a2ui.core.catalog import Catalog
++E   ModuleNotFoundError: No module named 'a2ui'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/elemental/test_integration.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/elemental/test_integration.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/elemental/test_integration.py:18: in <module>
++    from a2ui.schema.catalog import A2uiCatalog
++E   ModuleNotFoundError: No module named 'a2ui'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py:21: in <module>
++    from a2ui.core.catalog import Catalog
++E   ModuleNotFoundError: No module named 'a2ui'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py:21: in <module>
++    from a2ui.schema.catalog import A2uiCatalog
++E   ModuleNotFoundError: No module named 'a2ui'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/express/test_cli_tools.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/express/test_cli_tools.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/express/test_cli_tools.py:43: in <module>
++    import run_compiler
++specification/proposals/express/scripts/run_compiler.py:45: in <module>
++    from a2ui.core.catalog import Catalog
++E   ModuleNotFoundError: No module named 'a2ui.core'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/express/test_compiler.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/express/test_compiler.py:21: in <module>
++    from a2ui.core.catalog import Catalog
++E   ModuleNotFoundError: No module named 'a2ui.core'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/express/test_integration.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/express/test_integration.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/express/test_integration.py:24: in <module>
++    from a2ui.core.catalog import Catalog
++E   ModuleNotFoundError: No module named 'a2ui.core'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/express/test_parser_decompile.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/express/test_parser_decompile.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/express/test_parser_decompile.py:20: in <module>
++    from a2ui.core.catalog import Catalog
++E   ModuleNotFoundError: No module named 'a2ui.core'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/express/test_prompt_generator.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/express/test_prompt_generator.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/express/test_prompt_generator.py:21: in <module>
++    from a2ui.schema.catalog import A2uiCatalog
++agent_sdks/python/a2ui_agent/src/a2ui/schema/catalog.py:26: in <module>
++    from a2ui.core.catalog import Catalog
++E   ModuleNotFoundError: No module named 'a2ui.core'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/parser/test_streaming_v08.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/parser/test_streaming_v08.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/parser/test_streaming_v08.py:27: in <module>
++    from a2ui.schema.catalog import A2uiCatalog
++agent_sdks/python/a2ui_agent/src/a2ui/schema/catalog.py:26: in <module>
++    from a2ui.core.catalog import Catalog
++E   ModuleNotFoundError: No module named 'a2ui.core'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/parser/test_streaming_v09.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/parser/test_streaming_v09.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/parser/test_streaming_v09.py:27: in <module>
++    from a2ui.schema.catalog import A2uiCatalog
++agent_sdks/python/a2ui_agent/src/a2ui/schema/catalog.py:26: in <module>
++    from a2ui.core.catalog import Catalog
++E   ModuleNotFoundError: No module named 'a2ui.core'
++__ ERROR collecting agent_sdks/python/a2ui_agent/tests/schema/test_catalog.py __
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/schema/test_catalog.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/schema/test_catalog.py:16: in <module>
++    from a2ui.schema.catalog import A2uiCatalog
++agent_sdks/python/a2ui_agent/src/a2ui/schema/catalog.py:26: in <module>
++    from a2ui.core.catalog import Catalog
++E   ModuleNotFoundError: No module named 'a2ui.core'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/schema/test_transport_format.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/schema/test_transport_format.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/schema/test_transport_format.py:15: in <module>
++    from a2ui.inference_formats.transport.format import TransportFormat
++agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/transport/__init__.py:15: in <module>
++    from .format import TransportFormat
++agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/transport/format.py:21: in <module>
++    from a2ui.inference_format import InferenceFormat
++agent_sdks/python/a2ui_agent/src/a2ui/inference_format.py:20: in <module>
++    from a2ui.prompt import PromptGenerator
++agent_sdks/python/a2ui_agent/src/a2ui/prompt/__init__.py:17: in <module>
++    from .generator import PromptGenerator
++agent_sdks/python/a2ui_agent/src/a2ui/prompt/generator.py:19: in <module>
++    from a2ui.core.schema.client_capabilities import V09Capabilities
++E   ModuleNotFoundError: No module named 'a2ui.core'
++___ ERROR collecting agent_sdks/python/a2ui_agent/tests/schema/test_utils.py ___
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/schema/test_utils.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/schema/test_utils.py:19: in <module>
++    from a2ui.core.exceptions import A2uiCatalogError
++E   ModuleNotFoundError: No module named 'a2ui.core'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/schema/test_validator.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/schema/test_validator.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/schema/test_validator.py:16: in <module>
++    from a2ui.schema.catalog import A2uiCatalog
++agent_sdks/python/a2ui_agent/src/a2ui/schema/catalog.py:26: in <module>
++    from a2ui.core.catalog import Catalog
++E   ModuleNotFoundError: No module named 'a2ui.core'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/schema/test_validator_v10.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/schema/test_validator_v10.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/schema/test_validator_v10.py:18: in <module>
++    from a2ui.schema.catalog import A2uiCatalog
++agent_sdks/python/a2ui_agent/src/a2ui/schema/catalog.py:26: in <module>
++    from a2ui.core.catalog import Catalog
++E   ModuleNotFoundError: No module named 'a2ui.core'
++___ ERROR collecting agent_sdks/python/a2ui_agent/tests/test_atom_format.py ____
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/test_atom_format.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/test_atom_format.py:19: in <module>
++    from a2ui.inference_formats.experimental.atom.compiler import AtomCompiler
++agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/__init__.py:17: in <module>
++    from .format import AtomFormat
++agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/format.py:18: in <module>
++    from a2ui.schema.catalog import A2uiCatalog
++agent_sdks/python/a2ui_agent/src/a2ui/schema/catalog.py:26: in <module>
++    from a2ui.core.catalog import Catalog
++E   ModuleNotFoundError: No module named 'a2ui.core'
++_____ ERROR collecting agent_sdks/python/a2ui_agent/tests/test_formats.py ______
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/test_formats.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/test_formats.py:16: in <module>
++    from a2ui.schema.catalog import A2uiCatalog
++agent_sdks/python/a2ui_agent/src/a2ui/schema/catalog.py:26: in <module>
++    from a2ui.core.catalog import Catalog
++E   ModuleNotFoundError: No module named 'a2ui.core'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/test_prompt_examples.py __
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/test_prompt_examples.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/test_prompt_examples.py:20: in <module>
++    from a2ui.core.catalog import Catalog
++E   ModuleNotFoundError: No module named 'a2ui.core'
++_ ERROR collecting agent_sdks/python/a2ui_agent/tests/test_specification_roundtrip.py _
++ImportError while importing test module '/usr/local/google/home/gspencer/code/a2ui/worktrees/opt-atom-run43/agent_sdks/python/a2ui_agent/tests/test_specification_roundtrip.py'.
++Hint: make sure your test modules/packages have valid Python names.
++Traceback:
++agent_sdks/python/a2ui_agent/tests/test_specification_roundtrip.py:22: in <module>
++    from a2ui.basic_catalog import BasicCatalog
++agent_sdks/python/a2ui_agent/src/a2ui/basic_catalog/__init__.py:15: in <module>
++    from .provider import BasicCatalog
++agent_sdks/python/a2ui_agent/src/a2ui/basic_catalog/provider.py:17: in <module>
++    from ..schema.catalog import CatalogConfig, resolve_examples_path
++agent_sdks/python/a2ui_agent/src/a2ui/schema/catalog.py:26: in <module>
++    from a2ui.core.catalog import Catalog
++E   ModuleNotFoundError: No module named 'a2ui.core'
++=========================== short test summary info ============================
++ERROR agent_sdks/python/a2ui_agent/tests/adk/a2a/test_event_converter.py
++ERROR agent_sdks/python/a2ui_agent/tests/adk/a2a/test_part_converter.py
++ERROR agent_sdks/python/a2ui_agent/tests/adk/orchestration/test_a2ui_subagent_map.py
++ERROR agent_sdks/python/a2ui_agent/tests/adk/test_send_a2ui_to_client_toolset.py
++ERROR agent_sdks/python/a2ui_agent/tests/conformance/test_a2a_integration.py
++ERROR agent_sdks/python/a2ui_agent/tests/conformance/test_adk_extensions.py
++ERROR agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py
++ERROR agent_sdks/python/a2ui_agent/tests/elemental/test_compiler.py
++ERROR agent_sdks/python/a2ui_agent/tests/elemental/test_format.py
++ERROR agent_sdks/python/a2ui_agent/tests/elemental/test_integration.py
++ERROR agent_sdks/python/a2ui_agent/tests/elemental/test_parser_decompile.py
++ERROR agent_sdks/python/a2ui_agent/tests/elemental/test_prompt_generator.py
++ERROR agent_sdks/python/a2ui_agent/tests/express/test_cli_tools.py
++ERROR agent_sdks/python/a2ui_agent/tests/express/test_compiler.py
++ERROR agent_sdks/python/a2ui_agent/tests/express/test_integration.py
++ERROR agent_sdks/python/a2ui_agent/tests/express/test_parser_decompile.py
++ERROR agent_sdks/python/a2ui_agent/tests/express/test_prompt_generator.py
++ERROR agent_sdks/python/a2ui_agent/tests/parser/test_streaming_v08.py
++ERROR agent_sdks/python/a2ui_agent/tests/parser/test_streaming_v09.py
++ERROR agent_sdks/python/a2ui_agent/tests/schema/test_catalog.py
++ERROR agent_sdks/python/a2ui_agent/tests/schema/test_transport_format.py
++ERROR agent_sdks/python/a2ui_agent/tests/schema/test_utils.py
++ERROR agent_sdks/python/a2ui_agent/tests/schema/test_validator.py
++ERROR agent_sdks/python/a2ui_agent/tests/schema/test_validator_v10.py
++ERROR agent_sdks/python/a2ui_agent/tests/test_atom_format.py
++ERROR agent_sdks/python/a2ui_agent/tests/test_formats.py
++ERROR agent_sdks/python/a2ui_agent/tests/test_prompt_examples.py
++ERROR agent_sdks/python/a2ui_agent/tests/test_specification_roundtrip.py
++!!!!!!!!!!!!!!!!!!! Interrupted: 28 errors during collection !!!!!!!!!!!!!!!!!!!
++============================== 28 errors in 0.41s ==============================
+ 
+-## Failure Details (Count: 1 / 2)
+-### ❌ Sample: `dogBreedGenerator`
+-- **Algorithmic Schema**: `FAIL`
+-- **LLM Judge Grade**: `I`
+-- **Prompt**:
+-  > Use a surfaceId of 'main'. Generate a 'createSurface' message to describe the following UI:
+-  > 
+-  > A vertical list with:
+-  > - Dog breed information
+-  > - Dog generator
+-  > 
+-  > The dog breed information is a card, which contains a title “Famous Dog breeds”, a header image, and a horizontal list of images of different dog breeds (using a 'List' component). The list information should be in the data model at /breeds.
+-  > 
+-  > The dog generator is another card which is a form that generates a fictional dog breed with a description
+-  > - Title
+-  > - Description text explaining what it is
+-  > - Dog breed name (text input)
+-  > - Number of legs (number input)
+-  > - Button called “Generate” which takes the data above and generates a new dog description
+-  > - Skills (ChoicePicker component, variant 'multipleSelection')
+-  > - A divider
+-  > - A section which shows the generated content
+-  > 
++warning: `VIRTUAL_ENV=/usr/local/google/home/gspencer/code/a2ui/atom_format/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+ 
+-- **Raw Model Output**:
+-  ```
+-  <a2ui>
+-  (Column
+-    (data 
+-      $/breeds [
+-        (:name "Golden Retriever" :url "https://example.com/golden.jpg") 
+-        (:name "Beagle" :url "https://example.com/beagle.jpg")
+-      ]
+-      $/skills ["Running", "Sleeping", "Guarding", "Fetch"]
+-      $/generatedName ""
+-      $/generatedLegs 0
+-      $/selectedSkills []
+-    )
+-    (Card
+-      :child "breed_column"
+-    )
+-    (Column :id "breed_column" :children ("breed_title" "breed_image" "breed_list"))
+-    (Text :id "breed_title" :text "Famous Dog breeds")
+-    (Image :id "breed_image" :url "https://example.com/dog_banner.jpg" :variant "mediumFeature")
+-    (List 
+-      :id "breed_list" 
+-      :direction "horizontal"
+-      :children (template :item breed (Image :url $/breed/url :variant "icon"))
+-    )
+-    (Card
+-      :child "generator_column"
+-    )
+-    (Column :id "generator_column" :children ("gen_title" "gen_desc" "name_input" "legs_input" "skills_picker" "gen_divider" "gen_button" "result_section"))
+-    (Text :id "gen_title" :text "Dog Generator")
+-    (Text :id "gen_desc" :text "Configure your fictional dog breed below.")
+-    (TextField :id "name_input" :label "Dog breed name" :value $/generatedName)
+-    (TextField :id "legs_input" :label "Number of legs" :variant "number" :value $/generatedLegs)
+-    (ChoicePicker 
+-      :id "skills_picker" 
+-      :label "Skills" 
+-      :variant "multipleSelection" 
+-      :options $/skills 
+-      :value $/selectedSkills
+-    )
+-    (Divider :id "gen_divider")
+-    (Button 
+-      :id "gen_button" 
+-      :child "btn_text" 
+-      :variant "primary"
+-      :action (Event "generate_dog")
+-    )
+-    (Text :id "btn_text" :text "Generate")
+-    (Column 
+-      :id "result_section" 
+-      :children ("res_name" "res_legs")
+-    )
+-    (Text :id "res_name" :text (formatString "Breed: ${/generatedName}"))
+-    (Text :id "res_legs" :text (formatString "Legs: ${/generatedLegs}"))
+-  )
+-  </a2ui>
+-  ```
++```
+ 
+-- **Algorithmic Failure Explanation**:
+-  > Format compilation/validation failed during solver step.
++## Active Git Diff
++```diff
++diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
++index c14acb8e..dc187a14 100644
++--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
++@@ -690,7 +690,8 @@ class AtomCompiler:
++                 i += 1
++             else:
++                 # Positional attribute matching schema definition order
++-                if self.schema_helper.get_property_type(comp_type, "children") == "ChildList" or "children" in prop_keys or "child" in prop_keys:
+++                single_child_p = self.schema_helper.get_single_child_property(comp_type)
+++                if child_list_prop or single_child_p or self.schema_helper.get_property_type(comp_type, "children") == "ChildList" or "children" in prop_keys or "child" in prop_keys:
++                     if isinstance(item, str) and item not in ("]", ")", "[", "(") and item != "...":
++                         children.append(self._auto_wrap_text_child(item, components, data_model))
++                 else:
++```
+ 
+-- **Grader Reasoning (Grade I)**:
+-  > To assess the submission, we evaluate it against the given criterion step-by-step:
+-  > 
+-  > 1. **Check for `createSurface` and `surfaceId 'main'`**: The task explicitly asks to generate a `createSurface` message and use a `surfaceId` of `'main'`. The submission fails to wrap the UI in a `createSurface` message and does not include any reference to the `surfaceId` `'main'`.
+-  > 2. **Check for Validity**: The submission prepends a compilation/validation failure message: `Compilation/validation failed: Component 'root' references non-existent component 'node_1' in field 'children'`. This indicates the payload itself is structurally invalid and failed validation.
+-  > 3. **Check UI elements**: Although the raw output attempts to define the vertical list with the requested cards ("Famous Dog breeds" and "Dog generator"), the structural errors in the code and the lack of the required `createSurface` container make it invalid.
+-  > 
+-  > Since the submission fails to provide a valid A2UI payload, does not include the `surfaceId`, and fails to generate the `createSurface` wrapper, it does not meet the criteria.
+-  > 
+-  > GRADE: I
++## Failure Details (Count: 0 / 6)
++🎉 *All tests passed successfully!*
+\ No newline at end of file
+diff --git a/eval/iterative/history_summary.md b/eval/iterative/history_summary.md
+index 92234701..12da2550 100644
+--- a/eval/iterative/history_summary.md
++++ b/eval/iterative/history_summary.md
+@@ -24,6 +24,6 @@
+ | `036` | Dynamic parameter name normalization for built-in formatting functions (formatString, formatDate). | PASS | 83.3% | 100.0% | 8.39s | 0 | 0 | Backtracked | Pytest 100% pass. Schema Acc 100.0%. However, Quality Score regressed from 100.0% to 83.3% (-16.7%) on productGalleryData. Score S_opt dropped to +0.550. Reverted per Rule 1 correctness guardrail and Rule 3. |
+ | `037` | Compiler-side dynamic data model path normalization for multi-part update operations. | PASS | 66.7% | 83.3% | 8.48s | 0 | 0 | Backtracked | Pytest 100% pass. However, Schema Acc regressed to 83.3% (-16.7%) and Quality Score regressed to 66.7% (-33.3%). Score S_opt dropped to +0.426. Reverted per Rule 1 correctness guardrail and Rule 3. |
+ | `039` | AST optimization for implicit string child auto-wrapping in container components in AtomCompiler._compile_component. | PASS | 0.0% | 0.0% | 0.00s | 0 | 0 | Kept | Kept. Pytest 100% pass (507 passed). Algorithmic Schema Acc 100.0%, Quality Score 100.0%. Reasoning tokens reduced by -27.2% (3,973 vs 5,460), Code Output Tokens reduced by -7.7% (228 vs 247). Composite score S_opt increased from +0.570 to +0.595 (+0.025). Kept and baseline updated. |
+-| `040` | Streamlining system prompt section headers and sentinel rules in ATOM_RULES to reduce input token footprint. | PASS | 100.0% | 100.0% | 5.48s | 4440 | 282 | Kept | Pytest 100% pass (507 passed). Algorithmic Schema Acc 100.0%, Quality Score 100.0%. Input tokens reduced to 4,440 (-0.3%), reasoning tokens reduced by -12.8% (3,922 vs 4,498). Composite score S_opt increased to +0.612 (+0.003). Kept and baseline updated. |
+-| `041` | Dynamic event parameter normalization in AtomCompiler._compile_event. | PASS | 100.0% | 100.0% | 5.62s | 4440 | 282 | Kept | Pytest 100% pass (507 passed). Algorithmic Schema Acc 100.0%, Quality Score 100.0%. Reasoning tokens reduced by -5.1% (4,115 vs 4,342), Code Output Tokens maintained at 282. Composite score S_opt increased to +0.615 (+0.003). Kept and baseline updated. |
+-| `042` | Dynamic template item variable path optimizations in AtomCompiler._compile_template. | PASS | 100.0% | 100.0% | 5.35s | 4440 | 282 | Kept | Pytest 100% pass (507 passed). Algorithmic Schema Acc 100.0%, Quality Score 100.0%. Reasoning tokens reduced by -5.5% (3,890 vs 4,115), Parallel wall latency reduced by -4.8% (5.35s vs 5.62s). Composite score S_opt increased to +0.617 (+0.002). Kept and baseline updated. |
+\ No newline at end of file
++| `040` | Streamlining system prompt section headers and sentinel rules in ATOM_RULES to reduce input token footprint. | PASS | 0.0% | 0.0% | 0.00s | 0 | 0 | Kept | Kept. Pytest 100% pass (507 passed). Algorithmic Schema Acc 100.0%, Quality Score 100.0%. Input tokens reduced to 4,440 (-0.3%), reasoning tokens reduced by -12.8% (3,922 vs 4,498), non-reasoning output time reduced by -2.1% (1.34s vs 1.37s). Composite score S_opt increased to +0.612 (+0.003). Kept and baseline updated. |
++| `041` | Dynamic event parameter normalization in AtomCompiler._compile_event. | PASS | 0.0% | 0.0% | 0.00s | 0 | 0 | Kept | Kept. Pytest 100% pass (507 passed). Algorithmic Schema Acc 100.0%, Quality Score 100.0%. Reasoning tokens reduced by -5.1% (4,115 vs 4,342), Code Output Tokens maintained at 282. Composite score S_opt increased to +0.615 (+0.003). Kept and baseline updated. |
++| `042` | Dynamic template item variable path optimizations in AtomCompiler._compile_template. | PASS | 0.0% | 0.0% | 0.00s | 0 | 0 | Kept | Kept. Pytest 100% pass (507 passed). Algorithmic Schema Acc 100.0%, Quality Score 100.0%. Reasoning tokens reduced by -5.5% (3,890 vs 4,115), Parallel wall latency reduced by -4.8% (5.35s vs 5.62s). Composite score S_opt increased to +0.617 (+0.002). Kept and baseline updated. |
+\ No newline at end of file
