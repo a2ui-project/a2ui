@@ -22,9 +22,14 @@ import OrderedJSON
 ///
 /// Mirrors `MessageProcessor` in the core blueprint and `web_core`.
 /// Accepts strongly-typed ``ServerToClientMessage`` values or raw JSON lines,
+///// The central processor for A2UI server-to-client messages.
+///
+/// Mirrors `MessageProcessor` in the core blueprint and `web_core`.
+/// Accepts strongly-typed ``ServerToClientMessage`` values or raw JSON lines,
 /// validates component declarations against catalog schemas, and mutates
 /// the corresponding ``SurfaceViewModel`` state via ``SurfaceGroupModel``.
-public final class MessageProcessor: @unchecked Sendable, ObservableObject {
+@MainActor
+public final class MessageProcessor: ObservableObject {
   /// The surface group model owning all active surfaces.
   public let surfaceGroupModel: SurfaceGroupModel
 
@@ -59,13 +64,200 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
   /// Returns the aggregated data model for surfaces with `sendDataModel` enabled.
   public func getClientDataModel() -> JSONValue? {
     var result: OrderedDictionary<String, JSONValue> = [:]
-    for (surfaceID, vm) in surfaceGroupModel.surfaces {
+    for (surfaceID, vm) in surfaceGroupModel.surfacesMap {
       if vm.sendDataModel {
         result[surfaceID] = vm.dataModel.data
       }
     }
     guard !result.isEmpty else { return nil }
     return .object(result)
+  }
+
+  // MARK: - Capabilities Generation
+
+  /// Options for generating client capabilities.
+  public struct CapabilitiesOptions: Sendable {
+    /// If true, full definitions of all catalogs will be included as inline catalogs.
+    public var includeInlineCatalogs: Bool
+
+    /// The protocol version to generate capabilities for.
+    public var version: String
+
+    /// Creates a capabilities option instance with an explicit protocol version.
+    ///
+    /// - Parameters:
+    ///   - includeInlineCatalogs: Whether to include inline catalog definitions.
+    ///   - version: The protocol version string (e.g., "v0.9.1").
+    public init(
+      includeInlineCatalogs: Bool = false,
+      version: String
+    ) {
+      self.includeInlineCatalogs = includeInlineCatalogs
+      self.version = version
+    }
+
+    /// Creates a capabilities option instance defaulting to protocol version "v0.9.1".
+    ///
+    /// - Parameter includeInlineCatalogs: Whether to include inline catalog definitions.
+    @available(
+      *,
+      deprecated,
+      message: "Specify the protocol version explicitly using init(includeInlineCatalogs:version:)"
+    )
+    public init(
+      includeInlineCatalogs: Bool = false
+    ) {
+      self.includeInlineCatalogs = includeInlineCatalogs
+      self.version = "v0.9.1"
+    }
+  }
+
+  /// Generates the `a2uiClientCapabilities` object for all registered catalogs.
+  ///
+  /// - Parameter options: Configuration options for capability generation.
+  /// - Returns: A `JSONValue` representing the capabilities structure.
+  public func getClientCapabilities(
+    options: CapabilitiesOptions
+  ) -> JSONValue {
+    let supportedCatalogIDs = Array(catalogs.keys).sorted()
+    var versionCaps: OrderedDictionary<String, JSONValue> = [
+      "supportedCatalogIds": .array(supportedCatalogIDs.map { .string($0) })
+    ]
+
+    if options.includeInlineCatalogs {
+      let inlineCatalogs = catalogs.values.map { generateInlineCatalog($0) }
+      versionCaps["inlineCatalogs"] = .array(inlineCatalogs)
+    }
+
+    return .object([
+      options.version: .object(versionCaps)
+    ])
+  }
+
+  /// Generates `a2uiClientCapabilities` using default options for protocol version "v0.9.1".
+  ///
+  /// - Returns: A `JSONValue` representing the capabilities structure.
+  @available(
+    *,
+    deprecated,
+    message: "Specify capabilities options explicitly using getClientCapabilities(options:)"
+  )
+  public func getClientCapabilities() -> JSONValue {
+    getClientCapabilities(
+      options: CapabilitiesOptions(includeInlineCatalogs: false, version: "v0.9.1")
+    )
+  }
+
+  private func generateInlineCatalog(_ catalog: Catalog) -> JSONValue {
+    var componentsDictionary: OrderedDictionary<String, JSONValue> = [:]
+
+    for (name, componentAPI) in catalog.components {
+      let schemaJSON = schemaToJSONValue(componentAPI.schema) ?? .object([:])
+      let processedSchema = processRefs(schemaJSON)
+
+      var properties: OrderedDictionary<String, JSONValue> = [
+        "component": .object(["const": .string(name)])
+      ]
+      var required: [JSONValue] = [.string("component")]
+
+      if let originalProperties = processedSchema["properties"]?.objectValue {
+        for (key, value) in originalProperties {
+          properties[key] = value
+        }
+      }
+      if let originalRequired = processedSchema["required"]?.arrayValue {
+        for requiredProperty in originalRequired {
+          if !required.contains(requiredProperty) {
+            required.append(requiredProperty)
+          }
+        }
+      }
+
+      let componentSchema: JSONValue = .object([
+        "allOf": .array([
+          .object(["$ref": .string("common_types.json#/$defs/ComponentCommon")]),
+          .object([
+            "properties": .object(properties),
+            "required": .array(required),
+          ]),
+        ])
+      ])
+      componentsDictionary[name] = componentSchema
+    }
+
+    var functionsArray: [JSONValue] = []
+    for (_, functionImplementation) in catalog.functions {
+      let functionAPI = functionImplementation.api
+      let schemaJSON = schemaToJSONValue(functionAPI.schema) ?? .object([:])
+      let processedParameters = processRefs(schemaJSON)
+
+      var functionDictionary: OrderedDictionary<String, JSONValue> = [
+        "name": .string(functionAPI.name),
+        "returnType": .string(functionAPI.returnType.rawValue),
+      ]
+      if let functionDescription = processedParameters["description"]?.stringValue {
+        functionDictionary["description"] = .string(functionDescription)
+      }
+      functionDictionary["parameters"] = processedParameters
+      functionsArray.append(.object(functionDictionary))
+    }
+
+    var catalogDictionary: OrderedDictionary<String, JSONValue> = [
+      "catalogId": .string(catalog.id),
+      "components": .object(componentsDictionary),
+    ]
+    if !functionsArray.isEmpty {
+      catalogDictionary["functions"] = .array(functionsArray)
+    }
+
+    if let themeSchema = catalog.themeSchema {
+      let schemaJSON = schemaToJSONValue(themeSchema) ?? .object([:])
+      let processedTheme = processRefs(schemaJSON)
+      if let themeProperties = processedTheme["properties"] {
+        catalogDictionary["theme"] = themeProperties
+      } else {
+        catalogDictionary["theme"] = processedTheme
+      }
+    }
+
+    return .object(catalogDictionary)
+  }
+
+  private func schemaToJSONValue(_ schema: Schema) -> JSONValue? {
+    let encoder = JSONEncoder()
+    guard let data = try? encoder.encode(schema),
+      let json = try? JSONValue.parse(data)
+    else {
+      return nil
+    }
+    return json
+  }
+
+  private func processRefs(_ value: JSONValue) -> JSONValue {
+    switch value {
+    case .object(let dict):
+      if let desc = dict["description"]?.stringValue, desc.hasPrefix("REF:") {
+        let parts = desc.dropFirst(4).split(separator: "|")
+        let refPart = parts.first.map(String.init) ?? ""
+        let customDescription = parts.count > 1 ? String(parts[1]) : nil
+        var resultDict: OrderedDictionary<String, JSONValue> = ["$ref": .string(refPart)]
+        if let customDescription, !customDescription.isEmpty {
+          resultDict["description"] = .string(customDescription)
+        }
+        return .object(resultDict)
+      }
+      var newDict: OrderedDictionary<String, JSONValue> = [:]
+      for (k, v) in dict {
+        newDict[k] = processRefs(v)
+      }
+      return .object(newDict)
+
+    case .array(let arr):
+      return .array(arr.map { processRefs($0) })
+
+    default:
+      return value
+    }
   }
 
   // MARK: - Message Processing (JSONL Line)
@@ -75,18 +267,15 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
   /// Throws on any failure (decoding error, missing surface, missing catalog).
   /// Thrown parsing errors are also routed to `ActionHandling` via `MessageErrorMapper`.
   public func process(line: String) throws {
-    let message: ServerToClientMessage
-
     do {
-      message = try parser.parse(jsonString: line)
+      let message = try parser.parse(jsonString: line)
+      try validateAndProcess(message)
     } catch {
       let surfaceID = (error as? MessageParseError)?.surfaceID ?? "unknown"
       let clientError = errorMapper.map(error, surfaceID: surfaceID)
       actionHandler?.handle(error: clientError, from: surfaceID)
       throw error
     }
-
-    try validateAndProcess(message)
   }
 
   // MARK: - Message Processing (Strongly-Typed)
@@ -98,7 +287,19 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
 
   /// Processes a single server-to-client message without throwing.
   public func processMessage(_ message: ServerToClientMessage) {
-    try? validateAndProcess(message)
+    do {
+      try validateAndProcess(message)
+    } catch {
+      let surfaceID: String
+      switch message {
+      case .createSurface(let msg): surfaceID = msg.surfaceID
+      case .updateComponents(let msg): surfaceID = msg.surfaceID
+      case .updateDataModel(let msg): surfaceID = msg.surfaceID
+      case .deleteSurface(let msg): surfaceID = msg.surfaceID
+      }
+      let clientError = errorMapper.map(error, surfaceID: surfaceID)
+      actionHandler?.handle(error: clientError, from: surfaceID)
+    }
   }
 
   /// Processes an array of server-to-client messages.
@@ -134,7 +335,8 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
   ) -> SurfaceViewModel {
     let vm = SurfaceViewModel(
       surfaceID: surfaceID,
-      catalog: catalog,
+      catalogs: catalogs.isEmpty ? [catalog.id: catalog] : catalogs,
+      defaultCatalogID: catalog.id,
       theme: theme,
       actionHandler: actionHandler,
       sendDataModel: sendDataModel
@@ -151,7 +353,7 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
     surfaceID: String,
     components: [[String: JSONValue]]
   ) {
-    guard let surface = surfaceGroupModel.surfaces[surfaceID] else {
+    guard let surface = surfaceGroupModel.surfacesMap[surfaceID] else {
       let error = ClientServerError.generic(
         GenericError(
           code: "SURFACE_NOT_FOUND",
@@ -188,7 +390,9 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
         continue
       }
 
-      guard let schema = surface.catalog.components[type]?.schema else {
+      let componentCatalogID = componentDict["catalogId"]?.stringValue ?? surface.defaultCatalogID
+      let targetCatalog = surface.getCatalog(id: componentCatalogID)
+      guard let schema = targetCatalog?.components[type]?.schema else {
         let error = ClientServerError.validationFailed(
           ValidationFailedError(
             surfaceID: surfaceID,
@@ -209,7 +413,8 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
 
       if result.isValid {
         var props: [String: JSONValue] = [:]
-        for (key, val) in componentDict where key != "id" && key != "component" {
+        for (key, val) in componentDict
+        where key != "id" && key != "component" && key != "catalogId" {
           props[key] = val
         }
 
@@ -218,7 +423,7 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
           surface.componentsModel.removeComponent(id)
         }
         surface.componentsModel.addComponent(
-          ComponentModel(id: id, type: type, properties: props)
+          ComponentModel(id: id, type: type, catalogID: componentCatalogID, properties: props)
         )
       } else {
         let errorMessage = result.errors?.first?.message ?? "Validation failed"
@@ -240,7 +445,7 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
     path: String,
     value: JSONValue?
   ) {
-    guard let surface = surfaceGroupModel.surfaces[surfaceID] else {
+    guard let surface = surfaceGroupModel.surfacesMap[surfaceID] else {
       let error = ClientServerError.generic(
         GenericError(
           code: "SURFACE_NOT_FOUND",
@@ -259,7 +464,7 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
   private func validateAndProcess(_ message: ServerToClientMessage) throws {
     switch message {
     case .createSurface(let msg):
-      guard surfaceGroupModel.surfaces[msg.surfaceID] == nil else {
+      guard surfaceGroupModel.surfacesMap[msg.surfaceID] == nil else {
         let error = GenericError(
           code: "SURFACE_EXISTS",
           surfaceID: msg.surfaceID,
@@ -277,7 +482,8 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
       }
       let vm = SurfaceViewModel(
         surfaceID: msg.surfaceID,
-        catalog: catalog,
+        catalogs: catalogs,
+        defaultCatalogID: catalog.id,
         theme: msg.theme,
         actionHandler: actionHandler,
         sendDataModel: msg.shouldSendDataModel
@@ -285,7 +491,7 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
       surfaceGroupModel.addSurface(vm)
 
     case .updateComponents(let msg):
-      guard surfaceGroupModel.surfaces[msg.surfaceID] != nil else {
+      guard surfaceGroupModel.surfacesMap[msg.surfaceID] != nil else {
         let error = GenericError(
           code: "SURFACE_NOT_FOUND",
           surfaceID: msg.surfaceID,
@@ -296,7 +502,7 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
       updateComponents(surfaceID: msg.surfaceID, components: msg.components)
 
     case .updateDataModel(let msg):
-      guard surfaceGroupModel.surfaces[msg.surfaceID] != nil else {
+      guard surfaceGroupModel.surfacesMap[msg.surfaceID] != nil else {
         let error = GenericError(
           code: "SURFACE_NOT_FOUND",
           surfaceID: msg.surfaceID,
@@ -307,7 +513,7 @@ public final class MessageProcessor: @unchecked Sendable, ObservableObject {
       updateDataModel(surfaceID: msg.surfaceID, path: msg.path, value: msg.value)
 
     case .deleteSurface(let msg):
-      guard surfaceGroupModel.surfaces[msg.surfaceID] != nil else {
+      guard surfaceGroupModel.surfacesMap[msg.surfaceID] != nil else {
         let error = GenericError(
           code: "SURFACE_NOT_FOUND",
           surfaceID: msg.surfaceID,

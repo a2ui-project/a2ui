@@ -20,7 +20,7 @@
         "properties": {
           "version": {
             "type": "string",
-            "enum": ["0.8", "0.9"],
+            "enum": ["0.8", "0.9", "1.0"],
             "description": "Protocol version."
           },
           "s2c_schema": {
@@ -90,7 +90,8 @@
           "get_extension",
           "try_activate",
           "select_newest",
-          "verify_cuttable_keys"
+          "verify_cuttable_keys",
+          "accessibility_check"
         ]
       }
     },
@@ -119,7 +120,8 @@
           {"$ref": "#/$defs/GetExtensionTest"},
           {"$ref": "#/$defs/TryActivateTest"},
           {"$ref": "#/$defs/SelectNewestTest"},
-          {"$ref": "#/$defs/VerifyCuttableKeysTest"}
+          {"$ref": "#/$defs/VerifyCuttableKeysTest"},
+          {"$ref": "#/$defs/AccessibilityCheckTest"}
         ]
       }
     ]
@@ -454,6 +456,32 @@
         }
       },
       "required": ["action", "expect"]
+    },
+    "AccessibilityCheckTest": {
+      "type": "object",
+      "properties": {
+        "action": {"const": "accessibility_check"},
+        "surface": {
+          "type": "object",
+          "description": "Surface component structure being validated."
+        },
+        "assertions": {
+          "type": "object",
+          "description": "Assertions for axe-core rules and accessibility node tree checks.",
+          "properties": {
+            "axe_core": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "axe-core rule IDs expected to pass (e.g. 'button-name', 'aria-valid-attr-value')."
+            },
+            "accessibility_tree": {
+              "type": "object",
+              "description": "Expected accessibility node property values (e.g. label, description, live, hidden)."
+            }
+          }
+        }
+      },
+      "required": ["action", "surface", "assertions"]
     },
     "ExpectError": {
       "oneOf": [

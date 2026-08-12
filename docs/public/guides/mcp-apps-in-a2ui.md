@@ -26,8 +26,9 @@ To prevent this, A2UI strictly excludes `allow-same-origin` for the inner iframe
     - Permissions: **Do not sandbox** in the host template (e.g., [`mcp-app.ts`](../../../samples/community/client/lit/mcp-apps-in-a2ui-sample/mcp-app.ts) or [`mcp-apps-component.ts`](../../../samples/community/client/lit/mcp-apps-in-a2ui-sample/ui/custom-components/mcp-apps-component.ts)).
     - Host origin validation: Validates that messages come from the expected host origin.
 2.  **Embedded App (Inner Iframe)**: The innermost `iframe`. Injected dynamically via `srcdoc` with restricted permissions.
-    - Permissions: `sandbox="allow-scripts allow-forms allow-popups allow-modals"` (**MUST NOT** include `allow-same-origin`).
+    - Permissions: `sandbox="allow-scripts allow-forms allow-popups allow-modals"` (**MUST NOT** include `allow-same-origin`, `allow-top-navigation`, or `allow-top-navigation-by-user-activation`).
     - Isolation: Removes access to `localStorage`, `sessionStorage`, `IndexedDB`, and cookies due to unique origin.
+    - Top-level window hijacking defense: Omitting `allow-top-navigation` and `allow-top-navigation-by-user-activation` prevents embedded scripts from executing frame-busting attacks (such as `window.top.location = "..."`) to redirect the host window away.
 
 ### Physical Iframe Nesting
 

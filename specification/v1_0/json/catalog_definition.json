@@ -157,7 +157,16 @@
           "properties": {
             "returnType": {
               "type": "string",
-              "enum": ["string", "number", "boolean", "array", "object", "validationResult", "any", "void"],
+              "enum": [
+                "string",
+                "number",
+                "boolean",
+                "array",
+                "object",
+                "validationResult",
+                "any",
+                "void"
+              ],
               "description": "The type of value this function returns."
             },
             "callableFrom": {

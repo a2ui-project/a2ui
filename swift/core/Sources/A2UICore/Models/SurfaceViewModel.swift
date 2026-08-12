@@ -32,7 +32,16 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
   // MARK: - Properties
 
   public let surfaceID: String
-  public let catalog: Catalog
+  public let catalogs: [String: Catalog]
+  public let defaultCatalogID: String?
+
+  /// The primary default catalog associated with this surface, if available.
+  public var catalog: Catalog {
+    if let defaultCatalogID, let catalog = catalogs[defaultCatalogID] {
+      return catalog
+    }
+    return catalogs.values.first ?? Catalog(id: "empty", components: [])
+  }
   public let theme: [String: JSONValue]?
   public let sendDataModel: Bool
 
@@ -51,13 +60,15 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
 
   public init(
     surfaceID: String,
-    catalog: Catalog,
+    catalogs: [String: Catalog],
+    defaultCatalogID: String? = nil,
     theme: [String: JSONValue]? = nil,
     actionHandler: (any ActionHandling)? = nil,
     sendDataModel: Bool = false
   ) {
     self.surfaceID = surfaceID
-    self.catalog = catalog
+    self.catalogs = catalogs
+    self.defaultCatalogID = defaultCatalogID ?? catalogs.keys.sorted().first
     self.theme = theme
     self.sendDataModel = sendDataModel
     self.actionHandler = actionHandler
@@ -65,6 +76,54 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
     self.componentsModel = SurfaceComponentsModel()
 
     setUpSubscriptions()
+  }
+
+  public convenience init(
+    surfaceID: String,
+    catalogs: [Catalog],
+    defaultCatalogID: String? = nil,
+    theme: [String: JSONValue]? = nil,
+    actionHandler: (any ActionHandling)? = nil,
+    sendDataModel: Bool = false
+  ) {
+    let dict = Dictionary(catalogs.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+    self.init(
+      surfaceID: surfaceID,
+      catalogs: dict,
+      defaultCatalogID: defaultCatalogID ?? catalogs.first?.id,
+      theme: theme,
+      actionHandler: actionHandler,
+      sendDataModel: sendDataModel
+    )
+  }
+
+  public convenience init(
+    surfaceID: String,
+    catalog: Catalog,
+    theme: [String: JSONValue]? = nil,
+    actionHandler: (any ActionHandling)? = nil,
+    sendDataModel: Bool = false
+  ) {
+    self.init(
+      surfaceID: surfaceID,
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      theme: theme,
+      actionHandler: actionHandler,
+      sendDataModel: sendDataModel
+    )
+  }
+
+  /// Resolves a catalog by ID, falling back to the surface default catalog if nil.
+  public func getCatalog(id: String? = nil) -> Catalog? {
+    let targetCatalogID = id ?? defaultCatalogID
+    if let targetCatalogID, let catalog = catalogs[targetCatalogID] {
+      return catalog
+    }
+    if id == nil {
+      return catalogs.values.first
+    }
+    return nil
   }
 
   private func setUpSubscriptions() {
@@ -200,7 +259,9 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
     visited.insert(instanceID)
 
     // Get the schema for this component type to classify properties
-    let schema = catalog.components[type]?.schema
+    let effectiveCatalogID = component.catalogID ?? defaultCatalogID
+    let targetCatalog = getCatalog(id: effectiveCatalogID)
+    let schema = targetCatalog?.components[type]?.schema
     let schemaJSON = schema?.jsonValue ?? .object([:])
     let propertiesSchema = schemaJSON["properties"]?.objectValue
 
@@ -224,7 +285,12 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
       }
     }
 
-    return Node(id: instanceID, type: type, properties: resolvedProperties)
+    return Node(
+      id: instanceID,
+      type: type,
+      catalogID: effectiveCatalogID,
+      properties: resolvedProperties
+    )
   }
 
   private func resolveProperty(
@@ -277,7 +343,17 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
         let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
         return data[absPath] ?? .null
       } else if let callName = dict["call"]?.stringValue {
-        guard let function = catalog.functions[callName] else {
+        let callCatalogID = dict["catalogId"]?.stringValue ?? defaultCatalogID
+        var function = getCatalog(id: callCatalogID)?.functions[callName]
+        if function == nil && dict["catalogId"] == nil {
+          for catalog in catalogs.values {
+            if let matchingFunction = catalog.functions[callName] {
+              function = matchingFunction
+              break
+            }
+          }
+        }
+        guard let function else {
           return .null
         }
         var resolvedArgs: [String: JSONValue] = [:]
@@ -307,23 +383,19 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
   ) -> DataBinding<Bool> {
     if let dict = value.dictionaryValue, let pathStr = dict["path"]?.stringValue {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+      let resolvedValue = data[absPath]?.boolValue
       return DataBinding<Bool>(
         identity: .path(absPath),
-        get: { [weak self] in
-          self?.dataModel.get(absPath)?.boolValue ?? false
-        },
+        value: resolvedValue,
         set: { [weak self] newValue in
           self?.dataModel.set(absPath, value: .boolean(newValue))
         }
       )
     }
+    let resolvedValue = evaluateDynamicValue(value, basePath: basePath, data: data).boolValue
     return DataBinding<Bool>(
       identity: .literal(value),
-      get: { [weak self] in
-        guard let self else { return value.boolValue ?? false }
-        return self.evaluateDynamicValue(value, basePath: basePath, data: self.dataModel.data)
-          .boolValue ?? false
-      },
+      value: resolvedValue,
       set: { _ in }
     )
   }
@@ -335,23 +407,19 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
   ) -> DataBinding<String> {
     if let dict = value.dictionaryValue, let pathStr = dict["path"]?.stringValue {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+      let resolvedValue = data[absPath]?.stringValue
       return DataBinding<String>(
         identity: .path(absPath),
-        get: { [weak self] in
-          self?.dataModel.get(absPath)?.stringValue ?? ""
-        },
+        value: resolvedValue,
         set: { [weak self] newValue in
           self?.dataModel.set(absPath, value: .string(newValue))
         }
       )
     }
+    let resolvedValue = evaluateDynamicValue(value, basePath: basePath, data: data).stringValue
     return DataBinding<String>(
       identity: .literal(value),
-      get: { [weak self] in
-        guard let self else { return value.stringValue ?? "" }
-        return self.evaluateDynamicValue(value, basePath: basePath, data: self.dataModel.data)
-          .stringValue ?? ""
-      },
+      value: resolvedValue,
       set: { _ in }
     )
   }
@@ -363,23 +431,19 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
   ) -> DataBinding<Double> {
     if let dict = value.dictionaryValue, let pathStr = dict["path"]?.stringValue {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+      let resolvedValue = data[absPath]?.doubleValue
       return DataBinding<Double>(
         identity: .path(absPath),
-        get: { [weak self] in
-          self?.dataModel.get(absPath)?.doubleValue ?? 0.0
-        },
+        value: resolvedValue,
         set: { [weak self] newValue in
           self?.dataModel.set(absPath, value: .number(newValue))
         }
       )
     }
+    let resolvedValue = evaluateDynamicValue(value, basePath: basePath, data: data).doubleValue
     return DataBinding<Double>(
       identity: .literal(value),
-      get: { [weak self] in
-        guard let self else { return value.doubleValue ?? 0.0 }
-        return self.evaluateDynamicValue(value, basePath: basePath, data: self.dataModel.data)
-          .doubleValue ?? 0.0
-      },
+      value: resolvedValue,
       set: { _ in }
     )
   }
@@ -391,22 +455,19 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
   ) -> DataBinding<JSONValue> {
     if let dict = value.dictionaryValue, let pathStr = dict["path"]?.stringValue {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+      let resolvedValue = data[absPath]
       return DataBinding<JSONValue>(
         identity: .path(absPath),
-        get: { [weak self] in
-          self?.dataModel.get(absPath) ?? .null
-        },
+        value: resolvedValue,
         set: { [weak self] newValue in
           self?.dataModel.set(absPath, value: newValue)
         }
       )
     }
+    let resolvedValue = evaluateDynamicValue(value, basePath: basePath, data: data)
     return DataBinding<JSONValue>(
       identity: .literal(value),
-      get: { [weak self] in
-        guard let self else { return value }
-        return self.evaluateDynamicValue(value, basePath: basePath, data: self.dataModel.data)
-      },
+      value: resolvedValue,
       set: { _ in }
     )
   }

@@ -21,6 +21,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Standardized the names of core architectural components, renaming "client" to _renderer_ and "server" to _agent_ (e.g., `server_to_client` schemas are renamed to `agent_to_renderer`), because A2UI is sometimes generated on clients, and rendering sometimes happens on servers, making those terms ambiguous.
 - Catalogs can now define composition constraints (`allowedParents` and `allowedChildren`) on component definitions, using `"Surface"` as the canonical root component type. Because JSON Schema cannot natively restrict child component types across a flat adjacency list of ID references, these rules allow catalogs to declare valid parent-child relationships without altering the wire format.
 - `CheckRule` in `common_types.json` supports dynamic structured validation result objects (`ValidationResult`) returned directly by function evaluations or data bindings (containing `valid`, `code`, `message`, and `severity`), and `message` on `CheckRule` is made optional as a fallback error message.
+- Enhanced `AccessibilityAttributes` in `common_types.json` with WAI-ARIA `live` region support (`"off"`, `"polite"`, `"assertive"`) and `hidden` (`DynamicBoolean`), while setting `"additionalProperties": false`. Established normative specification prose requiring catalog and renderer implementations to plumb accessibility attributes, infer default screen reader semantics from visible text properties, and enforce SDK linter checks.
 
 ## 2. Changes
 
@@ -51,6 +52,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added `callFunction` message structure (`CallFunctionMessage`) to support agent-initiated function execution. Removed `callableFrom` and `returnType` properties from the wire payload, relying on runtime catalog verification.
 - Updated the `createSurface` message (`CreateSurfaceMessage`) to remove the `theme` field, allowed passing initial `components` and `dataModel` directly inside the payload, and made `catalogId` an optional parameter that acts as the surface's default catalog.
 - Added an optional `catalogId` property to `ComponentCommon` and `FunctionCall` in `common_types.json` to enable mixing catalogs and explicitly designating the catalog on individual components or function calls.
+- Added the `Component` definition in `agent_to_renderer.json` (referenced by `ComponentsList`) to compose `ComponentCommon` (`$ref: "common_types.json#/$defs/ComponentCommon"`) so base component properties are validated at the envelope level regardless of catalog structure.
 - Updated all protocol version references and envelopes from `v0.9` or `v0.9.1` to `v1.0`.
 
 ### 2.4. Renderer-to-agent events

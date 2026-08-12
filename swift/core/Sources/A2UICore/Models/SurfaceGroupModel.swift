@@ -19,22 +19,13 @@ import OrderedJSON
 
 /// The root state model managing the collection of active surfaces.
 ///
-/// `SurfaceGroupModel` owns the surface dictionary, lifecycle
-/// (add/remove), and cross-surface aggregation such as
-/// `sendDataModel` tracking. It mirrors the `SurfaceGroupModel` type
-/// in the `web_core` reference implementation.
-public final class SurfaceGroupModel: @unchecked Sendable, ObservableObject {
-  private let lock = NSRecursiveLock()
-  private var _surfaces: [String: SurfaceViewModel] = [:]
-
-  /// The dictionary of active surfaces, published to the UI on the
-  /// Main Thread.
+/// `SurfaceGroupModel` owns the surface dictionary and surface lifecycle
+/// (add/remove). It mirrors the `SurfaceGroupModel` type in the `web_core`
+/// reference implementation.
+@MainActor
+public final class SurfaceGroupModel: ObservableObject {
+  /// The map of active surfaces, published to the UI.
   @Published public private(set) var surfacesMap: [String: SurfaceViewModel] = [:]
-
-  /// A thread-safe snapshot of all active surfaces.
-  public var surfaces: [String: SurfaceViewModel] {
-    lock.withLock { _surfaces }
-  }
 
   public init() {}
 
@@ -45,28 +36,42 @@ public final class SurfaceGroupModel: @unchecked Sendable, ObservableObject {
   /// If a surface with the same ID already exists, the call is
   /// silently ignored (matching `web_core`'s behavior).
   public func addSurface(_ vm: SurfaceViewModel) {
-    lock.withLock {
-      guard _surfaces[vm.surfaceID] == nil else { return }
-      _surfaces[vm.surfaceID] = vm
-      publishSnapshot()
-    }
+    guard surfacesMap[vm.surfaceID] == nil else { return }
+    surfacesMap[vm.surfaceID] = vm
   }
 
   /// Removes a surface from the group by its ID.
   public func removeSurface(id: String) {
-    lock.withLock {
-      guard _surfaces[id] != nil else { return }
-      _surfaces.removeValue(forKey: id)
-      publishSnapshot()
-    }
+    guard surfacesMap[id] != nil else { return }
+    surfacesMap.removeValue(forKey: id)
   }
 
-  // MARK: - Private
+  // MARK: - Surface Lookup
 
-  private func publishSnapshot() {
-    let snapshot = surfaces
-    DispatchQueue.main.async { [weak self] in
-      self?.surfacesMap = snapshot
+  /// Retrieves a surface by its ID.
+  public func surface(id: String) -> SurfaceViewModel? {
+    surfacesMap[id]
+  }
+
+  /// Returns a snapshot of all active surfaces.
+  public func allSurfaces() -> [String: SurfaceViewModel] {
+    surfacesMap
+  }
+
+  // MARK: - Data Model Aggregation
+
+  /// Aggregates the data models of all surfaces that have
+  /// `sendDataModel` enabled.
+  ///
+  /// Returns `nil` if no surfaces have the flag set.
+  public func getClientDataModel() -> JSONValue? {
+    var result: OrderedDictionary<String, JSONValue> = [:]
+    for (surfaceID, vm) in surfacesMap {
+      if vm.sendDataModel {
+        result[surfaceID] = vm.dataModel.data
+      }
     }
+    guard !result.isEmpty else { return nil }
+    return .object(result)
   }
 }
