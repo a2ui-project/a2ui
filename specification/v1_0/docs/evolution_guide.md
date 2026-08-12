@@ -78,7 +78,6 @@ Version 1.0 differs from 0.9 in the following ways:
 - Standardized data deletion behavior in `updateDataModel` by making the `value` property required. Setting a path's value to `null` deletes the key at that path. Omitting the `value` property is now a schema validation error.
 - Removed `callableFrom` and `returnType` properties and validation constraints from `FunctionCall` and dynamic value schemas in `common_types.json`, deferring boundary checking and return type validation entirely to runtime execution.
 - Added built-in `@index` function (with optional `offset` parameter) under `FunctionCall` to retrieve the iteration index during list template rendering. Reserved the `@` prefix for core system context evaluations.
-- Supported target prefixes (`agent:` and `renderer:`) on `FunctionCall` names to explicitly direct function execution target routing. Unprefixed functions and `renderer:` functions map exclusively to local renderer catalog lookup (failing with `UNKNOWN_FUNCTION` if not registered locally), eliminating implicit fallback to agent RPCs. Function calls targeting the agent MUST use the `agent:` prefix.
 
 ### 2.8. Processing rules
 
