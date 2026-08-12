@@ -118,8 +118,9 @@ class FileResolver:
 
         final_mime = detected_mime or claimed_mime or "application/octet-stream"
 
+        import fnmatch
         if self.allowed_mime_types and not any(
-            final_mime.startswith(t.rstrip("*")) for t in self.allowed_mime_types
+            fnmatch.fnmatch(final_mime, t) for t in self.allowed_mime_types
         ):
             raise FileResolverSecurityError(
                 f"MIME type '{final_mime}' is not permitted by security policy"
@@ -133,15 +134,23 @@ class FileResolver:
             return await self._resolve_bytes_internal(file_info)
 
     async def _resolve_bytes_internal(self, file_info: Dict[str, Any]) -> tuple[bytes, str]:
-        file_id: str = file_info.get("fileId", "")
-        claimed_mime: str = file_info.get("mimeType", "")
-        if not file_id:
-            raise ValueError("Missing 'fileId' in file_info")
+        if not isinstance(file_info, dict):
+            raise TypeError("file_info must be a dictionary")
+
+        file_id = file_info["fileId"]
+        if not isinstance(file_id, str) or not file_id:
+            raise ValueError("Invalid 'fileId' in file_info")
+
+        claimed_mime = file_info.get("mimeType")
+        if not isinstance(claimed_mime, str):
+            claimed_mime = ""
 
         raw_bytes: bytes
 
         # 1. Inline Data URI
         if file_id.startswith("data:"):
+            if "," not in file_id:
+                raise ValueError("Invalid data URI: missing comma separator")
             header, base64_data = file_id.split(",", 1)
             if not claimed_mime and ";" in header:
                 header_mime = header[5:].split(";", 1)[0]
@@ -217,21 +226,24 @@ class FileResolver:
                         to inject contextual data (like `base_url`) into file pointers before resolution.
         """
         def decorator(func):
+            sig = inspect.signature(func)
             @functools.wraps(func)
             async def wrapper(*args, **kwargs):
-                file_pointers = kwargs.get(arg_name)
-                
+                bound_args = sig.bind(*args, **kwargs)
+                bound_args.apply_defaults()
+                file_pointers = bound_args.arguments.get(arg_name)
+
                 if file_pointers is not None and isinstance(file_pointers, list):
                     if preprocess:
                         for f in file_pointers:
                             if isinstance(f, dict):
                                 preprocess(f, args, kwargs)
                     try:
-                        kwargs[inject_name] = await self.resolve_all_to_genai_parts(file_pointers)
+                        bound_args.arguments[inject_name] = await self.resolve_all_to_genai_parts(file_pointers)
                     except Exception as e:
                         if on_error:
                             return on_error(e)
                         raise
-                return await func(*args, **kwargs)
+                return await func(*bound_args.args, **bound_args.kwargs)
             return wrapper
         return decorator

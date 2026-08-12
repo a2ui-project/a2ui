@@ -41,18 +41,20 @@ ALLOWED_MIME_TYPES = [
     "image/*",
 ]
 
+_http_client = httpx.AsyncClient()
+
 async def _mock_drive_handler(file_id: str, file_info: Dict[str, Any]) -> bytes:
     drive_id = file_id.removeprefix(MOCK_DRIVE_SCHEME)
     base_url = file_info.get("base_url") or DEFAULT_BASE_URL
     url = f"{base_url}/api/mock-drive/v3/files/{drive_id}?alt=media"
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url, follow_redirects=True)
-        response.raise_for_status()
-        return response.content
+    response = await _http_client.get(url, follow_redirects=True)
+    response.raise_for_status()
+    return response.content
 
 resolver = FileResolver(
     allowed_mime_types=ALLOWED_MIME_TYPES,
     custom_schemes={MOCK_DRIVE_SCHEME: _mock_drive_handler},
+    http_client=_http_client,
 )
 
 def _handle_resolution_error(e: Exception) -> dict:

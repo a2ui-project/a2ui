@@ -270,7 +270,7 @@ async def test_security_max_file_size_http_streaming():
 async def test_invalid_file_id_and_unsupported_scheme():
     resolver = FileResolver()
 
-    with pytest.raises(ValueError, match="Missing 'fileId'"):
+    with pytest.raises(KeyError, match="fileId"):
         await resolver.resolve_bytes({"mimeType": "text/plain"})
 
     with pytest.raises(ValueError, match="Unsupported file pointer scheme"):
