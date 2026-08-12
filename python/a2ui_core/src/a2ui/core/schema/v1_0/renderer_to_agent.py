@@ -15,7 +15,7 @@
 """Pydantic v2 models for Renderer-to-Agent v1.0 messages."""
 
 from typing import Any, Dict, Literal, Optional, Union
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field
 from .common_types import CallId, FunctionCall, FunctionResponse, StrictBaseModel
 from .constants import VERSION_1_0
 

@@ -15,7 +15,7 @@
 """Pydantic v2 models for Renderer-to-Agent v1.0 messages."""
 
 from typing import Any, Dict, Literal, Optional, Union
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field
 from .common_types import CallId, FunctionCall, FunctionResponse, StrictBaseModel
 from .constants import VERSION_1_0
 
@@ -118,8 +118,10 @@ class ValidationErrorPayload(StrictBaseModel):
     message: str = Field(..., description="Description of validation failure.")
 
 
-class GenericErrorPayload(StrictBaseModel):
+class GenericErrorPayload(BaseModel):
     """Payload for generic renderer-side errors."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     code: str = Field(..., description="Error code identifier.")
     message: str = Field(..., description="Error explanation message.")

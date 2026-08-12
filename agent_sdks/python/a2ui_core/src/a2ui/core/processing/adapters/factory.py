@@ -65,6 +65,8 @@ class VersionAdapterFactory:
         Returns:
             Resolved VersionAdapter instance.
         """
+        if not isinstance(payload, dict):
+            return cls._v09_adapter
         version = payload.get("version", A2uiProtocolVersion.V0_9.value)
         try:
             return cls.get_adapter(version)
