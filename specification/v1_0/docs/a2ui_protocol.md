@@ -143,7 +143,7 @@ The [`catalogs/basic/catalog.json`] schema contains the definitions for all spec
 
 **Swappable Catalogs & Validation:**
 
-The [`agent_to_renderer.json`] envelope schema is designed to be catalog-agnostic. It references components using a placeholder filename: `catalog.json` (specifically `$ref: "catalog.json#/$defs/anyComponent"`).
+The [`agent_to_renderer.json`] envelope schema is designed to be catalog-agnostic. Within its `Component` definition (referenced by `ComponentsList`), it validates base properties against `common_types.json#/$defs/ComponentCommon` and references components using a placeholder filename: `catalog.json` (specifically `$ref: "catalog.json#/$defs/anyComponent"`).
 
 To validate A2UI messages:
 
@@ -520,7 +520,7 @@ The set of available UI components and functions is defined in a **Catalog**. Th
 
 Every catalog follows the standard `Catalog` object definition:
 
-- **catalogId** (string, required): A unique string identifier for this catalog. While conventionally formatted as a URI to avoid naming collisions across organizations, it is an arbitrary string ID and not a resolvable URI. Renderer and agent developers must agree on shared catalogs with well-known IDs in order to build systems that are compatible with each other.
+- **catalogId** (string, required): A unique string identifier for this catalog. While conventionally formatted as a URI to avoid naming collisions across organizations, it is an arbitrary string ID and not a resolvable URI. Because A2UI catalogs are represented as JSON Schema documents, catalog definitions should include both `$id` (used by JSON Schema tooling) and `catalogId` (used by A2UI SDKs and catalog negotiation), setting both fields to the same URI. Renderer and agent developers must agree on shared catalogs with well-known IDs in order to build systems that are compatible with each other.
 - **instructions** (string, optional): Markdown-formatted design principles, rules, or developer guidelines specific to this catalog. These rules guide LLMs when generating UI layouts under this catalog.
 - **components** (object, optional): A map of supported UI components, where each key is the component type (e.g., `Text`) and its value is its JSON Schema definition. All keys MUST conform to the UAX #31 entity naming rules defined below.
 - **functions** (object, optional): A map of renderer-side validation or utility functions supported by the catalog, where each key is the function name and its value is its definition. All function names MUST conform to the UAX #31 entity naming rules defined below. The renderer determines a function's execution boundary (e.g., rendererOnly status) at runtime by reading its configuration from the active catalog definition.
@@ -571,8 +571,8 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `DynamicBoolean`
      - `DynamicStringList`
      - `DynamicValue`
+     - `AccessibilityAttributes`
      - `CheckRule`
-     - `ComponentCommon`
      - `Checkable`
      - `Action`
 4. **Component Discriminator Rule:**
@@ -587,10 +587,8 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      ```
      This enables route-dispatch matching via the `discriminator` block inside `anyComponent` (designating `"propertyName": "component"`).
 5. **Standard Component Structure:**
-   - All components defined in the `components` object must use an `allOf` structure that combines:
-     1. An external reference to the baseline identity and accessibility attributes:
-        `{"$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"}`
-     2. A local object schema defining the unique properties of that specific component (e.g., its children, variant, specific layouts).
+   - Catalog components define their discriminator (`component: { const: "<Name>" }`) and local properties (e.g., its children, variant, specific layouts), and can optionally import common property sets (such as `Checkable`) via `$ref`.
+   - Base component envelope properties (`id`, `catalogId`, and `accessibility` via `ComponentCommon`) are composed at the envelope level in `agent_to_renderer.json` via `allOf` inside the `Component` definition (referenced by `ComponentsList`), and therefore MUST NOT be redundantly wrapped with `ComponentCommon` via `allOf` inside individual catalog component definitions.
 6. **Strict Function Interface Pattern:**
    - Every function schema defined inside the `functions` map must validate a wire-level `FunctionCall` object. This requires:
      - A `properties` block with a `call` property containing a constant of the function's name (e.g., `"call": { "const": "email" }`).
@@ -624,36 +622,25 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
   "protocolVersion": "1.0",
   "title": "A2UI Basic Catalog Template",
   "description": "An annotated example showcasing structural rules and conventions.",
-  "catalogId": "https://example.com/catalogs/custom-v1",
+  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
   "instructions": "Design instructions for LLMs when generating layouts under this catalog.",
 
   // Top-level components declared under top-level "components" map.
   "components": {
     "Text": {
       "type": "object",
-      // Components must combine ComponentCommon and local properties using "allOf".
-      "allOf": [
-        {
-          // External references must reference standard types in common_types.json.
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon",
+      "properties": {
+        // Required "component" property must be a constant matching the component key.
+        "component": {
+          "const": "Text",
         },
-        {
-          "type": "object",
-          "properties": {
-            // Required "component" property must be a constant matching the component key.
-            "component": {
-              "const": "Text",
-            },
-            // Leaf properties can be standard JSON primitives or Dynamic wrappers
-            "text": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
-              "description": "Text content to display.",
-            },
-          },
-          "required": ["component", "text"],
+        // Leaf properties can be standard JSON primitives or Dynamic wrappers
+        "text": {
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+          "description": "Text content to display.",
         },
-      ],
-      "unevaluatedProperties": false,
+      },
+      "required": ["component", "text"],
     },
   },
 

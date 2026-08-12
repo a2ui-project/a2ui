@@ -29,7 +29,18 @@ struct NodeTests {
     )
     #expect(node.id == "btn1")
     #expect(node.type == "button")
+    #expect(node.catalogID == nil)
     #expect(node.properties["label"] as? String == "Click Me")
+  }
+
+  @Test func nodeStoresCatalogID() {
+    let node = Node(
+      id: "btn1",
+      type: "button",
+      catalogID: "catA",
+      properties: [:]
+    )
+    #expect(node.catalogID == "catA")
   }
 
   // MARK: - allChildNodes
@@ -98,13 +109,13 @@ struct NodeTests {
 
   // MARK: - Equality
 
-  @Test func nodesEqualByIdTypeAndProperties() {
+  @Test func nodesEqualByIDTypeAndProperties() {
     let a = Node(id: "btn1", type: "button", properties: ["label": "OK"])
     let b = Node(id: "btn1", type: "button", properties: ["label": "OK"])
     #expect(a == b)
   }
 
-  @Test func nodesNotEqualByDifferentId() {
+  @Test func nodesNotEqualByDifferentID() {
     let a = Node(id: "btn1", type: "button", properties: [:])
     let b = Node(id: "btn2", type: "button", properties: [:])
     #expect(a != b)
@@ -113,6 +124,12 @@ struct NodeTests {
   @Test func nodesNotEqualByDifferentType() {
     let a = Node(id: "btn1", type: "button", properties: [:])
     let b = Node(id: "btn1", type: "text", properties: [:])
+    #expect(a != b)
+  }
+
+  @Test func nodesNotEqualByDifferentCatalogID() {
+    let a = Node(id: "btn1", type: "button", catalogID: "catalogA", properties: [:])
+    let b = Node(id: "btn1", type: "button", catalogID: "catalogB", properties: [:])
     #expect(a != b)
   }
 
@@ -148,86 +165,95 @@ struct DataBindingTests {
 
   // MARK: - Path-based Binding
 
-  @Test func dataBindingGetReturnsCurrentValue() {
-    let box = Box("initial")
+  @Test func dataBindingValueReturnsResolvedValue() {
     let binding = DataBinding<String>(
       identity: .path("/user/name"),
-      get: { box.value },
-      set: { box.value = $0 }
+      value: "initial",
+      set: { _ in }
     )
-    #expect(binding.get() == "initial")
+    #expect(binding.value == "initial")
   }
 
-  @Test func dataBindingSetUpdatesValue() {
+  @Test func dataBindingSetUpdatesViaSetter() {
     let box = Box("initial")
     let binding = DataBinding<String>(
       identity: .path("/user/name"),
-      get: { box.value },
+      value: "initial",
       set: { box.value = $0 }
     )
     binding.set("updated")
-    #expect(binding.get() == "updated")
+    #expect(box.value == "updated")
+  }
+
+  @Test func dataBindingWithNilValue() {
+    let binding = DataBinding<String>(
+      identity: .path("/user/name"),
+      value: nil
+    )
+    #expect(binding.value == nil)
   }
 
   // MARK: - Literal Binding
 
-  @Test func literalDataBindingHasLiteralIdentity() {
-    let box = Box(JSONValue.string("hello"))
+  @Test func literalDataBindingHasLiteralIdentityAndValue() {
     let binding = DataBinding<JSONValue>(
       identity: .literal(.string("hello")),
-      get: { box.value },
-      set: { box.value = $0 }
+      value: .string("hello")
     )
     if case .literal(let val) = binding.identity {
       #expect(val.stringValue == "hello")
     } else {
       Issue.record("Expected .literal identity")
     }
+    #expect(binding.value?.stringValue == "hello")
   }
 
   // MARK: - Equality
 
-  @Test func dataBindingsEqualByIdentity() {
-    let box = Box("")
+  @Test func dataBindingsEqualByIdentityAndValue() {
     let a = DataBinding<String>(
       identity: .path("/user/name"),
-      get: { box.value },
-      set: { box.value = $0 }
+      value: "Alice"
     )
     let b = DataBinding<String>(
       identity: .path("/user/name"),
-      get: { box.value },
-      set: { box.value = $0 }
+      value: "Alice"
     )
     #expect(a == b)
   }
 
-  @Test func dataBindingsNotEqualByDifferentPath() {
-    let box = Box("")
+  @Test func dataBindingsNotEqualByDifferentValue() {
     let a = DataBinding<String>(
       identity: .path("/user/name"),
-      get: { box.value },
-      set: { box.value = $0 }
+      value: "Alice"
+    )
+    let b = DataBinding<String>(
+      identity: .path("/user/name"),
+      value: "Bob"
+    )
+    #expect(a != b)
+  }
+
+  @Test func dataBindingsNotEqualByDifferentPath() {
+    let a = DataBinding<String>(
+      identity: .path("/user/name"),
+      value: "Alice"
     )
     let b = DataBinding<String>(
       identity: .path("/user/email"),
-      get: { box.value },
-      set: { box.value = $0 }
+      value: "Alice"
     )
     #expect(a != b)
   }
 
   @Test func dataBindingsNotEqualByDifferentIdentityType() {
-    let box = Box("")
     let a = DataBinding<String>(
       identity: .path("/user/name"),
-      get: { box.value },
-      set: { box.value = $0 }
+      value: "name"
     )
     let b = DataBinding<String>(
       identity: .literal(.string("name")),
-      get: { box.value },
-      set: { box.value = $0 }
+      value: "name"
     )
     #expect(a != b)
   }

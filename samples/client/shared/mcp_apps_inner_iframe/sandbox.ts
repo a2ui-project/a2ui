@@ -64,6 +64,8 @@ if (!disableSelfTest) {
 
 // Double-iframe sandbox architecture: THIS file is the outer sandbox proxy
 // iframe on a separate origin. It creates an inner iframe for untrusted HTML content.
+// Note: allow-top-navigation and allow-top-navigation-by-user-activation are strictly omitted
+// to prevent embedded scripts from hijacking top-level window navigation (frame-busting).
 const inner = document.createElement('iframe');
 inner.style.cssText = 'width:100%; height:100%; border:none;';
 inner.setAttribute('sandbox', 'allow-scripts allow-forms allow-popups allow-modals');

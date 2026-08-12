@@ -472,6 +472,23 @@ To prevent untrusted applications from crashing host parsers via stack exhaustio
 2. **Maximum Nesting Depth:** The host bridge limits JSON object and array nesting depth to a configurable threshold (defaulting to 10 levels). Payloads exceeding this threshold are dropped immediately.
 3. **Maximum Payload Size:** The host bridge enforces a configurable payload size limit (defaulting to 64 KB / 65,536 bytes) per message to mitigate denial-of-service and memory exhaustion attacks.
 
+### Permissions Policy and capability delegation
+
+To prevent untrusted applications from accessing hardware sensors or clipboard data without explicit capability delegation, the inner iframe enforces an explicit deny-all Permissions Policy by default:
+
+```html
+<iframe
+  sandbox="allow-scripts allow-forms allow-popups allow-modals"
+  allow="camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none';"
+  ...
+></iframe>
+```
+
+When an application declares required capabilities (e.g. `permissions: ["camera", "clipboard-write"]`):
+
+1. **Dynamic Policy Construction:** The sandbox proxy uses `buildAllowAttribute(permissions)` to construct the `allow` attribute.
+2. **Capability Activation:** If granted, the `allow` attribute delegates capability access to the iframe (e.g. `allow="camera; clipboard-write;"`), enabling standard browser permission prompts and W3C Web APIs without requiring custom shims. If omitted, the default deny-all baseline remains enforced.
+
 # 6. Implementation guidelines
 
 For web-based platforms, developers SHOULD reuse the official `@modelcontextprotocol/ext-apps` SDK to handle the host-side bridge and sandbox proxy:

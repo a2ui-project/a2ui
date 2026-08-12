@@ -12,9 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import A2UICore
-import SwiftUI
+/// A lookup key for resolving component view builders by optional catalog ID and component type.
+public struct ComponentKey: Hashable, Equatable, Sendable {
+  public let catalogID: String?
+  public let type: String
 
-// A2UISwiftUI — Thin SwiftUI rendering layer for A2UI.
-// This file is intentionally a placeholder; real types (Surface, CatalogView,
-// DataBinding+SwiftUI, A2UIThemeKey) will be added in a future PR.
+  public init(
+    catalogID: String? = nil,
+    type: String
+  ) {
+    self.catalogID = catalogID
+    self.type = type
+  }
+}
