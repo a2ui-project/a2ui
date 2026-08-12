@@ -56,15 +56,10 @@
               }
             }
           },
-          "required": [
-            "componentId",
-            "dataBinding"
-          ]
+          "required": ["componentId", "dataBinding"]
         }
       },
-      "required": [
-        "children"
-      ]
+      "required": ["children"]
     },
     "Column": {
       "type": "object",
@@ -98,9 +93,7 @@
           }
         }
       },
-      "required": [
-        "url"
-      ]
+      "required": ["url"]
     }
   }
 }

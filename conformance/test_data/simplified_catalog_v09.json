@@ -5,101 +5,101 @@
     "Container": {
       "type": "object",
       "allOf": [
-        { "$ref": "common_types.json#/$defs/ComponentCommon" },
-        { "$ref": "#/$defs/CatalogComponentCommon" }
+        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+        {"$ref": "#/$defs/CatalogComponentCommon"}
       ],
       "properties": {
-        "component": { "const": "Container" },
+        "component": {"const": "Container"},
         "children": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {"type": "string"}
         }
       },
-      "required": [ "component", "children" ]
+      "required": ["component", "children"]
     },
     "Card": {
       "type": "object",
       "allOf": [
-        { "$ref": "common_types.json#/$defs/ComponentCommon" },
-        { "$ref": "#/$defs/CatalogComponentCommon" }
+        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+        {"$ref": "#/$defs/CatalogComponentCommon"}
       ],
       "properties": {
-        "component": { "const": "Card" },
-        "child": { "$ref": "common_types.json#/$defs/ComponentId" }
+        "component": {"const": "Card"},
+        "child": {"$ref": "common_types.json#/$defs/ComponentId"}
       },
-      "required": [ "component", "child" ]
+      "required": ["component", "child"]
     },
     "Text": {
       "type": "object",
       "allOf": [
-        { "$ref": "common_types.json#/$defs/ComponentCommon" },
-        { "$ref": "#/$defs/CatalogComponentCommon" }
+        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+        {"$ref": "#/$defs/CatalogComponentCommon"}
       ],
       "properties": {
-        "component": { "const": "Text" },
-        "text": { "$ref": "common_types.json#/$defs/DynamicString" }
+        "component": {"const": "Text"},
+        "text": {"$ref": "common_types.json#/$defs/DynamicString"}
       },
-      "required": [ "component", "text" ]
+      "required": ["component", "text"]
     },
     "Column": {
       "type": "object",
       "allOf": [
-        { "$ref": "common_types.json#/$defs/ComponentCommon" },
-        { "$ref": "#/$defs/CatalogComponentCommon" }
+        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+        {"$ref": "#/$defs/CatalogComponentCommon"}
       ],
       "properties": {
-        "component": { "const": "Column" },
-        "children": { "$ref": "common_types.json#/$defs/ChildList" }
+        "component": {"const": "Column"},
+        "children": {"$ref": "common_types.json#/$defs/ChildList"}
       },
-      "required": [ "component", "children" ]
+      "required": ["component", "children"]
     },
     "AudioPlayer": {
       "type": "object",
       "allOf": [
-        { "$ref": "common_types.json#/$defs/ComponentCommon" },
-        { "$ref": "#/$defs/CatalogComponentCommon" },
+        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+        {"$ref": "#/$defs/CatalogComponentCommon"},
         {
           "type": "object",
           "properties": {
-            "component": { "const": "AudioPlayer" },
-            "url": { "$ref": "common_types.json#/$defs/DynamicString" },
-            "description": { "$ref": "common_types.json#/$defs/DynamicString" }
+            "component": {"const": "AudioPlayer"},
+            "url": {"$ref": "common_types.json#/$defs/DynamicString"},
+            "description": {"$ref": "common_types.json#/$defs/DynamicString"}
           },
-          "required": [ "component", "url" ]
+          "required": ["component", "url"]
         }
       ]
     },
     "List": {
       "type": "object",
       "allOf": [
-        { "$ref": "common_types.json#/$defs/ComponentCommon" },
-        { "$ref": "#/$defs/CatalogComponentCommon" },
+        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+        {"$ref": "#/$defs/CatalogComponentCommon"},
         {
           "type": "object",
           "properties": {
-            "component": { "const": "List" },
-            "children": { "$ref": "common_types.json#/$defs/ChildList" },
+            "component": {"const": "List"},
+            "children": {"$ref": "common_types.json#/$defs/ChildList"},
             "direction": {
               "type": "string",
-              "enum": [ "vertical", "horizontal" ]
+              "enum": ["vertical", "horizontal"]
             }
           },
-          "required": [ "component", "children" ]
+          "required": ["component", "children"]
         }
       ]
     },
     "Row": {
       "type": "object",
       "allOf": [
-        { "$ref": "common_types.json#/$defs/ComponentCommon" },
-        { "$ref": "#/$defs/CatalogComponentCommon" },
+        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+        {"$ref": "#/$defs/CatalogComponentCommon"},
         {
           "type": "object",
           "properties": {
-            "component": { "const": "Row" },
-            "children": { "$ref": "common_types.json#/$defs/ChildList" }
+            "component": {"const": "Row"},
+            "children": {"$ref": "common_types.json#/$defs/ChildList"}
           },
-          "required": [ "component", "children" ]
+          "required": ["component", "children"]
         }
       ]
     }
@@ -107,19 +107,19 @@
   "$defs": {
     "CatalogComponentCommon": {
       "type": "object",
-      "properties": { "weight": { "type": "number" } }
+      "properties": {"weight": {"type": "number"}}
     },
     "anyComponent": {
       "oneOf": [
-        { "$ref": "#/components/Container" },
-        { "$ref": "#/components/Card" },
-        { "$ref": "#/components/Text" },
-        { "$ref": "#/components/Column" },
-        { "$ref": "#/components/AudioPlayer" },
-        { "$ref": "#/components/List" },
-        { "$ref": "#/components/Row" }
+        {"$ref": "#/components/Container"},
+        {"$ref": "#/components/Card"},
+        {"$ref": "#/components/Text"},
+        {"$ref": "#/components/Column"},
+        {"$ref": "#/components/AudioPlayer"},
+        {"$ref": "#/components/List"},
+        {"$ref": "#/components/Row"}
       ],
-      "discriminator": { "propertyName": "component" }
+      "discriminator": {"propertyName": "component"}
     }
   }
 }

@@ -67,22 +67,21 @@ class DirectJsonStreamParserV08(DirectJsonStreamParser):
         """Returns the message type identifier for data model updates."""
         return MSG_TYPE_DATA_MODEL_UPDATE
 
+    def _get_latest_value(self, key: str) -> Optional[str]:
+        idx = len(self._json_buffer)
+        while True:
+            idx = self._json_buffer.rfind(f'"{key}"', 0, idx)
+            if idx == -1:
+                return None
+            match = re.match(rf'"{key}"\s*:\s*"([^"]+)"', self._json_buffer[idx:])
+            if match:
+                return match.group(1)
+
     def _sniff_metadata(self) -> None:
         """Sniffs for v0.8 metadata in the json_buffer."""
+        self.surface_id = self._get_latest_value('surfaceId')
 
-        def get_latest_value(key: str) -> Optional[str]:
-            idx = len(self._json_buffer)
-            while True:
-                idx = self._json_buffer.rfind(f'"{key}"', 0, idx)
-                if idx == -1:
-                    return None
-                match = re.match(rf'"{key}"\s*:\s*"([^"]+)"', self._json_buffer[idx:])
-                if match:
-                    return match.group(1)
-
-        self.surface_id = get_latest_value('surfaceId')
-
-        parsed_root = get_latest_value('root')
+        parsed_root = self._get_latest_value('root')
         if parsed_root is not None:
             self.root_id = parsed_root
 

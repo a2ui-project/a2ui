@@ -18,6 +18,9 @@ on:
   push:
     branches: [main]
     paths:
+      - "python/**"
+      - "conformance/**"
+      - "pyproject.toml"
       - "agent_sdks/python/**"
       - "specification/**/json/**"
       - "conformance/**"
@@ -29,6 +32,9 @@ on:
       - ".github/actions/setup-python/**"
   pull_request:
     paths:
+      - "python/**"
+      - "conformance/**"
+      - "pyproject.toml"
       - "agent_sdks/python/**"
       - "specification/**/json/**"
       - "conformance/**"

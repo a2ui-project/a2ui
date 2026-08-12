@@ -25,9 +25,7 @@
           "$ref": "#/$defs/ComponentId"
         }
       },
-      "required": [
-        "id"
-      ]
+      "required": ["id"]
     },
     "DataBinding": {
       "type": "object"
@@ -83,10 +81,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "componentId",
-            "path"
-          ],
+          "required": ["componentId", "path"],
           "additionalProperties": false
         }
       ]

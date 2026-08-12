@@ -6,22 +6,22 @@
     "beginRendering": {
       "type": "object",
       "properties": {
-        "surfaceId": { "type": "string" },
-        "root": { "type": "string" },
-        "styles": { "type": "object", "additionalProperties": true }
+        "surfaceId": {"type": "string"},
+        "root": {"type": "string"},
+        "styles": {"type": "object", "additionalProperties": true}
       },
       "required": ["surfaceId", "root"]
     },
     "surfaceUpdate": {
       "type": "object",
       "properties": {
-        "surfaceId": { "type": "string" },
+        "surfaceId": {"type": "string"},
         "components": {
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
-              "id": { "type": "string" },
+              "id": {"type": "string"},
               "component": {
                 "type": "object",
                 "additionalProperties": true
@@ -36,25 +36,25 @@
     "dataModelUpdate": {
       "type": "object",
       "properties": {
-        "surfaceId": { "type": "string" },
+        "surfaceId": {"type": "string"},
         "contents": {
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
-              "key": { "type": "string" },
-              "valueString": { "type": "string" },
-              "valueNumber": { "type": "number" },
-              "valueBoolean": { "type": "boolean" },
+              "key": {"type": "string"},
+              "valueString": {"type": "string"},
+              "valueNumber": {"type": "number"},
+              "valueBoolean": {"type": "boolean"},
               "valueMap": {
                 "type": "array",
                 "items": {
                   "type": "object",
                   "properties": {
-                    "key": { "type": "string" },
-                    "valueString": { "type": "string" },
-                    "valueNumber": { "type": "number" },
-                    "valueBoolean": { "type": "boolean" }
+                    "key": {"type": "string"},
+                    "valueString": {"type": "string"},
+                    "valueNumber": {"type": "number"},
+                    "valueBoolean": {"type": "boolean"}
                   },
                   "required": ["key"]
                 }
@@ -68,7 +68,7 @@
     },
     "deleteSurface": {
       "type": "object",
-      "properties": { "surfaceId": { "type": "string" } },
+      "properties": {"surfaceId": {"type": "string"}},
       "required": ["surfaceId"]
     }
   }

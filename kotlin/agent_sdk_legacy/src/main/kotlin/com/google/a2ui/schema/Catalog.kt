@@ -412,7 +412,7 @@ data class A2uiCatalog(
         if (validate) {
           validateExample(file.path, content)
         }
-        "---BEGIN $basename---\n$content\n---END $basename---"
+        "---BEGIN $basename---\n${content.trim()}\n---END $basename---"
       }
       .joinToString(separator = "\n\n")
   }

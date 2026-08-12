@@ -812,7 +812,7 @@ def test_extract_ref_fields_basic_spec_tabs():
     import json
     from pathlib import Path
 
-    repo_root = Path(__file__).parent.parent.parent.parent.parent
+    repo_root = Path(__file__).parent.parent.parent.parent
     catalog_path = (
         repo_root / "specification" / "v0_9" / "catalogs" / "basic" / "catalog.json"
     )

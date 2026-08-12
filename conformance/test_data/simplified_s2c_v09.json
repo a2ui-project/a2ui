@@ -38,17 +38,11 @@
               "additionalProperties": true
             }
           },
-          "required": [
-            "surfaceId",
-            "catalogId"
-          ],
+          "required": ["surfaceId", "catalogId"],
           "additionalProperties": false
         }
       },
-      "required": [
-        "version",
-        "createSurface"
-      ],
+      "required": ["version", "createSurface"],
       "additionalProperties": false
     },
     "UpdateComponentsMessage": {
@@ -74,17 +68,11 @@
               }
             }
           },
-          "required": [
-            "surfaceId",
-            "components"
-          ],
+          "required": ["surfaceId", "components"],
           "additionalProperties": false
         }
       },
-      "required": [
-        "version",
-        "updateComponents"
-      ],
+      "required": ["version", "updateComponents"],
       "additionalProperties": false
     },
     "UpdateDataModelMessage": {
@@ -103,16 +91,11 @@
               "additionalProperties": true
             }
           },
-          "required": [
-            "surfaceId"
-          ],
+          "required": ["surfaceId"],
           "additionalProperties": false
         }
       },
-      "required": [
-        "version",
-        "updateDataModel"
-      ],
+      "required": ["version", "updateDataModel"],
       "additionalProperties": false
     },
     "DeleteSurfaceMessage": {
@@ -128,15 +111,10 @@
               "type": "string"
             }
           },
-          "required": [
-            "surfaceId"
-          ]
+          "required": ["surfaceId"]
         }
       },
-      "required": [
-        "version",
-        "deleteSurface"
-      ]
+      "required": ["version", "deleteSurface"]
     }
   }
 }

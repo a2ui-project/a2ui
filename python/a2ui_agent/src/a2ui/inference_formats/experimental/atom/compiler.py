@@ -21,6 +21,22 @@ from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 
 
+_ATOM_TOKEN_SPEC = [
+    ("COMMENT", r";[^\n]*"),
+    ("STRING", r'"(?:\\.|[^"\\])*"'),
+    ("LPAREN", r"[(\[]"),
+    ("RPAREN", r"[\])]"),
+    ("KEYWORD_VAL", r':[\w-]+=[^\s()":\[\],]+'),
+    ("KEYWORD", r":[\w-]+:?"),
+    ("PATH", r"\$/?[\w/-]+"),
+    ("SYMBOL", r'[^\s()":\[\],]+'),
+    ("SKIP", r"[,\s]+"),
+]
+_ATOM_TOK_REGEX = re.compile(
+    "|".join(f"(?P<{pair[0]}>{pair[1]})" for pair in _ATOM_TOKEN_SPEC)
+)
+
+
 class CatalogSchemaHelperWrapper:
     """Wraps catalog schema helpers to provide component and property schema resolution.
 
@@ -134,18 +150,6 @@ class SExprParser:
 
     def _tokenize(self, text: str) -> List[str]:
         """Tokenizes S-expression string handling parens, brackets, quotes, keywords, comments, and paths."""
-        token_spec = [
-            ("COMMENT", r";[^\n]*"),
-            ("STRING", r'"(?:\\.|[^"\\])*"'),
-            ("LPAREN", r"[(\[]"),
-            ("RPAREN", r"[\])]"),
-            ("KEYWORD_VAL", r':[\w-]+=[^\s()":\[\],]+'),
-            ("KEYWORD", r":[\w-]+:?"),
-            ("PATH", r"\$/?[\w/-]+"),
-            ("SYMBOL", r'[^\s()":\[\],]+'),
-            ("SKIP", r"[,\s]+"),
-        ]
-        tok_regex = "|".join(f"(?P<{pair[0]}>{pair[1]})" for pair in token_spec)
         tokens = []
         last_end = 0
         while last_end < len(text):
@@ -158,7 +162,7 @@ class SExprParser:
                 else:
                     tokens.append(text[last_end:] + '"')
                     break
-            mo = re.match(tok_regex, text[last_end:])
+            mo = _ATOM_TOK_REGEX.match(text[last_end:])
             if not mo:
                 skipped = text[last_end:].strip()
                 if skipped:

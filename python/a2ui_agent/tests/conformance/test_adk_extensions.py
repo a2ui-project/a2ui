@@ -26,9 +26,12 @@ def _get_conformance_path(filename):
 
 
 def load_tests(filename):
-    path = _get_conformance_path(os.path.join("suites", filename))
-    with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+    for sub in ("suites/agent", "suites/core", "suites"):
+        candidate = _get_conformance_path(os.path.join(sub, filename))
+        if os.path.exists(candidate):
+            with open(candidate, "r", encoding="utf-8") as f:
+                return yaml.safe_load(f)
+    raise FileNotFoundError(f"Conformance suite not found: {filename}")
 
 
 def get_conformance_cases(filename):

@@ -427,6 +427,8 @@ class _ElementalDecompiler:
                 call_dict = check["condition"]
             else:
                 call_dict = check
+            if not isinstance(call_dict, dict):
+                continue
 
             name = call_dict.get("call")
             args = call_dict.get("args", {})

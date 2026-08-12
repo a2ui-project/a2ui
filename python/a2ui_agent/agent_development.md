@@ -57,7 +57,7 @@ Notes:
 - The provided catalogs must be freestanding, i.e. they should not reference any
   external schemas or components, except for the common types.
 - If you have a modular catalog that references other catalogs, refer
-  to [Freestanding Catalogs](../../../docs/public/concepts/catalogs.md#freestanding-catalogs)
+  to [Freestanding Catalogs](../../docs/public/concepts/catalogs.md#catalog-linking)
   for more information.
 - You can define multiple `A2uiSchemaManager` instances (one for each protocol version)
   and select the active one at runtime based on the client request.
@@ -237,7 +237,7 @@ For agents with a fixed set of UI capabilities, simply use the `schema_manager`
 to generate the system instruction.
 
 **Example Samples:**
-[restaurant_finder](../../../samples/agent/adk/restaurant_finder)
+[restaurant_finder](../../samples/agent/adk/restaurant_finder)
 
 ```python
 # Generate system prompt
@@ -260,7 +260,7 @@ user's request, client capabilities, or conversational context. This is common
 for dashboard-style agents that support multiple distinct visualization types (
 e.g., Charts vs. Maps).
 
-**Example Sample:** [rizzcharts](../../../samples/community/agent/adk/rizzcharts/python)
+**Example Sample:** [rizzcharts](../../samples/community/agent/adk/rizzcharts/python)
 
 #### 2a. Injecting Catalogs into Session State
 
@@ -371,7 +371,7 @@ else:
 Orchestrator agents delegate work to sub-agents. They often need to propagate UI
 capabilities and handle cross-agent UI state.
 
-**Example Sample:** [orchestrator](../../../samples/community/agent/adk/orchestrator)
+**Example Sample:** [orchestrator](../../samples/community/agent/adk/orchestrator)
 
 The orchestrator inspects sub-agent capabilities and aggregates their supported
 catalog IDs into its own `AgentCard`.

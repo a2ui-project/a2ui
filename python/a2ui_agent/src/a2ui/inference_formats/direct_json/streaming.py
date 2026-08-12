@@ -787,6 +787,16 @@ class DirectJsonStreamParser:
 
         return pruned
 
+    @staticmethod
+    def _has_empty_dict(obj: Any) -> bool:
+        if isinstance(obj, dict):
+            if not obj:
+                return True
+            return any(DirectJsonStreamParser._has_empty_dict(v) for v in obj.values())
+        elif isinstance(obj, list):
+            return any(DirectJsonStreamParser._has_empty_dict(v) for v in obj)
+        return False
+
     def _handle_partial_component(
         self, comp: Dict[str, Any], messages: List[ResponsePart]
     ) -> None:
@@ -804,24 +814,12 @@ class DirectJsonStreamParser:
         if not comp_id:
             return
 
-        # Skip caching this component if it has empty dictionaries for complex properties.
-        # Elements like `children`, `text`, `url`, etc., violate A2UI schema if empty
-        # and will crash the client. We want the parent to yield a loading placeholder instead.
-        def _has_empty_dict(obj: Any) -> bool:
-            if isinstance(obj, dict):
-                if not obj:
-                    return True
-                return any(_has_empty_dict(v) for v in obj.values())
-            elif isinstance(obj, list):
-                return any(_has_empty_dict(v) for v in obj)
-            return False
-
         component_def = comp.get("component")
         if isinstance(component_def, str):
             # v0.9 flat style: check the whole component object for empty dicts
-            if _has_empty_dict(comp):
+            if self._has_empty_dict(comp):
                 return
-        elif _has_empty_dict(component_def):
+        elif self._has_empty_dict(component_def):
             # v0.8 nested style: check properties inside component
             return
 

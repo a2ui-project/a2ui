@@ -403,7 +403,7 @@ class A2uiCatalog:
                 self._validate_example(full_path, content)
 
             merged_examples.append(
-                f"---BEGIN {basename}---\n{content}\n---END {basename}---"
+                f"---BEGIN {basename}---\n{content.strip()}\n---END {basename}---"
             )
 
         if not merged_examples:
