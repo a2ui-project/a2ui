@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import Combine
 import Foundation
 import OrderedCollections
 import OrderedJSON
@@ -42,6 +41,7 @@ public final class DataContext: @unchecked Sendable {
   public func nested(relativePath: String) -> DataContext? {
     guard let handler = functionHandler else { return nil }
     let absPath = JSONValue.absolutePath(for: relativePath, in: self.path)
+  
     return DataContext(dataModel: dataModel, path: absPath, functionHandler: handler)
   }
 
@@ -57,23 +57,27 @@ public final class DataContext: @unchecked Sendable {
         guard let function = functionHandler?.function(named: callName, catalogID: catalogID) else {
           return .null
         }
+
         var resolvedArgs: [String: JSONValue] = [:]
         if let argsObj = dict["args"]?.dictionaryValue {
           for (argKey, argVal) in argsObj {
             resolvedArgs[argKey] = resolveDynamicValue(argVal)
           }
         }
+
         do {
           return try function.evaluate(arguments: resolvedArgs, context: self)
         } catch {
           return .null
         }
       }
-      var resolvedDict: [String: JSONValue] = [:]
+
+      var resolvedDict = OrderedDictionary<String, JSONValue>()
       for (k, v) in dict {
         resolvedDict[k] = resolveDynamicValue(v)
       }
-      return .object(OrderedDictionary(uniqueKeysWithValues: resolvedDict.map { ($0.key, $0.value) }))
+
+      return .object(resolvedDict)
     case .array(let arr):
       return .array(arr.map { resolveDynamicValue($0) })
     default:
