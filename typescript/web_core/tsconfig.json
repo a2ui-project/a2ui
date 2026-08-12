@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "incremental": true,
+    "forceConsistentCasingInFileNames": true,
+    "preserveWatchOutput": true,
+    "sourceMap": true,
+    "inlineSources": true,
+    "target": "es2022",
+    "module": "esnext",
+    "lib": ["es2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "skipLibCheck": true,
+    "useDefineForClassFields": false,
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+
+    "paths": {
+      "rxjs/operators": ["./node_modules/rxjs/operators/index.js"]
+    }
+  },
+  "angularCompilerOptions": {
+    "strictInjectionParameters": true,
+    "strictTemplates": true,
+    "strictPropertyInitialization": false
+  },
+  "include": ["src/**/*.ts", "src/**/*.json"]
+}

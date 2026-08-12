@@ -36,11 +36,8 @@ SCHEMA = load_json_file(SCHEMA_PATH)
 
 
 def get_yaml_files():
-    files = []
-    for domain in ["core", "agent", "extensions"]:
-        pattern = os.path.join(CONFORMANCE_DIR, domain, "**", "*.yaml")
-        files.extend(glob.glob(pattern, recursive=True))
-    return sorted(files)
+    pattern = os.path.join(CONFORMANCE_DIR, "suites", "*.yaml")
+    return glob.glob(pattern)
 
 
 @pytest.mark.parametrize("yaml_path", get_yaml_files(), ids=os.path.basename)

@@ -4,24 +4,13 @@ To ensure behavioral parity across all SDK implementations (Python, Kotlin, etc.
 
 ## Suite Structure
 
-Test suites are organized by functional domain:
+All test suites are located in the `suites/` directory:
 
-### Core (`core/`)
-
-- `core/catalog.yaml`: Contains test cases for catalog operations (prune, render, load).
-- `core/accessibility.yaml`: Contains test cases for accessibility attributes and checks.
-- `core/validator.yaml`: Contains test cases for schema and structural validators, verifying structural integrity, cycle detection, and reachability.
-
-### Agent (`agent/`)
-
-- `agent/streaming_parser.yaml`: Contains test cases for streaming parser implementations, verifying chunk buffering, incremental yielding, and edge cases like cut tokens.
-- `agent/parser.yaml`: Contains test cases for non-streaming parsing and payload fixing.
-- `agent/inference_format.yaml`: Contains test cases for inference formats and schema managers (select_catalog, load_catalog, generate_prompt).
-
-### Extensions (`extensions/`)
-
-- `extensions/a2a/a2a_integration.yaml`: Contains test cases for A2A protocol event and part conversions.
-- `extensions/adk/adk_extensions.yaml`: Contains test cases for ADK extensions and RPC handling.
+- `suites/streaming_parser.yaml`: Contains test cases for the `A2uiStreamParser` (streaming), verifying chunk buffering, incremental yielding, and edge cases like cut tokens.
+- `suites/parser.yaml`: Contains test cases for non-streaming parsing and payload fixing.
+- `suites/validator.yaml`: Contains test cases for the `A2uiValidator`, verifying structural integrity, cycle detection, and reachability.
+- `suites/catalog.yaml`: Contains test cases for `A2uiCatalog` (prune, render, load).
+- `suites/schema_manager.yaml`: Contains test cases for `A2uiSchemaManager` (select_catalog, load_catalog, generate_prompt).
 
 All static test data and simplified schemas are located in the `test_data/` directory.
 
