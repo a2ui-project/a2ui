@@ -594,7 +594,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - A `properties` block with a `call` property containing a constant of the function's name (e.g., `"call": { "const": "email" }`).
      - An optional `args` property representing arguments (or absent if the function accepts no arguments).
      - Mandatory metadata fields outside the strict JSON validation properties to advertise interface details:
-       - **`returnType`**: Must be a string enum indicating the return type (`string`, `number`, `boolean`, `array`, `object`, `any`, or `void`).
+       - **`returnType`**: Must be a string enum indicating the return type (`string`, `number`, `boolean`, `array`, `object`, `validationResult`, `any`, or `void`).
        - **`allowedCallers`**: Must be a string enum indicating the authorized callers (`rendererOnly` or `rendererOrAgent`). If omitted, it defaults to `rendererOnly`.
 7. **Strict Top-Level Schema Keys:**
    - To keep catalog schemas predictable and prevent custom extensions from polluting the global file space, a `catalog.json` file is restricted to the following root-level keys:
@@ -650,7 +650,7 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
       "type": "object",
       "description": "Checks that the value is not null, undefined, or empty.",
       // Strict function metadata defined outside the properties block.
-      "returnType": "boolean",
+      "returnType": "validationResult",
       "allowedCallers": "rendererOnly",
       "properties": {
         // Function call schema requires constant with function's name.
