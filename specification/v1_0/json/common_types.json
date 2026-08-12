@@ -305,6 +305,10 @@
                   "type": "string",
                   "description": "The name of the action to be dispatched to the agent."
                 },
+                "userMessage": {
+                  "$ref": "#/$defs/DynamicString",
+                  "description": "An optional human-readable message describing the action performed by the user, to present in conversation history or user feedback."
+                },
                 "context": {
                   "type": "object",
                   "description": "A JSON object containing the key-value pairs for the action context. Values can be literals or paths. Use literal values unless the value must be dynamically bound to the data model. Do NOT use paths for static IDs.",

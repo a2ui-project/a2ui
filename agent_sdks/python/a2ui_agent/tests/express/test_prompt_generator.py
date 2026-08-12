@@ -214,6 +214,58 @@ class TestExpressPromptGenerator(unittest.TestCase):
         self.assertIn("MapComp", sigs)
         self.assertIn("Map with keys:", sigs)
 
+    def test_express_schema_helper_methods(self):
+        from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper as ExpressCatalogSchemaHelper
+
+        cat = A2uiCatalog(
+            version=VERSION_1_0,
+            name="express_helper_catalog",
+            experiments={"version_1_0"},
+            s2c_schema={},
+            common_types_schema={},
+            catalog_schema={
+                "catalogId": "test",
+                "components": {
+                    "Button": {
+                        "description": "Button component",
+                        "properties": {
+                            "label": {"type": "string"},
+                            "action": {"$ref": "common_types.json#/$defs/Action"},
+                            "children": {"$ref": "common_types.json#/$defs/ChildList"},
+                            "child": {"$ref": "common_types.json#/$defs/Child"},
+                        },
+                    },
+                    "Card": {
+                        "properties": {
+                            "content": {
+                                "oneOf": [
+                                    {"$ref": "common_types.json#/$defs/ChildList"}
+                                ]
+                            }
+                        }
+                    },
+                },
+                "functions": {
+                    "openUrl": {
+                        "description": "Opens URL",
+                        "properties": {
+                            "args": {"properties": {"url": {"type": "string"}}}
+                        },
+                    }
+                },
+            },
+        )
+        helper = ExpressCatalogSchemaHelper(cat)
+        self.assertEqual(helper.get_component_description("Button"), "Button component")
+        self.assertEqual(helper.get_function_description("openUrl"), "Opens URL")
+        self.assertEqual(helper.get_property_type("Button", "action"), "Action")
+        self.assertEqual(helper.get_property_type("Button", "children"), "ChildList")
+        self.assertEqual(helper.get_property_type("Button", "child"), "Child")
+        self.assertEqual(helper.get_property_type("Card", "content"), "ChildList")
+        self.assertEqual(
+            helper.get_function_property_schema("openUrl", "url"), {"type": "string"}
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
