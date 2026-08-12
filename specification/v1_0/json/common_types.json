@@ -263,17 +263,18 @@
     },
     "CheckRule": {
       "type": "object",
-      "description": "A single validation rule applied to an input component.",
+      "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a ValidationResult object.",
       "properties": {
         "condition": {
-          "$ref": "#/$defs/DynamicBoolean"
+          "oneOf": [{"$ref": "#/$defs/DataBinding"}, {"$ref": "#/$defs/FunctionCall"}],
+          "description": "Path or function call evaluating to a ValidationResult object."
         },
         "message": {
           "type": "string",
-          "description": "The error message to display if the check fails."
+          "description": "Optional fallback error message."
         }
       },
-      "required": ["condition", "message"],
+      "required": ["condition"],
       "additionalProperties": false
     },
     "Checkable": {
