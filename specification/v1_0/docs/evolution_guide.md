@@ -29,7 +29,7 @@ Version 1.0 differs from 0.9 in the following ways:
 
 - Removed the `$defs/theme` schema and the `primaryColor` property from the Catalog schema.
 - Formalized the `functions` property in `catalog_definition.json` as a map object, keyed by function name.
-- Added `allowedCallers` (enum: `rendererOnly`, `rendererOrAgent`, default: `rendererOnly`) to `FunctionDefinition` to restrict which roles can invoke a function (replacing `callableFrom` and removing `agentOnly`).
+- Added `allowedCallers` (enum: `rendererOnly`, `agentOnly`, `rendererOrAgent`, default: `rendererOnly`) to `FunctionDefinition` to restrict which roles can invoke a function (replacing `callableFrom`).
 - Added `requiresUserActivation` (boolean, default: `false`) to `FunctionDefinition` to declare if a function requires user gesture/activation context to execute, conditionally restricting `allowedCallers` to `rendererOnly`.
 - Added `$defs/ValidationResult` schema (`valid`, `code`, `message`, `severity`) as the standard schema definition for validation function return payloads.
 - Added an optional `instructions` field to the `Catalog` schema to embed design guidelines and component usage rules directly in the catalog, replacing the external `rules.txt` file.

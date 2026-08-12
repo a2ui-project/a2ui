@@ -45,7 +45,7 @@ export interface EvaluatedResult extends ValidatedResult {
 export interface FunctionDefinition {
   description?: string;
   args?: Record<string, unknown>;
-  allowedCallers?: 'rendererOnly' | 'rendererOrAgent';
+  allowedCallers?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
   returnType?: string;
   [key: string]: unknown;
 }

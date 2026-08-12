@@ -171,7 +171,11 @@
             },
             "allowedCallers": {
               "type": "string",
-              "enum": ["rendererOnly", "rendererOrAgent"],
+              "enum": [
+                "rendererOnly",
+                "agentOnly",
+                "rendererOrAgent"
+              ],
               "default": "rendererOnly",
               "description": "Specifies which roles are authorized to invoke this function."
             },
