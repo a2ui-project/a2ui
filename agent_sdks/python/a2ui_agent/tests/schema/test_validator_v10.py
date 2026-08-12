@@ -173,3 +173,129 @@ class TestA2uiValidatorWrapperV10(unittest.TestCase):
         # Ensure sub-errors are parsed into err.details
         self.assertTrue(any(detail.code == "type_mismatch" for detail in err.details))
         self.assertTrue(any(detail.code == "missing_field" for detail in err.details))
+
+    def test_validation_date_time_formats(self):
+        date_catalog = A2uiCatalog(
+            version=VERSION_1_0,
+            name="date_catalog",
+            experiments={"version_1_0"},
+            s2c_schema={
+                "$id": (
+                    "https://a2ui.org/specification/v1_0/json/agent_to_renderer.json"
+                ),
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                    "version": {"const": "v1.0"},
+                    "dt": {"type": "string", "format": "date-time"},
+                    "tm": {"type": "string", "format": "time"},
+                    "d": {"type": "string", "format": "date"},
+                },
+                "required": ["version"],
+            },
+            common_types_schema={},
+            catalog_schema={
+                "catalogId": "https://a2ui.org/test_catalog",
+                "components": {},
+            },
+        )
+        validator = A2uiValidator(date_catalog, experiments={"version_1_0"})
+        # Valid date/time formats
+        validator.validate([{
+            "version": "v1.0",
+            "dt": "2026-08-12T11:35:00Z",
+            "tm": "11:35:00",
+            "d": "2026-08-12",
+        }])
+
+        # Invalid date-time format
+        with self.assertRaises(A2uiValidationError):
+            validator.validate([{
+                "version": "v1.0",
+                "dt": "invalid-datetime",
+            }])
+
+        # Invalid time format
+        with self.assertRaises(A2uiValidationError):
+            validator.validate([{
+                "version": "v1.0",
+                "tm": "invalid-time",
+            }])
+
+        # Invalid date format
+        with self.assertRaises(A2uiValidationError):
+            validator.validate([{
+                "version": "v1.0",
+                "d": "invalid-date",
+            }])
+
+    def test_validation_update_components_message(self):
+        from a2ui.validation.validator import ValidationConfig
+
+        payload = [{
+            "version": "v1.0",
+            "updateComponents": {
+                "surfaceId": "welcome",
+                "components": [{"id": "c1", "component": "Text", "text": "Updated"}],
+            },
+        }]
+        # s2c_schema supports updateComponents for this test
+        update_catalog = A2uiCatalog(
+            version=VERSION_1_0,
+            name="update_catalog",
+            experiments={"version_1_0"},
+            s2c_schema={
+                "$id": (
+                    "https://a2ui.org/specification/v1_0/json/agent_to_renderer.json"
+                ),
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                    "version": {"const": "v1.0"},
+                    "updateComponents": {
+                        "type": "object",
+                        "required": ["surfaceId", "components"],
+                        "properties": {
+                            "surfaceId": {"type": "string"},
+                            "components": {
+                                "type": "array",
+                                "items": {"$ref": "catalog.json#/components/Text"},
+                            },
+                        },
+                    },
+                },
+                "required": ["version"],
+            },
+            common_types_schema={},
+            catalog_schema={
+                "catalogId": "https://a2ui.org/test_catalog",
+                "components": {
+                    "Text": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "string"},
+                            "component": {"type": "string", "enum": ["Text"]},
+                            "text": {"type": "string"},
+                        },
+                        "required": ["id", "component", "text"],
+                    }
+                },
+            },
+        )
+        validator = A2uiValidator(update_catalog, experiments={"version_1_0"})
+        # 1. Valid updateComponents payload passes
+        validator.validate(payload, config=ValidationConfig(allow_missing_root=True))
+
+        # 2. Invalid component property raises A2uiValidationError
+        invalid_comp_payload = [{
+            "version": "v1.0",
+            "updateComponents": {
+                "surfaceId": "welcome",
+                "components": [{"id": "c1", "component": "Text"}],  # missing text
+            },
+        }]
+        with self.assertRaises(A2uiValidationError) as ctx:
+            validator.validate(
+                invalid_comp_payload, config=ValidationConfig(allow_missing_root=True)
+            )
+        self.assertTrue(any(d.code == "missing_field" for d in ctx.exception.details))

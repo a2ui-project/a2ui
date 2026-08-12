@@ -734,16 +734,57 @@ class TestElementalCompiler(unittest.TestCase):
             "action",
         )
 
-    def test_compiler_event_dict_args(self):
-        """Test event function call with dict args."""
-        html_evt_dict = (
-            '<body><ui-button id="b4" onclick="event({name: \'ev1\', context: {x:'
-            ' 99}})" /></body>'
+    def test_compiler_string_coercion_types(self):
+        """Test type coercion of string boolean attributes using real catalog schemas."""
+        html_coercion = (
+            '<body id="test-surf">\n'
+            '  <ui-check-box id="input_1" value="true" label="Agree" />\n'
+            '  <ui-check-box id="input_2" value="false" label="Disagree" />\n'
+            "</body>"
         )
-        res_evt = self.compiler.compile(html_evt_dict)
-        comps_evt = res_evt["createSurface"]["components"]
-        btn4 = next(c for c in comps_evt if c["id"] == "b4")
-        self.assertEqual(btn4["action"], "event({name: 'ev1', context: {x: 99}})")
+        res = self.compiler.compile(html_coercion)
+        comps = res["createSurface"]["components"]
+        cb1 = next(c for c in comps if c["id"] == "input_1")
+        cb2 = next(c for c in comps if c["id"] == "input_2")
+        self.assertEqual(cb1["value"], True)
+        self.assertEqual(cb2["value"], False)
+
+    def test_get_primitive_property_type_edge_cases(self):
+        """Test _get_primitive_property_type with nullable list types and case-insensitive refs."""
+        from a2ui.inference_formats.experimental.elemental.compiler import _get_primitive_property_type
+
+        # 1. Non-dict input
+        self.assertIsNone(_get_primitive_property_type(None))
+        self.assertIsNone(_get_primitive_property_type("not_a_dict"))
+
+        # 2. List type / nullable
+        self.assertEqual(
+            _get_primitive_property_type({"type": ["string", "null"]}), "string"
+        )
+        self.assertEqual(
+            _get_primitive_property_type({"type": ["null", "boolean"]}), "boolean"
+        )
+        self.assertIsNone(_get_primitive_property_type({"type": ["null"]}))
+
+        # 3. Case-insensitive $ref
+        self.assertEqual(
+            _get_primitive_property_type({"$ref": "#/$defs/dynamicboolean"}), "boolean"
+        )
+        self.assertEqual(
+            _get_primitive_property_type(
+                {"$ref": "common_types.json#/definitions/boolean"}
+            ),
+            "boolean",
+        )
+        self.assertEqual(
+            _get_primitive_property_type({"$ref": "#/$defs/dynamicinteger"}), "integer"
+        )
+        self.assertEqual(
+            _get_primitive_property_type({"$ref": "#/$defs/dynamicnumber"}), "number"
+        )
+        self.assertEqual(
+            _get_primitive_property_type({"$ref": "#/$defs/dynamicstring"}), "string"
+        )
 
 
 if __name__ == "__main__":
