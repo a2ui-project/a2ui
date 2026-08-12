@@ -6,7 +6,7 @@ This document serves as a comprehensive guide to the changes between A2UI versio
 
 Version 1.0 differs from 0.9 in the following ways:
 
-- Bidirectional RPC function calls are supported via explicit role-based messages: `callRendererFunction` for agent-initiated calls on the renderer (returning `rendererFunctionResponse`), and `callAgentFunction` for renderer-initiated calls on the agent (returning `agentFunctionResponse`). Execution results or errors are returned via shared `FunctionResponse` payloads. Runtime execution boundaries (`callableFrom`) and return types are defined in catalogs and verified at runtime, rather than being validated on the wire.
+- Bidirectional RPC function calls are supported via explicit role-based messages: `callRendererFunction` for agent-initiated calls on the renderer (returning `rendererFunctionResponse`), and `callAgentFunction` for renderer-initiated calls on the agent (returning `agentFunctionResponse`). Execution results or errors are returned via shared `FunctionResponse` payloads. Runtime execution boundaries (`callableFrom`) and return types are defined in catalogs and verified at runtime.
 - Catalogs can now be mixed within a single UI surface. Advertised `supportedCatalogIds` are mixable, allowing UI trees to combine components and functions from multiple catalogs simultaneously.
 - Added an optional `catalogId` property to `ComponentCommon` and `FunctionCall` to allow individual components and function calls to explicitly declare their source catalog. Added `$defs/FunctionCommon` in `common_types.json` for function-level catalog overrides.
 - Retained `catalogId` on `createSurface` as an optional parameter that defines the default catalog for that surface.
