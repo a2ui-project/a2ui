@@ -2838,11 +2838,10 @@
 <p>All requirements from v0.9.1, with the following extensions:
 - <strong>Surface Properties</strong>:
     - Handle <code>createSurface</code> with <code>surfaceProperties</code> (renamed from <code>theme</code>). Custom primary brand colors are no longer supported inside the surface schema.
-- <strong>Action Responses (RPC)</strong>:
-    - Handle the <code>actionResponse</code> message from the server containing <code>actionId</code> and a return <code>value</code> or <code>error</code>.
+- <strong>Directional Function Calls (RPC)</strong>:
+    - Handle <code>callRendererFunction</code> messages from the agent and return <code>rendererFunctionResponse</code> (or <code>error</code>).
 - <strong>Client-to-Server</strong>:
-    - Generate and include an <code>actionId</code> inside <code>action</code> payloads.
-    - Support <code>wantResponse: true</code> on actions when the client expects a response.
+    - Support initiating <code>callAgentFunction</code> messages to the agent for remote function execution.
     - If using A2A, every A2A <code>Message</code> sent to the server must include an <code>a2uiClientCapabilities</code> object in the <code>metadata</code> field of the A2A <code>Message</code>.
 - <strong>Capabilities</strong>:
     - Expose <code>surfaceProperties</code> in place of <code>theme</code> during capabilities exchange.</p>

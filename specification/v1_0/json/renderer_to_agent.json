@@ -36,15 +36,6 @@
           "description": "A JSON object containing the key-value pairs from the component's action.event.context, after resolving all data bindings.",
           "additionalProperties": true
         },
-        "wantResponse": {
-          "type": "boolean",
-          "description": "If true, the renderer expects an actionResponse from the agent.",
-          "default": false
-        },
-        "actionId": {
-          "type": "string",
-          "description": "Unique ID for this action call. Only needed if wantResponse is true."
-        },
         "metadata": {
           "type": "object",
           "description": "Optional client-side metadata to send back to the agent with the action.",
@@ -58,23 +49,27 @@
       },
       "required": ["name", "surfaceId", "sourceComponentId", "timestamp", "context"]
     },
-    "functionResponse": {
+    "callAgentFunction": {
+      "type": "object",
+      "description": "Signals the agent to execute a function remotely on behalf of the renderer.",
       "properties": {
+        "surfaceId": {
+          "type": "string",
+          "description": "The surface ID where the call originated."
+        },
         "functionCallId": {
           "$ref": "common_types.json#/$defs/CallId",
-          "description": "Unique ID for the instance of this function. MUST be copied verbatim from the function invocation."
+          "description": "Unique ID for this instance of the function call. The agent MUST copy this ID into the return response."
         },
-        "call": {
-          "type": "string",
-          "description": "The name of the function which was called. MUST be copied verbatim from the function invocation. Useful for logging."
-        },
-        "value": {
-          "description": "The return value of the function invocation.",
-          "type": ["string", "number", "boolean", "array", "object", "null"]
+        "callFunction": {
+          "$ref": "common_types.json#/$defs/FunctionCall"
         }
       },
-      "required": ["functionCallId", "call", "value"],
-      "unevaluatedProperties": false
+      "required": ["surfaceId", "functionCallId", "callFunction"],
+      "additionalProperties": false
+    },
+    "rendererFunctionResponse": {
+      "$ref": "common_types.json#/$defs/FunctionResponse"
     },
     "error": {
       "description": "Reports a renderer-side error.",
@@ -150,7 +145,10 @@
       "required": ["action", "version"]
     },
     {
-      "required": ["functionResponse", "version"]
+      "required": ["callAgentFunction", "version"]
+    },
+    {
+      "required": ["rendererFunctionResponse", "version"]
     },
     {
       "required": ["error", "version"]

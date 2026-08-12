@@ -2518,10 +2518,10 @@
 <h1 id="a2ui-protocol-evolution-guide-v09-to-v10">A2UI Protocol Evolution Guide: v0.9 to v1.0<a class="headerlink" href="#a2ui-protocol-evolution-guide-v09-to-v10" title="Permanent link">&para;</a></h1>
 <p>This document serves as a comprehensive guide to the changes between A2UI version 0.9 (including 0.9.1) and version 1.0. It details the shifts in philosophy, architecture, and implementation, providing a reference for stakeholders and developers migrating between versions.</p>
 <h2 id="1-executive-summary">1. Executive summary<a class="headerlink" href="#1-executive-summary" title="Permanent link">&para;</a></h2>
-<p>Version 1.0 differs from 0.9 in the following ways:</p>
+<p>1
+Version 1.0 differs from 0.9 in the following ways:</p>
 <ul>
-<li>A new renderer-to-agent RPC mechanism allows synchronous responses to renderer actions (<code>actionResponse</code>) using a unique <code>actionId</code>.</li>
-<li>Agent-to-renderer RPC function calls are supported via the <code>callFunction</code> message. Renderers return execution results via the <code>functionResponse</code> message. Runtime execution boundaries and return types are defined in catalogs and verified at runtime, rather than being validated on the wire.</li>
+<li>Bidirectional RPC function calls are supported via explicit role-based messages: <code>callRendererFunction</code> for agent-initiated calls on the renderer, and <code>callAgentFunction</code> for renderer-initiated calls on the agent. Execution results or errors are returned via <code>functionResponse</code> messages. Runtime execution boundaries and return types are defined in catalogs and verified at runtime, rather than being validated on the wire.</li>
 <li>Catalogs can now be mixed within a single UI surface. Advertised <code>supportedCatalogIds</code> are mixable, allowing UI trees to combine components and functions from multiple catalogs simultaneously.</li>
 <li>Added an optional <code>catalogId</code> property to <code>ComponentCommon</code> and <code>FunctionCall</code> to allow individual components and function calls to explicitly declare their source catalog.</li>
 <li>Retained <code>catalogId</code> on <code>createSurface</code> as an optional parameter that defines the default catalog for that surface.</li>
@@ -2534,6 +2534,7 @@
 <li>The <code>@index</code> built-in function dynamically retrieves iteration indices during list template rendering. The <code>@</code> prefix is reserved for core system context evaluations.</li>
 <li>Standardized the names of core architectural components, renaming "client" to <em>renderer</em> and "server" to <em>agent</em> (e.g., <code>server_to_client</code> schemas are renamed to <code>agent_to_renderer</code>), because A2UI is sometimes generated on clients, and rendering sometimes happens on servers, making those terms ambiguous.</li>
 <li>Catalogs can now define composition constraints (<code>allowedParents</code> and <code>allowedChildren</code>) on component definitions, using <code>"Surface"</code> as the canonical root component type. Because JSON Schema cannot natively restrict child component types across a flat adjacency list of ID references, these rules allow catalogs to declare valid parent-child relationships without altering the wire format.</li>
+<li><code>CheckRule</code> in <code>common_types.json</code> supports dynamic structured validation result objects (<code>ValidationResult</code>) returned directly by function evaluations or data bindings (containing <code>valid</code>, <code>code</code>, <code>message</code>, and <code>severity</code>), and <code>message</code> on <code>CheckRule</code> is made optional as a fallback error message.</li>
 <li>Enhanced <code>AccessibilityAttributes</code> in <code>common_types.json</code> with WAI-ARIA <code>live</code> region support (<code>"off"</code>, <code>"polite"</code>, <code>"assertive"</code>) and <code>hidden</code> (<code>DynamicBoolean</code>), while setting <code>"additionalProperties": false</code>. Established normative specification prose requiring catalog and renderer implementations to plumb accessibility attributes, infer default screen reader semantics from visible text properties, and enforce SDK linter checks.</li>
 </ul>
 <h2 id="2-changes">2. Changes<a class="headerlink" href="#2-changes" title="Permanent link">&para;</a></h2>
@@ -2555,12 +2556,13 @@
 <li>Added <code>placeholder</code> prop to the <code>TextField</code> component schema.</li>
 <li>Added a <code>steps</code> property to the <code>Slider</code> component schema to snap values to discrete intervals.</li>
 <li>Added an optional <code>instructions</code> field to the <code>Catalog</code> schema (<code>catalogs/basic/catalog.json</code>) to embed Markdown guidelines/rules directly, replacing the external <code>rules.txt</code> file.</li>
+<li>Updated return types on standard validation check functions (<code>required</code>, <code>regex</code>, <code>length</code>, <code>numeric</code>, <code>email</code>) in <code>catalogs/basic/catalog.json</code> from <code>"boolean"</code> to <code>"validationResult"</code>.</li>
 <li>Removed <code>$defs/theme</code> from the basic catalog.</li>
 </ul>
 <h3 id="23-agent-to-renderer-messages">2.3. Agent-to-renderer messages<a class="headerlink" href="#23-agent-to-renderer-messages" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Added <code>actionResponse</code> message structure (<code>ActionResponseMessage</code>) to allow the agent to respond to a specific action call using a unique <code>actionId</code> with a <code>value</code> or <code>error</code>.</li>
-<li>Added <code>callFunction</code> message structure (<code>CallFunctionMessage</code>) to support agent-initiated function execution. Removed <code>callableFrom</code> and <code>returnType</code> properties from the wire payload, relying on runtime catalog verification.</li>
+<li>Replaced <code>callFunction</code> with <code>callRendererFunction</code> message structure (<code>CallRendererFunctionMessage</code>) to support agent-to-renderer function execution requests.</li>
+<li>Added <code>functionResponse</code> message structure (<code>FunctionResponseMessage</code>) to <code>agent_to_renderer.json</code> so agents can return execution results or error payloads for renderer-initiated function calls.</li>
 <li>Updated the <code>createSurface</code> message (<code>CreateSurfaceMessage</code>) to remove the <code>theme</code> field, allowed passing initial <code>components</code> and <code>dataModel</code> directly inside the payload, and made <code>catalogId</code> an optional parameter that acts as the surface's default catalog.</li>
 <li>Added an optional <code>catalogId</code> property to <code>ComponentCommon</code> and <code>FunctionCall</code> in <code>common_types.json</code> to enable mixing catalogs and explicitly designating the catalog on individual components or function calls.</li>
 <li>Added the <code>Component</code> definition in <code>agent_to_renderer.json</code> (referenced by <code>ComponentsList</code>) to compose <code>ComponentCommon</code> (<code>$ref: "common_types.json#/$defs/ComponentCommon"</code>) so base component properties are validated at the envelope level regardless of catalog structure.</li>
@@ -2568,8 +2570,8 @@
 </ul>
 <h3 id="24-renderer-to-agent-events">2.4. Renderer-to-agent events<a class="headerlink" href="#24-renderer-to-agent-events" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Added <code>actionId</code> to the <code>action</code> message properties, which the renderer generates if a response is expected (<code>wantResponse: true</code>).</li>
-<li>Added the <code>functionResponse</code> renderer-to-agent message to return the successful result (<code>value</code>) of an agent-initiated function call. Function execution failures are reported via the separate <code>error</code> message (see next item), not via <code>functionResponse</code>.</li>
+<li>Added <code>callAgentFunction</code> message structure to support renderer-initiated remote function execution requests sent to the agent.</li>
+<li>Updated <code>functionResponse</code> renderer-to-agent message structure to return function execution results (<code>value</code>) or failure payloads (<code>error</code>), referencing <code>common_types.json#/$defs/FunctionResponse</code> without requiring the redundant function call name string.</li>
 <li>Updated renderer <code>error</code> messages to support <code>functionCallId</code> when reporting function execution failures, enforcing mutual exclusivity with <code>surfaceId</code>.</li>
 <li>Added <code>"UNALLOWED_PARENT"</code> and <code>"UNALLOWED_CHILD"</code> error code values to <code>renderer_to_agent.json</code> for reporting validation errors when a component is placed under an unallowed parent or an unallowed child is placed inside a container.</li>
 <li>Updated all protocol version references from <code>v0.9</code> or <code>v0.9.1</code> to <code>v1.0</code>.</li>
@@ -2578,7 +2580,8 @@
 <ul>
 <li>Added an optional <code>instructions</code> field to the <code>Catalog</code> object definition (<code>catalog_definition.json</code>) as a plain Markdown string to embed design guidelines directly.</li>
 <li>Removed <code>theme</code> capability block from the Catalog definition in <code>catalog_definition.json</code>.</li>
-<li>Added static <code>callableFrom</code> and <code>returnType</code> metadata properties to <code>FunctionDefinition</code> inside <code>catalog_definition.json</code> to advertise execution boundaries and return types to the agent.</li>
+<li>Added static <code>callableFrom</code> and <code>returnType</code> metadata properties to <code>FunctionDefinition</code> inside <code>catalog_definition.json</code> to advertise execution boundaries and return types to the agent (including <code>"validationResult"</code> as a return type).</li>
+<li>Added <code>$defs/ValidationResult</code> schema (<code>valid</code>, <code>code</code>, <code>message</code>, <code>severity</code>) to <code>catalog_definition.json</code> as the standard definition for validation function return payloads.</li>
 </ul>
 <h3 id="26-agent-card-and-transport-metadata">2.6. Agent card and transport metadata<a class="headerlink" href="#26-agent-card-and-transport-metadata" title="Permanent link">&para;</a></h3>
 <ul>
@@ -2591,6 +2594,7 @@
 <li>Standardized data deletion behavior in <code>updateDataModel</code> by making the <code>value</code> property required. Setting a path's value to <code>null</code> deletes the key at that path. Omitting the <code>value</code> property is now a schema validation error.</li>
 <li>Removed <code>callableFrom</code> and <code>returnType</code> properties and validation constraints from <code>FunctionCall</code> and dynamic value schemas in <code>common_types.json</code>, deferring boundary checking and return type validation entirely to runtime execution.</li>
 <li>Added built-in <code>@index</code> function (with optional <code>offset</code> parameter) under <code>FunctionCall</code> to retrieve the iteration index during list template rendering. Reserved the <code>@</code> prefix for core system context evaluations.</li>
+<li>Updated <code>CheckRule</code> in <code>common_types.json</code> to support dynamic <code>ValidationResult</code> objects returned directly by function evaluations or data model bindings, adding the <code>$defs/ValidationResult</code> schema (<code>valid</code>, <code>code</code>, <code>message</code>, <code>severity</code>) and making <code>CheckRule.message</code> optional as a fallback message.</li>
 </ul>
 <h3 id="28-processing-rules">2.8. Processing rules<a class="headerlink" href="#28-processing-rules" title="Permanent link">&para;</a></h3>
 <ul>
@@ -2634,12 +2638,12 @@
 <li>Implement multi-catalog mixing by supporting components and function calls from any catalog in <code>supportedCatalogIds</code> or negotiated <code>inlineCatalogs</code>. All catalogs mixed within a surface must use the same A2UI specification version.</li>
 <li>Implement component and function resolution order: (1) explicit component/call <code>catalogId</code>, (2) surface default <code>catalogId</code>, (3) error if neither exists (no fallback to capabilities).</li>
 <li>Implement function execution by adding support for parsing <code>callFunction</code> messages, checking boundary definitions in the catalog (<code>callableFrom</code>), rejecting invalid calls with <code>INVALID_FUNCTION_CALL</code>, and returning <code>functionResponse</code> messages.</li>
-<li>Support synchronous action responses by generating <code>actionId</code> for actions with <code>wantResponse: true</code> and writing returned values from <code>actionResponse</code> messages into the data model.</li>
 <li>Support simultaneous version handling during session initialization by inspecting the <code>version</code> property (e.g., <code>"v1.0"</code>) to route payloads to version-specific controllers.</li>
 <li>Enforce surface uniqueness by raising an error if <code>createSurface</code> is received for an existing <code>surfaceId</code>.</li>
 <li>Update error reporting to handle <code>functionCallId</code> and enforce mutual exclusivity with <code>surfaceId</code>.</li>
 <li>Enforce Unicode identifier naming by verifying that all catalog entity names (components, functions, prop keys) conform to UAX #31 identifier rules.</li>
 <li>Support built-in <code>@index</code> evaluation during list template rendering (Collection Scope) to provide the 0-based iteration index, adjusted by any <code>offset</code> parameter.</li>
+<li>Support dynamic <code>ValidationResult</code> objects (<code>valid</code>, <code>code</code>, <code>message</code>, <code>severity</code>) returned by component validation check conditions, falling back to static <code>CheckRule.message</code> if present.</li>
 <li>Rename all references, constants, and endpoints mapping to <code>client_to_server.json</code> or <code>client_capabilities.json</code> to use <code>renderer_to_agent.json</code> and <code>renderer_capabilities.json</code>.</li>
 </ul>
 
