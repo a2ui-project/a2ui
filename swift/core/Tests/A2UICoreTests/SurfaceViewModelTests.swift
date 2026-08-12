@@ -38,7 +38,7 @@ struct TestConcatFunction: FunctionImplementation {
     )
   )
 
-  func evaluate(arguments: [String: JSONValue]) throws -> JSONValue {
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     let a = arguments["a"]?.stringValue ?? ""
     let b = arguments["b"]?.stringValue ?? ""
     return .string(a + b)
