@@ -477,7 +477,7 @@ struct MessageProcessorTests {
 
 private struct TestAddFunction: FunctionImplementation {
   let api: FunctionAPI
-  
+
   init(schema: Schema) {
     self.api = FunctionAPI(name: "add", returnType: .number, schema: schema)
   }

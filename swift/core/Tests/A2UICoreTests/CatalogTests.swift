@@ -235,4 +235,3 @@ struct CatalogTests {
   }
 
 }
-

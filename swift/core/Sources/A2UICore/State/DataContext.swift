@@ -37,11 +37,11 @@ public final class DataContext: @unchecked Sendable {
     let absPath = JSONValue.absolutePath(for: targetPath, in: self.path)
     dataModel.set(absPath, value: value)
   }
-  
+
   public func nested(relativePath: String) -> DataContext? {
     guard let handler = functionHandler else { return nil }
     let absPath = JSONValue.absolutePath(for: relativePath, in: self.path)
-  
+
     return DataContext(dataModel: dataModel, path: absPath, functionHandler: handler)
   }
 

@@ -608,4 +608,3 @@ extension SurfaceViewModel: FunctionHandler {
     return function
   }
 }
-
