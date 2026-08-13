@@ -124,30 +124,34 @@ export default function App() {
 
   useEffect(() => {
     const fetchTemplates = async () => {
-      setLibraryLoading(true);
+      setLibraryLoading(true)
       try {
-        const res = await fetch('http://127.0.0.1:8000/templates');
+        const res = await fetch('http://127.0.0.1:8000/templates')
         if (res.ok) {
-          const list: TemplateDefinition[] = await res.json();
-          setTemplates(list);
+          const list: TemplateDefinition[] = await res.json()
+          setTemplates(list)
           if (list.length > 0) {
-            setSelectedTemplateId(list[0].templateId);
-            // Process sample messages for initial templates
+            setSelectedTemplateId((prev) =>
+              list.find((t) => t.templateId === prev) ? prev : list[0].templateId
+            )
+            // Process sample messages for templates
             for (const item of list) {
               if (item.sampleMessages && item.sampleMessages.length > 0) {
-                libraryProcessor.processMessages(item.sampleMessages);
+                libraryProcessor.processMessages(item.sampleMessages)
               }
             }
           }
         }
       } catch (e) {
-        console.error('Failed to load templates list:', e);
+        console.error('Failed to load templates list:', e)
       } finally {
-        setLibraryLoading(false);
+        setLibraryLoading(false)
       }
-    };
-    fetchTemplates();
-  }, [libraryProcessor]);
+    }
+    if (currentView === 'library' || templates.length === 0) {
+      fetchTemplates()
+    }
+  }, [libraryProcessor, currentView])
 
   const selectedTemplate = templates.find(t => t.templateId === selectedTemplateId);
 

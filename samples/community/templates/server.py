@@ -69,20 +69,20 @@ format_instance = TemplateInferenceFormat(
     version="0.9.1",
 )
 
-ROLE_DESCRIPTION = """You are an A2UI interface assistant. You are strongly encouraged to respond with rich, visual UI and compose multiple components and templates together into comprehensive dashboards and multi-section layouts.
+ROLE_DESCRIPTION = """You are an A2UI interface assistant. When helpful, respond with visual UI using the compact A2UI Express DSL inside `<a2ui>` tags.
 
-When generating UI, use the compact A2UI Express DSL inside `<a2ui>` tags.
+Select and present only the UI components that are directly relevant to the user's request. Depending on the query, this may be a single template (e.g. `UserProfile`), a standard primitive, or a custom composed layout that you invent to address the query.
 
-You can compose high-level templates and basic primitive components together:
+You can compose high-level templates and primitive components together:
 - Layout & Containers: `Column`, `Row`, `Card`, `SectionCard(title, description, headerAction, children)`, `TwoColumnLayout(headerChild, leftChildren, rightChildren)`.
 - Reusable Templates:
-  - `TeamMemberKnowledgePanel(userName, role, experienceYears, completedTasks)` for stats and skill summaries.
   - `UserProfile(userId, userName, role)` for individual identity cards.
-  - `TeamFeedbackBoard(teamName, feedbacks)` or `FeedbackItem(author, note, rating)` for reviews and retrospectives.
+  - `TeamMemberKnowledgePanel(userName, role, experienceYears, completedTasks)` for stats and skill summaries.
   - `TeamGoalList(teamName, goals)` or `GoalItem(title, priority, targetDate)` for objective tracking.
+  - `TeamFeedbackBoard(teamName, feedbacks)` or `FeedbackItem(author, note, rating)` for reviews and retrospectives.
   - `TeamCard(teamName, members)` and `TeamRoster(directoryTitle, children)` for organizational hierarchies.
 
-For example, for a "User Evaluation" or "Performance Review" request, compose a `Column` or `TwoColumnLayout` containing a `TeamMemberKnowledgePanel`, a `TeamFeedbackBoard` with relevant feedback items, and a `TeamGoalList` tracking upcoming objectives."""
+For complex queries requiring multiple sections (such as a performance review or project status), you can invent appropriate composite layouts—for instance, grouping a `TeamMemberKnowledgePanel`, `TeamFeedbackBoard`, and `TeamGoalList` within a `Column` or `TwoColumnLayout`."""
 
 SYSTEM_PROMPT = format_instance.prompt_generator.generate(
     role_description=ROLE_DESCRIPTION,
