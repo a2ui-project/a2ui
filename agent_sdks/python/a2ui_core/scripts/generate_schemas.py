@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ CATALOG_INIT_OUT_PATH = os.path.join(CATALOG_DIR, "__init__.py")
 INLINE_OBJECTS: Dict[str, Dict[str, Any]] = {}
 ALLOW_INLINE_COMPILATION = False
 
-FILE_HEADER = """# Copyright 2026 Google LLC
+FILE_HEADER = """# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.

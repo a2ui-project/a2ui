@@ -1,4 +1,4 @@
-// Copyright 2026 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,8 @@ import SwiftUI
 ///
 /// Supports catalog-qualified lookups when a node specifies a catalog ID,
 /// with automatic fallback to an unqualified component type match.
-public final class CatalogImplementation: @unchecked Sendable {
+@MainActor
+public final class CatalogImplementation {
   private var builders: [ComponentKey: ComponentViewBuilder] = [:]
 
   public init() {}

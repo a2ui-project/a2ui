@@ -316,6 +316,8 @@ The set of available UI components and functions is defined in a **Catalog**. Th
 
 Each catalog is identified by a `catalogId` string. The `catalogId` is a string identifier used for matching catalogs between the client and server. While it is conventional to format catalog IDs as URIs (e.g., `https://mycompany.com/catalogs/v1`) to prevent naming collisions across organizations, a `catalogId` is not required to be a resolvable network resource.
 
+Because A2UI catalogs are represented as JSON Schema documents, catalog definitions should include both `$id` (used by JSON Schema tooling) and `catalogId` (used by A2UI SDKs and catalog negotiation), and both fields should be set to the same URI.
+
 It is up to client and server developers to agree on shared catalogs with well-known IDs in order to build systems that are compatible with each other.
 
 ### UI composition: the adjacency list model

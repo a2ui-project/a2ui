@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://a2ui.org/agent_sdks/conformance/conformance_schema.json",
+  "$id": "https://a2ui.org/conformance/conformance_schema.json",
   "title": "A2UI Conformance Test Suite Schema",
   "type": "array",
   "items": {

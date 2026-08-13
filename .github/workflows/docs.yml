@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Check for docs changes
-        uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3
+        uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
         id: filter
         with:
           filters: |
@@ -68,6 +68,7 @@ jobs:
     needs: changes
     if: github.repository == 'a2ui-project/a2ui' && (github.event_name == 'push' || needs.changes.outputs.docs == 'true')
     runs-on: ubuntu-latest
+    # Requires write access to publish built documentation to gh-pages branch
     permissions:
       contents: write
       actions: read

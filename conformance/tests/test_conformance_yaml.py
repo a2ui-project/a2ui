@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -36,8 +36,11 @@ SCHEMA = load_json_file(SCHEMA_PATH)
 
 
 def get_yaml_files():
-    pattern = os.path.join(CONFORMANCE_DIR, "suites", "*.yaml")
-    return glob.glob(pattern)
+    files = []
+    for domain in ["core", "agent", "extensions"]:
+        pattern = os.path.join(CONFORMANCE_DIR, domain, "**", "*.yaml")
+        files.extend(glob.glob(pattern, recursive=True))
+    return sorted(files)
 
 
 @pytest.mark.parametrize("yaml_path", get_yaml_files(), ids=os.path.basename)

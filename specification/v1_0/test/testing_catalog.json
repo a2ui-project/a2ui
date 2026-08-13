@@ -15,6 +15,16 @@
         }
       },
       "required": ["component", "text"]
+    },
+    "TestComponent": {
+      "type": "object",
+      "properties": {
+        "component": {"const": "TestComponent"},
+        "value": {
+          "$ref": "common_types.json#/$defs/DynamicValue"
+        }
+      },
+      "required": ["component", "value"]
     }
   },
   "functions": {
@@ -73,7 +83,7 @@
   },
   "$defs": {
     "anyComponent": {
-      "oneOf": [{"$ref": "#/components/Text"}],
+      "oneOf": [{"$ref": "#/components/Text"}, {"$ref": "#/components/TestComponent"}],
       "discriminator": {
         "propertyName": "component"
       }

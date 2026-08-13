@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -182,6 +182,36 @@ def _get_enum_values(schema: Any) -> Optional[List[Any]]:
                 vals = _get_enum_values(sub)
                 if vals is not None:
                     return vals
+    return None
+
+
+def _get_primitive_property_type(schema: Any) -> Optional[str]:
+    """Resolves primitive type or Dynamic* reference type from a property schema."""
+    if not isinstance(schema, dict):
+        return None
+    if "type" in schema:
+        if isinstance(schema["type"], str):
+            return schema["type"]
+        if isinstance(schema["type"], list):
+            for t in schema["type"]:
+                if isinstance(t, str) and t != "null":
+                    return t
+    if "$ref" in schema and isinstance(schema["$ref"], str):
+        ref_lower = schema["$ref"].lower()
+        if "dynamicboolean" in ref_lower or ref_lower.endswith("/boolean"):
+            return "boolean"
+        if "dynamicinteger" in ref_lower or ref_lower.endswith("/integer"):
+            return "integer"
+        if "dynamicnumber" in ref_lower or ref_lower.endswith("/number"):
+            return "number"
+        if "dynamicstring" in ref_lower or ref_lower.endswith("/string"):
+            return "string"
+    for key in ["oneOf", "anyOf", "allOf"]:
+        if key in schema and isinstance(schema[key], list):
+            for sub in schema[key]:
+                res = _get_primitive_property_type(sub)
+                if res:
+                    return res
     return None
 
 
@@ -658,7 +688,7 @@ class ElementalCompiler:
             prop_schema = self.helper.get_property_schema(comp_name, prop_name)
 
             if isinstance(parsed_val, str) and prop_schema:
-                prop_type = prop_schema.get("type")
+                prop_type = _get_primitive_property_type(prop_schema)
                 # 1. Coerce boolean values
                 if prop_type == "boolean":
                     if parsed_val.lower() == "true":

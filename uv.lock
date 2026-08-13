@@ -98,7 +98,7 @@ dev = [
 [[package]]
 name = "a2ui-conformance-validation"
 version = "0.1.0"
-source = { virtual = "agent_sdks/conformance" }
+source = { virtual = "conformance" }
 dependencies = [
     { name = "jsonschema" },
     { name = "pytest" },
