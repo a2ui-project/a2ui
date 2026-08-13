@@ -13,7 +13,7 @@
 # limitations under the License.
 
 - name: test_rpc_call_renderer_function_success
-  description: Verifies agent-initiated callRendererFunction on a function with allowedCallers=rendererOrAgent.
+  description: Verifies agent-initiated callRendererFunction on a function with callableFrom=rendererOrAgent.
   catalog:
     version: "1.0"
   action: handle_rpc
@@ -21,28 +21,28 @@
     message:
       version: "v1.0"
       callRendererFunction:
-        callId: "call-101"
-        functionName: "playMedia"
-        catalogId: "media_catalog"
-        args:
-          mediaId: "video-789"
-          autoplay: true
+        functionCallId: "call-101"
+        callFunction:
+          call: "playMedia"
+          catalogId: "media_catalog"
+          args:
+            mediaId: "video-789"
+            autoplay: true
     function_metadata:
       playMedia:
-        allowedCallers: "rendererOrAgent"
+        callableFrom: "rendererOrAgent"
         requiresUserActivation: false
   expect:
     response:
       version: "v1.0"
       rendererFunctionResponse:
-        callId: "call-101"
-        status: "success"
+        functionCallId: "call-101"
         value:
           playing: true
           timestamp: 0
 
 - name: test_rpc_call_renderer_function_unauthorized_caller
-  description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when allowedCallers is rendererOnly.
+  description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when callableFrom is rendererOnly.
   catalog:
     version: "1.0"
   action: handle_rpc
@@ -50,23 +50,23 @@
     message:
       version: "v1.0"
       callRendererFunction:
-        callId: "call-102"
-        functionName: "internalStateReset"
-        catalogId: "system_catalog"
-        args: {}
+        functionCallId: "call-102"
+        callFunction:
+          call: "internalStateReset"
+          catalogId: "system_catalog"
+          args: {}
     function_metadata:
       internalStateReset:
-        allowedCallers: "rendererOnly"
+        callableFrom: "rendererOnly"
         requiresUserActivation: false
   expect:
     response:
       version: "v1.0"
       rendererFunctionResponse:
-        callId: "call-102"
-        status: "error"
+        functionCallId: "call-102"
         error:
           code: "INVALID_FUNCTION_CALL"
-          message: "Function 'internalStateReset' cannot be called by agent (allowedCallers is rendererOnly)."
+          message: "Function 'internalStateReset' cannot be called by agent (callableFrom is rendererOnly)."
 
 - name: test_rpc_call_renderer_function_requires_user_activation
   description: Verifies callRendererFunction execution when requiresUserActivation is true and user gesture is present.
@@ -78,41 +78,42 @@
     message:
       version: "v1.0"
       callRendererFunction:
-        callId: "call-103"
-        functionName: "openExternalUrl"
-        catalogId: "basic"
-        args:
-          url: "https://example.com/details"
+        functionCallId: "call-103"
+        callFunction:
+          call: "openExternalUrl"
+          catalogId: "basic"
+          args:
+            url: "https://example.com/details"
     function_metadata:
       openExternalUrl:
-        allowedCallers: "rendererOrAgent"
+        callableFrom: "rendererOrAgent"
         requiresUserActivation: true
   expect:
     response:
       version: "v1.0"
       rendererFunctionResponse:
-        callId: "call-103"
-        status: "success"
+        functionCallId: "call-103"
         value:
           opened: true
 
 - name: test_rpc_call_agent_function_dispatch
-  description: Verifies renderer-initiated callAgentFunction message generation and response correlation via callId.
+  description: Verifies renderer-initiated callAgentFunction message generation and response correlation via functionCallId.
   catalog:
     version: "1.0"
   action: handle_rpc
   args:
     outbound_call:
-      callId: "agent-call-55"
-      functionName: "queryInventory"
-      catalogId: "store_catalog"
-      args:
-        sku: "ITEM-404"
+      surfaceId: "main_surface"
+      functionCallId: "agent-call-55"
+      callFunction:
+        call: "queryInventory"
+        catalogId: "store_catalog"
+        args:
+          sku: "ITEM-404"
     inbound_response:
       version: "v1.0"
       agentFunctionResponse:
-        callId: "agent-call-55"
-        status: "success"
+        functionCallId: "agent-call-55"
         value:
           inStock: 12
           price: "$29.99"

@@ -28,11 +28,14 @@
             components:
               input:
                 component: TextField
-                text: "/email"
+                text:
+                  path: "/email"
                 checks:
-                  - function: "email"
-                    args:
-                      value: "/email"
+                  - condition:
+                      call: "email"
+                      args:
+                        value:
+                          path: "/email"
   expect_validation_result:
     input:
       valid: false
@@ -56,12 +59,15 @@
             components:
               input:
                 component: TextField
-                text: "/age"
+                text:
+                  path: "/age"
                 checks:
-                  - function: "numeric"
-                    args:
-                      value: "/age"
-                      min: 18
+                  - condition:
+                      call: "numeric"
+                      args:
+                        value:
+                          path: "/age"
+                        min: 18
                     message: "Must be 18 or older."
   expect_validation_result:
     input:

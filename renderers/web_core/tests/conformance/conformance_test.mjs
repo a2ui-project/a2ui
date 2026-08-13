@@ -14,14 +14,14 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import fileURLToPath from 'node:url';
+import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 
-const __filename = fileURLToPath.fileURLToPath(import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Root conformance folder: <repo_root>/conformance
-const CONFORMANCE_ROOT = path.resolve(__dirname, '../../../../conformance');
+const CONFORMANCE_ROOT = process.env.CONFORMANCE_ROOT || path.resolve(__dirname, '../../../../conformance');
 const CORE_DIR = path.join(CONFORMANCE_ROOT, 'core');
 const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
 
