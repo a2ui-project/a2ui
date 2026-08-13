@@ -1,4 +1,4 @@
-// Copyright 2026 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { chromium } from 'playwright';
+import {chromium} from 'playwright';
 
 async function runE2ETest() {
   console.log('🚀 Starting A2UI Templates End-to-End Test (Presets + Live LLM)...');
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({headless: true});
   const page = await browser.newPage();
 
   const pageErrors = [];
-  page.on('pageerror', (err) => {
+  page.on('pageerror', err => {
     console.error('❌ Page Error:', err.message);
     pageErrors.push(err.message);
   });
@@ -29,7 +29,7 @@ async function runE2ETest() {
   try {
     // 1. Navigate to client
     console.log('🌐 Navigating to http://localhost:5173...');
-    await page.goto('http://localhost:5173', { waitUntil: 'networkidle', timeout: 15000 });
+    await page.goto('http://localhost:5173', {waitUntil: 'networkidle', timeout: 15000});
 
     const title = await page.textContent('h2');
     console.log(`✅ Loaded application: "${title?.trim()}"`);
@@ -44,13 +44,19 @@ async function runE2ETest() {
       await page.waitForTimeout(1000);
 
       const bodyText = await page.textContent('body');
-      if (bodyText.includes('Error contacting server:') || bodyText.includes('Validation failed') || bodyText.includes('Catalog not found')) {
+      if (
+        bodyText.includes('Error contacting server:') ||
+        bodyText.includes('Validation failed') ||
+        bodyText.includes('Catalog not found')
+      ) {
         throw new Error(`Client reported error after clicking "${buttonText}":\n${bodyText}`);
       }
 
       for (const expected of expectedContents) {
         if (!bodyText.includes(expected)) {
-          throw new Error(`Expected text "${expected}" not found in rendered DOM for preset "${buttonText}".`);
+          throw new Error(
+            `Expected text "${expected}" not found in rendered DOM for preset "${buttonText}".`,
+          );
         }
         console.log(`   ✓ Found rendered text: "${expected}"`);
       }
@@ -59,10 +65,29 @@ async function runE2ETest() {
 
     // 2. Test Presets
     await testPreset('👤 User Profile', ['Alice Smith', 'Lead Architect']);
-    await testPreset('👥 Team Roster', ['Organization Directory', 'Core Architecture', 'Dr. Elena Vance', 'Design Systems', 'Aria Chen']);
-    await testPreset('🎯 Team Goals', ['Strategic Objectives: Core Protocol Engineering', 'Deliver synchronous template expansion engine', 'High']);
-    await testPreset('💬 Feedback Board', ['Feedback & Retrospective: Frontend & Protocols Guild', 'Dr. Elena Vance', 'Marcus Vance']);
-    await testPreset('⭐ Competency Panel', ['Competency: Alice Smith', 'Lead Systems Architect', '9 Yrs', '142 Done']);
+    await testPreset('👥 Team Roster', [
+      'Organization Directory',
+      'Core Architecture',
+      'Dr. Elena Vance',
+      'Design Systems',
+      'Aria Chen',
+    ]);
+    await testPreset('🎯 Team Goals', [
+      'Strategic Objectives: Core Protocol Engineering',
+      'Deliver synchronous template expansion engine',
+      'High',
+    ]);
+    await testPreset('💬 Feedback Board', [
+      'Feedback & Retrospective: Frontend & Protocols Guild',
+      'Dr. Elena Vance',
+      'Marcus Vance',
+    ]);
+    await testPreset('⭐ Competency Panel', [
+      'Competency: Alice Smith',
+      'Lead Systems Architect',
+      '9 Yrs',
+      '142 Done',
+    ]);
 
     // 3. Test Live LLM Request
     console.log('\n👉 Testing Live Gemini LLM Generation...');
@@ -76,12 +101,21 @@ async function runE2ETest() {
     await page.waitForTimeout(6000);
 
     const liveBodyText = await page.textContent('body');
-    if (liveBodyText.includes('Error contacting server:') || liveBodyText.includes('Validation failed') || liveBodyText.includes('Catalog not found')) {
+    if (
+      liveBodyText.includes('Error contacting server:') ||
+      liveBodyText.includes('Validation failed') ||
+      liveBodyText.includes('Catalog not found')
+    ) {
       throw new Error(`Live LLM request failed with error in client:\n${liveBodyText}`);
     }
 
-    if (!liveBodyText.includes('Cloud Platform') && !liveBodyText.includes('Strategic Objectives')) {
-      throw new Error(`Expected live generated goal card not found in rendered DOM:\n${liveBodyText}`);
+    if (
+      !liveBodyText.includes('Cloud Platform') &&
+      !liveBodyText.includes('Strategic Objectives')
+    ) {
+      throw new Error(
+        `Expected live generated goal card not found in rendered DOM:\n${liveBodyText}`,
+      );
     }
     console.log('   ✓ Live LLM generated card rendered cleanly in DOM!');
     console.log('✅ Live LLM Request Passed!');
@@ -96,7 +130,7 @@ async function runE2ETest() {
   }
 }
 
-runE2ETest().catch((err) => {
+runE2ETest().catch(err => {
   console.error('\n❌ E2E TEST FAILED:', err);
   process.exit(1);
 });

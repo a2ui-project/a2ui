@@ -60,9 +60,9 @@
   "sampleData": {
     "teamName": "Antigravity Devs",
     "members": [
-      { "userId": "usr_101", "userName": "Alice Smith", "role": "Lead Architect" },
-      { "userId": "usr_102", "userName": "Bob Jones", "role": "Senior Engineer" },
-      { "userId": "usr_103", "userName": "Charlie Brown", "role": "Product Manager" }
+      {"userId": "usr_101", "userName": "Alice Smith", "role": "Lead Architect"},
+      {"userId": "usr_102", "userName": "Bob Jones", "role": "Senior Engineer"},
+      {"userId": "usr_103", "userName": "Charlie Brown", "role": "Product Manager"}
     ]
   }
 }

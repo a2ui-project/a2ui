@@ -54,8 +54,16 @@
   "sampleData": {
     "teamName": "A2UI Core Team",
     "goals": [
-      { "title": "Implement bidirectional child/children container resolution", "priority": "High", "targetDate": "2026-07-15" },
-      { "title": "Upgrade all templates to standard Basic Catalog components", "priority": "High", "targetDate": "2026-07-10" }
+      {
+        "title": "Implement bidirectional child/children container resolution",
+        "priority": "High",
+        "targetDate": "2026-07-15"
+      },
+      {
+        "title": "Upgrade all templates to standard Basic Catalog components",
+        "priority": "High",
+        "targetDate": "2026-07-10"
+      }
     ]
   }
 }

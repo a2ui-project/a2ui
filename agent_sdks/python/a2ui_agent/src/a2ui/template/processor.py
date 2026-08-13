@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -74,7 +74,11 @@ class TemplateProcessor:
         else:
             self.base_catalog = {}
         self.version = version
-        if base_catalog and hasattr(base_catalog, "catalog_schema") and isinstance(base_catalog.catalog_schema, dict):
+        if (
+            base_catalog
+            and hasattr(base_catalog, "catalog_schema")
+            and isinstance(base_catalog.catalog_schema, dict)
+        ):
             self.base_catalog_id = (
                 base_catalog.catalog_schema.get("$id")
                 or base_catalog.catalog_schema.get("id")
@@ -87,7 +91,9 @@ class TemplateProcessor:
                 or "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
             )
         else:
-            self.base_catalog_id = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+            self.base_catalog_id = (
+                "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+            )
 
         self.validate_templates()
 
@@ -128,7 +134,9 @@ class TemplateProcessor:
                     "oneOf": [],
                     "discriminator": {"propertyName": "component"},
                 },
-                "anyFunction": self.base_catalog.get("$defs", {}).get("anyFunction", {}),
+                "anyFunction": (
+                    self.base_catalog.get("$defs", {}).get("anyFunction", {})
+                ),
             },
         }
 
@@ -208,7 +216,8 @@ class TemplateProcessor:
                 params[p_name] = []
             else:
                 raise ValueError(
-                    f"Missing required parameter '{p_name}' for template '{template_id}'"
+                    f"Missing required parameter '{p_name}' for template"
+                    f" '{template_id}'"
                 )
 
         expanded_components: List[Dict[str, Any]] = []
@@ -241,7 +250,9 @@ class TemplateProcessor:
                 res = dict(child_list)
                 if "componentId" in res:
                     is_slot, slot_val = resolve_slot(res["componentId"])
-                    res["componentId"] = slot_val if is_slot else map_id(res["componentId"])
+                    res["componentId"] = (
+                        slot_val if is_slot else map_id(res["componentId"])
+                    )
                 return res
             return child_list
 
@@ -289,19 +300,26 @@ class TemplateProcessor:
                     item_template_id = children_meta["template"]
                     array_data = params.get(param_name, [])
 
-                    if isinstance(array_data, list) and array_data and all(isinstance(x, str) for x in array_data):
+                    if (
+                        isinstance(array_data, list)
+                        and array_data
+                        and all(isinstance(x, str) for x in array_data)
+                    ):
                         comp_copy["children"] = array_data
                     else:
                         if not isinstance(array_data, list):
                             raise ValueError(
-                                f"Template '{template_id}': Parameter '{param_name}' must be an array/list for static loop unrolling."
+                                f"Template '{template_id}': Parameter '{param_name}'"
+                                " must be an array/list for static loop unrolling."
                             )
 
                         unrolled_child_ids = []
                         for idx, item in enumerate(array_data):
                             sub_instance_id = f"{comp_copy['id']}_item_{idx}"
                             unrolled_child_ids.append(sub_instance_id)
-                            sub_params = item if isinstance(item, dict) else {"value": item}
+                            sub_params = (
+                                item if isinstance(item, dict) else {"value": item}
+                            )
                             sub_expanded = self.expand_template(
                                 sub_instance_id, item_template_id, sub_params
                             )
@@ -346,7 +364,11 @@ class TemplateProcessor:
         for envelope_key in ["createSurface", "updateComponents"]:
             if envelope_key in msg_copy:
                 payload = dict(msg_copy[envelope_key])
-                if envelope_key == "createSurface" and "catalogId" in payload and self.base_catalog_id:
+                if (
+                    envelope_key == "createSurface"
+                    and "catalogId" in payload
+                    and self.base_catalog_id
+                ):
                     payload["catalogId"] = self.base_catalog_id
                 if "components" in payload:
                     components = payload["components"]

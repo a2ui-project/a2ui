@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -70,7 +70,9 @@ manager = A2uiTemplateManager(
 )
 
 SYSTEM_PROMPT = manager.prompt_generator.generate(
-    role_description="You are an A2UI assistant. Respond to requests using compact A2UI Express DSL.",
+    role_description=(
+        "You are an A2UI assistant. Respond to requests using compact A2UI Express DSL."
+    ),
     include_schema=True,
 )
 
@@ -82,12 +84,15 @@ class ChatRequest(BaseModel):
 
 
 PRESET_RESPONSES = {
-    "show user profile": """
+    "show user profile": (
+        """
     <a2ui>
     root = UserProfile("usr_101", "Alice Smith", "Lead Architect")
     </a2ui>
-    """,
-    "show team roster": """
+    """
+    ),
+    "show team roster": (
+        """
     <a2ui>
     team1 = TeamCard("Core Architecture", [
         {userId: "u1", userName: "Dr. Elena Vance", role: "Principal Architect"},
@@ -99,8 +104,10 @@ PRESET_RESPONSES = {
     ])
     root = TeamRoster("Organization Directory", [team1, team2])
     </a2ui>
-    """,
-    "show team goals": """
+    """
+    ),
+    "show team goals": (
+        """
     <a2ui>
     root = TeamGoalList("Core Protocol Engineering", [
         {title: "Deliver synchronous template expansion engine", priority: "High", targetDate: "2026-08-30"},
@@ -108,20 +115,25 @@ PRESET_RESPONSES = {
         {title: "Simplify community demo architectures", priority: "Medium", targetDate: "2026-09-01"}
     ])
     </a2ui>
-    """,
-    "show feedback board": """
+    """
+    ),
+    "show feedback board": (
+        """
     <a2ui>
     root = TeamFeedbackBoard("Frontend & Protocols Guild", [
         {author: "Dr. Elena Vance", note: "Synchronous template expansion eliminated all streaming race conditions.", rating: 5},
         {author: "Marcus Vance", note: "Standard Basic Catalog components ensure 100% cross-renderer compatibility.", rating: 5}
     ])
     </a2ui>
-    """,
-    "show competency panel": """
+    """
+    ),
+    "show competency panel": (
+        """
     <a2ui>
     root = TeamMemberKnowledgePanel("Alice Smith", "Lead Systems Architect", 9, 142)
     </a2ui>
-    """,
+    """
+    ),
 }
 
 
@@ -184,7 +196,9 @@ async def chat(req: ChatRequest):
             created_surface_id = req.surfaceId
             for msg in messages:
                 if isinstance(msg, dict) and "createSurface" in msg:
-                    created_surface_id = msg["createSurface"].get("surfaceId", req.surfaceId)
+                    created_surface_id = msg["createSurface"].get(
+                        "surfaceId", req.surfaceId
+                    )
                     break
 
             return {
@@ -199,7 +213,10 @@ async def chat(req: ChatRequest):
                 "messages": [
                     {
                         "version": "v0.9.1",
-                        "createSurface": {"surfaceId": req.surfaceId, "catalogId": BASIC_CATALOG_ID},
+                        "createSurface": {
+                            "surfaceId": req.surfaceId,
+                            "catalogId": BASIC_CATALOG_ID,
+                        },
                     },
                     {
                         "version": "v0.9.1",
@@ -207,7 +224,12 @@ async def chat(req: ChatRequest):
                             "surfaceId": req.surfaceId,
                             "components": [
                                 {"id": "root", "component": "Card", "child": "err_txt"},
-                                {"id": "err_txt", "component": "Text", "text": f"Error: {str(e)}", "variant": "body"},
+                                {
+                                    "id": "err_txt",
+                                    "component": "Text",
+                                    "text": f"Error: {str(e)}",
+                                    "variant": "body",
+                                },
                             ],
                         },
                     },
@@ -217,7 +239,10 @@ async def chat(req: ChatRequest):
 
     # 3. Fallback when API key is missing
     return {
-        "text": "Gemini API key not configured. Click one of the preset template buttons on the left to see instant examples.",
+        "text": (
+            "Gemini API key not configured. Click one of the preset template buttons on"
+            " the left to see instant examples."
+        ),
         "messages": [],
     }
 

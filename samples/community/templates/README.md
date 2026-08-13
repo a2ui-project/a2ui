@@ -19,7 +19,7 @@ cd samples/community/templates
 uv run uvicorn server:app --reload --port 8000
 ```
 
-*(Optional: export `GEMINI_API_KEY=your_key` to test live Gemini inference in addition to preset templates).*
+_(Optional: export `GEMINI_API_KEY=your_key` to test live Gemini inference in addition to preset templates)._
 
 ### 2. Start the Frontend Client
 

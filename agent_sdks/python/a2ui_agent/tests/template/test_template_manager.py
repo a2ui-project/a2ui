@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -116,9 +116,7 @@ def test_nested_team_card_loop_unrolling():
     ]
 
     # Elena's card
-    elena_card = next(
-        c for c in expanded if c["id"] == "arch_team_members_col_item_0"
-    )
+    elena_card = next(c for c in expanded if c["id"] == "arch_team_members_col_item_0")
     assert elena_card["component"] == "Card"
 
     elena_name = next(
@@ -138,9 +136,7 @@ def test_team_roster_template():
     team_card = load_example("team_card")
     team_roster = load_example("team_roster")
 
-    processor = TemplateProcessor(
-        templates=[user_profile, team_card, team_roster]
-    )
+    processor = TemplateProcessor(templates=[user_profile, team_card, team_roster])
 
     expanded = processor.expand_template(
         instance_id="roster",
@@ -237,15 +233,13 @@ def test_process_message_create_surface():
         "version": "v0.9",
         "createSurface": {
             "surfaceId": "user_view",
-            "components": [
-                {
-                    "id": "my_user",
-                    "component": "UserProfile",
-                    "userId": "usr_999",
-                    "userName": "Sarah Connor",
-                    "role": "Defender",
-                }
-            ],
+            "components": [{
+                "id": "my_user",
+                "component": "UserProfile",
+                "userId": "usr_999",
+                "userName": "Sarah Connor",
+                "role": "Defender",
+            }],
         },
     }
 

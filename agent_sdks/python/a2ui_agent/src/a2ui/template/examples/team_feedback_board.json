@@ -54,8 +54,16 @@
   "sampleData": {
     "teamName": "Streaming & Protocols Guild",
     "feedbacks": [
-      { "author": "Dr. Elena Vance", "note": "Splitting createSurface and updateComponents cleanly unblocked sequential stream processing.", "rating": 5 },
-      { "author": "Marcus Vance", "note": "Unrolling nested lists statically in Python enables instant frontend mounting with zero runtime recursion.", "rating": 5 }
+      {
+        "author": "Dr. Elena Vance",
+        "note": "Splitting createSurface and updateComponents cleanly unblocked sequential stream processing.",
+        "rating": 5
+      },
+      {
+        "author": "Marcus Vance",
+        "note": "Unrolling nested lists statically in Python enables instant frontend mounting with zero runtime recursion.",
+        "rating": 5
+      }
     ]
   }
 }

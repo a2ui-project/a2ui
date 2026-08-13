@@ -1,4 +1,20 @@
-import {useState, useEffect, useRef} from 'react';
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import React, {useState, useEffect, useRef} from 'react';
 import {MessageProcessor} from '@a2ui/web_core/v0_9';
 import {A2uiSurface, basicCatalog} from '@a2ui/react/v0_9';
 
@@ -8,6 +24,44 @@ interface FeedItem {
   text?: string;
   surfaceId?: string;
 }
+
+const A2UI_THEME_VARS: React.CSSProperties = {
+  // Card & Container
+  ['--a2ui-card-border-radius' as any]: '16px',
+  ['--a2ui-card-background' as any]: '#ffffff',
+  ['--a2ui-card-border' as any]: '1px solid #e2e8f0',
+  ['--a2ui-card-box-shadow' as any]:
+    '0 4px 12px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.03)',
+  ['--a2ui-card-padding' as any]: '18px 22px',
+  ['--a2ui-card-margin' as any]: '8px 0',
+
+  // Primitives & General
+  ['--a2ui-border-radius' as any]: '12px',
+  ['--a2ui-color-border' as any]: '#e2e8f0',
+  ['--a2ui-color-surface' as any]: '#ffffff',
+  ['--a2ui-color-on-surface' as any]: '#0f172a',
+
+  // Primary Action & Button
+  ['--a2ui-color-primary' as any]: '#2563eb',
+  ['--a2ui-color-primary-hover' as any]: '#1d4ed8',
+  ['--a2ui-color-on-primary' as any]: '#ffffff',
+  ['--a2ui-button-border-radius' as any]: '10px',
+  ['--a2ui-button-background' as any]: '#2563eb',
+  ['--a2ui-button-padding' as any]: '8px 18px',
+  ['--a2ui-button-font-weight' as any]: '600',
+  ['--a2ui-button-box-shadow' as any]: '0 1px 2px rgba(37, 99, 235, 0.2)',
+
+  // Spacing & Icons
+  ['--a2ui-spacing-s' as any]: '6px',
+  ['--a2ui-spacing-m' as any]: '12px',
+  ['--a2ui-spacing-l' as any]: '20px',
+  ['--a2ui-icon-size' as any]: '22px',
+  ['--a2ui-icon-color' as any]: '#2563eb',
+
+  // Typography & Dividers
+  ['--a2ui-divider-color' as any]: '#f1f5f9',
+  ['--a2ui-text-caption-color' as any]: '#64748b',
+};
 
 export default function App() {
   const [processor] = useState(() => new MessageProcessor([basicCatalog]));
@@ -95,45 +149,88 @@ export default function App() {
   };
 
   return (
-    <div style={{display: 'flex', height: '100vh', fontFamily: 'sans-serif'}}>
+    <div
+      style={{
+        display: 'flex',
+        height: '100vh',
+        fontFamily:
+          "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      }}
+    >
       {/* Sidebar */}
       <div
         style={{
-          width: '280px',
+          width: '300px',
           backgroundColor: '#ffffff',
           borderRight: '1px solid #e2e8f0',
-          padding: '20px',
+          padding: '24px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '16px',
+          gap: '20px',
         }}
       >
         <div>
-          <h2 style={{fontSize: '18px', margin: '0 0 4px 0', color: '#0f172a'}}>A2UI Templates</h2>
+          <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px'}}>
+            <span
+              className="material-symbols-outlined"
+              style={{color: '#2563eb', fontSize: '24px'}}
+            >
+              dashboard_customize
+            </span>
+            <h2 style={{fontSize: '18px', fontWeight: 700, margin: 0, color: '#0f172a'}}>
+              A2UI Templates
+            </h2>
+          </div>
           <p style={{fontSize: '12px', margin: 0, color: '#64748b'}}>
-            Server-side template expansion
+            Synchronous server expansion · Basic Catalog
           </p>
         </div>
 
-        <div style={{marginTop: '12px'}}>
+        <div style={{marginTop: '8px'}}>
           <h3
             style={{
-              fontSize: '12px',
+              fontSize: '11px',
               textTransform: 'uppercase',
               color: '#94a3b8',
-              letterSpacing: '0.05em',
-              marginBottom: '8px',
+              letterSpacing: '0.08em',
+              fontWeight: 700,
+              marginBottom: '12px',
             }}
           >
             Example Presets
           </h3>
           <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
             {[
-              {label: '👤 User Profile', prompt: 'show user profile'},
-              {label: '👥 Team Roster', prompt: 'show team roster'},
-              {label: '🎯 Team Goals', prompt: 'show team goals'},
-              {label: '💬 Feedback Board', prompt: 'show feedback board'},
-              {label: '⭐ Competency Panel', prompt: 'show competency panel'},
+              {
+                icon: 'account_circle',
+                label: '👤 User Profile',
+                prompt: 'show user profile',
+                desc: 'Single card profile',
+              },
+              {
+                icon: 'group',
+                label: '👥 Team Roster',
+                prompt: 'show team roster',
+                desc: 'Nested team member cards',
+              },
+              {
+                icon: 'flag',
+                label: '🎯 Team Goals',
+                prompt: 'show team goals',
+                desc: 'Unrolled objectives list',
+              },
+              {
+                icon: 'chat',
+                label: '💬 Feedback Board',
+                prompt: 'show feedback board',
+                desc: 'Review cards with ratings',
+              },
+              {
+                icon: 'workspace_premium',
+                label: '⭐ Competency Panel',
+                prompt: 'show competency panel',
+                desc: 'Metrics & stats summary',
+              },
             ].map(btn => (
               <button
                 key={btn.prompt}
@@ -141,25 +238,56 @@ export default function App() {
                 disabled={loading}
                 style={{
                   textAlign: 'left',
-                  padding: '10px 12px',
-                  borderRadius: '8px',
+                  padding: '12px 14px',
+                  borderRadius: '12px',
                   border: '1px solid #e2e8f0',
                   backgroundColor: '#f8fafc',
                   color: '#1e293b',
                   fontSize: '13px',
-                  fontWeight: 500,
+                  fontWeight: 600,
                   cursor: loading ? 'not-allowed' : 'pointer',
-                  transition: 'background-color 0.15s',
+                  transition: 'all 0.15s ease',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px',
+                }}
+                onMouseEnter={e => {
+                  if (!loading) {
+                    e.currentTarget.style.backgroundColor = '#f1f5f9';
+                    e.currentTarget.style.borderColor = '#cbd5e1';
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (!loading) {
+                    e.currentTarget.style.backgroundColor = '#f8fafc';
+                    e.currentTarget.style.borderColor = '#e2e8f0';
+                  }
                 }}
               >
-                {btn.label}
+                <span>{btn.label}</span>
+                <span style={{fontSize: '11px', color: '#64748b', fontWeight: 400}}>
+                  {btn.desc}
+                </span>
               </button>
             ))}
           </div>
         </div>
 
-        <div style={{marginTop: 'auto', fontSize: '11px', color: '#94a3b8'}}>
-          Uses standard A2UI Basic Catalog components and synchronous template expansion.
+        <div
+          style={{
+            marginTop: 'auto',
+            padding: '12px',
+            backgroundColor: '#f8fafc',
+            borderRadius: '10px',
+            border: '1px solid #e2e8f0',
+            fontSize: '11px',
+            color: '#64748b',
+            lineHeight: 1.4,
+          }}
+        >
+          <strong>A2UI v0.9.1</strong>
+          <br />
+          Templates expand into standard primitives rendered by <code>@a2ui/react</code>.
         </div>
       </div>
 
@@ -177,10 +305,10 @@ export default function App() {
           style={{
             flex: 1,
             overflowY: 'auto',
-            padding: '24px',
+            padding: '32px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '16px',
+            gap: '20px',
           }}
         >
           {feed.length === 0 && (
@@ -189,15 +317,38 @@ export default function App() {
                 margin: 'auto',
                 textAlign: 'center',
                 color: '#64748b',
-                maxWidth: '400px',
+                maxWidth: '480px',
+                padding: '40px',
+                backgroundColor: '#ffffff',
+                borderRadius: '20px',
+                border: '1px solid #e2e8f0',
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)',
               }}
             >
-              <h3 style={{color: '#0f172a', marginBottom: '8px'}}>
-                Welcome to A2UI Templates Demo
+              <div
+                style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '16px',
+                  backgroundColor: '#eff6ff',
+                  color: '#2563eb',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 16px auto',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{fontSize: '32px'}}>
+                  auto_awesome
+                </span>
+              </div>
+              <h3 style={{color: '#0f172a', fontSize: '18px', fontWeight: 700, margin: '0 0 8px'}}>
+                A2UI Templates Explorer
               </h3>
-              <p style={{fontSize: '14px', lineHeight: 1.5}}>
-                Click one of the presets on the left or enter a prompt below to see parameterized
-                templates expanded server-side and rendered with the standard A2UI React renderer.
+              <p style={{fontSize: '14px', lineHeight: 1.6, margin: 0, color: '#64748b'}}>
+                Click a preset on the sidebar or send a custom prompt below to observe
+                high-efficiency declarative templates expanded server-side and rendered into
+                interactive UI components.
               </p>
             </div>
           )}
@@ -219,10 +370,12 @@ export default function App() {
                     style={{
                       backgroundColor: '#2563eb',
                       color: '#ffffff',
-                      padding: '10px 16px',
-                      borderRadius: '16px 16px 4px 16px',
+                      padding: '12px 18px',
+                      borderRadius: '18px 18px 4px 18px',
                       fontSize: '14px',
+                      fontWeight: 500,
                       maxWidth: '70%',
+                      boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)',
                     }}
                   >
                     {item.text}
@@ -232,7 +385,7 @@ export default function App() {
                     style={{
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '8px',
+                      gap: '10px',
                       maxWidth: '85%',
                     }}
                   >
@@ -242,9 +395,10 @@ export default function App() {
                           backgroundColor: '#ffffff',
                           border: '1px solid #e2e8f0',
                           color: '#0f172a',
-                          padding: '10px 16px',
-                          borderRadius: '16px 16px 16px 4px',
+                          padding: '12px 18px',
+                          borderRadius: '18px 18px 18px 4px',
                           fontSize: '14px',
+                          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
                         }}
                       >
                         {item.text}
@@ -254,10 +408,12 @@ export default function App() {
                       <div
                         style={{
                           backgroundColor: '#ffffff',
-                          borderRadius: '12px',
+                          borderRadius: '18px',
                           border: '1px solid #e2e8f0',
-                          padding: '16px',
-                          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
+                          padding: '20px',
+                          boxShadow:
+                            '0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.03)',
+                          ...A2UI_THEME_VARS,
                         }}
                       >
                         <A2uiSurface surface={surface} />
@@ -275,12 +431,26 @@ export default function App() {
                 alignSelf: 'flex-start',
                 backgroundColor: '#ffffff',
                 border: '1px solid #e2e8f0',
-                padding: '10px 16px',
-                borderRadius: '16px 16px 16px 4px',
+                padding: '12px 18px',
+                borderRadius: '18px 18px 18px 4px',
                 fontSize: '13px',
                 color: '#64748b',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
               }}
             >
+              <span
+                className="material-symbols-outlined"
+                style={{
+                  fontSize: '18px',
+                  animation: 'spin 1.5s linear infinite',
+                  color: '#2563eb',
+                }}
+              >
+                progress_activity
+              </span>
               Expanding template...
             </div>
           )}
@@ -290,7 +460,7 @@ export default function App() {
         {/* Input Bar */}
         <div
           style={{
-            padding: '16px 24px',
+            padding: '18px 32px',
             backgroundColor: '#ffffff',
             borderTop: '1px solid #e2e8f0',
             display: 'flex',
@@ -306,26 +476,31 @@ export default function App() {
             disabled={loading}
             style={{
               flex: 1,
-              padding: '12px 16px',
-              borderRadius: '8px',
+              padding: '14px 18px',
+              borderRadius: '12px',
               border: '1px solid #cbd5e1',
               fontSize: '14px',
               outline: 'none',
+              transition: 'border-color 0.15s ease',
             }}
+            onFocus={e => (e.target.style.borderColor = '#2563eb')}
+            onBlur={e => (e.target.style.borderColor = '#cbd5e1')}
           />
           <button
             onClick={() => sendPrompt(input)}
             disabled={loading || !input.trim()}
             style={{
-              padding: '0 20px',
+              padding: '0 24px',
               backgroundColor: '#2563eb',
               color: '#ffffff',
               border: 'none',
-              borderRadius: '8px',
+              borderRadius: '12px',
               fontSize: '14px',
               fontWeight: 600,
               cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
               opacity: loading || !input.trim() ? 0.6 : 1,
+              boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)',
+              transition: 'all 0.15s ease',
             }}
           >
             Send
