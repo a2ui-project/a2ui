@@ -14,18 +14,18 @@
 
 """Concise FastAPI server demonstrating A2UI Templates expansion with Agent SDK."""
 
+import glob
 import json
 import os
-import glob
 from pathlib import Path
 from typing import Any, Dict, List
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 from google import genai
 from google.genai import types
+from pydantic import BaseModel
 
-from a2ui.template import Template, A2uiTemplateManager
+from a2ui.template import Template, TemplateInferenceFormat
 
 app = FastAPI(title="A2UI Templates Community Demo Server")
 
@@ -63,13 +63,13 @@ def load_templates() -> List[Template]:
 
 
 templates = load_templates()
-manager = A2uiTemplateManager(
+format_instance = TemplateInferenceFormat(
     templates=templates,
     surface_id="main",
     version="0.9.1",
 )
 
-SYSTEM_PROMPT = manager.prompt_generator.generate(
+SYSTEM_PROMPT = format_instance.prompt_generator.generate(
     role_description=(
         "You are an A2UI assistant. Respond to requests using compact A2UI Express DSL."
     ),
@@ -150,12 +150,12 @@ async def chat(req: ChatRequest):
     # 1. Preset shortcut responses for instant offline evaluation
     if prompt_lower in PRESET_RESPONSES:
         dsl = PRESET_RESPONSES[prompt_lower]
-        target_manager = A2uiTemplateManager(
+        target_format = TemplateInferenceFormat(
             templates=templates,
             surface_id=req.surfaceId,
             version="0.9.1",
         )
-        parts = target_manager.parser.parse_response(dsl)
+        parts = target_format.parser.parse_response(dsl)
         messages = parts[0].a2ui_json if parts and parts[0].a2ui_json else []
         return {
             "messages": messages,
@@ -178,12 +178,12 @@ async def chat(req: ChatRequest):
                 ),
             )
             raw_text = response.text or ""
-            target_manager = A2uiTemplateManager(
+            target_format = TemplateInferenceFormat(
                 templates=templates,
                 surface_id=req.surfaceId,
                 version="0.9.1",
             )
-            parts = target_manager.parser.parse_response(raw_text)
+            parts = target_format.parser.parse_response(raw_text)
             messages = []
             text_parts = []
             for part in parts:
@@ -223,7 +223,11 @@ async def chat(req: ChatRequest):
                         "updateComponents": {
                             "surfaceId": req.surfaceId,
                             "components": [
-                                {"id": "root", "component": "Card", "child": "err_txt"},
+                                {
+                                    "id": "root",
+                                    "component": "Card",
+                                    "child": "err_txt",
+                                },
                                 {
                                     "id": "err_txt",
                                     "component": "Text",
@@ -240,8 +244,8 @@ async def chat(req: ChatRequest):
     # 3. Fallback when API key is missing
     return {
         "text": (
-            "Gemini API key not configured. Click one of the preset template buttons on"
-            " the left to see instant examples."
+            "Gemini API key not configured. Click one of the preset template"
+            " buttons on the left to see instant examples."
         ),
         "messages": [],
     }

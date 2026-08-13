@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI Template support for encapsulating and expanding reusable UI subtrees."""
+"""A2UI Template module providing parameterized component expansion."""
 
 from .models import Template
-from .processor import TemplateProcessor, substitute_params
-from .manager import A2uiTemplateManager, TemplateParser
+from .processor import TemplateProcessor
+from .format import TemplateInferenceFormat, A2uiTemplateManager, TemplateParser
 
 __all__ = [
     "Template",
     "TemplateProcessor",
+    "TemplateInferenceFormat",
     "A2uiTemplateManager",
     "TemplateParser",
-    "substitute_params",
 ]

@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unified interface coordinating prompt generation and parsing of LLM responses using templates."""
+"""Inference format coordinating prompt generation and parsing of LLM responses using templates."""
 
 from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Union
 from a2ui.core.catalog import Catalog
-from a2ui.core.schema.client_capabilities import V09Capabilities
 from a2ui.inference_format import InferenceFormat
 from a2ui.parser.parser import Parser
 from a2ui.parser.response_part import ResponsePart
@@ -47,7 +46,8 @@ class TemplateParser(Parser):
         """Initializes the TemplateParser.
 
         Args:
-            underlying_parser: The underlying inference format parser (e.g. ExpressParser).
+            underlying_parser: The underlying inference format parser (e.g.
+              ExpressParser).
             processor: The TemplateProcessor instance to expand templates.
         """
         self.underlying_parser = underlying_parser
@@ -109,8 +109,8 @@ class TemplateParser(Parser):
         return self.underlying_parser.wrap_decompiled_blocks(blocks)
 
 
-class A2uiTemplateManager(InferenceFormat):
-    """Manages prompt compilation and payload processing for template definitions."""
+class TemplateInferenceFormat(InferenceFormat):
+    """Inference format providing template generation and synchronous expansion."""
 
     def __init__(
         self,
@@ -123,15 +123,17 @@ class A2uiTemplateManager(InferenceFormat):
             Callable[[A2uiCatalog, str, str], InferenceFormat]
         ] = None,
     ):
-        """Initializes the A2uiTemplateManager with registered templates and base catalog.
+        """Initializes the TemplateInferenceFormat with registered templates and base catalog.
 
         Args:
             templates: List of registered Template definitions.
             catalog: Optional base catalog instance or schema dictionary.
-            allowed_primitives: List of primitive components from the base catalog to allow.
+            allowed_primitives: List of primitive components from the base
+              catalog to allow.
             surface_id: Surface identifier for layout targeting.
             version: Target A2UI protocol version ("0.9", "0.9.1", or "1.0").
-            underlying_format_factory: Optional custom factory for underlying InferenceFormat.
+            underlying_format_factory: Optional custom factory for underlying
+              InferenceFormat.
         """
         self.templates = templates
         self.surface_id = surface_id
@@ -224,7 +226,9 @@ class A2uiTemplateManager(InferenceFormat):
                 self.synthetic_catalog, self.surface_id, express_version
             )
         else:
-            from a2ui.inference_formats.experimental.express.format import ExpressFormat
+            from a2ui.inference_formats.experimental.express.format import (
+                ExpressFormat,
+            )
 
             self._underlying_format = ExpressFormat(
                 catalog=self.synthetic_catalog,
@@ -237,10 +241,14 @@ class A2uiTemplateManager(InferenceFormat):
 
     @property
     def parser(self) -> TemplateParser:
-        """The parser instance associated with the template manager."""
+        """The parser instance associated with the template inference format."""
         return self._parser
 
     @property
     def prompt_generator(self) -> PromptGenerator:
-        """The prompt generator instance associated with the template manager."""
+        """The prompt generator instance associated with the template inference format."""
         return self._underlying_format.prompt_generator
+
+
+# Backward-compatibility alias
+A2uiTemplateManager = TemplateInferenceFormat

@@ -15,7 +15,12 @@
 import json
 import os
 import pytest
-from a2ui.template import Template, TemplateProcessor, A2uiTemplateManager
+from a2ui.template import (
+    Template,
+    TemplateProcessor,
+    TemplateInferenceFormat,
+    A2uiTemplateManager,
+)
 
 
 def get_examples_dir() -> str:
@@ -250,9 +255,9 @@ def test_process_message_create_surface():
     assert components[0]["component"] == "Card"
 
 
-def test_a2ui_template_manager_end_to_end():
+def test_template_inference_format_end_to_end():
     user_profile = load_example("user_profile")
-    manager = A2uiTemplateManager(
+    manager = TemplateInferenceFormat(
         templates=[user_profile],
         surface_id="main_surface",
         version="0.9.1",

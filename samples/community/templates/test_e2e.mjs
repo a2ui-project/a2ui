@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {chromium} from 'playwright';
+import { chromium } from 'playwright';
 
 async function runE2ETest() {
-  console.log('🚀 Starting A2UI Templates End-to-End Test (Presets + Live LLM)...');
+  console.log('🚀 Starting A2UI Templates End-to-End Test (Presets + Inspector + Live LLM)...');
 
-  const browser = await chromium.launch({headless: true});
+  const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
 
   const pageErrors = [];
-  page.on('pageerror', err => {
+  page.on('pageerror', (err) => {
     console.error('❌ Page Error:', err.message);
     pageErrors.push(err.message);
   });
@@ -29,7 +29,7 @@ async function runE2ETest() {
   try {
     // 1. Navigate to client
     console.log('🌐 Navigating to http://localhost:5173...');
-    await page.goto('http://localhost:5173', {waitUntil: 'networkidle', timeout: 15000});
+    await page.goto('http://localhost:5173', { waitUntil: 'networkidle', timeout: 15000 });
 
     const title = await page.textContent('h2');
     console.log(`✅ Loaded application: "${title?.trim()}"`);
@@ -55,7 +55,7 @@ async function runE2ETest() {
       for (const expected of expectedContents) {
         if (!bodyText.includes(expected)) {
           throw new Error(
-            `Expected text "${expected}" not found in rendered DOM for preset "${buttonText}".`,
+            `Expected text "${expected}" not found in rendered DOM for preset "${buttonText}".`
           );
         }
         console.log(`   ✓ Found rendered text: "${expected}"`);
@@ -89,7 +89,32 @@ async function runE2ETest() {
       '142 Done',
     ]);
 
-    // 3. Test Live LLM Request
+    // 3. Test Inspector UI on Turn
+    console.log('\n👉 Testing Format & JSON Inspector Drawer...');
+    const inspectBtn = page.locator('button:has-text("Inspect Format")').last();
+    await inspectBtn.click();
+    await page.waitForTimeout(500);
+
+    // Verify Express DSL is visible
+    let inspectorContent = await page.textContent('body');
+    if (!inspectorContent.includes('<a2ui>') && !inspectorContent.includes('UserProfile') && !inspectorContent.includes('TeamMemberKnowledgePanel')) {
+      throw new Error(`Expected Express DSL content in inspector drawer:\n${inspectorContent}`);
+    }
+    console.log('   ✓ Raw Express DSL displayed in inspector drawer');
+
+    // Switch to Expanded JSON Tab
+    const jsonTabBtn = page.locator('button:has-text("Expanded A2UI JSON")');
+    await jsonTabBtn.click();
+    await page.waitForTimeout(500);
+
+    inspectorContent = await page.textContent('body');
+    if (!inspectorContent.includes('createSurface') || !inspectorContent.includes('updateComponents')) {
+      throw new Error(`Expected expanded JSON messages in inspector drawer:\n${inspectorContent}`);
+    }
+    console.log('   ✓ Expanded A2UI JSON displayed in inspector drawer');
+    console.log('✅ Inspector Drawer Test Passed!');
+
+    // 4. Test Live LLM Request
     console.log('\n👉 Testing Live Gemini LLM Generation...');
     const input = page.locator('input[type="text"]');
     await input.fill('Create a team goal list for Cloud Platform team with 2 goals');
@@ -109,13 +134,8 @@ async function runE2ETest() {
       throw new Error(`Live LLM request failed with error in client:\n${liveBodyText}`);
     }
 
-    if (
-      !liveBodyText.includes('Cloud Platform') &&
-      !liveBodyText.includes('Strategic Objectives')
-    ) {
-      throw new Error(
-        `Expected live generated goal card not found in rendered DOM:\n${liveBodyText}`,
-      );
+    if (!liveBodyText.includes('Cloud Platform') && !liveBodyText.includes('Strategic Objectives')) {
+      throw new Error(`Expected live generated goal card not found in rendered DOM:\n${liveBodyText}`);
     }
     console.log('   ✓ Live LLM generated card rendered cleanly in DOM!');
     console.log('✅ Live LLM Request Passed!');
@@ -124,13 +144,13 @@ async function runE2ETest() {
       throw new Error(`Encountered ${pageErrors.length} unhandled page errors during test run.`);
     }
 
-    console.log('\n🎉 ALL PRESETS AND LIVE LLM TESTS PASSED AND RENDERED SUCCESSFULLY! 🎉\n');
+    console.log('\n🎉 ALL PRESETS, INSPECTOR, AND LIVE LLM TESTS PASSED SUCCESSFULLY! 🎉\n');
   } finally {
     await browser.close();
   }
 }
 
-runE2ETest().catch(err => {
+runE2ETest().catch((err) => {
   console.error('\n❌ E2E TEST FAILED:', err);
   process.exit(1);
 });

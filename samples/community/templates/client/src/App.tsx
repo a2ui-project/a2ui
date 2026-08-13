@@ -23,6 +23,8 @@ interface FeedItem {
   type: 'user' | 'assistant';
   text?: string;
   surfaceId?: string;
+  raw?: string;
+  messages?: any[];
 }
 
 const A2UI_THEME_VARS: React.CSSProperties = {
@@ -69,6 +71,9 @@ export default function App() {
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [activeInspector, setActiveInspector] = useState<string | null>(null);
+  const [inspectorTab, setInspectorTab] = useState<'express' | 'json'>('express');
+  const [copied, setCopied] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -84,6 +89,12 @@ export default function App() {
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({behavior: 'smooth'});
   }, [feed, loading]);
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const sendPrompt = async (promptText: string) => {
     const text = promptText.trim();
@@ -122,6 +133,8 @@ export default function App() {
             type: 'assistant',
             text: data.text,
             surfaceId: targetSurfaceId,
+            raw: data.raw,
+            messages: data.messages,
           },
         ]);
       } else {
@@ -131,6 +144,8 @@ export default function App() {
             id: `assistant_${Date.now()}`,
             type: 'assistant',
             text: data.text || 'No response messages received.',
+            raw: data.raw,
+            messages: data.messages || [],
           },
         ]);
       }
@@ -202,31 +217,26 @@ export default function App() {
           <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
             {[
               {
-                icon: 'account_circle',
                 label: '👤 User Profile',
                 prompt: 'show user profile',
                 desc: 'Single card profile',
               },
               {
-                icon: 'group',
                 label: '👥 Team Roster',
                 prompt: 'show team roster',
                 desc: 'Nested team member cards',
               },
               {
-                icon: 'flag',
                 label: '🎯 Team Goals',
                 prompt: 'show team goals',
                 desc: 'Unrolled objectives list',
               },
               {
-                icon: 'chat',
                 label: '💬 Feedback Board',
                 prompt: 'show feedback board',
                 desc: 'Review cards with ratings',
               },
               {
-                icon: 'workspace_premium',
                 label: '⭐ Competency Panel',
                 prompt: 'show competency panel',
                 desc: 'Metrics & stats summary',
@@ -285,9 +295,10 @@ export default function App() {
             lineHeight: 1.4,
           }}
         >
-          <strong>A2UI v0.9.1</strong>
+          <strong>Template Inference Format</strong>
           <br />
-          Templates expand into standard primitives rendered by <code>@a2ui/react</code>.
+          Click the <span style={{color: '#2563eb', fontWeight: 600}}>ℹ️ Inspect</span> button on
+          any turn to compare raw LLM Express DSL with expanded JSON.
         </div>
       </div>
 
@@ -347,14 +358,18 @@ export default function App() {
               </h3>
               <p style={{fontSize: '14px', lineHeight: 1.6, margin: 0, color: '#64748b'}}>
                 Click a preset on the sidebar or send a custom prompt below to observe
-                high-efficiency declarative templates expanded server-side and rendered into
-                interactive UI components.
+                high-efficiency declarative templates expanded server-side into standard A2UI
+                primitives.
               </p>
             </div>
           )}
 
           {feed.map(item => {
             const surface = item.surfaceId ? processor.model.getSurface(item.surfaceId) : undefined;
+            const isInspectorOpen = activeInspector === item.id;
+            const hasInspectionData = Boolean(
+              item.raw || (item.messages && item.messages.length > 0),
+            );
 
             return (
               <div
@@ -389,21 +404,172 @@ export default function App() {
                       maxWidth: '85%',
                     }}
                   >
-                    {item.text && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                      }}
+                    >
+                      {item.text && (
+                        <div
+                          style={{
+                            backgroundColor: '#ffffff',
+                            border: '1px solid #e2e8f0',
+                            color: '#0f172a',
+                            padding: '10px 16px',
+                            borderRadius: '16px 16px 16px 4px',
+                            fontSize: '14px',
+                            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                          }}
+                        >
+                          {item.text}
+                        </div>
+                      )}
+
+                      {/* Turn Inspector Button */}
+                      {hasInspectionData && (
+                        <button
+                          onClick={() =>
+                            setActiveInspector(curr => (curr === item.id ? null : item.id))
+                          }
+                          title="Inspect raw LLM Express DSL and expanded A2UI JSON"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '6px 12px',
+                            borderRadius: '20px',
+                            border: '1px solid #e2e8f0',
+                            backgroundColor: isInspectorOpen ? '#eff6ff' : '#ffffff',
+                            borderColor: isInspectorOpen ? '#93c5fd' : '#e2e8f0',
+                            color: isInspectorOpen ? '#1d4ed8' : '#64748b',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
+                          }}
+                        >
+                          <span className="material-symbols-outlined" style={{fontSize: '16px'}}>
+                            data_object
+                          </span>
+                          <span>{isInspectorOpen ? 'Hide Payload' : 'Inspect Format'}</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Inspector Drawer */}
+                    {isInspectorOpen && (
                       <div
                         style={{
-                          backgroundColor: '#ffffff',
-                          border: '1px solid #e2e8f0',
-                          color: '#0f172a',
-                          padding: '12px 18px',
-                          borderRadius: '18px 18px 18px 4px',
-                          fontSize: '14px',
-                          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                          backgroundColor: '#0f172a',
+                          color: '#f8fafc',
+                          borderRadius: '16px',
+                          border: '1px solid #1e293b',
+                          overflow: 'hidden',
+                          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
+                          marginTop: '4px',
                         }}
                       >
-                        {item.text}
+                        {/* Tab Switcher & Actions */}
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '8px 16px',
+                            backgroundColor: '#1e293b',
+                            borderBottom: '1px solid #334155',
+                          }}
+                        >
+                          <div style={{display: 'flex', gap: '8px'}}>
+                            <button
+                              onClick={() => setInspectorTab('express')}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: '8px',
+                                border: 'none',
+                                backgroundColor:
+                                  inspectorTab === 'express' ? '#334155' : 'transparent',
+                                color: inspectorTab === 'express' ? '#38bdf8' : '#94a3b8',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              ⚡ Raw Express DSL
+                            </button>
+                            <button
+                              onClick={() => setInspectorTab('json')}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: '8px',
+                                border: 'none',
+                                backgroundColor:
+                                  inspectorTab === 'json' ? '#334155' : 'transparent',
+                                color: inspectorTab === 'json' ? '#38bdf8' : '#94a3b8',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              📦 Expanded A2UI JSON
+                            </button>
+                          </div>
+
+                          <button
+                            onClick={() => {
+                              const content =
+                                inspectorTab === 'express'
+                                  ? item.raw || ''
+                                  : JSON.stringify(item.messages, null, 2);
+                              copyToClipboard(content);
+                            }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '4px 10px',
+                              borderRadius: '6px',
+                              border: '1px solid #475569',
+                              backgroundColor: '#0f172a',
+                              color: '#cbd5e1',
+                              fontSize: '11px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <span className="material-symbols-outlined" style={{fontSize: '14px'}}>
+                              {copied ? 'check' : 'content_copy'}
+                            </span>
+                            <span>{copied ? 'Copied!' : 'Copy'}</span>
+                          </button>
+                        </div>
+
+                        {/* Code Display Area */}
+                        <div style={{padding: '16px', maxHeight: '320px', overflowY: 'auto'}}>
+                          <pre
+                            style={{
+                              margin: 0,
+                              fontFamily:
+                                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace",
+                              fontSize: '12px',
+                              lineHeight: 1.5,
+                              color: inspectorTab === 'express' ? '#7dd3fc' : '#a7f3d0',
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
+                            }}
+                          >
+                            {inspectorTab === 'express'
+                              ? item.raw || 'No raw format data available.'
+                              : JSON.stringify(item.messages, null, 2)}
+                          </pre>
+                        </div>
                       </div>
                     )}
+
+                    {/* Rendered A2UI Surface */}
                     {surface && (
                       <div
                         style={{
