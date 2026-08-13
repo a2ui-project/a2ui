@@ -26,7 +26,7 @@
             dataModel:
               email: "invalid-email-address"
             components:
-              input:
+              - id: input
                 component: TextField
                 text:
                   path: "/email"
@@ -57,7 +57,7 @@
             dataModel:
               age: 15
             components:
-              input:
+              - id: input
                 component: TextField
                 text:
                   path: "/age"

@@ -24,10 +24,10 @@
             surfaceId: "s1"
             catalogId: "basic"
             components:
-              root:
+              - id: root
                 component: Column
                 children: [t1]
-              t1:
+              - id: t1
                 component: Text
                 text: "Hello World"
   expect_valid: true
@@ -51,10 +51,10 @@
             surfaceId: "s1"
             catalogId: "custom"
             components:
-              root:
+              - id: root
                 component: Row
                 children: [invalid_header]
-              invalid_header:
+              - id: invalid_header
                 component: ColumnHeader
   expect_error:
     category: "ValidationError"
@@ -79,10 +79,10 @@
             surfaceId: "s1"
             catalogId: "custom"
             components:
-              root:
+              - id: root
                 component: RestrictedBox
                 children: [v1]
-              v1:
+              - id: v1
                 component: Video
   expect_error:
     category: "ValidationError"

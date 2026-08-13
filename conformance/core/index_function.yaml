@@ -26,22 +26,22 @@
             dataModel:
               tasks: ["Buy Milk", "Clean Kitchen", "Pay Bills"]
             components:
-              root:
+              - id: root
                 component: Column
                 children: [list]
-              list:
+              - id: list
                 component: Collection
                 items: "/tasks"
                 template:
                   component: Row
                   children: [item_index, item_text]
                   components:
-                    item_index:
+                    - id: item_index
                       component: Text
                       text:
                         call: "@index"
                         args: {}
-                    item_text:
+                    - id: item_text
                       component: Text
                       text:
                         path: ""
@@ -74,7 +74,7 @@
             dataModel:
               players: ["Alice", "Bob"]
             components:
-              root:
+              - id: root
                 component: Collection
                 items: "/players"
                 template:
@@ -102,7 +102,7 @@
             surfaceId: "main"
             catalogId: "basic"
             components:
-              root:
+              - id: root
                 component: Text
                 text:
                   call: "@index"
