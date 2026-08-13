@@ -80,8 +80,12 @@ export function formatZodIssue(err: z.ZodIssue): string {
     return `${path}: ${err.message}`;
   }
 
-  if ('expected' in err && (err as any).expected !== undefined && (err as any).received !== undefined) {
-    return path + ": Expected " + (err as any).expected + ", received " + (err as any).received;
+  if (
+    'expected' in err &&
+    (err as any).expected !== undefined &&
+    (err as any).received !== undefined
+  ) {
+    return path + ': Expected ' + (err as any).expected + ', received ' + (err as any).received;
   }
 
   return `${path}: Validation error (${err.code || 'invalid'})`;
@@ -360,10 +364,13 @@ export class MessageProcessor<T extends ComponentApi> {
           const validationResult = componentApi.schema.safeParse(properties);
           if (!validationResult.success) {
             const formattedErrors = validationResult.error.errors.map(formatZodIssue).join(', ');
-            console.error("[A2UI Validation Error] Component '" + componentType + "' (" + id + "):", {
-              propertyKeys: Object.keys(properties),
-              issues: validationResult.error.issues,
-            });
+            console.error(
+              "[A2UI Validation Error] Component '" + componentType + "' (" + id + '):',
+              {
+                propertyKeys: Object.keys(properties),
+                issues: validationResult.error.issues,
+              },
+            );
             throw new A2uiValidationError(
               `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
               validationResult.error.issues,
