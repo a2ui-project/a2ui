@@ -16,19 +16,18 @@ import A2UICore
 import Foundation
 import JSONSchema
 
-public struct RegexFunction: FunctionImplementation, Sendable {
+public struct EmailFunction: FunctionImplementation, Sendable {
   public let api = FunctionAPI(
-    name: "regex",
+    name: "email",
     returnType: .boolean,
     schema: try! Schema(
       instance: """
         {
           "type": "object",
           "properties": {
-            "value": { "type": "string" },
-            "pattern": { "type": "string" }
+            "value": { "type": "string" }
           },
-          "required": ["value", "pattern"]
+          "required": ["value"]
         }
         """
     )
@@ -37,19 +36,12 @@ public struct RegexFunction: FunctionImplementation, Sendable {
   public init() {}
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
-    guard let value = arguments["value"]?.stringValue,
-          let pattern = arguments["pattern"]?.stringValue
-    else {
+    guard let value = arguments["value"]?.stringValue else {
       return .boolean(false)
     }
 
-    do {
-      let regex = try Regex(pattern)
-      let firstMatch = try regex.firstMatch(in: value)
-      return .boolean(firstMatch != nil)
-    } catch {
-      // Invalid regular expression pattern
-      return .boolean(false)
-    }
+    let emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    let isMatch = (try? emailRegex.wholeMatch(in: value)) != nil
+    return .boolean(isMatch)
   }
 }
