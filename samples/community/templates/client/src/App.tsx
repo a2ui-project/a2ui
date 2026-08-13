@@ -25,6 +25,14 @@ interface FeedItem {
   surfaceId?: string;
   raw?: string;
   messages?: any[];
+  metrics?: {
+    latency?: number;
+    thinkingTokens?: number;
+    outputTokens?: number;
+    promptTokens?: number;
+    totalTokens?: number;
+    isPreset?: boolean;
+  };
 }
 
 interface TemplateDefinition {
@@ -205,6 +213,7 @@ export default function App() {
             surfaceId: targetSurfaceId,
             raw: data.raw,
             messages: data.messages,
+            metrics: data.metrics,
           },
         ]);
       } else {
@@ -216,6 +225,7 @@ export default function App() {
             text: data.text || 'No response messages received.',
             raw: data.raw,
             messages: data.messages || [],
+            metrics: data.metrics,
           },
         ]);
       }
@@ -564,6 +574,7 @@ export default function App() {
                             alignItems: 'center',
                             justifyContent: 'space-between',
                             gap: '12px',
+                            width: '100%',
                           }}
                         >
                           {item.text && (
@@ -582,38 +593,118 @@ export default function App() {
                             </div>
                           )}
 
-                          {hasInspectionData && (
-                            <button
-                              onClick={() =>
-                                setActiveInspector(curr => (curr === item.id ? null : item.id))
-                              }
-                              title="Inspect raw LLM Express DSL and expanded A2UI JSON"
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                padding: '6px 12px',
-                                borderRadius: '20px',
-                                border: '1px solid #e2e8f0',
-                                backgroundColor: isInspectorOpen ? '#eff6ff' : '#ffffff',
-                                borderColor: isInspectorOpen ? '#93c5fd' : '#e2e8f0',
-                                color: isInspectorOpen ? '#1d4ed8' : '#64748b',
-                                fontSize: '12px',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease',
-                                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
-                              }}
-                            >
-                              <span
-                                className="material-symbols-outlined"
-                                style={{fontSize: '16px'}}
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              marginLeft: 'auto',
+                              flexWrap: 'wrap',
+                            }}
+                          >
+                            {/* Inference Metrics (Latency & Tokens) */}
+                            {item.metrics && (
+                              <div
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  backgroundColor: '#ffffff',
+                                  border: '1px solid #e2e8f0',
+                                  padding: '5px 12px',
+                                  borderRadius: '20px',
+                                  fontSize: '11px',
+                                  fontWeight: 600,
+                                  color: '#475569',
+                                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
+                                }}
                               >
-                                data_object
-                              </span>
-                              <span>{isInspectorOpen ? 'Hide Payload' : 'Inspect Format'}</span>
-                            </button>
-                          )}
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                  }}
+                                  title="Response Latency in seconds"
+                                >
+                                  <span style={{color: '#059669'}}>⏱️</span>
+                                  <span>{item.metrics.latency}s</span>
+                                </span>
+
+                                {item.metrics.thinkingTokens !== undefined &&
+                                  item.metrics.thinkingTokens > 0 && (
+                                    <>
+                                      <span style={{color: '#cbd5e1'}}>•</span>
+                                      <span
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '3px',
+                                          color: '#7c3aed',
+                                        }}
+                                        title="Gemini Thinking Tokens"
+                                      >
+                                        <span>🧠</span>
+                                        <span>{item.metrics.thinkingTokens} think</span>
+                                      </span>
+                                    </>
+                                  )}
+
+                                {item.metrics.outputTokens !== undefined &&
+                                  item.metrics.outputTokens > 0 && (
+                                    <>
+                                      <span style={{color: '#cbd5e1'}}>•</span>
+                                      <span
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '3px',
+                                          color: '#0284c7',
+                                        }}
+                                        title="Output Candidates Tokens"
+                                      >
+                                        <span>📝</span>
+                                        <span>{item.metrics.outputTokens} out</span>
+                                      </span>
+                                    </>
+                                  )}
+                              </div>
+                            )}
+
+                            {/* Turn Inspector Button */}
+                            {hasInspectionData && (
+                              <button
+                                onClick={() =>
+                                  setActiveInspector(curr => (curr === item.id ? null : item.id))
+                                }
+                                title="Inspect raw LLM Express DSL and expanded A2UI JSON"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  padding: '6px 12px',
+                                  borderRadius: '20px',
+                                  border: '1px solid #e2e8f0',
+                                  backgroundColor: isInspectorOpen ? '#eff6ff' : '#ffffff',
+                                  borderColor: isInspectorOpen ? '#93c5fd' : '#e2e8f0',
+                                  color: isInspectorOpen ? '#1d4ed8' : '#64748b',
+                                  fontSize: '12px',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease',
+                                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
+                                }}
+                              >
+                                <span
+                                  className="material-symbols-outlined"
+                                  style={{fontSize: '16px'}}
+                                >
+                                  data_object
+                                </span>
+                                <span>{isInspectorOpen ? 'Hide Payload' : 'Inspect Format'}</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
 
                         {/* Inspector Drawer */}

@@ -18,6 +18,7 @@ import glob
 import json
 import os
 from pathlib import Path
+import time
 from typing import Any, Dict, List
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -203,6 +204,7 @@ def list_templates():
 @app.post("/interact")
 @app.post("/api/chat")
 async def chat(req: ChatRequest):
+    start_time = time.perf_counter()
     prompt_lower = req.prompt.strip().lower()
 
     # 1. Preset shortcut responses for instant offline evaluation
@@ -215,11 +217,18 @@ async def chat(req: ChatRequest):
         )
         parts = target_format.parser.parse_response(dsl)
         messages = parts[0].a2ui_json if parts and parts[0].a2ui_json else []
+        latency = round(time.perf_counter() - start_time, 3)
         return {
             "messages": messages,
             "raw": dsl.strip(),
             "text": f"Here is the rendered {req.prompt}:",
             "surfaceId": req.surfaceId,
+            "metrics": {
+                "latency": latency,
+                "thinkingTokens": 0,
+                "outputTokens": len(dsl.split()),
+                "isPreset": True,
+            },
         }
 
     # 2. Live Gemini inference if API key is provided
@@ -235,6 +244,7 @@ async def chat(req: ChatRequest):
                     response_mime_type="text/plain",
                 ),
             )
+            latency = round(time.perf_counter() - start_time, 2)
             raw_text = response.text or ""
             target_format = TemplateInferenceFormat(
                 templates=templates,
@@ -259,13 +269,34 @@ async def chat(req: ChatRequest):
                     )
                     break
 
+            usage = response.usage_metadata
+            thinking_tokens = (
+                getattr(usage, "thoughts_token_count", None) if usage else None
+            )
+            output_tokens = (
+                getattr(usage, "candidates_token_count", None) if usage else None
+            )
+            prompt_tokens = (
+                getattr(usage, "prompt_token_count", None) if usage else None
+            )
+            total_tokens = getattr(usage, "total_token_count", None) if usage else None
+
             return {
                 "messages": messages,
                 "raw": raw_text,
                 "text": "\n".join(text_parts).strip() or "Here is the response:",
                 "surfaceId": created_surface_id,
+                "metrics": {
+                    "latency": latency,
+                    "thinkingTokens": thinking_tokens or 0,
+                    "outputTokens": output_tokens or 0,
+                    "promptTokens": prompt_tokens or 0,
+                    "totalTokens": total_tokens or 0,
+                    "isPreset": False,
+                },
             }
         except Exception as e:
+            latency = round(time.perf_counter() - start_time, 2)
             return {
                 "error": str(e),
                 "messages": [
@@ -297,6 +328,9 @@ async def chat(req: ChatRequest):
                     },
                 ],
                 "surfaceId": req.surfaceId,
+                "metrics": {
+                    "latency": latency,
+                },
             }
 
     # 3. Fallback when API key is missing
