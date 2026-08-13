@@ -360,8 +360,8 @@ export class MessageProcessor<T extends ComponentApi> {
           const validationResult = componentApi.schema.safeParse(properties);
           if (!validationResult.success) {
             const formattedErrors = validationResult.error.errors.map(formatZodIssue).join(', ');
-            console.error(`[A2UI Validation Error] Component '${componentType}' (${id}):`, {
-              properties,
+            console.error("[A2UI Validation Error] Component '" + componentType + "' (" + id + "):", {
+              propertyKeys: Object.keys(properties),
               issues: validationResult.error.issues,
             });
             throw new A2uiValidationError(
