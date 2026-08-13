@@ -23,83 +23,74 @@ private final class MockFunctionHandler: FunctionHandler, @unchecked Sendable {
   }
 }
 
-@Suite
 struct RequiredFunctionTests {
 
   let function = RequiredFunction()
   let context = DataContext(
     dataModel: DataModel(), path: "", functionHandler: MockFunctionHandler())
 
-  @Test("Initializes with expected API")
-  func initializes() {
+  // MARK: - Initialization
+
+  @Test func initializesWithExpectedAPI() {
     #expect(function.api.name == "required")
     #expect(function.api.returnType == .boolean)
   }
 
-  @Test("Evaluates to true when value is not empty string")
-  func evaluatesNonEmptyString() throws {
+  // MARK: - Evaluation
+
+  @Test func evaluatesToTrueWhenValueIsNotEmptyString() throws {
     let result = try function.evaluate(arguments: ["value": .string("test")], context: context)
     #expect(result == .boolean(true))
   }
 
-  @Test("Evaluates to false when value is empty string")
-  func evaluatesEmptyString() throws {
+  @Test func evaluatesToFalseWhenValueIsEmptyString() throws {
     let result = try function.evaluate(arguments: ["value": .string("")], context: context)
     #expect(result == .boolean(false))
   }
 
-  @Test("Evaluates to true when value is not empty array")
-  func evaluatesNonEmptyArray() throws {
+  @Test func evaluatesToTrueWhenValueIsNotEmptyArray() throws {
     let result = try function.evaluate(
       arguments: ["value": .array([.string("test")])], context: context)
     #expect(result == .boolean(true))
   }
 
-  @Test("Evaluates to false when value is empty array")
-  func evaluatesEmptyArray() throws {
+  @Test func evaluatesToFalseWhenValueIsEmptyArray() throws {
     let result = try function.evaluate(arguments: ["value": .array([])], context: context)
     #expect(result == .boolean(false))
   }
 
-  @Test("Evaluates to true when value is not empty object")
-  func evaluatesNonEmptyObject() throws {
+  @Test func evaluatesToTrueWhenValueIsNotEmptyObject() throws {
     let result = try function.evaluate(
       arguments: ["value": .object(["key": .string("value")])], context: context)
     #expect(result == .boolean(true))
   }
 
-  @Test("Evaluates to false when value is empty object")
-  func evaluatesEmptyObject() throws {
+  @Test func evaluatesToFalseWhenValueIsEmptyObject() throws {
     let result = try function.evaluate(arguments: ["value": .object([:])], context: context)
     #expect(result == .boolean(false))
   }
 
-  @Test("Evaluates to true when value is true")
-  func evaluatesTrue() throws {
+  @Test func evaluatesToTrueWhenValueIsTrue() throws {
     let result = try function.evaluate(arguments: ["value": .boolean(true)], context: context)
     #expect(result == .boolean(true))
   }
 
-  @Test("Evaluates to true when value is false")
-  func evaluatesFalseBool() throws {
+  @Test func evaluatesToTrueWhenValueIsFalse() throws {
     let result = try function.evaluate(arguments: ["value": .boolean(false)], context: context)
     #expect(result == .boolean(true))
   }
 
-  @Test("Evaluates to true when value is number")
-  func evaluatesNumber() throws {
+  @Test func evaluatesToTrueWhenValueIsNumber() throws {
     let result = try function.evaluate(arguments: ["value": .number(0)], context: context)
     #expect(result == .boolean(true))
   }
 
-  @Test("Evaluates to false when value is null")
-  func evaluatesNull() throws {
+  @Test func evaluatesToFalseWhenValueIsNull() throws {
     let result = try function.evaluate(arguments: ["value": .null], context: context)
     #expect(result == .boolean(false))
   }
 
-  @Test("Evaluates to false when value is missing")
-  func evaluatesMissingValue() throws {
+  @Test func evaluatesToFalseWhenValueIsMissing() throws {
     let result = try function.evaluate(arguments: [:], context: context)
     #expect(result == .boolean(false))
   }
