@@ -93,3 +93,32 @@
   expect_data_model:
     s1:
       persistentData: "keep"
+
+- name: test_data_deletion_parent_object_recursive
+  description: Verifies deleting an intermediate parent object key via value=null recursively removes all nested child properties.
+  catalog:
+    version: "1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "basic"
+            dataModel:
+              settings:
+                notifications:
+                  email: true
+                  push: false
+                  sms: true
+                theme: "dark"
+    - payload:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/settings/notifications"
+            value: null
+  expect_data_model:
+    s1:
+      settings:
+        theme: "dark"
