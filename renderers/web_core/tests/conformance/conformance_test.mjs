@@ -26,10 +26,16 @@ const CONFORMANCE_ROOT =
 const CORE_DIR = path.join(CONFORMANCE_ROOT, 'core');
 const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
 
-// Supported spec versions for Web Core TypeScript harness
+/**
+ * Set of A2UI specification versions supported by this TypeScript conformance harness.
+ * Test cases specifying protocol versions outside this set are skipped.
+ */
 const SUPPORTED_SPEC_VERSIONS = new Set(['0.8', '0.9', '1.0']);
 
-// Transition skip list: add test case names here during active feature implementation
+/**
+ * Transition skip list containing specific test case names to skip during active feature transitions.
+ * Remove test names from this set as feature implementations are completed.
+ */
 const SKIP_TEST_NAMES = new Set([]);
 
 function findYamlFiles(dir) {

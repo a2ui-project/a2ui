@@ -717,7 +717,14 @@ class ConformanceTest {
   }
 
   private companion object {
+    /**
+     * Set of A2UI specification versions supported by this legacy Kotlin conformance harness.
+     */
     private val SUPPORTED_SPEC_VERSIONS = setOf("0.8", "0.9")
+
+    /**
+     * Transition skip list containing specific test case names to skip during active feature transitions.
+     */
     private val SKIP_TEST_NAMES = setOf<String>()
 
     private const val STREAMING_PARSER_YAML_FILE = "agent/streaming_parser.yaml"

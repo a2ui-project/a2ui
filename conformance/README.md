@@ -36,3 +36,10 @@ Each language SDK must implement a test harness that:
 3.  Asserts that the output matches the expected results defined in the YAML.
 
 Refer to `agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py` for a reference implementation of a harness.
+
+## Harness Configuration & Transition Skip Lists
+
+Every conformance test runner must declare two top-level configuration variables:
+
+1. **`SUPPORTED_SPEC_VERSIONS`**: A set/list of A2UI specification versions supported by the SDK or harness (e.g. `{'0.8', '0.9', '1.0'}`). Test cases specifying a version outside this set are skipped cleanly.
+2. **`SKIP_TEST_NAMES`**: A transition skip list containing test case names to temporarily skip during active feature transitions. At the start of a feature migration, test names for unimplemented features are added to this set and progressively removed as feature implementations complete. Skipped tests are logged as `[SKIPPED]` without marking test runs as failures.

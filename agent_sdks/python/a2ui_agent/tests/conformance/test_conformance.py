@@ -48,7 +48,10 @@ CATEGORY_TO_EXCEPTION = {
     "CompileError": A2uiCompileError,
 }
 
+# Set of A2UI specification versions supported by this Python Agent SDK conformance harness.
 SUPPORTED_SPEC_VERSIONS = {"0.8", "0.9", "1.0"}
+
+# Transition skip list containing specific test case names to skip during active feature transitions.
 SKIP_TEST_NAMES = set()
 
 
