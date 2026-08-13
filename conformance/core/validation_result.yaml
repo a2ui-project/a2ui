@@ -1,0 +1,70 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: test_validation_result_dynamic_object_return
+  description: Verifies CheckRule evaluation capturing dynamic ValidationResult object returned from custom validation function.
+  catalog:
+    version: "1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "form_surface"
+            catalogId: "basic"
+            dataModel:
+              email: "invalid-email-address"
+            components:
+              input:
+                component: TextField
+                text: "/email"
+                checks:
+                  - function: "email"
+                    args:
+                      value: "/email"
+  expect_validation_result:
+    input:
+      valid: false
+      code: "INVALID_EMAIL"
+      message: "Please enter a valid email address (e.g. user@example.com)."
+      severity: "error"
+
+- name: test_validation_result_boolean_fallback
+  description: Verifies CheckRule evaluation when validation function returns primitive boolean, falling back to CheckRule message.
+  catalog:
+    version: "1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "form_surface"
+            catalogId: "basic"
+            dataModel:
+              age: 15
+            components:
+              input:
+                component: TextField
+                text: "/age"
+                checks:
+                  - function: "numeric"
+                    args:
+                      value: "/age"
+                      min: 18
+                    message: "Must be 18 or older."
+  expect_validation_result:
+    input:
+      valid: false
+      message: "Must be 18 or older."
+      severity: "error"

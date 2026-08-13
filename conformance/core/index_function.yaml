@@ -1,0 +1,92 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: test_index_function_in_collection_loop
+  description: Verifies built-in @index function evaluation during collection template iteration.
+  catalog:
+    version: "1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: main
+            catalogId: basic
+            dataModel:
+              tasks: ["Buy Milk", "Clean Kitchen", "Pay Bills"]
+            components:
+              root:
+                component: Column
+                children: [list]
+              list:
+                component: Collection
+                items: "/tasks"
+                template:
+                  component: Row
+                  children: [item_index, item_text]
+                  components:
+                    item_index:
+                      component: Text
+                      text:
+                        function: "@index"
+                        args: {}
+                    item_text:
+                      component: Text
+                      text:
+                        path: ""
+
+- name: test_index_function_with_offset
+  description: Verifies built-in @index function with offset argument (@index(1) for 1-based indexing).
+  catalog:
+    version: "1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: main
+            catalogId: basic
+            dataModel:
+              players: ["Alice", "Bob"]
+            components:
+              root:
+                component: Collection
+                items: "/players"
+                template:
+                  component: Text
+                  text:
+                    function: "@index"
+                    args:
+                      offset: 1
+
+- name: test_index_function_outside_loop_error
+  description: Verifies error thrown when @index function is called outside a collection iteration scope.
+  catalog:
+    version: "1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "basic"
+            components:
+              root:
+                component: Text
+                text:
+                  function: "@index"
+                  args: {}
+      expect_error:
+        category: "ValidationError"
+        message: "@index function can only be evaluated inside a collection template iteration scope."
