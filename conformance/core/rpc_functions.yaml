@@ -1,0 +1,123 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: test_rpc_call_renderer_function_success
+  description: Verifies agent-initiated callRendererFunction on a function with allowedCallers=rendererOrAgent.
+  catalog:
+    version: "1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        callId: "call-101"
+        functionName: "playMedia"
+        catalogId: "media_catalog"
+        args:
+          mediaId: "video-789"
+          autoplay: true
+    function_metadata:
+      playMedia:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: false
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        callId: "call-101"
+        status: "success"
+        value:
+          playing: true
+          timestamp: 0
+
+- name: test_rpc_call_renderer_function_unauthorized_caller
+  description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when allowedCallers is rendererOnly.
+  catalog:
+    version: "1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        callId: "call-102"
+        functionName: "internalStateReset"
+        catalogId: "system_catalog"
+        args: {}
+    function_metadata:
+      internalStateReset:
+        allowedCallers: "rendererOnly"
+        requiresUserActivation: false
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        callId: "call-102"
+        status: "error"
+        error:
+          code: "INVALID_FUNCTION_CALL"
+          message: "Function 'internalStateReset' cannot be called by agent (allowedCallers is rendererOnly)."
+
+- name: test_rpc_call_renderer_function_requires_user_activation
+  description: Verifies callRendererFunction execution when requiresUserActivation is true and user gesture is present.
+  catalog:
+    version: "1.0"
+  action: handle_rpc
+  args:
+    user_activation_present: true
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        callId: "call-103"
+        functionName: "openExternalUrl"
+        catalogId: "basic"
+        args:
+          url: "https://example.com/details"
+    function_metadata:
+      openExternalUrl:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: true
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        callId: "call-103"
+        status: "success"
+        value:
+          opened: true
+
+- name: test_rpc_call_agent_function_dispatch
+  description: Verifies renderer-initiated callAgentFunction message generation and response correlation via callId.
+  catalog:
+    version: "1.0"
+  action: handle_rpc
+  args:
+    outbound_call:
+      callId: "agent-call-55"
+      functionName: "queryInventory"
+      catalogId: "store_catalog"
+      args:
+        sku: "ITEM-404"
+    inbound_response:
+      version: "v1.0"
+      agentFunctionResponse:
+        callId: "agent-call-55"
+        status: "success"
+        value:
+          inStock: 12
+          price: "$29.99"
+  expect:
+    correlated_call_id: "agent-call-55"
+    result:
+      inStock: 12
+      price: "$29.99"

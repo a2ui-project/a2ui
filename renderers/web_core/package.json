@@ -152,6 +152,7 @@
     "eslint": "^10.4.1",
     "google-artifactregistry-auth": "^3.5.0",
     "gts": "^7.0.0",
+    "js-yaml": "^4.1.0",
     "rxjs": "^7.8.2",
     "typescript": "5.9.3",
     "wireit": "^0.15.0-pre.2"
