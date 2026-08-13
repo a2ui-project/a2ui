@@ -14,11 +14,15 @@
 
 """Static factory resolving version adapters by protocol version or payload inspection."""
 
+import logging
 from typing import Any, Dict, Union
+
 from a2ui.core.schema.constants import A2uiProtocolVersion
 from .base import VersionAdapter
 from .v0_9 import VersionAdapterV09
 from .v1_0 import VersionAdapterV10
+
+logger = logging.getLogger(__name__)
 
 
 class VersionAdapterFactory:
@@ -66,9 +70,18 @@ class VersionAdapterFactory:
             Resolved VersionAdapter instance.
         """
         if not isinstance(payload, dict):
+            logger.warning(
+                "Payload is not a dictionary; falling back to default v0.9 adapter."
+            )
             return cls._v09_adapter
         version = payload.get("version", A2uiProtocolVersion.V0_9.value)
         try:
             return cls.get_adapter(version)
-        except ValueError:
+        except ValueError as err:
+            logger.warning(
+                "Unsupported protocol version '%s' in payload (%s); falling back to"
+                " default v0.9 adapter.",
+                version,
+                err,
+            )
             return cls._v09_adapter
