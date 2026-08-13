@@ -21,6 +21,7 @@ Security Guardrails:
 - Prevents out-of-memory (OOM) vulnerabilities via strict, configurable file size limits (halting streams or decoding early).
 - Mitigates MIME-spoofing attacks by inspecting file "magic byte" headers to verify the true content type against the claimed type.
 - Enforces strict developer-configured MIME type allowlists.
+- Mitigates SSRF risks by enforcing strict developer-configured host allowlists for remote HTTP/HTTPS downloads.
 
 GenAI Helpers:
 - Provides utilities (`to_genai_part`, `resolve_all_to_genai_parts`) to directly convert resolved bytes into ready-to-use `google.genai.types.Part` objects.
@@ -29,10 +30,12 @@ GenAI Helpers:
 
 import asyncio
 import base64
+import fnmatch
 import functools
 import inspect
 import logging
 from typing import Any, Awaitable, Callable, Coroutine, Dict, List, Optional, Union
+import urllib.parse
 from google.genai import types as genai_types
 import httpx
 
@@ -49,6 +52,19 @@ MAGIC_SIGNATURES: Dict[bytes, str] = {
     b"GIF89a": "image/gif",
     b"RIFF": "image/webp",
 }
+
+# Standard MIME type aliases to normalize common client variations.
+MIME_ALIASES: Dict[str, str] = {
+    "image/jpg": "image/jpeg",
+    "image/pjpeg": "image/jpeg",
+    "image/x-png": "image/png",
+}
+
+
+def _normalize_mime(mime: str) -> str:
+    cleaned = mime.split(";", 1)[0].strip().lower()
+    return MIME_ALIASES.get(cleaned, cleaned)
+
 
 SchemeHandler = Callable[
     [str, Dict[str, Any]],
@@ -69,12 +85,14 @@ class FileResolver:
         self,
         max_file_bytes: int = 25 * 1024 * 1024,  # 25 MB limit
         allowed_mime_types: Optional[List[str]] = None,
+        allowed_hosts: Optional[List[str]] = None,
         max_concurrent_downloads: int = 5,
         http_client: Optional[httpx.AsyncClient] = None,
         custom_schemes: Optional[Dict[str, SchemeHandler]] = None,
     ):
         self.max_file_bytes = max_file_bytes
         self.allowed_mime_types = allowed_mime_types
+        self.allowed_hosts = allowed_hosts
         self.max_concurrent_downloads = max_concurrent_downloads
         self._owns_http_client = http_client is None
         self._http_client = http_client or httpx.AsyncClient()
@@ -105,20 +123,20 @@ class FileResolver:
                 detected_mime = mime
                 break
 
-        if (
-            detected_mime
-            and claimed_mime
-            and claimed_mime != "application/octet-stream"
-            and not claimed_mime.startswith(detected_mime.split("/")[0])
-        ):
-            raise FileResolverSecurityError(
-                f"MIME mismatch: claimed '{claimed_mime}', detected magic"
-                f" signature '{detected_mime}'"
-            )
+        if detected_mime and claimed_mime:
+            norm_claimed = _normalize_mime(claimed_mime)
+            norm_detected = _normalize_mime(detected_mime)
+
+            if norm_claimed not in ("application/octet-stream", "*/*", ""):
+                if norm_claimed != norm_detected and not fnmatch.fnmatch(
+                    norm_detected, norm_claimed
+                ):
+                    raise FileResolverSecurityError(
+                        f"MIME mismatch: claimed '{claimed_mime}', detected magic"
+                        f" signature '{detected_mime}'"
+                    )
 
         final_mime = detected_mime or claimed_mime or "application/octet-stream"
-
-        import fnmatch
 
         if self.allowed_mime_types and not any(
             fnmatch.fnmatch(final_mime, t) for t in self.allowed_mime_types
@@ -176,12 +194,33 @@ class FileResolver:
             else:
                 raw_bytes = handler_res
 
-        # 3. HTTPS Ephemeral Download URL
+        # 3. HTTPS / HTTP Ephemeral Download URL
         elif file_id.startswith("https://") or file_id.startswith("http://"):
+            parsed_url = urllib.parse.urlparse(file_id)
+            hostname = (parsed_url.hostname or "").lower()
+
+            if self.allowed_hosts is not None:
+                if not any(
+                    fnmatch.fnmatch(hostname, pattern.lower())
+                    for pattern in self.allowed_hosts
+                ):
+                    raise FileResolverSecurityError(
+                        f"Host '{hostname}' is not permitted by security policy"
+                    )
+
             buffer = bytearray()
             async with self._http_client.stream(
                 "GET", file_id, follow_redirects=True
             ) as response:
+                if self.allowed_hosts is not None and hasattr(response, "url"):
+                    redirect_host = (getattr(response.url, "host", None) or "").lower()
+                    if redirect_host and not any(
+                        fnmatch.fnmatch(redirect_host, pattern.lower())
+                        for pattern in self.allowed_hosts
+                    ):
+                        raise FileResolverSecurityError(
+                            f"Redirected host '{redirect_host}' is not permitted by security policy"
+                        )
                 response.raise_for_status()
                 async for chunk in response.aiter_bytes():
                     buffer.extend(chunk)

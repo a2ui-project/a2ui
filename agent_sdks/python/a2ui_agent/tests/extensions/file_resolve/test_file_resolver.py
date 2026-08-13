@@ -181,6 +181,58 @@ async def test_security_mime_mismatch_detected():
 
 
 @pytest.mark.asyncio
+async def test_security_mime_mismatch_cross_subtype():
+    resolver = FileResolver()
+
+    # Claim application/json but content is application/pdf (both start with 'application/')
+    pdf_bytes = b"%PDF-1.4 document"
+    b64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
+    with pytest.raises(FileResolverSecurityError) as exc_info:
+        await resolver.resolve_bytes({
+            "fileId": f"data:application/json;base64,{b64_pdf}",
+            "mimeType": "application/json",
+        })
+    assert "MIME mismatch" in str(exc_info.value)
+    assert "claimed 'application/json'" in str(exc_info.value)
+    assert "detected magic signature 'application/pdf'" in str(exc_info.value)
+
+    # Claim image/jpeg but content is image/png (both start with 'image/')
+    png_bytes = b"\x89PNG\r\n\x1a\n image"
+    b64_png = base64.b64encode(png_bytes).decode("utf-8")
+    with pytest.raises(FileResolverSecurityError) as exc_info:
+        await resolver.resolve_bytes({
+            "fileId": f"data:image/jpeg;base64,{b64_png}",
+            "mimeType": "image/jpeg",
+        })
+    assert "MIME mismatch" in str(exc_info.value)
+    assert "claimed 'image/jpeg'" in str(exc_info.value)
+    assert "detected magic signature 'image/png'" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_security_mime_aliases_and_wildcards():
+    resolver = FileResolver()
+
+    # Claim image/jpg (alias for image/jpeg)
+    jpeg_bytes = b"\xff\xd8\xff JPEG content"
+    b64_jpeg = base64.b64encode(jpeg_bytes).decode("utf-8")
+    _, mime_jpeg = await resolver.resolve_bytes({
+        "fileId": f"data:image/jpg;base64,{b64_jpeg}",
+        "mimeType": "image/jpg",
+    })
+    assert mime_jpeg == "image/jpeg"
+
+    # Claim image/* wildcard for PNG
+    png_bytes = b"\x89PNG\r\n\x1a\n PNG content"
+    b64_png = base64.b64encode(png_bytes).decode("utf-8")
+    _, mime_png = await resolver.resolve_bytes({
+        "fileId": f"data:image/*;base64,{b64_png}",
+        "mimeType": "image/*",
+    })
+    assert mime_png == "image/png"
+
+
+@pytest.mark.asyncio
 async def test_security_allowed_mime_types_policy():
     resolver = FileResolver(allowed_mime_types=["application/pdf", "image/*"])
 
@@ -264,6 +316,106 @@ async def test_security_max_file_size_http_streaming():
             "mimeType": "text/plain",
         })
     assert "File exceeded max size of 10 bytes" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_security_allowed_hosts_policy():
+    pdf_bytes = b"%PDF-1.4 Allowed Host Content"
+
+    class MockStreamContext:
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+        def raise_for_status(self):
+            pass
+
+        async def aiter_bytes(self) -> AsyncIterator[bytes]:
+            yield pdf_bytes
+
+    class MockHttpClient:
+
+        def stream(self, method: str, url: str, follow_redirects: bool = True):
+            return MockStreamContext()
+
+    resolver = FileResolver(
+        allowed_hosts=["example.com", "*.trusted.org"],
+        http_client=MockHttpClient(),  # type: ignore[arg-type]
+    )
+
+    # 1. Allowed exact host
+    bytes_res, mime_res = await resolver.resolve_bytes({
+        "fileId": "https://example.com/doc.pdf",
+        "mimeType": "application/pdf",
+    })
+    assert bytes_res == pdf_bytes
+    assert mime_res == "application/pdf"
+
+    # 2. Allowed wildcard subdomain host
+    bytes_sub, mime_sub = await resolver.resolve_bytes({
+        "fileId": "https://api.trusted.org/doc.pdf",
+        "mimeType": "application/pdf",
+    })
+    assert bytes_sub == pdf_bytes
+    assert mime_sub == "application/pdf"
+
+    # 3. Disallowed external host
+    with pytest.raises(FileResolverSecurityError) as exc_info:
+        await resolver.resolve_bytes({
+            "fileId": "https://malicious.org/doc.pdf",
+            "mimeType": "application/pdf",
+        })
+    assert "Host 'malicious.org' is not permitted" in str(exc_info.value)
+
+    # 4. Disallowed link-local / metadata IP (SSRF protection)
+    with pytest.raises(FileResolverSecurityError) as exc_info:
+        await resolver.resolve_bytes({
+            "fileId": "http://169.254.169.254/latest/meta-data",
+            "mimeType": "text/plain",
+        })
+    assert "Host '169.254.169.254' is not permitted" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_security_allowed_hosts_redirect_blocked():
+    class MockRedirectResponse:
+
+        def __init__(self):
+            self.url = httpx.URL("https://evil-redirect.com/secret.pdf")
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+        def raise_for_status(self):
+            pass
+
+        async def aiter_bytes(self) -> AsyncIterator[bytes]:
+            yield b"%PDF-1.4 secret"
+
+    class MockHttpClient:
+
+        def stream(self, method: str, url: str, follow_redirects: bool = True):
+            return MockRedirectResponse()
+
+    resolver = FileResolver(
+        allowed_hosts=["trusted.org"],
+        http_client=MockHttpClient(),  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(FileResolverSecurityError) as exc_info:
+        await resolver.resolve_bytes({
+            "fileId": "https://trusted.org/redirect-me",
+            "mimeType": "application/pdf",
+        })
+    assert "Redirected host 'evil-redirect.com' is not permitted" in str(
+        exc_info.value
+    )
 
 
 @pytest.mark.asyncio
