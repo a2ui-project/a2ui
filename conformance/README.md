@@ -7,16 +7,19 @@ To ensure behavioral parity across all SDK implementations (Python, Kotlin, etc.
 Test suites are organized by functional domain:
 
 ### Core (`core/`)
+
 - `core/catalog.yaml`: Contains test cases for catalog operations (prune, render, load).
 - `core/accessibility.yaml`: Contains test cases for accessibility attributes and checks.
 - `core/validator.yaml`: Contains test cases for schema and structural validators, verifying structural integrity, cycle detection, and reachability.
 
 ### Agent (`agent/`)
+
 - `agent/streaming_parser.yaml`: Contains test cases for streaming parser implementations, verifying chunk buffering, incremental yielding, and edge cases like cut tokens.
 - `agent/parser.yaml`: Contains test cases for non-streaming parsing and payload fixing.
 - `agent/inference_format.yaml`: Contains test cases for inference formats and schema managers (select_catalog, load_catalog, generate_prompt).
 
 ### Extensions (`extensions/`)
+
 - `extensions/a2a/a2a_integration.yaml`: Contains test cases for A2A protocol event and part conversions.
 - `extensions/adk/adk_extensions.yaml`: Contains test cases for ADK extensions and RPC handling.
 
