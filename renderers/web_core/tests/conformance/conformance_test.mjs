@@ -83,6 +83,7 @@ function runConformanceHarness() {
     try {
       testCases = loadYamlFile(filePath);
     } catch (err) {
+      totalTests++;
       totalFailed++;
       const failMessage = `  ✗ FAILED to load ${relativePath}: ${err.message}`;
       console.error(failMessage);
@@ -189,9 +190,9 @@ function validateSelectCatalogTestCase(testCase) {
 }
 
 function validateValidateTestCase(testCase) {
-  const {steps, payload, expect_error, expect_data_model} = testCase;
-  if (!steps && !payload && !expect_error && !expect_data_model) {
-    throw new Error('validate test case missing input payload/steps or assertions.');
+  const {steps, payload} = testCase;
+  if (!steps && !payload) {
+    throw new Error('validate test case requires "steps" or "payload" input.');
   }
 }
 

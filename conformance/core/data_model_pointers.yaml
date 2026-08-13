@@ -25,8 +25,14 @@
             catalogId: "basic"
             dataModel:
               "a/b":
-                "c~d": "escaped_value"
+                "c~d": "original_value"
               "slash/key": 100
+    - payload:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/a~1b/c~0d"
+            value: "escaped_value"
   expect_data_model:
     s1:
       "a/b":
