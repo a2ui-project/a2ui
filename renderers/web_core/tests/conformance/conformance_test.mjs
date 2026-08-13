@@ -54,6 +54,11 @@ function runConformanceHarness() {
   const files = [...findYamlFiles(CORE_DIR), ...findYamlFiles(AGENT_DIR)];
   console.log(`Discovered ${files.length} conformance YAML test suite file(s).`);
 
+  if (files.length === 0) {
+    console.error('✗ ERROR: No conformance test suite files discovered!');
+    process.exit(1);
+  }
+
   let totalTests = 0;
   let totalPassed = 0;
   let totalFailed = 0;
@@ -61,7 +66,16 @@ function runConformanceHarness() {
 
   for (const filePath of files) {
     const relativePath = path.relative(CONFORMANCE_ROOT, filePath);
-    const testCases = loadYamlFile(filePath);
+    let testCases;
+    try {
+      testCases = loadYamlFile(filePath);
+    } catch (err) {
+      totalFailed++;
+      const failMessage = `  ✗ FAILED to load ${relativePath}: ${err.message}`;
+      console.error(failMessage);
+      failures.push({file: relativePath, name: 'YAML Parsing', error: err.message});
+      continue;
+    }
 
     if (!Array.isArray(testCases)) {
       console.warn(`[SKIP] ${relativePath}: Content is not an array of test cases.`);
