@@ -280,8 +280,6 @@
     - '"Button": {}'
     - "---END A2UI JSON SCHEMA---"
 
-# --- New Tests requested by User ---
-
 - name: test_schema_manager_init_custom_catalog
   description: Tests that A2uiSchemaManager can load a custom catalog from path.
   action: load_catalog
@@ -342,12 +340,13 @@
             "createSurface": {
               "surfaceId": "main",
               "catalogId": "basic",
-              "components": {
-                "root": {
+              "components": [
+                {
+                  "id": "root",
                   "component": "Text",
                   "text": "Welcome to A2UI v1.0"
                 }
-              }
+              ]
             }
           }
         ]
@@ -360,6 +359,6 @@
                 surfaceId: "main"
                 catalogId: "basic"
                 components:
-                  root:
+                  - id: "root"
                     component: "Text"
                     text: "Welcome to A2UI v1.0"
