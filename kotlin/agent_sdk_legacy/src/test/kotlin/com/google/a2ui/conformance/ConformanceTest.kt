@@ -386,8 +386,9 @@ class ConformanceTest {
       val args = case[ConformanceTestHelper.KEY_ARGS] as? Map<*, *> ?: emptyMap<Any, Any>()
 
       val catalogMap = case[ConformanceTestHelper.KEY_CATALOG] as? Map<*, *>
-      val versionStr = (catalogMap?.get("version") as? String) ?: (args["version"] as? String)
-      if (versionStr == "1.0") return@mapNotNull null
+      val versionStr = (catalogMap?.get("version") as? String) ?: (args["version"] as? String) ?: "0.8"
+      if (versionStr !in SUPPORTED_SPEC_VERSIONS) return@mapNotNull null
+      if (name in SKIP_TEST_NAMES) return@mapNotNull null
       if (action !in setOf("select_catalog", "load_catalog", "generate_prompt")) return@mapNotNull null
 
       DynamicTest.dynamicTest(name) {
@@ -716,6 +717,9 @@ class ConformanceTest {
   }
 
   private companion object {
+    private val SUPPORTED_SPEC_VERSIONS = setOf("0.8", "0.9")
+    private val SKIP_TEST_NAMES = setOf<String>()
+
     private const val STREAMING_PARSER_YAML_FILE = "agent/streaming_parser.yaml"
     private const val SIMPLIFIED_CATALOG_V09 = "simplified_catalog_v09.json"
     private const val URL_PREFIX_V09 = "https://a2ui.org/specification/v0_9/"

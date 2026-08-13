@@ -26,6 +26,12 @@ const CONFORMANCE_ROOT =
 const CORE_DIR = path.join(CONFORMANCE_ROOT, 'core');
 const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
 
+// Supported spec versions for Web Core TypeScript harness
+const SUPPORTED_SPEC_VERSIONS = new Set(['0.8', '0.9', '1.0']);
+
+// Transition skip list: add test case names here during active feature implementation
+const SKIP_TEST_NAMES = new Set([]);
+
 function findYamlFiles(dir) {
   let results = [];
   if (!fs.existsSync(dir)) return results;
@@ -62,6 +68,7 @@ function runConformanceHarness() {
   let totalTests = 0;
   let totalPassed = 0;
   let totalFailed = 0;
+  let totalSkipped = 0;
   const failures = [];
 
   for (const filePath of files) {
@@ -85,8 +92,22 @@ function runConformanceHarness() {
     console.log(`\n📄 Suite: ${relativePath} (${testCases.length} test cases)`);
 
     for (const testCase of testCases) {
+      const {name, action, catalog, args} = testCase;
+      const version = catalog?.version || args?.version || '0.8';
+
+      if (!SUPPORTED_SPEC_VERSIONS.has(version)) {
+        totalSkipped++;
+        console.log(`  ⁃ [SKIPPED] ${name} (version ${version} not in SUPPORTED_SPEC_VERSIONS)`);
+        continue;
+      }
+
+      if (SKIP_TEST_NAMES.has(name)) {
+        totalSkipped++;
+        console.log(`  ⁃ [SKIPPED] ${name}`);
+        continue;
+      }
+
       totalTests++;
-      const {name, action} = testCase;
 
       try {
         if (!name || !action) {
@@ -128,7 +149,9 @@ function runConformanceHarness() {
   }
 
   console.log('\n=====================================================');
-  console.log(`Conformance Summary: ${totalPassed}/${totalTests} Passed (${totalFailed} Failed)`);
+  console.log(
+    `Conformance Summary: ${totalPassed}/${totalTests} Passed (${totalFailed} Failed, ${totalSkipped} Skipped)`
+  );
   console.log('=====================================================');
 
   if (totalFailed > 0) {

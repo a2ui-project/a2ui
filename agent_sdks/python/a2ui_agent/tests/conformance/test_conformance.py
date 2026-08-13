@@ -48,6 +48,9 @@ CATEGORY_TO_EXCEPTION = {
     "CompileError": A2uiCompileError,
 }
 
+SUPPORTED_SPEC_VERSIONS = {"0.8", "0.9", "1.0"}
+SKIP_TEST_NAMES = set()
+
 
 @contextlib.contextmanager
 def assert_raises(expect_error):
@@ -169,7 +172,17 @@ def assert_parts_match(actual_parts, expected_parts):
 
 def get_conformance_cases(filename):
     cases = load_tests(filename)
-    return [(case["name"], case) for case in cases]
+    filtered = []
+    for case in cases:
+        name = case.get("name")
+        catalog = case.get("catalog", {}) if isinstance(case.get("catalog"), dict) else {}
+        args = case.get("args", {}) if isinstance(case.get("args"), dict) else {}
+        version = str(catalog.get("version") or args.get("version") or "0.8")
+
+        if version not in SUPPORTED_SPEC_VERSIONS or name in SKIP_TEST_NAMES:
+            continue
+        filtered.append((name, case))
+    return filtered
 
 
 # --- Streaming Parser Conformance ---
