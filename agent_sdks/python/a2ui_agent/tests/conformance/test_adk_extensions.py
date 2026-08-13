@@ -21,12 +21,12 @@ import pytest
 
 def _get_conformance_path(filename):
     return os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "../../../../conformance", filename)
+        os.path.join(os.path.dirname(__file__), "../../../../../conformance", filename)
     )
 
 
 def load_tests(filename):
-    path = _get_conformance_path(os.path.join("suites", filename))
+    path = _get_conformance_path(filename)
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
@@ -37,7 +37,7 @@ def get_conformance_cases(filename):
 
 
 # --- ADK Extensions Conformance ---
-cases_adk_extensions = get_conformance_cases("adk_extensions.yaml")
+cases_adk_extensions = get_conformance_cases("extensions/adk/adk_extensions.yaml")
 
 
 @pytest.mark.parametrize(

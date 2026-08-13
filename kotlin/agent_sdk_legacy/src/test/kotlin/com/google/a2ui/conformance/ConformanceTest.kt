@@ -711,16 +711,16 @@ class ConformanceTest {
   }
 
   private companion object {
-    private const val STREAMING_PARSER_YAML_FILE = "suites/streaming_parser.yaml"
+    private const val STREAMING_PARSER_YAML_FILE = "agent/streaming_parser.yaml"
     private const val SIMPLIFIED_CATALOG_V09 = "simplified_catalog_v09.json"
     private const val URL_PREFIX_V09 = "https://a2ui.org/specification/v0_9/"
     private const val URL_PREFIX_V08 = "https://a2ui.org/specification/v0_8/"
     private const val VERSION_0_8_STR = "0.8"
     private const val TEST_CATALOG_NAME = "test_catalog"
-    private const val VALIDATOR_YAML_FILE = "suites/validator.yaml"
-    private const val CATALOG_YAML_FILE = "suites/catalog.yaml"
-    private const val SCHEMA_MANAGER_YAML_FILE = "suites/inference_format.yaml"
-    private const val PARSER_YAML_FILE = "suites/parser.yaml"
+    private const val VALIDATOR_YAML_FILE = "core/validator.yaml"
+    private const val CATALOG_YAML_FILE = "core/catalog.yaml"
+    private const val SCHEMA_MANAGER_YAML_FILE = "agent/inference_format.yaml"
+    private const val PARSER_YAML_FILE = "agent/parser.yaml"
 
     private const val KEY_EXPECT_CONTAINS = "expect_contains"
     private const val KEY_INPUT = "input"

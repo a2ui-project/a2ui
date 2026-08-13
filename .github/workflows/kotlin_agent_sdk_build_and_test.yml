@@ -22,13 +22,13 @@ on:
       - "kotlin/agent_sdk_legacy/**"
       - "specification/**/json/**"
       - "specification/inference_formats/**"
-      - "agent_sdks/conformance/**"
+      - "conformance/**"
   pull_request:
     paths:
       - "kotlin/agent_sdk_legacy/**"
       - "specification/**/json/**"
       - "specification/inference_formats/**"
-      - "agent_sdks/conformance/**"
+      - "conformance/**"
 
 permissions:
   contents: read
