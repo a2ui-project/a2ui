@@ -367,6 +367,11 @@ export default function App() {
               <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
                 {[
                   {
+                    label: '📊 User Evaluation',
+                    prompt: 'show user evaluation',
+                    desc: 'Composite review & goals dashboard',
+                  },
+                  {
                     label: '👤 User Profile',
                     prompt: 'show user profile',
                     desc: 'Single card profile',

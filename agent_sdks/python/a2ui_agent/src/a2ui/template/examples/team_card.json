@@ -10,7 +10,30 @@
     "members": {
       "type": "array",
       "title": "Team Members List",
-      "description": "Static array of team member objects with userId, userName, role.",
+      "description": "List of team member objects with userId, userName, role.",
+      "items": {
+        "type": "object",
+        "title": "Team Member",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "title": "User ID",
+            "description": "Unique identifier of the user"
+          },
+          "userName": {
+            "type": "string",
+            "title": "User Name",
+            "description": "Full name of the user"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role Name",
+            "description": "Job title or role of the user",
+            "default": "Member"
+          }
+        },
+        "required": ["userId", "userName"]
+      },
       "dynamic": false
     }
   },
@@ -60,9 +83,21 @@
   "sampleData": {
     "teamName": "Antigravity Devs",
     "members": [
-      {"userId": "usr_101", "userName": "Alice Smith", "role": "Lead Architect"},
-      {"userId": "usr_102", "userName": "Bob Jones", "role": "Senior Engineer"},
-      {"userId": "usr_103", "userName": "Charlie Brown", "role": "Product Manager"}
+      {
+        "userId": "usr_101",
+        "userName": "Alice Smith",
+        "role": "Lead Architect"
+      },
+      {
+        "userId": "usr_102",
+        "userName": "Bob Jones",
+        "role": "Senior Engineer"
+      },
+      {
+        "userId": "usr_103",
+        "userName": "Charlie Brown",
+        "role": "Product Manager"
+      }
     ]
   }
 }

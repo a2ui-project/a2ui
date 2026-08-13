@@ -10,7 +10,30 @@
     "goals": {
       "type": "array",
       "title": "Goals List",
-      "description": "A static array of goal objects. Each goal object must have title, targetDate, and optionally priority.",
+      "description": "Array of goal objects with title, priority, and targetDate.",
+      "items": {
+        "type": "object",
+        "title": "Goal Definition",
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Goal Title",
+            "description": "Summary title of the objective"
+          },
+          "priority": {
+            "type": "string",
+            "title": "Priority Level",
+            "enum": ["High", "Medium", "Low"],
+            "default": "Medium"
+          },
+          "targetDate": {
+            "type": "string",
+            "title": "Target Date",
+            "description": "Target completion date (YYYY-MM-DD)"
+          }
+        },
+        "required": ["title"]
+      },
       "dynamic": false
     }
   },

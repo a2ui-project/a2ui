@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { chromium } from 'playwright';
+import {chromium} from 'playwright';
 
 async function runE2ETest() {
   console.log(
-    '🚀 Starting A2UI Templates End-to-End Test (Presets + Inspector + Template Library + Live LLM)...'
+    '🚀 Starting A2UI Templates End-to-End Test (Presets + Inspector + Template Library + Live LLM)...',
   );
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({headless: true});
   const page = await browser.newPage();
 
   const pageErrors = [];
-  page.on('pageerror', (err) => {
+  page.on('pageerror', err => {
     console.error('❌ Page Error:', err.message);
     pageErrors.push(err.message);
   });
@@ -31,7 +31,7 @@ async function runE2ETest() {
   try {
     // 1. Navigate to client
     console.log('🌐 Navigating to http://localhost:5173...');
-    await page.goto('http://localhost:5173', { waitUntil: 'networkidle', timeout: 15000 });
+    await page.goto('http://localhost:5173', {waitUntil: 'networkidle', timeout: 15000});
 
     const title = await page.textContent('h1');
     console.log(`✅ Loaded application: "${title?.trim()}"`);
@@ -57,7 +57,7 @@ async function runE2ETest() {
       for (const expected of expectedContents) {
         if (!bodyText.includes(expected)) {
           throw new Error(
-            `Expected text "${expected}" not found in rendered DOM for preset "${buttonText}".`
+            `Expected text "${expected}" not found in rendered DOM for preset "${buttonText}".`,
           );
         }
         console.log(`   ✓ Found rendered text: "${expected}"`);
@@ -130,7 +130,10 @@ async function runE2ETest() {
     await page.waitForTimeout(1000);
 
     let libraryBody = await page.textContent('body');
-    if (!libraryBody.includes('Declared Templates') || !libraryBody.includes('Inflated UI Preview')) {
+    if (
+      !libraryBody.includes('Declared Templates') ||
+      !libraryBody.includes('Inflated UI Preview')
+    ) {
       throw new Error(`Template Library studio failed to load:\n${libraryBody}`);
     }
     console.log('   ✓ Template Library screen mounted');
@@ -183,9 +186,12 @@ async function runE2ETest() {
       throw new Error(`Live LLM request failed with error in client:\n${liveBodyText}`);
     }
 
-    if (!liveBodyText.includes('Cloud Platform') && !liveBodyText.includes('Strategic Objectives')) {
+    if (
+      !liveBodyText.includes('Cloud Platform') &&
+      !liveBodyText.includes('Strategic Objectives')
+    ) {
       throw new Error(
-        `Expected live generated goal card not found in rendered DOM:\n${liveBodyText}`
+        `Expected live generated goal card not found in rendered DOM:\n${liveBodyText}`,
       );
     }
     console.log('   ✓ Live LLM generated card rendered cleanly in DOM!');
@@ -201,7 +207,7 @@ async function runE2ETest() {
   }
 }
 
-runE2ETest().catch((err) => {
+runE2ETest().catch(err => {
   console.error('\n❌ E2E TEST FAILED:', err);
   process.exit(1);
 });

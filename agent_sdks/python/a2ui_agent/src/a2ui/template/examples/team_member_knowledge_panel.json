@@ -14,15 +14,17 @@
       "dynamic": true
     },
     "experienceYears": {
-      "type": "number",
+      "type": "integer",
       "title": "Years of Experience",
       "description": "The number of years of professional experience.",
+      "minimum": 0,
       "dynamic": true
     },
     "completedTasks": {
-      "type": "number",
+      "type": "integer",
       "title": "Completed Tasks Count",
       "description": "The count of completed tasks or tickets.",
+      "minimum": 0,
       "dynamic": true
     }
   },

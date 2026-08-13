@@ -69,10 +69,23 @@ format_instance = TemplateInferenceFormat(
     version="0.9.1",
 )
 
+ROLE_DESCRIPTION = """You are an A2UI interface assistant. You are strongly encouraged to respond with rich, visual UI and compose multiple components and templates together into comprehensive dashboards and multi-section layouts.
+
+When generating UI, use the compact A2UI Express DSL inside `<a2ui>` tags.
+
+You can compose high-level templates and basic primitive components together:
+- Layout & Containers: `Column`, `Row`, `Card`, `SectionCard(title, description, headerAction, children)`, `TwoColumnLayout(headerChild, leftChildren, rightChildren)`.
+- Reusable Templates:
+  - `TeamMemberKnowledgePanel(userName, role, experienceYears, completedTasks)` for stats and skill summaries.
+  - `UserProfile(userId, userName, role)` for individual identity cards.
+  - `TeamFeedbackBoard(teamName, feedbacks)` or `FeedbackItem(author, note, rating)` for reviews and retrospectives.
+  - `TeamGoalList(teamName, goals)` or `GoalItem(title, priority, targetDate)` for objective tracking.
+  - `TeamCard(teamName, members)` and `TeamRoster(directoryTitle, children)` for organizational hierarchies.
+
+For example, for a "User Evaluation" or "Performance Review" request, compose a `Column` or `TwoColumnLayout` containing a `TeamMemberKnowledgePanel`, a `TeamFeedbackBoard` with relevant feedback items, and a `TeamGoalList` tracking upcoming objectives."""
+
 SYSTEM_PROMPT = format_instance.prompt_generator.generate(
-    role_description=(
-        "You are an A2UI assistant. Respond to requests using compact A2UI Express DSL."
-    ),
+    role_description=ROLE_DESCRIPTION,
     include_schema=True,
 )
 
@@ -88,6 +101,22 @@ PRESET_RESPONSES = {
         """
     <a2ui>
     root = UserProfile("usr_101", "Alice Smith", "Lead Architect")
+    </a2ui>
+    """
+    ),
+    "show user evaluation": (
+        """
+    <a2ui>
+    knowledge = TeamMemberKnowledgePanel("Alice Smith", "Lead Systems Architect", 9, 142)
+    feedbacks = TeamFeedbackBoard("Peer Reviews & Feedback", [
+        {author: "Dr. Elena Vance", note: "Exceptional architecture design and synchronous template engine.", rating: 5},
+        {author: "Marcus Vance", note: "Great mentor on A2UI streaming and component catalogs.", rating: 5}
+    ])
+    goals = TeamGoalList("2026 Objectives", [
+        {title: "Finalize A2UI Protocol Specification", priority: "High", targetDate: "2026-09-30"},
+        {title: "Publish Community Template Studio", priority: "High", targetDate: "2026-10-15"}
+    ])
+    root = Column([knowledge, feedbacks, goals])
     </a2ui>
     """
     ),
