@@ -168,7 +168,21 @@ class A2uiTemplateManager(InferenceFormat):
         elif isinstance(catalog, A2uiCatalog):
             self.base_catalog = catalog
         elif hasattr(catalog, "catalog_schema"):
-            self.base_catalog = catalog
+            s2c = getattr(catalog, "s2c_schema", None) or load_from_bundled_resource(
+                self.version, SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
+            )
+            common_types = getattr(
+                catalog, "common_types_schema", None
+            ) or load_from_bundled_resource(
+                self.version, COMMON_TYPES_SCHEMA_KEY, SPEC_VERSION_MAP
+            )
+            self.base_catalog = A2uiCatalog(
+                version=self.version,
+                name="custom",
+                catalog_schema=getattr(catalog, "catalog_schema"),
+                s2c_schema=s2c,
+                common_types_schema=common_types,
+            )
         else:
             s2c = load_from_bundled_resource(
                 self.version, SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
@@ -179,7 +193,7 @@ class A2uiTemplateManager(InferenceFormat):
             self.base_catalog = A2uiCatalog(
                 version=self.version,
                 name="custom",
-                catalog_schema=catalog,
+                catalog_schema=catalog if isinstance(catalog, dict) else {},
                 s2c_schema=s2c,
                 common_types_schema=common_types,
             )

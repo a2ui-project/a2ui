@@ -67,21 +67,22 @@ class TemplateProcessor:
             version: Target A2UI protocol version ("v0.9", "v0.9.1", or "v1.0").
         """
         self.templates: Dict[str, Template] = {t.template_id: t for t in templates}
-        if hasattr(base_catalog, "catalog_schema"):
-            self.base_catalog = base_catalog.catalog_schema
+        if base_catalog is not None and hasattr(base_catalog, "catalog_schema"):
+            self.base_catalog = getattr(base_catalog, "catalog_schema", {})
         elif isinstance(base_catalog, dict):
             self.base_catalog = base_catalog
         else:
             self.base_catalog = {}
         self.version = version
         if (
-            base_catalog
+            base_catalog is not None
             and hasattr(base_catalog, "catalog_schema")
-            and isinstance(base_catalog.catalog_schema, dict)
+            and isinstance(getattr(base_catalog, "catalog_schema", None), dict)
         ):
+            schema_dict = getattr(base_catalog, "catalog_schema")
             self.base_catalog_id = (
-                base_catalog.catalog_schema.get("$id")
-                or base_catalog.catalog_schema.get("id")
+                schema_dict.get("$id")
+                or schema_dict.get("id")
                 or "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
             )
         elif isinstance(base_catalog, dict):
@@ -230,30 +231,30 @@ class TemplateProcessor:
 
         def map_child_list(child_list: Any) -> Any:
             if isinstance(child_list, list):
-                res = []
+                res_list: List[Any] = []
                 for c_id in child_list:
                     is_slot, slot_val = resolve_slot(c_id)
                     if is_slot:
                         if isinstance(slot_val, list):
-                            res.extend(slot_val)
+                            res_list.extend(slot_val)
                         elif slot_val is not None:
-                            res.append(slot_val)
+                            res_list.append(slot_val)
                     else:
-                        res.append(map_id(c_id))
-                return res
+                        res_list.append(map_id(c_id))
+                return res_list
             elif isinstance(child_list, str):
                 is_slot, slot_val = resolve_slot(child_list)
                 if is_slot:
                     return slot_val
                 return map_id(child_list)
             elif isinstance(child_list, dict):
-                res = dict(child_list)
-                if "componentId" in res:
-                    is_slot, slot_val = resolve_slot(res["componentId"])
-                    res["componentId"] = (
-                        slot_val if is_slot else map_id(res["componentId"])
+                dict_res = dict(child_list)
+                if "componentId" in dict_res:
+                    is_slot, slot_val = resolve_slot(dict_res["componentId"])
+                    dict_res["componentId"] = (
+                        slot_val if is_slot else map_id(dict_res["componentId"])
                     )
-                return res
+                return dict_res
             return child_list
 
         def resolve_slot(val: Any) -> tuple[bool, Any]:
@@ -449,7 +450,7 @@ class TemplateProcessor:
             "boolean": f"{common_types_url}#/$defs/DynamicBoolean",
         }
 
-        target_ref = ref_map.get(p_type)
+        target_ref = ref_map.get(str(p_type)) if p_type is not None else None
         if not target_ref:
             res = dict(p_meta)
             res.pop("dynamic", None)
