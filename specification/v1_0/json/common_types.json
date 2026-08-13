@@ -10,7 +10,7 @@
     },
     "CallId": {
       "type": "string",
-      "description": "The unique identifier for an agent initiated function call."
+      "description": "The unique identifier for a function call."
     },
     "AccessibilityAttributes": {
       "type": "object",
@@ -241,7 +241,7 @@
     },
     "FunctionCall": {
       "type": "object",
-      "description": "Invokes a named function on the renderer.",
+      "description": "Invokes a named function.",
       "properties": {
         "call": {
           "type": "string",
@@ -318,21 +318,16 @@
                   "type": "string",
                   "description": "The name of the action to be dispatched to the agent."
                 },
+                "userMessage": {
+                  "$ref": "#/$defs/DynamicString",
+                  "description": "An optional human-readable message describing the action performed by the user, to present in conversation history or user feedback."
+                },
                 "context": {
                   "type": "object",
                   "description": "A JSON object containing the key-value pairs for the action context. Values can be literals or paths. Use literal values unless the value must be dynamically bound to the data model. Do NOT use paths for static IDs.",
                   "additionalProperties": {
                     "$ref": "#/$defs/DynamicValue"
                   }
-                },
-                "wantResponse": {
-                  "type": "boolean",
-                  "description": "If true, the renderer expects an actionResponse from the agent.",
-                  "default": false
-                },
-                "responsePath": {
-                  "type": "string",
-                  "description": "Optional JSON Pointer path where the renderer should save the response value in its local data model."
                 }
               },
               "required": ["name"],
@@ -344,7 +339,7 @@
         },
         {
           "type": "object",
-          "description": "Executes a local renderer-side function.",
+          "description": "Executes a renderer or agent-side function.",
           "properties": {
             "functionCall": {
               "$ref": "#/$defs/FunctionCall"
@@ -368,6 +363,32 @@
           "const": "root"
         }
       },
+      "additionalProperties": false
+    },
+    "FunctionResponse": {
+      "type": "object",
+      "description": "The return response matching a callAgentFunction or callRendererFunction invocation.",
+      "properties": {
+        "functionCallId": {
+          "$ref": "#/$defs/CallId",
+          "description": "The unique ID matching the initiating function call."
+        },
+        "value": {
+          "description": "The return value of the function."
+        },
+        "error": {
+          "type": "object",
+          "description": "An error object indicating failure of the function execution.",
+          "properties": {
+            "code": {"type": "string"},
+            "message": {"type": "string"}
+          },
+          "required": ["code", "message"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["functionCallId"],
+      "oneOf": [{"required": ["value"]}, {"required": ["error"]}],
       "additionalProperties": false
     }
   }

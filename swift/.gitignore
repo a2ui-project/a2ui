@@ -6,5 +6,7 @@ Packages/
 Package.pins
 Package.resolved
 *.xcodeproj
+!sample/A2UISampleClient.xcodeproj
+!sample/A2UISampleClient.xcodeproj/project.pbxproj
 .swiftpm
 .build/

@@ -40,9 +40,10 @@ def main() -> None:
     from google import genai  # type: ignore[import-not-found]
 
     client = genai.Client(api_key=api_key)
+    ref_name = os.environ.get("GITHUB_REF_NAME", "main")
 
     prompt = inspect.cleandoc(f"""
-        1. Clone the target repository: https://github.com/a2ui-project/a2ui (branch: main).
+        1. Clone the target repository: https://github.com/a2ui-project/a2ui (branch: {ref_name}).
         2. In your terminal sessions, export the required environment variables:
            export ISSUE_NUMBER="{issue_num}"
            export RECOMMENDATION_INDEX="{rec_idx}"
@@ -65,7 +66,10 @@ def main() -> None:
                         "domain": "api.github.com",
                         "transform": [{"Authorization": f"Bearer {gh_token}"}],
                     },
-                    {"domain": "github.com"},
+                    {
+                        "domain": "github.com",
+                        "transform": [{"Authorization": f"Bearer {gh_token}"}],
+                    },
                 ]
             },
         },
@@ -76,13 +80,26 @@ def main() -> None:
     # Poll for completion with a 30-second interval (max 60 minutes)
     max_attempts = 120
     attempts = 0
+    consecutive_failures = 0
     while interaction.status in ["in_progress", "queued"]:
         if attempts >= max_attempts:
             raise TimeoutError("Remediation interaction timed out after 60 minutes.")
         time.sleep(30)
-        interaction = client.interactions.get(id=interaction.id)
         attempts += 1
-        print(f"Current status: {interaction.status}...")
+        try:
+            interaction = client.interactions.get(id=interaction.id)
+            consecutive_failures = 0
+            print(f"Current status: {interaction.status}...")
+        except Exception as err:
+            consecutive_failures += 1
+            print(
+                "Transient error fetching interaction status"
+                f" ({consecutive_failures}/5): {err}"
+            )
+            if consecutive_failures >= 5:
+                raise RuntimeError(
+                    f"Failed to fetch interaction status 5 consecutive times: {err}"
+                ) from err
 
     print("--- Remediation Completed ---")
     print(interaction.output_text)

@@ -347,7 +347,7 @@ struct MessageProcessorTests {
           }
         }
         """)
-    let dataModel = processor.getClientDataModel()
+    let dataModel = processor.getRendererDataModel()
     #expect(dataModel != nil)
   }
 
@@ -363,20 +363,20 @@ struct MessageProcessorTests {
           }
         }
         """)
-    #expect(processor.getClientDataModel() == nil)
+    #expect(processor.getRendererDataModel() == nil)
   }
 
-  // MARK: - getClientCapabilities
+  // MARK: - getRendererCapabilities
 
-  @Test func getClientCapabilitiesReturnsSupportedCatalogIDs() throws {
+  @Test func getRendererCapabilitiesReturnsSupportedCatalogIDs() throws {
     let (processor, _) = try makeProcessor()
-    let caps = processor.getClientCapabilities()
+    let caps = processor.getRendererCapabilities()
     #expect(caps["v0.9.1"]?["supportedCatalogIds"]?.arrayValue?.first?.stringValue == "default")
   }
 
-  @Test func getClientCapabilitiesIncludesInlineCatalogs() throws {
+  @Test func getRendererCapabilitiesIncludesInlineCatalogs() throws {
     let (processor, _) = try makeProcessor()
-    let caps = processor.getClientCapabilities(
+    let caps = processor.getRendererCapabilities(
       options: MessageProcessor.CapabilitiesOptions(includeInlineCatalogs: true)
     )
     let inlineCatalogs = caps["v0.9.1"]?["inlineCatalogs"]?.arrayValue
@@ -386,7 +386,7 @@ struct MessageProcessorTests {
     #expect(firstCatalog?["components"]?["text"] != nil)
   }
 
-  @Test func getClientCapabilitiesTransformsRefDescriptions() throws {
+  @Test func getRendererCapabilitiesTransformsRefDescriptions() throws {
     let customSchema = try Schema(
       instance: """
         {
@@ -405,7 +405,7 @@ struct MessageProcessorTests {
       components: [ComponentAPI(name: "Custom", schema: customSchema)]
     )
     let processor = MessageProcessor(catalogs: [catalog])
-    let caps = processor.getClientCapabilities(
+    let caps = processor.getRendererCapabilities(
       options: MessageProcessor.CapabilitiesOptions(includeInlineCatalogs: true)
     )
 
@@ -418,7 +418,7 @@ struct MessageProcessorTests {
     #expect(titleProp?["type"] == nil)
   }
 
-  @Test func getClientCapabilitiesGeneratesFunctionsAndThemeSchema() throws {
+  @Test func getRendererCapabilitiesGeneratesFunctionsAndThemeSchema() throws {
     let funcSchema = try Schema(
       instance: """
         {
@@ -456,7 +456,7 @@ struct MessageProcessorTests {
       themeSchema: themeSchema
     )
     let processor = MessageProcessor(catalogs: [catalog])
-    let caps = processor.getClientCapabilities(
+    let caps = processor.getRendererCapabilities(
       options: MessageProcessor.CapabilitiesOptions(includeInlineCatalogs: true)
     )
 

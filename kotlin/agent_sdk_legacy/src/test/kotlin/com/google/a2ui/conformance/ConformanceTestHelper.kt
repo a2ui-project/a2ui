@@ -22,7 +22,7 @@ object ConformanceTestHelper {
   val repoRoot: File by lazy { findRepoRoot() }
 
   private const val SPECIFICATION_DIR = "specification"
-  const val CONFORMANCE_DIR_PATH = "agent_sdks/conformance/"
+  const val CONFORMANCE_DIR_PATH = "conformance/"
   private const val PROP_USER_DIR = "user.dir"
 
   const val KEY_NAME = "name"

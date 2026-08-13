@@ -57,7 +57,8 @@ For a detailed explanation of the methodology, lifecycle, and workflows, read th
 - **`blueprints/`**: Isolated central repository for language-agnostic module blueprints (`modules/`), feature blueprints (`features/`, `features/archived/`), codebase compliance blueprints (`codebases/`), and SDD skills (`skills/`).
 - **`docs/`**: Documentation hierarchy. Public site documentation published via MkDocs resides in `docs/public/`, while non-public contributor or internal documentation resides under `docs/` alongside `docs/scripts/`.
 - **`specification/`**: Versioned subdirectories (`v0_8/`, `v0_9/`, `v0_9_1/`, `v1_0/`) containing JSON schemas, component/function catalogs, and human-readable guides. The `specification/<version>/docs/a2ui_protocol.md` file is the most important source of truth for each protocol version, and the `specification/<version>/json` directory contains the associated schemas for the protocol.
-- **`agent_sdks/`**: Server integration SDKs for Python (`python/`) and core conformance tests (`conformance/`).
+- **`agent_sdks/`**: Server integration SDKs for Python (`python/`).
+- **`conformance/`**: Language-agnostic test suites (`core/`, `agent/`, `extensions/`) and test data (`test_data/`) for verifying behavioral parity across all SDK implementations.
 - **`kotlin/`**: Legacy Kotlin agent SDK (`agent_sdk_legacy/`).
 - **`renderers/`**: Shared core state logic (`web_core/`), Lit renderer (`lit/`), Angular renderer (`angular/`), React renderer (`react/`), markdown parser (`markdown/`), and placeholder for Flutter (`flutter/`).
 - **`samples/`**: Ready-to-run demo agents utilizing Python ADK (`agent/adk/`), MCP server (`agent/mcp/`), and sample clients (`client/lit/`, `client/angular/`, `client/react/`, `client/flutter/`).

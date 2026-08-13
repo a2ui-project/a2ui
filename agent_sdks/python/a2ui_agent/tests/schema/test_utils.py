@@ -117,6 +117,68 @@ class TestSchemaUtils(unittest.TestCase):
         }
         self.assertEqual(remove_strict_validation(schema), expected)
 
+    def test_catalog_schema_helper_extended(self):
+        from a2ui.schema.catalog import A2uiCatalog
+        from a2ui.schema.schema_helper import CatalogSchemaHelper
+
+        catalog = A2uiCatalog(
+            version="v0.9",
+            name="helper_test",
+            s2c_schema={},
+            common_types_schema={},
+            catalog_schema={
+                "catalogId": "test",
+                "components": {
+                    "CustomButton": {
+                        "type": "object",
+                        "description": "A test button component.",
+                        "properties": {
+                            "label": {"type": "string"},
+                            "action": {"$ref": "common_types.json#/$defs/Action"},
+                            "children": {"$ref": "common_types.json#/$defs/ChildList"},
+                            "child": {"$ref": "common_types.json#/$defs/Child"},
+                        },
+                    }
+                },
+                "functions": {
+                    "testFunc": {
+                        "type": "object",
+                        "description": "A test function.",
+                        "properties": {
+                            "args": {
+                                "type": "object",
+                                "properties": {
+                                    "param1": {
+                                        "type": "string",
+                                        "description": "Param 1",
+                                    }
+                                },
+                            }
+                        },
+                    }
+                },
+            },
+        )
+
+        helper = CatalogSchemaHelper(catalog)
+        self.assertEqual(
+            helper.get_component_description("CustomButton"), "A test button component."
+        )
+        self.assertEqual(
+            helper.get_function_description("testFunc"), "A test function."
+        )
+        self.assertEqual(helper.get_property_type("CustomButton", "action"), "Action")
+        self.assertEqual(
+            helper.get_property_type("CustomButton", "children"), "ChildList"
+        )
+        self.assertEqual(helper.get_property_type("CustomButton", "child"), "Child")
+        fn_prop_schema = helper.get_function_property_schema("testFunc", "param1")
+        self.assertEqual(fn_prop_schema, {"type": "string", "description": "Param 1"})
+
+        # Unsupported type should raise TypeError
+        with self.assertRaises(TypeError):
+            CatalogSchemaHelper("invalid_catalog_type")
+
 
 if __name__ == "__main__":
     unittest.main()

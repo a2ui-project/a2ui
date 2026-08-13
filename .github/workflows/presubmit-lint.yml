@@ -77,6 +77,8 @@ jobs:
       - uses: ./.github/actions/setup-python
       - name: Set up Dart (Lightweight)
         uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
+        with:
+          sdk: "3.12.2"
       - name: Run enforce-formatting check
         run: ./scripts/fix_format.sh --check
 

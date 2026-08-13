@@ -142,3 +142,4 @@ Package.resolved
 eval/logs/
 eval/iterative_format_optimizer/logs/
 eval/iterative_format_optimizer/skills/inference-format-optimizer/logs/
+/build-derived-data
