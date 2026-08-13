@@ -1,0 +1,81 @@
+{
+  "templateId": "SectionCard",
+  "parameters": {
+    "title": {
+      "type": "string",
+      "title": "Section Title",
+      "description": "Heading text for the section.",
+      "dynamic": true
+    },
+    "description": {
+      "type": "string",
+      "title": "Section Description",
+      "description": "Optional subtitle or explanatory text for the section.",
+      "default": "",
+      "dynamic": true
+    },
+    "headerAction": {
+      "type": "child",
+      "title": "Header Action Slot",
+      "description": "Optional single component ID (e.g. a Button) to render in the header row next to the title.",
+      "default": null
+    },
+    "children": {
+      "type": "children",
+      "title": "Section Body Children",
+      "description": "ChildList (array of child component IDs) rendered inside the section body container.",
+      "default": []
+    }
+  },
+  "components": [
+    {
+      "id": "root",
+      "component": "Card",
+      "child": "main_col"
+    },
+    {
+      "id": "main_col",
+      "component": "Column",
+      "children": ["header_row", "description_text", "divider", "body_container"]
+    },
+    {
+      "id": "header_row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "center",
+      "children": ["title_text", "action_slot"]
+    },
+    {
+      "id": "title_text",
+      "component": "Text",
+      "text": "${title}",
+      "variant": "h3"
+    },
+    {
+      "id": "action_slot",
+      "component": "Column",
+      "children": ["${headerAction}"]
+    },
+    {
+      "id": "description_text",
+      "component": "Text",
+      "text": "${description}",
+      "variant": "caption"
+    },
+    {
+      "id": "divider",
+      "component": "Divider",
+      "axis": "horizontal"
+    },
+    {
+      "id": "body_container",
+      "component": "Column",
+      "children": "${children}"
+    }
+  ],
+  "sampleData": {
+    "title": "Account Settings",
+    "description": "Manage your team preferences and integrations",
+    "children": []
+  }
+}

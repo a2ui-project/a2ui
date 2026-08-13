@@ -1,0 +1,135 @@
+{
+  "templateId": "TeamMemberKnowledgePanel",
+  "parameters": {
+    "userName": {
+      "type": "string",
+      "title": "User Display Name",
+      "description": "The full name of the team member.",
+      "dynamic": true
+    },
+    "role": {
+      "type": "string",
+      "title": "Role Name",
+      "description": "The operational role of the team member.",
+      "dynamic": true
+    },
+    "experienceYears": {
+      "type": "number",
+      "title": "Years of Experience",
+      "description": "The number of years of professional experience.",
+      "dynamic": true
+    },
+    "completedTasks": {
+      "type": "number",
+      "title": "Completed Tasks Count",
+      "description": "The count of completed tasks or tickets.",
+      "dynamic": true
+    }
+  },
+  "components": [
+    {
+      "id": "root",
+      "component": "Card",
+      "child": "panel_col"
+    },
+    {
+      "id": "panel_col",
+      "component": "Column",
+      "children": ["header_row", "divider", "stats_row", "footer_text"]
+    },
+    {
+      "id": "header_row",
+      "component": "Row",
+      "align": "center",
+      "children": ["badge_icon", "header_text"]
+    },
+    {
+      "id": "badge_icon",
+      "component": "Icon",
+      "name": "check"
+    },
+    {
+      "id": "header_text",
+      "component": "Text",
+      "text": "Competency: ${userName}",
+      "variant": "h4"
+    },
+    {
+      "id": "divider",
+      "component": "Divider",
+      "axis": "horizontal"
+    },
+    {
+      "id": "stats_row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "children": ["role_col", "exp_col", "tasks_col"]
+    },
+    {
+      "id": "role_col",
+      "component": "Column",
+      "align": "center",
+      "children": ["role_label", "role_val"]
+    },
+    {
+      "id": "role_label",
+      "component": "Text",
+      "text": "Role",
+      "variant": "caption"
+    },
+    {
+      "id": "role_val",
+      "component": "Text",
+      "text": "${role}",
+      "variant": "body"
+    },
+    {
+      "id": "exp_col",
+      "component": "Column",
+      "align": "center",
+      "children": ["exp_label", "exp_val"]
+    },
+    {
+      "id": "exp_label",
+      "component": "Text",
+      "text": "Experience",
+      "variant": "caption"
+    },
+    {
+      "id": "exp_val",
+      "component": "Text",
+      "text": "${experienceYears} Yrs",
+      "variant": "body"
+    },
+    {
+      "id": "tasks_col",
+      "component": "Column",
+      "align": "center",
+      "children": ["tasks_label", "tasks_val"]
+    },
+    {
+      "id": "tasks_label",
+      "component": "Text",
+      "text": "Tasks",
+      "variant": "caption"
+    },
+    {
+      "id": "tasks_val",
+      "component": "Text",
+      "text": "${completedTasks} Done",
+      "variant": "body"
+    },
+    {
+      "id": "footer_text",
+      "component": "Text",
+      "text": "Verified Core Contributor",
+      "variant": "caption"
+    }
+  ],
+  "sampleData": {
+    "userName": "Alice Smith",
+    "role": "Systems Architect",
+    "experienceYears": 9,
+    "completedTasks": 142
+  }
+}

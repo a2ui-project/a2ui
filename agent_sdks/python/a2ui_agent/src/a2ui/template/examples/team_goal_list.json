@@ -1,0 +1,61 @@
+{
+  "templateId": "TeamGoalList",
+  "parameters": {
+    "teamName": {
+      "type": "string",
+      "title": "Team Name",
+      "description": "The display name of the team whose goals are being listed.",
+      "dynamic": true
+    },
+    "goals": {
+      "type": "array",
+      "title": "Goals List",
+      "description": "A static array of goal objects. Each goal object must have title, targetDate, and optionally priority.",
+      "dynamic": false
+    }
+  },
+  "components": [
+    {
+      "id": "root",
+      "component": "Column",
+      "children": ["header_card", "goals_container"]
+    },
+    {
+      "id": "header_card",
+      "component": "Card",
+      "child": "header_row"
+    },
+    {
+      "id": "header_row",
+      "component": "Row",
+      "align": "center",
+      "children": ["trophy_icon", "header_text"]
+    },
+    {
+      "id": "trophy_icon",
+      "component": "Icon",
+      "name": "star"
+    },
+    {
+      "id": "header_text",
+      "component": "Text",
+      "text": "Strategic Objectives: ${teamName}",
+      "variant": "h2"
+    },
+    {
+      "id": "goals_container",
+      "component": "Column",
+      "children": {
+        "param": "goals",
+        "template": "GoalItem"
+      }
+    }
+  ],
+  "sampleData": {
+    "teamName": "A2UI Core Team",
+    "goals": [
+      { "title": "Implement bidirectional child/children container resolution", "priority": "High", "targetDate": "2026-07-15" },
+      { "title": "Upgrade all templates to standard Basic Catalog components", "priority": "High", "targetDate": "2026-07-10" }
+    ]
+  }
+}

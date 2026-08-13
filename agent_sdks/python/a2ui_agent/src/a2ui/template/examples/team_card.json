@@ -1,0 +1,68 @@
+{
+  "templateId": "TeamCard",
+  "parameters": {
+    "teamName": {
+      "type": "string",
+      "title": "Team Name",
+      "description": "The display name of the team.",
+      "dynamic": true
+    },
+    "members": {
+      "type": "array",
+      "title": "Team Members List",
+      "description": "Static array of team member objects with userId, userName, role.",
+      "dynamic": false
+    }
+  },
+  "components": [
+    {
+      "id": "root",
+      "component": "Card",
+      "child": "col"
+    },
+    {
+      "id": "col",
+      "component": "Column",
+      "children": ["header_row", "divider", "members_col"]
+    },
+    {
+      "id": "header_row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "center",
+      "children": ["team_title", "team_icon"]
+    },
+    {
+      "id": "team_title",
+      "component": "Text",
+      "text": "${teamName}",
+      "variant": "h3"
+    },
+    {
+      "id": "team_icon",
+      "component": "Icon",
+      "name": "person"
+    },
+    {
+      "id": "divider",
+      "component": "Divider",
+      "axis": "horizontal"
+    },
+    {
+      "id": "members_col",
+      "component": "Column",
+      "children": {
+        "param": "members",
+        "template": "UserProfile"
+      }
+    }
+  ],
+  "sampleData": {
+    "teamName": "Antigravity Devs",
+    "members": [
+      { "userId": "usr_101", "userName": "Alice Smith", "role": "Lead Architect" },
+      { "userId": "usr_102", "userName": "Bob Jones", "role": "Senior Engineer" },
+      { "userId": "usr_103", "userName": "Charlie Brown", "role": "Product Manager" }
+    ]
+  }
+}

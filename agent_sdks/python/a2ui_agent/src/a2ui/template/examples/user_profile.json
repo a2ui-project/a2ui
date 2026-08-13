@@ -1,0 +1,59 @@
+{
+  "templateId": "UserProfile",
+  "parameters": {
+    "userId": {
+      "type": "string",
+      "title": "User ID",
+      "description": "The unique identifier of the user (e.g. 'usr_123'). Supports dynamic data binding paths.",
+      "dynamic": true
+    },
+    "userName": {
+      "type": "string",
+      "title": "User Display Name",
+      "description": "The full name of the user. Supports dynamic data binding paths.",
+      "dynamic": true
+    },
+    "role": {
+      "type": "string",
+      "title": "Role Name",
+      "description": "The role or title of the user. Defaults to 'Member'. Supports dynamic data binding paths.",
+      "default": "Member",
+      "dynamic": true
+    }
+  },
+  "components": [
+    {
+      "id": "root",
+      "component": "Card",
+      "child": "col"
+    },
+    {
+      "id": "col",
+      "component": "Column",
+      "align": "center",
+      "children": ["avatar_icon", "name_text", "role_text"]
+    },
+    {
+      "id": "avatar_icon",
+      "component": "Icon",
+      "name": "accountCircle"
+    },
+    {
+      "id": "name_text",
+      "component": "Text",
+      "text": "${userName}",
+      "variant": "h4"
+    },
+    {
+      "id": "role_text",
+      "component": "Text",
+      "text": "${role}",
+      "variant": "caption"
+    }
+  ],
+  "sampleData": {
+    "userId": "usr_101",
+    "userName": "Alice Smith",
+    "role": "Lead Architect"
+  }
+}

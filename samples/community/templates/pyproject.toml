@@ -1,0 +1,16 @@
+[project]
+name = "a2ui-templates-demo-server"
+version = "0.1.0"
+description = "A2UI Templates Community Demo Server"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+    "google-genai>=1.0.0",
+    "a2ui-agent-sdk",
+    "a2ui-core"
+]
+
+[tool.uv.sources]
+a2ui-agent-sdk = { path = "../../../agent_sdks/python/a2ui_agent", editable = true }
+a2ui-core = { path = "../../../agent_sdks/python/a2ui_core", editable = true }

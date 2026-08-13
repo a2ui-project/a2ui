@@ -1,0 +1,61 @@
+{
+  "templateId": "TeamFeedbackBoard",
+  "parameters": {
+    "teamName": {
+      "type": "string",
+      "title": "Team Name",
+      "description": "The display name of the team whose feedback board is being rendered.",
+      "dynamic": true
+    },
+    "feedbacks": {
+      "type": "array",
+      "title": "Feedbacks List",
+      "description": "A static array of feedback objects. Each object must have author, note, and optionally rating.",
+      "dynamic": false
+    }
+  },
+  "components": [
+    {
+      "id": "root",
+      "component": "Column",
+      "children": ["header_card", "feedbacks_container"]
+    },
+    {
+      "id": "header_card",
+      "component": "Card",
+      "child": "header_row"
+    },
+    {
+      "id": "header_row",
+      "component": "Row",
+      "align": "center",
+      "children": ["chat_icon", "banner_text"]
+    },
+    {
+      "id": "chat_icon",
+      "component": "Icon",
+      "name": "mail"
+    },
+    {
+      "id": "banner_text",
+      "component": "Text",
+      "text": "Feedback & Retrospective: ${teamName}",
+      "variant": "h2"
+    },
+    {
+      "id": "feedbacks_container",
+      "component": "Column",
+      "children": {
+        "param": "feedbacks",
+        "template": "FeedbackItem"
+      }
+    }
+  ],
+  "sampleData": {
+    "teamName": "Streaming & Protocols Guild",
+    "feedbacks": [
+      { "author": "Dr. Elena Vance", "note": "Splitting createSurface and updateComponents cleanly unblocked sequential stream processing.", "rating": 5 },
+      { "author": "Marcus Vance", "note": "Unrolling nested lists statically in Python enables instant frontend mounting with zero runtime recursion.", "rating": 5 }
+    ]
+  }
+}

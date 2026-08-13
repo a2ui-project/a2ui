@@ -1,0 +1,98 @@
+{
+  "templateId": "GoalItem",
+  "parameters": {
+    "title": {
+      "type": "string",
+      "title": "Goal Title",
+      "description": "The main description of the objective. Supports dynamic data binding paths.",
+      "dynamic": true
+    },
+    "priority": {
+      "type": "string",
+      "title": "Priority Level",
+      "description": "The priority of the goal (e.g. 'High', 'Medium', 'Low'). Defaults to 'Medium'.",
+      "default": "Medium",
+      "dynamic": true
+    },
+    "targetDate": {
+      "type": "string",
+      "title": "Target Completion Date",
+      "description": "The target deadline for completing this goal.",
+      "dynamic": true
+    }
+  },
+  "components": [
+    {
+      "id": "root",
+      "component": "Card",
+      "child": "col"
+    },
+    {
+      "id": "col",
+      "component": "Column",
+      "children": ["header_row", "title_text", "divider", "footer_row"]
+    },
+    {
+      "id": "header_row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "center",
+      "children": ["priority_text", "goal_icon"]
+    },
+    {
+      "id": "priority_text",
+      "component": "Text",
+      "text": "Priority: ${priority}",
+      "variant": "caption"
+    },
+    {
+      "id": "goal_icon",
+      "component": "Icon",
+      "name": "star"
+    },
+    {
+      "id": "title_text",
+      "component": "Text",
+      "text": "${title}",
+      "variant": "h4"
+    },
+    {
+      "id": "divider",
+      "component": "Divider",
+      "axis": "horizontal"
+    },
+    {
+      "id": "footer_row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "center",
+      "children": ["date_text", "action_button"]
+    },
+    {
+      "id": "date_text",
+      "component": "Text",
+      "text": "Due: ${targetDate}",
+      "variant": "caption"
+    },
+    {
+      "id": "action_button",
+      "component": "Button",
+      "child": "btn_label",
+      "action": {
+        "event": {
+          "name": "view_goal_details"
+        }
+      }
+    },
+    {
+      "id": "btn_label",
+      "component": "Text",
+      "text": "View Details"
+    }
+  ],
+  "sampleData": {
+    "title": "Migrate to canonical workspaces and run verification suite",
+    "priority": "High",
+    "targetDate": "2026-07-15"
+  }
+}

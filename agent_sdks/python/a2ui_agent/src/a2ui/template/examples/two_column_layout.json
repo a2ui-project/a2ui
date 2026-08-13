@@ -1,0 +1,54 @@
+{
+  "templateId": "TwoColumnLayout",
+  "parameters": {
+    "headerChild": {
+      "type": "child",
+      "title": "Header Slot",
+      "description": "Single component ID to mount inside the top header banner.",
+      "default": null
+    },
+    "leftChildren": {
+      "type": "children",
+      "title": "Left Column Children",
+      "description": "ChildList (array of component IDs) for the left column.",
+      "default": []
+    },
+    "rightChildren": {
+      "type": "children",
+      "title": "Right Column Children",
+      "description": "ChildList (array of component IDs) for the right column.",
+      "default": []
+    }
+  },
+  "components": [
+    {
+      "id": "root",
+      "component": "Column",
+      "children": ["header_container", "columns_row"]
+    },
+    {
+      "id": "header_container",
+      "component": "Column",
+      "children": ["${headerChild}"]
+    },
+    {
+      "id": "columns_row",
+      "component": "Row",
+      "children": ["left_col", "right_col"]
+    },
+    {
+      "id": "left_col",
+      "component": "Column",
+      "children": "${leftChildren}"
+    },
+    {
+      "id": "right_col",
+      "component": "Column",
+      "children": "${rightChildren}"
+    }
+  ],
+  "sampleData": {
+    "leftChildren": [],
+    "rightChildren": []
+  }
+}
