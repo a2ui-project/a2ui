@@ -219,7 +219,8 @@ class FileResolver:
                         for pattern in self.allowed_hosts
                     ):
                         raise FileResolverSecurityError(
-                            f"Redirected host '{redirect_host}' is not permitted by security policy"
+                            f"Redirected host '{redirect_host}' is not permitted by"
+                            " security policy"
                         )
                 response.raise_for_status()
                 async for chunk in response.aiter_bytes():

@@ -413,9 +413,7 @@ async def test_security_allowed_hosts_redirect_blocked():
             "fileId": "https://trusted.org/redirect-me",
             "mimeType": "application/pdf",
         })
-    assert "Redirected host 'evil-redirect.com' is not permitted" in str(
-        exc_info.value
-    )
+    assert "Redirected host 'evil-redirect.com' is not permitted" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
