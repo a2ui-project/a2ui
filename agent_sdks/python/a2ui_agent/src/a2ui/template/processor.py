@@ -231,6 +231,8 @@ class TemplateProcessor:
                 ],
                 "unevaluatedProperties": False,
             }
+            if template.description:
+                template_schema["description"] = template.description
 
             synthetic_catalog["components"][t_id] = template_schema
             synthetic_catalog["$defs"]["anyComponent"]["oneOf"].append(

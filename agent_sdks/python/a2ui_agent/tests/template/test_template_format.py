@@ -481,3 +481,20 @@ def test_template_definition_schema_rejection_for_invalid_template():
     }
     with pytest.raises(ValueError, match="fails template_definition.json schema"):
         Template.from_dict(invalid_tmpl)
+
+
+def test_synthetic_catalog_generation_includes_descriptions():
+    user_profile = load_example("user_profile")
+    team_card = load_example("team_card")
+    processor = TemplateProcessor(templates=[user_profile, team_card])
+
+    synthetic_cat = processor.generate_inference_catalog()
+    assert "UserProfile" in synthetic_cat["components"]
+    assert (
+        synthetic_cat["components"]["UserProfile"].get("description")
+        == user_profile.description
+    )
+    assert (
+        synthetic_cat["components"]["TeamCard"].get("description")
+        == team_card.description
+    )
