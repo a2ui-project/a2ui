@@ -34,12 +34,6 @@ CONFORMANCE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SCHEMA_PATH = os.path.join(CONFORMANCE_DIR, "conformance_schema.json")
 SCHEMA = load_json_file(SCHEMA_PATH)
 
-# Set of A2UI specification versions supported by this PyTest schema validation harness.
-SUPPORTED_SPEC_VERSIONS = {"0.8", "0.9", "1.0"}
-
-# Transition skip list containing specific test case names to skip during active feature transitions.
-SKIP_TEST_NAMES = set()
-
 
 def get_yaml_files():
     files = []
@@ -57,17 +51,3 @@ def test_validate_conformance_yaml(yaml_path):
         jsonschema.validate(instance=yaml_data, schema=SCHEMA)
     except jsonschema.ValidationError as e:
         pytest.fail(f"{basename} failed schema validation: {e.message}")
-
-    if isinstance(yaml_data, list):
-        for item in yaml_data:
-            if not isinstance(item, dict):
-                continue
-            name = item.get("name")
-            catalog = (
-                item.get("catalog", {}) if isinstance(item.get("catalog"), dict) else {}
-            )
-            args = item.get("args", {}) if isinstance(item.get("args"), dict) else {}
-            version = catalog.get("version") or args.get("version") or "0.8"
-
-            if version not in SUPPORTED_SPEC_VERSIONS or name in SKIP_TEST_NAMES:
-                pytest.skip(f"[SKIPPED] {name}")
