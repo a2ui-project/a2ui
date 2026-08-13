@@ -326,3 +326,40 @@
     - "### Catalog Schema:"
     - '"Text": {'
     - "---END A2UI JSON SCHEMA---"
+
+- name: test_agent_v1_0_direct_json_envelope_parsing
+  description: Verifies parsing Direct JSON v1.0 payload envelopes wrapped in <a2ui-json> sentinel tags.
+  catalog:
+    version: "1.0"
+  action: process_chunk
+  steps:
+    - input: |
+        Here is the requested user interface:
+        <a2ui-json>
+        [
+          {
+            "version": "v1.0",
+            "createSurface": {
+              "surfaceId": "main",
+              "catalogId": "basic",
+              "components": {
+                "root": {
+                  "component": "Text",
+                  "text": "Welcome to A2UI v1.0"
+                }
+              }
+            }
+          }
+        ]
+        </a2ui-json>
+      expect:
+        - text: "Here is the requested user interface:\n"
+          a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "main"
+                catalogId: "basic"
+                components:
+                  root:
+                    component: "Text"
+                    text: "Welcome to A2UI v1.0"
