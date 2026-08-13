@@ -14,19 +14,22 @@
 
 import A2UICore
 import JSONSchema
-import JSONSchemaBuilder
 
 public struct NotFunction: FunctionImplementation, Sendable {
   public let api = FunctionAPI(
     name: "not",
     returnType: .boolean,
-    schema: JSONObject {
-      JSONProperty(key: "value") {
-        JSONBoolean()
-      }
-      .required()
-    }
-    .definition()
+    schema: try! Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "value": { "type": "boolean" }
+          },
+          "required": ["value"]
+        }
+        """
+    )
   )
 
   public init() {}

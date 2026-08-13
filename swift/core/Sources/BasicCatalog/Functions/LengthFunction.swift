@@ -15,22 +15,24 @@
 import A2UICore
 import JSONSchema
 
-public struct OrFunction: FunctionImplementation, Sendable {
+public struct LengthFunction: FunctionImplementation, Sendable {
   public let api = FunctionAPI(
-    name: "or",
+    name: "length",
     returnType: .boolean,
     schema: try! Schema(
       instance: """
         {
           "type": "object",
           "properties": {
-            "values": {
-              "type": "array",
-              "items": { "type": "boolean" },
-              "minItems": 2
-            }
+            "value": { "type": "string" },
+            "min": { "type": "integer", "minimum": 0 },
+            "max": { "type": "integer", "minimum": 0 }
           },
-          "required": ["values"]
+          "required": ["value"],
+          "anyOf": [
+            { "required": ["min"] },
+            { "required": ["max"] }
+          ]
         }
         """
     )
@@ -39,12 +41,17 @@ public struct OrFunction: FunctionImplementation, Sendable {
   public init() {}
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
-    guard let values = arguments["values"]?.arrayValue else { return .boolean(false) }
-    for v in values {
-      if v.boolValue == true {
-        return .boolean(true)
-      }
+    guard let valueStr = arguments["value"]?.stringValue else { return .boolean(false) }
+    let count = valueStr.count
+
+    if let minVal = arguments["min"]?.intValue, count < minVal {
+      return .boolean(false)
     }
-    return .boolean(false)
+
+    if let maxVal = arguments["max"]?.intValue, count > maxVal {
+      return .boolean(false)
+    }
+
+    return .boolean(true)
   }
 }

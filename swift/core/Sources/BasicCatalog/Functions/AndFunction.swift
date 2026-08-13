@@ -14,22 +14,26 @@
 
 import A2UICore
 import JSONSchema
-import JSONSchemaBuilder
 
 public struct AndFunction: FunctionImplementation, Sendable {
   public let api = FunctionAPI(
     name: "and",
     returnType: .boolean,
-    schema: JSONObject {
-      JSONProperty(key: "values") {
-        JSONArray {
-          JSONBoolean()
+    schema: try! Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "values": {
+              "type": "array",
+              "items": { "type": "boolean" },
+              "minItems": 2
+            }
+          },
+          "required": ["values"]
         }
-        .minItems(2)
-      }
-      .required()
-    }
-    .definition()
+        """
+    )
   )
 
   public init() {}
