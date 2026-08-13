@@ -386,10 +386,12 @@ class ConformanceTest {
       val args = case[ConformanceTestHelper.KEY_ARGS] as? Map<*, *> ?: emptyMap<Any, Any>()
 
       val catalogMap = case[ConformanceTestHelper.KEY_CATALOG] as? Map<*, *>
-      val versionStr = (catalogMap?.get("version") as? String) ?: (args["version"] as? String) ?: "0.8"
+      val versionStr =
+        (catalogMap?.get("version") as? String) ?: (args["version"] as? String) ?: "0.8"
       if (versionStr !in SUPPORTED_SPEC_VERSIONS) return@mapNotNull null
       if (name in SKIP_TEST_NAMES) return@mapNotNull null
-      if (action !in setOf("select_catalog", "load_catalog", "generate_prompt")) return@mapNotNull null
+      if (action !in setOf("select_catalog", "load_catalog", "generate_prompt"))
+        return@mapNotNull null
 
       DynamicTest.dynamicTest(name) {
         when (action) {
@@ -717,13 +719,12 @@ class ConformanceTest {
   }
 
   private companion object {
-    /**
-     * Set of A2UI specification versions supported by this legacy Kotlin conformance harness.
-     */
+    /** Set of A2UI specification versions supported by this legacy Kotlin conformance harness. */
     private val SUPPORTED_SPEC_VERSIONS = setOf("0.8", "0.9")
 
     /**
-     * Transition skip list containing specific test case names to skip during active feature transitions.
+     * Transition skip list containing specific test case names to skip during active feature
+     * transitions.
      */
     private val SKIP_TEST_NAMES = setOf<String>()
 
