@@ -14,21 +14,22 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import {fileURLToPath} from 'node:url';
 import yaml from 'js-yaml';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Root conformance folder: <repo_root>/conformance
-const CONFORMANCE_ROOT = process.env.CONFORMANCE_ROOT || path.resolve(__dirname, '../../../../conformance');
+const CONFORMANCE_ROOT =
+  process.env.CONFORMANCE_ROOT || path.resolve(__dirname, '../../../../conformance');
 const CORE_DIR = path.join(CONFORMANCE_ROOT, 'core');
 const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
 
 function findYamlFiles(dir) {
   let results = [];
   if (!fs.existsSync(dir)) return results;
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  const entries = fs.readdirSync(dir, {withFileTypes: true});
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
@@ -71,7 +72,7 @@ function runConformanceHarness() {
 
     for (const testCase of testCases) {
       totalTests++;
-      const { name, description, action } = testCase;
+      const {name, action} = testCase;
 
       try {
         if (!name || !action) {
@@ -107,7 +108,7 @@ function runConformanceHarness() {
         totalFailed++;
         const failMessage = `  ✗ FAILED: ${name} - ${err.message}`;
         console.error(failMessage);
-        failures.push({ file: relativePath, name, error: err.message });
+        failures.push({file: relativePath, name, error: err.message});
       }
     }
   }
@@ -129,35 +130,37 @@ function runConformanceHarness() {
 }
 
 function validateRpcTestCase(testCase) {
-  const { args, expect } = testCase;
+  const {args, expect} = testCase;
   if (!args) throw new Error('handle_rpc test requires "args" object.');
   if (!expect) throw new Error('handle_rpc test requires "expect" object.');
 }
 
 function validateSelectCatalogTestCase(testCase) {
-  const { args, expect_selected, expect_catalog_schema, expect_error } = testCase;
+  const {args, expect_selected, expect_catalog_schema, expect_error} = testCase;
   if (!args) throw new Error('select_catalog test requires "args" object.');
   if (!expect_selected && !expect_catalog_schema && !expect_error) {
-    throw new Error('select_catalog test requires "expect_selected", "expect_catalog_schema", or "expect_error".');
+    throw new Error(
+      'select_catalog test requires "expect_selected", "expect_catalog_schema", or "expect_error".',
+    );
   }
 }
 
 function validateValidateTestCase(testCase) {
-  const { steps, payload, expect_error, expect_data_model } = testCase;
+  const {steps, payload, expect_error, expect_data_model} = testCase;
   if (!steps && !payload && !expect_error && !expect_data_model) {
     throw new Error('validate test case missing input payload/steps or assertions.');
   }
 }
 
 function validateProcessChunkTestCase(testCase) {
-  const { steps } = testCase;
+  const {steps} = testCase;
   if (!steps || !Array.isArray(steps)) {
     throw new Error('process_chunk test case requires "steps" array.');
   }
 }
 
 function validateAccessibilityCheckTestCase(testCase) {
-  const { surface, assertions } = testCase;
+  const {surface, assertions} = testCase;
   if (!surface) throw new Error('accessibility_check test case requires "surface" object.');
   if (!assertions) throw new Error('accessibility_check test case requires "assertions" object.');
 }
