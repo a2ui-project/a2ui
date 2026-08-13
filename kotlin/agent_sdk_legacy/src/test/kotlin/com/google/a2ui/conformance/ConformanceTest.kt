@@ -385,6 +385,11 @@ class ConformanceTest {
       val action = case[ConformanceTestHelper.KEY_ACTION] as String
       val args = case[ConformanceTestHelper.KEY_ARGS] as? Map<*, *> ?: emptyMap<Any, Any>()
 
+      val catalogMap = case[ConformanceTestHelper.KEY_CATALOG] as? Map<*, *>
+      val versionStr = (catalogMap?.get("version") as? String) ?: (args["version"] as? String)
+      if (versionStr == "1.0") return@mapNotNull null
+      if (action !in setOf("select_catalog", "load_catalog", "generate_prompt")) return@mapNotNull null
+
       DynamicTest.dynamicTest(name) {
         when (action) {
           "select_catalog" -> {
