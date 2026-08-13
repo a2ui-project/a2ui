@@ -1,24 +1,22 @@
 {
   "templateId": "UserProfile",
+  "description": "Single user profile card with user icon, display name, and role.",
   "parameters": {
     "userId": {
       "type": "string",
       "title": "User ID",
-      "description": "The unique identifier of the user (e.g. 'usr_123'). Supports dynamic data binding paths.",
-      "dynamic": true
+      "description": "Unique identifier of the user (e.g. 'usr_101')."
     },
     "userName": {
       "type": "string",
       "title": "User Display Name",
-      "description": "The full name of the user. Supports dynamic data binding paths.",
-      "dynamic": true
+      "description": "The full name of the user."
     },
     "role": {
       "type": "string",
       "title": "Role Name",
-      "description": "The role or title of the user. Defaults to 'Member'. Supports dynamic data binding paths.",
-      "default": "Member",
-      "dynamic": true
+      "description": "The job title or role of the user.",
+      "default": "Member"
     }
   },
   "components": [
@@ -36,18 +34,18 @@
     {
       "id": "avatar_icon",
       "component": "Icon",
-      "name": "accountCircle"
+      "name": "person"
     },
     {
       "id": "name_text",
       "component": "Text",
-      "text": "${userName}",
-      "variant": "h4"
+      "text": {"param": "userName"},
+      "variant": "h3"
     },
     {
       "id": "role_text",
       "component": "Text",
-      "text": "${role}",
+      "text": {"param": "role"},
       "variant": "caption"
     }
   ],

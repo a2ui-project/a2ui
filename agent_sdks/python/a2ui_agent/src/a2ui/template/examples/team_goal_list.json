@@ -1,11 +1,11 @@
 {
   "templateId": "TeamGoalList",
+  "description": "List of team goals with header banner.",
   "parameters": {
     "teamName": {
       "type": "string",
       "title": "Team Name",
-      "description": "The display name of the team whose goals are being listed.",
-      "dynamic": true
+      "description": "The display name of the team whose goals are being listed."
     },
     "goals": {
       "type": "array",
@@ -21,9 +21,9 @@
             "description": "Summary title of the objective"
           },
           "priority": {
-            "type": "string",
+            "type": "enum",
             "title": "Priority Level",
-            "enum": ["High", "Medium", "Low"],
+            "values": ["High", "Medium", "Low"],
             "default": "Medium"
           },
           "targetDate": {
@@ -33,8 +33,7 @@
           }
         },
         "required": ["title"]
-      },
-      "dynamic": false
+      }
     }
   },
   "components": [
@@ -62,7 +61,7 @@
     {
       "id": "header_text",
       "component": "Text",
-      "text": "Strategic Objectives: ${teamName}",
+      "text": {"concat": ["Strategic Objectives: ", {"param": "teamName"}]},
       "variant": "h2"
     },
     {

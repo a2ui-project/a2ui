@@ -413,5 +413,71 @@ def test_template_runtime_schema_validation_rejection():
     assert expanded[0]["text"] == "Score: 85"
 
     # String passed instead of integer fails validation
-    with pytest.raises(ValueError, match="failed schema validation"):
+    with pytest.raises(ValueError, match="failed validation"):
         processor.expand_template("score_2", "StrictScore", {"score": "not_a_number"})
+
+
+def test_template_json_concat_and_format_expressions():
+    tmpl_data = {
+        "templateId": "FormattedCard",
+        "parameters": {
+            "title": {"type": "string"},
+            "level": {"type": "enum", "values": ["Senior", "Principal"]},
+            "years": {"type": "integer"},
+        },
+        "components": [
+            {
+                "id": "root",
+                "component": "Card",
+                "child": "txt",
+            },
+            {
+                "id": "txt",
+                "component": "Text",
+                "text": {
+                    "concat": [
+                        {"param": "level"},
+                        " ",
+                        {"param": "title"},
+                        " (",
+                        {"param": "years"},
+                        " yrs)",
+                    ]
+                },
+            },
+        ],
+        "sampleData": {
+            "title": "Engineer",
+            "level": "Principal",
+            "years": 10,
+        },
+    }
+
+    tmpl = Template.from_dict(tmpl_data)
+    processor = TemplateProcessor(templates=[tmpl])
+
+    expanded = processor.expand_template(
+        "inst_1",
+        "FormattedCard",
+        {"title": "Architect", "level": "Principal", "years": 12},
+    )
+    txt_comp = next(c for c in expanded if c["id"] == "inst_1_txt")
+    assert txt_comp["text"] == "Principal Architect (12 yrs)"
+
+    # Test invalid enum value
+    with pytest.raises(ValueError, match="failed validation"):
+        processor.expand_template(
+            "inst_2",
+            "FormattedCard",
+            {"title": "Architect", "level": "Junior", "years": 1},
+        )
+
+
+def test_template_definition_schema_rejection_for_invalid_template():
+    # Missing required 'components' field
+    invalid_tmpl = {
+        "templateId": "BadTemplate",
+        "parameters": {"name": {"type": "string"}},
+    }
+    with pytest.raises(ValueError, match="fails template_definition.json schema"):
+        Template.from_dict(invalid_tmpl)

@@ -1,12 +1,12 @@
 {
   "templateId": "TeamRoster",
+  "description": "Top-level directory container holding nested team cards or components.",
   "parameters": {
     "directoryTitle": {
       "type": "string",
       "title": "Directory Title",
       "description": "Main title text of the roster directory header.",
-      "default": "Organization Directory",
-      "dynamic": true
+      "default": "Organization Directory"
     },
     "children": {
       "type": "children",
@@ -24,33 +24,33 @@
     {
       "id": "title_banner",
       "component": "Card",
-      "child": "banner_row"
+      "child": "title_row"
     },
     {
-      "id": "banner_row",
+      "id": "title_row",
       "component": "Row",
       "align": "center",
-      "children": ["banner_icon", "banner_text"]
+      "children": ["org_icon", "dir_text"]
     },
     {
-      "id": "banner_icon",
+      "id": "org_icon",
       "component": "Icon",
       "name": "folder"
     },
     {
-      "id": "banner_text",
+      "id": "dir_text",
       "component": "Text",
-      "text": "${directoryTitle}",
+      "text": {"param": "directoryTitle"},
       "variant": "h2"
     },
     {
       "id": "roster_list",
       "component": "Column",
-      "children": "${children}"
+      "children": {"param": "children"}
     }
   ],
   "sampleData": {
-    "directoryTitle": "Engineering Teams Directory",
-    "children": ["team_card_1", "team_card_2"]
+    "directoryTitle": "Global Technology Roster",
+    "children": []
   }
 }

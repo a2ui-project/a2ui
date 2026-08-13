@@ -1,22 +1,22 @@
 {
   "templateId": "TwoColumnLayout",
+  "description": "Multi-column layout with header and dual column bodies.",
   "parameters": {
     "headerChild": {
       "type": "child",
-      "title": "Header Slot",
-      "description": "Single component ID to mount inside the top header banner.",
-      "default": null
+      "title": "Header Element",
+      "description": "Single component rendered as the layout header."
     },
     "leftChildren": {
       "type": "children",
       "title": "Left Column Children",
-      "description": "ChildList (array of component IDs) for the left column.",
+      "description": "Array of components displayed in the left column.",
       "default": []
     },
     "rightChildren": {
       "type": "children",
       "title": "Right Column Children",
-      "description": "ChildList (array of component IDs) for the right column.",
+      "description": "Array of components displayed in the right column.",
       "default": []
     }
   },
@@ -24,27 +24,28 @@
     {
       "id": "root",
       "component": "Column",
-      "children": ["header_container", "columns_row"]
+      "children": ["header_slot", "columns_row"]
     },
     {
-      "id": "header_container",
+      "id": "header_slot",
       "component": "Column",
-      "children": ["${headerChild}"]
+      "children": {"param": "headerChild"}
     },
     {
       "id": "columns_row",
       "component": "Row",
+      "justify": "spaceBetween",
       "children": ["left_col", "right_col"]
     },
     {
       "id": "left_col",
       "component": "Column",
-      "children": "${leftChildren}"
+      "children": {"param": "leftChildren"}
     },
     {
       "id": "right_col",
       "component": "Column",
-      "children": "${rightChildren}"
+      "children": {"param": "rightChildren"}
     }
   ],
   "sampleData": {

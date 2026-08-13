@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2UI Template Definition",
+  "description": "Schema defining a parameterized A2UI declarative template with explicit type declarations and JSON parameter substitutions.",
+  "type": "object",
+  "required": ["templateId", "parameters", "components"],
+  "properties": {
+    "templateId": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
+      "description": "Unique identifier and component tag name of the template."
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of what this template represents."
+    },
+    "parameters": {
+      "type": "object",
+      "description": "Mapping of parameter names to their explicit A2UI type definitions.",
+      "additionalProperties": {
+        "$ref": "#/$defs/ParameterDefinition"
+      }
+    },
+    "components": {
+      "type": "array",
+      "description": "List of component graph definitions forming the template.",
+      "items": {
+        "$ref": "#/$defs/TemplateComponent"
+      },
+      "minItems": 1
+    },
+    "sampleData": {
+      "type": "object",
+      "description": "Sample parameter values used for previewing and testing template inflation."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "ParameterDefinition": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "string",
+            "number",
+            "integer",
+            "boolean",
+            "enum",
+            "object",
+            "array",
+            "child",
+            "children",
+            "action"
+          ],
+          "description": "A2UI semantic parameter type."
+        },
+        "title": {
+          "type": "string",
+          "description": "Short human-readable title of the parameter."
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed explanation of the parameter's purpose and usage."
+        },
+        "default": {
+          "description": "Default fallback value if not specified."
+        },
+        "values": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Allowed string values when type is 'enum'."
+        },
+        "items": {
+          "description": "Item type definition when type is 'array'. Can be an A2UI type name or nested ParameterDefinition."
+        },
+        "properties": {
+          "type": "object",
+          "description": "Property definitions when type is 'object'.",
+          "additionalProperties": {
+            "$ref": "#/$defs/ParameterDefinition"
+          }
+        },
+        "required": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "List of required property names for object types."
+        },
+        "minimum": {
+          "type": "number",
+          "description": "Minimum value constraint for numeric parameters."
+        },
+        "maximum": {
+          "type": "number",
+          "description": "Maximum value constraint for numeric parameters."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ParamReference": {
+      "type": "object",
+      "required": ["param"],
+      "properties": {
+        "param": {
+          "type": "string",
+          "description": "Name or dot-separated path of the template parameter to substitute."
+        },
+        "template": {
+          "type": "string",
+          "description": "Child template identifier when mapping an array parameter to child component instances."
+        },
+        "default": {
+          "description": "Fallback value if the parameter path resolves to None."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ConcatExpression": {
+      "type": "object",
+      "required": ["concat"],
+      "properties": {
+        "concat": {
+          "type": "array",
+          "description": "List of literal values and parameter references to concatenate into a string.",
+          "items": {
+            "anyOf": [{"type": "string"}, {"type": "number"}, {"$ref": "#/$defs/ParamReference"}]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "FormatExpression": {
+      "type": "object",
+      "required": ["format"],
+      "properties": {
+        "format": {
+          "type": "string",
+          "description": "Format string containing {key} placeholders."
+        },
+        "args": {
+          "type": "object",
+          "description": "Mapping of placeholder keys to values or parameter references.",
+          "additionalProperties": {
+            "anyOf": [{"type": "string"}, {"type": "number"}, {"$ref": "#/$defs/ParamReference"}]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "TemplateValue": {
+      "description": "A literal value, parameter substitution, or expression in a template component property.",
+      "anyOf": [
+        {"type": "string"},
+        {"type": "number"},
+        {"type": "boolean"},
+        {"type": "null"},
+        {"$ref": "#/$defs/ParamReference"},
+        {"$ref": "#/$defs/ConcatExpression"},
+        {"$ref": "#/$defs/FormatExpression"},
+        {"type": "array"},
+        {"type": "object"}
+      ]
+    },
+    "TemplateComponent": {
+      "type": "object",
+      "required": ["id", "component"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique component ID within the template."
+        },
+        "component": {
+          "type": "string",
+          "description": "Catalog component tag name."
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/TemplateValue"
+      }
+    }
+  }
+}

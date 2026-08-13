@@ -19,14 +19,11 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional, Tuple, Union
 import jsonschema
-from .models import Template
+from .models import Template, normalize_a2ui_type_to_jsonschema
 
 
 def resolve_param_path(path: str, params: Dict[str, Any]) -> Tuple[bool, Any]:
-    """Resolves a dot-separated parameter path (e.g.
-
-    'user.name' or 'user.metrics.count') from params dict.
-    """
+    """Resolves a dot-separated parameter path (e.g. 'user.name' or 'user.metrics.count') from params dict."""
     parts = path.split(".")
     curr: Any = params
     for part in parts:
@@ -42,22 +39,51 @@ def resolve_param_path(path: str, params: Dict[str, Any]) -> Tuple[bool, Any]:
 
 
 def substitute_params(val: Any, params: Dict[str, Any]) -> Any:
-    """Recursively replaces parameter references with their values.
+    """Recursively replaces parameter references with their resolved values.
 
-    Supports exact parameter mapping (preserving original Python type) and
-    in-string interpolation for '${param_name}' and nested '${param.field}'
-    placeholders.
+    Supports:
+    - Direct object references: {"param": "paramName"}
+    - String concatenation: {"concat": ["Prefix ", {"param": "name"}]}
+    - String formatting: {"format": "Hello {name}", "args": {"name": {"param": "name"}}}
+    - In-string legacy interpolation: "${param.field}"
     """
     if isinstance(val, dict):
-        if "param" in val and len(val) == 1:
+        # 1. Direct param reference: {"param": "userName", "default": ...}
+        if "param" in val and isinstance(val["param"], str) and "template" not in val:
             param_path = val["param"]
             found, res = resolve_param_path(param_path, params)
-            return res if found else None
+            if found and res is not None:
+                return res
+            if "default" in val:
+                return val["default"]
+            return None
+
+        # 2. String concatenation: {"concat": ["Strategic Objectives: ", {"param": "teamName"}]}
+        if "concat" in val and isinstance(val["concat"], list):
+            parts = []
+            for item in val["concat"]:
+                sub = substitute_params(item, params)
+                if sub is not None:
+                    parts.append(str(sub))
+            return "".join(parts)
+
+        # 3. String formatting: {"format": "Competency: {name}", "args": {...}}
+        if "format" in val and "args" in val and isinstance(val["args"], dict):
+            fmt_str = str(val["format"])
+            args_sub = {k: substitute_params(v, params) for k, v in val["args"].items()}
+            try:
+                return fmt_str.format(**args_sub)
+            except Exception:
+                return fmt_str
+
+        # 4. Standard dictionary traversal
         return {k: substitute_params(v, params) for k, v in val.items()}
+
     elif isinstance(val, list):
         return [substitute_params(x, params) for x in val]
+
     elif isinstance(val, str):
-        # 1. Exact parameter match preserving type: e.g. "${user}" or "${user.name}"
+        # Exact parameter match preserving type: e.g. "${user}" or "${user.name}"
         match = re.match(r"^\$\{([\w\.]+)\}$", val)
         if match:
             param_path = match.group(1)
@@ -65,7 +91,7 @@ def substitute_params(val: Any, params: Dict[str, Any]) -> Any:
             if found:
                 return res
 
-        # 2. In-string placeholder replacement: replace all occurrences of ${path}
+        # In-string placeholder replacement: replace all occurrences of ${path}
         pattern = re.compile(r"\$\{([\w\.]+)\}")
 
         def replacer(m: re.Match[str]) -> str:
@@ -76,6 +102,7 @@ def substitute_params(val: Any, params: Dict[str, Any]) -> Any:
             return str(m.group(0))
 
         return str(pattern.sub(replacer, val))
+
     return val
 
 
@@ -92,8 +119,7 @@ class TemplateProcessor:
 
         Args:
             templates: List of registered Template definitions.
-            base_catalog: Optional base catalog schema dict or A2uiCatalog
-              instance.
+            base_catalog: Optional base catalog schema dict or A2uiCatalog instance.
             version: Target A2UI protocol version ("v0.9", "v0.9.1", or "v1.0").
         """
         self.templates: Dict[str, Template] = {t.template_id: t for t in templates}
@@ -224,10 +250,10 @@ class TemplateProcessor:
         # 1. Resolve parameters and assign default values
         params: Dict[str, Any] = {}
         for p_name, p_meta in template.parameters.items():
+            p_type = p_meta.get("type")
             if p_name in passed_params:
                 val = passed_params[p_name]
-                p_type = p_meta.get("type")
-                if p_type == "array" or p_type == "children":
+                if p_type in ["array", "children"]:
                     if isinstance(val, list):
                         params[p_name] = val
                     elif isinstance(val, dict):
@@ -239,10 +265,10 @@ class TemplateProcessor:
                 else:
                     params[p_name] = val
 
-                # Validate parameter value against JSON Schema if schema keywords are declared
+                # Validate parameter value if type is data type (string, number, boolean, enum, object, array)
                 if (
                     isinstance(p_meta, dict)
-                    and p_type not in ["child", "children"]
+                    and p_type not in ["child", "children", "action"]
                     and not (
                         isinstance(params[p_name], str)
                         and (
@@ -251,20 +277,20 @@ class TemplateProcessor:
                         )
                     )
                 ):
-                    clean_schema = dict(p_meta)
-                    clean_schema.pop("dynamic", None)
-                    try:
-                        jsonschema.validate(
-                            instance=params[p_name], schema=clean_schema
-                        )
-                    except jsonschema.ValidationError as err:
-                        raise ValueError(
-                            f"Template '{template_id}': Parameter '{p_name}'"
-                            f" failed schema validation: {err.message}"
-                        ) from err
+                    val_schema = normalize_a2ui_type_to_jsonschema(p_meta)
+                    if val_schema:
+                        try:
+                            jsonschema.validate(
+                                instance=params[p_name], schema=val_schema
+                            )
+                        except jsonschema.ValidationError as err:
+                            raise ValueError(
+                                f"Template '{template_id}': Parameter '{p_name}'"
+                                f" failed validation: {err.message}"
+                            ) from err
             elif "default" in p_meta:
                 params[p_name] = p_meta["default"]
-            elif p_meta.get("type") == "array":
+            elif p_type in ["array", "children"]:
                 params[p_name] = []
             else:
                 raise ValueError(
@@ -274,42 +300,21 @@ class TemplateProcessor:
 
         expanded_components: List[Dict[str, Any]] = []
 
-        # 2. Helpers for ID mapping
+        # 2. Helpers for ID mapping and slot resolution
         def map_id(internal_id: str) -> str:
             if internal_id == "root":
                 return instance_id
             return f"{instance_id}_{internal_id}"
 
-        def map_child_list(child_list: Any) -> Any:
-            if isinstance(child_list, list):
-                res_list: List[Any] = []
-                for c_id in child_list:
-                    is_slot, slot_val = resolve_slot(c_id)
-                    if is_slot:
-                        if isinstance(slot_val, list):
-                            res_list.extend(slot_val)
-                        elif slot_val is not None:
-                            res_list.append(slot_val)
-                    else:
-                        res_list.append(map_id(c_id))
-                return res_list
-            elif isinstance(child_list, str):
-                is_slot, slot_val = resolve_slot(child_list)
-                if is_slot:
-                    return slot_val
-                return map_id(child_list)
-            elif isinstance(child_list, dict):
-                dict_res = dict(child_list)
-                if "componentId" in dict_res:
-                    is_slot, slot_val = resolve_slot(dict_res["componentId"])
-                    dict_res["componentId"] = (
-                        slot_val if is_slot else map_id(dict_res["componentId"])
-                    )
-                return dict_res
-            return child_list
-
         def resolve_slot(val: Any) -> Tuple[bool, Any]:
-            if isinstance(val, str):
+            if isinstance(val, dict) and "param" in val and "template" not in val:
+                p_path = val["param"]
+                found, res = resolve_param_path(p_path, params)
+                if found:
+                    return True, res
+                if "default" in val:
+                    return True, val["default"]
+            elif isinstance(val, str):
                 if val.startswith("${") and val.endswith("}"):
                     p_path = val[2:-1]
                     found, res = resolve_param_path(p_path, params)
@@ -322,7 +327,29 @@ class TemplateProcessor:
                         return True, res
             return False, val
 
-        # 3. First pass: Map internal component IDs and handle slots & static loop unrolling
+        def map_child_list(child_list: Any) -> Any:
+            if isinstance(child_list, list):
+                res_list: List[Any] = []
+                for c_id in child_list:
+                    is_slot, slot_val = resolve_slot(c_id)
+                    if is_slot:
+                        if isinstance(slot_val, list):
+                            res_list.extend(slot_val)
+                        elif slot_val is not None:
+                            res_list.append(slot_val)
+                    else:
+                        res_list.append(map_id(c_id) if isinstance(c_id, str) else c_id)
+                return res_list
+            elif isinstance(child_list, (str, dict)):
+                is_slot, slot_val = resolve_slot(child_list)
+                if is_slot:
+                    return slot_val
+                if isinstance(child_list, str):
+                    return map_id(child_list)
+                return child_list
+            return child_list
+
+        # 3. First pass: Map internal component IDs, handle slots & static loop unrolling
         for comp in template.components:
             comp_copy = dict(comp)
             comp_copy["id"] = map_id(comp_copy["id"])
@@ -335,15 +362,18 @@ class TemplateProcessor:
                     else:
                         comp_copy["child"] = slot_val
                 else:
-                    comp_copy["child"] = map_id(comp_copy["child"])
+                    if isinstance(comp_copy["child"], str):
+                        comp_copy["child"] = map_id(comp_copy["child"])
 
             if "children" in comp_copy:
                 is_slot, slot_val = resolve_slot(comp_copy["children"])
                 if is_slot:
                     if slot_val is None:
                         comp_copy["children"] = []
-                    else:
+                    elif isinstance(slot_val, list):
                         comp_copy["children"] = slot_val
+                    else:
+                        comp_copy["children"] = [slot_val]
                 elif (
                     isinstance(comp_copy["children"], dict)
                     and "param" in comp_copy["children"]
@@ -363,9 +393,8 @@ class TemplateProcessor:
                     else:
                         if not isinstance(array_data, list):
                             raise ValueError(
-                                f"Template '{template_id}': Parameter"
-                                f" '{param_name}' must be an array/list for"
-                                " static loop unrolling."
+                                f"Template '{template_id}': Parameter '{param_name}'"
+                                " must be an array/list for static loop unrolling."
                             )
 
                         unrolled_child_ids = []
@@ -460,7 +489,7 @@ class TemplateProcessor:
         return msg_copy
 
     def _promote_parameter(self, p_meta: Dict[str, Any]) -> Dict[str, Any]:
-        """Promotes a template parameter schema to a dynamic schema if dynamic is enabled."""
+        """Promotes a template parameter to an A2UI catalog schema property."""
         if not isinstance(p_meta, dict):
             return p_meta
 
@@ -483,18 +512,20 @@ class TemplateProcessor:
                 if k in p_meta:
                     res[k] = p_meta[k]
             return res
-
-        is_dynamic = p_meta.get("dynamic", False)
-        already_dynamic = "$ref" in p_meta and "Dynamic" in p_meta["$ref"]
-
-        if not is_dynamic and not already_dynamic:
-            res = dict(p_meta)
-            res.pop("dynamic", None)
+        if p_type == "action":
+            res = {"$ref": f"{common_types_url}#/$defs/Action"}
+            for k in ["title", "description", "default"]:
+                if k in p_meta:
+                    res[k] = p_meta[k]
             return res
-
-        if already_dynamic:
-            res = dict(p_meta)
-            res.pop("dynamic", None)
+        if p_type == "enum" and "values" in p_meta:
+            res = {
+                "type": "string",
+                "enum": p_meta["values"],
+            }
+            for k in ["title", "description", "default"]:
+                if k in p_meta:
+                    res[k] = p_meta[k]
             return res
 
         ref_map = {
@@ -504,22 +535,18 @@ class TemplateProcessor:
             "boolean": f"{common_types_url}#/$defs/DynamicBoolean",
         }
 
-        target_ref = ref_map.get(str(p_type)) if p_type is not None else None
-        if not target_ref:
-            res = dict(p_meta)
-            res.pop("dynamic", None)
-            return res
+        target_ref = ref_map.get(str(p_type))
+        if target_ref:
+            promoted: Dict[str, Any] = {"allOf": [{"$ref": target_ref}]}
+            metadata = {}
+            for k in ["title", "description", "default"]:
+                if k in p_meta:
+                    metadata[k] = p_meta[k]
+            if metadata:
+                promoted["allOf"].append(metadata)
+            return promoted
 
-        metadata = {}
-        for k in ["title", "description", "default"]:
-            if k in p_meta:
-                metadata[k] = p_meta[k]
-
-        promoted: Dict[str, Any] = {"allOf": [{"$ref": target_ref}]}
-        if metadata:
-            promoted["allOf"].append(metadata)
-
-        return promoted
+        return dict(p_meta)
 
     def validate_templates(self) -> None:
         """Validates all registered templates."""

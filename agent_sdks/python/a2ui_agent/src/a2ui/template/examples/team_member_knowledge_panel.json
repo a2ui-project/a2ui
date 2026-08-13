@@ -1,31 +1,28 @@
 {
   "templateId": "TeamMemberKnowledgePanel",
+  "description": "Card showing competency panel with user experience years and completed task count.",
   "parameters": {
     "userName": {
       "type": "string",
       "title": "User Display Name",
-      "description": "The full name of the team member.",
-      "dynamic": true
+      "description": "The full name of the team member."
     },
     "role": {
       "type": "string",
       "title": "Role Name",
-      "description": "The operational role of the team member.",
-      "dynamic": true
+      "description": "The operational role of the team member."
     },
     "experienceYears": {
       "type": "integer",
       "title": "Years of Experience",
       "description": "The number of years of professional experience.",
-      "minimum": 0,
-      "dynamic": true
+      "minimum": 0
     },
     "completedTasks": {
       "type": "integer",
       "title": "Completed Tasks Count",
       "description": "The count of completed tasks or tickets.",
-      "minimum": 0,
-      "dynamic": true
+      "minimum": 0
     }
   },
   "components": [
@@ -53,7 +50,7 @@
     {
       "id": "header_text",
       "component": "Text",
-      "text": "Competency: ${userName}",
+      "text": {"concat": ["Competency: ", {"param": "userName"}]},
       "variant": "h4"
     },
     {
@@ -82,7 +79,7 @@
     {
       "id": "role_val",
       "component": "Text",
-      "text": "${role}",
+      "text": {"param": "role"},
       "variant": "body"
     },
     {
@@ -100,7 +97,7 @@
     {
       "id": "exp_val",
       "component": "Text",
-      "text": "${experienceYears} Yrs",
+      "text": {"concat": [{"param": "experienceYears"}, " Yrs"]},
       "variant": "body"
     },
     {
@@ -118,7 +115,7 @@
     {
       "id": "tasks_val",
       "component": "Text",
-      "text": "${completedTasks} Done",
+      "text": {"concat": [{"param": "completedTasks"}, " Done"]},
       "variant": "body"
     },
     {

@@ -1,24 +1,24 @@
 {
   "templateId": "GoalItem",
+  "description": "Card showing an individual objective with priority, title, target date, and action button.",
   "parameters": {
     "title": {
       "type": "string",
       "title": "Goal Title",
-      "description": "The main description of the objective. Supports dynamic data binding paths.",
-      "dynamic": true
+      "description": "Summary title of the objective."
     },
     "priority": {
-      "type": "string",
+      "type": "enum",
       "title": "Priority Level",
-      "description": "The priority of the goal (e.g. 'High', 'Medium', 'Low'). Defaults to 'Medium'.",
-      "default": "Medium",
-      "dynamic": true
+      "description": "Urgency rating for the objective.",
+      "values": ["High", "Medium", "Low"],
+      "default": "Medium"
     },
     "targetDate": {
       "type": "string",
-      "title": "Target Completion Date",
-      "description": "The target deadline for completing this goal.",
-      "dynamic": true
+      "title": "Target Date",
+      "description": "Target completion date in YYYY-MM-DD format.",
+      "default": "2026-12-31"
     }
   },
   "components": [
@@ -30,30 +30,30 @@
     {
       "id": "col",
       "component": "Column",
-      "children": ["header_row", "title_text", "divider", "footer_row"]
+      "children": ["top_row", "title_txt", "divider", "footer_row"]
     },
     {
-      "id": "header_row",
+      "id": "top_row",
       "component": "Row",
       "justify": "spaceBetween",
       "align": "center",
-      "children": ["priority_text", "goal_icon"]
+      "children": ["priority_txt", "star_icon"]
     },
     {
-      "id": "priority_text",
+      "id": "priority_txt",
       "component": "Text",
-      "text": "Priority: ${priority}",
+      "text": {"concat": ["Priority: ", {"param": "priority"}]},
       "variant": "caption"
     },
     {
-      "id": "goal_icon",
+      "id": "star_icon",
       "component": "Icon",
       "name": "star"
     },
     {
-      "id": "title_text",
+      "id": "title_txt",
       "component": "Text",
-      "text": "${title}",
+      "text": {"param": "title"},
       "variant": "h4"
     },
     {
@@ -66,33 +66,28 @@
       "component": "Row",
       "justify": "spaceBetween",
       "align": "center",
-      "children": ["date_text", "action_button"]
+      "children": ["due_txt", "details_btn"]
     },
     {
-      "id": "date_text",
+      "id": "due_txt",
       "component": "Text",
-      "text": "Due: ${targetDate}",
+      "text": {"concat": ["Due: ", {"param": "targetDate"}]},
       "variant": "caption"
     },
     {
-      "id": "action_button",
+      "id": "details_btn",
       "component": "Button",
-      "child": "btn_label",
-      "action": {
-        "event": {
-          "name": "view_goal_details"
-        }
-      }
+      "child": "details_btn_txt"
     },
     {
-      "id": "btn_label",
+      "id": "details_btn_txt",
       "component": "Text",
       "text": "View Details"
     }
   ],
   "sampleData": {
-    "title": "Migrate to canonical workspaces and run verification suite",
+    "title": "Launch A2UI SDK v1.0",
     "priority": "High",
-    "targetDate": "2026-07-15"
+    "targetDate": "2026-09-30"
   }
 }

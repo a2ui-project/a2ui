@@ -1,29 +1,27 @@
 {
   "templateId": "SectionCard",
+  "description": "Standard container card with title, description, optional action, and child components.",
   "parameters": {
     "title": {
       "type": "string",
       "title": "Section Title",
-      "description": "Heading text for the section.",
-      "dynamic": true
+      "description": "Heading text displayed at the top of the section card."
     },
     "description": {
       "type": "string",
       "title": "Section Description",
-      "description": "Optional subtitle or explanatory text for the section.",
-      "default": "",
-      "dynamic": true
+      "description": "Subordinate descriptive text beneath the title.",
+      "default": ""
     },
     "headerAction": {
-      "type": "child",
-      "title": "Header Action Slot",
-      "description": "Optional single component ID (e.g. a Button) to render in the header row next to the title.",
-      "default": null
+      "type": "action",
+      "title": "Header Action Callback",
+      "description": "Event action or child component triggered from the header."
     },
     "children": {
       "type": "children",
-      "title": "Section Body Children",
-      "description": "ChildList (array of child component IDs) rendered inside the section body container.",
+      "title": "Section Children",
+      "description": "Child component IDs rendered in the section body.",
       "default": []
     }
   },
@@ -36,30 +34,30 @@
     {
       "id": "main_col",
       "component": "Column",
-      "children": ["header_row", "description_text", "divider", "body_container"]
+      "children": ["header_row", "desc_txt", "divider", "body_container"]
     },
     {
       "id": "header_row",
       "component": "Row",
       "justify": "spaceBetween",
       "align": "center",
-      "children": ["title_text", "action_slot"]
+      "children": ["title_txt", "action_slot"]
     },
     {
-      "id": "title_text",
+      "id": "title_txt",
       "component": "Text",
-      "text": "${title}",
+      "text": {"param": "title"},
       "variant": "h3"
     },
     {
       "id": "action_slot",
       "component": "Column",
-      "children": ["${headerAction}"]
+      "children": {"param": "headerAction"}
     },
     {
-      "id": "description_text",
+      "id": "desc_txt",
       "component": "Text",
-      "text": "${description}",
+      "text": {"param": "description"},
       "variant": "caption"
     },
     {
@@ -70,12 +68,12 @@
     {
       "id": "body_container",
       "component": "Column",
-      "children": "${children}"
+      "children": {"param": "children"}
     }
   ],
   "sampleData": {
-    "title": "Account Settings",
-    "description": "Manage your team preferences and integrations",
+    "title": "Protocol Overview",
+    "description": "High-level summary of the streaming architecture.",
     "children": []
   }
 }

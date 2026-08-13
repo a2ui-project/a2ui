@@ -1,11 +1,11 @@
 {
   "templateId": "TeamFeedbackBoard",
+  "description": "Feedback board showing team header and feedback items.",
   "parameters": {
     "teamName": {
       "type": "string",
       "title": "Team Name",
-      "description": "The display name of the team whose feedback board is being rendered.",
-      "dynamic": true
+      "description": "The display name of the team whose feedback board is being rendered."
     },
     "feedbacks": {
       "type": "array",
@@ -18,12 +18,12 @@
           "author": {
             "type": "string",
             "title": "Author Name",
-            "description": "Full name of the person giving feedback"
+            "description": "Full name of the person giving feedback."
           },
           "note": {
             "type": "string",
             "title": "Feedback Note",
-            "description": "Textual comment or recommendation"
+            "description": "Textual comment or recommendation."
           },
           "rating": {
             "type": "number",
@@ -34,8 +34,7 @@
           }
         },
         "required": ["author", "note"]
-      },
-      "dynamic": false
+      }
     }
   },
   "components": [
@@ -63,7 +62,7 @@
     {
       "id": "banner_text",
       "component": "Text",
-      "text": "Feedback & Retrospective: ${teamName}",
+      "text": {"concat": ["Feedback & Retrospective: ", {"param": "teamName"}]},
       "variant": "h2"
     },
     {

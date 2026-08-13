@@ -1,16 +1,16 @@
 {
   "templateId": "TeamCard",
+  "description": "Card showing team header and unrolled member cards.",
   "parameters": {
     "teamName": {
       "type": "string",
       "title": "Team Name",
-      "description": "The display name of the team.",
-      "dynamic": true
+      "description": "The display name of the team."
     },
     "members": {
       "type": "array",
       "title": "Team Members List",
-      "description": "List of team member objects with userId, userName, role.",
+      "description": "Array of team member objects.",
       "items": {
         "type": "object",
         "title": "Team Member",
@@ -18,23 +18,22 @@
           "userId": {
             "type": "string",
             "title": "User ID",
-            "description": "Unique identifier of the user"
+            "description": "Unique identifier of the user."
           },
           "userName": {
             "type": "string",
             "title": "User Name",
-            "description": "Full name of the user"
+            "description": "Full name of the user."
           },
           "role": {
             "type": "string",
             "title": "Role Name",
-            "description": "Job title or role of the user",
+            "description": "Role or title of the user.",
             "default": "Member"
           }
         },
         "required": ["userId", "userName"]
-      },
-      "dynamic": false
+      }
     }
   },
   "components": [
@@ -58,7 +57,7 @@
     {
       "id": "team_title",
       "component": "Text",
-      "text": "${teamName}",
+      "text": {"param": "teamName"},
       "variant": "h3"
     },
     {

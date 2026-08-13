@@ -1,24 +1,24 @@
 {
   "templateId": "FeedbackItem",
+  "description": "Card showing feedback note, author, and rating.",
   "parameters": {
     "author": {
       "type": "string",
-      "title": "Feedback Author",
-      "description": "The name of the user providing the feedback.",
-      "dynamic": true
+      "title": "Author Name",
+      "description": "The name of the colleague or customer providing feedback."
     },
     "note": {
       "type": "string",
       "title": "Feedback Note",
-      "description": "The textual content of the feedback comment.",
-      "dynamic": true
+      "description": "The written feedback or retrospective comment."
     },
     "rating": {
       "type": "number",
       "title": "Feedback Rating",
-      "description": "The numerical rating value out of 5. Defaults to 5.",
-      "default": 5,
-      "dynamic": true
+      "description": "Score from 1 to 5.",
+      "minimum": 1,
+      "maximum": 5,
+      "default": 5
     }
   },
   "components": [
@@ -30,12 +30,12 @@
     {
       "id": "col",
       "component": "Column",
-      "children": ["note_text", "divider", "info_row"]
+      "children": ["feedback_txt", "divider", "meta_row"]
     },
     {
-      "id": "note_text",
+      "id": "feedback_txt",
       "component": "Text",
-      "text": "\"${note}\"",
+      "text": {"param": "note"},
       "variant": "body"
     },
     {
@@ -44,28 +44,28 @@
       "axis": "horizontal"
     },
     {
-      "id": "info_row",
+      "id": "meta_row",
       "component": "Row",
       "justify": "spaceBetween",
       "align": "center",
-      "children": ["author_text", "rating_text"]
+      "children": ["author_txt", "rating_txt"]
     },
     {
-      "id": "author_text",
+      "id": "author_txt",
       "component": "Text",
-      "text": "${author}",
+      "text": {"param": "author"},
       "variant": "caption"
     },
     {
-      "id": "rating_text",
+      "id": "rating_txt",
       "component": "Text",
-      "text": "Rating: ${rating}/5",
+      "text": {"concat": ["Rating: ", {"param": "rating"}, "/5"]},
       "variant": "caption"
     }
   ],
   "sampleData": {
-    "author": "Charlie Brown",
-    "note": "Clean architecture and fast synchronous expansion!",
+    "author": "Dr. Elena Vance",
+    "note": "A2UI templates are fast and easy to compose.",
     "rating": 5
   }
 }
