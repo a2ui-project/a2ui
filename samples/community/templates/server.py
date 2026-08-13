@@ -138,8 +138,37 @@ PRESET_RESPONSES = {
 
 
 @app.get("/templates")
+@app.get("/api/templates")
 def list_templates():
-    return [{"id": t.template_id, "parameters": t.parameters} for t in templates]
+    res = []
+    for t in templates:
+        t_dict = t.to_dict()
+        sample_params = t.sample_data or {}
+        try:
+            expanded_components = format_instance.processor.expand_template(
+                "root", t.template_id, sample_params
+            )
+            sample_messages = [
+                {
+                    "version": "v0.9.1",
+                    "createSurface": {
+                        "surfaceId": f"preview_{t.template_id}",
+                        "catalogId": BASIC_CATALOG_ID,
+                    },
+                },
+                {
+                    "version": "v0.9.1",
+                    "updateComponents": {
+                        "surfaceId": f"preview_{t.template_id}",
+                        "components": expanded_components,
+                    },
+                },
+            ]
+        except Exception as e:
+            sample_messages = []
+        t_dict["sampleMessages"] = sample_messages
+        res.append(t_dict)
+    return res
 
 
 @app.post("/interact")

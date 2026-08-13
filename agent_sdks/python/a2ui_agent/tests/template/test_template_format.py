@@ -300,3 +300,118 @@ def test_template_inference_format_end_to_end():
     assert name_text["text"] == "Sarah Jenkins"
     role_text = next(c for c in components if c["id"] == "root_role_text")
     assert role_text["text"] == "Lead Designer"
+
+
+def test_template_full_object_schema_and_nested_properties():
+    # Define a template with a full JSON schema object parameter
+    tmpl_data = {
+        "templateId": "DeveloperBadge",
+        "parameters": {
+            "developer": {
+                "type": "object",
+                "properties": {
+                    "handle": {"type": "string"},
+                    "details": {
+                        "type": "object",
+                        "properties": {
+                            "team": {"type": "string"},
+                            "stars": {"type": "integer"},
+                        },
+                        "required": ["team", "stars"],
+                    },
+                },
+                "required": ["handle", "details"],
+            }
+        },
+        "components": [
+            {"id": "root", "component": "Card", "child": "badge_col"},
+            {
+                "id": "badge_col",
+                "component": "Column",
+                "children": ["dev_handle", "dev_stars"],
+            },
+            {
+                "id": "dev_handle",
+                "component": "Text",
+                "text": "Developer: ${developer.handle} (${developer.details.team})",
+            },
+            {
+                "id": "dev_stars",
+                "component": "Text",
+                "text": "Stars: ${developer.details.stars}",
+            },
+        ],
+        "sampleData": {
+            "developer": {
+                "handle": "@octocat",
+                "details": {"team": "Core Dev", "stars": 120},
+            }
+        },
+    }
+
+    tmpl = Template.from_dict(tmpl_data)
+    processor = TemplateProcessor(templates=[tmpl])
+
+    expanded = processor.expand_template(
+        instance_id="dev_1",
+        template_id="DeveloperBadge",
+        passed_params={
+            "developer": {
+                "handle": "@jsmith",
+                "details": {"team": "Infrastructure", "stars": 350},
+            }
+        },
+    )
+
+    handle_text = next(c for c in expanded if c["id"] == "dev_1_dev_handle")
+    assert handle_text["text"] == "Developer: @jsmith (Infrastructure)"
+    stars_text = next(c for c in expanded if c["id"] == "dev_1_dev_stars")
+    assert stars_text["text"] == "Stars: 350"
+
+
+def test_template_static_validation_rejection():
+    # Rejects invalid property reference in component definition
+    invalid_tmpl_data = {
+        "templateId": "BadTemplate",
+        "parameters": {
+            "user": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                },
+            }
+        },
+        "components": [{
+            "id": "root",
+            "component": "Text",
+            "text": "${user.nonexistent_field}",
+        }],
+    }
+
+    with pytest.raises(ValueError, match="not declared in parameter 'user'"):
+        Template.from_dict(invalid_tmpl_data)
+
+
+def test_template_runtime_schema_validation_rejection():
+    tmpl_data = {
+        "templateId": "StrictScore",
+        "parameters": {
+            "score": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100,
+            }
+        },
+        "components": [{"id": "root", "component": "Text", "text": "Score: ${score}"}],
+    }
+
+    tmpl = Template.from_dict(tmpl_data)
+    processor = TemplateProcessor(templates=[tmpl])
+
+    # Valid score passes
+    expanded = processor.expand_template("score_1", "StrictScore", {"score": 85})
+    assert expanded[0]["text"] == "Score: 85"
+
+    # String passed instead of integer fails validation
+    with pytest.raises(ValueError, match="failed schema validation"):
+        processor.expand_template("score_2", "StrictScore", {"score": "not_a_number"})

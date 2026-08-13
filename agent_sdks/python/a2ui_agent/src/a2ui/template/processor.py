@@ -17,36 +17,65 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
+import jsonschema
 from .models import Template
+
+
+def resolve_param_path(path: str, params: Dict[str, Any]) -> Tuple[bool, Any]:
+    """Resolves a dot-separated parameter path (e.g.
+
+    'user.name' or 'user.metrics.count') from params dict.
+    """
+    parts = path.split(".")
+    curr: Any = params
+    for part in parts:
+        if isinstance(curr, dict) and part in curr:
+            curr = curr[part]
+        elif (
+            isinstance(curr, (list, tuple)) and part.isdigit() and int(part) < len(curr)
+        ):
+            curr = curr[int(part)]
+        else:
+            return False, None
+    return True, curr
 
 
 def substitute_params(val: Any, params: Dict[str, Any]) -> Any:
     """Recursively replaces parameter references with their values.
 
     Supports exact parameter mapping (preserving original Python type) and
-    in-string interpolation for '${param_name}' placeholders.
+    in-string interpolation for '${param_name}' and nested '${param.field}'
+    placeholders.
     """
     if isinstance(val, dict):
         if "param" in val and len(val) == 1:
-            param_name = val["param"]
-            return params.get(param_name)
+            param_path = val["param"]
+            found, res = resolve_param_path(param_path, params)
+            return res if found else None
         return {k: substitute_params(v, params) for k, v in val.items()}
     elif isinstance(val, list):
         return [substitute_params(x, params) for x in val]
     elif isinstance(val, str):
-        # 1. Exact parameter match preserving type
-        match = re.match(r"^\$\{(\w+)\}$", val)
+        # 1. Exact parameter match preserving type: e.g. "${user}" or "${user.name}"
+        match = re.match(r"^\$\{([\w\.]+)\}$", val)
         if match:
-            param_name = match.group(1)
-            if param_name in params:
-                return params[param_name]
-        # 2. In-string placeholder replacement
-        for k, v in params.items():
-            placeholder = f"${{{k}}}"
-            if placeholder in val:
-                val = val.replace(placeholder, str(v))
-        return val
+            param_path = match.group(1)
+            found, res = resolve_param_path(param_path, params)
+            if found:
+                return res
+
+        # 2. In-string placeholder replacement: replace all occurrences of ${path}
+        pattern = re.compile(r"\$\{([\w\.]+)\}")
+
+        def replacer(m: re.Match[str]) -> str:
+            path = m.group(1)
+            found, res = resolve_param_path(path, params)
+            if found and res is not None:
+                return str(res)
+            return str(m.group(0))
+
+        return str(pattern.sub(replacer, val))
     return val
 
 
@@ -63,7 +92,8 @@ class TemplateProcessor:
 
         Args:
             templates: List of registered Template definitions.
-            base_catalog: Optional base catalog schema dict or A2uiCatalog instance.
+            base_catalog: Optional base catalog schema dict or A2uiCatalog
+              instance.
             version: Target A2UI protocol version ("v0.9", "v0.9.1", or "v1.0").
         """
         self.templates: Dict[str, Template] = {t.template_id: t for t in templates}
@@ -98,35 +128,32 @@ class TemplateProcessor:
 
         self.validate_templates()
 
-    def _get_template_params(
-        self, comp: Dict[str, Any], template: Template
-    ) -> Dict[str, Any]:
-        """Extracts passed parameters from a component dictionary."""
-        if "params" in comp and isinstance(comp["params"], dict):
-            return comp["params"]
-        return {k: v for k, v in comp.items() if k in template.parameters}
-
     def generate_inference_catalog(
-        self, allowed_primitives: Optional[List[str]] = None
+        self,
+        allowed_primitives: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        """Generates a synthetic A2UI catalog schema.
+        """Generates a synthetic JSON catalog containing allowed primitives and all registered templates."""
+        if allowed_primitives is None:
+            allowed_primitives = [
+                "Card",
+                "Column",
+                "Row",
+                "Text",
+                "Divider",
+                "Icon",
+                "Button",
+            ]
 
-        Includes the allowed primitive components from the base catalog alongside
-        all registered custom templates as high-level component schemas.
-        """
-        allowed_primitives = allowed_primitives or [
-            "Card",
-            "Column",
-            "Row",
-            "Text",
-            "Divider",
-            "Icon",
-            "Button",
-        ]
+        catalog_id = (
+            "https://a2ui.org/catalog/synthetic"
+            if not self.base_catalog_id
+            else self.base_catalog_id
+        )
 
         synthetic_catalog: Dict[str, Any] = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "catalogId": "https://a2ui.org/catalog/synthetic",
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "$id": catalog_id,
+            "catalogId": catalog_id,
             "title": "A2UI Synthetic Inference Catalog",
             "components": {},
             "functions": self.base_catalog.get("functions", {}),
@@ -211,6 +238,30 @@ class TemplateProcessor:
                         params[p_name] = [val]
                 else:
                     params[p_name] = val
+
+                # Validate parameter value against JSON Schema if schema keywords are declared
+                if (
+                    isinstance(p_meta, dict)
+                    and p_type not in ["child", "children"]
+                    and not (
+                        isinstance(params[p_name], str)
+                        and (
+                            params[p_name].startswith("${")
+                            or params[p_name].startswith("__")
+                        )
+                    )
+                ):
+                    clean_schema = dict(p_meta)
+                    clean_schema.pop("dynamic", None)
+                    try:
+                        jsonschema.validate(
+                            instance=params[p_name], schema=clean_schema
+                        )
+                    except jsonschema.ValidationError as err:
+                        raise ValueError(
+                            f"Template '{template_id}': Parameter '{p_name}'"
+                            f" failed schema validation: {err.message}"
+                        ) from err
             elif "default" in p_meta:
                 params[p_name] = p_meta["default"]
             elif p_meta.get("type") == "array":
@@ -257,16 +308,18 @@ class TemplateProcessor:
                 return dict_res
             return child_list
 
-        def resolve_slot(val: Any) -> tuple[bool, Any]:
+        def resolve_slot(val: Any) -> Tuple[bool, Any]:
             if isinstance(val, str):
                 if val.startswith("${") and val.endswith("}"):
-                    p_name = val[2:-1]
-                    if p_name in params:
-                        return True, params[p_name]
+                    p_path = val[2:-1]
+                    found, res = resolve_param_path(p_path, params)
+                    if found:
+                        return True, res
                 elif val.startswith("__PARAM__"):
                     p_name = val[9:]
-                    if p_name in params:
-                        return True, params[p_name]
+                    found, res = resolve_param_path(p_name, params)
+                    if found:
+                        return True, res
             return False, val
 
         # 3. First pass: Map internal component IDs and handle slots & static loop unrolling
@@ -310,8 +363,9 @@ class TemplateProcessor:
                     else:
                         if not isinstance(array_data, list):
                             raise ValueError(
-                                f"Template '{template_id}': Parameter '{param_name}'"
-                                " must be an array/list for static loop unrolling."
+                                f"Template '{template_id}': Parameter"
+                                f" '{param_name}' must be an array/list for"
+                                " static loop unrolling."
                             )
 
                         unrolled_child_ids = []
@@ -470,9 +524,20 @@ class TemplateProcessor:
     def validate_templates(self) -> None:
         """Validates all registered templates."""
         for t_id, template in self.templates.items():
+            template.validate_definition()
             for comp in template.components:
                 comp_type = comp.get("component")
                 if not comp_type:
                     raise ValueError(
                         f"Component in template '{t_id}' is missing 'component' type."
                     )
+
+    def _get_template_params(
+        self, comp: Dict[str, Any], template: Template
+    ) -> Dict[str, Any]:
+        """Extracts passed parameters from a component dictionary."""
+        params: Dict[str, Any] = {}
+        for p_name in template.parameters.keys():
+            if p_name in comp:
+                params[p_name] = comp[p_name]
+        return params

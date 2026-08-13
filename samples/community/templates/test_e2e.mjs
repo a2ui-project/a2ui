@@ -15,7 +15,9 @@
 import { chromium } from 'playwright';
 
 async function runE2ETest() {
-  console.log('🚀 Starting A2UI Templates End-to-End Test (Presets + Inspector + Live LLM)...');
+  console.log(
+    '🚀 Starting A2UI Templates End-to-End Test (Presets + Inspector + Template Library + Live LLM)...'
+  );
 
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
@@ -31,7 +33,7 @@ async function runE2ETest() {
     console.log('🌐 Navigating to http://localhost:5173...');
     await page.goto('http://localhost:5173', { waitUntil: 'networkidle', timeout: 15000 });
 
-    const title = await page.textContent('h2');
+    const title = await page.textContent('h1');
     console.log(`✅ Loaded application: "${title?.trim()}"`);
 
     // Helper to verify a preset button
@@ -97,7 +99,11 @@ async function runE2ETest() {
 
     // Verify Express DSL is visible
     let inspectorContent = await page.textContent('body');
-    if (!inspectorContent.includes('<a2ui>') && !inspectorContent.includes('UserProfile') && !inspectorContent.includes('TeamMemberKnowledgePanel')) {
+    if (
+      !inspectorContent.includes('<a2ui>') &&
+      !inspectorContent.includes('UserProfile') &&
+      !inspectorContent.includes('TeamMemberKnowledgePanel')
+    ) {
       throw new Error(`Expected Express DSL content in inspector drawer:\n${inspectorContent}`);
     }
     console.log('   ✓ Raw Express DSL displayed in inspector drawer');
@@ -108,13 +114,56 @@ async function runE2ETest() {
     await page.waitForTimeout(500);
 
     inspectorContent = await page.textContent('body');
-    if (!inspectorContent.includes('createSurface') || !inspectorContent.includes('updateComponents')) {
+    if (
+      !inspectorContent.includes('createSurface') ||
+      !inspectorContent.includes('updateComponents')
+    ) {
       throw new Error(`Expected expanded JSON messages in inspector drawer:\n${inspectorContent}`);
     }
     console.log('   ✓ Expanded A2UI JSON displayed in inspector drawer');
     console.log('✅ Inspector Drawer Test Passed!');
 
-    // 4. Test Live LLM Request
+    // 4. Test Template Library Screen
+    console.log('\n👉 Testing Template Library Studio...');
+    const libraryTabBtn = page.locator('button:has-text("Template Library")');
+    await libraryTabBtn.click();
+    await page.waitForTimeout(1000);
+
+    let libraryBody = await page.textContent('body');
+    if (!libraryBody.includes('Declared Templates') || !libraryBody.includes('Inflated UI Preview')) {
+      throw new Error(`Template Library studio failed to load:\n${libraryBody}`);
+    }
+    console.log('   ✓ Template Library screen mounted');
+
+    // Click UserProfile in library list
+    const userProfileBtn = page.locator('button:has-text("UserProfile")').first();
+    await userProfileBtn.click();
+    await page.waitForTimeout(600);
+
+    libraryBody = await page.textContent('body');
+    if (!libraryBody.includes('Alice Smith') || !libraryBody.includes('Lead Architect')) {
+      throw new Error(`UserProfile sample inflation failed in library:\n${libraryBody}`);
+    }
+    console.log('   ✓ UserProfile sample inflated and rendered with declared sampleData');
+
+    // Click TeamGoalList in library list
+    const goalListBtn = page.locator('button:has-text("TeamGoalList")').first();
+    await goalListBtn.click();
+    await page.waitForTimeout(600);
+
+    libraryBody = await page.textContent('body');
+    if (!libraryBody.includes('Strategic Objectives: A2UI Core Team')) {
+      throw new Error(`TeamGoalList sample inflation failed in library:\n${libraryBody}`);
+    }
+    console.log('   ✓ TeamGoalList sample inflated and rendered with declared sampleData');
+    console.log('✅ Template Library Screen Test Passed!');
+
+    // Switch back to Interactive Chat
+    const chatTabBtn = page.locator('button:has-text("Interactive Chat")');
+    await chatTabBtn.click();
+    await page.waitForTimeout(500);
+
+    // 5. Test Live LLM Request
     console.log('\n👉 Testing Live Gemini LLM Generation...');
     const input = page.locator('input[type="text"]');
     await input.fill('Create a team goal list for Cloud Platform team with 2 goals');
@@ -135,7 +184,9 @@ async function runE2ETest() {
     }
 
     if (!liveBodyText.includes('Cloud Platform') && !liveBodyText.includes('Strategic Objectives')) {
-      throw new Error(`Expected live generated goal card not found in rendered DOM:\n${liveBodyText}`);
+      throw new Error(
+        `Expected live generated goal card not found in rendered DOM:\n${liveBodyText}`
+      );
     }
     console.log('   ✓ Live LLM generated card rendered cleanly in DOM!');
     console.log('✅ Live LLM Request Passed!');
@@ -144,7 +195,7 @@ async function runE2ETest() {
       throw new Error(`Encountered ${pageErrors.length} unhandled page errors during test run.`);
     }
 
-    console.log('\n🎉 ALL PRESETS, INSPECTOR, AND LIVE LLM TESTS PASSED SUCCESSFULLY! 🎉\n');
+    console.log('\n🎉 ALL PRESETS, INSPECTOR, TEMPLATE LIBRARY, AND LIVE LLM TESTS PASSED! 🎉\n');
   } finally {
     await browser.close();
   }

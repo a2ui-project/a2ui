@@ -27,6 +27,14 @@ interface FeedItem {
   messages?: any[];
 }
 
+interface TemplateDefinition {
+  templateId: string;
+  parameters: Record<string, any>;
+  components: any[];
+  sampleData?: Record<string, any>;
+  sampleMessages?: any[];
+}
+
 const A2UI_THEME_VARS: React.CSSProperties = {
   // Card & Container
   ['--a2ui-card-border-radius' as any]: '16px',
@@ -66,34 +74,92 @@ const A2UI_THEME_VARS: React.CSSProperties = {
 };
 
 export default function App() {
-  const [processor] = useState(() => new MessageProcessor([basicCatalog]));
-  const [, setTick] = useState(0);
+  const [currentView, setCurrentView] = useState<'chat' | 'library'>('chat');
+
+  // Chat State
+  const [chatProcessor] = useState(() => new MessageProcessor([basicCatalog]));
+  const [, setChatTick] = useState(0);
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeInspector, setActiveInspector] = useState<string | null>(null);
   const [inspectorTab, setInspectorTab] = useState<'express' | 'json'>('express');
-  const [copied, setCopied] = useState(false);
+  const [copiedTurn, setCopiedTurn] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
+  // Library State
+  const [libraryProcessor] = useState(() => new MessageProcessor([basicCatalog]));
+  const [, setLibraryTick] = useState(0);
+  const [templates, setTemplates] = useState<TemplateDefinition[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('UserProfile');
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [copiedTemplate, setCopiedTemplate] = useState(false);
+
+  // Subscriptions
   useEffect(() => {
-    const forceUpdate = () => setTick(t => t + 1);
-    const subCreated = processor.onSurfaceCreated(forceUpdate);
-    const subDeleted = processor.onSurfaceDeleted(forceUpdate);
+    const forceUpdate = () => setChatTick(t => t + 1);
+    const subCreated = chatProcessor.onSurfaceCreated(forceUpdate);
+    const subDeleted = chatProcessor.onSurfaceDeleted(forceUpdate);
     return () => {
       subCreated.unsubscribe();
       subDeleted.unsubscribe();
     };
-  }, [processor]);
+  }, [chatProcessor]);
 
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({behavior: 'smooth'});
-  }, [feed, loading]);
+    const forceUpdate = () => setLibraryTick(t => t + 1);
+    const subCreated = libraryProcessor.onSurfaceCreated(forceUpdate);
+    const subDeleted = libraryProcessor.onSurfaceDeleted(forceUpdate);
+    return () => {
+      subCreated.unsubscribe();
+      subDeleted.unsubscribe();
+    };
+  }, [libraryProcessor]);
 
-  const copyToClipboard = (text: string) => {
+  useEffect(() => {
+    if (currentView === 'chat') {
+      chatBottomRef.current?.scrollIntoView({behavior: 'smooth'});
+    }
+  }, [feed, loading, currentView]);
+
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      setLibraryLoading(true);
+      try {
+        const res = await fetch('http://127.0.0.1:8000/templates');
+        if (res.ok) {
+          const list: TemplateDefinition[] = await res.json();
+          setTemplates(list);
+          if (list.length > 0) {
+            setSelectedTemplateId(list[0].templateId);
+            // Process sample messages for initial templates
+            for (const item of list) {
+              if (item.sampleMessages && item.sampleMessages.length > 0) {
+                libraryProcessor.processMessages(item.sampleMessages);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load templates list:', e);
+      } finally {
+        setLibraryLoading(false);
+      }
+    };
+    fetchTemplates();
+  }, [libraryProcessor]);
+
+  const selectedTemplate = templates.find(t => t.templateId === selectedTemplateId);
+
+  const copyToClipboard = (text: string, isTemplate = false) => {
     navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (isTemplate) {
+      setCopiedTemplate(true);
+      setTimeout(() => setCopiedTemplate(false), 2000);
+    } else {
+      setCopiedTurn(true);
+      setTimeout(() => setCopiedTurn(false), 2000);
+    }
   };
 
   const sendPrompt = async (promptText: string) => {
@@ -121,7 +187,7 @@ export default function App() {
 
       const data = await res.json();
       if (data.messages && data.messages.length > 0) {
-        processor.processMessages(data.messages);
+        chatProcessor.processMessages(data.messages);
         const targetSurfaceId =
           data.surfaceId ||
           data.messages.find((m: any) => m.createSurface)?.createSurface?.surfaceId ||
@@ -167,512 +233,946 @@ export default function App() {
     <div
       style={{
         display: 'flex',
+        flexDirection: 'column',
         height: '100vh',
         fontFamily:
           "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        backgroundColor: '#f8fafc',
       }}
     >
-      {/* Sidebar */}
-      <div
+      {/* Top Header */}
+      <header
         style={{
-          width: '300px',
+          height: '60px',
           backgroundColor: '#ffffff',
-          borderRight: '1px solid #e2e8f0',
-          padding: '24px',
+          borderBottom: '1px solid #e2e8f0',
           display: 'flex',
-          flexDirection: 'column',
-          gap: '20px',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 24px',
+          flexShrink: 0,
         }}
       >
-        <div>
-          <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px'}}>
-            <span
-              className="material-symbols-outlined"
-              style={{color: '#2563eb', fontSize: '24px'}}
-            >
-              dashboard_customize
-            </span>
-            <h2 style={{fontSize: '18px', fontWeight: 700, margin: 0, color: '#0f172a'}}>
-              A2UI Templates
-            </h2>
-          </div>
-          <p style={{fontSize: '12px', margin: 0, color: '#64748b'}}>
-            Synchronous server expansion · Basic Catalog
-          </p>
-        </div>
-
-        <div style={{marginTop: '8px'}}>
-          <h3
-            style={{
-              fontSize: '11px',
-              textTransform: 'uppercase',
-              color: '#94a3b8',
-              letterSpacing: '0.08em',
-              fontWeight: 700,
-              marginBottom: '12px',
-            }}
-          >
-            Example Presets
-          </h3>
-          <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
-            {[
-              {
-                label: '👤 User Profile',
-                prompt: 'show user profile',
-                desc: 'Single card profile',
-              },
-              {
-                label: '👥 Team Roster',
-                prompt: 'show team roster',
-                desc: 'Nested team member cards',
-              },
-              {
-                label: '🎯 Team Goals',
-                prompt: 'show team goals',
-                desc: 'Unrolled objectives list',
-              },
-              {
-                label: '💬 Feedback Board',
-                prompt: 'show feedback board',
-                desc: 'Review cards with ratings',
-              },
-              {
-                label: '⭐ Competency Panel',
-                prompt: 'show competency panel',
-                desc: 'Metrics & stats summary',
-              },
-            ].map(btn => (
-              <button
-                key={btn.prompt}
-                onClick={() => sendPrompt(btn.prompt)}
-                disabled={loading}
-                style={{
-                  textAlign: 'left',
-                  padding: '12px 14px',
-                  borderRadius: '12px',
-                  border: '1px solid #e2e8f0',
-                  backgroundColor: '#f8fafc',
-                  color: '#1e293b',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.15s ease',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '2px',
-                }}
-                onMouseEnter={e => {
-                  if (!loading) {
-                    e.currentTarget.style.backgroundColor = '#f1f5f9';
-                    e.currentTarget.style.borderColor = '#cbd5e1';
-                  }
-                }}
-                onMouseLeave={e => {
-                  if (!loading) {
-                    e.currentTarget.style.backgroundColor = '#f8fafc';
-                    e.currentTarget.style.borderColor = '#e2e8f0';
-                  }
-                }}
-              >
-                <span>{btn.label}</span>
-                <span style={{fontSize: '11px', color: '#64748b', fontWeight: 400}}>
-                  {btn.desc}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div
-          style={{
-            marginTop: 'auto',
-            padding: '12px',
-            backgroundColor: '#f8fafc',
-            borderRadius: '10px',
-            border: '1px solid #e2e8f0',
-            fontSize: '11px',
-            color: '#64748b',
-            lineHeight: 1.4,
-          }}
-        >
-          <strong>Template Inference Format</strong>
-          <br />
-          Click the <span style={{color: '#2563eb', fontWeight: 600}}>ℹ️ Inspect</span> button on
-          any turn to compare raw LLM Express DSL with expanded JSON.
-        </div>
-      </div>
-
-      {/* Main Chat Feed */}
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          backgroundColor: '#f8fafc',
-        }}
-      >
-        {/* Messages List */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: '32px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '20px',
-          }}
-        >
-          {feed.length === 0 && (
-            <div
+        <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+          <span className="material-symbols-outlined" style={{color: '#2563eb', fontSize: '26px'}}>
+            dashboard_customize
+          </span>
+          <div>
+            <h1
               style={{
-                margin: 'auto',
-                textAlign: 'center',
-                color: '#64748b',
-                maxWidth: '480px',
-                padding: '40px',
-                backgroundColor: '#ffffff',
-                borderRadius: '20px',
-                border: '1px solid #e2e8f0',
-                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)',
+                fontSize: '16px',
+                fontWeight: 700,
+                margin: 0,
+                color: '#0f172a',
+                lineHeight: 1.2,
               }}
             >
-              <div
+              A2UI Templates
+            </h1>
+            <span style={{fontSize: '11px', color: '#64748b'}}>
+              Synchronous server expansion · Basic Catalog
+            </span>
+          </div>
+        </div>
+
+        {/* View Switcher Tabs */}
+        <div
+          style={{
+            display: 'flex',
+            backgroundColor: '#f1f5f9',
+            padding: '4px',
+            borderRadius: '10px',
+            gap: '4px',
+          }}
+        >
+          <button
+            onClick={() => setCurrentView('chat')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              borderRadius: '8px',
+              border: 'none',
+              backgroundColor: currentView === 'chat' ? '#ffffff' : 'transparent',
+              color: currentView === 'chat' ? '#2563eb' : '#64748b',
+              fontWeight: 600,
+              fontSize: '13px',
+              cursor: 'pointer',
+              boxShadow: currentView === 'chat' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{fontSize: '16px'}}>
+              chat
+            </span>
+            <span>Interactive Chat</span>
+          </button>
+
+          <button
+            onClick={() => setCurrentView('library')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              borderRadius: '8px',
+              border: 'none',
+              backgroundColor: currentView === 'library' ? '#ffffff' : 'transparent',
+              color: currentView === 'library' ? '#2563eb' : '#64748b',
+              fontWeight: 600,
+              fontSize: '13px',
+              cursor: 'pointer',
+              boxShadow: currentView === 'library' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{fontSize: '16px'}}>
+              menu_book
+            </span>
+            <span>Template Library</span>
+          </button>
+        </div>
+      </header>
+
+      {/* Main View Body */}
+      {currentView === 'chat' ? (
+        <div style={{display: 'flex', flex: 1, overflow: 'hidden'}}>
+          {/* Presets Sidebar */}
+          <div
+            style={{
+              width: '300px',
+              backgroundColor: '#ffffff',
+              borderRight: '1px solid #e2e8f0',
+              padding: '24px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '20px',
+              overflowY: 'auto',
+            }}
+          >
+            <div>
+              <h3
                 style={{
-                  width: '56px',
-                  height: '56px',
-                  borderRadius: '16px',
-                  backgroundColor: '#eff6ff',
-                  color: '#2563eb',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 16px auto',
+                  fontSize: '11px',
+                  textTransform: 'uppercase',
+                  color: '#94a3b8',
+                  letterSpacing: '0.08em',
+                  fontWeight: 700,
+                  margin: '0 0 12px 0',
                 }}
               >
-                <span className="material-symbols-outlined" style={{fontSize: '32px'}}>
-                  auto_awesome
-                </span>
-              </div>
-              <h3 style={{color: '#0f172a', fontSize: '18px', fontWeight: 700, margin: '0 0 8px'}}>
-                A2UI Templates Explorer
+                Example Presets
               </h3>
-              <p style={{fontSize: '14px', lineHeight: 1.6, margin: 0, color: '#64748b'}}>
-                Click a preset on the sidebar or send a custom prompt below to observe
-                high-efficiency declarative templates expanded server-side into standard A2UI
-                primitives.
-              </p>
-            </div>
-          )}
-
-          {feed.map(item => {
-            const surface = item.surfaceId ? processor.model.getSurface(item.surfaceId) : undefined;
-            const isInspectorOpen = activeInspector === item.id;
-            const hasInspectionData = Boolean(
-              item.raw || (item.messages && item.messages.length > 0),
-            );
-
-            return (
-              <div
-                key={item.id}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: item.type === 'user' ? 'flex-end' : 'flex-start',
-                }}
-              >
-                {item.type === 'user' ? (
-                  <div
+              <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                {[
+                  {
+                    label: '👤 User Profile',
+                    prompt: 'show user profile',
+                    desc: 'Single card profile',
+                  },
+                  {
+                    label: '👥 Team Roster',
+                    prompt: 'show team roster',
+                    desc: 'Nested team member cards',
+                  },
+                  {
+                    label: '🎯 Team Goals',
+                    prompt: 'show team goals',
+                    desc: 'Unrolled objectives list',
+                  },
+                  {
+                    label: '💬 Feedback Board',
+                    prompt: 'show feedback board',
+                    desc: 'Review cards with ratings',
+                  },
+                  {
+                    label: '⭐ Competency Panel',
+                    prompt: 'show competency panel',
+                    desc: 'Metrics & stats summary',
+                  },
+                ].map(btn => (
+                  <button
+                    key={btn.prompt}
+                    onClick={() => sendPrompt(btn.prompt)}
+                    disabled={loading}
                     style={{
-                      backgroundColor: '#2563eb',
-                      color: '#ffffff',
-                      padding: '12px 18px',
-                      borderRadius: '18px 18px 4px 18px',
-                      fontSize: '14px',
-                      fontWeight: 500,
-                      maxWidth: '70%',
-                      boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)',
+                      textAlign: 'left',
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      backgroundColor: '#f8fafc',
+                      color: '#1e293b',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: loading ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.15s ease',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '2px',
                     }}
                   >
-                    {item.text}
-                  </div>
-                ) : (
+                    <span>{btn.label}</span>
+                    <span style={{fontSize: '11px', color: '#64748b', fontWeight: 400}}>
+                      {btn.desc}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div
+              style={{
+                marginTop: 'auto',
+                padding: '12px',
+                backgroundColor: '#f8fafc',
+                borderRadius: '10px',
+                border: '1px solid #e2e8f0',
+                fontSize: '11px',
+                color: '#64748b',
+                lineHeight: 1.4,
+              }}
+            >
+              <strong>Template Inference Format</strong>
+              <br />
+              Click the <span style={{color: '#2563eb', fontWeight: 600}}>ℹ️ Inspect</span> button
+              on any turn to view the raw LLM Express DSL and expanded JSON.
+            </div>
+          </div>
+
+          {/* Chat Feed */}
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              backgroundColor: '#f8fafc',
+            }}
+          >
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '32px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '20px',
+              }}
+            >
+              {feed.length === 0 && (
+                <div
+                  style={{
+                    margin: 'auto',
+                    textAlign: 'center',
+                    color: '#64748b',
+                    maxWidth: '480px',
+                    padding: '40px',
+                    backgroundColor: '#ffffff',
+                    borderRadius: '20px',
+                    border: '1px solid #e2e8f0',
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)',
+                  }}
+                >
                   <div
+                    style={{
+                      width: '56px',
+                      height: '56px',
+                      borderRadius: '16px',
+                      backgroundColor: '#eff6ff',
+                      color: '#2563eb',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 16px auto',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{fontSize: '32px'}}>
+                      auto_awesome
+                    </span>
+                  </div>
+                  <h3
+                    style={{
+                      color: '#0f172a',
+                      fontSize: '18px',
+                      fontWeight: 700,
+                      margin: '0 0 8px',
+                    }}
+                  >
+                    A2UI Templates Explorer
+                  </h3>
+                  <p style={{fontSize: '14px', lineHeight: 1.6, margin: 0, color: '#64748b'}}>
+                    Click a preset on the sidebar or send a custom prompt below to observe
+                    declarative templates expanded server-side into standard A2UI primitives.
+                  </p>
+                </div>
+              )}
+
+              {feed.map(item => {
+                const surface = item.surfaceId
+                  ? chatProcessor.model.getSurface(item.surfaceId)
+                  : undefined;
+                const isInspectorOpen = activeInspector === item.id;
+                const hasInspectionData = Boolean(
+                  item.raw || (item.messages && item.messages.length > 0),
+                );
+
+                return (
+                  <div
+                    key={item.id}
                     style={{
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '10px',
-                      maxWidth: '85%',
+                      alignItems: item.type === 'user' ? 'flex-end' : 'flex-start',
                     }}
                   >
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '12px',
-                      }}
-                    >
-                      {item.text && (
-                        <div
-                          style={{
-                            backgroundColor: '#ffffff',
-                            border: '1px solid #e2e8f0',
-                            color: '#0f172a',
-                            padding: '10px 16px',
-                            borderRadius: '16px 16px 16px 4px',
-                            fontSize: '14px',
-                            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
-                          }}
-                        >
-                          {item.text}
-                        </div>
-                      )}
-
-                      {/* Turn Inspector Button */}
-                      {hasInspectionData && (
-                        <button
-                          onClick={() =>
-                            setActiveInspector(curr => (curr === item.id ? null : item.id))
-                          }
-                          title="Inspect raw LLM Express DSL and expanded A2UI JSON"
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '6px 12px',
-                            borderRadius: '20px',
-                            border: '1px solid #e2e8f0',
-                            backgroundColor: isInspectorOpen ? '#eff6ff' : '#ffffff',
-                            borderColor: isInspectorOpen ? '#93c5fd' : '#e2e8f0',
-                            color: isInspectorOpen ? '#1d4ed8' : '#64748b',
-                            fontSize: '12px',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease',
-                            boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
-                          }}
-                        >
-                          <span className="material-symbols-outlined" style={{fontSize: '16px'}}>
-                            data_object
-                          </span>
-                          <span>{isInspectorOpen ? 'Hide Payload' : 'Inspect Format'}</span>
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Inspector Drawer */}
-                    {isInspectorOpen && (
+                    {item.type === 'user' ? (
                       <div
                         style={{
-                          backgroundColor: '#0f172a',
-                          color: '#f8fafc',
-                          borderRadius: '16px',
-                          border: '1px solid #1e293b',
-                          overflow: 'hidden',
-                          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
-                          marginTop: '4px',
+                          backgroundColor: '#2563eb',
+                          color: '#ffffff',
+                          padding: '12px 18px',
+                          borderRadius: '18px 18px 4px 18px',
+                          fontSize: '14px',
+                          fontWeight: 500,
+                          maxWidth: '70%',
+                          boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)',
                         }}
                       >
-                        {/* Tab Switcher & Actions */}
+                        {item.text}
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px',
+                          maxWidth: '85%',
+                        }}
+                      >
                         <div
                           style={{
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            padding: '8px 16px',
-                            backgroundColor: '#1e293b',
-                            borderBottom: '1px solid #334155',
+                            gap: '12px',
                           }}
                         >
-                          <div style={{display: 'flex', gap: '8px'}}>
-                            <button
-                              onClick={() => setInspectorTab('express')}
+                          {item.text && (
+                            <div
                               style={{
-                                padding: '6px 12px',
-                                borderRadius: '8px',
-                                border: 'none',
-                                backgroundColor:
-                                  inspectorTab === 'express' ? '#334155' : 'transparent',
-                                color: inspectorTab === 'express' ? '#38bdf8' : '#94a3b8',
-                                fontSize: '12px',
-                                fontWeight: 600,
-                                cursor: 'pointer',
+                                backgroundColor: '#ffffff',
+                                border: '1px solid #e2e8f0',
+                                color: '#0f172a',
+                                padding: '10px 16px',
+                                borderRadius: '16px 16px 16px 4px',
+                                fontSize: '14px',
+                                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
                               }}
                             >
-                              ⚡ Raw Express DSL
-                            </button>
-                            <button
-                              onClick={() => setInspectorTab('json')}
-                              style={{
-                                padding: '6px 12px',
-                                borderRadius: '8px',
-                                border: 'none',
-                                backgroundColor:
-                                  inspectorTab === 'json' ? '#334155' : 'transparent',
-                                color: inspectorTab === 'json' ? '#38bdf8' : '#94a3b8',
-                                fontSize: '12px',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              📦 Expanded A2UI JSON
-                            </button>
-                          </div>
+                              {item.text}
+                            </div>
+                          )}
 
-                          <button
-                            onClick={() => {
-                              const content =
-                                inspectorTab === 'express'
-                                  ? item.raw || ''
-                                  : JSON.stringify(item.messages, null, 2);
-                              copyToClipboard(content);
-                            }}
+                          {hasInspectionData && (
+                            <button
+                              onClick={() =>
+                                setActiveInspector(curr => (curr === item.id ? null : item.id))
+                              }
+                              title="Inspect raw LLM Express DSL and expanded A2UI JSON"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '6px 12px',
+                                borderRadius: '20px',
+                                border: '1px solid #e2e8f0',
+                                backgroundColor: isInspectorOpen ? '#eff6ff' : '#ffffff',
+                                borderColor: isInspectorOpen ? '#93c5fd' : '#e2e8f0',
+                                color: isInspectorOpen ? '#1d4ed8' : '#64748b',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
+                              }}
+                            >
+                              <span
+                                className="material-symbols-outlined"
+                                style={{fontSize: '16px'}}
+                              >
+                                data_object
+                              </span>
+                              <span>{isInspectorOpen ? 'Hide Payload' : 'Inspect Format'}</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Inspector Drawer */}
+                        {isInspectorOpen && (
+                          <div
                             style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              padding: '4px 10px',
-                              borderRadius: '6px',
-                              border: '1px solid #475569',
                               backgroundColor: '#0f172a',
-                              color: '#cbd5e1',
-                              fontSize: '11px',
-                              cursor: 'pointer',
+                              color: '#f8fafc',
+                              borderRadius: '16px',
+                              border: '1px solid #1e293b',
+                              overflow: 'hidden',
+                              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
+                              marginTop: '4px',
                             }}
                           >
-                            <span className="material-symbols-outlined" style={{fontSize: '14px'}}>
-                              {copied ? 'check' : 'content_copy'}
-                            </span>
-                            <span>{copied ? 'Copied!' : 'Copy'}</span>
-                          </button>
-                        </div>
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '8px 16px',
+                                backgroundColor: '#1e293b',
+                                borderBottom: '1px solid #334155',
+                              }}
+                            >
+                              <div style={{display: 'flex', gap: '8px'}}>
+                                <button
+                                  onClick={() => setInspectorTab('express')}
+                                  style={{
+                                    padding: '6px 12px',
+                                    borderRadius: '8px',
+                                    border: 'none',
+                                    backgroundColor:
+                                      inspectorTab === 'express' ? '#334155' : 'transparent',
+                                    color: inspectorTab === 'express' ? '#38bdf8' : '#94a3b8',
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  ⚡ Raw Express DSL
+                                </button>
+                                <button
+                                  onClick={() => setInspectorTab('json')}
+                                  style={{
+                                    padding: '6px 12px',
+                                    borderRadius: '8px',
+                                    border: 'none',
+                                    backgroundColor:
+                                      inspectorTab === 'json' ? '#334155' : 'transparent',
+                                    color: inspectorTab === 'json' ? '#38bdf8' : '#94a3b8',
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  📦 Expanded A2UI JSON
+                                </button>
+                              </div>
 
-                        {/* Code Display Area */}
-                        <div style={{padding: '16px', maxHeight: '320px', overflowY: 'auto'}}>
-                          <pre
+                              <button
+                                onClick={() => {
+                                  const content =
+                                    inspectorTab === 'express'
+                                      ? item.raw || ''
+                                      : JSON.stringify(item.messages, null, 2);
+                                  copyToClipboard(content, false);
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '4px 10px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #475569',
+                                  backgroundColor: '#0f172a',
+                                  color: '#cbd5e1',
+                                  fontSize: '11px',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <span
+                                  className="material-symbols-outlined"
+                                  style={{fontSize: '14px'}}
+                                >
+                                  {copiedTurn ? 'check' : 'content_copy'}
+                                </span>
+                                <span>{copiedTurn ? 'Copied!' : 'Copy'}</span>
+                              </button>
+                            </div>
+
+                            <div style={{padding: '16px', maxHeight: '320px', overflowY: 'auto'}}>
+                              <pre
+                                style={{
+                                  margin: 0,
+                                  fontFamily:
+                                    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                  fontSize: '12px',
+                                  lineHeight: 1.5,
+                                  color: inspectorTab === 'express' ? '#7dd3fc' : '#a7f3d0',
+                                  whiteSpace: 'pre-wrap',
+                                  wordBreak: 'break-word',
+                                }}
+                              >
+                                {inspectorTab === 'express'
+                                  ? item.raw || 'No raw format data available.'
+                                  : JSON.stringify(item.messages, null, 2)}
+                              </pre>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Rendered A2UI Surface */}
+                        {surface && (
+                          <div
                             style={{
-                              margin: 0,
-                              fontFamily:
-                                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace",
-                              fontSize: '12px',
-                              lineHeight: 1.5,
-                              color: inspectorTab === 'express' ? '#7dd3fc' : '#a7f3d0',
-                              whiteSpace: 'pre-wrap',
-                              wordBreak: 'break-word',
+                              backgroundColor: '#ffffff',
+                              borderRadius: '18px',
+                              border: '1px solid #e2e8f0',
+                              padding: '20px',
+                              boxShadow:
+                                '0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.03)',
+                              ...A2UI_THEME_VARS,
                             }}
                           >
-                            {inspectorTab === 'express'
-                              ? item.raw || 'No raw format data available.'
-                              : JSON.stringify(item.messages, null, 2)}
-                          </pre>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Rendered A2UI Surface */}
-                    {surface && (
-                      <div
-                        style={{
-                          backgroundColor: '#ffffff',
-                          borderRadius: '18px',
-                          border: '1px solid #e2e8f0',
-                          padding: '20px',
-                          boxShadow:
-                            '0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.03)',
-                          ...A2UI_THEME_VARS,
-                        }}
-                      >
-                        <A2uiSurface surface={surface} />
+                            <A2uiSurface surface={surface} />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
-              </div>
-            );
-          })}
+                );
+              })}
 
-          {loading && (
+              {loading && (
+                <div
+                  style={{
+                    alignSelf: 'flex-start',
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    padding: '12px 18px',
+                    borderRadius: '18px 18px 18px 4px',
+                    fontSize: '13px',
+                    color: '#64748b',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                  }}
+                >
+                  <span
+                    className="material-symbols-outlined"
+                    style={{
+                      fontSize: '18px',
+                      animation: 'spin 1.5s linear infinite',
+                      color: '#2563eb',
+                    }}
+                  >
+                    progress_activity
+                  </span>
+                  Expanding template...
+                </div>
+              )}
+              <div ref={chatBottomRef} />
+            </div>
+
+            {/* Input Bar */}
             <div
               style={{
-                alignSelf: 'flex-start',
+                padding: '18px 32px',
                 backgroundColor: '#ffffff',
-                border: '1px solid #e2e8f0',
-                padding: '12px 18px',
-                borderRadius: '18px 18px 18px 4px',
-                fontSize: '13px',
-                color: '#64748b',
+                borderTop: '1px solid #e2e8f0',
                 display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                gap: '12px',
               }}
             >
-              <span
-                className="material-symbols-outlined"
+              <input
+                type="text"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && sendPrompt(input)}
+                placeholder="Type a template prompt (e.g. 'Show user profile' or custom request)..."
+                disabled={loading}
                 style={{
-                  fontSize: '18px',
-                  animation: 'spin 1.5s linear infinite',
-                  color: '#2563eb',
+                  flex: 1,
+                  padding: '14px 18px',
+                  borderRadius: '12px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '14px',
+                  outline: 'none',
+                  transition: 'border-color 0.15s ease',
+                }}
+                onFocus={e => (e.target.style.borderColor = '#2563eb')}
+                onBlur={e => (e.target.style.borderColor = '#cbd5e1')}
+              />
+              <button
+                onClick={() => sendPrompt(input)}
+                disabled={loading || !input.trim()}
+                style={{
+                  padding: '0 24px',
+                  backgroundColor: '#2563eb',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
+                  opacity: loading || !input.trim() ? 0.6 : 1,
+                  boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)',
+                  transition: 'all 0.15s ease',
                 }}
               >
-                progress_activity
-              </span>
-              Expanding template...
+                Send
+              </button>
             </div>
-          )}
-          <div ref={chatBottomRef} />
+          </div>
         </div>
-
-        {/* Input Bar */}
-        <div
-          style={{
-            padding: '18px 32px',
-            backgroundColor: '#ffffff',
-            borderTop: '1px solid #e2e8f0',
-            display: 'flex',
-            gap: '12px',
-          }}
-        >
-          <input
-            type="text"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && sendPrompt(input)}
-            placeholder="Type a template prompt (e.g. 'Show user profile' or custom request)..."
-            disabled={loading}
+      ) : (
+        /* Template Library View */
+        <div style={{display: 'flex', flex: 1, overflow: 'hidden'}}>
+          {/* Library Sidebar List */}
+          <div
             style={{
-              flex: 1,
-              padding: '14px 18px',
-              borderRadius: '12px',
-              border: '1px solid #cbd5e1',
-              fontSize: '14px',
-              outline: 'none',
-              transition: 'border-color 0.15s ease',
-            }}
-            onFocus={e => (e.target.style.borderColor = '#2563eb')}
-            onBlur={e => (e.target.style.borderColor = '#cbd5e1')}
-          />
-          <button
-            onClick={() => sendPrompt(input)}
-            disabled={loading || !input.trim()}
-            style={{
-              padding: '0 24px',
-              backgroundColor: '#2563eb',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '12px',
-              fontSize: '14px',
-              fontWeight: 600,
-              cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
-              opacity: loading || !input.trim() ? 0.6 : 1,
-              boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)',
-              transition: 'all 0.15s ease',
+              width: '320px',
+              backgroundColor: '#ffffff',
+              borderRight: '1px solid #e2e8f0',
+              padding: '24px 16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              overflowY: 'auto',
             }}
           >
-            Send
-          </button>
+            <div style={{padding: '0 8px 12px 8px'}}>
+              <h2 style={{fontSize: '15px', fontWeight: 700, margin: '0 0 4px', color: '#0f172a'}}>
+                Declared Templates
+              </h2>
+              <p style={{fontSize: '12px', color: '#64748b', margin: 0}}>
+                Select a template to inspect its schema and live sample rendering.
+              </p>
+            </div>
+
+            {templates.map(tmpl => {
+              const isSelected = tmpl.templateId === selectedTemplateId;
+              const paramCount = Object.keys(tmpl.parameters || {}).length;
+              const compCount = (tmpl.components || []).length;
+
+              return (
+                <button
+                  key={tmpl.templateId}
+                  onClick={() => setSelectedTemplateId(tmpl.templateId)}
+                  style={{
+                    textAlign: 'left',
+                    padding: '12px 14px',
+                    borderRadius: '12px',
+                    border: isSelected ? '1px solid #93c5fd' : '1px solid #e2e8f0',
+                    backgroundColor: isSelected ? '#eff6ff' : '#ffffff',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        fontSize: '14px',
+                        color: isSelected ? '#1d4ed8' : '#0f172a',
+                      }}
+                    >
+                      {tmpl.templateId}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        backgroundColor: isSelected ? '#dbeafe' : '#f1f5f9',
+                        color: isSelected ? '#1e40af' : '#64748b',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {paramCount} params
+                    </span>
+                  </div>
+                  <span style={{fontSize: '11px', color: '#64748b'}}>
+                    {compCount} primitive components
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Dual-Pane Studio: Preview & Code View */}
+          {selectedTemplate ? (
+            <div
+              style={{
+                flex: 1,
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '24px',
+                padding: '24px',
+                overflowY: 'auto',
+              }}
+            >
+              {/* Left: Live Inflated Preview */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div>
+                    <h3 style={{fontSize: '16px', fontWeight: 700, margin: 0, color: '#0f172a'}}>
+                      Inflated UI Preview
+                    </h3>
+                    <p style={{fontSize: '12px', color: '#64748b', margin: '2px 0 0'}}>
+                      Rendered via @a2ui/react using declared sampleData
+                    </p>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      padding: '4px 10px',
+                      borderRadius: '8px',
+                      backgroundColor: '#ecfdf5',
+                      color: '#047857',
+                      border: '1px solid #a7f3d0',
+                    }}
+                  >
+                    ✓ Live Inflated
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: '18px',
+                    border: '1px solid #e2e8f0',
+                    padding: '24px',
+                    boxShadow:
+                      '0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.03)',
+                    minHeight: '280px',
+                    ...A2UI_THEME_VARS,
+                  }}
+                >
+                  {libraryProcessor.model.getSurface(`preview_${selectedTemplate.templateId}`) ? (
+                    <A2uiSurface
+                      surface={
+                        libraryProcessor.model.getSurface(`preview_${selectedTemplate.templateId}`)!
+                      }
+                    />
+                  ) : (
+                    <div style={{color: '#94a3b8', textAlign: 'center', padding: '40px'}}>
+                      No preview surface available for this template.
+                    </div>
+                  )}
+                </div>
+
+                {selectedTemplate.sampleData && (
+                  <div
+                    style={{
+                      backgroundColor: '#ffffff',
+                      borderRadius: '14px',
+                      border: '1px solid #e2e8f0',
+                      padding: '16px',
+                    }}
+                  >
+                    <h4
+                      style={{
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        color: '#64748b',
+                        letterSpacing: '0.05em',
+                        margin: '0 0 8px',
+                      }}
+                    >
+                      Sample Data Inputs
+                    </h4>
+                    <pre
+                      style={{
+                        margin: 0,
+                        fontFamily:
+                          'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                        fontSize: '12px',
+                        color: '#0f172a',
+                        backgroundColor: '#f8fafc',
+                        padding: '12px',
+                        borderRadius: '8px',
+                        border: '1px solid #e2e8f0',
+                        overflowX: 'auto',
+                      }}
+                    >
+                      {JSON.stringify(selectedTemplate.sampleData, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </div>
+
+              {/* Right: Code with Line Numbers & Monospace Font */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div>
+                    <h3 style={{fontSize: '16px', fontWeight: 700, margin: 0, color: '#0f172a'}}>
+                      Template Declaration (JSON)
+                    </h3>
+                    <p style={{fontSize: '12px', color: '#64748b', margin: '2px 0 0'}}>
+                      Parameterized JSON definition & component graph
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      const cleanTemplate = {
+                        templateId: selectedTemplate.templateId,
+                        parameters: selectedTemplate.parameters,
+                        components: selectedTemplate.components,
+                        sampleData: selectedTemplate.sampleData,
+                      };
+                      copyToClipboard(JSON.stringify(cleanTemplate, null, 2), true);
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      backgroundColor: '#ffffff',
+                      color: '#0f172a',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{fontSize: '15px'}}>
+                      {copiedTemplate ? 'check' : 'content_copy'}
+                    </span>
+                    <span>{copiedTemplate ? 'Copied JSON!' : 'Copy Template JSON'}</span>
+                  </button>
+                </div>
+
+                <div
+                  style={{
+                    backgroundColor: '#0f172a',
+                    borderRadius: '16px',
+                    border: '1px solid #1e293b',
+                    overflow: 'hidden',
+                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.2)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    maxHeight: '620px',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 16px',
+                      backgroundColor: '#1e293b',
+                      borderBottom: '1px solid #334155',
+                      fontSize: '11px',
+                      color: '#94a3b8',
+                    }}
+                  >
+                    <span>{selectedTemplate.templateId.toLowerCase()}.json</span>
+                    <span>JSON Schema draft 2020-12</span>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      overflowY: 'auto',
+                      padding: '16px 0',
+                      fontFamily:
+                        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                      fontSize: '12px',
+                      lineHeight: '20px',
+                    }}
+                  >
+                    {(() => {
+                      const jsonText = JSON.stringify(
+                        {
+                          templateId: selectedTemplate.templateId,
+                          parameters: selectedTemplate.parameters,
+                          components: selectedTemplate.components,
+                          sampleData: selectedTemplate.sampleData,
+                        },
+                        null,
+                        2,
+                      );
+                      const lines = jsonText.split('\n');
+
+                      return (
+                        <>
+                          <div
+                            style={{
+                              padding: '0 12px 0 16px',
+                              textAlign: 'right',
+                              color: '#475569',
+                              userSelect: 'none',
+                              borderRight: '1px solid #1e293b',
+                            }}
+                          >
+                            {lines.map((_, idx) => (
+                              <div key={idx}>{idx + 1}</div>
+                            ))}
+                          </div>
+
+                          <div
+                            style={{
+                              padding: '0 16px',
+                              color: '#e2e8f0',
+                              flex: 1,
+                              whiteSpace: 'pre',
+                              overflowX: 'auto',
+                            }}
+                          >
+                            {lines.map((line, idx) => (
+                              <div key={idx}>{line}</div>
+                            ))}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{margin: 'auto', color: '#64748b'}}>
+              {libraryLoading ? 'Loading templates...' : 'No templates available.'}
+            </div>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
