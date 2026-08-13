@@ -63,7 +63,9 @@ def test_validate_conformance_yaml(yaml_path):
             if not isinstance(item, dict):
                 continue
             name = item.get("name")
-            catalog = item.get("catalog", {}) if isinstance(item.get("catalog"), dict) else {}
+            catalog = (
+                item.get("catalog", {}) if isinstance(item.get("catalog"), dict) else {}
+            )
             args = item.get("args", {}) if isinstance(item.get("args"), dict) else {}
             version = catalog.get("version") or args.get("version") or "0.8"
 

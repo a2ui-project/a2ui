@@ -178,7 +178,9 @@ def get_conformance_cases(filename):
     filtered = []
     for case in cases:
         name = case.get("name")
-        catalog = case.get("catalog", {}) if isinstance(case.get("catalog"), dict) else {}
+        catalog = (
+            case.get("catalog", {}) if isinstance(case.get("catalog"), dict) else {}
+        )
         args = case.get("args", {}) if isinstance(case.get("args"), dict) else {}
         version = str(catalog.get("version") or args.get("version") or "0.8")
 

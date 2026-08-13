@@ -156,7 +156,7 @@ function runConformanceHarness() {
 
   console.log('\n=====================================================');
   console.log(
-    `Conformance Summary: ${totalPassed}/${totalTests} Passed (${totalFailed} Failed, ${totalSkipped} Skipped)`
+    `Conformance Summary: ${totalPassed}/${totalTests} Passed (${totalFailed} Failed, ${totalSkipped} Skipped)`,
   );
   console.log('=====================================================');
 
