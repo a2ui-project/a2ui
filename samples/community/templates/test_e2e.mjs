@@ -66,6 +66,13 @@ async function runE2ETest() {
     }
 
     // 2. Test Presets
+    await testPreset('🔒 Verified Salary', [
+      'Verified Compensation',
+      'Marcus Vance',
+      '$195,000',
+      '$38,000',
+      '2,800 RSUs',
+    ]);
     await testPreset('👤 User Profile', ['Alice Smith', 'Lead Architect']);
     await testPreset('👥 Team Roster', [
       'Organization Directory',
@@ -102,7 +109,7 @@ async function runE2ETest() {
     if (
       !inspectorContent.includes('<a2ui>') &&
       !inspectorContent.includes('UserProfile') &&
-      !inspectorContent.includes('TeamMemberKnowledgePanel')
+      !inspectorContent.includes('EmployeeSalaryCard')
     ) {
       throw new Error(`Expected Express DSL content in inspector drawer:\n${inspectorContent}`);
     }
@@ -131,35 +138,65 @@ async function runE2ETest() {
 
     let libraryBody = await page.textContent('body');
     if (
-      !libraryBody.includes('Declared Templates') ||
-      !libraryBody.includes('Inflated UI Preview')
+      !libraryBody.includes('Registered Templates') ||
+      (!libraryBody.includes('Inflated UI Preview') &&
+        !libraryBody.includes('Inflated Output Preview'))
     ) {
       throw new Error(`Template Library studio failed to load:\n${libraryBody}`);
     }
     console.log('   ✓ Template Library screen mounted');
 
-    // Click UserProfile in library list
-    const userProfileBtn = page.locator('button:has-text("UserProfile")').first();
-    await userProfileBtn.click();
+    // Click EmployeeSalaryCard dynamic template in library list
+    console.log('\n👉 Testing Dynamic Template 3-Stage Studio...');
+    const salaryCardBtn = page.locator('button:has-text("EmployeeSalaryCard")').first();
+    await salaryCardBtn.click();
     await page.waitForTimeout(600);
 
     libraryBody = await page.textContent('body');
-    if (!libraryBody.includes('Alice Smith') || !libraryBody.includes('Lead Architect')) {
-      throw new Error(`UserProfile sample inflation failed in library:\n${libraryBody}`);
+    if (
+      !libraryBody.includes('Dynamic Server Resolver') ||
+      !libraryBody.includes('Step 1: Simple LLM Input Interface')
+    ) {
+      throw new Error(`Dynamic template studio failed to mount:\n${libraryBody}`);
     }
-    console.log('   ✓ UserProfile sample inflated and rendered with declared sampleData');
+    console.log('   ✓ Dynamic Template 3-Stage Studio mounted');
 
-    // Click TeamGoalList in library list
-    const goalListBtn = page.locator('button:has-text("TeamGoalList")').first();
-    await goalListBtn.click();
-    await page.waitForTimeout(600);
+    // Test dropdown selection to Marcus Vance
+    const empSelect = page.locator('select');
+    await Promise.all([
+      page.waitForResponse(resp => resp.url().includes('/resolve') && resp.status() === 200),
+      empSelect.selectOption('emp_102'),
+    ]);
+    await page.waitForTimeout(800);
 
     libraryBody = await page.textContent('body');
-    if (!libraryBody.includes('Strategic Objectives: A2UI Core Team')) {
-      throw new Error(`TeamGoalList sample inflation failed in library:\n${libraryBody}`);
+    if (!libraryBody.includes('Marcus Vance') || !libraryBody.includes('$195,000')) {
+      throw new Error(`Dynamic resolver execution for emp_102 failed:\n${libraryBody}`);
     }
-    console.log('   ✓ TeamGoalList sample inflated and rendered with declared sampleData');
-    console.log('✅ Template Library Screen Test Passed!');
+    console.log('   ✓ Dynamic server resolver executed and updated preview for Marcus Vance');
+
+    // Test Stage 2: Static Blueprint Tab
+    const layoutTabBtn = page.locator('button:has-text("2. Static Blueprint")');
+    await layoutTabBtn.click();
+    await page.waitForTimeout(400);
+
+    libraryBody = await page.textContent('body');
+    if (!libraryBody.includes('salary_card.json') && !libraryBody.includes('baseSalary')) {
+      throw new Error(`Static Blueprint stage failed to display:\n${libraryBody}`);
+    }
+    console.log('   ✓ Static Blueprint stage displayed underlying salary_card.json layout');
+
+    // Test Stage 3: Resolved Output Tab
+    const resolvedTabBtn = page.locator('button:has-text("3. Resolved Output")');
+    await resolvedTabBtn.click();
+    await page.waitForTimeout(400);
+
+    libraryBody = await page.textContent('body');
+    if (!libraryBody.includes('$195,000') || !libraryBody.includes('$38,000')) {
+      throw new Error(`Resolved Output stage failed to display injected record:\n${libraryBody}`);
+    }
+    console.log('   ✓ Resolved Output stage displayed live injected database figures');
+    console.log('✅ Dynamic Template 3-Stage Studio Passed!');
 
     // Switch back to Interactive Chat
     const chatTabBtn = page.locator('button:has-text("Interactive Chat")');

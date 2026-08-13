@@ -1,27 +1,35 @@
-# A2UI Templates Community Demo
+# A2UI templates community demo
 
-This demo demonstrates **A2UI Server-Side Template Expansion** using the updated A2UI Agent SDK and the standard Basic Catalog.
-
-## Overview
-
-- **Templates System**: Parameterized layout subtrees (e.g. `UserProfile`, `TeamCard`, `TeamRoster`, `TeamGoalList`, `TeamFeedbackBoard`) are defined on the server and exposed to the LLM agent via synthetic inference catalogs.
-- **Express DSL & Synchronous Expansion**: The LLM outputs compact A2UI Express DSL. The backend compiler parses the DSL and resolves/expands templates into standard A2UI messages (`Card`, `Column`, `Row`, `Text`, `Divider`, `Icon`, `Button`) in a single synchronous pass.
-- **Basic Catalog Compatibility**: All templates expand into primitive components from the official A2UI Basic Catalog, eliminating custom renderer dependencies.
+This sample demonstrates server-side template expansion in the A2UI Python Agent SDK using the standard Basic Catalog and React client renderer.
 
 ---
 
-## Running the Demo
+## Overview
 
-### 1. Start the Backend Server
+- **Static declarative templates**: Parameterized layout subtrees (such as `UserProfile`, `TeamCard`, `TeamRoster`, `TeamGoalList`, `TeamFeedbackBoard`) defined in JSON and expanded into Basic Catalog primitives (`Card`, `Column`, `Row`, `Text`, `Divider`, `Icon`, `Button`).
+- **Dynamic server resolvers**: Programmatic templates (such as `EmployeeSalaryCard`) that run Python resolver callbacks to query internal databases. The model only receives and passes identifiers, while sensitive numbers are injected server-side.
+- **Express DSL & synchronous expansion**: The language model outputs concise Express DSL. The backend parser expands templates synchronously without requiring custom client components.
+- **Interactive studio & library**: The React client includes an Interactive Chat with suggested prompt chips and latency/token metrics, alongside a 3-Stage Dynamic Template Studio showing input arguments, underlying blueprint JSON, and live rendered output.
+
+---
+
+## Running the demo
+
+### 1. Start the backend server
 
 ```bash
 cd samples/community/templates
 uv run uvicorn server:app --reload --port 8000
 ```
 
-_(Optional: export `GEMINI_API_KEY=your_key` to test live Gemini inference in addition to preset templates)._
+To test live Gemini generation in addition to the preset templates, set your API key and optional model:
 
-### 2. Start the Frontend Client
+```bash
+export GEMINI_API_KEY="your-api-key"
+export GEMINI_MODEL="gemini-flash-latest"  # Optional, defaults to gemini-flash-latest
+```
+
+### 2. Start the frontend client
 
 ```bash
 cd samples/community/templates/client
@@ -30,3 +38,13 @@ yarn dev
 ```
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+---
+
+## Testing
+
+Run the Playwright end-to-end integration test suite:
+
+```bash
+node samples/community/templates/test_e2e.mjs
+```

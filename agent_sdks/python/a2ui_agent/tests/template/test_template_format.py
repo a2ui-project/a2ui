@@ -17,6 +17,14 @@ import os
 import pytest
 from a2ui.template import (
     Template,
+    StaticTemplate,
+    DynamicTemplate,
+    Param,
+    ParamType,
+    ParamRef,
+    Concat,
+    TemplateComponent,
+    TemplateLoop,
     TemplateProcessor,
     TemplateInferenceFormat,
     A2uiTemplateManager,
@@ -498,3 +506,92 @@ def test_synthetic_catalog_generation_includes_descriptions():
         synthetic_cat["components"]["TeamCard"].get("description")
         == team_card.description
     )
+
+
+def test_strongly_typed_ast_construction():
+    card = StaticTemplate(
+        template_id="TypedCard",
+        description="Strongly typed card test",
+        parameters={
+            "title": Param.string(description="Title text"),
+            "count": Param.integer(description="Numeric count"),
+        },
+        components=[
+            TemplateComponent(
+                id="root",
+                component="Card",
+                child="col",
+            ),
+            TemplateComponent(
+                id="col",
+                component="Column",
+                children=["t_txt", "c_txt"],
+            ),
+            TemplateComponent(
+                id="t_txt",
+                component="Text",
+                properties={"text": ParamRef("title")},
+            ),
+            TemplateComponent(
+                id="c_txt",
+                component="Text",
+                properties={"text": Concat(["Count: ", ParamRef("count")])},
+            ),
+        ],
+    )
+
+    processor = TemplateProcessor(templates=[card])
+    expanded = processor.expand_template(
+        "c1", "TypedCard", {"title": "Hello World", "count": 42}
+    )
+    assert len(expanded) == 4
+    c_txt = next(c for c in expanded if c["id"] == "c1_c_txt")
+    assert c_txt["text"] == "Count: 42"
+
+
+def test_dynamic_template_with_resolver():
+    salary_layout = load_example("salary_card")
+
+    # Mock database lookup resolver
+    def resolve_salary(employeeId: str):
+        db = {
+            "emp_101": {
+                "employeeName": "Dr. Elena Vance",
+                "role": "Principal Systems Architect",
+                "baseSalary": "$215,000",
+                "annualBonus": "$45,000",
+                "equity": "3,500 RSUs",
+                "clearanceLevel": "Level 5 - Confidential",
+                "verifiedAt": "2026-08-13",
+            }
+        }
+        if employeeId not in db:
+            raise ValueError(f"Unknown employee {employeeId}")
+        return db[employeeId]
+
+    dynamic_tmpl = DynamicTemplate(
+        template_id="EmployeeSalaryCard",
+        resolver=resolve_salary,
+        layout=salary_layout,
+        description="Secure employee salary card resolved server-side.",
+    )
+
+    # Inferred parameters should be 'employeeId' of type string
+    assert "employeeId" in dynamic_tmpl.parameters
+    assert dynamic_tmpl.is_dynamic is True
+
+    processor = TemplateProcessor(templates=[dynamic_tmpl])
+    synthetic_cat = processor.generate_inference_catalog()
+    assert "EmployeeSalaryCard" in synthetic_cat["components"]
+
+    # Expand template using only employeeId
+    expanded = processor.expand_template(
+        "salary_inst", "EmployeeSalaryCard", {"employeeId": "emp_101"}
+    )
+    assert len(expanded) > 5
+
+    name_txt = next(c for c in expanded if c["id"] == "salary_inst_name_txt")
+    assert name_txt["text"] == "Dr. Elena Vance"
+
+    sal_val = next(c for c in expanded if c["id"] == "salary_inst_sal_val")
+    assert sal_val["text"] == "$215,000"

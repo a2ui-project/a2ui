@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 from a2ui.core.catalog import Catalog
 from a2ui.inference_format import InferenceFormat
 from a2ui.parser.parser import Parser
@@ -30,7 +30,7 @@ from a2ui.schema.constants import (
 )
 from a2ui.schema.utils import load_from_bundled_resource
 
-from .models import Template
+from .models import Template, StaticTemplate, DynamicTemplate, BaseTemplate
 from .processor import TemplateProcessor
 
 
@@ -114,7 +114,9 @@ class TemplateInferenceFormat(InferenceFormat):
 
     def __init__(
         self,
-        templates: List[Template],
+        templates: Sequence[
+            Union[BaseTemplate, Template, StaticTemplate, DynamicTemplate]
+        ],
         catalog: Optional[Union[Catalog[Any, Any], A2uiCatalog, Dict[str, Any]]] = None,
         allowed_primitives: Optional[List[str]] = None,
         surface_id: str = "main",

@@ -39,8 +39,13 @@ interface TemplateDefinition {
   templateId: string;
   parameters: Record<string, any>;
   components: any[];
+  description?: string;
   sampleData?: Record<string, any>;
   sampleMessages?: any[];
+  isDynamic?: boolean;
+  layoutTemplate?: Record<string, any>;
+  resolvedData?: Record<string, any>;
+  availablePresets?: Array<{label: string; value: string}>;
 }
 
 const A2UI_THEME_VARS: React.CSSProperties = {
@@ -103,6 +108,12 @@ export default function App() {
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [copiedTemplate, setCopiedTemplate] = useState(false);
 
+  // Dynamic Template Interactive State
+  const [selectedDynamicEmpId, setSelectedDynamicEmpId] = useState<string>('emp_101');
+  const [dynamicResolvedData, setDynamicResolvedData] = useState<Record<string, any> | null>(null);
+  const [dynamicTab, setDynamicTab] = useState<'input' | 'layout' | 'resolved'>('input');
+  const [dynamicResolving, setDynamicResolving] = useState(false);
+
   // Subscriptions
   useEffect(() => {
     const forceUpdate = () => setChatTick(t => t + 1);
@@ -142,10 +153,35 @@ export default function App() {
             setSelectedTemplateId(prev =>
               list.find(t => t.templateId === prev) ? prev : list[0].templateId,
             );
-            // Process sample messages for templates
             for (const item of list) {
               if (item.sampleMessages && item.sampleMessages.length > 0) {
                 libraryProcessor.processMessages(item.sampleMessages);
+                if (item.isDynamic) {
+                  const empId = item.sampleData?.employeeId || 'emp_101';
+                  const dynamicSurfaceId = `preview_${item.templateId}_${empId}`;
+                  const dynamicMsgs = item.sampleMessages.map((m: any) => {
+                    if (m.createSurface) {
+                      return {
+                        ...m,
+                        createSurface: {
+                          ...m.createSurface,
+                          surfaceId: dynamicSurfaceId,
+                        },
+                      };
+                    }
+                    if (m.updateComponents) {
+                      return {
+                        ...m,
+                        updateComponents: {
+                          ...m.updateComponents,
+                          surfaceId: dynamicSurfaceId,
+                        },
+                      };
+                    }
+                    return m;
+                  });
+                  libraryProcessor.processMessages(dynamicMsgs);
+                }
               }
             }
           }
@@ -162,6 +198,68 @@ export default function App() {
   }, [libraryProcessor, currentView]);
 
   const selectedTemplate = templates.find(t => t.templateId === selectedTemplateId);
+
+  // When dynamic template selection changes, sync initial state
+  useEffect(() => {
+    if (selectedTemplate?.isDynamic) {
+      if (selectedTemplate.resolvedData) {
+        setDynamicResolvedData(selectedTemplate.resolvedData);
+      }
+      if (selectedTemplate.sampleData?.employeeId) {
+        setSelectedDynamicEmpId(selectedTemplate.sampleData.employeeId);
+      }
+    }
+  }, [selectedTemplate]);
+
+  const handleResolveDynamicTemplate = async (empId: string) => {
+    if (!selectedTemplate) return;
+    setDynamicResolving(true);
+    setSelectedDynamicEmpId(empId);
+    try {
+      const res = await fetch(
+        `http://127.0.0.1:8000/templates/${selectedTemplate.templateId}/resolve`,
+        {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({params: {employeeId: empId}}),
+        },
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setDynamicResolvedData(data.resolvedData);
+        if (data.sampleMessages) {
+          const dynamicSurfaceId = `preview_${selectedTemplate.templateId}_${empId}`;
+          const updatedMessages = data.sampleMessages.map((m: any) => {
+            if (m.createSurface) {
+              return {
+                ...m,
+                createSurface: {
+                  ...m.createSurface,
+                  surfaceId: dynamicSurfaceId,
+                },
+              };
+            }
+            if (m.updateComponents) {
+              return {
+                ...m,
+                updateComponents: {
+                  ...m.updateComponents,
+                  surfaceId: dynamicSurfaceId,
+                },
+              };
+            }
+            return m;
+          });
+          libraryProcessor.processMessages(updatedMessages);
+          setLibraryTick(t => t + 1);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to resolve dynamic template:', err);
+    } finally {
+      setDynamicResolving(false);
+    }
+  };
 
   const copyToClipboard = (text: string, isTemplate = false) => {
     navigator.clipboard.writeText(text);
@@ -200,42 +298,39 @@ export default function App() {
       const data = await res.json();
       if (data.messages && data.messages.length > 0) {
         chatProcessor.processMessages(data.messages);
-        const targetSurfaceId =
-          data.surfaceId ||
-          data.messages.find((m: any) => m.createSurface)?.createSurface?.surfaceId ||
-          surfaceId;
-        setFeed(prev => [
-          ...prev,
-          {
-            id: `assistant_${Date.now()}`,
-            type: 'assistant',
-            text: data.text,
-            surfaceId: targetSurfaceId,
-            raw: data.raw,
-            messages: data.messages,
-            metrics: data.metrics,
-          },
-        ]);
-      } else {
-        setFeed(prev => [
-          ...prev,
-          {
-            id: `assistant_${Date.now()}`,
-            type: 'assistant',
-            text: data.text || 'No response messages received.',
-            raw: data.raw,
-            messages: data.messages || [],
-            metrics: data.metrics,
-          },
-        ]);
       }
+
+      let actualSurfaceId = data.surfaceId || surfaceId;
+      if (data.messages && data.messages.length > 0) {
+        const found =
+          data.messages.find((m: any) => m.createSurface?.surfaceId)?.createSurface?.surfaceId ||
+          data.messages.find((m: any) => m.updateComponents?.surfaceId)?.updateComponents
+            ?.surfaceId;
+        if (found) {
+          actualSurfaceId = found;
+        }
+      }
+
+      setFeed(prev => [
+        ...prev,
+        {
+          id: `assistant_${Date.now()}`,
+          type: 'assistant',
+          text: data.text,
+          surfaceId: actualSurfaceId,
+          raw: data.raw,
+          messages: data.messages,
+          metrics: data.metrics,
+        },
+      ]);
     } catch (err: any) {
       setFeed(prev => [
         ...prev,
         {
-          id: `err_${Date.now()}`,
+          id: `assistant_${Date.now()}`,
           type: 'assistant',
           text: `Error contacting server: ${err.message}. Make sure the FastAPI server is running on http://127.0.0.1:8000.`,
+          surfaceId,
         },
       ]);
     } finally {
@@ -249,43 +344,52 @@ export default function App() {
         display: 'flex',
         flexDirection: 'column',
         height: '100vh',
-        fontFamily:
-          "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        width: '100vw',
         backgroundColor: '#f8fafc',
+        fontFamily:
+          '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+        overflow: 'hidden',
       }}
     >
       {/* Top Header */}
       <header
         style={{
-          height: '60px',
-          backgroundColor: '#ffffff',
-          borderBottom: '1px solid #e2e8f0',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0 24px',
-          flexShrink: 0,
+          padding: '12px 24px',
+          backgroundColor: '#ffffff',
+          borderBottom: '1px solid #e2e8f0',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+          zIndex: 10,
         }}
       >
         <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-          <span className="material-symbols-outlined" style={{color: '#2563eb', fontSize: '26px'}}>
-            dashboard_customize
-          </span>
+          <div
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              backgroundColor: '#2563eb',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 800,
+              fontSize: '18px',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{fontSize: '22px'}}>
+              dashboard_customize
+            </span>
+          </div>
           <div>
-            <h1
-              style={{
-                fontSize: '16px',
-                fontWeight: 700,
-                margin: 0,
-                color: '#0f172a',
-                lineHeight: 1.2,
-              }}
-            >
+            <h1 style={{fontSize: '16px', fontWeight: 700, margin: 0, color: '#0f172a'}}>
               A2UI Templates
             </h1>
-            <span style={{fontSize: '11px', color: '#64748b'}}>
-              Synchronous server expansion · Basic Catalog
-            </span>
+            <p style={{fontSize: '11px', color: '#64748b', margin: 0}}>
+              Static & Dynamic Server Expansion · Basic Catalog
+            </p>
           </div>
         </div>
 
@@ -294,15 +398,15 @@ export default function App() {
           style={{
             display: 'flex',
             backgroundColor: '#f1f5f9',
-            padding: '4px',
+            padding: '3px',
             borderRadius: '10px',
-            gap: '4px',
+            border: '1px solid #e2e8f0',
           }}
         >
           <button
             onClick={() => setCurrentView('chat')}
             style={{
-              display: 'inline-flex',
+              display: 'flex',
               alignItems: 'center',
               gap: '6px',
               padding: '6px 14px',
@@ -313,20 +417,19 @@ export default function App() {
               fontWeight: 600,
               fontSize: '13px',
               cursor: 'pointer',
-              boxShadow: currentView === 'chat' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+              boxShadow: currentView === 'chat' ? '0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
               transition: 'all 0.15s ease',
             }}
           >
             <span className="material-symbols-outlined" style={{fontSize: '16px'}}>
               chat
             </span>
-            <span>Interactive Chat</span>
+            Interactive Chat
           </button>
-
           <button
             onClick={() => setCurrentView('library')}
             style={{
-              display: 'inline-flex',
+              display: 'flex',
               alignItems: 'center',
               gap: '6px',
               padding: '6px 14px',
@@ -337,31 +440,31 @@ export default function App() {
               fontWeight: 600,
               fontSize: '13px',
               cursor: 'pointer',
-              boxShadow: currentView === 'library' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+              boxShadow: currentView === 'library' ? '0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
               transition: 'all 0.15s ease',
             }}
           >
             <span className="material-symbols-outlined" style={{fontSize: '16px'}}>
               menu_book
             </span>
-            <span>Template Library</span>
+            Template Library
           </button>
         </div>
       </header>
 
-      {/* Main View Body */}
+      {/* Main Content View */}
       {currentView === 'chat' ? (
         <div style={{display: 'flex', flex: 1, overflow: 'hidden'}}>
           {/* Presets Sidebar */}
           <div
             style={{
-              width: '300px',
+              width: '280px',
               backgroundColor: '#ffffff',
               borderRight: '1px solid #e2e8f0',
-              padding: '24px',
+              padding: '24px 16px',
               display: 'flex',
               flexDirection: 'column',
-              gap: '20px',
+              gap: '16px',
               overflowY: 'auto',
             }}
           >
@@ -369,17 +472,22 @@ export default function App() {
               <h3
                 style={{
                   fontSize: '11px',
-                  textTransform: 'uppercase',
-                  color: '#94a3b8',
-                  letterSpacing: '0.08em',
                   fontWeight: 700,
-                  margin: '0 0 12px 0',
+                  textTransform: 'uppercase',
+                  color: '#64748b',
+                  letterSpacing: '0.05em',
+                  margin: '0 0 12px 8px',
                 }}
               >
                 Example Presets
               </h3>
               <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
                 {[
+                  {
+                    label: '🔒 Verified Salary',
+                    prompt: 'show verified salary',
+                    desc: 'Dynamic server-resolved compensation',
+                  },
                   {
                     label: '📊 User Evaluation',
                     prompt: 'show user evaluation',
@@ -484,8 +592,8 @@ export default function App() {
                     margin: 'auto',
                     textAlign: 'center',
                     color: '#64748b',
-                    maxWidth: '480px',
-                    padding: '40px',
+                    maxWidth: '580px',
+                    padding: '36px 32px',
                     backgroundColor: '#ffffff',
                     borderRadius: '20px',
                     border: '1px solid #e2e8f0',
@@ -494,18 +602,18 @@ export default function App() {
                 >
                   <div
                     style={{
-                      width: '56px',
-                      height: '56px',
+                      width: '52px',
+                      height: '52px',
                       borderRadius: '16px',
                       backgroundColor: '#eff6ff',
                       color: '#2563eb',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      margin: '0 auto 16px auto',
+                      margin: '0 auto 14px auto',
                     }}
                   >
-                    <span className="material-symbols-outlined" style={{fontSize: '32px'}}>
+                    <span className="material-symbols-outlined" style={{fontSize: '30px'}}>
                       auto_awesome
                     </span>
                   </div>
@@ -519,16 +627,130 @@ export default function App() {
                   >
                     A2UI Templates Explorer
                   </h3>
-                  <p style={{fontSize: '14px', lineHeight: 1.6, margin: 0, color: '#64748b'}}>
-                    Click a preset on the sidebar or send a custom prompt below to observe
-                    declarative templates expanded server-side into standard A2UI primitives.
+                  <p
+                    style={{
+                      fontSize: '13px',
+                      lineHeight: 1.6,
+                      margin: '0 0 20px',
+                      color: '#64748b',
+                    }}
+                  >
+                    Click a preset or select a suggested prompt below to observe static and dynamic
+                    templates expanded server-side into standard A2UI primitives.
                   </p>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        color: '#94a3b8',
+                        textAlign: 'center',
+                      }}
+                    >
+                      Suggested Prompts
+                    </div>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                        gap: '8px',
+                      }}
+                    >
+                      {[
+                        {
+                          icon: 'lock',
+                          text: 'Show verified salary for Marcus Vance',
+                          badge: 'Dynamic',
+                        },
+                        {
+                          icon: 'person',
+                          text: 'Show user profile for Alice Smith',
+                          badge: 'Template',
+                        },
+                        {
+                          icon: 'flag',
+                          text: 'Show team goals for Core Protocol Engineering',
+                          badge: 'Template',
+                        },
+                        {
+                          icon: 'reviews',
+                          text: 'Show feedback board for Frontend Guild',
+                          badge: 'Template',
+                        },
+                        {
+                          icon: 'groups',
+                          text: 'Show team roster with Core Architecture',
+                          badge: 'Template',
+                        },
+                        {
+                          icon: 'monitoring',
+                          text: 'Show user evaluation for Alice Smith',
+                          badge: 'Composite',
+                        },
+                      ].map(chip => (
+                        <button
+                          key={chip.text}
+                          onClick={() => sendPrompt(chip.text)}
+                          disabled={loading}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '10px 14px',
+                            backgroundColor: '#f8fafc',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '12px',
+                            color: '#1e293b',
+                            fontSize: '12px',
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all 0.15s ease',
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.backgroundColor = '#eff6ff';
+                            e.currentTarget.style.borderColor = '#93c5fd';
+                            e.currentTarget.style.color = '#1d4ed8';
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.backgroundColor = '#f8fafc';
+                            e.currentTarget.style.borderColor = '#e2e8f0';
+                            e.currentTarget.style.color = '#1e293b';
+                          }}
+                        >
+                          <span
+                            className="material-symbols-outlined"
+                            style={{fontSize: '18px', color: '#2563eb', flexShrink: 0}}
+                          >
+                            {chip.icon}
+                          </span>
+                          <span style={{flex: 1, lineHeight: 1.4}}>{chip.text}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
 
               {feed.map(item => {
-                const surface = item.surfaceId
-                  ? chatProcessor.model.getSurface(item.surfaceId)
+                const targetSurfaceId =
+                  item.surfaceId ||
+                  item.messages?.find((m: any) => m.createSurface?.surfaceId)?.createSurface
+                    ?.surfaceId ||
+                  item.messages?.find((m: any) => m.updateComponents?.surfaceId)?.updateComponents
+                    ?.surfaceId;
+                const surface = targetSurfaceId
+                  ? chatProcessor.model.getSurface(targetSurfaceId)
                   : undefined;
                 const isInspectorOpen = activeInspector === item.id;
                 const hasInspectionData = Boolean(
@@ -602,7 +824,6 @@ export default function App() {
                               flexWrap: 'wrap',
                             }}
                           >
-                            {/* Inference Metrics (Latency & Tokens) */}
                             {item.metrics && (
                               <div
                                 style={{
@@ -671,7 +892,6 @@ export default function App() {
                               </div>
                             )}
 
-                            {/* Turn Inspector Button */}
                             {hasInspectionData && (
                               <button
                                 onClick={() =>
@@ -767,20 +987,20 @@ export default function App() {
 
                               <button
                                 onClick={() => {
-                                  const content =
+                                  const textToCopy =
                                     inspectorTab === 'express'
                                       ? item.raw || ''
-                                      : JSON.stringify(item.messages, null, 2);
-                                  copyToClipboard(content, false);
+                                      : JSON.stringify(item.messages || [], null, 2);
+                                  copyToClipboard(textToCopy);
                                 }}
                                 style={{
                                   display: 'inline-flex',
                                   alignItems: 'center',
                                   gap: '4px',
-                                  padding: '4px 10px',
+                                  padding: '4px 8px',
                                   borderRadius: '6px',
                                   border: '1px solid #475569',
-                                  backgroundColor: '#0f172a',
+                                  backgroundColor: '#334155',
                                   color: '#cbd5e1',
                                   fontSize: '11px',
                                   cursor: 'pointer',
@@ -796,43 +1016,45 @@ export default function App() {
                               </button>
                             </div>
 
-                            <div style={{padding: '16px', maxHeight: '320px', overflowY: 'auto'}}>
-                              <pre
-                                style={{
-                                  margin: 0,
-                                  fontFamily:
-                                    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                                  fontSize: '12px',
-                                  lineHeight: 1.5,
-                                  color: inspectorTab === 'express' ? '#7dd3fc' : '#a7f3d0',
-                                  whiteSpace: 'pre-wrap',
-                                  wordBreak: 'break-word',
-                                }}
-                              >
-                                {inspectorTab === 'express'
-                                  ? item.raw || 'No raw format data available.'
-                                  : JSON.stringify(item.messages, null, 2)}
-                              </pre>
+                            <div
+                              style={{
+                                padding: '16px',
+                                maxHeight: '360px',
+                                overflowY: 'auto',
+                                fontFamily:
+                                  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                fontSize: '12px',
+                                lineHeight: '1.6',
+                              }}
+                            >
+                              {inspectorTab === 'express' ? (
+                                <pre style={{margin: 0, color: '#38bdf8', whiteSpace: 'pre-wrap'}}>
+                                  {item.raw || '// No raw Express DSL received'}
+                                </pre>
+                              ) : (
+                                <pre style={{margin: 0, color: '#a5f3fc', whiteSpace: 'pre-wrap'}}>
+                                  {JSON.stringify(item.messages || [], null, 2)}
+                                </pre>
+                              )}
                             </div>
                           </div>
                         )}
 
                         {/* Rendered A2UI Surface */}
-                        {surface && (
+                        {surface ? (
                           <div
                             style={{
                               backgroundColor: '#ffffff',
-                              borderRadius: '18px',
+                              borderRadius: '16px',
                               border: '1px solid #e2e8f0',
                               padding: '20px',
-                              boxShadow:
-                                '0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.03)',
+                              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
                               ...A2UI_THEME_VARS,
                             }}
                           >
                             <A2uiSurface surface={surface} />
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     )}
                   </div>
@@ -846,7 +1068,7 @@ export default function App() {
                     backgroundColor: '#ffffff',
                     border: '1px solid #e2e8f0',
                     padding: '12px 18px',
-                    borderRadius: '18px 18px 18px 4px',
+                    borderRadius: '16px 16px 16px 4px',
                     fontSize: '13px',
                     color: '#64748b',
                     display: 'flex',
@@ -886,7 +1108,7 @@ export default function App() {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && sendPrompt(input)}
-                placeholder="Type a template prompt (e.g. 'Show user profile' or custom request)..."
+                placeholder="Type a template prompt (e.g. 'Show verified salary' or 'Show user profile')..."
                 disabled={loading}
                 style={{
                   flex: 1,
@@ -940,10 +1162,10 @@ export default function App() {
           >
             <div style={{padding: '0 8px 12px 8px'}}>
               <h2 style={{fontSize: '15px', fontWeight: 700, margin: '0 0 4px', color: '#0f172a'}}>
-                Declared Templates
+                Registered Templates
               </h2>
               <p style={{fontSize: '12px', color: '#64748b', margin: 0}}>
-                Select a template to inspect its schema and live sample rendering.
+                Inspect static declarative templates and dynamic server resolvers.
               </p>
             </div>
 
@@ -985,287 +1207,678 @@ export default function App() {
                     >
                       {tmpl.templateId}
                     </span>
-                    <span
-                      style={{
-                        fontSize: '11px',
-                        padding: '2px 8px',
-                        borderRadius: '12px',
-                        backgroundColor: isSelected ? '#dbeafe' : '#f1f5f9',
-                        color: isSelected ? '#1e40af' : '#64748b',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {paramCount} params
-                    </span>
+                    {tmpl.isDynamic ? (
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          padding: '2px 6px',
+                          borderRadius: '10px',
+                          backgroundColor: '#fef3c7',
+                          color: '#b45309',
+                          fontWeight: 700,
+                          border: '1px solid #fde68a',
+                        }}
+                      >
+                        ⚡ Dynamic
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          backgroundColor: isSelected ? '#dbeafe' : '#f1f5f9',
+                          color: isSelected ? '#1e40af' : '#64748b',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {paramCount} params
+                      </span>
+                    )}
                   </div>
                   <span style={{fontSize: '11px', color: '#64748b'}}>
-                    {compCount} primitive components
+                    {tmpl.isDynamic
+                      ? 'Server database resolver callback'
+                      : `${compCount} primitive components`}
                   </span>
                 </button>
               );
             })}
           </div>
 
-          {/* Dual-Pane Studio: Preview & Code View */}
+          {/* Studio Content */}
           {selectedTemplate ? (
-            <div
-              style={{
-                flex: 1,
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '24px',
-                padding: '24px',
-                overflowY: 'auto',
-              }}
-            >
-              {/* Left: Live Inflated Preview */}
+            selectedTemplate.isDynamic ? (
+              /* Dynamic Template 3-Stage Inspector Studio */
               <div
                 style={{
+                  flex: 1,
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '16px',
+                  padding: '24px',
+                  gap: '20px',
+                  overflowY: 'auto',
                 }}
               >
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <div>
-                    <h3 style={{fontSize: '16px', fontWeight: 700, margin: 0, color: '#0f172a'}}>
-                      Inflated UI Preview
-                    </h3>
-                    <p style={{fontSize: '12px', color: '#64748b', margin: '2px 0 0'}}>
-                      Rendered via @a2ui/react using declared sampleData
-                    </p>
-                  </div>
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      padding: '4px 10px',
-                      borderRadius: '8px',
-                      backgroundColor: '#ecfdf5',
-                      color: '#047857',
-                      border: '1px solid #a7f3d0',
-                    }}
-                  >
-                    ✓ Live Inflated
-                  </span>
-                </div>
-
+                {/* Header Banner */}
                 <div
                   style={{
                     backgroundColor: '#ffffff',
-                    borderRadius: '18px',
+                    borderRadius: '16px',
                     border: '1px solid #e2e8f0',
-                    padding: '24px',
-                    boxShadow:
-                      '0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.03)',
-                    minHeight: '280px',
-                    ...A2UI_THEME_VARS,
+                    padding: '20px 24px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
                   }}
                 >
-                  {libraryProcessor.model.getSurface(`preview_${selectedTemplate.templateId}`) ? (
-                    <A2uiSurface
-                      surface={
-                        libraryProcessor.model.getSurface(`preview_${selectedTemplate.templateId}`)!
-                      }
-                    />
-                  ) : (
-                    <div style={{color: '#94a3b8', textAlign: 'center', padding: '40px'}}>
-                      No preview surface available for this template.
+                  <div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        marginBottom: '4px',
+                      }}
+                    >
+                      <h2 style={{fontSize: '18px', fontWeight: 800, margin: 0, color: '#0f172a'}}>
+                        {selectedTemplate.templateId}
+                      </h2>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          backgroundColor: '#fef3c7',
+                          color: '#b45309',
+                          border: '1px solid #fde68a',
+                        }}
+                      >
+                        ⚡ Dynamic Server Resolver
+                      </span>
+                    </div>
+                    <p style={{fontSize: '13px', color: '#64748b', margin: 0, maxWidth: '700px'}}>
+                      {selectedTemplate.description}
+                    </p>
+                  </div>
+
+                  {/* Stage Switcher */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      backgroundColor: '#f1f5f9',
+                      padding: '3px',
+                      borderRadius: '10px',
+                      border: '1px solid #e2e8f0',
+                    }}
+                  >
+                    {[
+                      {id: 'input', label: '1. Input Interface'},
+                      {id: 'layout', label: '2. Static Blueprint'},
+                      {id: 'resolved', label: '3. Resolved Output'},
+                    ].map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setDynamicTab(tab.id as any)}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          backgroundColor: dynamicTab === tab.id ? '#ffffff' : 'transparent',
+                          color: dynamicTab === tab.id ? '#2563eb' : '#64748b',
+                          fontWeight: 600,
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          boxShadow:
+                            dynamicTab === tab.id ? '0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
+                        }}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3-Stage Body */}
+                <div
+                  style={{display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', flex: 1}}
+                >
+                  {/* Left Column: Interactive Stages */}
+                  <div style={{display: 'flex', flexDirection: 'column', gap: '16px'}}>
+                    {dynamicTab === 'input' && (
+                      <div
+                        style={{
+                          backgroundColor: '#ffffff',
+                          borderRadius: '16px',
+                          border: '1px solid #e2e8f0',
+                          padding: '24px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '16px',
+                          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                        }}
+                      >
+                        <div>
+                          <h3
+                            style={{
+                              fontSize: '15px',
+                              fontWeight: 700,
+                              margin: '0 0 4px',
+                              color: '#0f172a',
+                            }}
+                          >
+                            Step 1: Simple LLM Input Interface
+                          </h3>
+                          <p style={{fontSize: '13px', color: '#64748b', margin: 0}}>
+                            The LLM generates only simple identifiers. Confidential figures are
+                            never exposed in prompt context.
+                          </p>
+                        </div>
+
+                        {/* Input Selector Form */}
+                        <div
+                          style={{
+                            backgroundColor: '#f8fafc',
+                            borderRadius: '12px',
+                            border: '1px solid #e2e8f0',
+                            padding: '16px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '12px',
+                          }}
+                        >
+                          <label style={{fontSize: '12px', fontWeight: 700, color: '#334155'}}>
+                            Select Employee (Input Parameter `employeeId`):
+                          </label>
+                          <select
+                            value={selectedDynamicEmpId}
+                            onChange={e => handleResolveDynamicTemplate(e.target.value)}
+                            style={{
+                              padding: '10px 14px',
+                              borderRadius: '8px',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '14px',
+                              fontWeight: 600,
+                              color: '#0f172a',
+                              backgroundColor: '#ffffff',
+                              outline: 'none',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {(
+                              selectedTemplate.availablePresets || [
+                                {label: 'Dr. Elena Vance (emp_101)', value: 'emp_101'},
+                                {label: 'Marcus Vance (emp_102)', value: 'emp_102'},
+                                {label: 'Aria Chen (emp_103)', value: 'emp_103'},
+                                {label: 'Liam Kjell (emp_104)', value: 'emp_104'},
+                              ]
+                            ).map(opt => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+
+                          <div style={{marginTop: '8px'}}>
+                            <div
+                              style={{
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                color: '#64748b',
+                                marginBottom: '4px',
+                              }}
+                            >
+                              Generated Express DSL by LLM:
+                            </div>
+                            <pre
+                              style={{
+                                margin: 0,
+                                padding: '10px 14px',
+                                backgroundColor: '#0f172a',
+                                color: '#38bdf8',
+                                borderRadius: '8px',
+                                fontFamily: 'monospace',
+                                fontSize: '13px',
+                              }}
+                            >
+                              {`<a2ui>\nroot = EmployeeSalaryCard("${selectedDynamicEmpId}")\n</a2ui>`}
+                            </pre>
+                          </div>
+                        </div>
+
+                        <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
+                          <button
+                            onClick={() => handleResolveDynamicTemplate(selectedDynamicEmpId)}
+                            disabled={dynamicResolving}
+                            style={{
+                              padding: '10px 20px',
+                              borderRadius: '8px',
+                              backgroundColor: '#2563eb',
+                              color: '#ffffff',
+                              border: 'none',
+                              fontWeight: 600,
+                              fontSize: '13px',
+                              cursor: dynamicResolving ? 'not-allowed' : 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                            }}
+                          >
+                            <span className="material-symbols-outlined" style={{fontSize: '16px'}}>
+                              sync
+                            </span>
+                            <span>
+                              {dynamicResolving ? 'Resolving...' : 'Execute Server Resolver'}
+                            </span>
+                          </button>
+                          <span style={{fontSize: '12px', color: '#059669', fontWeight: 600}}>
+                            ✓ Server resolver connected
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {dynamicTab === 'layout' && (
+                      <div
+                        style={{
+                          backgroundColor: '#ffffff',
+                          borderRadius: '16px',
+                          border: '1px solid #e2e8f0',
+                          padding: '24px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '16px',
+                          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                        }}
+                      >
+                        <div>
+                          <h3
+                            style={{
+                              fontSize: '15px',
+                              fontWeight: 700,
+                              margin: '0 0 4px',
+                              color: '#0f172a',
+                            }}
+                          >
+                            Step 2: Underlying Layout Template (Static Blueprint)
+                          </h3>
+                          <p style={{fontSize: '13px', color: '#64748b', margin: 0}}>
+                            The visual layout is declared once in JSON (salary_card.json). Parameter
+                            placeholders like baseSalary and annualBonus are populated by the server
+                            callback.
+                          </p>
+                        </div>
+
+                        <pre
+                          style={{
+                            margin: 0,
+                            padding: '16px',
+                            backgroundColor: '#0f172a',
+                            color: '#f8fafc',
+                            borderRadius: '12px',
+                            fontFamily: 'monospace',
+                            fontSize: '12px',
+                            lineHeight: '1.6',
+                            maxHeight: '440px',
+                            overflowY: 'auto',
+                          }}
+                        >
+                          {JSON.stringify(selectedTemplate.layoutTemplate || {}, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+
+                    {dynamicTab === 'resolved' && (
+                      <div
+                        style={{
+                          backgroundColor: '#ffffff',
+                          borderRadius: '16px',
+                          border: '1px solid #e2e8f0',
+                          padding: '24px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '16px',
+                          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                        }}
+                      >
+                        <div>
+                          <h3
+                            style={{
+                              fontSize: '15px',
+                              fontWeight: 700,
+                              margin: '0 0 4px',
+                              color: '#0f172a',
+                            }}
+                          >
+                            Step 3: Server-Resolved Injected Data
+                          </h3>
+                          <p style={{fontSize: '13px', color: '#64748b', margin: 0}}>
+                            Live record retrieved from the internal HR database for{' '}
+                            {selectedDynamicEmpId}.
+                          </p>
+                        </div>
+
+                        <pre
+                          style={{
+                            margin: 0,
+                            padding: '16px',
+                            backgroundColor: '#0f172a',
+                            color: '#a5f3fc',
+                            borderRadius: '12px',
+                            fontFamily: 'monospace',
+                            fontSize: '13px',
+                            lineHeight: '1.6',
+                          }}
+                        >
+                          {JSON.stringify(dynamicResolvedData || {}, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right Column: Live Inflated Preview */}
+                  <div style={{display: 'flex', flexDirection: 'column', gap: '16px'}}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <h3 style={{fontSize: '15px', fontWeight: 700, margin: 0, color: '#0f172a'}}>
+                        Inflated Output Preview
+                      </h3>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          backgroundColor: '#ecfdf5',
+                          color: '#047857',
+                          border: '1px solid #a7f3d0',
+                        }}
+                      >
+                        ✓ Live Inflated
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        backgroundColor: '#ffffff',
+                        borderRadius: '18px',
+                        border: '1px solid #e2e8f0',
+                        padding: '24px',
+                        boxShadow: '0 4px 20px -2px rgba(15, 23, 42, 0.06)',
+                        minHeight: '280px',
+                        ...A2UI_THEME_VARS,
+                      }}
+                    >
+                      {(() => {
+                        const dynSurface =
+                          libraryProcessor.model.getSurface(
+                            `preview_${selectedTemplate.templateId}_${selectedDynamicEmpId}`,
+                          ) ||
+                          libraryProcessor.model.getSurface(
+                            `preview_${selectedTemplate.templateId}`,
+                          );
+                        return dynSurface ? (
+                          <A2uiSurface surface={dynSurface} />
+                        ) : (
+                          <div style={{color: '#94a3b8', textAlign: 'center', padding: '40px'}}>
+                            No preview surface available for this template.
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Standard Static Template Studio */
+              <div
+                style={{
+                  flex: 1,
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '24px',
+                  padding: '24px',
+                  overflowY: 'auto',
+                }}
+              >
+                {/* Left: Live Inflated Preview */}
+                <div style={{display: 'flex', flexDirection: 'column', gap: '16px'}}>
+                  <div
+                    style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}
+                  >
+                    <div>
+                      <h3 style={{fontSize: '16px', fontWeight: 700, margin: 0, color: '#0f172a'}}>
+                        Inflated UI Preview
+                      </h3>
+                      <p style={{fontSize: '12px', color: '#64748b', margin: '2px 0 0'}}>
+                        Rendered via @a2ui/react using declared sampleData
+                      </p>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        padding: '4px 10px',
+                        borderRadius: '8px',
+                        backgroundColor: '#ecfdf5',
+                        color: '#047857',
+                        border: '1px solid #a7f3d0',
+                      }}
+                    >
+                      ✓ Live Inflated
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      backgroundColor: '#ffffff',
+                      borderRadius: '18px',
+                      border: '1px solid #e2e8f0',
+                      padding: '24px',
+                      boxShadow:
+                        '0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.03)',
+                      minHeight: '280px',
+                      ...A2UI_THEME_VARS,
+                    }}
+                  >
+                    {libraryProcessor.model.getSurface(`preview_${selectedTemplate.templateId}`) ? (
+                      <A2uiSurface
+                        surface={
+                          libraryProcessor.model.getSurface(
+                            `preview_${selectedTemplate.templateId}`,
+                          )!
+                        }
+                      />
+                    ) : (
+                      <div style={{color: '#94a3b8', textAlign: 'center', padding: '40px'}}>
+                        No preview surface available for this template.
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedTemplate.sampleData && (
+                    <div
+                      style={{
+                        backgroundColor: '#ffffff',
+                        borderRadius: '14px',
+                        border: '1px solid #e2e8f0',
+                        padding: '16px',
+                      }}
+                    >
+                      <h4
+                        style={{
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          color: '#64748b',
+                          letterSpacing: '0.05em',
+                          margin: '0 0 8px',
+                        }}
+                      >
+                        Sample Data Inputs
+                      </h4>
+                      <pre
+                        style={{
+                          margin: 0,
+                          fontFamily:
+                            'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                          fontSize: '12px',
+                          color: '#0f172a',
+                          backgroundColor: '#f8fafc',
+                          padding: '12px',
+                          borderRadius: '8px',
+                          border: '1px solid #e2e8f0',
+                          overflowX: 'auto',
+                        }}
+                      >
+                        {JSON.stringify(selectedTemplate.sampleData, null, 2)}
+                      </pre>
                     </div>
                   )}
                 </div>
 
-                {selectedTemplate.sampleData && (
+                {/* Right: Code with Line Numbers & Monospace Font */}
+                <div style={{display: 'flex', flexDirection: 'column', gap: '16px'}}>
                   <div
-                    style={{
-                      backgroundColor: '#ffffff',
-                      borderRadius: '14px',
-                      border: '1px solid #e2e8f0',
-                      padding: '16px',
-                    }}
+                    style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}
                   >
-                    <h4
-                      style={{
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                        color: '#64748b',
-                        letterSpacing: '0.05em',
-                        margin: '0 0 8px',
-                      }}
-                    >
-                      Sample Data Inputs
-                    </h4>
-                    <pre
-                      style={{
-                        margin: 0,
-                        fontFamily:
-                          'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                        fontSize: '12px',
-                        color: '#0f172a',
-                        backgroundColor: '#f8fafc',
-                        padding: '12px',
-                        borderRadius: '8px',
-                        border: '1px solid #e2e8f0',
-                        overflowX: 'auto',
-                      }}
-                    >
-                      {JSON.stringify(selectedTemplate.sampleData, null, 2)}
-                    </pre>
-                  </div>
-                )}
-              </div>
+                    <div>
+                      <h3 style={{fontSize: '16px', fontWeight: 700, margin: 0, color: '#0f172a'}}>
+                        Template Declaration (JSON)
+                      </h3>
+                      <p style={{fontSize: '12px', color: '#64748b', margin: '2px 0 0'}}>
+                        Parameterized JSON definition & component graph
+                      </p>
+                    </div>
 
-              {/* Right: Code with Line Numbers & Monospace Font */}
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '16px',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <div>
-                    <h3 style={{fontSize: '16px', fontWeight: 700, margin: 0, color: '#0f172a'}}>
-                      Template Declaration (JSON)
-                    </h3>
-                    <p style={{fontSize: '12px', color: '#64748b', margin: '2px 0 0'}}>
-                      Parameterized JSON definition & component graph
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      const cleanTemplate = {
-                        templateId: selectedTemplate.templateId,
-                        parameters: selectedTemplate.parameters,
-                        components: selectedTemplate.components,
-                        sampleData: selectedTemplate.sampleData,
-                      };
-                      copyToClipboard(JSON.stringify(cleanTemplate, null, 2), true);
-                    }}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '6px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #cbd5e1',
-                      backgroundColor: '#ffffff',
-                      color: '#0f172a',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{fontSize: '15px'}}>
-                      {copiedTemplate ? 'check' : 'content_copy'}
-                    </span>
-                    <span>{copiedTemplate ? 'Copied JSON!' : 'Copy Template JSON'}</span>
-                  </button>
-                </div>
-
-                <div
-                  style={{
-                    backgroundColor: '#0f172a',
-                    borderRadius: '16px',
-                    border: '1px solid #1e293b',
-                    overflow: 'hidden',
-                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.2)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    maxHeight: '620px',
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '8px 16px',
-                      backgroundColor: '#1e293b',
-                      borderBottom: '1px solid #334155',
-                      fontSize: '11px',
-                      color: '#94a3b8',
-                    }}
-                  >
-                    <span>{selectedTemplate.templateId.toLowerCase()}.json</span>
-                    <span>JSON Schema draft 2020-12</span>
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      overflowY: 'auto',
-                      padding: '16px 0',
-                      fontFamily:
-                        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                      fontSize: '12px',
-                      lineHeight: '20px',
-                    }}
-                  >
-                    {(() => {
-                      const jsonText = JSON.stringify(
-                        {
+                    <button
+                      onClick={() => {
+                        const cleanTemplate = {
                           templateId: selectedTemplate.templateId,
                           parameters: selectedTemplate.parameters,
                           components: selectedTemplate.components,
                           sampleData: selectedTemplate.sampleData,
-                        },
-                        null,
-                        2,
-                      );
-                      const lines = jsonText.split('\n');
+                        };
+                        copyToClipboard(JSON.stringify(cleanTemplate, null, 2), true);
+                      }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        backgroundColor: '#ffffff',
+                        color: '#0f172a',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{fontSize: '15px'}}>
+                        {copiedTemplate ? 'check' : 'content_copy'}
+                      </span>
+                      <span>{copiedTemplate ? 'Copied JSON!' : 'Copy Template JSON'}</span>
+                    </button>
+                  </div>
 
-                      return (
-                        <>
-                          <div
-                            style={{
-                              padding: '0 12px 0 16px',
-                              textAlign: 'right',
-                              color: '#475569',
-                              userSelect: 'none',
-                              borderRight: '1px solid #1e293b',
-                            }}
-                          >
-                            {lines.map((_, idx) => (
-                              <div key={idx}>{idx + 1}</div>
-                            ))}
-                          </div>
+                  <div
+                    style={{
+                      backgroundColor: '#0f172a',
+                      borderRadius: '16px',
+                      border: '1px solid #1e293b',
+                      overflow: 'hidden',
+                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.2)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      maxHeight: '620px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 16px',
+                        backgroundColor: '#1e293b',
+                        borderBottom: '1px solid #334155',
+                        fontSize: '11px',
+                        color: '#94a3b8',
+                      }}
+                    >
+                      <span>{selectedTemplate.templateId.toLowerCase()}.json</span>
+                      <span>JSON Schema draft 2020-12</span>
+                    </div>
 
-                          <div
-                            style={{
-                              padding: '0 16px',
-                              color: '#e2e8f0',
-                              flex: 1,
-                              whiteSpace: 'pre',
-                              overflowX: 'auto',
-                            }}
-                          >
-                            {lines.map((line, idx) => (
-                              <div key={idx}>{line}</div>
-                            ))}
-                          </div>
-                        </>
-                      );
-                    })()}
+                    <div
+                      style={{
+                        display: 'flex',
+                        overflowY: 'auto',
+                        padding: '16px 0',
+                        fontFamily:
+                          'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                        fontSize: '12px',
+                        lineHeight: '20px',
+                      }}
+                    >
+                      {(() => {
+                        const jsonText = JSON.stringify(
+                          {
+                            templateId: selectedTemplate.templateId,
+                            parameters: selectedTemplate.parameters,
+                            components: selectedTemplate.components,
+                            sampleData: selectedTemplate.sampleData,
+                          },
+                          null,
+                          2,
+                        );
+                        const lines = jsonText.split('\n');
+
+                        return (
+                          <>
+                            <div
+                              style={{
+                                padding: '0 12px 0 16px',
+                                textAlign: 'right',
+                                color: '#475569',
+                                userSelect: 'none',
+                                borderRight: '1px solid #1e293b',
+                              }}
+                            >
+                              {lines.map((_, idx) => (
+                                <div key={idx}>{idx + 1}</div>
+                              ))}
+                            </div>
+
+                            <div
+                              style={{
+                                padding: '0 16px',
+                                color: '#e2e8f0',
+                                flex: 1,
+                                whiteSpace: 'pre',
+                                overflowX: 'auto',
+                              }}
+                            >
+                              {lines.map((line, idx) => (
+                                <div key={idx}>{line}</div>
+                              ))}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )
           ) : (
             <div style={{margin: 'auto', color: '#64748b'}}>
               {libraryLoading ? 'Loading templates...' : 'No templates available.'}

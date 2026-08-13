@@ -12,14 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Core processing and expansion engine for A2UI Templates."""
+"""Core processing, expansion engine, and dynamic resolver execution for A2UI Templates."""
 
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import jsonschema
-from .models import Template, normalize_a2ui_type_to_jsonschema
+from .models import (
+    Template,
+    StaticTemplate,
+    DynamicTemplate,
+    BaseTemplate,
+    Param,
+    ParamType,
+    ParamRef,
+    Concat,
+    FormatExpr,
+    TemplateLoop,
+    TemplateComponent,
+    normalize_a2ui_type_to_jsonschema,
+)
 
 
 def resolve_param_path(path: str, params: Dict[str, Any]) -> Tuple[bool, Any]:
@@ -39,14 +52,10 @@ def resolve_param_path(path: str, params: Dict[str, Any]) -> Tuple[bool, Any]:
 
 
 def substitute_params(val: Any, params: Dict[str, Any]) -> Any:
-    """Recursively replaces parameter references with their resolved values.
+    """Recursively replaces parameter references with their resolved values."""
+    if isinstance(val, (ParamRef, Concat, FormatExpr, TemplateLoop)):
+        val = val.to_dict()
 
-    Supports:
-    - Direct object references: {"param": "paramName"}
-    - String concatenation: {"concat": ["Prefix ", {"param": "name"}]}
-    - String formatting: {"format": "Hello {name}", "args": {"name": {"param": "name"}}}
-    - In-string legacy interpolation: "${param.field}"
-    """
     if isinstance(val, dict):
         # 1. Direct param reference: {"param": "userName", "default": ...}
         if "param" in val and isinstance(val["param"], str) and "template" not in val:
@@ -111,7 +120,9 @@ class TemplateProcessor:
 
     def __init__(
         self,
-        templates: List[Template],
+        templates: Sequence[
+            Union[BaseTemplate, Template, StaticTemplate, DynamicTemplate]
+        ],
         base_catalog: Optional[Union[Dict[str, Any], Any]] = None,
         version: str = "v0.9.1",
     ):
@@ -122,7 +133,9 @@ class TemplateProcessor:
             base_catalog: Optional base catalog schema dict or A2uiCatalog instance.
             version: Target A2UI protocol version ("v0.9", "v0.9.1", or "v1.0").
         """
-        self.templates: Dict[str, Template] = {t.template_id: t for t in templates}
+        self.templates: Dict[
+            str, Union[BaseTemplate, Template, StaticTemplate, DynamicTemplate]
+        ] = {t.template_id: t for t in templates}
         if base_catalog is not None and hasattr(base_catalog, "catalog_schema"):
             self.base_catalog = getattr(base_catalog, "catalog_schema", {})
         elif isinstance(base_catalog, dict):
@@ -214,9 +227,28 @@ class TemplateProcessor:
             param_required = []
             properties_dict: Dict[str, Any] = {"component": {"const": t_id}}
 
-            for p_name, p_meta in template.parameters.items():
-                properties_dict[p_name] = self._promote_parameter(p_meta)
-                if "default" not in p_meta and p_meta.get("type") != "array":
+            raw_params = (
+                template.parameters.items() if hasattr(template, "parameters") else {}
+            )
+
+            for p_name, p_meta in raw_params:
+                p_meta_dict = p_meta.to_dict() if isinstance(p_meta, Param) else p_meta
+                properties_dict[p_name] = self._promote_parameter(p_meta_dict)
+                p_type = (
+                    p_meta.type.value
+                    if isinstance(p_meta, Param) and isinstance(p_meta.type, ParamType)
+                    else (
+                        p_meta.get("type")
+                        if isinstance(p_meta, dict)
+                        else getattr(p_meta, "type", None)
+                    )
+                )
+                has_default = (
+                    p_meta.default is not None
+                    if isinstance(p_meta, Param)
+                    else (isinstance(p_meta, dict) and "default" in p_meta)
+                )
+                if not has_default and p_type != "array":
                     param_required.append(p_name)
 
             template_schema = {
@@ -249,10 +281,39 @@ class TemplateProcessor:
         if not template:
             raise ValueError(f"Template '{template_id}' is not registered.")
 
+        # 1. Handle DynamicTemplate execution
+        if getattr(template, "is_dynamic", False):
+            dynamic_tmpl: DynamicTemplate = template  # type: ignore
+            resolved_data = dynamic_tmpl.resolve(passed_params)
+            combined_params = {**passed_params, **resolved_data}
+            layout = dynamic_tmpl.layout
+            return self._expand_static_layout(instance_id, layout, combined_params)
+
+        # 2. Handle StaticTemplate execution
+        return self._expand_static_layout(instance_id, template, passed_params)
+
+    def _expand_static_layout(
+        self,
+        instance_id: str,
+        layout: Union[StaticTemplate, Template, Any],
+        passed_params: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        template_id = layout.template_id
+
         # 1. Resolve parameters and assign default values
         params: Dict[str, Any] = {}
-        for p_name, p_meta in template.parameters.items():
-            p_type = p_meta.get("type")
+        for p_name, p_meta in layout.parameters.items():
+            if isinstance(p_meta, Param):
+                p_meta_dict = p_meta.to_dict()
+                p_type = (
+                    p_meta.type.value
+                    if isinstance(p_meta.type, ParamType)
+                    else str(p_meta.type)
+                )
+            else:
+                p_meta_dict = p_meta
+                p_type = str(p_meta.get("type", "string"))
+
             if p_name in passed_params:
                 val = passed_params[p_name]
                 if p_type in ["array", "children"]:
@@ -261,15 +322,15 @@ class TemplateProcessor:
                     elif isinstance(val, dict):
                         params[p_name] = [val]
                     elif val == p_name or val is None:
-                        params[p_name] = p_meta.get("default", [])
+                        params[p_name] = p_meta_dict.get("default", [])
                     else:
                         params[p_name] = [val]
                 else:
                     params[p_name] = val
 
-                # Validate parameter value if type is data type (string, number, boolean, enum, object, array)
+                # Validate parameter value if data type
                 if (
-                    isinstance(p_meta, dict)
+                    isinstance(p_meta_dict, dict)
                     and p_type not in ["child", "children", "action"]
                     and not (
                         isinstance(params[p_name], str)
@@ -279,7 +340,7 @@ class TemplateProcessor:
                         )
                     )
                 ):
-                    val_schema = normalize_a2ui_type_to_jsonschema(p_meta)
+                    val_schema = normalize_a2ui_type_to_jsonschema(p_meta_dict)
                     if val_schema:
                         try:
                             jsonschema.validate(
@@ -290,8 +351,8 @@ class TemplateProcessor:
                                 f"Template '{template_id}': Parameter '{p_name}'"
                                 f" failed validation: {err.message}"
                             ) from err
-            elif "default" in p_meta:
-                params[p_name] = p_meta["default"]
+            elif "default" in p_meta_dict and p_meta_dict["default"] is not None:
+                params[p_name] = p_meta_dict["default"]
             elif p_type in ["array", "children"]:
                 params[p_name] = []
             else:
@@ -309,6 +370,8 @@ class TemplateProcessor:
             return f"{instance_id}_{internal_id}"
 
         def resolve_slot(val: Any) -> Tuple[bool, Any]:
+            if isinstance(val, (ParamRef, TemplateLoop)):
+                val = val.to_dict()
             if isinstance(val, dict) and "param" in val and "template" not in val:
                 p_path = val["param"]
                 found, res = resolve_param_path(p_path, params)
@@ -342,7 +405,7 @@ class TemplateProcessor:
                     else:
                         res_list.append(map_id(c_id) if isinstance(c_id, str) else c_id)
                 return res_list
-            elif isinstance(child_list, (str, dict)):
+            elif isinstance(child_list, (str, dict, ParamRef, TemplateLoop)):
                 is_slot, slot_val = resolve_slot(child_list)
                 if is_slot:
                     return slot_val
@@ -352,8 +415,10 @@ class TemplateProcessor:
             return child_list
 
         # 3. First pass: Map internal component IDs, handle slots & static loop unrolling
-        for comp in template.components:
-            comp_copy = dict(comp)
+        for comp in layout.components:
+            comp_copy = (
+                comp.to_dict() if isinstance(comp, TemplateComponent) else dict(comp)
+            )
             comp_copy["id"] = map_id(comp_copy["id"])
 
             if "child" in comp_copy:
@@ -553,20 +618,28 @@ class TemplateProcessor:
     def validate_templates(self) -> None:
         """Validates all registered templates."""
         for t_id, template in self.templates.items():
-            template.validate_definition()
-            for comp in template.components:
-                comp_type = comp.get("component")
-                if not comp_type:
-                    raise ValueError(
-                        f"Component in template '{t_id}' is missing 'component' type."
+            if isinstance(template, StaticTemplate):
+                template.validate_definition()
+                for comp in template.components:
+                    comp_dict = (
+                        comp.to_dict() if isinstance(comp, TemplateComponent) else comp
                     )
+                    comp_type = comp_dict.get("component")
+                    if not comp_type:
+                        raise ValueError(
+                            f"Component in template '{t_id}' is missing 'component'"
+                            " type."
+                        )
 
     def _get_template_params(
-        self, comp: Dict[str, Any], template: Template
+        self,
+        comp: Dict[str, Any],
+        template: Union[BaseTemplate, Template, StaticTemplate, DynamicTemplate],
     ) -> Dict[str, Any]:
         """Extracts passed parameters from a component dictionary."""
         params: Dict[str, Any] = {}
-        for p_name in template.parameters.keys():
+        raw_keys = template.parameters.keys() if hasattr(template, "parameters") else []
+        for p_name in raw_keys:
             if p_name in comp:
                 params[p_name] = comp[p_name]
         return params

@@ -12,14 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI Template module providing parameterized component expansion."""
+"""A2UI Template module providing parameterized component expansion and dynamic resolvers."""
 
-from .models import Template
+from .models import (
+    Template,
+    StaticTemplate,
+    DynamicTemplate,
+    BaseTemplate,
+    Param,
+    ParamType,
+    ParamRef,
+    Concat,
+    FormatExpr,
+    TemplateLoop,
+    TemplateComponent,
+    normalize_a2ui_type_to_jsonschema,
+)
 from .processor import TemplateProcessor
 from .format import TemplateInferenceFormat, A2uiTemplateManager, TemplateParser
 
 __all__ = [
     "Template",
+    "StaticTemplate",
+    "DynamicTemplate",
+    "BaseTemplate",
+    "Param",
+    "ParamType",
+    "ParamRef",
+    "Concat",
+    "FormatExpr",
+    "TemplateLoop",
+    "TemplateComponent",
+    "normalize_a2ui_type_to_jsonschema",
     "TemplateProcessor",
     "TemplateInferenceFormat",
     "A2uiTemplateManager",

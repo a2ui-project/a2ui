@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Concise FastAPI server demonstrating A2UI Templates expansion with Agent SDK."""
+"""Concise FastAPI server demonstrating A2UI Static and Dynamic Templates with Agent SDK."""
+
+from __future__ import annotations
 
 import glob
 import json
@@ -20,13 +22,20 @@ import os
 from pathlib import Path
 import time
 from typing import Any, Dict, List
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 from google.genai import types
 from pydantic import BaseModel
 
-from a2ui.template import Template, TemplateInferenceFormat
+from a2ui.template import (
+    Template,
+    StaticTemplate,
+    DynamicTemplate,
+    Param,
+    ParamType,
+    TemplateInferenceFormat,
+)
 
 app = FastAPI(title="A2UI Templates Community Demo Server")
 
@@ -41,12 +50,62 @@ app.add_middleware(
 MODEL_NAME = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
 BASIC_CATALOG_ID = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
 
+# Mock Secure HR / Compensation Database
+EMPLOYEE_COMPENSATION_DB = {
+    "emp_101": {
+        "employeeName": "Dr. Elena Vance",
+        "role": "Principal Systems Architect",
+        "baseSalary": "$215,000",
+        "annualBonus": "$45,000",
+        "equity": "3,500 RSUs",
+        "clearanceLevel": "Level 5 - Confidential",
+        "verifiedAt": "2026-08-13",
+    },
+    "emp_102": {
+        "employeeName": "Marcus Vance",
+        "role": "Streaming & Protocols Lead",
+        "baseSalary": "$195,000",
+        "annualBonus": "$38,000",
+        "equity": "2,800 RSUs",
+        "clearanceLevel": "Level 4 - Confidential",
+        "verifiedAt": "2026-08-13",
+    },
+    "emp_103": {
+        "employeeName": "Aria Chen",
+        "role": "Head of Design Systems",
+        "baseSalary": "$205,000",
+        "annualBonus": "$42,000",
+        "equity": "3,100 RSUs",
+        "clearanceLevel": "Level 5 - Confidential",
+        "verifiedAt": "2026-08-13",
+    },
+    "emp_104": {
+        "employeeName": "Liam Kjell",
+        "role": "Senior Framework Engineer",
+        "baseSalary": "$180,000",
+        "annualBonus": "$32,000",
+        "equity": "2,200 RSUs",
+        "clearanceLevel": "Level 3 - Internal",
+        "verifiedAt": "2026-08-13",
+    },
+}
 
-def load_templates() -> List[Template]:
-    """Loads all example template definitions."""
+
+def fetch_employee_compensation(employeeId: str) -> Dict[str, Any]:
+    """Fetches verified confidential compensation package from internal HR database."""
+    if employeeId not in EMPLOYEE_COMPENSATION_DB:
+        raise ValueError(
+            f"Employee ID '{employeeId}' not found in HR compensation records."
+            f" Available: {list(EMPLOYEE_COMPENSATION_DB.keys())}"
+        )
+    return EMPLOYEE_COMPENSATION_DB[employeeId]
+
+
+def load_templates() -> List[Any]:
+    """Loads all static templates and registers dynamic resolver templates."""
     current_file = Path(__file__).resolve()
     repo_root = current_file.parents[3]
-    examples_pattern = str(
+    examples_dir = (
         repo_root
         / "agent_sdks"
         / "python"
@@ -55,12 +114,36 @@ def load_templates() -> List[Template]:
         / "a2ui"
         / "template"
         / "examples"
-        / "*.json"
     )
-    templates = []
+    examples_pattern = str(examples_dir / "*.json")
+
+    templates_list = []
+    salary_layout = None
+
     for path in glob.glob(examples_pattern):
-        templates.append(Template.from_json_file(path))
-    return templates
+        tmpl = StaticTemplate.from_json_file(path)
+        if tmpl.template_id == "SalaryCard":
+            salary_layout = tmpl
+        else:
+            templates_list.append(tmpl)
+
+    if salary_layout is not None:
+        # Register DynamicTemplate for EmployeeSalaryCard
+        dynamic_salary = DynamicTemplate(
+            template_id="EmployeeSalaryCard",
+            resolver=fetch_employee_compensation,
+            layout=salary_layout,
+            description=(
+                "Secure verified employee compensation card. Pass only the"
+                " employeeId ('emp_101', 'emp_102', 'emp_103', 'emp_104');"
+                " compensation data is securely fetched server-side from the"
+                " HR database."
+            ),
+            sample_data={"employeeId": "emp_101"},
+        )
+        templates_list.append(dynamic_salary)
+
+    return templates_list
 
 
 templates = load_templates()
@@ -72,12 +155,13 @@ format_instance = TemplateInferenceFormat(
 
 ROLE_DESCRIPTION = """You are an A2UI interface assistant. When helpful, respond with visual UI using the compact A2UI Express DSL inside `<a2ui>` tags.
 
-Select and present only the UI components that are directly relevant to the user's request. Depending on the query, this may be a single template (e.g. `UserProfile`), a standard primitive, or a custom composed layout that you invent to address the query.
+Select and present only the UI components that are directly relevant to the user's request. Depending on the query, this may be a single template, a standard primitive, or a custom composed layout that you invent to address the query.
 
 You can compose high-level templates and primitive components together:
 - Layout & Containers: `Column`, `Row`, `Card`, `SectionCard(title, description, headerAction, children)`, `TwoColumnLayout(headerChild, leftChildren, rightChildren)`.
-- Reusable Templates:
+- Reusable & Dynamic Templates:
   - `UserProfile(userId, userName, role)` for individual identity cards.
+  - `EmployeeSalaryCard(employeeId)` for verified employee compensation. Pass only the employeeId (e.g. "emp_101" for Dr. Elena Vance, "emp_102" for Marcus Vance, "emp_103" for Aria Chen, "emp_104" for Liam Kjell). Confidential compensation data is securely resolved server-side from the HR database.
   - `TeamMemberKnowledgePanel(userName, role, experienceYears, completedTasks)` for stats and skill summaries.
   - `TeamGoalList(teamName, goals)` or `GoalItem(title, priority, targetDate)` for objective tracking.
   - `TeamFeedbackBoard(teamName, feedbacks)` or `FeedbackItem(author, note, rating)` for reviews and retrospectives.
@@ -97,11 +181,22 @@ class ChatRequest(BaseModel):
     conversationId: str = "default_conv"
 
 
+class DynamicResolveRequest(BaseModel):
+    params: Dict[str, Any]
+
+
 PRESET_RESPONSES = {
     "show user profile": (
         """
     <a2ui>
     root = UserProfile("usr_101", "Alice Smith", "Lead Architect")
+    </a2ui>
+    """
+    ),
+    "show verified salary": (
+        """
+    <a2ui>
+    root = EmployeeSalaryCard("emp_102")
     </a2ui>
     """
     ),
@@ -194,11 +289,66 @@ def list_templates():
                     },
                 },
             ]
-        except Exception as e:
+        except Exception:
             sample_messages = []
         t_dict["sampleMessages"] = sample_messages
+
+        if getattr(t, "is_dynamic", False):
+            dynamic_tmpl: DynamicTemplate = t  # type: ignore
+            t_dict["isDynamic"] = True
+            t_dict["layoutTemplate"] = dynamic_tmpl.layout.to_dict()
+            # Run resolver on sampleData to show resolved state
+            try:
+                t_dict["resolvedData"] = dynamic_tmpl.resolve(sample_params)
+            except Exception:
+                t_dict["resolvedData"] = {}
+            t_dict["availablePresets"] = [
+                {"label": f"{v['employeeName']} ({k})", "value": k}
+                for k, v in EMPLOYEE_COMPENSATION_DB.items()
+            ]
+
         res.append(t_dict)
     return res
+
+
+@app.post("/templates/{template_id}/resolve")
+@app.post("/api/templates/{template_id}/resolve")
+def resolve_template(template_id: str, req: DynamicResolveRequest):
+    tmpl = format_instance.processor.templates.get(template_id)
+    if not tmpl:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    try:
+        expanded_components = format_instance.processor.expand_template(
+            "root", template_id, req.params
+        )
+        sample_messages = [
+            {
+                "version": "v0.9.1",
+                "createSurface": {
+                    "surfaceId": f"preview_{template_id}",
+                    "catalogId": BASIC_CATALOG_ID,
+                },
+            },
+            {
+                "version": "v0.9.1",
+                "updateComponents": {
+                    "surfaceId": f"preview_{template_id}",
+                    "components": expanded_components,
+                },
+            },
+        ]
+        resolved_data = {}
+        if getattr(tmpl, "is_dynamic", False):
+            resolved_data = tmpl.resolve(req.params)  # type: ignore
+
+        return {
+            "expandedComponents": expanded_components,
+            "sampleMessages": sample_messages,
+            "resolvedData": resolved_data,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/interact")
@@ -252,6 +402,7 @@ async def chat(req: ChatRequest):
                 version="0.9.1",
             )
             parts = target_format.parser.parse_response(raw_text)
+
             messages = []
             text_parts = []
             for part in parts:
@@ -260,90 +411,68 @@ async def chat(req: ChatRequest):
                 if part.a2ui_json:
                     messages.extend(part.a2ui_json)
 
-            # Detect the surfaceId created in the messages
-            created_surface_id = req.surfaceId
-            for msg in messages:
-                if isinstance(msg, dict) and "createSurface" in msg:
-                    created_surface_id = msg["createSurface"].get(
-                        "surfaceId", req.surfaceId
-                    )
-                    break
+            thinking_tokens = 0
+            candidates_tokens = 0
+            if response.usage_metadata:
+                thinking_tokens = (
+                    getattr(response.usage_metadata, "thoughts_token_count", 0) or 0
+                )
+                candidates_tokens = (
+                    getattr(response.usage_metadata, "candidates_token_count", 0) or 0
+                )
 
-            usage = response.usage_metadata
-            thinking_tokens = (
-                getattr(usage, "thoughts_token_count", None) if usage else None
-            )
-            output_tokens = (
-                getattr(usage, "candidates_token_count", None) if usage else None
-            )
-            prompt_tokens = (
-                getattr(usage, "prompt_token_count", None) if usage else None
-            )
-            total_tokens = getattr(usage, "total_token_count", None) if usage else None
+            actual_surface_id = req.surfaceId
+            for msg in messages:
+                if isinstance(msg, dict):
+                    if "createSurface" in msg and "surfaceId" in msg["createSurface"]:
+                        actual_surface_id = msg["createSurface"]["surfaceId"]
+                        break
+                    elif (
+                        "updateComponents" in msg
+                        and "surfaceId" in msg["updateComponents"]
+                    ):
+                        actual_surface_id = msg["updateComponents"]["surfaceId"]
+                        break
 
             return {
                 "messages": messages,
-                "raw": raw_text,
-                "text": "\n".join(text_parts).strip() or "Here is the response:",
-                "surfaceId": created_surface_id,
+                "raw": raw_text.strip(),
+                "text": "\n".join(text_parts).strip() or "UI generated successfully.",
+                "surfaceId": actual_surface_id,
                 "metrics": {
                     "latency": latency,
-                    "thinkingTokens": thinking_tokens or 0,
-                    "outputTokens": output_tokens or 0,
-                    "promptTokens": prompt_tokens or 0,
-                    "totalTokens": total_tokens or 0,
+                    "thinkingTokens": thinking_tokens,
+                    "outputTokens": candidates_tokens,
                     "isPreset": False,
                 },
             }
         except Exception as e:
-            latency = round(time.perf_counter() - start_time, 2)
             return {
-                "error": str(e),
-                "messages": [
-                    {
-                        "version": "v0.9.1",
-                        "createSurface": {
-                            "surfaceId": req.surfaceId,
-                            "catalogId": BASIC_CATALOG_ID,
-                        },
-                    },
-                    {
-                        "version": "v0.9.1",
-                        "updateComponents": {
-                            "surfaceId": req.surfaceId,
-                            "components": [
-                                {
-                                    "id": "root",
-                                    "component": "Card",
-                                    "child": "err_txt",
-                                },
-                                {
-                                    "id": "err_txt",
-                                    "component": "Text",
-                                    "text": f"Error: {str(e)}",
-                                    "variant": "body",
-                                },
-                            ],
-                        },
-                    },
-                ],
+                "messages": [],
+                "raw": f"Error: {str(e)}",
+                "text": f"Error generating template UI: {str(e)}",
                 "surfaceId": req.surfaceId,
                 "metrics": {
-                    "latency": latency,
+                    "latency": round(time.perf_counter() - start_time, 2),
+                    "thinkingTokens": 0,
+                    "outputTokens": 0,
+                    "isPreset": False,
                 },
             }
 
-    # 3. Fallback when API key is missing
+    # 3. Fallback when no Gemini API key is configured
     return {
-        "text": (
-            "Gemini API key not configured. Click one of the preset template"
-            " buttons on the left to see instant examples."
-        ),
         "messages": [],
+        "raw": "",
+        "text": (
+            "Gemini API key is not configured on the server. Please click one of the"
+            " preset buttons above or set the GEMINI_API_KEY environment variable."
+        ),
+        "surfaceId": req.surfaceId,
+        "metrics": {
+            "latency": 0.0,
+            "thinkingTokens": 0,
+            "outputTokens": 0,
+            "isPreset": True,
+        },
     }
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="127.0.0.1", port=8000)
