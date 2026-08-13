@@ -80,8 +80,8 @@ export function formatZodIssue(err: z.ZodIssue): string {
     return `${path}: ${err.message}`;
   }
 
-  if ('expected' in err && (err as any).expected && (err as any).received) {
-    return `${path}: Expected ${(err as any).expected}, received ${(err as any).received}`;
+  if ('expected' in err && (err as any).expected !== undefined && (err as any).received !== undefined) {
+    return path + ": Expected " + (err as any).expected + ", received " + (err as any).received;
   }
 
   return `${path}: Validation error (${err.code || 'invalid'})`;
