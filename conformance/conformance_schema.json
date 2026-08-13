@@ -178,7 +178,23 @@
     "ValidateTest": {
       "type": "object",
       "properties": {
-        "action": {"const": "validate"}
+        "action": {"const": "validate"},
+        "expect_valid": {
+          "type": "boolean",
+          "description": "Whether the validator test payload is expected to compile and pass validation."
+        },
+        "expect_data_model": {
+          "type": "object",
+          "description": "Expected state of the data models after message processing."
+        },
+        "expect_validation_result": {
+          "type": "object",
+          "description": "Expected validation result state for specific components."
+        },
+        "expect_components": {
+          "type": "object",
+          "description": "Expected resolved properties of components on specific surfaces."
+        }
       },
       "required": ["action"],
       "oneOf": [
