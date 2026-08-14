@@ -56,8 +56,8 @@ public struct FormatStringFunction: FunctionImplementation, Sendable {
       case .number(let n):
         // Format to avoid .0 if integer-like, or let Swift default formatting apply.
         // Swift Double to String formatting is usually reasonable.
-        if n.truncatingRemainder(dividingBy: 1) == 0 {
-           result += String(Int(n))
+        if let exactInt = Int(exactly: n) {
+           result += String(exactInt)
         } else {
            result += String(n)
         }

@@ -53,6 +53,7 @@ public struct FormatCurrencyFunction: FunctionImplementation, Sendable {
     }
 
     let formatter = NumberFormatter()
+    formatter.locale = Locale.current
     formatter.numberStyle = .currency
     formatter.currencyCode = currency
 
@@ -61,14 +62,11 @@ public struct FormatCurrencyFunction: FunctionImplementation, Sendable {
     formatter.usesGroupingSeparator = grouping
 
     // Force decimals if provided
-    if let decimalsDouble = arguments["decimals"]?.doubleValue {
-      let decimals = Int(decimalsDouble)
+    if let decimalsDouble = arguments["decimals"]?.doubleValue,
+       let decimals = Int(exactly: decimalsDouble) {
       formatter.minimumFractionDigits = decimals
       formatter.maximumFractionDigits = decimals
     }
-
-    // Default locale is typically current, which is correct for formatting
-    formatter.locale = Locale.current
 
     let formattedString = formatter.string(from: NSNumber(value: numberValue)) ?? ""
     return .string(formattedString)

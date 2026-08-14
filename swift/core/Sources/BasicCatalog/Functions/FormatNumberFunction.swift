@@ -48,6 +48,7 @@ public struct FormatNumberFunction: FunctionImplementation, Sendable {
     }
 
     let formatter = NumberFormatter()
+    formatter.locale = Locale.current
     formatter.numberStyle = .decimal
 
     // Enable grouping unless explicitly set to false
@@ -55,14 +56,11 @@ public struct FormatNumberFunction: FunctionImplementation, Sendable {
     formatter.usesGroupingSeparator = grouping
 
     // Force decimals if provided
-    if let decimalsDouble = arguments["decimals"]?.doubleValue {
-      let decimals = Int(decimalsDouble)
+    if let decimalsDouble = arguments["decimals"]?.doubleValue,
+       let decimals = Int(exactly: decimalsDouble) {
       formatter.minimumFractionDigits = decimals
       formatter.maximumFractionDigits = decimals
     }
-
-    // Default locale is typically current, which is correct for formatting
-    formatter.locale = Locale.current
 
     let formattedString = formatter.string(from: NSNumber(value: numberValue)) ?? ""
     return .string(formattedString)
