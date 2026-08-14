@@ -61,7 +61,9 @@ public struct FormatDateFunction: FunctionImplementation, Sendable {
       } else {
         // Simple fallback for standard yyyy-MM-dd if not full ISO8601
         let fallbackFormatter = DateFormatter()
+        fallbackFormatter.locale = Locale(identifier: "en_US_POSIX")
         fallbackFormatter.dateFormat = "yyyy-MM-dd"
+
         if let fallbackDate = fallbackFormatter.date(from: valueString) {
           date = fallbackDate
         } else {
