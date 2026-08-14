@@ -16,7 +16,7 @@
 
 import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
-import {MessageProcessor} from './message-processor.js';
+import {MessageProcessor, formatZodIssue} from './message-processor.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {ButtonApi} from '../basic_catalog/index.js';
 import {A2uiValidationError} from '../errors.js';
@@ -734,5 +734,104 @@ describe('MessageProcessor', () => {
     assert.strictEqual(processor.resolvePath('foo', '/bar'), '/bar/foo');
     assert.strictEqual(processor.resolvePath('foo', '/bar/'), '/bar/foo');
     assert.strictEqual(processor.resolvePath('foo'), '/foo');
+  });
+
+  describe('formatZodIssue and error reporting', () => {
+    it('formats unrecognized keys with exact property names', () => {
+      const issue: any = {
+        code: 'unrecognized_keys',
+        keys: ['color', 'gap'],
+        path: ['header'],
+        message: 'Unrecognized key(s) in object: color, gap',
+      };
+      assert.strictEqual(
+        formatZodIssue(issue),
+        "header: Unrecognized key(s) in object: 'color', 'gap'",
+      );
+    });
+
+    it('formats unrecognized keys at root level', () => {
+      const issue: any = {
+        code: 'unrecognized_keys',
+        keys: ['color'],
+        path: [],
+        message: 'Expected undefined, received undefined', // simulates minified corrupted message
+      };
+      assert.strictEqual(formatZodIssue(issue), "root: Unrecognized key(s) in object: 'color'");
+    });
+
+    it('formats invalid enum values', () => {
+      const issue: any = {
+        code: 'invalid_enum_value',
+        options: ['primary', 'secondary'],
+        received: 'invalid',
+        path: ['variant'],
+        message: 'Invalid enum value',
+      };
+      assert.strictEqual(
+        formatZodIssue(issue),
+        "variant: Invalid enum value. Expected primary | secondary, received 'invalid'",
+      );
+    });
+
+    it('falls back to expected/received when message is corrupted with undefined', () => {
+      const issue: any = {
+        code: 'invalid_type',
+        expected: 'string',
+        received: 'number',
+        path: ['label'],
+        message: 'Expected undefined, received undefined',
+      };
+      assert.strictEqual(formatZodIssue(issue), 'label: Expected string, received number');
+    });
+
+    it('surfaces unrecognized property validation error and details when processing component updates', () => {
+      const strictButtonApi: ComponentApi = {
+        name: 'MaterialButton',
+        schema: z
+          .object({
+            label: z.string(),
+          })
+          .strict(),
+      };
+      const proc = new MessageProcessor([new Catalog('cat-m3', [strictButtonApi])]);
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1', catalogId: 'cat-m3'},
+        },
+      ]);
+
+      assert.throws(
+        () => {
+          proc.processMessages([
+            {
+              version: 'v0.9',
+              updateComponents: {
+                surfaceId: 's1',
+                components: [
+                  {
+                    id: 'btn1',
+                    component: 'MaterialButton',
+                    label: 'Submit',
+                    color: 'primary',
+                  } as any,
+                ],
+              },
+            },
+          ]);
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.strictEqual(
+            err.message,
+            "Validation failed for component 'MaterialButton' (btn1): root: Unrecognized key(s) in object: 'color'",
+          );
+          assert.ok(Array.isArray(err.details));
+          assert.strictEqual(err.details[0].code, 'unrecognized_keys');
+          return true;
+        },
+      );
+    });
   });
 });
