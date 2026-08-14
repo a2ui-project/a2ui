@@ -19,11 +19,13 @@ This document defines the technical implementation plan for upgrading the A2UI f
 ### 1.2 Scope and Non-Goals
 
 #### Scope
+
 - Top-level shared conformance suite under `conformance/`.
 - Python packages located in `python/a2ui_core` and `python/a2ui_agent`.
 - TypeScript package located in `typescript/web_core`.
 
 #### Explicit Non-Goals
+
 1. **Preservation of v0.8 Implementation**: The v0.8 modules in `a2ui_core` (`python/a2ui_core/src/a2ui/core/basic_catalog/v0_8`) and `web_core` (`typescript/web_core/src/v0_8/`) remain untouched.
 2. **No Breaking Changes to Framework Renderers**: Framework adapter packages (Angular, React, Flutter, Lit, Swift) are preserved in their existing paths during core implementation and cutover.
 3. **No Transport-Layer Changes**: Transport implementations (A2A, MCP, HTTP/WebSocket) are excluded; changes apply only to protocol message payloads and capability payload metadata.
@@ -161,7 +163,7 @@ sequenceDiagram
 1. **Bidirectional RPC Functions**:
    - Agent-to-Renderer: `callRendererFunction` $\rightarrow$ returns `rendererFunctionResponse`.
    - Renderer-to-Agent: `callAgentFunction` $\rightarrow$ returns `agentFunctionResponse`.
-   - Runtime authorized caller checking (`allowedCallers`: `rendererOnly`, `rendererOrAgent`).
+   - Runtime authorized caller checking (`callableFrom`: `rendererOnly`, `rendererOrAgent`).
    - User activation requirement flag (`requiresUserActivation: true` for functions like `openUrl`).
 2. **Multi-Catalog Surface Mixing**:
    - `supportedCatalogIds` can be mixed within a single surface.
@@ -205,13 +207,16 @@ This section outlines the process for orchestrating implementation tasks, creati
 Before merging sub-branches or opening PRs, the following quality checks must be satisfied:
 
 #### 1. Unit Testing & Code Coverage (>90%)
+
 - Write comprehensive unit tests for all new functions, state mutations, version adapters, and schema models.
 - Maintain at least **90%+ test coverage** across modified source files.
 - Run tests via `pytest` (Python) or `yarn test` (TypeScript) and verify a 100% pass rate.
 
 #### 2. Code Documentation (`code-documentation`)
+
 All public APIs, classes, methods, and functions must be documented according to the `code-documentation` skill guidelines:
-- **User-Centric**: Document *why* code exists and *how* to use it effectively.
+
+- **User-Centric**: Document _why_ code exists and _how_ to use it effectively.
 - **Summary Sentence**: Lead with a single-sentence summary ending in a period.
 - **Third-Person Singular Verbs**: Begin function and method docstrings with third-person singular active verbs (e.g., `"Returns..."`, `"Calculates..."`, `"Creates..."`).
 - **Noun Phrases**: Begin variable and property docstrings with a noun phrase (e.g., `"The current color."`).
@@ -220,11 +225,13 @@ All public APIs, classes, methods, and functions must be documented according to
 - **Parameters & Returns**: Explicitly document parameter constraints, return payloads, and thrown exceptions.
 
 #### 3. Formatting, Linting & Copyright License Verification
+
 - **Formatting**: Auto-format code (`pyink` for Python, `prettier` for TypeScript via `./scripts/fix_format.sh`).
 - **Static Analysis**: Resolve all static analysis and type errors (`mypy` for Python, `tsc --noEmit` for TypeScript).
 - **License Headers**: Verify that all newly created source files contain the standard project copyright notice and license header before staging.
 
 #### 4. Adversarial Code Review Subagent (`code-review`)
+
 - Before staging any branch, launch a dedicated subagent running the `code-review` skill to perform an adversarial review of the worktree diff (`git diff base...HEAD`).
 - The review subagent inspects modified lines, checks context dependencies, delegates public API reviews to `api-review` where signatures changed, and executes a two-pass critique (generation $\rightarrow$ self-critique) to remove false positives.
 - **Mandatory Remediation**:
@@ -232,6 +239,7 @@ All public APIs, classes, methods, and functions must be documented according to
   - **Medium & Low Severity**: Remediate all medium and low concerns as long as fixing them does not require major architectural changes.
 
 #### 5. Conventional Commits (`commit-changes`)
+
 - Staged changes are reviewed using `git diff --cached --stat` before committing.
 - Commit messages must strictly follow Conventional Commits format (`commit-changes` skill guidelines):
   - `feat(scope): ...` for new capabilities.
@@ -241,10 +249,11 @@ All public APIs, classes, methods, and functions must be documented according to
 - Subjects must be imperative, concise, and lowercase without a trailing period.
 
 #### 6. PR Description & Prose Quality (`write-pr-description` & `write-prose`)
+
 - **PR Description Generation**: Every submitted PR requires a detailed description generated using `write-pr-description` with mandatory sections: `## Summary`, `## Changes`, `## Impact & Risks`, and `## Testing`.
 - **Prose Standards (`write-prose`)**:
   - Apply ISO 24495-1 plain language standards: direct active voice, short sentences (15–20 words max), and clear reader orientation.
-  - Eliminate banned AI jargon (*leverage, seamless, robust, holistic, pivotal, intuitive, testament, not only... but also*).
+  - Eliminate banned AI jargon (_leverage, seamless, robust, holistic, pivotal, intuitive, testament, not only... but also_).
   - Describe technical behaviors factually without promotional or hyperbolic language.
 - **Hashtag Escaping**: Enforce backtick formatting on spec or issue identifiers (e.g., UAX `#31`) to prevent unwanted GitHub issue auto-linking.
 
@@ -262,13 +271,13 @@ flowchart LR
     D --> E["5. Passing (Merge)"]
 ```
 
-| Stage | Codename | Primary Focus & Included Deliverables | Python Track 🐍 (Nan) | TypeScript Track ⚡ (Greg) | Lead |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Stage 1** | **`Mise`** | **Preparation & Staging**: Feature branch creation (`v1_0`), structuring top-level `conformance/` layout, bringing up `message_processor` and component node test vectors, adding v1.0 feature vectors, and setting up TS harness. | Bring up conformance suite to include `message_processor` and component node test vectors (`message_processor.yaml`, `component_nodes.yaml`). | Fill in conformance test vectors for new v1.0 features (`rpc_functions.yaml`, `multi_catalog.yaml`, `data_deletion.yaml`), and implement TS test runner harness (`conformance_test.mjs`). | Nan (Prep)<br/>Greg (v1.0 & Harness) |
-| **Stage 2** | **`Firing`** | **Core Data Models & Adapters**: Autogenerated schemas (Pydantic / Zod), `VersionAdapterFactory`, catalog definitions v1.0, data model deletion (`null`), and parent-child composition rules. | `Firing-Python`: Generate Pydantic models, `VersionAdapterFactory`, data model deletion (`null`), and `"Surface"` container rules in `python/a2ui_core`. | `Firing-TS`: Generate Zod/TS models, `VersionAdapterFactory`, data model deletion (`null`), and `"Surface"` container rules in `typescript/web_core`. | Nan (Py)<br/>Greg (TS) |
-| **Stage 3** | **`Sauce`** | **Fluid Signaling & RPC**: Bidirectional RPC execution (`callRendererFunction`, `callAgentFunction`), dynamic `ValidationResult` handling, multi-catalog resolution order engine, and `@index` function. | `Sauce-Python`: Implement `callRendererFunction` / `callAgentFunction` RPC handlers, multi-catalog resolution engine, and `A2uiValidator` in Python. | `Sauce-TS`: Implement `callRendererFunction` / `callAgentFunction` RPC handlers, multi-catalog resolution engine, and `A2uiValidator` in Web Core. | Nan (Py)<br/>Greg (TS) |
-| **Stage 4** | **`Polishing`** | **Higher Facades & Surface Manager**: Upgrading `python/a2ui_agent`, Direct JSON inference format, Express DSL parser/compiler v1.0, and refining Web Core surface manager. | `Polishing-Python`: Upgrade `python/a2ui_agent` (Direct JSON format, Express DSL v1.0 grammar, `A2uiGenerator` / `A2uiRequestProcessor` facades). | `Polishing-TS`: Refine Web Core surface manager, renderer integration hooks, and ensure cross-language API parity. | Nan (Py)<br/>Greg (TS) |
-| **Stage 5** | **`Passing`** | **Verification & Release Cutover**: Executing 100% clean conformance suite across Python and TypeScript harnesses and merging `v1_0` to `main`. | Run `pytest tests/conformance/conformance_test.py` across all YAML test vectors until 100% pass rate. | Run `node tests/conformance/conformance_test.mjs` across all YAML test vectors; merge `v1_0` to `main`. | Shared |
+| Stage       | Codename        | Primary Focus & Included Deliverables                                                                                                                                                                                              | Python Track 🐍 (Nan)                                                                                                                                    | TypeScript Track ⚡ (Greg)                                                                                                                                                                | Lead                                 |
+| :---------- | :-------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------- |
+| **Stage 1** | **`Mise`**      | **Preparation & Staging**: Feature branch creation (`v1_0`), structuring top-level `conformance/` layout, bringing up `message_processor` and component node test vectors, adding v1.0 feature vectors, and setting up TS harness. | Bring up conformance suite to include `message_processor` and component node test vectors (`message_processor.yaml`, `component_nodes.yaml`).            | Fill in conformance test vectors for new v1.0 features (`rpc_functions.yaml`, `multi_catalog.yaml`, `data_deletion.yaml`), and implement TS test runner harness (`conformance_test.mjs`). | Nan (Prep)<br/>Greg (v1.0 & Harness) |
+| **Stage 2** | **`Firing`**    | **Core Data Models & Adapters**: Autogenerated schemas (Pydantic / Zod), `VersionAdapterFactory`, catalog definitions v1.0, data model deletion (`null`), and parent-child composition rules.                                      | `Firing-Python`: Generate Pydantic models, `VersionAdapterFactory`, data model deletion (`null`), and `"Surface"` container rules in `python/a2ui_core`. | `Firing-TS`: Generate Zod/TS models, `VersionAdapterFactory`, data model deletion (`null`), and `"Surface"` container rules in `typescript/web_core`.                                     | Nan (Py)<br/>Greg (TS)               |
+| **Stage 3** | **`Sauce`**     | **Fluid Signaling & RPC**: Bidirectional RPC execution (`callRendererFunction`, `callAgentFunction`), dynamic `ValidationResult` handling, multi-catalog resolution order engine, and `@index` function.                           | `Sauce-Python`: Implement `callRendererFunction` / `callAgentFunction` RPC handlers, multi-catalog resolution engine, and `A2uiValidator` in Python.     | `Sauce-TS`: Implement `callRendererFunction` / `callAgentFunction` RPC handlers, multi-catalog resolution engine, and `A2uiValidator` in Web Core.                                        | Nan (Py)<br/>Greg (TS)               |
+| **Stage 4** | **`Polishing`** | **Higher Facades & Surface Manager**: Upgrading `python/a2ui_agent`, Direct JSON inference format, Express DSL parser/compiler v1.0, and refining Web Core surface manager.                                                        | `Polishing-Python`: Upgrade `python/a2ui_agent` (Direct JSON format, Express DSL v1.0 grammar, `A2uiGenerator` / `A2uiRequestProcessor` facades).        | `Polishing-TS`: Refine Web Core surface manager, renderer integration hooks, and ensure cross-language API parity.                                                                        | Nan (Py)<br/>Greg (TS)               |
+| **Stage 5** | **`Passing`**   | **Verification & Release Cutover**: Executing 100% clean conformance suite across Python and TypeScript harnesses and merging `v1_0` to `main`.                                                                                    | Run `pytest tests/conformance/conformance_test.py` across all YAML test vectors until 100% pass rate.                                                    | Run `node tests/conformance/conformance_test.mjs` across all YAML test vectors; merge `v1_0` to `main`.                                                                                   | Shared                               |
 
 ---
 
@@ -277,6 +286,7 @@ flowchart LR
 ### Stage 1: Repository Foundation & Conformance Setup (`Mise`)
 
 #### Step 1.1A: Message Processor & Component Node Conformance Vectors (`Mise-Python`) [Nan]
+
 - **Goal**: Bring up top-level `conformance/core/` test vectors for message processor handling and component node structure.
 - **Affected Paths**:
   - `conformance/core/message_processor.yaml`
@@ -291,6 +301,7 @@ flowchart LR
 - **Verification**: Run `uv run pytest python/a2ui_core/tests/conformance/conformance_test.py`.
 
 #### Step 1.1B: v1.0 Feature Conformance Vectors & TypeScript Test Harness (`Mise-TS`) [Greg]
+
 - **Goal**: Create conformance test vectors for new v1.0 protocol features and build the TypeScript test runner harness.
 - **Affected Paths**:
   - `conformance/core/rpc_functions.yaml`
@@ -308,6 +319,7 @@ flowchart LR
 ### Stage 2: Core Data Models, Schemas & Version Adapters (`Firing`)
 
 #### Step 2.1A: Autogenerate v1.0 Pydantic Schema Models (`Firing-Python`) [Nan]
+
 - **Goal**: Generate strongly typed Pydantic models for Python (`python/a2ui_core`) from `specification/v1_0/json/` JSON Schema files.
 - **Affected Paths**:
   - `python/a2ui_core/scripts/generate_schemas.py`
@@ -322,6 +334,7 @@ flowchart LR
 - **Verification**: Run `python scripts/generate_schemas.py` and `uv run pytest python/a2ui_core/tests`.
 
 #### Step 2.1B: Autogenerate v1.0 Zod Schema Models (`Firing-TS`) [Greg]
+
 - **Goal**: Generate Zod schemas and TypeScript interfaces for Web Core (`typescript/web_core`) from `specification/v1_0/json/` JSON Schema files.
 - **Affected Paths**:
   - `typescript/web_core/src/v1_0/schema/` (`agent-to-renderer.ts`, `renderer-to-agent.ts`, `renderer-capabilities.ts`, `common-types.ts`, `index.ts`)
@@ -332,6 +345,7 @@ flowchart LR
 - **Verification**: Run `(cd typescript/web_core && yarn test)`.
 
 #### Step 2.2A / Step 2.2B: Spec Version Adapters & VersionAdapterFactory (`Firing-Python` / `Firing-TS`)
+
 - **Goal**: Implement `VersionAdapter` infrastructure to normalize protocol differences between v0.8, v0.9, v0.9.1, and v1.0.
 - **Affected Paths**:
   - `python/a2ui_core/src/a2ui/core/processing/adapters/` (`base.py`, `factory.py`, `v0_8.py`, `v0_9.py`, `v1_0.py`)
@@ -344,6 +358,7 @@ flowchart LR
 - **Verification**: Unit test `test_adapters.py` and `adapters.test.ts` across v0.9 and v1.0 message payload fixtures.
 
 #### Step 2.3A / Step 2.3B: Core Catalog Abstractions & Bundled Basic Catalog v1.0 (`Firing-Python` / `Firing-TS`)
+
 - **Goal**: Update core catalog interfaces to store v1.0 metadata attributes and implement bundled basic catalog v1.0.
 - **Affected Paths**:
   - `python/a2ui_core/src/a2ui/core/catalog/` (`catalog.py`, `components.py`, `functions.py`)
@@ -352,7 +367,7 @@ flowchart LR
   - `typescript/web_core/src/basic_catalog/v1_0/` (`catalog.ts`, `components.ts`, `functions.ts`)
 - **Key Requirements**:
   - Add `protocol_version: A2uiProtocolVersion` and `instructions: str` properties to `Catalog`.
-  - Add `allowed_callers` (`rendererOnly`, `rendererOrAgent`) and `requires_user_activation` to `FunctionApi`.
+  - Add `callable_from` (`rendererOnly`, `rendererOrAgent`) and `requires_user_activation` to `FunctionApi`.
   - Add optional `allowed_parents` and `allowed_children` to `ComponentApi`.
   - Implement UAX #31 identifier validation logic for component names, function names, and argument keys.
   - Load `specification/v1_0/catalogs/basic/catalog.json`: update `Video` (`posterUrl`), `TextField` (`placeholder`), `Slider` (`steps`), set `requiresUserActivation: true` on `openUrl`.
@@ -360,6 +375,7 @@ flowchart LR
 - **Verification**: Unit test basic catalog v1.0 initialization and validation checks in `test_catalog.py` and `catalog.test.ts`.
 
 #### Step 2.4A / Step 2.4B: Composition Constraints & Data Model Deletion (`Firing-Python` / `Firing-TS`)
+
 - **Goal**: Enforce parent-child composition rules and data model deletion via `value: null`.
 - **Affected Paths**:
   - `python/a2ui_core/src/a2ui/core/state/` (`surface_components_model.py`, `data_model.py`)
@@ -375,17 +391,19 @@ flowchart LR
 ### Stage 3: Bidirectional RPC & Multi-Catalog Resolution (`Sauce`)
 
 #### Step 3.1A / Step 3.1B: Agent-to-Renderer Function RPC (`callRendererFunction`) (`Sauce-Python` / `Sauce-TS`)
+
 - **Goal**: Support agent-initiated function calls on the renderer and emit `rendererFunctionResponse` payloads.
 - **Affected Paths**:
   - `python/a2ui_core/src/a2ui/core/processing/message_processor.py`
   - `typescript/web_core/src/processing/message-processor.ts`
 - **Key Requirements**:
   - Intercept incoming `callRendererFunction` messages.
-  - Verify function metadata in catalog: check `allowedCallers` permits `agent` invocation (`rendererOrAgent`). If violated or unregistered, return error code `INVALID_FUNCTION_CALL`.
+  - Verify function metadata in catalog: check `callableFrom` permits `agent` invocation (`rendererOrAgent`). If violated or unregistered, return error code `INVALID_FUNCTION_CALL`.
   - Execute matching `FunctionImplementation` and emit `rendererFunctionResponse` containing `callId` and `value` or `error`.
 - **Verification**: Test execution of valid remote renderer functions and rejection of `rendererOnly` functions.
 
 #### Step 3.2A / Step 3.2B: Renderer-to-Agent Function RPC (`callAgentFunction`) (`Sauce-Python` / `Sauce-TS`)
+
 - **Goal**: Support renderer-initiated remote function calls sent to the agent and handle `agentFunctionResponse`.
 - **Affected Paths**:
   - `python/a2ui_core/src/a2ui/core/processing/message_processor.py`
@@ -397,6 +415,7 @@ flowchart LR
 - **Verification**: Unit test asynchronous RPC resolution and error response routing.
 
 #### Step 3.3A / Step 3.3B: Multi-Catalog Resolution Engine (`Sauce-Python` / `Sauce-TS`)
+
 - **Goal**: Resolve component and function catalog sources across mixed catalog surfaces.
 - **Affected Paths**:
   - `python/a2ui_core/src/a2ui/core/resolution/` (`data_context.py`, `node_graph.py`)
@@ -407,6 +426,7 @@ flowchart LR
 - **Verification**: Unit test mixed catalog component trees and error throwing on missing catalog definitions.
 
 #### Step 3.4A / Step 3.4B: Built-in `@index` Function & Dynamic `ValidationResult` (`Sauce-Python` / `Sauce-TS`)
+
 - **Goal**: Implement `@index` loop function and dynamic `ValidationResult` processing in Python and TypeScript core libraries.
 - **Affected Paths**:
   - `python/a2ui_core/src/a2ui/core/resolution/data_context.py`
@@ -419,6 +439,7 @@ flowchart LR
 - **Verification**: Test list rendering with `@index` dynamic binding and form validators with dynamic `ValidationResult` returns.
 
 #### Step 3.5A / Step 3.5B: Validation Layer (`A2uiValidator`) Extension (`Sauce-Python` / `Sauce-TS`)
+
 - **Goal**: Update `A2uiValidator` to enforce v1.0 envelope rules, UAX #31 identifiers, and JSON Pointer syntax.
 - **Affected Paths**:
   - `python/a2ui_core/src/a2ui/core/validation/validator.py`
@@ -434,6 +455,7 @@ flowchart LR
 ### Stage 4: Agent SDK Facades & Web Core Surface Manager (`Polishing`)
 
 #### Step 4.1: Catalog Providers, Transformers & Capability Resolver (`Polishing-Python`) [Nan]
+
 - **Goal**: Update catalog providers and capability negotiation in `python/a2ui_agent`.
 - **Affected Paths**:
   - `python/a2ui_agent/src/a2ui/processor/catalog_providers.py`
@@ -446,6 +468,7 @@ flowchart LR
 - **Verification**: Unit test catalog loading, capability resolution, and pruning transformers.
 
 #### Step 4.2: Direct JSON Inference Format Strategy v1.0 (`Polishing-Python`) [Nan]
+
 - **Goal**: Upgrade `DirectJsonPromptGenerator` and `DirectJsonParser` to generate system instructions and parse v1.0 message envelopes.
 - **Affected Paths**:
   - `python/a2ui_agent/src/a2ui/inference_formats/direct_json/` (`prompt_generator.py`, `parser.py`, `streaming.py`)
@@ -455,6 +478,7 @@ flowchart LR
 - **Verification**: Run `pytest python/a2ui_agent/tests/test_direct_json.py`.
 
 #### Step 4.3: Express DSL Inference Format Strategy v1.0 (`Polishing-Python`) [Nan]
+
 - **Goal**: Upgrade Express compiler, decompiler, and prompt generator to support v1.0 syntax.
 - **Affected Paths**:
   - `python/a2ui_agent/src/a2ui/inference_formats/express/` (`compiler.py`, `decompiler.py`, `parser.py`, `prompt_generator.py`)
@@ -464,6 +488,7 @@ flowchart LR
 - **Verification**: Run `pytest python/a2ui_agent/tests/express/test_compiler.py`.
 
 #### Step 4.4: High-Level Agent Facades (`A2uiGenerator` & `A2uiRequestProcessor`) (`Polishing-Python`) [Nan]
+
 - **Goal**: Connect v1.0 capability negotiation and validation to high-level application facades.
 - **Affected Paths**:
   - `python/a2ui_agent/src/a2ui/processor/` (`generator.py`, `processor.py`, `catalog_config.py`)
@@ -472,6 +497,7 @@ flowchart LR
 - **Verification**: End-to-end agent generation test in `tests/test_agent_integration.py`.
 
 #### Step 4.5: Refine Web Core Surface Manager & Framework Adapter Hooks (`Polishing-TS`) [Greg]
+
 - **Goal**: Refine Web Core surface components model, data context, and framework adapter hooks for 100% API parity with Python Core SDK.
 - **Affected Paths**:
   - `typescript/web_core/src/state/` (`surface-group-model.ts`, `surface-model.ts`)
@@ -484,6 +510,7 @@ flowchart LR
 ### Stage 5: Conformance Verification & Release Cutover (`Passing`)
 
 #### Step 5.1: Execute Language Conformance Harnesses (`Passing`) [Shared]
+
 - **Goal**: Execute language-specific conformance test runners (`conformance_test.py`, `conformance_test.mjs`) targeting top-level `conformance/`.
 - **Affected Paths**:
   - `python/a2ui_core/tests/conformance/conformance_test.py`
@@ -495,5 +522,6 @@ flowchart LR
 - **Verification**: Execute `uv run pytest python/a2ui_core/tests/conformance/conformance_test.py`, `uv run pytest python/a2ui_agent/tests/conformance/conformance_test.py`, and `node typescript/web_core/tests/conformance/conformance_test.mjs`.
 
 #### Step 5.2: Final Verification & Feature Branch Merge (`Passing`) [Shared]
+
 - **Goal**: Verify repository status, ensure zero static analysis or formatting errors, and merge feature branch `v1_0` back into `main`.
 - **Verification**: Run `./scripts/fix_format.sh`, verify passing CI workflow, and merge `v1_0` to `main`.
