@@ -1,6 +1,8 @@
 ## Unreleased
 
 - (v0_9) Fix `ChoicePicker` radio groups colliding across surfaces: the radio group `name` is now unique per rendered instance instead of derived from the surface-scoped component id ([#2447](https://github.com/a2ui-project/a2ui/issues/2447)).
+- (v0_9) Add support for universal W3C Custom Element components in `A2uiSurface` and `basicCatalog`, configurable via `A2UIProvider` with `useUniversalComponents` (default: `false`). [#2283](https://github.com/a2ui-project/a2ui/pull/2283)
+- (v0_9) Add `A2UIProvider` and `useA2UI` context hook for global renderer configuration. [#2283](https://github.com/a2ui-project/a2ui/pull/2283)
 
 ## 0.11.0
 
