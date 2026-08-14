@@ -32,7 +32,7 @@ runs:
     - uses: actions/setup-node@v6
       with:
         node-version: ${{ inputs.node-version }}
-        cache: "yarn"
+        cache: ${{ inputs.install == 'true' && 'yarn' || '' }}
     - name: Install dependencies
       if: ${{ inputs.install == 'true' }}
       run: yarn install --immutable
