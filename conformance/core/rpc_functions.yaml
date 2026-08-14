@@ -122,3 +122,84 @@
     result:
       inStock: 12
       price: "$29.99"
+
+- name: test_rpc_call_renderer_function_user_activation_denied
+  description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when requiresUserActivation is true but user gesture context is absent.
+  catalog:
+    version: "1.0"
+  action: handle_rpc
+  args:
+    user_activation_present: false
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-104"
+        callFunction:
+          call: "openExternalUrl"
+          catalogId: "basic"
+          args:
+            url: "https://example.com/details"
+    function_metadata:
+      openExternalUrl:
+        callableFrom: "rendererOrAgent"
+        requiresUserActivation: true
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-104"
+        error:
+          code: "INVALID_FUNCTION_CALL"
+          message: "Function 'openExternalUrl' requires user activation context to execute."
+
+- name: test_rpc_call_renderer_function_execution_exception
+  description: Verifies callRendererFunction handles runtime function execution exceptions and returns EXECUTION_ERROR.
+  catalog:
+    version: "1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-105"
+        callFunction:
+          call: "failingFunction"
+          catalogId: "basic"
+          args: {}
+    function_metadata:
+      failingFunction:
+        callableFrom: "rendererOrAgent"
+        requiresUserActivation: false
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-105"
+        error:
+          code: "EXECUTION_ERROR"
+          message: "An error occurred during function execution."
+
+- name: test_rpc_call_renderer_function_agent_only_boundary
+  description: Verifies agent-initiated callRendererFunction on a function with callableFrom=agentOnly.
+  catalog:
+    version: "1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-106"
+        callFunction:
+          call: "syncState"
+          catalogId: "basic"
+          args: {}
+    function_metadata:
+      syncState:
+        callableFrom: "agentOnly"
+        requiresUserActivation: false
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-106"
+        value: null

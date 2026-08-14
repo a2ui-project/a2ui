@@ -85,3 +85,21 @@
   expect_error:
     category: "CatalogError"
     message: "Protocol version mismatch: cannot mix catalog 'legacy_v0_9_catalog' (v0.9) with surface version v1.0."
+
+- name: test_multi_catalog_function_resolution_precedence
+  description: Verifies function calls with explicit catalogId resolve to the specified catalog.
+  catalog:
+    version: "1.0"
+  action: select_catalog
+  args:
+    surface:
+      id: main_surface
+      defaultCatalogId: "basic"
+      supportedCatalogIds: ["basic", "custom_math_catalog"]
+    function_call:
+      call: "add"
+      catalogId: "custom_math_catalog"
+      args:
+        a: 10
+        b: 20
+  expect_selected: "custom_math_catalog"
