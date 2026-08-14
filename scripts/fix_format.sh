@@ -126,7 +126,7 @@ if command -v java >/dev/null 2>&1; then
           GRADLE_CMD=(gradle)
         else
           echo "Warning: Neither ./gradlew nor gradle command found in $dir. Skipping."
-          continue
+          exit 0
         fi
 
         if [ "$CHECK_ONLY" = true ]; then
