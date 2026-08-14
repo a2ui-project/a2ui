@@ -4,7 +4,7 @@
 
 name: a2ui_agent
 description: The A2UI agent SDK.
-version: 0.0.1-wip
+version: 0.0.1-wip001
 repository: https://github.com/flutter/genui/tree/main/packages/a2ui_agent
 
 resolution: workspace
