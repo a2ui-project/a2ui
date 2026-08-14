@@ -87,7 +87,7 @@
         - catalogId: id_inline
           components:
             Button: {}
-  expect_catalog_schema:
+  expect:
     catalogId: id_basic
     components:
       Text: {}
@@ -124,7 +124,7 @@
         - catalogId: id_basic
           components:
             Icon: {}
-  expect_catalog_schema:
+  expect:
     catalogId: id_basic
     components:
       Text: {}
@@ -148,7 +148,7 @@
         - catalogId: id_basic
           components:
             Button: {}
-  expect_catalog_schema:
+  expect:
     catalogId: id_basic
     components:
       Text: {}
@@ -164,13 +164,12 @@
   modifiers: ["remove_strict_validation"]
   action: load_catalog
   expect:
-    catalog_schema:
-      catalogId: "test_strict"
-      components:
-        Text:
-          type: object
-          properties:
-            text: {type: string}
+    catalogId: "test_strict"
+    components:
+      Text:
+        type: object
+        properties:
+          text: {type: string}
 
 - name: test_manager_no_modifiers
   description: Tests that A2uiSchemaManager works fine without modifiers.
@@ -179,14 +178,13 @@
       path: "test_data/load_examples/schema_with_strict/catalog.json"
   action: load_catalog
   expect:
-    catalog_schema:
-      catalogId: "test_strict"
-      components:
-        Text:
-          type: object
-          properties:
-            text: {type: string}
-          additionalProperties: false
+    catalogId: "test_strict"
+    components:
+      Text:
+        type: object
+        properties:
+          text: {type: string}
+        additionalProperties: false
 
 # --- Prompt Generation Tests ---
 

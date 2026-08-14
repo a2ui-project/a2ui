@@ -1,0 +1,1188 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# ==============================================================================
+# Part 1: Primary Protocol Suite (v0.9 Active Baseline)
+#
+# Comprehensive verification of all core MessageProcessor state-machine invariants
+# against the active baseline protocol version (v0.9 / v0.9.1).
+# ==============================================================================
+
+# --- 1.1 Surface Lifecycle & State Isolation ---
+
+- name: test_create_surface_basic
+  description: Tests creating a surface with catalogId and theme, verifying sendDataModel defaults to false.
+  action: process_messages
+  catalog_paths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog"
+        theme:
+          primaryColor: "#ff0000"
+  expect:
+    surfaces:
+      s1:
+        exists: true
+        sendDataModel: false
+        theme:
+          primaryColor: "#ff0000"
+
+- name: test_create_surface_send_data_model_enabled
+  description: Tests creating a surface with sendDataModel explicitly enabled.
+  action: process_messages
+  catalog_paths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog"
+        sendDataModel: true
+  expect:
+    surfaces:
+      s1:
+        exists: true
+        sendDataModel: true
+
+- name: test_create_surface_duplicate_error
+  description: Tests that creating a surface with an already existing surfaceId raises an IntegrityError.
+  action: process_messages
+  catalog_paths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog"
+  expect_error:
+    category: "IntegrityError"
+    message: "Surface s1 already exists"
+
+- name: test_create_surface_unknown_catalog_error
+  description: Tests that creating a surface referencing an unregistered catalogId raises a CatalogError.
+  action: process_messages
+  catalog_paths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "unknown-catalog"
+  expect_error:
+    category: "CatalogError"
+    message: "Catalog not found: unknown-catalog"
+
+- name: test_delete_surface_basic
+  description: Tests deleting an active surface by surfaceId, cleanly removing it from state.
+  action: process_messages
+  catalog_paths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      deleteSurface:
+        surfaceId: "s1"
+  expect:
+    surfaces:
+      s1:
+        exists: false
+
+# --- 1.2 Component Mutations & State Integrity ---
+
+- name: test_update_components_add_and_query
+  description: Tests adding multiple components to an active surface and querying their properties.
+  action: process_messages
+  catalog_paths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "btn1"
+            component: "Button"
+            label: "Click Me"
+          - id: "txt1"
+            component: "Text"
+            text: "Hello"
+  expect:
+    surfaces:
+      s1:
+        components:
+          - id: "btn1"
+            component: "Button"
+            label: "Click Me"
+          - id: "txt1"
+            component: "Text"
+            text: "Hello"
+
+- name: test_update_components_modify_existing_properties
+  description: Tests updating the properties of an existing component on a surface.
+  action: process_messages
+  catalog_paths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "btn"
+            component: "Button"
+            label: "Initial"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "btn"
+            component: "Button"
+            label: "Updated"
+  expect:
+    surfaces:
+      s1:
+        components:
+          - id: "btn"
+            component: "Button"
+            label: "Updated"
+
+- name: test_update_components_recreate_on_type_change
+  description: Tests that changing a component's type recreates the component model and clears previous properties.
+  action: process_messages
+  catalog_paths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "comp1"
+            component: "Button"
+            label: "Btn"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "comp1"
+            component: "Label"
+            text: "Lbl"
+  expect:
+    surfaces:
+      s1:
+        components:
+          - id: "comp1"
+            component: "Label"
+            text: "Lbl"
+
+- name: test_update_components_unknown_surface_error
+  description: Tests that updating components on a non-existent surface raises an IntegrityError.
+  action: process_messages
+  catalog_paths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "unknown-s"
+        components:
+          - id: "c1"
+            component: "Text"
+  expect_error:
+    category: "IntegrityError"
+    message: "Surface not found for message: unknown-s"
+
+- name: test_update_components_missing_id_error
+  description: Tests that component entries missing an 'id' property raise a validation error.
+  action: process_messages
+  catalog_paths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - component: "Button"
+            label: "Missing ID"
+  expect_error:
+    category: "ValidationError"
+    message: "missing an 'id'"
+
+- name: test_update_components_create_without_type_error
+  description: Tests that creating a brand new component without a component type name raises a validation error.
+  action: process_messages
+  catalog_paths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "comp1"
+            label: "No Type"
+  expect_error:
+    category: "ValidationError"
+    message: "Cannot create component comp1 without a type"
+
+# --- 1.3 Graph Topology & Structural Integrity ---
+
+- name: test_topology_missing_root_error
+  description: Tests that component hierarchies missing a root component fail validation in strict mode.
+  action: process_messages
+  strict_mode: true
+  catalogs:
+    - catalogId: topo-cat
+      components:
+        Card:
+          type: object
+          properties:
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "topo-cat"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "c1"
+            component: "Card"
+            child: "c2"
+  expect_error:
+    category: "ValidationError"
+    message: "Missing root component"
+
+- name: test_topology_direct_circular_reference_error
+  description: Tests that direct circular component references (root -> c1 -> root) are detected and rejected.
+  action: process_messages
+  strict_mode: true
+  catalogs:
+    - catalogId: topo-cat
+      components:
+        Card:
+          type: object
+          properties:
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+          required:
+            - component
+            - child
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "topo-cat"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "c1"
+          - id: "c1"
+            component: "Card"
+            child: "root"
+  expect_error:
+    category: "ValidationError"
+    message: "Circular reference detected"
+
+- name: test_topology_indirect_circular_reference_error
+  description: Tests that indirect circular references (root -> c1 -> c2 -> root) are detected and rejected.
+  action: process_messages
+  strict_mode: true
+  catalogs:
+    - catalogId: topo-cat
+      components:
+        Card:
+          type: object
+          properties:
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+          required:
+            - component
+            - child
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "topo-cat"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "c1"
+          - id: "c1"
+            component: "Card"
+            child: "c2"
+          - id: "c2"
+            component: "Card"
+            child: "root"
+  expect_error:
+    category: "ValidationError"
+    message: "Circular reference detected"
+
+- name: test_topology_self_reference_error
+  description: Tests that self-referencing components (root -> root) are detected and rejected.
+  action: process_messages
+  strict_mode: true
+  catalogs:
+    - catalogId: topo-cat
+      components:
+        Card:
+          type: object
+          properties:
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+          required:
+            - component
+            - child
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "topo-cat"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "root"
+  expect_error:
+    category: "ValidationError"
+    message: "Circular reference detected"
+
+- name: test_topology_dangling_child_reference_error
+  description: Tests that referencing a non-existent child component ID raises a validation error.
+  action: process_messages
+  strict_mode: true
+  catalogs:
+    - catalogId: topo-cat
+      components:
+        Card:
+          type: object
+          properties:
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+          required:
+            - component
+            - child
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "topo-cat"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "missing_child_id"
+  expect_error:
+    category: "ValidationError"
+    message: "Dangling reference"
+
+- name: test_topology_orphaned_component_error
+  description: Tests that orphaned components unreachable from the root component fail validation in strict mode.
+  action: process_messages
+  strict_mode: true
+  catalogs:
+    - catalogId: topo-cat
+      components:
+        Card:
+          type: object
+          properties:
+            child:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+          required:
+            - component
+            - child
+        Text:
+          type: object
+          properties:
+            text:
+              type: string
+          required:
+            - component
+            - text
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "topo-cat"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+          - id: "orphan_comp"
+            component: "Text"
+            text: "Unreachable"
+  expect_error:
+    category: "ValidationError"
+    message: "Orphaned component"
+
+# --- 1.4 Strict Schema Validation & Atomic Rollback ---
+
+- name: test_update_components_strict_schema_validation_failure
+  description: Tests that component properties violating catalog schema are rejected in strict mode.
+  action: process_messages
+  strict_mode: true
+  catalogs:
+    - catalogId: strict-cat
+      components:
+        Chart:
+          type: object
+          properties:
+            title:
+              type: string
+            value:
+              type: number
+          required:
+            - title
+            - value
+          additionalProperties: false
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "strict-cat"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "c1"
+            component: "Chart"
+            title: "Sales"
+            value: "invalid-string-value"
+  expect_error:
+    category: "ValidationError"
+    message: "Validation failed for component 'Chart'"
+
+- name: test_update_components_atomic_validation_rollback
+  description: Tests that invalid components in a batch abort the entire update without applying partial mutations.
+  action: process_messages
+  strict_mode: true
+  catalogs:
+    - catalogId: strict-cat
+      components:
+        Button:
+          type: object
+          properties:
+            label:
+              type: string
+          required:
+            - label
+          additionalProperties: false
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "strict-cat"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "btn_valid"
+            component: "Button"
+            label: "Valid"
+          - id: "btn_invalid"
+            component: "Button"
+            label: 12345
+  expect_error:
+    category: "ValidationError"
+    message: "Validation failed for component 'Button'"
+
+- name: test_create_surface_strict_theme_validation_failure
+  description: Tests that creating a surface with theme properties violating the catalog theme schema raises a validation error in strict mode.
+  action: process_messages
+  strict_mode: true
+  catalogs:
+    - catalogId: theme-cat
+      theme:
+        type: object
+        properties:
+          primaryColor:
+            type: string
+            pattern: "^#[0-9a-fA-F]{6}$"
+        additionalProperties: false
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "theme-cat"
+        theme:
+          primaryColor: "not-a-hex-color"
+  expect_error:
+    category: "ValidationError"
+    message: "Validation failed for theme on surface 's1'"
+
+# --- 1.4 Data Model Updates & Renderer Sync Isolation ---
+
+- name: test_update_data_model_basic
+  description: Tests updating the data model at root and nested JSON pointer paths.
+  action: process_messages
+  catalog_paths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      updateDataModel:
+        surfaceId: "s1"
+        path: "/user/name"
+        value: "Alice"
+  expect:
+    surfaces:
+      s1:
+        dataModel:
+          user:
+            name: "Alice"
+
+- name: test_update_data_model_unknown_surface_error
+  description: Tests that updating data on a non-existent surface raises an IntegrityError.
+  action: process_messages
+  catalog_paths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      updateDataModel:
+        surfaceId: "unknown-s"
+        path: "/foo"
+        value: "bar"
+  expect_error:
+    category: "IntegrityError"
+    message: "Surface not found for message: unknown-s"
+
+- name: test_get_renderer_data_model_filtering
+  description: Tests that getRendererDataModel filters out surfaces where sendDataModel is false.
+  action: get_renderer_data_model
+  catalog_paths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog"
+        sendDataModel: true
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s2"
+        catalogId: "test-catalog"
+        sendDataModel: false
+    - version: "v0.9"
+      updateDataModel:
+        surfaceId: "s1"
+        value:
+          user: "Alice"
+    - version: "v0.9"
+      updateDataModel:
+        surfaceId: "s2"
+        value:
+          secret: "Bob"
+  args:
+    version: "v0.9"
+  expect:
+    version: "v0.9"
+    surfaces:
+      s1:
+        user: "Alice"
+
+- name: test_get_renderer_data_model_empty_when_no_surfaces_enabled
+  description: Tests that getRendererDataModel returns null/undefined when no active surfaces have sendDataModel enabled.
+  action: get_renderer_data_model
+  catalog_paths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog"
+        sendDataModel: false
+    - version: "v0.9"
+      updateDataModel:
+        surfaceId: "s1"
+        value:
+          user: "Alice"
+  args:
+    version: "v0.9"
+  expect: null
+
+# --- 1.5 JSON Pointer Path Resolution ---
+
+- name: test_resolve_path_absolute
+  description: Tests resolving an absolute path against a base context path.
+  action: resolve_path
+  args:
+    path: "/foo"
+    context_path: "/bar"
+  expect: "/foo"
+
+- name: test_resolve_path_relative
+  description: Tests resolving a relative path against a base context path.
+  action: resolve_path
+  args:
+    path: "foo"
+    context_path: "/bar"
+  expect: "/bar/foo"
+
+- name: test_resolve_path_relative_trailing_slash
+  description: Tests resolving a relative path against a base context path with a trailing slash.
+  action: resolve_path
+  args:
+    path: "foo"
+    context_path: "/bar/"
+  expect: "/bar/foo"
+
+- name: test_resolve_path_relative_no_context
+  description: Tests resolving a relative path when no base context path is provided.
+  action: resolve_path
+  args:
+    path: "foo"
+  expect: "/foo"
+
+# --- 1.6 Protocol Envelope & Conflict Validation ---
+
+- name: test_message_multiple_conflicting_update_types_error
+  description: Tests that a message containing multiple conflicting update types raises a validation error.
+  action: process_messages
+  catalog_paths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog"
+      deleteSurface:
+        surfaceId: "s1"
+  expect_error:
+    category: "ValidationError"
+    message: "Message contains multiple conflicting update actions"
+
+- name: test_process_messages_wrapper_object
+  description: "Tests processing messages wrapped inside a { messages: [...] } container object."
+  action: process_messages
+  catalog_paths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    messages:
+      - version: "v0.9"
+        createSurface:
+          surfaceId: "s1"
+          catalogId: "test-catalog"
+      - version: "v0.9"
+        updateComponents:
+          surfaceId: "s1"
+          components:
+            - id: "btn1"
+              component: "Button"
+              label: "Click"
+  expect:
+    surfaces:
+      s1:
+        exists: true
+        components:
+          - id: "btn1"
+            component: "Button"
+            label: "Click"
+
+# ==============================================================================
+# Part 2: Version-Specific Wire Formats & Adapters (v0.8, v0.9, v1.0)
+#
+# Dedicated test vectors verifying exact wire format parsing, version adapters,
+# and capability negotiation for each supported protocol version.
+# ==============================================================================
+
+# --- 2.1 Protocol v0.8 Vectors (Legacy Styles, SurfaceUpdate, & DataModelUpdate) ---
+
+- name: test_v08_begin_rendering_styles_mapping
+  description: Tests that v0.8 VersionAdapter correctly extracts styles and root component from beginRendering.
+  action: process_messages
+  protocol_version: "v0.8"
+  catalog_paths:
+    - "specification/v0_8/json/standard_catalog_definition.json"
+  messages:
+    - beginRendering:
+        surfaceId: "s_v08"
+        catalogId: "v08-cat"
+        root: "root"
+        styles:
+          primaryColor: "#0000ff"
+  expect:
+    surfaces:
+      s_v08:
+        exists: true
+        theme:
+          primaryColor: "#0000ff"
+
+- name: test_v08_surface_update_components
+  description: Tests that v0.8 surfaceUpdate with nested component objects is properly adapted into ComponentModels.
+  action: process_messages
+  protocol_version: "v0.8"
+  catalog_paths:
+    - "specification/v0_8/json/standard_catalog_definition.json"
+  messages:
+    - beginRendering:
+        surfaceId: "s_v08"
+        catalogId: "v08-cat"
+        root: "btn1"
+    - surfaceUpdate:
+        surfaceId: "s_v08"
+        components:
+          - id: "btn1"
+            component:
+              Button:
+                label: "Click Me"
+  expect:
+    surfaces:
+      s_v08:
+        exists: true
+        components:
+          - id: "btn1"
+            component: "Button"
+            label: "Click Me"
+
+- name: test_v08_data_model_update
+  description: Tests that v0.8 dataModelUpdate with typed contents entries is properly adapted into the surface DataStore.
+  action: process_messages
+  protocol_version: "v0.8"
+  catalog_paths:
+    - "specification/v0_8/json/standard_catalog_definition.json"
+  messages:
+    - beginRendering:
+        surfaceId: "s_v08"
+        catalogId: "v08-cat"
+        root: "root"
+    - dataModelUpdate:
+        surfaceId: "s_v08"
+        contents:
+          - key: "count"
+            valueNumber: 42
+  expect:
+    surfaces:
+      s_v08:
+        dataModel:
+          count: 42
+
+- name: test_v08_get_renderer_capabilities
+  description: Tests generating v0.8 renderer capabilities structure.
+  action: get_renderer_capabilities
+  catalogs:
+    - catalogId: cat-v08
+      protocolVersion: "v0.8"
+  args:
+    include_inline_catalogs: false
+    version: "v0.8"
+  expect:
+    v0.8:
+      supportedCatalogIds:
+        - "cat-v08"
+
+# --- 2.2 Protocol v0.9 / v0.9.1 Vectors (Inline Schemas & REF: Resolution) ---
+
+- name: test_v09_create_surface_basic
+  description: Tests v0.9 surface creation with standard theme object.
+  action: process_messages
+  catalog_paths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s_v09"
+        catalogId: "v09-cat"
+        theme:
+          primaryColor: "#ff0000"
+  expect:
+    surfaces:
+      s_v09:
+        exists: true
+        theme:
+          primaryColor: "#ff0000"
+
+- name: test_v09_get_renderer_capabilities_supported_catalog_ids
+  description: Tests generating v0.9 renderer capabilities with supportedCatalogIds.
+  action: get_renderer_capabilities
+  catalogs:
+    - catalogId: cat-1
+    - catalogId: cat-2
+  args:
+    include_inline_catalogs: false
+    version: "v0.9"
+  expect:
+    v0.9:
+      supportedCatalogIds:
+        - "cat-1"
+        - "cat-2"
+
+- name: test_v09_get_renderer_capabilities_inline_catalogs
+  description: Tests generating inline catalogs with component schema envelopes.
+  action: get_renderer_capabilities
+  catalogs:
+    - catalogId: cat-1
+      components:
+        Button:
+          type: object
+          properties:
+            label:
+              type: string
+              description: The button label
+          required:
+            - label
+  args:
+    include_inline_catalogs: true
+    version: "v0.9"
+  expect:
+    v0.9:
+      supportedCatalogIds:
+        - "cat-1"
+      inlineCatalogs:
+        - catalogId: "cat-1"
+          components:
+            Button:
+              allOf:
+                - $ref: "common_types.json#/$defs/ComponentCommon"
+                - properties:
+                    component:
+                      const: "Button"
+                    label:
+                      type: "string"
+                      description: "The button label"
+                  required:
+                    - "component"
+                    - "label"
+
+- name: test_v09_get_renderer_capabilities_ref_description_transformation
+  description: "Tests transforming REF: tagged descriptions into valid JSON Schema $ref nodes."
+  action: get_renderer_capabilities
+  catalogs:
+    - catalogId: cat-ref
+      components:
+        Custom:
+          type: object
+          properties:
+            title:
+              type: string
+              description: "REF:common_types.json#/$defs/DynamicString|The title"
+  args:
+    include_inline_catalogs: true
+    version: "v0.9"
+  expect:
+    v0.9:
+      supportedCatalogIds:
+        - "cat-ref"
+      inlineCatalogs:
+        - catalogId: "cat-ref"
+          components:
+            Custom:
+              allOf:
+                - $ref: "common_types.json#/$defs/ComponentCommon"
+                - properties:
+                    component:
+                      const: "Custom"
+                    title:
+                      $ref: "common_types.json#/$defs/DynamicString"
+                      description: "The title"
+
+- name: test_v09_get_renderer_capabilities_with_functions_and_theme
+  description: Tests generating inline catalogs including function definitions and theme schema.
+  action: get_renderer_capabilities
+  catalogs:
+    - catalogId: cat-full
+      components:
+        Button:
+          type: object
+          properties:
+            label:
+              type: string
+      functions:
+        add:
+          returnType: number
+          parameters:
+            type: object
+            properties:
+              a:
+                type: number
+                description: First number
+              b:
+                type: number
+                description: Second number
+            required:
+              - a
+              - b
+      theme:
+        type: object
+        properties:
+          primaryColor:
+            $ref: "common_types.json#/$defs/Color"
+            description: The main color
+  args:
+    include_inline_catalogs: true
+    version: "v0.9"
+  expect:
+    v0.9:
+      supportedCatalogIds:
+        - "cat-full"
+      inlineCatalogs:
+        - catalogId: "cat-full"
+          components:
+            Button:
+              allOf:
+                - $ref: "common_types.json#/$defs/ComponentCommon"
+                - properties:
+                    component:
+                      const: "Button"
+                    label:
+                      type: "string"
+                  required:
+                    - "component"
+          functions:
+            - name: "add"
+              returnType: "number"
+              parameters:
+                type: "object"
+                properties:
+                  a:
+                    type: "number"
+                    description: "First number"
+                  b:
+                    type: "number"
+                    description: "Second number"
+                required: ["a", "b"]
+          theme:
+            primaryColor:
+              $ref: "common_types.json#/$defs/Color"
+              description: "The main color"
+
+- name: test_v09_get_renderer_capabilities_multiple_catalogs
+  description: Tests generating capabilities for multiple registered catalogs in v0.9.
+  action: get_renderer_capabilities
+  catalogs:
+    - catalogId: cat-1
+      components:
+        C1:
+          type: object
+    - catalogId: cat-2
+      theme:
+        type: object
+        properties:
+          color:
+            type: string
+  args:
+    include_inline_catalogs: true
+    version: "v0.9"
+  expect:
+    v0.9:
+      supportedCatalogIds:
+        - "cat-1"
+        - "cat-2"
+      inlineCatalogs:
+        - catalogId: "cat-1"
+          components:
+            C1:
+              allOf:
+                - $ref: "common_types.json#/$defs/ComponentCommon"
+                - properties:
+                    component:
+                      const: "C1"
+                  required:
+                    - "component"
+        - catalogId: "cat-2"
+          theme:
+            color:
+              type: "string"
+
+# --- 2.3 Protocol v1.0 Vectors (Inline Initialization, Metadata, Catalog Overrides, & Deletion) ---
+
+- name: test_v10_create_surface_inline_initialization
+  description: Tests v1.0 createSurface message with inline components and initial dataModel initialization.
+  action: process_messages
+  protocol_version: "v1.0"
+  catalog_paths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s_v10"
+        catalogId: "test-catalog-v10"
+        sendDataModel: true
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["btn1"]
+          - id: "btn1"
+            component: "Button"
+            title: "Inline Button"
+        dataModel:
+          counter: 42
+  expect:
+    surfaces:
+      s_v10:
+        exists: true
+        sendDataModel: true
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["btn1"]
+          - id: "btn1"
+            component: "Button"
+            title: "Inline Button"
+        dataModel:
+          counter: 42
+
+- name: test_v10_create_surface_optional_catalog_id
+  description: Tests that v1.0 createSurface permits omitting catalogId.
+  action: process_messages
+  protocol_version: "v1.0"
+  catalog_paths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s_v10_nocat"
+  expect:
+    surfaces:
+      s_v10_nocat:
+        exists: true
+
+- name: test_v10_create_surface_with_metadata_extensions
+  description: Tests v1.0 createSurface with metadata and extension descriptors.
+  action: process_messages
+  protocol_version: "v1.0"
+  catalog_paths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s_v10_meta"
+        catalogId: "test-catalog-v10"
+        metadata:
+          extensions:
+            "a2ui:experimental":
+              streaming: true
+  expect:
+    surfaces:
+      s_v10_meta:
+        exists: true
+
+- name: test_v10_component_catalog_override
+  description: Tests that individual components in v1.0 can specify a catalogId override different from the surface default.
+  action: process_messages
+  catalogs:
+    - catalogId: main-catalog
+      protocolVersion: "v1.0"
+    - catalogId: charts-catalog
+      protocolVersion: "v1.0"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s_v10_multi"
+        catalogId: "main-catalog"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s_v10_multi"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["c1"]
+          - id: "c1"
+            component: "PieChart"
+            catalogId: "charts-catalog"
+            data: [10, 20, 30]
+  expect:
+    surfaces:
+      s_v10_multi:
+        exists: true
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["c1"]
+          - id: "c1"
+            component: "PieChart"
+            data: [10, 20, 30]
+
+- name: test_v10_update_data_model_deletion
+  description: Tests that updating a path with value null deletes the key from the data model in v1.0.
+  action: process_messages
+  protocol_version: "v1.0"
+  catalog_paths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s_v10_del"
+        catalogId: "test-catalog-v10"
+        dataModel:
+          user:
+            name: "Alice"
+            temporaryToken: "abc123xyz"
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "s_v10_del"
+        path: "/user/temporaryToken"
+        value: null
+  expect:
+    surfaces:
+      s_v10_del:
+        dataModel:
+          user:
+            name: "Alice"
+
+- name: test_v10_get_renderer_capabilities
+  description: Tests generating v1.0 renderer capabilities structure.
+  action: get_renderer_capabilities
+  catalogs:
+    - catalogId: cat-v10
+      protocolVersion: "v1.0"
+  args:
+    include_inline_catalogs: false
+    version: "v1.0"
+  expect:
+    v1.0:
+      supportedCatalogIds:
+        - "cat-v10"

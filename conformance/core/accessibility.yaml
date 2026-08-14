@@ -14,8 +14,8 @@
 
 - name: test_accessibility_attributes_plumbing
   description: Verifies plumbing of AccessibilityAttributes (label, description, live, hidden) to accessibility node trees and axe-core rules.
-  catalog:
-    protocol_version: "v1.0"
+  protocol_version: "v1.0"
+  catalog_path: "specification/v1_0/catalogs/basic/catalog.json"
   action: accessibility_check
   surface:
     id: root
@@ -47,8 +47,8 @@
 
 - name: test_accessibility_live_region_assertive
   description: Verifies assertive live region announcement for critical alert banner updates.
-  catalog:
-    protocol_version: "v1.0"
+  protocol_version: "v1.0"
+  catalog_path: "specification/v1_0/catalogs/basic/catalog.json"
   action: accessibility_check
   surface:
     id: root
@@ -71,8 +71,8 @@
 
 - name: test_accessibility_hidden_subtree
   description: Verifies that setting hidden=true hides the component and its children from assistive technologies.
-  catalog:
-    protocol_version: "v1.0"
+  protocol_version: "v1.0"
+  catalog_path: "specification/v1_0/catalogs/basic/catalog.json"
   action: accessibility_check
   surface:
     id: root
@@ -96,8 +96,8 @@
 
 - name: test_accessibility_implicit_label_inference
   description: Verifies default screen reader semantic inference from visible text properties when explicit accessibility attributes are omitted.
-  catalog:
-    protocol_version: "v1.0"
+  protocol_version: "v1.0"
+  catalog_path: "specification/v1_0/catalogs/basic/catalog.json"
   action: accessibility_check
   surface:
     id: root

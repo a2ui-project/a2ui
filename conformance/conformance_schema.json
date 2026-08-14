@@ -2,553 +2,352 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://a2ui.org/conformance/conformance_schema.json",
   "title": "A2UI Conformance Test Suite Schema",
+  "description": "JSON schema validating all A2UI conformance test suites across core, agent, and extensions domains.",
   "type": "array",
   "items": {
-    "type": "object",
-    "properties": {
-      "name": {
-        "type": "string",
-        "description": "Unique name of the test case."
-      },
-      "description": {
-        "type": "string",
-        "description": "Optional description of what the test verifies."
-      },
-      "catalog": {
-        "type": "object",
-        "description": "Catalog configuration for the test.",
-        "properties": {
-          "protocol_version": {
-            "type": "string",
-            "enum": ["v0.8", "v0.9", "v1.0"],
-            "description": "Protocol version."
-          },
-          "s2c_schema": {
-            "description": "Path to simplified schema file or inlined schema object. Defaults to null if not passed.",
-            "oneOf": [
-              {
-                "type": "string",
-                "description": "Path to simplified schema file."
-              },
-              {
-                "type": "object",
-                "description": "Inlined schema object."
-              }
-            ]
-          },
-          "catalog_schema": {
-            "description": "Path to catalog file or inlined catalog object. Defaults to an empty object if not passed.",
-            "oneOf": [
-              {
-                "type": "string",
-                "description": "Path to catalog file."
-              },
-              {
-                "type": "object",
-                "description": "Inlined catalog object."
-              }
-            ]
-          },
-          "common_types_schema": {
-            "description": "Path to common types schema file or inlined common types schema object. Defaults to an empty object if not passed.",
-            "oneOf": [
-              {
-                "type": "string",
-                "description": "Path to common types schema file."
-              },
-              {
-                "type": "object",
-                "description": "Inlined common types schema object."
-              }
-            ]
-          }
-        },
-        "required": ["protocol_version"]
-      },
-      "action": {
-        "type": "string",
-        "description": "The action to perform.",
-        "enum": [
-          "process_chunk",
-          "validate",
-          "prune",
-          "render",
-          "load",
-          "remove_strict_validation",
-          "parse_full",
-          "fix_payload",
-          "has_parts",
-          "select_catalog",
-          "generate_prompt",
-          "load_catalog",
-          "convert_event",
-          "create_a2ui_part",
-          "is_a2ui_part",
-          "try_activate_extension",
-          "handle_rpc",
-          "execute_tool",
-          "get_extension",
-          "try_activate",
-          "select_newest",
-          "verify_cuttable_keys",
-          "accessibility_check"
-        ]
-      }
-    },
-    "required": ["name", "action"],
-    "allOf": [
-      {
-        "oneOf": [
-          {"$ref": "#/$defs/ProcessChunkTest"},
-          {"$ref": "#/$defs/ValidateTest"},
-          {"$ref": "#/$defs/PruneTest"},
-          {"$ref": "#/$defs/RenderTest"},
-          {"$ref": "#/$defs/LoadTest"},
-          {"$ref": "#/$defs/RemoveStrictValidationTest"},
-          {"$ref": "#/$defs/ParseFullTest"},
-          {"$ref": "#/$defs/FixPayloadTest"},
-          {"$ref": "#/$defs/HasPartsTest"},
-          {"$ref": "#/$defs/SelectCatalogTest"},
-          {"$ref": "#/$defs/GeneratePromptTest"},
-          {"$ref": "#/$defs/LoadCatalogTest"},
-          {"$ref": "#/$defs/ConvertEventTest"},
-          {"$ref": "#/$defs/CreateA2uiPartTest"},
-          {"$ref": "#/$defs/IsA2uiPartTest"},
-          {"$ref": "#/$defs/TryActivateExtensionTest"},
-          {"$ref": "#/$defs/HandleRpcTest"},
-          {"$ref": "#/$defs/ExecuteToolTest"},
-          {"$ref": "#/$defs/GetExtensionTest"},
-          {"$ref": "#/$defs/TryActivateTest"},
-          {"$ref": "#/$defs/SelectNewestTest"},
-          {"$ref": "#/$defs/VerifyCuttableKeysTest"},
-          {"$ref": "#/$defs/AccessibilityCheckTest"}
-        ]
-      }
-    ]
+    "$ref": "#/$defs/TestCase"
   },
   "$defs": {
-    "ProcessChunkTest": {
+    "TestCase": {
       "type": "object",
+      "required": ["name", "action"],
       "properties": {
-        "action": {"const": "process_chunk"},
-        "steps": {
+        "name": {
+          "type": "string",
+          "description": "Unique name of the test case."
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "accessibility_check",
+            "catalog_schema",
+            "convert_event",
+            "create_a2ui_part",
+            "execute_tool",
+            "fix_payload",
+            "from_json",
+            "generate_prompt",
+            "get_extension",
+            "get_renderer_capabilities",
+            "get_renderer_data_model",
+            "handle_rpc",
+            "has_parts",
+            "is_a2ui_part",
+            "load_catalog",
+            "parse_full",
+            "process_chunk",
+            "process_messages",
+            "prune",
+            "remove_strict_validation",
+            "resolve_path",
+            "select_catalog",
+            "select_newest",
+            "try_activate",
+            "try_activate_extension",
+            "validate",
+            "verify_cuttable_keys"
+          ],
+          "description": "The conformance test action to perform."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional description of what the test verifies."
+        },
+        "protocol_version": {
+          "$ref": "#/$defs/ProtocolVersion",
+          "description": "Target A2UI protocol version."
+        },
+        "protocolVersion": {
+          "$ref": "#/$defs/ProtocolVersion",
+          "description": "Target A2UI protocol version."
+        },
+        "catalog": {
+          "$ref": "#/$defs/Catalog",
+          "description": "Inlined catalog definition object."
+        },
+        "catalogs": {
           "type": "array",
-          "description": "Steps for parser tests.",
           "items": {
-            "type": "object",
-            "properties": {
-              "input": {
-                "type": "string",
-                "description": "Chunk of data to feed to process_chunk."
-              },
-              "expect": {
-                "type": "array",
-                "description": "Expected output parts.",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "text": {
-                      "type": "string"
-                    },
-                    "a2ui": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    }
-                  }
-                }
-              },
-              "expect_error": {"$ref": "#/$defs/ExpectError"}
-            },
-            "required": ["input"],
-            "oneOf": [
-              {
-                "required": ["expect"]
-              },
-              {
-                "required": ["expect_error"]
-              }
-            ]
-          }
-        }
-      },
-      "required": ["steps"]
-    },
-    "ValidateTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "validate"},
-        "expect": {"$ref": "#/$defs/SurfaceExpectation"},
-        "expect_error": {"$ref": "#/$defs/ExpectError"}
-      },
-      "required": ["action"],
-      "oneOf": [
-        {
-          "properties": {
-            "steps": {
-              "type": "array",
-              "description": "Steps for validator tests.",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "payload": {
-                    "oneOf": [{"type": "object"}, {"type": "array", "items": {"type": "object"}}],
-                    "description": "Payload to validate (single message or list of messages)."
-                  },
-                  "expect": {"$ref": "#/$defs/SurfaceExpectation"},
-                  "expect_error": {"$ref": "#/$defs/ExpectError"}
-                },
-                "required": ["payload"]
-              }
-            }
+            "$ref": "#/$defs/Catalog"
           },
-          "required": ["steps"]
+          "description": "List of catalog objects for multi-catalog or processor tests."
         },
-        {
-          "properties": {
-            "payload": {
-              "oneOf": [{"type": "object"}, {"type": "array", "items": {"type": "object"}}],
-              "description": "Payload to validate (single message or list of messages)."
-            },
-            "expect": {"$ref": "#/$defs/SurfaceExpectation"},
-            "expect_error": {"$ref": "#/$defs/ExpectError"}
-          },
-          "required": ["payload"]
-        }
-      ]
-    },
-    "PruneTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "prune"},
-        "args": {
-          "type": "object",
-          "properties": {
-            "allowed_components": {"type": "array", "items": {"type": "string"}},
-            "allowed_messages": {"type": "array", "items": {"type": "string"}}
-          }
-        },
-        "expect": {"type": "object"}
-      },
-      "required": ["args", "expect"]
-    },
-    "RenderTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "render"},
-        "expect_output": {"type": "string"}
-      },
-      "required": ["expect_output"]
-    },
-    "LoadTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "load"},
-        "args": {
-          "type": "object",
-          "properties": {
-            "path": {"type": ["string", "null"]},
-            "validate": {"type": "boolean"}
-          },
-          "required": ["path"]
-        },
-        "expect_output": {"type": "string"},
-        "expect_error": {"$ref": "#/$defs/ExpectError"}
-      },
-      "required": ["args"]
-    },
-    "RemoveStrictValidationTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "remove_strict_validation"},
-        "args": {
-          "type": "object",
-          "properties": {
-            "schema": {"type": "object"}
-          },
-          "required": ["schema"]
-        },
-        "expect": {
-          "type": "object",
-          "properties": {
-            "schema": {"type": "object"}
-          },
-          "required": ["schema"]
-        }
-      },
-      "required": ["args", "expect"]
-    },
-    "ParseFullTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "parse_full"},
-        "input": {"type": "string"},
-        "expect": {"type": "array"},
-        "expect_error": {"$ref": "#/$defs/ExpectError"}
-      },
-      "required": ["input"]
-    },
-    "FixPayloadTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "fix_payload"},
-        "input": {"type": "string"},
-        "expect": {}
-      },
-      "required": ["input", "expect"]
-    },
-    "HasPartsTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "has_parts"},
-        "input": {"type": "string"},
-        "expect": {"type": "boolean"}
-      },
-      "required": ["input", "expect"]
-    },
-    "SelectCatalogTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "select_catalog"},
-        "args": {"type": "object"},
-        "expect_selected": {"type": "string"},
-        "expect_catalog_schema": {"type": "object"},
-        "expect_error": {"$ref": "#/$defs/ExpectError"}
-      },
-      "required": ["args"]
-    },
-    "GeneratePromptTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "generate_prompt"},
-        "args": {"type": "object"},
-        "expect_contains": {
+        "catalog_paths": {
           "type": "array",
-          "items": {"type": "string"}
-        }
-      },
-      "required": ["args", "expect_contains"]
-    },
-    "LoadCatalogTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "load_catalog"},
+          "items": {
+            "type": "string"
+          },
+          "description": "List of file paths to catalog schema JSON files."
+        },
+        "catalog_path": {
+          "type": "string",
+          "description": "File path to catalog schema JSON file."
+        },
+        "catalogPath": {
+          "type": "string",
+          "description": "File path to catalog schema JSON file."
+        },
+        "catalog_id": {
+          "type": "string",
+          "description": "Target catalog identifier."
+        },
+        "catalogId": {
+          "type": "string",
+          "description": "Target catalog identifier."
+        },
         "catalog_configs": {
           "type": "array",
           "items": {
-            "type": "object",
-            "properties": {
-              "name": {"type": "string"},
-              "path": {"type": "string"}
-            },
-            "required": ["name", "path"]
-          }
+            "$ref": "#/$defs/CatalogConfig"
+          },
+          "description": "Catalog configurations or options."
+        },
+        "input": {
+          "description": "Primary input for parser and single-step execution tests."
+        },
+        "messages": {
+          "description": "A2UI message array or container object."
+        },
+        "payload": {
+          "description": "A2UI message array or container object (alias for messages)."
+        },
+        "surface": {
+          "type": "object",
+          "description": "Surface state or configuration object."
+        },
+        "args": {
+          "type": "object",
+          "description": "Execution arguments for the test action."
+        },
+        "format": {
+          "description": "Inference format configuration or name."
         },
         "modifiers": {
           "type": "array",
-          "items": {"type": "string"}
+          "items": {
+            "type": "string"
+          },
+          "description": "Modifiers applied during test execution."
+        },
+        "strict_mode": {
+          "type": "boolean",
+          "description": "Whether strict validation mode is enabled."
+        },
+        "disable_validation": {
+          "type": "boolean",
+          "description": "Whether validation is explicitly disabled for the test."
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Step"
+          },
+          "description": "Sequential steps for multi-step execution tests."
         },
         "expect": {
-          "type": "object",
-          "properties": {
-            "catalog_schema": {"type": "object"},
-            "supported_catalog_ids": {
-              "type": "array",
-              "items": {"type": "string"}
-            }
-          }
-        }
-      },
-      "required": ["action", "catalog_configs"]
-    },
-    "ConvertEventTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "convert_event"},
-        "args": {"type": "object"},
-        "expect": {"type": "object"},
-        "expect_empty": {"type": "boolean"}
-      },
-      "required": ["action", "args"]
-    },
-    "CreateA2uiPartTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "create_a2ui_part"},
-        "args": {"type": "object"},
-        "expect": {"type": "object"}
-      },
-      "required": ["action", "args", "expect"]
-    },
-    "IsA2uiPartTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "is_a2ui_part"},
-        "args": {"type": "object"},
-        "expect": {"type": "boolean"}
-      },
-      "required": ["action", "args", "expect"]
-    },
-    "TryActivateExtensionTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "try_activate_extension"},
-        "args": {"type": "object"},
-        "expect": {"type": "boolean"}
-      },
-      "required": ["action", "args", "expect"]
-    },
-    "HandleRpcTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "handle_rpc"},
-        "args": {"type": "object"},
-        "expect": {"type": "object"}
-      },
-      "required": ["action", "args", "expect"]
-    },
-    "ExecuteToolTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "execute_tool"},
-        "args": {"type": "object"},
-        "expect": {"type": "object"}
-      },
-      "required": ["action", "args", "expect"]
-    },
-    "GetExtensionTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "get_extension"},
-        "args": {"type": "object"},
-        "expect": {"type": "object"}
-      },
-      "required": ["action", "args", "expect"]
-    },
-    "TryActivateTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "try_activate"},
-        "args": {"type": "object"},
-        "expect": {"type": "object"}
-      },
-      "required": ["action", "args", "expect"]
-    },
-    "SelectNewestTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "select_newest"},
-        "args": {"type": "object"},
-        "expect": {"type": "object"}
-      },
-      "required": ["action", "args", "expect"]
-    },
-    "VerifyCuttableKeysTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "verify_cuttable_keys"},
-        "expect": {
-          "type": "object",
-          "properties": {
-            "custom_cuttable_keys": {
-              "type": "array",
-              "items": {"type": "string"}
-            }
-          },
-          "required": ["custom_cuttable_keys"]
-        }
-      },
-      "required": ["action", "expect"]
-    },
-    "AccessibilityCheckTest": {
-      "type": "object",
-      "properties": {
-        "action": {"const": "accessibility_check"},
-        "surface": {
-          "type": "object",
-          "description": "Surface component structure being validated."
+          "description": "Expected outcome of the test action (evaluated as a contains / subset match rather than an exact match)."
+        },
+        "expect_error": {
+          "$ref": "#/$defs/ExpectError"
+        },
+        "expect_contains": {
+          "description": "Expected substrings or sub-objects in the output."
+        },
+        "expect_empty": {
+          "type": "boolean",
+          "description": "Whether output is expected to be empty."
+        },
+        "expect_selected": {
+          "type": "string",
+          "description": "Expected selected catalog identifier."
         },
         "assertions": {
-          "type": "object",
-          "description": "Assertions for axe-core rules and accessibility node tree checks.",
-          "properties": {
-            "axe_core": {
-              "type": "array",
-              "items": {"type": "string"},
-              "description": "axe-core rule IDs expected to pass (e.g. 'button-name', 'aria-valid-attr-value')."
-            },
-            "accessibility_tree": {
-              "type": "object",
-              "description": "Expected accessibility node property values (e.g. label, description, live, hidden)."
-            }
-          }
+          "$ref": "#/$defs/AccessibilityAssertions",
+          "description": "Accessibility assertions to verify."
         }
       },
-      "required": ["action", "surface", "assertions"]
+      "additionalProperties": false
+    },
+    "ProtocolVersion": {
+      "type": "string",
+      "enum": ["v0.8", "v0.9", "v0.9.1", "v1.0"],
+      "description": "Supported A2UI protocol versions."
+    },
+    "Catalog": {
+      "type": "object",
+      "properties": {
+        "catalogId": {
+          "type": "string",
+          "description": "Identifier of the catalog."
+        },
+        "catalog_id": {
+          "type": "string",
+          "description": "Identifier of the catalog."
+        },
+        "protocolVersion": {
+          "$ref": "#/$defs/ProtocolVersion",
+          "description": "Protocol version supported by this catalog."
+        },
+        "protocol_version": {
+          "$ref": "#/$defs/ProtocolVersion",
+          "description": "Protocol version supported by this catalog."
+        },
+        "components": {
+          "type": "object",
+          "description": "Map of component names to component schema definitions."
+        },
+        "functions": {
+          "description": "Function definitions or signatures.",
+          "oneOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        },
+        "theme": {
+          "type": "object",
+          "description": "Theme property schema definition."
+        },
+        "styles": {
+          "type": "object",
+          "description": "Legacy v0.8 styles definition."
+        },
+        "$defs": {
+          "type": "object",
+          "description": "Local schema definitions or references."
+        },
+        "version": {
+          "type": "string",
+          "description": "Legacy parser catalog version."
+        },
+        "s2c_schema": {
+          "description": "Legacy parser server-to-client schema path or object."
+        },
+        "catalog_schema": {
+          "description": "Legacy parser catalog schema path or object."
+        },
+        "common_types_schema": {
+          "description": "Legacy parser common types schema path or object."
+        },
+        "custom_cuttable_keys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Custom cuttable keys for streaming parser."
+        }
+      },
+      "additionalProperties": false
+    },
+    "CatalogConfig": {
+      "type": "object",
+      "required": ["name", "path"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name or identifier of the catalog config."
+        },
+        "path": {
+          "type": "string",
+          "description": "File path to the catalog schema JSON."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Step": {
+      "type": "object",
+      "properties": {
+        "input": {
+          "description": "Input for this step."
+        },
+        "messages": {
+          "description": "Messages for this step."
+        },
+        "payload": {
+          "description": "Payload or messages for this step."
+        },
+        "chunk": {
+          "type": "string",
+          "description": "Stream chunk string."
+        },
+        "args": {
+          "type": "object",
+          "description": "Arguments for this step."
+        },
+        "expect": {
+          "description": "Expected output for this step (evaluated as a contains / subset match rather than an exact match)."
+        },
+        "expect_error": {
+          "$ref": "#/$defs/ExpectError"
+        },
+        "expect_contains": {
+          "description": "Expected substrings or sub-objects for this step."
+        }
+      },
+      "additionalProperties": false
+    },
+    "AccessibilityAssertions": {
+      "type": "object",
+      "properties": {
+        "axe_core": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of axe-core rule IDs expected to pass."
+        },
+        "accessibility_tree": {
+          "type": "object",
+          "description": "Expected accessibility node tree structure."
+        }
+      },
+      "additionalProperties": false
     },
     "ExpectError": {
+      "description": "Expected error specification (error message string, regex, or structured error object).",
       "oneOf": [
         {
-          "type": "string",
-          "description": "Expected error message (regex) if this step/action should fail."
+          "type": "string"
         },
         {
           "type": "object",
           "properties": {
             "category": {
-              "type": "string",
-              "enum": [
-                "ParseError",
-                "ValidationError",
-                "CatalogError",
-                "IntegrityError",
-                "RecursionError",
-                "CompileError"
-              ]
+              "type": "string"
+            },
+            "code": {
+              "type": "string"
             },
             "message": {
-              "type": "string",
-              "description": "Expected error message (regex) if this step/action should fail."
+              "type": "string"
             },
             "details": {
               "type": "array",
               "items": {
                 "type": "object",
                 "properties": {
-                  "path": {"type": "string"},
-                  "code": {"type": "string"}
-                },
-                "required": ["path", "code"]
+                  "path": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                }
               }
             }
           },
-          "required": ["category"]
+          "additionalProperties": false
         }
       ]
-    },
-    "SurfaceExpectation": {
-      "type": "object",
-      "properties": {
-        "surfaces": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object",
-            "properties": {
-              "dataModel": {"type": "object"},
-              "components": {
-                "type": "object",
-                "additionalProperties": {"type": "object"}
-              },
-              "validationResult": {
-                "type": "object",
-                "additionalProperties": {"type": "object"}
-              }
-            }
-          }
-        }
-      },
-      "required": ["surfaces"]
     }
   }
 }
