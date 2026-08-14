@@ -30,7 +30,7 @@ jobs:
     timeout-minutes: 60
     if: >
       !github.event.issue.pull_request &&
-      contains(github.event.comment.body, '/remediate ') &&
+      contains(github.event.comment.body, '/fix ') &&
       contains(github.event.issue.title, 'A2UI Compliance Report')
 
     steps:
@@ -47,12 +47,23 @@ jobs:
               core.setFailed(`User ${context.actor} does not have write access to trigger remediation.`);
             }
 
+      - name: React with Eyes to Trigger Comment
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'eyes',
+            });
+
       - name: Parse Recommendation Index
         id: parse-command
         env:
           COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
-          RECOMMENDATION_INDEX=$(echo "$COMMENT_BODY" | sed -n 's/.*\/remediate \([0-9]\+\).*/\1/p')
+          RECOMMENDATION_INDEX=$(echo "$COMMENT_BODY" | sed -n 's/.*\/fix \([0-9]\+\).*/\1/p')
           if [ -z "$RECOMMENDATION_INDEX" ]; then
             echo "Failed to parse recommendation index from comment body."
             exit 1

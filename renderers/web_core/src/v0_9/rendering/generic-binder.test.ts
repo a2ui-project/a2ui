@@ -169,12 +169,12 @@ describe('GenericBinder Checkable Trait', () => {
     assert.deepStrictEqual(binder.snapshot.validationErrors, ['Validation failed']);
   });
 
-  it('should default to valid if checks array is empty or undefined', async () => {
+  it('should default to valid if checks array is empty', () => {
     const {surface, schema} = setupSurfaceAndMocks();
 
     const compModel = new ComponentModel('c4', 'Test', {
-      value: 'static',
-      checks: [], // Empty checks
+      value: 'hello',
+      checks: [],
     });
     surface.componentsModel.addComponent(compModel);
 
@@ -183,5 +183,138 @@ describe('GenericBinder Checkable Trait', () => {
 
     assert.strictEqual(binder.snapshot.isValid, true);
     assert.deepStrictEqual(binder.snapshot.validationErrors, []);
+  });
+
+  it('should resolve ACTION binding and dispatch resolved payload', () => {
+    const {surface} = setupSurfaceAndMocks();
+    surface.dataModel.set('/user/name', 'Alice');
+
+    const actionSchema = z.object({
+      onTap: CommonSchemas.Action,
+    });
+
+    const compModel = new ComponentModel('c5', 'Button', {
+      onTap: {
+        event: {
+          name: 'submit',
+          context: {
+            user: {path: '/user/name'},
+          },
+        },
+      },
+    });
+    surface.componentsModel.addComponent(compModel);
+
+    let dispatchedAction: any = null;
+    surface.onAction.subscribe(act => {
+      dispatchedAction = act;
+    });
+
+    const context = new ComponentContext(surface, 'c5');
+    const binder = new GenericBinder<any>(context, actionSchema);
+
+    // Call the resolved ACTION closure
+    assert.strictEqual(typeof binder.snapshot.onTap, 'function');
+    binder.snapshot.onTap();
+
+    assert.ok(dispatchedAction);
+    assert.strictEqual(dispatchedAction.name, 'submit');
+    assert.strictEqual(dispatchedAction.sourceComponentId, 'c5');
+    assert.deepStrictEqual(dispatchedAction.context, {user: 'Alice'});
+  });
+
+  it('should resolve STRUCTURAL ChildList bindings and update dynamically', async () => {
+    const {surface} = setupSurfaceAndMocks();
+    surface.dataModel.set('/items', [{title: 'Item 1'}, {title: 'Item 2'}]);
+
+    const structuralSchema = z.object({
+      children: CommonSchemas.ChildList,
+    });
+
+    const compModel = new ComponentModel('c6', 'Column', {
+      children: {
+        componentId: 'card-item',
+        path: '/items',
+      },
+    });
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c6');
+    const binder = new GenericBinder<any>(context, structuralSchema);
+    binder.subscribe(() => {});
+
+    assert.deepStrictEqual(binder.snapshot.children, [
+      {id: 'card-item', basePath: '/items/0'},
+      {id: 'card-item', basePath: '/items/1'},
+    ]);
+
+    // Update list in data model
+    surface.dataModel.set('/items', [{title: 'Item 1'}, {title: 'Item 2'}, {title: 'Item 3'}]);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.deepStrictEqual(binder.snapshot.children, [
+      {id: 'card-item', basePath: '/items/0'},
+      {id: 'card-item', basePath: '/items/1'},
+      {id: 'card-item', basePath: '/items/2'},
+    ]);
+  });
+
+  it('should generate dynamic setters and update data model', () => {
+    const {surface} = setupSurfaceAndMocks();
+    surface.dataModel.set('/fieldVal', 'initial');
+
+    const dynamicSchema = z.object({
+      value: CommonSchemas.DynamicString,
+    });
+
+    const compModel = new ComponentModel('c7', 'Input', {
+      value: {path: '/fieldVal'},
+    });
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c7');
+    const binder = new GenericBinder<any>(context, dynamicSchema);
+
+    assert.strictEqual(binder.snapshot.value, 'initial');
+    assert.strictEqual(typeof (binder.snapshot as any).setValue, 'function');
+
+    (binder.snapshot as any).setValue('updated');
+    assert.strictEqual(surface.dataModel.get('/fieldVal'), 'updated');
+  });
+
+  it('should handle subscription, component update rebuilding, and dispose', async () => {
+    const {surface, schema} = setupSurfaceAndMocks();
+    surface.dataModel.set('/val', 'v1');
+
+    const compModel = new ComponentModel('c8', 'Test', {
+      value: {path: '/val'},
+    });
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c8');
+    const binder = new GenericBinder<any>(context, schema);
+
+    let notificationCount = 0;
+    const sub = binder.subscribe(() => {
+      notificationCount++;
+    });
+
+    assert.strictEqual(binder.snapshot.value, 'v1');
+
+    // Trigger component update to test rebuildAllBindings
+    compModel.properties = {
+      value: {path: '/val'},
+      extra: 'new_prop',
+    };
+
+    assert.strictEqual(notificationCount, 1);
+
+    sub.unsubscribe();
+    // After unsubscribe, further updates should not notify
+    compModel.properties = {
+      value: {path: '/val'},
+      extra: 'another_prop',
+    };
+    assert.strictEqual(notificationCount, 1);
   });
 });

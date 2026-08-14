@@ -20,7 +20,7 @@ on:
     paths:
       - "agent_sdks/python/**"
       - "specification/**/json/**"
-      - "agent_sdks/conformance/**"
+      - "conformance/**"
       - "samples/agent/adk/**"
       - ".agents/skills/**"
       - "scripts/run_skills_tests.py"
@@ -31,7 +31,7 @@ on:
     paths:
       - "agent_sdks/python/**"
       - "specification/**/json/**"
-      - "agent_sdks/conformance/**"
+      - "conformance/**"
       - "samples/agent/adk/**"
       - ".agents/skills/**"
       - "scripts/run_skills_tests.py"
