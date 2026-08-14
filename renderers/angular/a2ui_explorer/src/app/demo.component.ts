@@ -26,18 +26,31 @@ import {
   ElementRef,
 } from '@angular/core';
 import {CommonModule} from '@angular/common';
-import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '@a2ui/angular/v0_9';
+import {
+  A2uiRendererService,
+  A2UI_USE_UNIVERSAL_COMPONENTS,
+  AngularCatalog,
+  provideA2Ui,
+  SurfaceComponent as SurfaceComponentV09,
+} from '@a2ui/angular/v0_9';
 import {AgentStubService} from './agent-stub.service';
 import {AgentStubV08Service} from './agent-stub-v08.service';
 import {AgentStubV09Service} from './agent-stub-v09.service';
-import {SurfaceComponent as SurfaceComponentV09} from '@a2ui/angular/v0_9';
 import {provideMarkdownRenderer, Surface as SurfaceV08} from '@a2ui/angular/v0_8';
-import {AngularCatalog} from '@a2ui/angular/v0_9';
 import {DemoCatalog} from './demo-catalog';
 import {A2uiClientAction} from '@a2ui/web_core/v0_9';
 import {A2uiExample, A2UI_VERSION, A2UI_EXAMPLES, Version} from './types';
 import {ActionDispatcher} from './action-dispatcher.service';
 import {Catalog as CatalogV08, DEFAULT_CATALOG as DEFAULT_CATALOG_V08} from '@a2ui/angular/v0_8';
+
+function getUseUniversalComponents(): boolean {
+  if (typeof window !== 'undefined' && window.location) {
+    const params = new URLSearchParams(window.location.search);
+    const val = params.get('useUniversalComponents');
+    return val === 'true' || val === '1';
+  }
+  return false;
+}
 
 /**
  * Main dashboard component for A2UI v0.9 Angular Renderer.
@@ -726,7 +739,16 @@ import {Catalog as CatalogV08, DEFAULT_CATALOG as DEFAULT_CATALOG_V08} from '@a2
     `,
   ],
   providers: [
-    A2uiRendererService,
+    provideA2Ui(() => {
+      const dispatcher = inject(ActionDispatcher);
+      const catalog = inject(AngularCatalog);
+      const injectedUniversal = inject(A2UI_USE_UNIVERSAL_COMPONENTS, {optional: true}) ?? false;
+      return {
+        catalogs: [catalog],
+        useUniversalComponents: getUseUniversalComponents() || injectedUniversal,
+        actionHandler: (action: A2uiClientAction) => dispatcher.dispatch(action),
+      };
+    }),
     {provide: AngularCatalog, useClass: DemoCatalog},
     {provide: CatalogV08, useValue: DEFAULT_CATALOG_V08},
     provideMarkdownRenderer(),
@@ -740,14 +762,6 @@ import {Catalog as CatalogV08, DEFAULT_CATALOG as DEFAULT_CATALOG_V08} from '@a2
     },
     AgentStubV08Service,
     AgentStubV09Service,
-    {
-      provide: A2UI_RENDERER_CONFIG,
-      useFactory: (catalog: AngularCatalog, dispatcher: ActionDispatcher) => ({
-        catalogs: [catalog],
-        actionHandler: (action: A2uiClientAction) => dispatcher.dispatch(action),
-      }),
-      deps: [AngularCatalog, ActionDispatcher],
-    },
   ],
 })
 export class DemoComponent implements OnInit, OnDestroy {

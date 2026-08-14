@@ -15,18 +15,43 @@
  */
 
 import {TestBed} from '@angular/core/testing';
+import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
+import {renderMarkdown} from '@a2ui/markdown-it';
 import {DemoComponent} from '../../demo.component';
 import {EXAMPLES_V08, EXAMPLES_V09} from '../../generated/examples-bundle';
 import {provideMarkdownRenderer} from '../../../../../src/v0_9/core/markdown';
+import {A2UI_USE_UNIVERSAL_COMPONENTS} from '../../../../../src/v0_9';
 import {A2UI_VERSION, Version} from '../../types';
 
+setMarkdownRenderer(renderMarkdown);
+
 export {Version};
+
+/**
+ * Options for configuring example loading in tests.
+ */
+export interface LoadExampleOptions {
+  version?: Version;
+  useUniversalComponents?: boolean;
+}
 
 /**
  * Helper function to load an example in the DemoComponent for testing.
  * Resolves after the example is selected and initial async rendering has time to complete.
  */
-export async function loadExample(exampleName: string, version: Version = Version.V0_9) {
+export async function loadExample(
+  exampleName: string,
+  optionsOrVersion: Version | LoadExampleOptions = Version.V0_9,
+) {
+  const version =
+    typeof optionsOrVersion === 'object'
+      ? (optionsOrVersion.version ?? Version.V0_9)
+      : optionsOrVersion;
+  const useUniversalComponents =
+    typeof optionsOrVersion === 'object'
+      ? (optionsOrVersion.useUniversalComponents ?? false)
+      : false;
+
   await TestBed.configureTestingModule({
     imports: [DemoComponent],
     providers: [
@@ -34,6 +59,10 @@ export async function loadExample(exampleName: string, version: Version = Versio
       {
         provide: A2UI_VERSION,
         useValue: version,
+      },
+      {
+        provide: A2UI_USE_UNIVERSAL_COMPONENTS,
+        useValue: useUniversalComponents,
       },
     ],
   });
