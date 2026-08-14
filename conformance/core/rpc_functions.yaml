@@ -15,7 +15,7 @@
 - name: test_rpc_call_renderer_function_success
   description: Verifies agent-initiated callRendererFunction on a function with callableFrom=rendererOrAgent.
   catalog:
-    version: "1.0"
+    protocol_version: "1.0"
   action: handle_rpc
   args:
     message:
@@ -44,7 +44,7 @@
 - name: test_rpc_call_renderer_function_unauthorized_caller
   description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when callableFrom is rendererOnly.
   catalog:
-    version: "1.0"
+    protocol_version: "1.0"
   action: handle_rpc
   args:
     message:
@@ -71,7 +71,7 @@
 - name: test_rpc_call_renderer_function_requires_user_activation
   description: Verifies callRendererFunction execution when requiresUserActivation is true and user gesture is present.
   catalog:
-    version: "1.0"
+    protocol_version: "1.0"
   action: handle_rpc
   args:
     user_activation_present: true
@@ -99,7 +99,7 @@
 - name: test_rpc_call_agent_function_dispatch
   description: Verifies renderer-initiated callAgentFunction message generation and response correlation via functionCallId.
   catalog:
-    version: "1.0"
+    protocol_version: "1.0"
   action: handle_rpc
   args:
     outbound_call:
@@ -126,7 +126,7 @@
 - name: test_rpc_call_renderer_function_user_activation_denied
   description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when requiresUserActivation is true but user gesture context is absent.
   catalog:
-    version: "1.0"
+    protocol_version: "1.0"
   action: handle_rpc
   args:
     user_activation_present: false
@@ -155,7 +155,7 @@
 - name: test_rpc_call_renderer_function_execution_exception
   description: Verifies callRendererFunction handles runtime function execution exceptions and returns EXECUTION_ERROR.
   catalog:
-    version: "1.0"
+    protocol_version: "1.0"
   action: handle_rpc
   args:
     message:
@@ -182,7 +182,7 @@
 - name: test_rpc_call_renderer_function_agent_only_boundary
   description: Verifies agent-initiated callRendererFunction on a function with callableFrom=agentOnly.
   catalog:
-    version: "1.0"
+    protocol_version: "1.0"
   action: handle_rpc
   args:
     message:

@@ -18,7 +18,7 @@
         "type": "object",
         "description": "Catalog configuration for the test.",
         "properties": {
-          "version": {
+          "protocol_version": {
             "type": "string",
             "enum": ["0.8", "0.9", "1.0"],
             "description": "Protocol version."
@@ -63,7 +63,7 @@
             ]
           }
         },
-        "required": ["version"]
+        "required": ["protocol_version"]
       },
       "action": {
         "type": "string",
@@ -535,14 +535,14 @@
           "additionalProperties": {
             "type": "object",
             "properties": {
-              "dataModel": { "type": "object" },
+              "dataModel": {"type": "object"},
               "components": {
                 "type": "object",
-                "additionalProperties": { "type": "object" }
+                "additionalProperties": {"type": "object"}
               },
               "validationResult": {
                 "type": "object",
-                "additionalProperties": { "type": "object" }
+                "additionalProperties": {"type": "object"}
               }
             }
           }

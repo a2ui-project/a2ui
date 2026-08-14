@@ -15,7 +15,7 @@
 - name: test_pointer_escape_characters
   description: Verifies RFC 6901 JSON Pointer escape sequence resolution (~0 for ~ and ~1 for /).
   catalog:
-    version: "1.0"
+    protocol_version: "1.0"
   action: validate
   steps:
     - payload:
@@ -44,7 +44,7 @@
 - name: test_pointer_array_indexing
   description: Verifies numeric array indexing in JSON Pointers (/items/0, /items/1).
   catalog:
-    version: "1.0"
+    protocol_version: "1.0"
   action: validate
   steps:
     - payload:
@@ -69,7 +69,7 @@
 - name: test_pointer_auto_vivification
   description: Verifies automatic intermediate object creation when setting deep uncreated JSON Pointer paths.
   catalog:
-    version: "1.0"
+    protocol_version: "1.0"
   action: validate
   steps:
     - payload:

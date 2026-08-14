@@ -15,7 +15,7 @@
 - name: test_multi_catalog_explicit_catalog_id_resolution
   description: Verifies resolving component definition using explicit catalogId specified on component instance.
   catalog:
-    version: "1.0"
+    protocol_version: "1.0"
   action: select_catalog
   args:
     surface:
@@ -36,7 +36,7 @@
 - name: test_multi_catalog_surface_default_fallback
   description: Verifies component falling back to surface defaultCatalogId when catalogId is omitted.
   catalog:
-    version: "1.0"
+    protocol_version: "1.0"
   action: select_catalog
   args:
     surface:
@@ -52,7 +52,7 @@
 - name: test_multi_catalog_unregistered_catalog_error
   description: Verifies error thrown when component specifies catalogId not listed in surface supportedCatalogIds.
   catalog:
-    version: "1.0"
+    protocol_version: "1.0"
   action: select_catalog
   args:
     surface:
@@ -70,7 +70,7 @@
 - name: test_multi_catalog_version_mismatch_error
   description: Verifies error thrown when mixed catalogs specify conflicting protocol versions.
   catalog:
-    version: "1.0"
+    protocol_version: "1.0"
   action: select_catalog
   args:
     surface:
@@ -89,7 +89,7 @@
 - name: test_multi_catalog_function_resolution_precedence
   description: Verifies function calls with explicit catalogId resolve to the specified catalog.
   catalog:
-    version: "1.0"
+    protocol_version: "1.0"
   action: select_catalog
   args:
     surface:

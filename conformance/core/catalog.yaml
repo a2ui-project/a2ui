@@ -15,7 +15,7 @@
 - name: test_with_pruning_components
   description: Tests pruning components from the catalog schema.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     catalog_schema:
       catalogId: basic
       components:
@@ -35,7 +35,7 @@
 - name: test_with_pruning_components_v09
   description: Tests pruning components and anyComponent oneOf in v0.9.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     catalog_schema:
       catalogId: basic
       $defs:
@@ -64,7 +64,7 @@
 - name: test_with_pruning_messages
   description: Tests pruning messages from the S2C schema in v0.9.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     s2c_schema:
       oneOf:
         - $ref: "#/$defs/MessageA"
@@ -90,7 +90,7 @@
 - name: test_with_pruning_messages_internal_reachability
   description: Tests that pruning preserves reachable types in S2C schema.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     s2c_schema:
       oneOf:
         - $ref: "#/$defs/MessageA"
@@ -119,7 +119,7 @@
 - name: test_with_pruning_common_types
   description: Tests that pruning components also prunes common types.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     common_types_schema:
       $defs:
         TypeForCompA: {type: string}
@@ -140,7 +140,7 @@
 - name: test_with_pruning_s2c_also_prunes_common_types
   description: Tests that pruning messages also prunes common types.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema:
       $defs:
         TypeForA: {type: string}
@@ -164,7 +164,7 @@
 - name: test_with_pruning_messages_v08
   description: Tests pruning messages in v0.8 (properties instead of oneOf).
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema:
       properties:
         beginRendering: {type: object}
@@ -185,7 +185,7 @@
 - name: test_render_as_llm_instructions
   description: Tests rendering schemas as LLM instructions.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     s2c_schema: {s2c: schema}
     common_types_schema: {$defs: {common: types}}
     catalog_schema:
@@ -210,7 +210,7 @@
 - name: test_render_as_llm_instructions_drops_empty_common_types
   description: Tests that empty common types are omitted in rendering.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     s2c_schema: {s2c: schema}
     common_types_schema: {}
     catalog_schema:
@@ -232,7 +232,7 @@
 - name: test_load_examples
   description: Tests loading examples from a directory.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     catalog_schema: {catalogId: basic}
   action: load
   args:
@@ -249,7 +249,7 @@
 - name: test_load_examples_validation_fails_on_bad_json
   description: Tests that loading fails on bad JSON when validate is true.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     catalog_schema: {catalogId: basic}
   action: load
   args:
@@ -262,7 +262,7 @@
 - name: test_load_examples_validation_fails_on_schema_error
   description: Tests that loading fails on schema error when validate is true.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema:
       type: object
       properties: {myKey: {type: integer}}
@@ -279,7 +279,7 @@
 - name: test_load_examples_with_glob
   description: Tests loading examples with glob patterns.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     catalog_schema: {catalogId: basic}
   action: load
   args:
@@ -296,7 +296,7 @@
 - name: test_load_examples_with_glob_filter
   description: Tests filtering examples with glob prefix.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     catalog_schema: {catalogId: basic}
   action: load
   args:
@@ -313,7 +313,7 @@
 - name: test_load_examples_with_glob_range
   description: Tests character range in glob.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     catalog_schema: {catalogId: basic}
   action: load
   args:
@@ -330,7 +330,7 @@
 - name: test_load_examples_with_glob_negation
   description: Tests negation in glob.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     catalog_schema: {catalogId: basic}
   action: load
   args:
@@ -343,7 +343,7 @@
 - name: test_load_examples_none
   description: Tests that loading with None path returns empty string.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     catalog_schema: {catalogId: basic}
   action: load
   args:
@@ -353,7 +353,7 @@
 - name: test_load_examples_non_existent_path
   description: Tests that loading with non-existent path returns empty string.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     catalog_schema: {catalogId: basic}
   action: load
   args:
@@ -363,7 +363,7 @@
 - name: test_remove_strict_validation
   description: Tests the remove_strict_validation modifier.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     catalog_schema: {catalogId: basic}
   action: remove_strict_validation
   args:
@@ -387,7 +387,7 @@
 - name: test_remove_strict_validation_keeps_true
   description: Tests that remove_strict_validation keeps additionalProperties true.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     catalog_schema: {catalogId: basic}
   action: remove_strict_validation
   args:
@@ -398,7 +398,7 @@
 - name: test_with_pruning_common_types_transitive
   description: Tests that pruning components preserves transitively reachable common types.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema:
       $defs:
         TypeForCompA:
@@ -425,7 +425,7 @@
 - name: test_render_as_llm_instructions_drops_common_types_no_defs
   description: Tests that common types without $defs are omitted in rendering.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     s2c_schema: {s2c: schema}
     common_types_schema: {something: else}
     catalog_schema:
@@ -447,7 +447,7 @@
 - name: test_render_as_llm_instructions_drops_common_types_empty_defs
   description: Tests that common types with empty $defs are omitted in rendering.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     s2c_schema: {s2c: schema}
     common_types_schema: {$defs: {}}
     catalog_schema:
@@ -469,7 +469,7 @@
 - name: test_custom_cuttable_keys
   description: Tests that custom cuttable_keys are preserved in A2uiCatalog.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     custom_cuttable_keys: ["customKey1", "customKey2"]
     catalog_schema: {catalogId: basic}
   action: verify_cuttable_keys

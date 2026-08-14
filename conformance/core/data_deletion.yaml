@@ -15,7 +15,7 @@
 - name: test_data_deletion_value_null
   description: Verifies that updateDataModel with value=null deletes the specified JSON Pointer path.
   catalog:
-    version: "1.0"
+    protocol_version: "1.0"
   action: validate
   steps:
     - payload:
@@ -45,7 +45,7 @@
 - name: test_data_deletion_nested_pointer_sibling_preservation
   description: Verifies deleting a child property via value=null preserves sibling keys in parent object.
   catalog:
-    version: "1.0"
+    protocol_version: "1.0"
   action: validate
   steps:
     - payload:
@@ -77,7 +77,7 @@
 - name: test_data_deletion_top_level_key
   description: Verifies deleting a top-level JSON Pointer path via value=null.
   catalog:
-    version: "1.0"
+    protocol_version: "1.0"
   action: validate
   steps:
     - payload:
@@ -103,7 +103,7 @@
 - name: test_data_deletion_parent_object_recursive
   description: Verifies deleting an intermediate parent object key via value=null recursively removes all nested child properties.
   catalog:
-    version: "1.0"
+    protocol_version: "1.0"
   action: validate
   steps:
     - payload:

@@ -15,7 +15,7 @@
 - name: test_validator_circular_reference_v08
   description: Tests that circular references are detected.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: test_catalog
@@ -48,7 +48,7 @@
 - name: test_validator_0_9
   description: Tests validation of v0.9 messages.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
     s2c_schema: "test_data/simplified_s2c_v09.json"
     catalog_schema: "test_data/simplified_catalog_v09.json"
@@ -104,7 +104,7 @@
 - name: test_validator_0_8
   description: Tests validation of v0.8 messages.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -132,7 +132,7 @@
 - name: test_custom_catalog_0_8
   description: Tests validation with a custom catalog in v0.8.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: custom
@@ -223,7 +223,7 @@
 - name: test_custom_catalog_0_9
   description: Tests validation with a custom catalog in v0.9.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
     s2c_schema: "test_data/simplified_s2c_v09.json"
     catalog_schema:
@@ -355,7 +355,7 @@
 - name: test_validate_duplicate_ids_v08
   description: Tests that duplicate IDs are detected in v0.8.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -392,7 +392,7 @@
 - name: test_validate_duplicate_ids_v09
   description: Tests that duplicate IDs are detected in v0.9.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
     s2c_schema: "test_data/simplified_s2c_v09.json"
     catalog_schema:
@@ -438,7 +438,7 @@
 - name: test_validate_missing_root_v08
   description: Tests that missing root component is detected in v0.8.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -467,7 +467,7 @@
 - name: test_validate_missing_root_v09
   description: Tests that missing root component is detected in v0.9.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
     s2c_schema: "test_data/simplified_s2c_v09.json"
     catalog_schema:
@@ -507,7 +507,7 @@
 - name: test_validate_dangling_references_v08
   description: Tests that dangling references are detected in v0.8.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -555,7 +555,7 @@
 - name: test_validate_dangling_references_v09
   description: Tests that dangling references are detected in v0.9.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
     s2c_schema: "test_data/simplified_s2c_v09.json"
     catalog_schema:
@@ -621,7 +621,7 @@
 - name: test_validate_self_reference_v08
   description: Tests that self-references are detected in v0.8.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -648,7 +648,7 @@
 - name: test_validate_self_reference_v09
   description: Tests that self-references are detected in v0.9.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
     s2c_schema: "test_data/simplified_s2c_v09.json"
     catalog_schema:
@@ -688,7 +688,7 @@
 - name: test_validate_function_call_recursion_v08
   description: Tests that function call recursion limit is exceeded in v0.8.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -736,7 +736,7 @@
 - name: test_validate_function_call_recursion_v09
   description: Tests that function call recursion limit is exceeded in v0.9.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
     s2c_schema: "test_data/simplified_s2c_v09.json"
     catalog_schema:
@@ -798,7 +798,7 @@
 - name: test_validate_orphaned_component_v08
   description: Tests that orphaned components are detected in v0.8.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -829,7 +829,7 @@
 - name: test_validate_orphaned_component_v09
   description: Tests that orphaned components are detected in v0.9.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
     s2c_schema: "test_data/simplified_s2c_v09.json"
     catalog_schema:
@@ -872,7 +872,7 @@
 - name: test_validate_template_reachability_v08
   description: Tests template reachability in v0.8.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -928,7 +928,7 @@
 - name: test_validate_template_reachability_v09
   description: Tests template reachability in v0.9.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
     s2c_schema: "test_data/simplified_s2c_v09.json"
     catalog_schema:
@@ -1002,7 +1002,7 @@
 - name: test_validate_v08_custom_root_reachability
   description: Tests custom root reachability in v0.8.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -1054,7 +1054,7 @@
 - name: test_validate_invalid_paths_v08
   description: Tests invalid paths in v0.8.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -1077,7 +1077,7 @@
 - name: test_validate_invalid_paths_v09
   description: Tests invalid paths in v0.9.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
     s2c_schema: "test_data/simplified_s2c_v09.json"
     catalog_schema:
@@ -1114,7 +1114,7 @@
 - name: test_validate_component_nesting_depth_limit_exceeded_v08
   description: Tests that global recursion limit is exceeded in v0.8.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -1370,7 +1370,7 @@
 - name: test_validate_recursion_limit_exceeded_v09
   description: Tests that global recursion limit is exceeded in v0.9.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
     s2c_schema: "test_data/simplified_s2c_v09.json"
     catalog_schema:
@@ -1589,7 +1589,7 @@
 - name: test_validate_recursion_limit_valid_v08
   description: Tests that global recursion limit is valid in v0.8.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -1784,7 +1784,7 @@
 - name: test_validate_recursion_limit_valid_v09
   description: Tests that global recursion limit is valid in v0.9.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
     s2c_schema: "test_data/simplified_s2c_v09.json"
     catalog_schema:
@@ -1957,7 +1957,7 @@
 - name: test_validate_global_recursion_limit_exceeded_v09
   description: Tests that global recursion limit is exceeded for data model in v0.9.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
     s2c_schema: "test_data/simplified_s2c_v09.json"
     catalog_schema: "test_data/simplified_catalog_v09.json"
@@ -2083,7 +2083,7 @@
 - name: test_validate_circular_reference_v09
   description: Tests that circular references are detected in v0.9.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
     s2c_schema: "test_data/simplified_s2c_v09.json"
     catalog_schema:
@@ -2120,7 +2120,7 @@
 - name: test_validate_multi_surface_v08
   description: Tests that multiple surfaces with different root IDs validate correctly.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -2169,7 +2169,7 @@
 - name: test_validate_multi_surface_missing_root_v08
   description: Tests that missing root in one surface still fails validation.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -2206,7 +2206,7 @@
 - name: test_incremental_update_no_root_v08
   description: Incremental update without root component should pass.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -2238,7 +2238,7 @@
 - name: test_incremental_update_no_root_v09
   description: Incremental update without root component should pass (v0.9).
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
     s2c_schema: "test_data/simplified_s2c_v09.json"
     catalog_schema:
@@ -2287,7 +2287,7 @@
 - name: test_incremental_update_orphans_allowed_v08
   description: Incremental update with 'orphaned' components should pass.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -2314,7 +2314,7 @@
 - name: test_incremental_update_self_ref_still_fails_v08
   description: Self-references should still be caught in incremental updates (v0.8).
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -2338,7 +2338,7 @@
 - name: test_incremental_update_self_ref_still_fails_v09
   description: Self-references should still be caught in incremental updates (v0.9).
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
     s2c_schema: "test_data/simplified_s2c_v09.json"
     catalog_schema:
@@ -2374,7 +2374,7 @@
 - name: test_incremental_update_cycle_still_fails_v08
   description: Cycles should still be caught in incremental updates (v0.8).
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -2402,7 +2402,7 @@
 - name: test_incremental_update_cycle_still_fails_v09
   description: Cycles should still be caught in incremental updates (v0.9).
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
     s2c_schema: "test_data/simplified_s2c_v09.json"
     catalog_schema:
@@ -2441,7 +2441,7 @@
 - name: test_incremental_update_duplicates_still_fail_v08
   description: Duplicate IDs should still be caught in incremental updates (v0.8).
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -2469,7 +2469,7 @@
 - name: test_incremental_update_duplicates_still_fail_v09
   description: Duplicate IDs should still be caught in incremental updates (v0.9).
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
     s2c_schema: "test_data/simplified_s2c_v09.json"
     catalog_schema:
@@ -2508,7 +2508,7 @@
 - name: test_validate_global_recursion_limit_exceeded_v08
   description: Tests that global recursion limit is exceeded in v0.8.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -2643,7 +2643,7 @@
 - name: test_validate_invalid_child_type
   description: Tests that invalid child type (number instead of string) throws.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: standard
@@ -2667,7 +2667,7 @@
 - name: test_custom_catalog_validation_success_v09
   description: Tests validation success with a custom catalog in v0.9.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
     s2c_schema: "test_data/simplified_s2c_v09.json"
     catalog_schema:
@@ -2697,7 +2697,7 @@
 - name: test_custom_catalog_validation_success_v08
   description: Tests validation success with a custom catalog in v0.8.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: "custom"
@@ -2719,7 +2719,7 @@
 - name: test_custom_catalog_validation_failure_v08
   description: Tests validation failure with a custom catalog in v0.8.
   catalog:
-    version: "0.8"
+    protocol_version: "0.8"
     s2c_schema: "test_data/simplified_s2c_v08.json"
     catalog_schema:
       catalogId: "custom"
@@ -2742,7 +2742,7 @@
 - name: test_custom_catalog_validation_failure_v09
   description: Tests validation failure with a custom catalog in v0.9.
   catalog:
-    version: "0.9"
+    protocol_version: "0.9"
     common_types_schema: "test_data/simplified_common_types_v09.json"
     s2c_schema: "test_data/simplified_s2c_v09.json"
     catalog_schema:

@@ -328,7 +328,7 @@
 - name: test_agent_v1_0_direct_json_envelope_parsing
   description: Verifies parsing Direct JSON v1.0 payload envelopes wrapped in <a2ui-json> sentinel tags.
   catalog:
-    version: "1.0"
+    protocol_version: "1.0"
   action: process_chunk
   steps:
     - input: |
