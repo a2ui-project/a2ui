@@ -38,6 +38,12 @@ export interface WebAppFrameSrcdocApi extends ComponentApi<typeof WebAppFrameSrc
   name: 'WebAppFrameSrcdoc';
 }
 
+/**
+ * Default Content Security Policy enforced on untrusted HTML rendered in WebAppFrameSrcdoc.
+ */
+const DEFAULT_INJECTED_CSP =
+  "default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'; frame-src 'none';";
+
 @Component({
   selector: 'a2ui-web-app-frame-srcdoc',
   standalone: true,
@@ -111,15 +117,20 @@ export class WebAppFrameSrcdoc extends CatalogComponent<WebAppFrameSrcdocApi> {
    * Injects a Content-Security-Policy (CSP) meta tag into the provided HTML string.
    *
    * Any existing CSP meta tags in the HTML are stripped and replaced with a restricted
-   * default policy (`default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none'; form-action 'none';`).
+   * default policy (`default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none'; form-action 'none';
+   * base-uri 'none'; object-src 'none'; frame-src 'none';`).
    * The CSP meta tag is injected into the `<head>` element, creating one if necessary.
    *
    * **Expected Effects of the Injected CSP:**
-   * - Prevents untrusted HTML from relaxing security policies by overriding preexisting CSP tags.
+   * - Injects mandatory restricted policy which cannot be relaxed by any author-supplied CSP.
+   * - Stripping preexisting CSP tags prevents author-supplied restrictive policies from unintentionally breaking iframe rendering.
    * - Blocks all outgoing network connections (`connect-src 'none'`), disabling `fetch`, `XMLHttpRequest`,
    *   `WebSocket`, and `EventSource` calls from within the sandbox iframe.
    * - Blocks form-based exfiltration (`form-action 'none'`), closing HTML form navigation and submission
    *   bypasses to external endpoints even when `allow-forms` is enabled in sandbox attributes.
+   * - Blocks base URL hijacking (`base-uri 'none'`), preventing untrusted HTML from redirecting relative
+   *   links or resource URLs to external origins.
+   * - Blocks legacy plugin objects and nested subframes (`object-src 'none'; frame-src 'none'`).
    * - Restricts resource loading (`default-src`) to same-origin scripts/styles (`'self'`), inline code
    *   (`'unsafe-inline'`), dynamic eval execution (`'unsafe-eval'`), and `data:` URIs.
    *
@@ -132,7 +143,7 @@ export class WebAppFrameSrcdoc extends CatalogComponent<WebAppFrameSrcdocApi> {
       '',
     );
 
-    const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'none'; form-action 'none';">`;
+    const cspMeta = `<meta http-equiv="Content-Security-Policy" content="${DEFAULT_INJECTED_CSP}">`;
 
     if (/(<head[^>]*>)/i.test(result)) {
       result = result.replace(/(<head[^>]*>)/i, `$1\n    ${cspMeta}`);
