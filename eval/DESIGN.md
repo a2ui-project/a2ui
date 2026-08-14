@@ -176,6 +176,6 @@ By implementing these strategies, the A2UI project ensures that its evaluation d
 - [Secret Breach Detection in Source Code with Large Language Models \- arXiv](https://arxiv.org/html/2504.18784v2)
 - [Standard Tools \- Inspect AI](https://inspect.aisi.org.uk/tools-standard)
 - [Stop Uploading Test Data in Plain Text \- ResearchGate](https://www.researchgate.net/publication/376392896_Stop_Uploading_Test_Data_in_Plain_Text_Practical_Strategies_for_Mitigating_Data_Contamination_by_Evaluation_Benchmarks)
-- [The Definitive Guide to LLM Evaluation \- Arize AI](https://arize.com/resources/llm-evaluation)
+- [The Definitive Guide to LLM Evaluation \- Arize AI](https://arize.com/llm-evaluation/)
 - [Using Models \- Inspect AI](https://inspect.aisi.org.uk/models.html)
 - [What's the recommended way to store secrets in GitHub Actions? \- GitHub Discussions](https://github.com/orgs/community/discussions/187776)
