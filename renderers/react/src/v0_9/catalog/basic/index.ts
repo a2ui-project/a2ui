@@ -15,8 +15,11 @@
  */
 
 import {Catalog} from '@a2ui/web_core/v0_9';
-import {BASIC_FUNCTIONS} from '@a2ui/web_core/v0_9/basic_catalog';
-import type {ReactComponentImplementation} from '../../adapter';
+import {
+  basicCatalog as webCoreBasicCatalog,
+  BASIC_FUNCTIONS,
+} from '@a2ui/web_core/v0_9/basic_catalog';
+import type {ReactComponentImplementation, ReactCatalogComponent} from '../../adapter';
 
 import {Text} from './components/Text';
 import {Image} from './components/Image';
@@ -39,7 +42,7 @@ import {DateTimeInput} from './components/DateTimeInput';
 
 export * from './context/MarkdownContext';
 
-const basicComponents: ReactComponentImplementation[] = [
+const basicComponents: ReactCatalogComponent[] = [
   Text,
   Image,
   Icon,
@@ -58,10 +61,16 @@ const basicComponents: ReactComponentImplementation[] = [
   ChoicePicker,
   Slider,
   DateTimeInput,
-];
+].map((impl: ReactComponentImplementation) => {
+  const universal = webCoreBasicCatalog.components.get(impl.name);
+  return {
+    ...impl,
+    tagName: impl.tagName || universal?.tagName,
+  };
+});
 
-export const basicCatalog = new Catalog<ReactComponentImplementation>(
-  'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+export const basicCatalog = new Catalog<ReactCatalogComponent>(
+  webCoreBasicCatalog.id,
   basicComponents,
   BASIC_FUNCTIONS,
 );
