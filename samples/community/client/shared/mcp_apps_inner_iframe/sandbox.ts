@@ -39,7 +39,7 @@ export const SENSITIVE_PERMISSIONS = [
   'clipboard-write',
 ] as const;
 
-export const ANCHOR_SELECTOR = 'a';
+
 
 export const RESOURCE_READY_NOTIFICATION: McpUiSandboxResourceReadyNotification['method'] =
   'ui/notifications/sandbox-resource-ready';
@@ -79,33 +79,6 @@ export function normalizeOrigin(origin: string): string {
   return origin.replace('://127.0.0.1', '://localhost');
 }
 
-/**
- * Intercepts anchor tag click events in capture phase to prevent direct navigation/exfiltration
- * and delegates the URL navigation to a safe callback.
- */
-export function handleAnchorClick(
-  event: Pick<MouseEvent, 'preventDefault' | 'stopPropagation' | 'target'>,
-  onNavigate: (url: string) => void,
-): boolean {
-  const functionType = 'function';
-  const target = event.target as HTMLElement | null;
-  const anchor =
-    target && typeof target.closest === functionType
-      ? (target.closest(ANCHOR_SELECTOR) as HTMLAnchorElement | null)
-      : null;
-
-  if (anchor && anchor.href) {
-    if (typeof event.preventDefault === functionType) {
-      event.preventDefault();
-    }
-    if (typeof event.stopPropagation === functionType) {
-      event.stopPropagation();
-    }
-    onNavigate(anchor.href);
-    return true;
-  }
-  return false;
-}
 
 const isTestEnv = typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test';
 
@@ -156,24 +129,7 @@ if (!isTestEnv && typeof window !== 'undefined' && typeof document !== 'undefine
   inner.setAttribute('allow', buildPermissionsPolicy());
   document.body.appendChild(inner);
 
-  // Capture-phase click interception: cancels direct anchor navigations and routes
-  // external link opening through host-verified a2ui_action events.
-  document.addEventListener(
-    'click',
-    (event: MouseEvent) => {
-      handleAnchorClick(event, url => {
-        window.parent.postMessage(
-          {
-            type: A2uiMessageType.Action,
-            action: 'open_url',
-            data: {url},
-          },
-          EXPECTED_HOST_ORIGIN,
-        );
-      });
-    },
-    true,
-  );
+
 
   window.addEventListener('message', async event => {
     if (event.source === window.parent) {
