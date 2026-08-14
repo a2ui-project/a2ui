@@ -38,6 +38,11 @@ const SUPPORTED_SPEC_VERSIONS = new Set(['v0.8', 'v0.9', 'v1.0']);
  */
 const SKIP_TEST_NAMES = new Set([]);
 
+/**
+ * Transition skip list containing specific test suite files to skip during active feature transitions.
+ */
+const SKIP_TEST_SUITES = new Set([]);
+
 function findYamlFiles(dir) {
   let results = [];
   if (!fs.existsSync(dir)) return results;
@@ -79,6 +84,9 @@ function runConformanceHarness() {
 
   for (const filePath of files) {
     const relativePath = path.relative(CONFORMANCE_ROOT, filePath);
+    if (SKIP_TEST_SUITES.has(relativePath) || SKIP_TEST_SUITES.has(path.basename(filePath))) {
+      continue;
+    }
     let testCases;
     try {
       testCases = loadYamlFile(filePath);
@@ -181,19 +189,19 @@ function validateRpcTestCase(testCase) {
 }
 
 function validateSelectCatalogTestCase(testCase) {
-  const {args, expect_selected, expect_catalog_schema, expect_error} = testCase;
+  const {args, expect, expect_selected, expect_catalog_schema, expect_error} = testCase;
   if (!args) throw new Error('select_catalog test requires "args" object.');
-  if (!expect_selected && !expect_catalog_schema && !expect_error) {
+  if (!expect && !expect_selected && !expect_catalog_schema && !expect_error) {
     throw new Error(
-      'select_catalog test requires "expect_selected", "expect_catalog_schema", or "expect_error".',
+      'select_catalog test requires "expect", "expect_selected", "expect_catalog_schema", or "expect_error".',
     );
   }
 }
 
 function validateValidateTestCase(testCase) {
-  const {steps, payload} = testCase;
-  if (!steps && !payload) {
-    throw new Error('validate test case requires "steps" or "payload" input.');
+  const {steps, payload, messages} = testCase;
+  if (!steps && !payload && !messages) {
+    throw new Error('validate test case requires "steps", "messages", or "payload" input.');
   }
 }
 

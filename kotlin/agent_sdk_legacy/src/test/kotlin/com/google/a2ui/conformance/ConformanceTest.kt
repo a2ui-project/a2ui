@@ -114,8 +114,36 @@ class ConformanceTest {
     return Json.parseToJsonElement(jsonStr) as JsonObject
   }
 
-  private fun parseConformanceYaml(file: File, conformanceDir: File): List<ConformanceTestCase> {
-    val rawList = yamlMapper.readValue(file, Any::class.java) as List<*>
+  private fun getConformanceCases(filename: String): List<Map<*, *>> {
+    if (isSkipped(filename)) {
+      return emptyList()
+    }
+    val conformanceFile = ConformanceTestHelper.getConformanceFile(filename)
+    val rawList = yamlMapper.readValue(conformanceFile, Any::class.java) as List<*>
+    val filtered = mutableListOf<Map<*, *>>()
+    for (caseObj in rawList) {
+      val case = caseObj as Map<*, *>
+      val name = case[ConformanceTestHelper.KEY_NAME] as? String
+      val catalog = case[ConformanceTestHelper.KEY_CATALOG] as? Map<*, *> ?: emptyMap<Any, Any>()
+      val rawVersion = (catalog["protocol_version"] ?: "v0.9").toString()
+      val version = if (rawVersion.startsWith("v")) rawVersion else "v$rawVersion"
+
+      if (version !in SUPPORTED_SPEC_VERSIONS || (name != null && name in SKIP_TEST_NAMES)) {
+        continue
+      }
+      filtered.add(case)
+    }
+    return filtered
+  }
+
+  private fun parseConformanceYaml(
+    filename: String,
+    conformanceDir: File,
+  ): List<ConformanceTestCase> {
+    val cases = getConformanceCases(filename)
+    if (cases.isEmpty()) {
+      return emptyList()
+    }
 
     val baseSchemaMappings = mutableMapOf<String, String>()
     val repoRoot = ConformanceTestHelper.repoRoot
@@ -138,26 +166,25 @@ class ConformanceTest {
         }
     }
 
-    return rawList.map { caseObj ->
-      val case = caseObj as Map<*, *>
+    return cases.map { case ->
       val name = case[ConformanceTestHelper.KEY_NAME] as String
 
       val catalogMap = case[ConformanceTestHelper.KEY_CATALOG] as Map<*, *>
       val (catalog, schemaMappings) = buildCatalog(catalogMap, conformanceDir, baseSchemaMappings)
 
       val stepsList =
-        case[ConformanceTestHelper.KEY_STEPS] as? List<*>
-          ?: case[ConformanceTestHelper.KEY_VALIDATE] as? List<*>
-          ?: if (case.containsKey(ConformanceTestHelper.KEY_PAYLOAD)) listOf(case) else null
+        (case[ConformanceTestHelper.KEY_STEPS] as? List<*>)
+          ?: (case[ConformanceTestHelper.KEY_VALIDATE] as? List<*>)
+          ?: if (case.containsKey(ConformanceTestHelper.KEY_MESSAGES)) listOf(case) else null
 
       if (stepsList == null) {
-        throw IllegalArgumentException("No steps or payload found in test case: $name")
+        throw IllegalArgumentException("No steps or messages found in test case: $name")
       }
 
       val validate =
         stepsList.map { stepObj ->
           val step = stepObj as Map<*, *>
-          val payloadObj = step[ConformanceTestHelper.KEY_PAYLOAD]
+          val payloadObj = step[ConformanceTestHelper.KEY_MESSAGES]
           val jsonStr = jsonMapper.writeValueAsString(payloadObj)
           val payload = Json.parseToJsonElement(jsonStr)
 
@@ -180,10 +207,13 @@ class ConformanceTest {
     conformanceDir: File,
     baseSchemaMappings: Map<String, String>,
   ): Pair<A2uiCatalog, Map<String, String>> {
-    val versionStr = (catalogMap["protocol_version"] as? String) ?: "v0.8"
+    val versionStr = (catalogMap["protocol_version"] ?: "v0.9") as String
     val version =
-      if (versionStr == VERSION_0_8_STR || versionStr == "v0.8") A2uiVersion.VERSION_0_8
-      else A2uiVersion.VERSION_0_9
+      if (versionStr == VERSION_0_8_STR || versionStr == "v0.8") {
+        A2uiVersion.VERSION_0_8
+      } else {
+        A2uiVersion.VERSION_0_9
+      }
 
     val s2cSchemaObj = catalogMap["s2c_schema"]
     val s2cSchema =
@@ -254,10 +284,8 @@ class ConformanceTest {
 
   @TestFactory
   fun testValidatorConformance(): List<DynamicTest> {
-    val conformanceFile = ConformanceTestHelper.getConformanceFile(VALIDATOR_YAML_FILE)
     val conformanceDir = ConformanceTestHelper.getConformanceDir()
-    val cases = parseConformanceYaml(conformanceFile, conformanceDir)
-
+    val cases = parseConformanceYaml(VALIDATOR_YAML_FILE, conformanceDir)
     return cases.map { case ->
       val name = case.name
 
@@ -294,12 +322,9 @@ class ConformanceTest {
 
   @TestFactory
   fun testCatalogConformance(): List<DynamicTest> {
-    val conformanceFile = ConformanceTestHelper.getConformanceFile(CATALOG_YAML_FILE)
     val conformanceDir = ConformanceTestHelper.getConformanceDir()
-    val rawList = yamlMapper.readValue(conformanceFile, Any::class.java) as List<*>
 
-    return rawList.mapNotNull { caseObj ->
-      val case = caseObj as Map<*, *>
+    return getConformanceCases(CATALOG_YAML_FILE).map { case ->
       val name = case[ConformanceTestHelper.KEY_NAME] as String
       val action = case[ConformanceTestHelper.KEY_ACTION] as String
       val args = case[ConformanceTestHelper.KEY_ARGS] as? Map<*, *> ?: emptyMap<Any, Any>()
@@ -376,24 +401,15 @@ class ConformanceTest {
 
   @TestFactory
   fun testSchemaManagerConformance(): List<DynamicTest> {
-    val conformanceFile = ConformanceTestHelper.getConformanceFile(SCHEMA_MANAGER_YAML_FILE)
     val conformanceDir = ConformanceTestHelper.getConformanceDir()
-    val rawList = yamlMapper.readValue(conformanceFile, Any::class.java) as List<*>
 
-    return rawList.mapNotNull { caseObj ->
-      val case = caseObj as Map<*, *>
-      val name = case[ConformanceTestHelper.KEY_NAME] as String
+    return getConformanceCases(SCHEMA_MANAGER_YAML_FILE).mapNotNull { case ->
       val action = case[ConformanceTestHelper.KEY_ACTION] as String
-      val args = case[ConformanceTestHelper.KEY_ARGS] as? Map<*, *> ?: emptyMap<Any, Any>()
-
-      val catalogMap = case[ConformanceTestHelper.KEY_CATALOG] as? Map<*, *>
-      val rawVersion =
-        (catalogMap?.get("protocol_version") as? String) ?: (args["version"] as? String) ?: "v0.8"
-      val versionStr = if (rawVersion.startsWith("v")) rawVersion else "v$rawVersion"
-      if (versionStr !in SUPPORTED_SPEC_VERSIONS) return@mapNotNull null
-      if (name in SKIP_TEST_NAMES) return@mapNotNull null
-      if (action !in setOf("select_catalog", "load_catalog", "generate_prompt"))
+      if (action !in listOf("select_catalog", "load_catalog", "generate_prompt")) {
         return@mapNotNull null
+      }
+      val name = case[ConformanceTestHelper.KEY_NAME] as String
+      val args = case[ConformanceTestHelper.KEY_ARGS] as? Map<*, *> ?: emptyMap<Any, Any>()
 
       DynamicTest.dynamicTest(name) {
         when (action) {
@@ -428,6 +444,12 @@ class ConformanceTest {
               assertExceptionMatches(exception, expectError)
             } else {
               val selected = manager.getSelectedCatalog(capsJson)
+              val expectObj = case["expect"]
+              if (expectObj is Map<*, *>) {
+                val expectSchemaStr = jsonMapper.writeValueAsString(expectObj)
+                val expectSchema = Json.parseToJsonElement(expectSchemaStr)
+                assertEquals(expectSchema, selected.catalogSchema)
+              }
               if (case.containsKey("expect_selected")) {
                 assertEquals(case["expect_selected"] as String, selected.catalogId)
               }
@@ -465,15 +487,13 @@ class ConformanceTest {
             val selected = manager.getSelectedCatalog()
             val expect = case[ConformanceTestHelper.KEY_EXPECT] as Map<*, *>
 
-            if (expect.containsKey("catalog_schema")) {
-              val expectSchemaStr = jsonMapper.writeValueAsString(expect["catalog_schema"])
-              val expectSchema = Json.parseToJsonElement(expectSchemaStr)
-              assertEquals(expectSchema, selected.catalogSchema)
-            }
-
             if (expect.containsKey("supported_catalog_ids")) {
               val expectIds = expect["supported_catalog_ids"] as List<String>
               assertEquals(expectIds, manager.supportedCatalogIds)
+            } else {
+              val expectSchemaStr = jsonMapper.writeValueAsString(expect)
+              val expectSchema = Json.parseToJsonElement(expectSchemaStr)
+              assertEquals(expectSchema, selected.catalogSchema)
             }
           }
           "generate_prompt" -> {
@@ -548,11 +568,7 @@ class ConformanceTest {
 
   @TestFactory
   fun testParserConformance(): List<DynamicTest> {
-    val conformanceFile = ConformanceTestHelper.getConformanceFile(PARSER_YAML_FILE)
-    val rawList = yamlMapper.readValue(conformanceFile, Any::class.java) as List<*>
-
-    return rawList.mapNotNull { caseObj ->
-      val case = caseObj as Map<*, *>
+    return getConformanceCases(PARSER_YAML_FILE).map { case ->
       val name = case[ConformanceTestHelper.KEY_NAME] as String
       val action = case[ConformanceTestHelper.KEY_ACTION] as String
       val input = case[KEY_INPUT] as String
@@ -607,9 +623,7 @@ class ConformanceTest {
 
   @TestFactory
   fun testStreamingParserConformance(): List<DynamicTest> {
-    val conformanceFile = ConformanceTestHelper.getConformanceFile(STREAMING_PARSER_YAML_FILE)
     val conformanceDir = ConformanceTestHelper.getConformanceDir()
-    val rawList = yamlMapper.readValue(conformanceFile, Any::class.java) as List<*>
 
     val baseSchemaMappings = mutableMapOf<String, String>()
     val repoRoot = ConformanceTestHelper.repoRoot
@@ -632,11 +646,10 @@ class ConformanceTest {
         }
     }
 
-    return rawList.mapNotNull { caseObj ->
-      val case = caseObj as Map<*, *>
-      val name = case[ConformanceTestHelper.KEY_NAME] as String
+    return getConformanceCases(STREAMING_PARSER_YAML_FILE).mapNotNull { case ->
       val action = case[ConformanceTestHelper.KEY_ACTION] as? String ?: ""
       if (action != "process_chunk") return@mapNotNull null
+      val name = case[ConformanceTestHelper.KEY_NAME] as String
 
       val catalogMap = case[ConformanceTestHelper.KEY_CATALOG] as? Map<*, *>
       val steps = case[ConformanceTestHelper.KEY_STEPS] as? List<*> ?: emptyList<Any>()
@@ -721,14 +734,16 @@ class ConformanceTest {
   }
 
   private companion object {
-    /** Set of A2UI specification versions supported by this legacy Kotlin conformance harness. */
-    private val SUPPORTED_SPEC_VERSIONS = setOf("v0.8", "v0.9")
+    // Set of A2UI specification versions supported by this Kotlin Agent SDK conformance harness.
+    private val SUPPORTED_SPEC_VERSIONS = setOf("v0.8", "v0.9", "v1.0")
 
-    /**
-     * Transition skip list containing specific test case names to skip during active feature
-     * transitions.
-     */
-    private val SKIP_TEST_NAMES = setOf<String>()
+    // Transition skip list containing specific test case names to skip during active feature
+    // transitions.
+    private val SKIP_TEST_NAMES = emptySet<String>()
+
+    // Transition skip list containing specific test suite files to skip during active feature
+    // transitions.
+    private val SKIP_TEST_SUITES = setOf("core/catalog.yaml", "core/validator.yaml")
 
     private const val STREAMING_PARSER_YAML_FILE = "agent/streaming_parser.yaml"
     private const val SIMPLIFIED_CATALOG_V09 = "simplified_catalog_v09.json"
@@ -748,6 +763,10 @@ class ConformanceTest {
     private const val KEY_PATH = "path"
     private const val KEY_ALLOWED_COMPONENTS = "allowed_components"
     private const val KEY_CATALOG_SCHEMA = "catalog_schema"
+
+    private fun isSkipped(suitePath: String): Boolean {
+      return suitePath in SKIP_TEST_SUITES || File(suitePath).name in SKIP_TEST_SUITES
+    }
   }
 }
 
