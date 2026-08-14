@@ -161,7 +161,7 @@ export class WebAppFrameSrcdoc extends CatalogComponent<WebAppFrameSrcdocApi> {
         }
       }, true);
     </script>`;
-    
+
     const injectedContent = `${cspMeta}\n    ${interceptorScript}`;
 
     if (/(<head[^>]*>)/i.test(result)) {

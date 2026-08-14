@@ -39,8 +39,6 @@ export const SENSITIVE_PERMISSIONS = [
   'clipboard-write',
 ] as const;
 
-
-
 export const RESOURCE_READY_NOTIFICATION: McpUiSandboxResourceReadyNotification['method'] =
   'ui/notifications/sandbox-resource-ready';
 export const PROXY_READY_NOTIFICATION: McpUiSandboxProxyReadyNotification['method'] =
@@ -78,7 +76,6 @@ export function buildPermissionsPolicy(allowAttribute?: string): string {
 export function normalizeOrigin(origin: string): string {
   return origin.replace('://127.0.0.1', '://localhost');
 }
-
 
 const isTestEnv = typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test';
 
@@ -128,8 +125,6 @@ if (!isTestEnv && typeof window !== 'undefined' && typeof document !== 'undefine
   inner.setAttribute('sandbox', 'allow-scripts allow-forms allow-modals');
   inner.setAttribute('allow', buildPermissionsPolicy());
   document.body.appendChild(inner);
-
-
 
   window.addEventListener('message', async event => {
     if (event.source === window.parent) {

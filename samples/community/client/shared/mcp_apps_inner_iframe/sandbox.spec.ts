@@ -158,5 +158,4 @@ describe('mcp_apps_inner_iframe sandbox', () => {
       expect(customPattern.test('https://evil.com/?origin=https://a2ui.org')).toBe(false);
     });
   });
-
 });
