@@ -33,11 +33,13 @@
             surfaceId: "s1"
             path: "/a~1b/c~0d"
             value: "escaped_value"
-  expect_data_model:
-    s1:
-      "a/b":
-        "c~d": "escaped_value"
-      "slash/key": 100
+  expect:
+    surfaces:
+      s1:
+        dataModel:
+          "a/b":
+            "c~d": "escaped_value"
+          "slash/key": 100
 
 - name: test_pointer_array_indexing
   description: Verifies numeric array indexing in JSON Pointers (/items/0, /items/1).
@@ -58,9 +60,11 @@
             surfaceId: "s1"
             path: "/items/1"
             value: "updated_second"
-  expect_data_model:
-    s1:
-      items: ["first", "updated_second", "third"]
+  expect:
+    surfaces:
+      s1:
+        dataModel:
+          items: ["first", "updated_second", "third"]
 
 - name: test_pointer_auto_vivification
   description: Verifies automatic intermediate object creation when setting deep uncreated JSON Pointer paths.
@@ -80,9 +84,11 @@
             surfaceId: "s1"
             path: "/deeply/nested/structure/key"
             value: "vivified_value"
-  expect_data_model:
-    s1:
-      deeply:
-        nested:
-          structure:
-            key: "vivified_value"
+  expect:
+    surfaces:
+      s1:
+        dataModel:
+          deeply:
+            nested:
+              structure:
+                key: "vivified_value"

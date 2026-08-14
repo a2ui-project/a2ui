@@ -36,12 +36,15 @@
                       args:
                         value:
                           path: "/email"
-  expect_validation_result:
-    input:
-      valid: false
-      code: "INVALID_EMAIL"
-      message: "Please enter a valid email address (e.g. user@example.com)."
-      severity: "error"
+  expect:
+    surfaces:
+      form_surface:
+        validationResult:
+          input:
+            valid: false
+            code: "INVALID_EMAIL"
+            message: "Please enter a valid email address (e.g. user@example.com)."
+            severity: "error"
 
 - name: test_validation_result_boolean_fallback
   description: Verifies CheckRule evaluation when validation function returns primitive boolean, falling back to CheckRule message.
@@ -69,8 +72,11 @@
                           path: "/age"
                         min: 18
                     message: "Must be 18 or older."
-  expect_validation_result:
-    input:
-      valid: false
-      message: "Must be 18 or older."
-      severity: "error"
+  expect:
+    surfaces:
+      form_surface:
+        validationResult:
+          input:
+            valid: false
+            message: "Must be 18 or older."
+            severity: "error"

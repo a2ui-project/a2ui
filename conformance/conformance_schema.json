@@ -179,22 +179,8 @@
       "type": "object",
       "properties": {
         "action": {"const": "validate"},
-        "expect_valid": {
-          "type": "boolean",
-          "description": "Whether the validator test payload is expected to compile and pass validation."
-        },
-        "expect_data_model": {
-          "type": "object",
-          "description": "Expected state of the data models after message processing."
-        },
-        "expect_validation_result": {
-          "type": "object",
-          "description": "Expected validation result state for specific components."
-        },
-        "expect_components": {
-          "type": "object",
-          "description": "Expected resolved properties of components on specific surfaces."
-        }
+        "expect": {"$ref": "#/$defs/SurfaceExpectation"},
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
       "required": ["action"],
       "oneOf": [
@@ -210,6 +196,7 @@
                     "oneOf": [{"type": "object"}, {"type": "array", "items": {"type": "object"}}],
                     "description": "Payload to validate (single message or list of messages)."
                   },
+                  "expect": {"$ref": "#/$defs/SurfaceExpectation"},
                   "expect_error": {"$ref": "#/$defs/ExpectError"}
                 },
                 "required": ["payload"]
@@ -224,6 +211,7 @@
               "oneOf": [{"type": "object"}, {"type": "array", "items": {"type": "object"}}],
               "description": "Payload to validate (single message or list of messages)."
             },
+            "expect": {"$ref": "#/$defs/SurfaceExpectation"},
             "expect_error": {"$ref": "#/$defs/ExpectError"}
           },
           "required": ["payload"]
@@ -538,6 +526,29 @@
           "required": ["category"]
         }
       ]
+    },
+    "SurfaceExpectation": {
+      "type": "object",
+      "properties": {
+        "surfaces": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "dataModel": { "type": "object" },
+              "components": {
+                "type": "object",
+                "additionalProperties": { "type": "object" }
+              },
+              "validationResult": {
+                "type": "object",
+                "additionalProperties": { "type": "object" }
+              }
+            }
+          }
+        }
+      },
+      "required": ["surfaces"]
     }
   }
 }

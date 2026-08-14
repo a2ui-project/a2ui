@@ -30,7 +30,16 @@
               - id: t1
                 component: Text
                 text: "Hello World"
-  expect_valid: true
+  expect:
+    surfaces:
+      s1:
+        components:
+          root:
+            component: Column
+            children: [t1]
+          t1:
+            component: Text
+            text: "Hello World"
 
 - name: test_composition_unallowed_parent_error
   description: Verifies validation error thrown when component is placed under an unallowed parent component type.

@@ -34,11 +34,13 @@
             surfaceId: "s1"
             path: "/user/profile/bio"
             value: null
-  expect_data_model:
-    s1:
-      user:
-        profile:
-          name: "Alice"
+  expect:
+    surfaces:
+      s1:
+        dataModel:
+          user:
+            profile:
+              name: "Alice"
 
 - name: test_data_deletion_nested_pointer_sibling_preservation
   description: Verifies deleting a child property via value=null preserves sibling keys in parent object.
@@ -63,12 +65,14 @@
             surfaceId: "s1"
             path: "/settings/notifications/email"
             value: null
-  expect_data_model:
-    s1:
-      settings:
-        notifications:
-          push: false
-          sms: true
+  expect:
+    surfaces:
+      s1:
+        dataModel:
+          settings:
+            notifications:
+              push: false
+              sms: true
 
 - name: test_data_deletion_top_level_key
   description: Verifies deleting a top-level JSON Pointer path via value=null.
@@ -90,9 +94,11 @@
             surfaceId: "s1"
             path: "/transientData"
             value: null
-  expect_data_model:
-    s1:
-      persistentData: "keep"
+  expect:
+    surfaces:
+      s1:
+        dataModel:
+          persistentData: "keep"
 
 - name: test_data_deletion_parent_object_recursive
   description: Verifies deleting an intermediate parent object key via value=null recursively removes all nested child properties.
@@ -118,7 +124,9 @@
             surfaceId: "s1"
             path: "/settings/notifications"
             value: null
-  expect_data_model:
-    s1:
-      settings:
-        theme: "dark"
+  expect:
+    surfaces:
+      s1:
+        dataModel:
+          settings:
+            theme: "dark"

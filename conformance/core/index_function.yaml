@@ -45,20 +45,22 @@
                       component: Text
                       text:
                         path: ""
-  expect_components:
-    main:
-      item_index_0:
-        text: "0"
-      item_text_0:
-        text: "Buy Milk"
-      item_index_1:
-        text: "1"
-      item_text_1:
-        text: "Clean Kitchen"
-      item_index_2:
-        text: "2"
-      item_text_2:
-        text: "Pay Bills"
+  expect:
+    surfaces:
+      main:
+        components:
+          item_index_0:
+            text: "0"
+          item_text_0:
+            text: "Buy Milk"
+          item_index_1:
+            text: "1"
+          item_text_1:
+            text: "Clean Kitchen"
+          item_index_2:
+            text: "2"
+          item_text_2:
+            text: "Pay Bills"
 
 - name: test_index_function_with_offset
   description: Verifies built-in @index function with offset argument (@index(1) for 1-based indexing).
@@ -83,12 +85,14 @@
                     call: "@index"
                     args:
                       offset: 1
-  expect_components:
-    main:
-      root_0:
-        text: "1"
-      root_1:
-        text: "2"
+  expect:
+    surfaces:
+      main:
+        components:
+          root_0:
+            text: "1"
+          root_1:
+            text: "2"
 
 - name: test_index_function_nested_path
   description: Verifies built-in @index function evaluation inside a deeply nested child property path of a template list.
@@ -123,12 +127,14 @@
                         call: "@index"
                         args:
                           offset: 1
-  expect_components:
-    main:
-      nested_text_0:
-        text: "1"
-      nested_text_1:
-        text: "2"
+  expect:
+    surfaces:
+      main:
+        components:
+          nested_text_0:
+            text: "1"
+          nested_text_1:
+            text: "2"
 
 - name: test_index_function_outside_loop_error
   description: Verifies error thrown when @index function is called outside a collection iteration scope.
