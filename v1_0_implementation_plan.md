@@ -367,7 +367,7 @@ flowchart LR
   - `typescript/web_core/src/basic_catalog/v1_0/` (`catalog.ts`, `components.ts`, `functions.ts`)
 - **Key Requirements**:
   - Add `protocol_version: A2uiProtocolVersion` and `instructions: str` properties to `Catalog`.
-  - Add `allowed_callers` (`rendererOnly`, `rendererOrAgent`) and `requires_user_activation` to `FunctionApi`.
+  - Add `callable_from` (`rendererOnly`, `rendererOrAgent`) and `requires_user_activation` to `FunctionApi`.
   - Add optional `allowed_parents` and `allowed_children` to `ComponentApi`.
   - Implement UAX #31 identifier validation logic for component names, function names, and argument keys.
   - Load `specification/v1_0/catalogs/basic/catalog.json`: update `Video` (`posterUrl`), `TextField` (`placeholder`), `Slider` (`steps`), set `requiresUserActivation: true` on `openUrl`.
