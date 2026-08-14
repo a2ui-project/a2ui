@@ -28,11 +28,13 @@ import type {A2uiBasicTextElement} from './Text.js';
 
 describe('Text Component', () => {
   let basicCatalog: Catalog<ComponentApi>;
+  let setMarkdownRenderer: typeof import('../directives/markdown.js').setMarkdownRenderer;
 
   before(async () => {
     setupTestDom();
     basicCatalog = (await import('../index.js')).basicCatalog;
     await import('./Text.js');
+    setMarkdownRenderer = (await import('../directives/markdown.js')).setMarkdownRenderer;
   });
 
   after(teardownTestDom);
@@ -121,6 +123,29 @@ describe('Text Component', () => {
     await asyncUpdate(el, () => {});
 
     assert.strictEqual(span?.textContent?.trim(), 'Updated dynamic text');
+  });
+
+  it('should render formatted markdown when a markdown renderer is configured', async () => {
+    setMarkdownRenderer(async text => `<strong>${text}</strong>`);
+
+    const el = document.createElement('a2ui-basic-text') as A2uiBasicTextElement;
+    element = el;
+    document.body.appendChild(el);
+
+    try {
+      const context = new ComponentContext(surface, 't_static');
+      await asyncUpdate(el, e => {
+        e.context = context;
+      });
+
+      await new Promise(r => setTimeout(r, 20));
+
+      const strong = el.querySelector('strong');
+      assert.notStrictEqual(strong, null);
+      assert.strictEqual(strong?.textContent?.trim(), 'Hello static text');
+    } finally {
+      setMarkdownRenderer(undefined);
+    }
   });
 
   it('should apply caption variant styling structure', async () => {
