@@ -24,8 +24,8 @@
 - name: test_v08_catalog_from_json_basic
   description: Tests parsing a v0.8 catalog with styles, verifying backward-compatible mapping into theme and components.
   action: from_json
-  protocol_version: "v0.8"
-  catalog_id: "https://a2ui.org/catalogs/v08/basic"
+  protocolVersion: "v0.8"
+  catalogId: "https://a2ui.org/catalogs/v08/basic"
   catalog:
     components:
       Text:
@@ -43,7 +43,7 @@
         type: string
   expect:
     catalogId: "https://a2ui.org/catalogs/v08/basic"
-    protocol_version: "v0.8"
+    protocolVersion: "v0.8"
     components:
       Button:
         type: object
@@ -87,7 +87,7 @@
           amount: {type: number}
   expect:
     catalogId: "https://a2ui.org/catalogs/v09/basic"
-    protocol_version: "v0.9"
+    protocolVersion: "v0.9"
     theme:
       type: object
       properties:
@@ -128,7 +128,7 @@
         type: object
   expect:
     catalogId: "https://a2ui.org/catalogs/v09/filtered"
-    protocol_version: "v0.9"
+    protocolVersion: "v0.9"
     components:
       Button:
         type: object
@@ -151,7 +151,7 @@
         returnType: string
   expect:
     catalogId: "https://a2ui.org/catalogs/v09/func_filtered"
-    protocol_version: "v0.9"
+    protocolVersion: "v0.9"
     functions:
       validateEmail:
         returnType: boolean
@@ -179,7 +179,7 @@
             $ref: "#/$defs/BadgeType"
   expect:
     catalogId: "https://a2ui.org/catalogs/v09/defs"
-    protocol_version: "v0.9"
+    protocolVersion: "v0.9"
     components:
       CardWithBadge:
         type: object
@@ -217,7 +217,7 @@
             $ref: "#/$defs/OuterConfig"
   expect:
     catalogId: "https://a2ui.org/catalogs/v09/nested_defs"
-    protocol_version: "v0.9"
+    protocolVersion: "v0.9"
     components:
       StyledBox:
         type: object
@@ -246,7 +246,7 @@
         required: ["id", "binding"]
   expect:
     catalogId: "https://a2ui.org/catalogs/v09/with_common_types"
-    protocol_version: "v0.9"
+    protocolVersion: "v0.9"
     components:
       DataField:
         type: object
@@ -277,7 +277,7 @@
             $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
   expect:
     catalogId: "https://a2ui.org/catalogs/v09/container"
-    protocol_version: "v0.9"
+    protocolVersion: "v0.9"
     components:
       Container:
         type: object
@@ -305,7 +305,7 @@
   description: Tests parsing a v1.0 catalog without theme using protocolVersion in catalog schema.
   action: from_json
   catalog:
-    protocol_version: "v1.0"
+    protocolVersion: "v1.0"
     catalogId: "https://a2ui.org/catalogs/v10/basic"
     components:
       Layout:
@@ -325,7 +325,7 @@
           rate: {type: number}
   expect:
     catalogId: "https://a2ui.org/catalogs/v10/basic"
-    protocol_version: "v1.0"
+    protocolVersion: "v1.0"
     theme: {}
     components:
       ActionButton:
@@ -348,7 +348,7 @@
   description: Tests extracting function parameters and returnType from v1.0 catalog using protocolVersion in catalog schema.
   action: from_json
   catalog:
-    protocol_version: "v1.0"
+    protocolVersion: "v1.0"
     catalogId: "https://a2ui.org/catalogs/v10/functions"
     functions:
       formatDate:
@@ -362,7 +362,7 @@
           value: {type: number}
   expect:
     catalogId: "https://a2ui.org/catalogs/v10/functions"
-    protocol_version: "v1.0"
+    protocolVersion: "v1.0"
     functions:
       formatDate:
         returnType: string
@@ -380,21 +380,21 @@
   catalog:
     components:
       Text: {type: object}
-  expect_error:
+  expectError:
     category: "CatalogError"
     message: "catalog_id must be provided or exist in catalog_schema"
 
 - name: test_catalog_from_json_override_catalog_id
   description: Tests overriding catalogId during Catalog.from_json.
   action: from_json
-  catalog_id: "https://a2ui.org/catalogs/overridden"
+  catalogId: "https://a2ui.org/catalogs/overridden"
   catalog:
     catalogId: "https://a2ui.org/catalogs/original"
     components:
       Text: {type: object}
   expect:
     catalogId: "https://a2ui.org/catalogs/overridden"
-    protocol_version: "v0.9"
+    protocolVersion: "v0.9"
     components:
       Text:
         type: object
@@ -406,7 +406,7 @@
 - name: test_v08_catalog_schema_basic
   description: Tests serializing a v0.8 Catalog into JSON schema with styles and components.
   action: catalog_schema
-  protocol_version: "v0.8"
+  protocolVersion: "v0.8"
   catalog:
     components:
       Text:
@@ -420,7 +420,7 @@
     theme:
       primaryColor: {type: string}
   expect:
-    protocol_version: "v0.8"
+    protocolVersion: "v0.8"
     components:
       Button:
         type: object
@@ -468,7 +468,7 @@
         primaryColor: {type: string}
   expect:
     catalogId: "https://a2ui.org/catalogs/v09/basic"
-    protocol_version: "v0.9"
+    protocolVersion: "v0.9"
     components:
       Button:
         type: object
@@ -536,7 +536,7 @@
 - name: test_v10_catalog_schema_basic
   description: Tests serializing a v1.0 Catalog into JSON schema with protocolVersion and $defs.anyComponent.
   action: catalog_schema
-  protocol_version: "v1.0"
+  protocolVersion: "v1.0"
   catalog:
     catalogId: "https://a2ui.org/catalogs/v10/basic"
     components:

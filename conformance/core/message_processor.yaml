@@ -24,7 +24,7 @@
 - name: test_create_surface_basic
   description: Tests creating a surface with catalogId and theme, verifying sendDataModel defaults to false.
   action: process_messages
-  catalog_paths:
+  catalogPaths:
     - "specification/v0_9/catalogs/basic/catalog.json"
   messages:
     - version: "v0.9"
@@ -44,7 +44,7 @@
 - name: test_create_surface_send_data_model_enabled
   description: Tests creating a surface with sendDataModel explicitly enabled.
   action: process_messages
-  catalog_paths:
+  catalogPaths:
     - "specification/v0_9/catalogs/basic/catalog.json"
   messages:
     - version: "v0.9"
@@ -61,7 +61,7 @@
 - name: test_create_surface_duplicate_error
   description: Tests that creating a surface with an already existing surfaceId raises an IntegrityError.
   action: process_messages
-  catalog_paths:
+  catalogPaths:
     - "specification/v0_9/catalogs/basic/catalog.json"
   messages:
     - version: "v0.9"
@@ -72,28 +72,28 @@
       createSurface:
         surfaceId: "s1"
         catalogId: "test-catalog"
-  expect_error:
+  expectError:
     category: "IntegrityError"
     message: "Surface s1 already exists"
 
 - name: test_create_surface_unknown_catalog_error
   description: Tests that creating a surface referencing an unregistered catalogId raises a CatalogError.
   action: process_messages
-  catalog_paths:
+  catalogPaths:
     - "specification/v0_9/catalogs/basic/catalog.json"
   messages:
     - version: "v0.9"
       createSurface:
         surfaceId: "s1"
         catalogId: "unknown-catalog"
-  expect_error:
+  expectError:
     category: "CatalogError"
     message: "Catalog not found: unknown-catalog"
 
 - name: test_delete_surface_basic
   description: Tests deleting an active surface by surfaceId, cleanly removing it from state.
   action: process_messages
-  catalog_paths:
+  catalogPaths:
     - "specification/v0_9/catalogs/basic/catalog.json"
   messages:
     - version: "v0.9"
@@ -113,7 +113,7 @@
 - name: test_update_components_add_and_query
   description: Tests adding multiple components to an active surface and querying their properties.
   action: process_messages
-  catalog_paths:
+  catalogPaths:
     - "specification/v0_9/catalogs/basic/catalog.json"
   messages:
     - version: "v0.9"
@@ -144,7 +144,7 @@
 - name: test_update_components_modify_existing_properties
   description: Tests updating the properties of an existing component on a surface.
   action: process_messages
-  catalog_paths:
+  catalogPaths:
     - "specification/v0_9/catalogs/basic/catalog.json"
   messages:
     - version: "v0.9"
@@ -176,7 +176,7 @@
 - name: test_update_components_recreate_on_type_change
   description: Tests that changing a component's type recreates the component model and clears previous properties.
   action: process_messages
-  catalog_paths:
+  catalogPaths:
     - "specification/v0_9/catalogs/basic/catalog.json"
   messages:
     - version: "v0.9"
@@ -208,7 +208,7 @@
 - name: test_update_components_unknown_surface_error
   description: Tests that updating components on a non-existent surface raises an IntegrityError.
   action: process_messages
-  catalog_paths:
+  catalogPaths:
     - "specification/v0_9/catalogs/basic/catalog.json"
   messages:
     - version: "v0.9"
@@ -217,14 +217,14 @@
         components:
           - id: "c1"
             component: "Text"
-  expect_error:
+  expectError:
     category: "IntegrityError"
     message: "Surface not found for message: unknown-s"
 
 - name: test_update_components_missing_id_error
   description: Tests that component entries missing an 'id' property raise a validation error.
   action: process_messages
-  catalog_paths:
+  catalogPaths:
     - "specification/v0_9/catalogs/basic/catalog.json"
   messages:
     - version: "v0.9"
@@ -237,14 +237,14 @@
         components:
           - component: "Button"
             label: "Missing ID"
-  expect_error:
+  expectError:
     category: "ValidationError"
     message: "missing an 'id'"
 
 - name: test_update_components_create_without_type_error
   description: Tests that creating a brand new component without a component type name raises a validation error.
   action: process_messages
-  catalog_paths:
+  catalogPaths:
     - "specification/v0_9/catalogs/basic/catalog.json"
   messages:
     - version: "v0.9"
@@ -257,7 +257,7 @@
         components:
           - id: "comp1"
             label: "No Type"
-  expect_error:
+  expectError:
     category: "ValidationError"
     message: "Cannot create component comp1 without a type"
 
@@ -266,7 +266,7 @@
 - name: test_topology_missing_root_error
   description: Tests that component hierarchies missing a root component fail validation in strict mode.
   action: process_messages
-  strict_mode: true
+  strictMode: true
   catalogs:
     - catalogId: topo-cat
       components:
@@ -287,14 +287,14 @@
           - id: "c1"
             component: "Card"
             child: "c2"
-  expect_error:
+  expectError:
     category: "ValidationError"
     message: "Missing root component"
 
 - name: test_topology_direct_circular_reference_error
   description: Tests that direct circular component references (root -> c1 -> root) are detected and rejected.
   action: process_messages
-  strict_mode: true
+  strictMode: true
   catalogs:
     - catalogId: topo-cat
       components:
@@ -321,14 +321,14 @@
           - id: "c1"
             component: "Card"
             child: "root"
-  expect_error:
+  expectError:
     category: "ValidationError"
     message: "Circular reference detected"
 
 - name: test_topology_indirect_circular_reference_error
   description: Tests that indirect circular references (root -> c1 -> c2 -> root) are detected and rejected.
   action: process_messages
-  strict_mode: true
+  strictMode: true
   catalogs:
     - catalogId: topo-cat
       components:
@@ -358,14 +358,14 @@
           - id: "c2"
             component: "Card"
             child: "root"
-  expect_error:
+  expectError:
     category: "ValidationError"
     message: "Circular reference detected"
 
 - name: test_topology_self_reference_error
   description: Tests that self-referencing components (root -> root) are detected and rejected.
   action: process_messages
-  strict_mode: true
+  strictMode: true
   catalogs:
     - catalogId: topo-cat
       components:
@@ -389,14 +389,14 @@
           - id: "root"
             component: "Card"
             child: "root"
-  expect_error:
+  expectError:
     category: "ValidationError"
     message: "Circular reference detected"
 
 - name: test_topology_dangling_child_reference_error
   description: Tests that referencing a non-existent child component ID raises a validation error.
   action: process_messages
-  strict_mode: true
+  strictMode: true
   catalogs:
     - catalogId: topo-cat
       components:
@@ -420,14 +420,14 @@
           - id: "root"
             component: "Card"
             child: "missing_child_id"
-  expect_error:
+  expectError:
     category: "ValidationError"
     message: "Dangling reference"
 
 - name: test_topology_orphaned_component_error
   description: Tests that orphaned components unreachable from the root component fail validation in strict mode.
   action: process_messages
-  strict_mode: true
+  strictMode: true
   catalogs:
     - catalogId: topo-cat
       components:
@@ -462,7 +462,7 @@
           - id: "orphan_comp"
             component: "Text"
             text: "Unreachable"
-  expect_error:
+  expectError:
     category: "ValidationError"
     message: "Orphaned component"
 
@@ -471,7 +471,7 @@
 - name: test_update_components_strict_schema_validation_failure
   description: Tests that component properties violating catalog schema are rejected in strict mode.
   action: process_messages
-  strict_mode: true
+  strictMode: true
   catalogs:
     - catalogId: strict-cat
       components:
@@ -499,14 +499,14 @@
             component: "Chart"
             title: "Sales"
             value: "invalid-string-value"
-  expect_error:
+  expectError:
     category: "ValidationError"
     message: "Validation failed for component 'Chart'"
 
 - name: test_update_components_atomic_validation_rollback
   description: Tests that invalid components in a batch abort the entire update without applying partial mutations.
   action: process_messages
-  strict_mode: true
+  strictMode: true
   catalogs:
     - catalogId: strict-cat
       components:
@@ -533,14 +533,14 @@
           - id: "btn_invalid"
             component: "Button"
             label: 12345
-  expect_error:
+  expectError:
     category: "ValidationError"
     message: "Validation failed for component 'Button'"
 
 - name: test_create_surface_strict_theme_validation_failure
   description: Tests that creating a surface with theme properties violating the catalog theme schema raises a validation error in strict mode.
   action: process_messages
-  strict_mode: true
+  strictMode: true
   catalogs:
     - catalogId: theme-cat
       theme:
@@ -557,7 +557,7 @@
         catalogId: "theme-cat"
         theme:
           primaryColor: "not-a-hex-color"
-  expect_error:
+  expectError:
     category: "ValidationError"
     message: "Validation failed for theme on surface 's1'"
 
@@ -566,7 +566,7 @@
 - name: test_update_data_model_basic
   description: Tests updating the data model at root and nested JSON pointer paths.
   action: process_messages
-  catalog_paths:
+  catalogPaths:
     - "specification/v0_9/catalogs/basic/catalog.json"
   messages:
     - version: "v0.9"
@@ -588,7 +588,7 @@
 - name: test_update_data_model_unknown_surface_error
   description: Tests that updating data on a non-existent surface raises an IntegrityError.
   action: process_messages
-  catalog_paths:
+  catalogPaths:
     - "specification/v0_9/catalogs/basic/catalog.json"
   messages:
     - version: "v0.9"
@@ -596,14 +596,14 @@
         surfaceId: "unknown-s"
         path: "/foo"
         value: "bar"
-  expect_error:
+  expectError:
     category: "IntegrityError"
     message: "Surface not found for message: unknown-s"
 
 - name: test_get_renderer_data_model_filtering
   description: Tests that getRendererDataModel filters out surfaces where sendDataModel is false.
   action: get_renderer_data_model
-  catalog_paths:
+  catalogPaths:
     - "specification/v0_9/catalogs/basic/catalog.json"
   messages:
     - version: "v0.9"
@@ -637,7 +637,7 @@
 - name: test_get_renderer_data_model_empty_when_no_surfaces_enabled
   description: Tests that getRendererDataModel returns null/undefined when no active surfaces have sendDataModel enabled.
   action: get_renderer_data_model
-  catalog_paths:
+  catalogPaths:
     - "specification/v0_9/catalogs/basic/catalog.json"
   messages:
     - version: "v0.9"
@@ -661,7 +661,7 @@
   action: resolve_path
   args:
     path: "/foo"
-    context_path: "/bar"
+    contextPath: "/bar"
   expect: "/foo"
 
 - name: test_resolve_path_relative
@@ -669,7 +669,7 @@
   action: resolve_path
   args:
     path: "foo"
-    context_path: "/bar"
+    contextPath: "/bar"
   expect: "/bar/foo"
 
 - name: test_resolve_path_relative_trailing_slash
@@ -677,7 +677,7 @@
   action: resolve_path
   args:
     path: "foo"
-    context_path: "/bar/"
+    contextPath: "/bar/"
   expect: "/bar/foo"
 
 - name: test_resolve_path_relative_no_context
@@ -692,7 +692,7 @@
 - name: test_message_multiple_conflicting_update_types_error
   description: Tests that a message containing multiple conflicting update types raises a validation error.
   action: process_messages
-  catalog_paths:
+  catalogPaths:
     - "specification/v0_9/catalogs/basic/catalog.json"
   messages:
     - version: "v0.9"
@@ -701,14 +701,14 @@
         catalogId: "test-catalog"
       deleteSurface:
         surfaceId: "s1"
-  expect_error:
+  expectError:
     category: "ValidationError"
     message: "Message contains multiple conflicting update actions"
 
 - name: test_process_messages_wrapper_object
   description: "Tests processing messages wrapped inside a { messages: [...] } container object."
   action: process_messages
-  catalog_paths:
+  catalogPaths:
     - "specification/v0_9/catalogs/basic/catalog.json"
   messages:
     messages:
@@ -744,8 +744,8 @@
 - name: test_v08_begin_rendering_styles_mapping
   description: Tests that v0.8 VersionAdapter correctly extracts styles and root component from beginRendering.
   action: process_messages
-  protocol_version: "v0.8"
-  catalog_paths:
+  protocolVersion: "v0.8"
+  catalogPaths:
     - "specification/v0_8/json/standard_catalog_definition.json"
   messages:
     - beginRendering:
@@ -764,8 +764,8 @@
 - name: test_v08_surface_update_components
   description: Tests that v0.8 surfaceUpdate with nested component objects is properly adapted into ComponentModels.
   action: process_messages
-  protocol_version: "v0.8"
-  catalog_paths:
+  protocolVersion: "v0.8"
+  catalogPaths:
     - "specification/v0_8/json/standard_catalog_definition.json"
   messages:
     - beginRendering:
@@ -791,8 +791,8 @@
 - name: test_v08_data_model_update
   description: Tests that v0.8 dataModelUpdate with typed contents entries is properly adapted into the surface DataStore.
   action: process_messages
-  protocol_version: "v0.8"
-  catalog_paths:
+  protocolVersion: "v0.8"
+  catalogPaths:
     - "specification/v0_8/json/standard_catalog_definition.json"
   messages:
     - beginRendering:
@@ -817,7 +817,7 @@
     - catalogId: cat-v08
       protocolVersion: "v0.8"
   args:
-    include_inline_catalogs: false
+    includeInlineCatalogs: false
     version: "v0.8"
   expect:
     v0.8:
@@ -829,7 +829,7 @@
 - name: test_v09_create_surface_basic
   description: Tests v0.9 surface creation with standard theme object.
   action: process_messages
-  catalog_paths:
+  catalogPaths:
     - "specification/v0_9/catalogs/basic/catalog.json"
   messages:
     - version: "v0.9"
@@ -852,7 +852,7 @@
     - catalogId: cat-1
     - catalogId: cat-2
   args:
-    include_inline_catalogs: false
+    includeInlineCatalogs: false
     version: "v0.9"
   expect:
     v0.9:
@@ -875,7 +875,7 @@
           required:
             - label
   args:
-    include_inline_catalogs: true
+    includeInlineCatalogs: true
     version: "v0.9"
   expect:
     v0.9:
@@ -910,7 +910,7 @@
               type: string
               description: "REF:common_types.json#/$defs/DynamicString|The title"
   args:
-    include_inline_catalogs: true
+    includeInlineCatalogs: true
     version: "v0.9"
   expect:
     v0.9:
@@ -962,7 +962,7 @@
             $ref: "common_types.json#/$defs/Color"
             description: The main color
   args:
-    include_inline_catalogs: true
+    includeInlineCatalogs: true
     version: "v0.9"
   expect:
     v0.9:
@@ -1014,7 +1014,7 @@
           color:
             type: string
   args:
-    include_inline_catalogs: true
+    includeInlineCatalogs: true
     version: "v0.9"
   expect:
     v0.9:
@@ -1042,8 +1042,8 @@
 - name: test_v10_create_surface_inline_initialization
   description: Tests v1.0 createSurface message with inline components and initial dataModel initialization.
   action: process_messages
-  protocol_version: "v1.0"
-  catalog_paths:
+  protocolVersion: "v1.0"
+  catalogPaths:
     - "specification/v1_0/catalogs/basic/catalog.json"
   messages:
     - version: "v1.0"
@@ -1078,8 +1078,8 @@
 - name: test_v10_create_surface_optional_catalog_id
   description: Tests that v1.0 createSurface permits omitting catalogId.
   action: process_messages
-  protocol_version: "v1.0"
-  catalog_paths:
+  protocolVersion: "v1.0"
+  catalogPaths:
     - "specification/v1_0/catalogs/basic/catalog.json"
   messages:
     - version: "v1.0"
@@ -1093,8 +1093,8 @@
 - name: test_v10_create_surface_with_metadata_extensions
   description: Tests v1.0 createSurface with metadata and extension descriptors.
   action: process_messages
-  protocol_version: "v1.0"
-  catalog_paths:
+  protocolVersion: "v1.0"
+  catalogPaths:
     - "specification/v1_0/catalogs/basic/catalog.json"
   messages:
     - version: "v1.0"
@@ -1149,8 +1149,8 @@
 - name: test_v10_update_data_model_deletion
   description: Tests that updating a path with value null deletes the key from the data model in v1.0.
   action: process_messages
-  protocol_version: "v1.0"
-  catalog_paths:
+  protocolVersion: "v1.0"
+  catalogPaths:
     - "specification/v1_0/catalogs/basic/catalog.json"
   messages:
     - version: "v1.0"
@@ -1180,7 +1180,7 @@
     - catalogId: cat-v10
       protocolVersion: "v1.0"
   args:
-    include_inline_catalogs: false
+    includeInlineCatalogs: false
     version: "v1.0"
   expect:
     v1.0:

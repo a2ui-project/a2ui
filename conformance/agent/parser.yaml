@@ -16,7 +16,7 @@
   description: Tests that empty response raises error.
   action: parse_full
   input: ""
-  expect_error:
+  expectError:
     category: "ParseError"
     message: "not found in response"
 
@@ -24,7 +24,7 @@
   description: Tests that response without tags raises error.
   action: parse_full
   input: "Only text, no tags."
-  expect_error:
+  expectError:
     category: "ParseError"
     message: "not found in response"
 
@@ -32,7 +32,7 @@
   description: Tests that empty tags raise error.
   action: parse_full
   input: "<a2ui-json></a2ui-json>"
-  expect_error:
+  expectError:
     category: "ParseError"
     message: "A2UI JSON part is empty"
 
@@ -84,7 +84,7 @@
   description: Tests that invalid JSON raises error.
   action: parse_full
   input: "<a2ui-json>\ninvalid_json\n</a2ui-json>"
-  expect_error:
+  expectError:
     category: "ParseError"
     message: "Failed to parse"
 

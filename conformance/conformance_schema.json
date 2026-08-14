@@ -53,10 +53,6 @@
           "type": "string",
           "description": "Optional description of what the test verifies."
         },
-        "protocol_version": {
-          "$ref": "#/$defs/ProtocolVersion",
-          "description": "Target A2UI protocol version."
-        },
         "protocolVersion": {
           "$ref": "#/$defs/ProtocolVersion",
           "description": "Target A2UI protocol version."
@@ -72,30 +68,22 @@
           },
           "description": "List of catalog objects for multi-catalog or processor tests."
         },
-        "catalog_paths": {
+        "catalogPaths": {
           "type": "array",
           "items": {
             "type": "string"
           },
           "description": "List of file paths to catalog schema JSON files."
         },
-        "catalog_path": {
-          "type": "string",
-          "description": "File path to catalog schema JSON file."
-        },
         "catalogPath": {
           "type": "string",
           "description": "File path to catalog schema JSON file."
-        },
-        "catalog_id": {
-          "type": "string",
-          "description": "Target catalog identifier."
         },
         "catalogId": {
           "type": "string",
           "description": "Target catalog identifier."
         },
-        "catalog_configs": {
+        "catalogConfigs": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/CatalogConfig"
@@ -129,11 +117,11 @@
           },
           "description": "Modifiers applied during test execution."
         },
-        "strict_mode": {
+        "strictMode": {
           "type": "boolean",
           "description": "Whether strict validation mode is enabled."
         },
-        "disable_validation": {
+        "disableValidation": {
           "type": "boolean",
           "description": "Whether validation is explicitly disabled for the test."
         },
@@ -147,17 +135,17 @@
         "expect": {
           "description": "Expected outcome of the test action (evaluated as a contains / subset match rather than an exact match)."
         },
-        "expect_error": {
+        "expectError": {
           "$ref": "#/$defs/ExpectError"
         },
-        "expect_contains": {
+        "expectContains": {
           "description": "Expected substrings or sub-objects in the output."
         },
-        "expect_empty": {
+        "expectEmpty": {
           "type": "boolean",
           "description": "Whether output is expected to be empty."
         },
-        "expect_selected": {
+        "expectSelected": {
           "type": "string",
           "description": "Expected selected catalog identifier."
         },
@@ -180,15 +168,7 @@
           "type": "string",
           "description": "Identifier of the catalog."
         },
-        "catalog_id": {
-          "type": "string",
-          "description": "Identifier of the catalog."
-        },
         "protocolVersion": {
-          "$ref": "#/$defs/ProtocolVersion",
-          "description": "Protocol version supported by this catalog."
-        },
-        "protocol_version": {
           "$ref": "#/$defs/ProtocolVersion",
           "description": "Protocol version supported by this catalog."
         },
@@ -226,16 +206,16 @@
           "type": "string",
           "description": "Legacy parser catalog version."
         },
-        "s2c_schema": {
+        "s2cSchema": {
           "description": "Legacy parser server-to-client schema path or object."
         },
-        "catalog_schema": {
+        "catalogSchema": {
           "description": "Legacy parser catalog schema path or object."
         },
-        "common_types_schema": {
+        "commonTypesSchema": {
           "description": "Legacy parser common types schema path or object."
         },
-        "custom_cuttable_keys": {
+        "customCuttableKeys": {
           "type": "array",
           "items": {
             "type": "string"
@@ -283,10 +263,10 @@
         "expect": {
           "description": "Expected output for this step (evaluated as a contains / subset match rather than an exact match)."
         },
-        "expect_error": {
+        "expectError": {
           "$ref": "#/$defs/ExpectError"
         },
-        "expect_contains": {
+        "expectContains": {
           "description": "Expected substrings or sub-objects for this step."
         }
       },
@@ -295,14 +275,14 @@
     "AccessibilityAssertions": {
       "type": "object",
       "properties": {
-        "axe_core": {
+        "axeCore": {
           "type": "array",
           "items": {
             "type": "string"
           },
           "description": "List of axe-core rule IDs expected to pass."
         },
-        "accessibility_tree": {
+        "accessibilityTree": {
           "type": "object",
           "description": "Expected accessibility node tree structure."
         }

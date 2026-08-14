@@ -14,8 +14,8 @@
 
 - name: test_accessibility_attributes_plumbing
   description: Verifies plumbing of AccessibilityAttributes (label, description, live, hidden) to accessibility node trees and axe-core rules.
-  protocol_version: "v1.0"
-  catalog_path: "specification/v1_0/catalogs/basic/catalog.json"
+  protocolVersion: "v1.0"
+  catalogPath: "specification/v1_0/catalogs/basic/catalog.json"
   action: accessibility_check
   surface:
     id: root
@@ -34,11 +34,11 @@
         accessibility:
           live: "polite"
   assertions:
-    axe_core:
+    axeCore:
       - "button-name"
       - "aria-valid-attr-value"
       - "aria-allowed-attr"
-    accessibility_tree:
+    accessibilityTree:
       btn1:
         label: "Mute Notifications"
         description: "Silences notifications about this conversation"
@@ -47,8 +47,8 @@
 
 - name: test_accessibility_live_region_assertive
   description: Verifies assertive live region announcement for critical alert banner updates.
-  protocol_version: "v1.0"
-  catalog_path: "specification/v1_0/catalogs/basic/catalog.json"
+  protocolVersion: "v1.0"
+  catalogPath: "specification/v1_0/catalogs/basic/catalog.json"
   action: accessibility_check
   surface:
     id: root
@@ -62,17 +62,17 @@
           label: "Critical Alert"
           live: "assertive"
   assertions:
-    axe_core:
+    axeCore:
       - "aria-valid-attr-value"
-    accessibility_tree:
+    accessibilityTree:
       alert_box:
         label: "Critical Alert"
         live: "assertive"
 
 - name: test_accessibility_hidden_subtree
   description: Verifies that setting hidden=true hides the component and its children from assistive technologies.
-  protocol_version: "v1.0"
-  catalog_path: "specification/v1_0/catalogs/basic/catalog.json"
+  protocolVersion: "v1.0"
+  catalogPath: "specification/v1_0/catalogs/basic/catalog.json"
   action: accessibility_check
   surface:
     id: root
@@ -88,16 +88,16 @@
         component: Icon
         name: "star"
   assertions:
-    axe_core:
+    axeCore:
       - "aria-hidden-focus"
-    accessibility_tree:
+    accessibilityTree:
       root:
         hidden: true
 
 - name: test_accessibility_implicit_label_inference
   description: Verifies default screen reader semantic inference from visible text properties when explicit accessibility attributes are omitted.
-  protocol_version: "v1.0"
-  catalog_path: "specification/v1_0/catalogs/basic/catalog.json"
+  protocolVersion: "v1.0"
+  catalogPath: "specification/v1_0/catalogs/basic/catalog.json"
   action: accessibility_check
   surface:
     id: root
@@ -108,8 +108,8 @@
         component: Button
         title: "Submit Form"
   assertions:
-    axe_core:
+    axeCore:
       - "button-name"
-    accessibility_tree:
+    accessibilityTree:
       submit_btn:
         label: "Submit Form"

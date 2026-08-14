@@ -32,7 +32,7 @@ object ConformanceTestHelper {
   const val KEY_STEPS = "steps"
   const val KEY_MESSAGES = "messages"
   const val KEY_VALIDATE = "validate"
-  const val KEY_EXPECT_ERROR = "expect_error"
+  const val KEY_EXPECT_ERROR = "expectError"
   const val KEY_EXPECT = "expect"
 
   private fun findRepoRoot(): File {

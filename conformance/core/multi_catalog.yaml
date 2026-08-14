@@ -15,7 +15,7 @@
 - name: test_multi_catalog_explicit_catalog_id_resolution
   description: Verifies resolving component definition using explicit catalogId specified on component instance.
   catalog:
-    protocol_version: "v1.0"
+    protocolVersion: "v1.0"
   action: select_catalog
   args:
     surface:
@@ -31,12 +31,12 @@
         component: LineChart
         catalogId: "chart_catalog"
         data: "/series/line1"
-  expect_selected: "chart_catalog"
+  expectSelected: "chart_catalog"
 
 - name: test_multi_catalog_surface_default_fallback
   description: Verifies component falling back to surface defaultCatalogId when catalogId is omitted.
   catalog:
-    protocol_version: "v1.0"
+    protocolVersion: "v1.0"
   action: select_catalog
   args:
     surface:
@@ -47,12 +47,12 @@
       c1:
         component: Button
         title: "Click Me"
-  expect_selected: "basic"
+  expectSelected: "basic"
 
 - name: test_multi_catalog_unregistered_catalog_error
   description: Verifies error thrown when component specifies catalogId not listed in surface supportedCatalogIds.
   catalog:
-    protocol_version: "v1.0"
+    protocolVersion: "v1.0"
   action: select_catalog
   args:
     surface:
@@ -63,14 +63,14 @@
       c1:
         component: CustomWidget
         catalogId: "unregistered_vendor_catalog"
-  expect_error:
+  expectError:
     category: "CatalogError"
     message: "Catalog 'unregistered_vendor_catalog' is not supported by surface 'main_surface'."
 
 - name: test_multi_catalog_version_mismatch_error
   description: Verifies error thrown when mixed catalogs specify conflicting protocol versions.
   catalog:
-    protocol_version: "v1.0"
+    protocolVersion: "v1.0"
   action: select_catalog
   args:
     surface:
@@ -82,24 +82,24 @@
         protocolVersion: "v1.0"
       legacy_v0_9_catalog:
         protocolVersion: "v0.9"
-  expect_error:
+  expectError:
     category: "CatalogError"
     message: "Protocol version mismatch: cannot mix catalog 'legacy_v0_9_catalog' (v0.9) with surface version v1.0."
 
 - name: test_multi_catalog_function_resolution_precedence
   description: Verifies function calls with explicit catalogId resolve to the specified catalog.
   catalog:
-    protocol_version: "v1.0"
+    protocolVersion: "v1.0"
   action: select_catalog
   args:
     surface:
       id: main_surface
       defaultCatalogId: "basic"
       supportedCatalogIds: ["basic", "custom_math_catalog"]
-    function_call:
+    functionCall:
       call: "add"
       catalogId: "custom_math_catalog"
       args:
-        a: 10
-        b: 20
-  expect_selected: "custom_math_catalog"
+        a: 5
+        b: 10
+  expectSelected: "custom_math_catalog"

@@ -15,7 +15,7 @@
 - name: test_rpc_call_renderer_function_success
   description: Verifies agent-initiated callRendererFunction on a function with callableFrom=rendererOrAgent.
   catalog:
-    protocol_version: "v1.0"
+    protocolVersion: "v1.0"
   action: handle_rpc
   args:
     message:
@@ -28,7 +28,7 @@
           args:
             mediaId: "video-789"
             autoplay: true
-    function_metadata:
+    functionMetadata:
       playMedia:
         callableFrom: "rendererOrAgent"
         requiresUserActivation: false
@@ -44,7 +44,7 @@
 - name: test_rpc_call_renderer_function_unauthorized_caller
   description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when callableFrom is rendererOnly.
   catalog:
-    protocol_version: "v1.0"
+    protocolVersion: "v1.0"
   action: handle_rpc
   args:
     message:
@@ -55,7 +55,7 @@
           call: "internalStateReset"
           catalogId: "system_catalog"
           args: {}
-    function_metadata:
+    functionMetadata:
       internalStateReset:
         callableFrom: "rendererOnly"
         requiresUserActivation: false
@@ -71,10 +71,10 @@
 - name: test_rpc_call_renderer_function_requires_user_activation
   description: Verifies callRendererFunction execution when requiresUserActivation is true and user gesture is present.
   catalog:
-    protocol_version: "v1.0"
+    protocolVersion: "v1.0"
   action: handle_rpc
   args:
-    user_activation_present: true
+    userActivationPresent: true
     message:
       version: "v1.0"
       callRendererFunction:
@@ -84,7 +84,7 @@
           catalogId: "basic"
           args:
             url: "https://example.com/details"
-    function_metadata:
+    functionMetadata:
       openExternalUrl:
         callableFrom: "rendererOrAgent"
         requiresUserActivation: true
@@ -99,10 +99,10 @@
 - name: test_rpc_call_agent_function_dispatch
   description: Verifies renderer-initiated callAgentFunction message generation and response correlation via functionCallId.
   catalog:
-    protocol_version: "v1.0"
+    protocolVersion: "v1.0"
   action: handle_rpc
   args:
-    outbound_call:
+    outboundCall:
       surfaceId: "main_surface"
       functionCallId: "agent-call-55"
       callFunction:
@@ -110,7 +110,7 @@
         catalogId: "store_catalog"
         args:
           sku: "ITEM-404"
-    inbound_response:
+    inboundResponse:
       version: "v1.0"
       agentFunctionResponse:
         functionCallId: "agent-call-55"
@@ -118,7 +118,7 @@
           inStock: 12
           price: "$29.99"
   expect:
-    correlated_call_id: "agent-call-55"
+    correlatedCallId: "agent-call-55"
     result:
       inStock: 12
       price: "$29.99"
@@ -126,10 +126,10 @@
 - name: test_rpc_call_renderer_function_user_activation_denied
   description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when requiresUserActivation is true but user gesture context is absent.
   catalog:
-    protocol_version: "v1.0"
+    protocolVersion: "v1.0"
   action: handle_rpc
   args:
-    user_activation_present: false
+    userActivationPresent: false
     message:
       version: "v1.0"
       callRendererFunction:
@@ -139,7 +139,7 @@
           catalogId: "basic"
           args:
             url: "https://example.com/details"
-    function_metadata:
+    functionMetadata:
       openExternalUrl:
         callableFrom: "rendererOrAgent"
         requiresUserActivation: true
@@ -155,7 +155,7 @@
 - name: test_rpc_call_renderer_function_execution_exception
   description: Verifies callRendererFunction handles runtime function execution exceptions and returns EXECUTION_ERROR.
   catalog:
-    protocol_version: "v1.0"
+    protocolVersion: "v1.0"
   action: handle_rpc
   args:
     message:
@@ -166,7 +166,7 @@
           call: "failingFunction"
           catalogId: "basic"
           args: {}
-    function_metadata:
+    functionMetadata:
       failingFunction:
         callableFrom: "rendererOrAgent"
         requiresUserActivation: false
@@ -182,7 +182,7 @@
 - name: test_rpc_call_renderer_function_agent_only_boundary
   description: Verifies agent-initiated callRendererFunction on a function with callableFrom=agentOnly.
   catalog:
-    protocol_version: "v1.0"
+    protocolVersion: "v1.0"
   action: handle_rpc
   args:
     message:
@@ -193,7 +193,7 @@
           call: "syncState"
           catalogId: "basic"
           args: {}
-    function_metadata:
+    functionMetadata:
       syncState:
         callableFrom: "agentOnly"
         requiresUserActivation: false

@@ -89,13 +89,11 @@ class A2aConformanceTest {
             val part = A2uiA2a.createA2uiPart(jsonElement, version)
             assertTrue(part is DataPart)
             val expect = case[ConformanceTestHelper.KEY_EXPECT] as Map<*, *>
-            assertEquals(
-              expect["mime_type"] as String,
-              (part as DataPart).metadata?.get(A2uiA2a.MIME_TYPE_KEY),
-            )
+            val expMime = expect["mimeType"] as String
+            assertEquals(expMime, (part as DataPart).metadata?.get(A2uiA2a.MIME_TYPE_KEY))
           }
           "is_a2ui_part" -> {
-            val mimeType = args["mime_type"] as String
+            val mimeType = args["mimeType"] as String
             val part = mockk<DataPart>()
             every { part.metadata } returns mapOf(A2uiA2a.MIME_TYPE_KEY to mimeType)
 
@@ -122,9 +120,10 @@ class A2aConformanceTest {
           }
           "get_extension" -> {
             val version = args["version"] as String
-            val acceptsInlineCatalogs = args["accepts_inline_catalogs"] as? Boolean ?: false
+            val acceptsInlineCatalogs = args["acceptsInlineCatalogs"] as? Boolean ?: false
             @Suppress("UNCHECKED_CAST")
-            val supportedCatalogIds = args["supported_catalog_ids"] as? List<String> ?: emptyList()
+            val supportedCatalogIds =
+              (args["supportedCatalogIds"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
 
             val ext =
               A2uiA2a.getA2uiAgentExtension(version, acceptsInlineCatalogs, supportedCatalogIds)
@@ -152,7 +151,7 @@ class A2aConformanceTest {
           }
           "handle_rpc" -> {
             val request = args["request"] as Map<*, *>
-            val runnerOutput = args["runner_output"] as String
+            val runnerOutput = args["runnerOutput"] as String
 
             val mockRunner = mockk<Runner>(relaxed = true)
             val mockSessionService = mockk<BaseSessionService>(relaxed = true)

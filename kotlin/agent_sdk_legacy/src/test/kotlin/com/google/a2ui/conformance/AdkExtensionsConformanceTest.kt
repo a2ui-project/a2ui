@@ -69,7 +69,7 @@ class AdkExtensionsConformanceTest {
       DynamicTest.dynamicTest(name) {
         when (action) {
           "convert_event" -> {
-            val hasCatalog = args["has_catalog"] as? Boolean ?: false
+            val hasCatalog = args["hasCatalog"] as? Boolean ?: false
             val session = mockk<Session>()
             val state = ConcurrentHashMap<String, Any>()
             if (hasCatalog) {
@@ -81,9 +81,9 @@ class AdkExtensionsConformanceTest {
             every { context.session() } returns session
 
             val mockEvent = mockk<Event>()
-            val errorCode = args["error_code"] as? String
-            val errorMessage = args["error_message"] as? String
-            val contentText = args["content_text"] as? String
+            val errorCode = args["errorCode"] as? String
+            val errorMessage = args["errorMessage"] as? String
+            val contentText = args["contentText"] as? String
 
             if (errorCode != null) {
               val finishReason = mockk<FinishReason>()
@@ -121,7 +121,7 @@ class AdkExtensionsConformanceTest {
             val converter = A2uiEventConverter()
             val results = converter.convert(mockEvent, context)
 
-            val expectEmpty = case["expect_empty"] as? Boolean ?: false
+            val expectEmpty = case["expectEmpty"] as? Boolean ?: false
             if (expectEmpty) {
               assertTrue(results.isEmpty())
             } else {
@@ -150,7 +150,7 @@ class AdkExtensionsConformanceTest {
             }
           }
           "execute_tool" -> {
-            val a2uiJsonStr = args["a2ui_json"] as? String
+            val a2uiJsonStr = args["a2uiJson"] as? String
             val toolArgs =
               if (a2uiJsonStr != null) mapOf("a2ui_json" to a2uiJsonStr)
               else args as Map<String, Any>
@@ -187,7 +187,7 @@ class AdkExtensionsConformanceTest {
 
             if (expectSuccess) {
               assertTrue(result.containsKey(SendA2uiToClientToolset.VALIDATED_A2UI_JSON_KEY))
-              val containsValidatedJson = expect["contains_validated_json"] as? Boolean ?: false
+              val containsValidatedJson = expect["containsValidatedJson"] as? Boolean ?: false
               if (containsValidatedJson) {
                 val validatedPayload =
                   result[SendA2uiToClientToolset.VALIDATED_A2UI_JSON_KEY].toString()
@@ -195,7 +195,7 @@ class AdkExtensionsConformanceTest {
               }
             } else {
               assertTrue(result.containsKey(SendA2uiToClientToolset.TOOL_ERROR_KEY))
-              val errorContains = expect["error_contains"] as? String
+              val errorContains = expect["errorContains"] as? String
               if (errorContains != null) {
                 val errorMsg = result[SendA2uiToClientToolset.TOOL_ERROR_KEY] as String
                 assertTrue(errorMsg.contains(errorContains))

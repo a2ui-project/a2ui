@@ -127,25 +127,25 @@ def load_tests(filename):
 
 
 def setup_catalog(catalog_config):
-    version = str(catalog_config.get("protocol_version", "v0.9")).removeprefix("v")
+    version = str(catalog_config.get("protocolVersion", "v0.9")).removeprefix("v")
 
-    s2c_schema = catalog_config.get("s2c_schema")
+    s2c_schema = catalog_config.get("s2cSchema")
     if isinstance(s2c_schema, str):
         s2c_schema = load_json_file(s2c_schema)
 
-    catalog_schema = catalog_config.get("catalog_schema")
+    catalog_schema = catalog_config.get("catalogSchema")
     if isinstance(catalog_schema, str):
         catalog_schema = load_json_file(catalog_schema)
     elif catalog_schema is None:
         catalog_schema = {}
 
-    common_types_schema = catalog_config.get("common_types_schema")
+    common_types_schema = catalog_config.get("commonTypesSchema")
     if isinstance(common_types_schema, str):
         common_types_schema = load_json_file(common_types_schema)
     elif common_types_schema is None:
         common_types_schema = {}
 
-    custom_cuttable_keys = catalog_config.get("custom_cuttable_keys")
+    custom_cuttable_keys = catalog_config.get("customCuttableKeys")
     return A2uiCatalog(
         version=version,
         name=catalog_config.get("name", "test_catalog"),
@@ -190,8 +190,7 @@ def get_conformance_cases(filename):
         catalog = (
             case.get("catalog", {}) if isinstance(case.get("catalog"), dict) else {}
         )
-        args = case.get("args", {}) if isinstance(case.get("args"), dict) else {}
-        version = str(catalog.get("protocol_version") or args.get("version") or "v0.8")
+        version = str(catalog.get("protocolVersion", "v0.9"))
         if not version.startswith("v"):
             version = f"v{version}"
 
@@ -212,7 +211,7 @@ def test_parser_conformance(name, test_case):
     catalog_config = test_case["catalog"]
     catalog = setup_catalog(catalog_config)
     parser = DirectJsonStreamParser(catalog=catalog)
-    if test_case.get("disable_validation"):
+    if test_case.get("disableValidation"):
         parser._validator = None
 
     steps = test_case.get("steps")
@@ -223,7 +222,7 @@ def test_parser_conformance(name, test_case):
         steps = [test_case]
 
     for step in steps:
-        expect_error = step.get("expect_error") or test_case.get("expect_error")
+        expect_error = step.get("expectError") or test_case.get("expectError")
         if expect_error:
             with assert_raises(expect_error):
                 parser.process_chunk(step["input"])
@@ -249,8 +248,9 @@ def test_parser_non_streaming_conformance(name, test_case):
     content = test_case["input"]
 
     if action == "parse_full":
-        if "expect_error" in test_case:
-            with assert_raises(test_case["expect_error"]):
+        expect_error = test_case.get("expectError")
+        if expect_error:
+            with assert_raises(expect_error):
                 parse_response(content)
         else:
             parts = parse_response(content)
@@ -261,8 +261,9 @@ def test_parser_non_streaming_conformance(name, test_case):
                 assert actual.a2ui_json == exp.get("a2ui")
 
     elif action == "fix_payload":
-        if "expect_error" in test_case:
-            with assert_raises(test_case["expect_error"]):
+        expect_error = test_case.get("expectError")
+        if expect_error:
+            with assert_raises(expect_error):
                 parse_and_fix(content)
         else:
             result = parse_and_fix(content)
@@ -297,7 +298,7 @@ def test_validator_conformance(name, test_case):
     validator = A2uiValidator(catalog=catalog)
     for step in steps:
         step_messages = step["messages"]
-        expect_error = step.get("expect_error") or test_case.get("expect_error")
+        expect_error = step.get("expectError") or test_case.get("expectError")
         if expect_error:
             with assert_raises(expect_error):
                 validator.validate(step_messages)
@@ -319,21 +320,22 @@ def test_catalog_conformance(name, test_case):
     args = test_case.get("args", {})
 
     if action == "prune":
-        allowed_components = args.get("allowed_components", [])
-        allowed_messages = args.get("allowed_messages", [])
+        allowed_components = args.get("allowedComponents", [])
+        allowed_messages = args.get("allowedMessages", [])
         pruned = catalog.with_pruning(allowed_components, allowed_messages)
         expected = test_case["expect"]
         if isinstance(expected, dict):
-            if "catalog_schema" in expected:
-                assert pruned.catalog_schema == expected["catalog_schema"]
-            if "s2c_schema" in expected:
-                assert pruned.s2c_schema == expected["s2c_schema"]
-            if "common_types_schema" in expected:
-                assert pruned.common_types_schema == expected["common_types_schema"]
+            if "catalogSchema" in expected:
+                assert pruned.catalog_schema == expected["catalogSchema"]
+            if "s2cSchema" in expected:
+                assert pruned.s2c_schema == expected["s2cSchema"]
+            if "commonTypesSchema" in expected:
+                assert pruned.common_types_schema == expected["commonTypesSchema"]
 
     elif action == "render":
         output = catalog.render_as_llm_instructions()
-        assert output.strip() == test_case["expect_output"].strip()
+        expect_output = test_case["expectOutput"]
+        assert output.strip() == expect_output.strip()
 
     elif action == "load":
         path = args.get("path")
@@ -342,12 +344,14 @@ def test_catalog_conformance(name, test_case):
         else:
             full_path = None
         validate = args.get("validate", False)
-        if "expect_error" in test_case:
-            with assert_raises(test_case["expect_error"]):
+        expect_error = test_case.get("expectError")
+        if expect_error:
+            with assert_raises(expect_error):
                 catalog.load_examples(full_path, validate=validate)
         else:
             output = catalog.load_examples(full_path, validate=validate)
-            assert output.strip() == test_case["expect_output"].strip()
+            expect_output = test_case["expectOutput"]
+            assert output.strip() == expect_output.strip()
 
     elif action == "remove_strict_validation":
         schema = args["schema"]
@@ -355,7 +359,7 @@ def test_catalog_conformance(name, test_case):
         assert modified == test_case["expect"]["schema"]
 
     elif action == "verify_cuttable_keys":
-        expected = test_case["expect"]["custom_cuttable_keys"]
+        expected = test_case["expect"].get("customCuttableKeys")
         assert set(catalog.cuttable_keys) == set(expected)
 
 
@@ -373,9 +377,9 @@ def test_schema_manager_conformance(name, test_case):
     args = test_case.get("args", {})
 
     if action == "select_catalog":
-        supported_catalogs = args.get("supported_catalogs", [])
-        client_capabilities = args.get("client_capabilities", {})
-        accepts_inline_catalogs = args.get("accepts_inline_catalogs", False)
+        supported_catalogs = args.get("supportedCatalogs", [])
+        client_capabilities = args.get("clientCapabilities", {})
+        accepts_inline_catalogs = args.get("acceptsInlineCatalogs", False)
 
         configs = []
         for cat_def in supported_catalogs:
@@ -392,8 +396,9 @@ def test_schema_manager_conformance(name, test_case):
             accepts_inline_catalogs=accepts_inline_catalogs,
         )
 
-        if "expect_error" in test_case:
-            with assert_raises(test_case["expect_error"]):
+        expect_error = test_case.get("expectError")
+        if expect_error:
+            with assert_raises(expect_error):
                 direct_json_format.get_selected_catalog(client_capabilities)
         else:
             selected = direct_json_format.get_selected_catalog(client_capabilities)
@@ -401,11 +406,12 @@ def test_schema_manager_conformance(name, test_case):
                 expected = test_case["expect"]
                 if isinstance(expected, dict):
                     assert selected.catalog_schema == expected
-            if "expect_selected" in test_case:
-                assert selected.catalog_id == test_case["expect_selected"]
+            expect_selected = test_case.get("expectSelected")
+            if expect_selected:
+                assert selected.catalog_id == expect_selected
 
     elif action == "load_catalog":
-        catalog_configs = test_case.get("catalog_configs", [])
+        catalog_configs = test_case.get("catalogConfigs", [])
         modifiers = test_case.get("modifiers", [])
         schema_modifiers = []
         if "remove_strict_validation" in modifiers:
@@ -421,20 +427,21 @@ def test_schema_manager_conformance(name, test_case):
         )
         selected = direct_json_format.get_selected_catalog()
         expected = test_case["expect"]
-        if isinstance(expected, dict) and "supported_catalog_ids" in expected:
+        if isinstance(expected, dict) and "supportedCatalogIds" in expected:
+            exp_ids = expected["supportedCatalogIds"]
             assert [
                 c.catalog_id for c in direct_json_format._supported_catalogs
-            ] == expected["supported_catalog_ids"]
+            ] == exp_ids
         elif isinstance(expected, dict):
             assert selected.catalog_schema == expected
 
     elif action == "generate_prompt":
         version = args.get("version", VERSION_0_8)
-        role = args.get("role_description", "")
-        workflow = args.get("workflow_description", "")
-        ui_desc = args.get("ui_description", "")
+        role = args.get("roleDescription", "")
+        workflow = args.get("workflowDescription", "")
+        ui_desc = args.get("uiDescription", "")
 
-        examples_path = args.get("examples_path")
+        examples_path = args.get("examplesPath")
         if examples_path:
             examples_path = _get_conformance_path(examples_path)
 
@@ -446,26 +453,28 @@ def test_schema_manager_conformance(name, test_case):
                 examples_path=examples_path,
             )
 
+        accepts_inline = args.get("acceptsInlineCatalogs", False)
         direct_json_format = DirectJsonFormat(
             version=version,
             catalogs=[config],
-            accepts_inline_catalogs=args.get("accepts_inline_catalogs", False),
+            accepts_inline_catalogs=accepts_inline,
         )
 
         output = direct_json_format.generate_system_prompt(
             role_description=role,
             workflow_description=workflow,
             ui_description=ui_desc,
-            include_schema=args.get("include_schema", False),
-            include_examples=args.get("include_examples", False),
-            client_ui_capabilities=args.get("client_ui_capabilities"),
-            allowed_components=args.get("allowed_components"),
-            allowed_messages=args.get("allowed_messages"),
+            include_schema=args.get("includeSchema", False),
+            include_examples=args.get("includeExamples", False),
+            client_ui_capabilities=args.get("clientUiCapabilities"),
+            allowed_components=args.get("allowedComponents"),
+            allowed_messages=args.get("allowedMessages"),
         )
 
         output_normalized = re.sub(r"\s+", "", output.strip())
 
-        if "expect_contains" in test_case:
-            for expected in test_case["expect_contains"]:
+        expect_contains = test_case.get("expectContains")
+        if expect_contains:
+            for expected in expect_contains:
                 expected_normalized = re.sub(r"\s+", "", expected.strip())
                 assert expected_normalized in output_normalized

@@ -54,7 +54,7 @@ def test_adk_extensions_conformance(name, test_case):
     args = test_case.get("args", {})
 
     if action == "execute_tool":
-        a2ui_json_str = args.get("a2ui_json")
+        a2ui_json_str = args.get("a2uiJson")
         tool_args = {"a2ui_json": a2ui_json_str} if a2ui_json_str else args
 
         catalog_mock = MagicMock(spec=A2uiCatalog)
@@ -82,12 +82,13 @@ def test_adk_extensions_conformance(name, test_case):
                 SendA2uiToClientToolset._SendA2uiJsonToClientTool.VALIDATED_A2UI_JSON_KEY
                 in result
             )
-            if expect.get("contains_validated_json"):
+            if expect.get("containsValidatedJson"):
                 validated_payload = result[
                     SendA2uiToClientToolset._SendA2uiJsonToClientTool.VALIDATED_A2UI_JSON_KEY
                 ]
                 assert "beginRendering" in json.dumps(validated_payload)
         else:
             assert "error" in result
-            if expect.get("error_contains"):
-                assert expect["error_contains"] in result["error"]
+            err_contains = expect.get("errorContains")
+            if err_contains:
+                assert err_contains in result["error"]
