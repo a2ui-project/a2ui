@@ -130,9 +130,9 @@ if command -v java >/dev/null 2>&1; then
         fi
 
         if [ "$CHECK_ONLY" = true ]; then
-          "${GRADLE_CMD[@]}" -q ktfmtCheck 2>&1 | sed '/WARNING: /d; /sun.misc.Unsafe/d; /Please consider reporting/d'
+          "${GRADLE_CMD[@]}" -q ktfmtCheck 2>&1 | sed '/^WARNING:/d'
         else
-          "${GRADLE_CMD[@]}" -q ktfmtFormat 2>&1 | sed '/WARNING: /d; /sun.misc.Unsafe/d; /Please consider reporting/d'
+          "${GRADLE_CMD[@]}" -q ktfmtFormat 2>&1 | sed '/^WARNING:/d'
         fi
       )
     fi
