@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Enable setting and getting a default `MarkdownRenderer` (`setMarkdownRenderer` / `getMarkdownRenderer`) in `@a2ui/web_core/v0_9/basic_catalog` for basic catalog text components. [#2272](https://github.com/a2ui-project/a2ui/pull/2272)
+
 ## 0.11.0
 
 - **BREAKING CHANGE**: (v0_9) An invalid number literal in an expression, such as `${1.2.3}`, now throws `A2uiExpressionError` instead of being handed back as `NaN`. The accepted shape — digits, an optional decimal point and optional further digits — is stated in the parser rather than inherited from `Number()`, so every implementation accepts the same literals. ([#2497](https://github.com/a2ui-project/a2ui/pull/2497))
