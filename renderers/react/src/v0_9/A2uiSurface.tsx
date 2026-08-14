@@ -26,11 +26,11 @@
 
 import React, {useCallback, useMemo, useSyncExternalStore} from 'react';
 import {NodeResolver, effect, getValue, peekValue, type SurfaceModel} from '@a2ui/web_core/v0_9';
-import type {ReactComponentImplementation} from './adapter';
+import type {ReactCatalogComponent} from './react_component_implementation';
 import {LoadingPlaceholder, NodeSurfaceContext, NodeView} from './node-view';
 
 export const A2uiSurface: React.FC<{
-  surface: SurfaceModel<ReactComponentImplementation>;
+  surface: SurfaceModel<ReactCatalogComponent>;
 }> = ({surface}) => {
   // The resolver is created inside subscribe, which React calls only for
   // committed renders: a render that is discarded (concurrent mode,
@@ -40,7 +40,7 @@ export const A2uiSurface: React.FC<{
   // The factory reads nothing; the dependency exists to reset the box when
   // the surface is swapped.
   const box = useMemo(
-    () => ({resolver: undefined as NodeResolver<ReactComponentImplementation> | undefined}),
+    () => ({resolver: undefined as NodeResolver<ReactCatalogComponent> | undefined}),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [surface],
   );
