@@ -18,19 +18,19 @@
     data: {"foo": "bar"}
     version: "0.9.1"
   expect:
-    mime_type: "application/a2ui+json"
+    mimeType: "application/a2ui+json"
 
 - name: test_create_a2ui_part_legacy_default
   action: create_a2ui_part
   args:
     data: {"foo": "bar"}
   expect:
-    mime_type: "application/json+a2ui"
+    mimeType: "application/json+a2ui"
 
 - name: test_is_a2ui_part
   action: is_a2ui_part
   args:
-    mime_type: "application/a2ui+json"
+    mimeType: "application/a2ui+json"
   expect: true
 
 - name: test_try_activate_extension_success
@@ -60,7 +60,7 @@
             a2uiClientCapabilities:
               supportedCatalogIds:
                 ["https://a2ui.org/specification/v0_8/standard_catalog_definition.json"]
-    runner_output: "Here is your chart:\n<a2ui-json>\n[\n  {\n    “beginRendering”: {\n      “surfaceId”: “sales-dashboard”\n    }\n  }\n]\n</a2ui-json>\nEnjoy!"
+    runnerOutput: "Here is your chart:\n<a2ui-json>\n[\n  {\n    “beginRendering”: {\n      “surfaceId”: “sales-dashboard”\n    }\n  }\n]\n</a2ui-json>\nEnjoy!"
   expect:
     parts:
       - kind: "text"
@@ -82,7 +82,7 @@
         message:
           contextId: "test-context"
           parts: []
-    runner_output: "This is a normal conversational turn."
+    runnerOutput: "This is a normal conversational turn."
   expect:
     parts:
       - kind: "text"
@@ -99,7 +99,7 @@
         message:
           contextId: "test-context"
           parts: []
-    runner_output: "Here is an invalid chart:\n<a2ui-json>\n[\n  {\n    “beginRendering”: {  MISSING CLOSING BRACKETS...\n</a2ui-json>\nOops."
+    runnerOutput: "Here is an invalid chart:\n<a2ui-json>\n[\n  {\n    “beginRendering”: {  MISSING CLOSING BRACKETS...\n</a2ui-json>\nOops."
   expect:
     parts:
       - kind: "text"
@@ -117,7 +117,7 @@
   action: get_extension
   args:
     version: "0.8"
-    accepts_inline_catalogs: true
+    acceptsInlineCatalogs: true
   expect:
     uri: "https://a2ui.org/a2a-extension/a2ui/v0.8"
     params:
@@ -127,7 +127,7 @@
   action: get_extension
   args:
     version: "0.8"
-    supported_catalog_ids: ["a", "b", "c"]
+    supportedCatalogIds: ["a", "b", "c"]
   expect:
     uri: "https://a2ui.org/a2a-extension/a2ui/v0.8"
     params:

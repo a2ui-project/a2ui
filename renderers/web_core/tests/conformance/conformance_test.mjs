@@ -108,7 +108,7 @@ function runConformanceHarness() {
 
     for (const testCase of testCases) {
       const {name, action, catalog, args} = testCase;
-      let version = catalog?.protocol_version || args?.version || 'v0.8';
+      let version = catalog?.protocolVersion || args?.version || 'v0.8';
       if (!version.startsWith('v')) version = `v${version}`;
 
       if (!SUPPORTED_SPEC_VERSIONS.has(version)) {
@@ -189,12 +189,10 @@ function validateRpcTestCase(testCase) {
 }
 
 function validateSelectCatalogTestCase(testCase) {
-  const {args, expect, expect_selected, expect_catalog_schema, expect_error} = testCase;
+  const {args, expect, expectSelected, expectError} = testCase;
   if (!args) throw new Error('select_catalog test requires "args" object.');
-  if (!expect && !expect_selected && !expect_catalog_schema && !expect_error) {
-    throw new Error(
-      'select_catalog test requires "expect", "expect_selected", "expect_catalog_schema", or "expect_error".',
-    );
+  if (!expect && !expectSelected && !expectError) {
+    throw new Error('select_catalog test requires "expect", "expectSelected", or "expectError".');
   }
 }
 

@@ -125,7 +125,7 @@ class ConformanceTest {
       val case = caseObj as Map<*, *>
       val name = case[ConformanceTestHelper.KEY_NAME] as? String
       val catalog = case[ConformanceTestHelper.KEY_CATALOG] as? Map<*, *> ?: emptyMap<Any, Any>()
-      val rawVersion = (catalog["protocol_version"] ?: "v0.9").toString()
+      val rawVersion = (catalog["protocolVersion"] ?: "v0.9").toString()
       val version = if (rawVersion.startsWith("v")) rawVersion else "v$rawVersion"
 
       if (version !in SUPPORTED_SPEC_VERSIONS || (name != null && name in SKIP_TEST_NAMES)) {
@@ -207,7 +207,7 @@ class ConformanceTest {
     conformanceDir: File,
     baseSchemaMappings: Map<String, String>,
   ): Pair<A2uiCatalog, Map<String, String>> {
-    val versionStr = (catalogMap["protocol_version"] ?: "v0.9") as String
+    val versionStr = (catalogMap["protocolVersion"] ?: "v0.9") as String
     val version =
       if (versionStr == VERSION_0_8_STR || versionStr == "v0.8") {
         A2uiVersion.VERSION_0_8
@@ -215,7 +215,7 @@ class ConformanceTest {
         A2uiVersion.VERSION_0_9
       }
 
-    val s2cSchemaObj = catalogMap["s2c_schema"]
+    val s2cSchemaObj = catalogMap["s2cSchema"]
     val s2cSchema =
       when (s2cSchemaObj) {
         is String -> loadJsonFile(File(conformanceDir, s2cSchemaObj))
@@ -226,7 +226,7 @@ class ConformanceTest {
         else -> JsonObject(emptyMap())
       }
 
-    val catalogSchemaObj = catalogMap["catalog_schema"]
+    val catalogSchemaObj = catalogMap["catalogSchema"]
     val schemaMappings = HashMap(baseSchemaMappings)
 
     val urlPrefix = if (version == A2uiVersion.VERSION_0_8) URL_PREFIX_V08 else URL_PREFIX_V09
@@ -251,11 +251,11 @@ class ConformanceTest {
         Json.parseToJsonElement(jsonStr) as JsonObject
       } else {
         throw IllegalArgumentException(
-          "catalog_schema is required in conformance test catalog config"
+          "catalogSchema is required in conformance test catalog config"
         )
       }
 
-    val commonTypesObj = catalogMap["common_types_schema"]
+    val commonTypesObj = catalogMap["commonTypesSchema"]
     val commonTypesSchema =
       when (commonTypesObj) {
         is String -> loadJsonFile(File(conformanceDir, commonTypesObj))
@@ -267,7 +267,7 @@ class ConformanceTest {
       }
 
     val customCuttableKeys =
-      (catalogMap["custom_cuttable_keys"] as? List<*>)?.mapNotNull { it as? String }?.toSet()
+      (catalogMap["customCuttableKeys"] as? List<*>)?.mapNotNull { it as? String }?.toSet()
 
     val catalog =
       A2uiCatalog(
@@ -339,19 +339,19 @@ class ConformanceTest {
         when (action) {
           "prune" -> {
             val allowedComponents = args[KEY_ALLOWED_COMPONENTS] as? List<String>
-            val allowedMessages = args["allowed_messages"] as? List<String>
+            val allowedMessages = args["allowedMessages"] as? List<String>
             val pruned = catalog!!.withPruning(allowedComponents, allowedMessages)
             val expect = case[ConformanceTestHelper.KEY_EXPECT] as Map<*, *>
             if (expect.containsKey(KEY_CATALOG_SCHEMA)) {
               val expectSchema = jsonMapper.writeValueAsString(expect[KEY_CATALOG_SCHEMA])
               assertEquals(Json.parseToJsonElement(expectSchema), pruned.catalogSchema)
             }
-            if (expect.containsKey("s2c_schema")) {
-              val expectSchema = jsonMapper.writeValueAsString(expect["s2c_schema"])
+            if (expect.containsKey("s2cSchema")) {
+              val expectSchema = jsonMapper.writeValueAsString(expect["s2cSchema"])
               assertEquals(Json.parseToJsonElement(expectSchema), pruned.serverToClientSchema)
             }
-            if (expect.containsKey("common_types_schema")) {
-              val expectSchema = jsonMapper.writeValueAsString(expect["common_types_schema"])
+            if (expect.containsKey("commonTypesSchema")) {
+              val expectSchema = jsonMapper.writeValueAsString(expect["commonTypesSchema"])
               assertEquals(Json.parseToJsonElement(expectSchema), pruned.commonTypesSchema)
             }
           }
@@ -368,7 +368,7 @@ class ConformanceTest {
               assertExceptionMatches(exception, expectError)
             } else {
               val output = catalog!!.loadExamples(fullPath, validate = validate)
-              val expectOutput = case["expect_output"] as String
+              val expectOutput = case["expectOutput"] as String
               assertEquals(expectOutput.trim(), output.trim())
             }
           }
@@ -385,12 +385,12 @@ class ConformanceTest {
           }
           "render" -> {
             val output = catalog!!.renderAsLlmInstructions()
-            val expectOutput = case["expect_output"] as String
+            val expectOutput = case["expectOutput"] as String
             assertEquals(expectOutput.trim(), output.trim())
           }
           "verify_cuttable_keys" -> {
             val expect = case[ConformanceTestHelper.KEY_EXPECT] as Map<*, *>
-            val expectCuttableKeys = expect["custom_cuttable_keys"] as List<String>
+            val expectCuttableKeys = expect["customCuttableKeys"] as List<String>
             assertEquals(expectCuttableKeys.toSet(), catalog!!.cuttableKeys)
           }
           else -> assert(false, { "Unknown action: $action" })
@@ -414,9 +414,9 @@ class ConformanceTest {
       DynamicTest.dynamicTest(name) {
         when (action) {
           "select_catalog" -> {
-            val supportedCatalogs = args["supported_catalogs"] as? List<*> ?: emptyList<Any>()
-            val clientCapabilities = args["client_capabilities"] as? Map<*, *>
-            val acceptsInlineCatalogs = args["accepts_inline_catalogs"] as? Boolean ?: false
+            val supportedCatalogs = args["supportedCatalogs"] as? List<*> ?: emptyList<Any>()
+            val clientCapabilities = args["clientCapabilities"] as? Map<*, *>
+            val acceptsInlineCatalogs = args["acceptsInlineCatalogs"] as? Boolean ?: false
 
             val configs =
               supportedCatalogs.map { catDefObj ->
@@ -434,8 +434,13 @@ class ConformanceTest {
                 acceptsInlineCatalogs = acceptsInlineCatalogs,
               )
 
-            val capsJsonStr = jsonMapper.writeValueAsString(clientCapabilities)
-            val capsJson = Json.parseToJsonElement(capsJsonStr) as JsonObject
+            val capsJson =
+              if (clientCapabilities != null) {
+                val capsJsonStr = jsonMapper.writeValueAsString(clientCapabilities)
+                Json.parseToJsonElement(capsJsonStr) as JsonObject
+              } else {
+                JsonObject(emptyMap())
+              }
 
             val expectErrorObj = case[ConformanceTestHelper.KEY_EXPECT_ERROR]
             if (expectErrorObj != null) {
@@ -450,18 +455,14 @@ class ConformanceTest {
                 val expectSchema = Json.parseToJsonElement(expectSchemaStr)
                 assertEquals(expectSchema, selected.catalogSchema)
               }
-              if (case.containsKey("expect_selected")) {
-                assertEquals(case["expect_selected"] as String, selected.catalogId)
-              }
-              if (case.containsKey("expect_catalog_schema")) {
-                val expectSchemaStr = jsonMapper.writeValueAsString(case["expect_catalog_schema"])
-                val expectSchema = Json.parseToJsonElement(expectSchemaStr)
-                assertEquals(expectSchema, selected.catalogSchema)
+              val expectSelected = case["expectSelected"]
+              if (expectSelected != null) {
+                assertEquals(expectSelected as String, selected.catalogId)
               }
             }
           }
           "load_catalog" -> {
-            val catalogConfigs = case["catalog_configs"] as? List<*> ?: emptyList<Any>()
+            val catalogConfigs = case["catalogConfigs"] as? List<*> ?: emptyList<Any>()
             val modifiers = case["modifiers"] as? List<String> ?: emptyList()
 
             val schemaModifiers = mutableListOf<(JsonObject) -> JsonObject>()
@@ -487,8 +488,9 @@ class ConformanceTest {
             val selected = manager.getSelectedCatalog()
             val expect = case[ConformanceTestHelper.KEY_EXPECT] as Map<*, *>
 
-            if (expect.containsKey("supported_catalog_ids")) {
-              val expectIds = expect["supported_catalog_ids"] as List<String>
+            val supportedIdsObj = expect["supportedCatalogIds"]
+            if (supportedIdsObj != null) {
+              val expectIds = supportedIdsObj as List<String>
               assertEquals(expectIds, manager.supportedCatalogIds)
             } else {
               val expectSchemaStr = jsonMapper.writeValueAsString(expect)
@@ -500,20 +502,20 @@ class ConformanceTest {
             val versionStr = args["version"] as? String ?: "0.8"
             val version =
               if (versionStr == "0.8") A2uiVersion.VERSION_0_8 else A2uiVersion.VERSION_0_9
-            val role = args["role_description"] as? String ?: ""
-            val workflow = args["workflow_description"] as? String ?: ""
-            val uiDesc = args["ui_description"] as? String ?: ""
-            val includeSchema = args["include_schema"] as? Boolean ?: false
-            val includeExamples = args["include_examples"] as? Boolean ?: false
-            val validateExamples = args["validate_examples"] as? Boolean ?: false
+            val role = args["roleDescription"] as? String ?: ""
+            val workflow = args["workflowDescription"] as? String ?: ""
+            val uiDesc = args["uiDescription"] as? String ?: ""
+            val includeSchema = args["includeSchema"] as? Boolean ?: false
+            val includeExamples = args["includeExamples"] as? Boolean ?: false
+            val validateExamples = args["validateExamples"] as? Boolean ?: false
 
-            val clientCapabilities = args["client_ui_capabilities"] as? Map<*, *>
+            val clientCapabilities = args["clientUiCapabilities"] as? Map<*, *>
             val capsJsonStr = jsonMapper.writeValueAsString(clientCapabilities)
             val capsJson = Json.parseToJsonElement(capsJsonStr) as? JsonObject
 
-            val allowedComponents = args["allowed_components"] as? List<String> ?: emptyList()
+            val allowedComponents = args["allowedComponents"] as? List<String> ?: emptyList()
 
-            val examplesPath = args["examples_path"] as? String
+            val examplesPath = args["examplesPath"] as? String
             val fullExamplesPath = examplesPath?.let { File(conformanceDir, it).absolutePath }
 
             val dummyCatalog =
@@ -528,11 +530,12 @@ class ConformanceTest {
                 examplesPath = fullExamplesPath,
               )
 
+            val acceptsInline = args["acceptsInlineCatalogs"] as? Boolean ?: false
             val manager =
               A2uiSchemaManager(
                 version = version,
                 catalogs = listOf(dummyConfig),
-                acceptsInlineCatalogs = args["accepts_inline_catalogs"] as? Boolean ?: false,
+                acceptsInlineCatalogs = acceptsInline,
               )
 
             val output =
@@ -549,8 +552,9 @@ class ConformanceTest {
 
             val outputNormalized = output.replace(Regex("\\s+"), "").trim()
 
-            if (case.containsKey(KEY_EXPECT_CONTAINS)) {
-              val expectContains = case[KEY_EXPECT_CONTAINS] as List<String>
+            val expectContainsObj = case[KEY_EXPECT_CONTAINS]
+            if (expectContainsObj != null) {
+              val expectContains = expectContainsObj as List<String>
               for (expected in expectContains) {
                 val expectedNormalized = expected.replace(Regex("\\s+"), "").trim()
                 assertTrue(
@@ -659,7 +663,7 @@ class ConformanceTest {
           catalogMap?.let { buildCatalog(it, conformanceDir, baseSchemaMappings) }
             ?: (null to emptyMap())
         val parser = StreamingParser.create(catalog, schemaMappings)
-        if (case["disable_validation"] as? Boolean == true) {
+        if (case["disableValidation"] as? Boolean == true) {
           parser.validator = null
         }
 
@@ -756,13 +760,13 @@ class ConformanceTest {
     private const val SCHEMA_MANAGER_YAML_FILE = "agent/inference_format.yaml"
     private const val PARSER_YAML_FILE = "agent/parser.yaml"
 
-    private const val KEY_EXPECT_CONTAINS = "expect_contains"
+    private const val KEY_EXPECT_CONTAINS = "expectContains"
     private const val KEY_INPUT = "input"
     private const val KEY_TEXT = "text"
     private const val KEY_A2UI = "a2ui"
     private const val KEY_PATH = "path"
-    private const val KEY_ALLOWED_COMPONENTS = "allowed_components"
-    private const val KEY_CATALOG_SCHEMA = "catalog_schema"
+    private const val KEY_ALLOWED_COMPONENTS = "allowedComponents"
+    private const val KEY_CATALOG_SCHEMA = "catalogSchema"
 
     private fun isSkipped(suitePath: String): Boolean {
       return suitePath in SKIP_TEST_SUITES || File(suitePath).name in SKIP_TEST_SUITES

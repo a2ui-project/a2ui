@@ -15,9 +15,9 @@
 - name: test_converter_emits_failed_event
   action: convert_event
   args:
-    error_code: "some_error"
-    error_message: "Server crash"
-    has_catalog: true
+    errorCode: "some_error"
+    errorMessage: "Server crash"
+    hasCatalog: true
   expect:
     type: TaskStatusUpdateEvent
     state: FAILED
@@ -26,8 +26,8 @@
 - name: test_converter_emits_working_event
   action: convert_event
   args:
-    content_text: "Regular text response"
-    has_catalog: true
+    contentText: "Regular text response"
+    hasCatalog: true
   expect:
     type: TaskStatusUpdateEvent
     state: WORKING
@@ -36,21 +36,21 @@
 - name: test_converter_returns_empty_when_no_catalog
   action: convert_event
   args:
-    has_catalog: false
-  expect_empty: true
+    hasCatalog: false
+  expectEmpty: true
 
 - name: test_toolset_execute_valid_payload
   action: execute_tool
   args:
-    a2ui_json: '{"beginRendering": {"surfaceId": "dummy-surface", "root": {"component": "TestComp", "id": "1"}}}'
+    a2uiJson: '{"beginRendering": {"surfaceId": "dummy-surface", "root": {"component": "TestComp", "id": "1"}}}'
   expect:
     success: true
-    contains_validated_json: true
+    containsValidatedJson: true
 
 - name: test_toolset_execute_invalid_payload
   action: execute_tool
   args:
-    wrong_arg: "b"
+    wrongArg: "b"
   expect:
     success: false
-    error_contains: "missing required arg a2ui_json"
+    errorContains: "missing required arg a2ui_json"

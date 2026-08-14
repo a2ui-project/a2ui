@@ -15,7 +15,7 @@
 - name: test_composition_surface_implicit_parent_container
   description: Verifies root components treating Surface as canonical parent container when allowedParents includes Surface.
   catalog:
-    protocol_version: "v1.0"
+    protocolVersion: "v1.0"
   action: validate
   steps:
     - payload:
@@ -44,8 +44,8 @@
 - name: test_composition_unallowed_parent_error
   description: Verifies validation error thrown when component is placed under an unallowed parent component type.
   catalog:
-    protocol_version: "v1.0"
-    catalog_schema:
+    protocolVersion: "v1.0"
+    catalogSchema:
       catalogId: "custom"
       components:
         ColumnHeader:
@@ -65,15 +65,15 @@
                 children: [invalid_header]
               - id: invalid_header
                 component: ColumnHeader
-  expect_error:
+  expectError:
     category: "ValidationError"
     message: "Component 'invalid_header' (ColumnHeader) cannot be placed under parent 'root' (Row). Allowed parents: ['Column']."
 
 - name: test_composition_unallowed_child_error
   description: Verifies validation error thrown when container contains an unallowed child component type.
   catalog:
-    protocol_version: "v1.0"
-    catalog_schema:
+    protocolVersion: "v1.0"
+    catalogSchema:
       catalogId: "custom"
       components:
         RestrictedBox:
@@ -93,6 +93,6 @@
                 children: [v1]
               - id: v1
                 component: Video
-  expect_error:
+  expectError:
     category: "ValidationError"
     message: "Container 'root' (RestrictedBox) cannot contain child 'v1' (Video). Allowed children: ['Text', 'Button']."
