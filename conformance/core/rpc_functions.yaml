@@ -1,0 +1,205 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: test_rpc_call_renderer_function_success
+  description: Verifies agent-initiated callRendererFunction on a function with callableFrom=rendererOrAgent.
+  catalog:
+    protocol_version: "v1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-101"
+        callFunction:
+          call: "playMedia"
+          catalogId: "media_catalog"
+          args:
+            mediaId: "video-789"
+            autoplay: true
+    function_metadata:
+      playMedia:
+        callableFrom: "rendererOrAgent"
+        requiresUserActivation: false
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-101"
+        value:
+          playing: true
+          timestamp: 0
+
+- name: test_rpc_call_renderer_function_unauthorized_caller
+  description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when callableFrom is rendererOnly.
+  catalog:
+    protocol_version: "v1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-102"
+        callFunction:
+          call: "internalStateReset"
+          catalogId: "system_catalog"
+          args: {}
+    function_metadata:
+      internalStateReset:
+        callableFrom: "rendererOnly"
+        requiresUserActivation: false
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-102"
+        error:
+          code: "INVALID_FUNCTION_CALL"
+          message: "Function 'internalStateReset' cannot be called by agent (callableFrom is rendererOnly)."
+
+- name: test_rpc_call_renderer_function_requires_user_activation
+  description: Verifies callRendererFunction execution when requiresUserActivation is true and user gesture is present.
+  catalog:
+    protocol_version: "v1.0"
+  action: handle_rpc
+  args:
+    user_activation_present: true
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-103"
+        callFunction:
+          call: "openExternalUrl"
+          catalogId: "basic"
+          args:
+            url: "https://example.com/details"
+    function_metadata:
+      openExternalUrl:
+        callableFrom: "rendererOrAgent"
+        requiresUserActivation: true
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-103"
+        value:
+          opened: true
+
+- name: test_rpc_call_agent_function_dispatch
+  description: Verifies renderer-initiated callAgentFunction message generation and response correlation via functionCallId.
+  catalog:
+    protocol_version: "v1.0"
+  action: handle_rpc
+  args:
+    outbound_call:
+      surfaceId: "main_surface"
+      functionCallId: "agent-call-55"
+      callFunction:
+        call: "queryInventory"
+        catalogId: "store_catalog"
+        args:
+          sku: "ITEM-404"
+    inbound_response:
+      version: "v1.0"
+      agentFunctionResponse:
+        functionCallId: "agent-call-55"
+        value:
+          inStock: 12
+          price: "$29.99"
+  expect:
+    correlated_call_id: "agent-call-55"
+    result:
+      inStock: 12
+      price: "$29.99"
+
+- name: test_rpc_call_renderer_function_user_activation_denied
+  description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when requiresUserActivation is true but user gesture context is absent.
+  catalog:
+    protocol_version: "v1.0"
+  action: handle_rpc
+  args:
+    user_activation_present: false
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-104"
+        callFunction:
+          call: "openExternalUrl"
+          catalogId: "basic"
+          args:
+            url: "https://example.com/details"
+    function_metadata:
+      openExternalUrl:
+        callableFrom: "rendererOrAgent"
+        requiresUserActivation: true
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-104"
+        error:
+          code: "INVALID_FUNCTION_CALL"
+          message: "Function 'openExternalUrl' requires user activation context to execute."
+
+- name: test_rpc_call_renderer_function_execution_exception
+  description: Verifies callRendererFunction handles runtime function execution exceptions and returns EXECUTION_ERROR.
+  catalog:
+    protocol_version: "v1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-105"
+        callFunction:
+          call: "failingFunction"
+          catalogId: "basic"
+          args: {}
+    function_metadata:
+      failingFunction:
+        callableFrom: "rendererOrAgent"
+        requiresUserActivation: false
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-105"
+        error:
+          code: "EXECUTION_ERROR"
+          message: "An error occurred during function execution."
+
+- name: test_rpc_call_renderer_function_agent_only_boundary
+  description: Verifies agent-initiated callRendererFunction on a function with callableFrom=agentOnly.
+  catalog:
+    protocol_version: "v1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-106"
+        callFunction:
+          call: "syncState"
+          catalogId: "basic"
+          args: {}
+    function_metadata:
+      syncState:
+        callableFrom: "agentOnly"
+        requiresUserActivation: false
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-106"
+        value: null

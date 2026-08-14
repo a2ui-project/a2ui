@@ -1,0 +1,98 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: test_composition_surface_implicit_parent_container
+  description: Verifies root components treating Surface as canonical parent container when allowedParents includes Surface.
+  catalog:
+    protocol_version: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "basic"
+            components:
+              - id: root
+                component: Column
+                children: [t1]
+              - id: t1
+                component: Text
+                text: "Hello World"
+  expect:
+    surfaces:
+      s1:
+        components:
+          root:
+            component: Column
+            children: [t1]
+          t1:
+            component: Text
+            text: "Hello World"
+
+- name: test_composition_unallowed_parent_error
+  description: Verifies validation error thrown when component is placed under an unallowed parent component type.
+  catalog:
+    protocol_version: "v1.0"
+    catalog_schema:
+      catalogId: "custom"
+      components:
+        ColumnHeader:
+          allowedParents: ["Column"]
+        Row:
+          type: "object"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "custom"
+            components:
+              - id: root
+                component: Row
+                children: [invalid_header]
+              - id: invalid_header
+                component: ColumnHeader
+  expect_error:
+    category: "ValidationError"
+    message: "Component 'invalid_header' (ColumnHeader) cannot be placed under parent 'root' (Row). Allowed parents: ['Column']."
+
+- name: test_composition_unallowed_child_error
+  description: Verifies validation error thrown when container contains an unallowed child component type.
+  catalog:
+    protocol_version: "v1.0"
+    catalog_schema:
+      catalogId: "custom"
+      components:
+        RestrictedBox:
+          allowedChildren: ["Text", "Button"]
+        Video:
+          type: "object"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "custom"
+            components:
+              - id: root
+                component: RestrictedBox
+                children: [v1]
+              - id: v1
+                component: Video
+  expect_error:
+    category: "ValidationError"
+    message: "Container 'root' (RestrictedBox) cannot contain child 'v1' (Video). Allowed children: ['Text', 'Button']."

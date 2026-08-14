@@ -466,6 +466,7 @@ __metadata:
     eslint: "npm:^10.4.1"
     google-artifactregistry-auth: "npm:^3.5.0"
     gts: "npm:^7.0.0"
+    js-yaml: "npm:^4.1.0"
     rxjs: "npm:^7.8.2"
     typescript: "npm:5.9.3"
     wireit: "npm:^0.15.0-pre.2"

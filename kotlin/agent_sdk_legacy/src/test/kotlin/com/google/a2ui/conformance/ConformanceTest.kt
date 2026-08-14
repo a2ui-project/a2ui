@@ -180,9 +180,10 @@ class ConformanceTest {
     conformanceDir: File,
     baseSchemaMappings: Map<String, String>,
   ): Pair<A2uiCatalog, Map<String, String>> {
-    val versionStr = catalogMap["version"] as String
+    val versionStr = (catalogMap["protocol_version"] as? String) ?: "v0.8"
     val version =
-      if (versionStr == VERSION_0_8_STR) A2uiVersion.VERSION_0_8 else A2uiVersion.VERSION_0_9
+      if (versionStr == VERSION_0_8_STR || versionStr == "v0.8") A2uiVersion.VERSION_0_8
+      else A2uiVersion.VERSION_0_9
 
     val s2cSchemaObj = catalogMap["s2c_schema"]
     val s2cSchema =
@@ -384,6 +385,15 @@ class ConformanceTest {
       val name = case[ConformanceTestHelper.KEY_NAME] as String
       val action = case[ConformanceTestHelper.KEY_ACTION] as String
       val args = case[ConformanceTestHelper.KEY_ARGS] as? Map<*, *> ?: emptyMap<Any, Any>()
+
+      val catalogMap = case[ConformanceTestHelper.KEY_CATALOG] as? Map<*, *>
+      val rawVersion =
+        (catalogMap?.get("protocol_version") as? String) ?: (args["version"] as? String) ?: "v0.8"
+      val versionStr = if (rawVersion.startsWith("v")) rawVersion else "v$rawVersion"
+      if (versionStr !in SUPPORTED_SPEC_VERSIONS) return@mapNotNull null
+      if (name in SKIP_TEST_NAMES) return@mapNotNull null
+      if (action !in setOf("select_catalog", "load_catalog", "generate_prompt"))
+        return@mapNotNull null
 
       DynamicTest.dynamicTest(name) {
         when (action) {
@@ -711,6 +721,15 @@ class ConformanceTest {
   }
 
   private companion object {
+    /** Set of A2UI specification versions supported by this legacy Kotlin conformance harness. */
+    private val SUPPORTED_SPEC_VERSIONS = setOf("v0.8", "v0.9")
+
+    /**
+     * Transition skip list containing specific test case names to skip during active feature
+     * transitions.
+     */
+    private val SKIP_TEST_NAMES = setOf<String>()
+
     private const val STREAMING_PARSER_YAML_FILE = "agent/streaming_parser.yaml"
     private const val SIMPLIFIED_CATALOG_V09 = "simplified_catalog_v09.json"
     private const val URL_PREFIX_V09 = "https://a2ui.org/specification/v0_9/"

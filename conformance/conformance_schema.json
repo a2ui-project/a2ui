@@ -18,9 +18,9 @@
         "type": "object",
         "description": "Catalog configuration for the test.",
         "properties": {
-          "version": {
+          "protocol_version": {
             "type": "string",
-            "enum": ["0.8", "0.9", "1.0"],
+            "enum": ["v0.8", "v0.9", "v1.0"],
             "description": "Protocol version."
           },
           "s2c_schema": {
@@ -63,7 +63,7 @@
             ]
           }
         },
-        "required": ["version"]
+        "required": ["protocol_version"]
       },
       "action": {
         "type": "string",
@@ -178,7 +178,9 @@
     "ValidateTest": {
       "type": "object",
       "properties": {
-        "action": {"const": "validate"}
+        "action": {"const": "validate"},
+        "expect": {"$ref": "#/$defs/SurfaceExpectation"},
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
       "required": ["action"],
       "oneOf": [
@@ -194,6 +196,7 @@
                     "oneOf": [{"type": "object"}, {"type": "array", "items": {"type": "object"}}],
                     "description": "Payload to validate (single message or list of messages)."
                   },
+                  "expect": {"$ref": "#/$defs/SurfaceExpectation"},
                   "expect_error": {"$ref": "#/$defs/ExpectError"}
                 },
                 "required": ["payload"]
@@ -208,6 +211,7 @@
               "oneOf": [{"type": "object"}, {"type": "array", "items": {"type": "object"}}],
               "description": "Payload to validate (single message or list of messages)."
             },
+            "expect": {"$ref": "#/$defs/SurfaceExpectation"},
             "expect_error": {"$ref": "#/$defs/ExpectError"}
           },
           "required": ["payload"]
@@ -522,6 +526,29 @@
           "required": ["category"]
         }
       ]
+    },
+    "SurfaceExpectation": {
+      "type": "object",
+      "properties": {
+        "surfaces": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "dataModel": {"type": "object"},
+              "components": {
+                "type": "object",
+                "additionalProperties": {"type": "object"}
+              },
+              "validationResult": {
+                "type": "object",
+                "additionalProperties": {"type": "object"}
+              }
+            }
+          }
+        }
+      },
+      "required": ["surfaces"]
     }
   }
 }

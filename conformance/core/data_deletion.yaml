@@ -1,0 +1,132 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: test_data_deletion_value_null
+  description: Verifies that updateDataModel with value=null deletes the specified JSON Pointer path.
+  catalog:
+    protocol_version: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "basic"
+            dataModel:
+              user:
+                profile:
+                  name: "Alice"
+                  bio: "Software Engineer"
+    - payload:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/user/profile/bio"
+            value: null
+  expect:
+    surfaces:
+      s1:
+        dataModel:
+          user:
+            profile:
+              name: "Alice"
+
+- name: test_data_deletion_nested_pointer_sibling_preservation
+  description: Verifies deleting a child property via value=null preserves sibling keys in parent object.
+  catalog:
+    protocol_version: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "basic"
+            dataModel:
+              settings:
+                notifications:
+                  email: true
+                  push: false
+                  sms: true
+    - payload:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/settings/notifications/email"
+            value: null
+  expect:
+    surfaces:
+      s1:
+        dataModel:
+          settings:
+            notifications:
+              push: false
+              sms: true
+
+- name: test_data_deletion_top_level_key
+  description: Verifies deleting a top-level JSON Pointer path via value=null.
+  catalog:
+    protocol_version: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "basic"
+            dataModel:
+              persistentData: "keep"
+              transientData: "remove"
+    - payload:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/transientData"
+            value: null
+  expect:
+    surfaces:
+      s1:
+        dataModel:
+          persistentData: "keep"
+
+- name: test_data_deletion_parent_object_recursive
+  description: Verifies deleting an intermediate parent object key via value=null recursively removes all nested child properties.
+  catalog:
+    protocol_version: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "basic"
+            dataModel:
+              settings:
+                notifications:
+                  email: true
+                  push: false
+                  sms: true
+                theme: "dark"
+    - payload:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/settings/notifications"
+            value: null
+  expect:
+    surfaces:
+      s1:
+        dataModel:
+          settings:
+            theme: "dark"

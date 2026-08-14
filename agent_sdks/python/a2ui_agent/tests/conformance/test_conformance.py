@@ -48,6 +48,12 @@ CATEGORY_TO_EXCEPTION = {
     "CompileError": A2uiCompileError,
 }
 
+# Set of A2UI specification versions supported by this Python Agent SDK conformance harness.
+SUPPORTED_SPEC_VERSIONS = {"v0.8", "v0.9", "v1.0"}
+
+# Transition skip list containing specific test case names to skip during active feature transitions.
+SKIP_TEST_NAMES = set()
+
 
 @contextlib.contextmanager
 def assert_raises(expect_error):
@@ -115,7 +121,7 @@ def load_tests(filename):
 
 
 def setup_catalog(catalog_config):
-    version = str(catalog_config["version"])
+    version = str(catalog_config["protocol_version"]).removeprefix("v")
 
     s2c_schema = catalog_config.get("s2c_schema")
     if isinstance(s2c_schema, str):
@@ -169,7 +175,21 @@ def assert_parts_match(actual_parts, expected_parts):
 
 def get_conformance_cases(filename):
     cases = load_tests(filename)
-    return [(case["name"], case) for case in cases]
+    filtered = []
+    for case in cases:
+        name = case.get("name")
+        catalog = (
+            case.get("catalog", {}) if isinstance(case.get("catalog"), dict) else {}
+        )
+        args = case.get("args", {}) if isinstance(case.get("args"), dict) else {}
+        version = str(catalog.get("protocol_version") or args.get("version") or "v0.8")
+        if not version.startswith("v"):
+            version = f"v{version}"
+
+        if version not in SUPPORTED_SPEC_VERSIONS or name in SKIP_TEST_NAMES:
+            continue
+        filtered.append((name, case))
+    return filtered
 
 
 # --- Streaming Parser Conformance ---
