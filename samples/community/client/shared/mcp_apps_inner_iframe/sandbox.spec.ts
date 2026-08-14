@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
-import {describe, it, expect} from 'vitest';
+import {describe, it, expect, vi} from 'vitest';
 import {
+  ANCHOR_SELECTOR,
   buildPermissionsPolicy,
+  handleAnchorClick,
   normalizeOrigin,
   SENSITIVE_PERMISSIONS,
   ALLOWED_REFERRER_PATTERN,
@@ -156,6 +158,105 @@ describe('mcp_apps_inner_iframe sandbox', () => {
       expect(customPattern.test('https://a2ui.org-phishing.com')).toBe(false);
       expect(customPattern.test('https://a2ui.org.attacker.com/path')).toBe(false);
       expect(customPattern.test('https://evil.com/?origin=https://a2ui.org')).toBe(false);
+    });
+  });
+
+  describe('handleAnchorClick', () => {
+    it('intercepts direct clicks on anchor elements and invokes navigation callback', () => {
+      const onNavigate = vi.fn();
+      const preventDefault = vi.fn();
+      const stopPropagation = vi.fn();
+
+      const anchorEl = {
+        href: 'https://example.com/link',
+        closest: (sel: string) => (sel === ANCHOR_SELECTOR ? anchorEl : null),
+      };
+
+      const event = {
+        target: anchorEl as unknown as HTMLElement,
+        preventDefault,
+        stopPropagation,
+      };
+
+      const handled = handleAnchorClick(event, onNavigate);
+
+      expect(handled).toBe(true);
+      expect(preventDefault).toHaveBeenCalledTimes(1);
+      expect(stopPropagation).toHaveBeenCalledTimes(1);
+      expect(onNavigate).toHaveBeenCalledWith('https://example.com/link');
+    });
+
+    it('intercepts clicks on child elements nested inside anchor elements', () => {
+      const onNavigate = vi.fn();
+      const preventDefault = vi.fn();
+      const stopPropagation = vi.fn();
+
+      const anchorEl = {
+        href: 'https://attacker.com/leak?data=stolen',
+      };
+      const childSpanEl = {
+        closest: (sel: string) => (sel === ANCHOR_SELECTOR ? anchorEl : null),
+      };
+
+      const event = {
+        target: childSpanEl as unknown as HTMLElement,
+        preventDefault,
+        stopPropagation,
+      };
+
+      const handled = handleAnchorClick(event, onNavigate);
+
+      expect(handled).toBe(true);
+      expect(preventDefault).toHaveBeenCalledTimes(1);
+      expect(stopPropagation).toHaveBeenCalledTimes(1);
+      expect(onNavigate).toHaveBeenCalledWith('https://attacker.com/leak?data=stolen');
+    });
+
+    it('ignores clicks on non-anchor elements', () => {
+      const onNavigate = vi.fn();
+      const preventDefault = vi.fn();
+      const stopPropagation = vi.fn();
+
+      const buttonEl = {
+        closest: () => null,
+      };
+
+      const event = {
+        target: buttonEl as unknown as HTMLElement,
+        preventDefault,
+        stopPropagation,
+      };
+
+      const handled = handleAnchorClick(event, onNavigate);
+
+      expect(handled).toBe(false);
+      expect(preventDefault).not.toHaveBeenCalled();
+      expect(stopPropagation).not.toHaveBeenCalled();
+      expect(onNavigate).not.toHaveBeenCalled();
+    });
+
+    it('ignores anchor elements without an href attribute', () => {
+      const onNavigate = vi.fn();
+      const preventDefault = vi.fn();
+      const stopPropagation = vi.fn();
+
+      const anchorWithoutHref = {
+        href: '',
+        closest: (sel: string) => (sel === ANCHOR_SELECTOR ? anchorWithoutHref : null),
+      };
+
+      const event = {
+        target: anchorWithoutHref as unknown as HTMLElement,
+        preventDefault,
+        stopPropagation,
+      };
+
+      const handled = handleAnchorClick(event, onNavigate);
+
+      expect(handled).toBe(false);
+      expect(preventDefault).not.toHaveBeenCalled();
+      expect(stopPropagation).not.toHaveBeenCalled();
+      expect(onNavigate).not.toHaveBeenCalled();
     });
   });
 });

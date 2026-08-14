@@ -165,8 +165,8 @@ export class WebAppFrameSrcdoc extends CatalogComponent<WebAppFrameSrcdocApi> {
           type: A2uiMessageType.SandboxResourceReady,
           html: securedHtml,
           htmlContent: securedHtml,
-          // Omits allow-same-origin (origin isolation) and allow-top-navigation (frame-busting defense)
-          sandbox: 'allow-scripts allow-forms allow-popups allow-modals',
+          // Omits allow-same-origin (origin isolation), allow-top-navigation (frame-busting defense), and allow-popups (1-click hyperlink exfiltration defense)
+          sandbox: 'allow-scripts allow-forms allow-modals',
         },
         window.location.origin,
       );

