@@ -1,0 +1,19 @@
+# Copyright 2025 The Flutter Authors.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+name: a2ui_agent
+description: The A2UI agent SDK.
+version: 0.0.1-wip
+repository: https://github.com/flutter/genui/tree/main/packages/a2ui_agent
+
+resolution: workspace
+
+environment:
+  sdk: ">=3.10.0 <4.0.0"
+
+dependencies:
+  a2ui_core: ^0.1.0
+
+dev_dependencies:
+  test: ^1.26.2
