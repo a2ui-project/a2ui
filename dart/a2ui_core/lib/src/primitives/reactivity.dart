@@ -1,12 +1,17 @@
-// Copyright 2025 The Flutter Authors.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
+// Copyright 2024 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
-/// Re-exports the signal primitives used throughout a2ui_core.
-///
-/// preact_signals is a Dart port of Preact's signal library. It provides
-/// automatic dependency tracking, lazy evaluation, and correct cleanup
-/// of nested computed chains.
 library;
 
 export 'package:preact_signals/preact_signals.dart'
