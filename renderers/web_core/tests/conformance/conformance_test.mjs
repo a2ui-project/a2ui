@@ -100,7 +100,7 @@ function runConformanceHarness() {
 
     for (const testCase of testCases) {
       const {name, action, catalog, args} = testCase;
-      const version = catalog?.version || args?.version || '0.8';
+      const version = catalog?.protocol_version || args?.version || '0.8';
 
       if (!SUPPORTED_SPEC_VERSIONS.has(version)) {
         totalSkipped++;

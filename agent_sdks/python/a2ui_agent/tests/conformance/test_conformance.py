@@ -121,7 +121,7 @@ def load_tests(filename):
 
 
 def setup_catalog(catalog_config):
-    version = str(catalog_config["version"])
+    version = str(catalog_config["protocol_version"])
 
     s2c_schema = catalog_config.get("s2c_schema")
     if isinstance(s2c_schema, str):
@@ -182,7 +182,7 @@ def get_conformance_cases(filename):
             case.get("catalog", {}) if isinstance(case.get("catalog"), dict) else {}
         )
         args = case.get("args", {}) if isinstance(case.get("args"), dict) else {}
-        version = str(catalog.get("version") or args.get("version") or "0.8")
+        version = str(catalog.get("protocol_version") or args.get("version") or "0.8")
 
         if version not in SUPPORTED_SPEC_VERSIONS or name in SKIP_TEST_NAMES:
             continue

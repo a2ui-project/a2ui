@@ -180,7 +180,7 @@ class ConformanceTest {
     conformanceDir: File,
     baseSchemaMappings: Map<String, String>,
   ): Pair<A2uiCatalog, Map<String, String>> {
-    val versionStr = catalogMap["version"] as String
+    val versionStr = (catalogMap["protocol_version"] as? String) ?: "0.8"
     val version =
       if (versionStr == VERSION_0_8_STR) A2uiVersion.VERSION_0_8 else A2uiVersion.VERSION_0_9
 
@@ -385,9 +385,8 @@ class ConformanceTest {
       val action = case[ConformanceTestHelper.KEY_ACTION] as String
       val args = case[ConformanceTestHelper.KEY_ARGS] as? Map<*, *> ?: emptyMap<Any, Any>()
 
-      val catalogMap = case[ConformanceTestHelper.KEY_CATALOG] as? Map<*, *>
       val versionStr =
-        (catalogMap?.get("version") as? String) ?: (args["version"] as? String) ?: "0.8"
+        (catalogMap?.get("protocol_version") as? String) ?: (args["version"] as? String) ?: "0.8"
       if (versionStr !in SUPPORTED_SPEC_VERSIONS) return@mapNotNull null
       if (name in SKIP_TEST_NAMES) return@mapNotNull null
       if (action !in setOf("select_catalog", "load_catalog", "generate_prompt"))
