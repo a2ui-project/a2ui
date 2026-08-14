@@ -20,7 +20,7 @@
         "properties": {
           "protocol_version": {
             "type": "string",
-            "enum": ["0.8", "0.9", "1.0"],
+            "enum": ["v0.8", "v0.9", "v1.0"],
             "description": "Protocol version."
           },
           "s2c_schema": {

@@ -180,9 +180,10 @@ class ConformanceTest {
     conformanceDir: File,
     baseSchemaMappings: Map<String, String>,
   ): Pair<A2uiCatalog, Map<String, String>> {
-    val versionStr = (catalogMap["protocol_version"] as? String) ?: "0.8"
+    val versionStr = (catalogMap["protocol_version"] as? String) ?: "v0.8"
     val version =
-      if (versionStr == VERSION_0_8_STR) A2uiVersion.VERSION_0_8 else A2uiVersion.VERSION_0_9
+      if (versionStr == VERSION_0_8_STR || versionStr == "v0.8") A2uiVersion.VERSION_0_8
+      else A2uiVersion.VERSION_0_9
 
     val s2cSchemaObj = catalogMap["s2c_schema"]
     val s2cSchema =
@@ -385,8 +386,10 @@ class ConformanceTest {
       val action = case[ConformanceTestHelper.KEY_ACTION] as String
       val args = case[ConformanceTestHelper.KEY_ARGS] as? Map<*, *> ?: emptyMap<Any, Any>()
 
-      val versionStr =
-        (catalogMap?.get("protocol_version") as? String) ?: (args["version"] as? String) ?: "0.8"
+      val catalogMap = case[ConformanceTestHelper.KEY_CATALOG] as? Map<*, *>
+      val rawVersion =
+        (catalogMap?.get("protocol_version") as? String) ?: (args["version"] as? String) ?: "v0.8"
+      val versionStr = if (rawVersion.startsWith("v")) rawVersion else "v$rawVersion"
       if (versionStr !in SUPPORTED_SPEC_VERSIONS) return@mapNotNull null
       if (name in SKIP_TEST_NAMES) return@mapNotNull null
       if (action !in setOf("select_catalog", "load_catalog", "generate_prompt"))
@@ -719,7 +722,7 @@ class ConformanceTest {
 
   private companion object {
     /** Set of A2UI specification versions supported by this legacy Kotlin conformance harness. */
-    private val SUPPORTED_SPEC_VERSIONS = setOf("0.8", "0.9")
+    private val SUPPORTED_SPEC_VERSIONS = setOf("v0.8", "v0.9")
 
     /**
      * Transition skip list containing specific test case names to skip during active feature
