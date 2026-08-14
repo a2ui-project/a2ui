@@ -93,3 +93,13 @@ ExampleDataModelExterns.prototype.responseMessage;
 ExampleDataModelExterns.prototype.isValid;
 /** @type {?|undefined} */
 ExampleDataModelExterns.prototype.validationErrors;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.sliderValue;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.sliderLabel;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.status;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.actionResult;
+/** @type {?|undefined} */
+ExampleDataModelExterns.prototype.currentSlider;

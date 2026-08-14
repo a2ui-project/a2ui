@@ -1,0 +1,162 @@
+{
+  "name": "Native Grid",
+  "description": "A custom component container example.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "custom-grid-demo",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "custom-grid-demo",
+        "path": "/",
+        "value": {
+          "sliderValue1": 65,
+          "sliderValue2": 30,
+          "sliderLabel": "Volume Control",
+          "status": "Ready",
+          "actionResult": "No action triggered yet"
+        }
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "custom-grid-demo",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": ["header-card", "grid-container", "footer-text"]
+          },
+          {
+            "id": "header-card",
+            "component": "Card",
+            "child": "header-col"
+          },
+          {
+            "id": "header-col",
+            "component": "Column",
+            "children": ["title-text", "subtitle-text"]
+          },
+          {
+            "id": "title-text",
+            "component": "Text",
+            "text": "Native Container Component Showcase",
+            "variant": "h2"
+          },
+          {
+            "id": "subtitle-text",
+            "component": "Text",
+            "text": "Demonstrates a custom container component (CustomGrid) implemented in the client application framework, rendering a 4-cell layout hosting both native components and universal web components as children.",
+            "variant": "caption"
+          },
+          {
+            "id": "grid-container",
+            "component": "CustomGrid",
+            "title": "Interactive 4x4 Component Grid",
+            "description": "Grid cells 1 & 3 contain native components (CustomSlider), while cells 2 & 4 contain universal Web Components (Card, Text, Button).",
+            "children": [
+              "child-native-slider-1",
+              "child-universal-card",
+              "child-native-slider-2",
+              "child-universal-button"
+            ]
+          },
+          {
+            "id": "child-native-slider-1",
+            "component": "CustomSlider",
+            "label": "Master Volume (Native)",
+            "value": {
+              "path": "/sliderValue1"
+            },
+            "min": 0,
+            "max": 100
+          },
+          {
+            "id": "child-universal-card",
+            "component": "Card",
+            "child": "card-inner-col"
+          },
+          {
+            "id": "card-inner-col",
+            "component": "Column",
+            "children": ["card-title", "card-status"]
+          },
+          {
+            "id": "card-title",
+            "component": "Text",
+            "text": "Universal Web Component: Text & Card",
+            "variant": "body"
+          },
+          {
+            "id": "card-status",
+            "component": "Text",
+            "text": {
+              "call": "formatString",
+              "args": {
+                "value": "Status: ${/status} | Vol: ${/sliderValue1}% | Bright: ${/sliderValue2}%"
+              }
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "child-native-slider-2",
+            "component": "CustomSlider",
+            "label": "Brightness Level (Native)",
+            "value": {
+              "path": "/sliderValue2"
+            },
+            "min": 0,
+            "max": 100
+          },
+          {
+            "id": "child-universal-button",
+            "component": "Column",
+            "children": ["action-btn", "btn-desc"]
+          },
+          {
+            "id": "action-btn",
+            "component": "Button",
+            "child": "btn-label",
+            "variant": "primary",
+            "action": {
+              "event": {
+                "name": "grid_button_clicked",
+                "context": {
+                  "vol": {
+                    "path": "/sliderValue1"
+                  },
+                  "bright": {
+                    "path": "/sliderValue2"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "id": "btn-label",
+            "component": "Text",
+            "text": "Universal Button Action"
+          },
+          {
+            "id": "btn-desc",
+            "component": "Text",
+            "text": "Clicking dispatches an A2UI client action to the agent",
+            "variant": "caption"
+          },
+          {
+            "id": "footer-text",
+            "component": "Text",
+            "text": "Universal components and native components seamlessly coexist in the same A2UI surface.",
+            "variant": "caption"
+          }
+        ]
+      }
+    }
+  ]
+}
