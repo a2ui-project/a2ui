@@ -82,7 +82,7 @@ Content-Type: application/json
 }
 ```
 
-To see how the agent parses the extension URI, see [`extension.py`](../../../../../agent_sdks/python/a2ui_agent/src/a2ui/a2a/extension.py).
+To see how the agent parses the extension URI, see [`extension.py`](../../../../../python/a2ui_agent/src/a2ui/a2a/extension.py).
 
 ### GRPC transport
 

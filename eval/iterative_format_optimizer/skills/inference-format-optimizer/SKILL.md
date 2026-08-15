@@ -35,7 +35,7 @@ All execution scripts live under `scripts/` in this skill:
 ## The 6-Step Optimization Workflow
 
 1. **Analyze History**: Inspect past runs in `eval/iterative_format_optimizer/history/<format>/` and read `eval/iterative_format_optimizer/history_summary.md` to avoid repeating past reverted hypotheses.
-2. **Implement Hypothesis**: Modify `compiler.py`, `prompt_generator.py`, or `parser.py` under `agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/<format>/`.
+2. **Implement Hypothesis**: Modify `compiler.py`, `prompt_generator.py`, or `parser.py` under `python/a2ui_agent/src/a2ui/inference_formats/experimental/<format>/`.
 3. **Run Unit Conformance Tests**: Verify code changes pass pytest unit tests.
 4. **Execute Benchmark Evaluation**: Run `python scripts/optimize_format.py --format <format>`.
 5. **Evaluate Decision Rules**:

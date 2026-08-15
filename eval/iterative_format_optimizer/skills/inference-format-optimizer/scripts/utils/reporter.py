@@ -316,7 +316,7 @@ def generate_optimization_report(
         report.append(git_diff)
         report.append("```")
     else:
-        report.append("*No files modified under `agent_sdks`.*")
+        report.append("*No files modified under `python`.*")
     report.append("")
 
     failures = []

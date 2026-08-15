@@ -28,8 +28,8 @@ a2ui-agent-sdk = ["a2ui-core"]
 [tool.uv.workspace]
 members = [
   "conformance",
-  "agent_sdks/python/a2ui_agent",
-  "agent_sdks/python/a2ui_core",
+  "python/a2ui_agent",
+  "python/a2ui_core",
   "eval",
   "samples/agent/adk/custom-components-example",
   "samples/agent/adk/restaurant_finder",
@@ -66,8 +66,8 @@ release = [
 [tool.pytest.ini_options]
 testpaths = [
     "conformance/tests",
-    "agent_sdks/python/a2ui_agent/tests",
-    "agent_sdks/python/a2ui_core/tests",
+    "python/a2ui_agent/tests",
+    "python/a2ui_core/tests",
     "eval/tests",
     "samples/agent/adk/tests",
     "samples/community/agent/adk/personalized_learning/tests",
@@ -112,15 +112,15 @@ pyink-annotation-pragmas = [
 strict = true
 explicit_package_bases = true
 namespace_packages = true
-mypy_path = "agent_sdks/python/a2ui_core/src:agent_sdks/python/a2ui_agent/src:blueprints:eval:eval/bin"
+mypy_path = "python/a2ui_core/src:python/a2ui_agent/src:blueprints:eval:eval/bin"
 exclude = [
-    "^agent_sdks/python/a2ui_core/tests/",
-    "^agent_sdks/python/a2ui_agent/tests/",
+    "^python/a2ui_core/tests/",
+    "^python/a2ui_agent/tests/",
     "^conformance/tests/",
     "^eval/",
     # TODO(#1614): Typecheck all packages here.
-    "^agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/",
-    "^agent_sdks/python/a2ui_agent/pack_specs_hook\\.py$",
+    "^python/a2ui_agent/src/a2ui/inference_formats/experimental/",
+    "^python/a2ui_agent/pack_specs_hook\\.py$",
     "^samples/",
     "^tools/",
     "^docs/",

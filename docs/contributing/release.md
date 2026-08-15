@@ -17,12 +17,12 @@ See [renderers/docs/web_publishing.md](../../renderers/docs/web_publishing.md).
 To release a new version of the SDK, follow these steps:
 
 1. Check if there are entries in the Unreleased sections of the CHANGELOG files. If not, you are done.
-    - a2ui_core [CHANGELOG](../../agent_sdks/python/a2ui_core/CHANGELOG.md)
-    - a2ui_agent [CHANGELOG](../../agent_sdks/python/a2ui_agent/CHANGELOG.md)
+    - a2ui_core [CHANGELOG](../../python/a2ui_core/CHANGELOG.md)
+    - a2ui_agent [CHANGELOG](../../python/a2ui_agent/CHANGELOG.md)
 
-2. Update the version in [version.py](../../agent_sdks/python/a2ui_agent/src/a2ui/version.py).
+2. Update the version in [version.py](../../python/a2ui_agent/src/a2ui/version.py).
 
-3. Run the [release.sh](../../agent_sdks/python/release.sh) script from the `agent_sdks/python` directory. The script will build the package, upload it to the Artifact Registry, and trigger the release pipeline.
+3. Run the [release.sh](../../python/release.sh) script from the `python` directory. The script will build the package, upload it to the Artifact Registry, and trigger the release pipeline.
 
 ### Documentation website
 

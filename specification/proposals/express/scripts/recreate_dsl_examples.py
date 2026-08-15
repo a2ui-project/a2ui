@@ -35,7 +35,6 @@ sys.path.insert(
             "..",
             "..",
             "..",
-            "agent_sdks",
             "python",
             "a2ui_agent",
             "src",

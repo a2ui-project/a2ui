@@ -33,7 +33,7 @@ To run inference and compiler validation using a standard remote Gemini model (e
    cd specification/proposals/express
 
    # Run inference against Gemini API (using the a2ui_agent project environment)
-   A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent scripts/run_inference.py \
+   A2UI_EXPRESS_ENABLED=true uv run --project ../../../python/a2ui_agent scripts/run_inference.py \
      ../../v1_0/catalogs/basic/examples/01_flight-status.json \
      --model gemini-3.1-flash-lite
    ```
@@ -57,7 +57,7 @@ The `express` package provides standalone developer scripts in `specification/pr
 Generate the model prompt contract, containing positional component signatures and rules compiled from the active catalog schema:
 
 ```bash
-A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent scripts/run_prompt_generator.py --catalog ../../v1_0/catalogs/basic/catalog.json
+A2UI_EXPRESS_ENABLED=true uv run --project ../../../python/a2ui_agent scripts/run_prompt_generator.py --catalog ../../v1_0/catalogs/basic/catalog.json
 ```
 
 ### Plain DSL compiler
@@ -65,7 +65,7 @@ A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent
 Compile an offline A2UI Express DSL file directly into standard pretty-printed v1.0 JSON:
 
 ```bash
-A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent scripts/run_compiler.py \
+A2UI_EXPRESS_ENABLED=true uv run --project ../../../python/a2ui_agent scripts/run_compiler.py \
   path/to/sample.a2ui \
   --surface-id "dashboard_surface"
 ```
@@ -75,7 +75,7 @@ A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent
 Convert standard A2UI v1.0 JSON envelopes back into compact A2UI Express code:
 
 ```bash
-A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent scripts/run_decompiler.py ../../v1_0/catalogs/basic/examples/01_flight-status.json
+A2UI_EXPRESS_ENABLED=true uv run --project ../../../python/a2ui_agent scripts/run_decompiler.py ../../v1_0/catalogs/basic/examples/01_flight-status.json
 ```
 
 ### Regenerate documentation examples
@@ -83,5 +83,5 @@ A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent
 Regenerate the dynamic [express_dsl_examples.md](express_dsl_examples.md) file containing the system prompt contract and compiled weather forecast examples directly from the active code:
 
 ```bash
-A2UI_EXPRESS_ENABLED=true uv run --project ../../../agent_sdks/python/a2ui_agent scripts/recreate_dsl_examples.py
+A2UI_EXPRESS_ENABLED=true uv run --project ../../../python/a2ui_agent scripts/recreate_dsl_examples.py
 ```
