@@ -137,20 +137,39 @@ export class WebAppFrameSrcdoc extends CatalogComponent<WebAppFrameSrcdocApi> {
    * @param html The raw HTML content string.
    * @returns The HTML string with the CSP meta tag injected.
    */
-  private injectCsp(html: string): string {
+  private injectCspAndInterceptors(html: string): string {
     let result = html.replace(
       /<meta\s+(?:[^>]*?\s+)?http-equiv=["']?Content-Security-Policy["']?[^>]*>/gi,
       '',
     );
 
     const cspMeta = `<meta http-equiv="Content-Security-Policy" content="${DEFAULT_INJECTED_CSP}">`;
+    const interceptorScript = `<script>
+      document.addEventListener('click', (e) => {
+        const anchor = e.target.closest('a');
+        if (anchor && anchor.href) {
+          const href = anchor.getAttribute('href');
+          if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.parent.postMessage({
+              type: 'a2ui_action',
+              action: 'open_url',
+              data: { url: anchor.href }
+            }, '*');
+          }
+        }
+      }, true);
+    </script>`;
+
+    const injectedContent = `${cspMeta}\n    ${interceptorScript}`;
 
     if (/(<head[^>]*>)/i.test(result)) {
-      result = result.replace(/(<head[^>]*>)/i, `$1\n    ${cspMeta}`);
+      result = result.replace(/(<head[^>]*>)/i, `$1\n    ${injectedContent}`);
     } else if (/(<html[^>]*>)/i.test(result)) {
-      result = result.replace(/(<html[^>]*>)/i, `$1\n  <head>\n    ${cspMeta}\n  </head>`);
+      result = result.replace(/(<html[^>]*>)/i, `$1\n  <head>\n    ${injectedContent}\n  </head>`);
     } else {
-      result = `<head>\n  ${cspMeta}\n</head>\n` + result;
+      result = `<head>\n  ${injectedContent}\n</head>\n` + result;
     }
 
     return result;
@@ -159,14 +178,14 @@ export class WebAppFrameSrcdoc extends CatalogComponent<WebAppFrameSrcdocApi> {
   private handleSandboxProxyReady(iframeEl: HTMLIFrameElement) {
     const rawContent = this.resolvedContent();
     if (rawContent && iframeEl.contentWindow) {
-      const securedHtml = this.injectCsp(rawContent);
+      const securedHtml = this.injectCspAndInterceptors(rawContent);
       iframeEl.contentWindow.postMessage(
         {
           type: A2uiMessageType.SandboxResourceReady,
           html: securedHtml,
           htmlContent: securedHtml,
-          // Omits allow-same-origin (origin isolation) and allow-top-navigation (frame-busting defense)
-          sandbox: 'allow-scripts allow-forms allow-popups allow-modals',
+          // Omits allow-same-origin (origin isolation), allow-top-navigation (frame-busting defense), and allow-popups (1-click hyperlink exfiltration defense)
+          sandbox: 'allow-scripts allow-forms allow-modals',
         },
         window.location.origin,
       );

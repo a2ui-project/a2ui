@@ -129,7 +129,7 @@ describe('WebAppFrameSrcdoc', () => {
 
       expect(targetOrigin).toBe(window.location.origin);
       expect(message.type).toBe(A2uiMessageType.SandboxResourceReady);
-      expect(message.sandbox).toBe('allow-scripts allow-forms allow-popups allow-modals');
+      expect(message.sandbox).toBe('allow-scripts allow-forms allow-modals');
 
       // Verify all essential CSP restrictions are enforced in injected markup
       expect(message.html).toContain("connect-src 'none'");
