@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -136,7 +136,7 @@ class TestExpressParser(unittest.TestCase):
 
         def get_compiled_text(dsl_body: str) -> str:
             dsl = f"root = Column([t1])\nt1 = Text({dsl_body})"
-            res = compiler.compile(dsl)
+            res = compiler.compile(dsl)[0]
             return res["createSurface"]["components"][1]["text"]
 
         # 1. Standard Single-Quoted Strings & Escaping
@@ -214,8 +214,8 @@ class TestExpressParser(unittest.TestCase):
             compiler.compile(incomplete_dsl)
 
         res_partial = compiler.compile(incomplete_dsl, is_final=False)
-        self.assertEqual(res_partial["updateDataModel"]["value"]["foo"], 123)
-        self.assertNotIn("bar", res_partial["updateDataModel"]["value"])
+        self.assertEqual(res_partial[0]["updateDataModel"]["value"]["foo"], 123)
+        self.assertNotIn("bar", res_partial[0]["updateDataModel"]["value"])
 
     def test_schema_driven_child_reference_helper(self):
         """Verify that _is_component_reference_property correctly inspects JSON schema structures."""
@@ -373,6 +373,47 @@ class TestExpressParser(unittest.TestCase):
         }
         dsl_dict = decompiler.decompile(envelope_dict)
         self.assertIn("unknownFunc", dsl_dict)
+
+    def test_decompile_surface_directive(self):
+        """Test decompiling createSurface envelope with custom surfaceId emits surface() directive."""
+        decompiler = ExpressParser(self.catalog)
+        envelope = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "custom-surface-456",
+                "components": [{"id": "root", "component": "Text", "text": "Hello"}],
+            },
+        }
+        decompiled = decompiler.decompile(envelope)
+        self.assertIn('surface("custom-surface-456")', decompiled)
+
+        # Test with custom catalogId
+        envelope_custom = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "custom-surface-456",
+                "catalogId": "https://custom-catalog.json",
+                "components": [{"id": "root", "component": "Text", "text": "Hello"}],
+            },
+        }
+        decompiled_custom = decompiler.decompile(envelope_custom)
+        self.assertIn(
+            'surface("custom-surface-456", catalogId="https://custom-catalog.json")',
+            decompiled_custom,
+        )
+
+    def test_decompile_update_components(self):
+        """Test decompiling updateComponents envelope emits surface() directive."""
+        decompiler = ExpressParser(self.catalog)
+        envelope = {
+            "version": "1.0",
+            "updateComponents": {
+                "surfaceId": "update-surf-789",
+                "components": [{"id": "root", "component": "Text", "text": "Updated"}],
+            },
+        }
+        decompiled = decompiler.decompile(envelope)
+        self.assertIn('surface("update-surf-789")', decompiled)
 
 
 if __name__ == "__main__":

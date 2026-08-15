@@ -203,7 +203,7 @@ Let's peek at what the agent is sending. Here's a simplified example of the JSON
     {"version": "v0.9.1", "updateDataModel": {"surfaceId": "main", "path": "/reservation", "value": {"date": "2025-12-15", "time": "19:00", "guests": 2}}}
     ```
 
-    Note: In v0.9, `createSurface` replaces `beginRendering`, components use a flatter format, and the data model uses plain JSON values instead of typed adjacency lists.
+    Note: Components use a flat format, and the data model uses plain JSON values.
 
 TIP: It's Just JSON
 
@@ -217,8 +217,17 @@ The repository includes several other demos:
 
 See all available A2UI components:
 
+If you're running the gallery from a fresh checkout, build the gallery and its workspace dependencies first:
+
 ```bash
-yarn start gallery
+cd renderers/lit/a2ui_explorer
+yarn build
+```
+
+Start the gallery:
+
+```bash
+yarn dev
 ```
 
 This runs a client-only demo showcasing every standard component (Card, Button, TextField, Timeline, etc.) with live examples and code samples.

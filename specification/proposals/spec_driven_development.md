@@ -1,11 +1,5 @@
 # **Scaling A2UI codebases with spec-driven development**
 
-_Status: Draft_
-
-_Author: Jacob Simionato_
-
-_Created: 2026-06-18 Modified: 2026-06-18_
-
 # **Background**
 
 The A2UI team has adopted recent development practices of using agents to write the majority of our code, using designs, specifications, prompts and other codebases as inputs to guide it. In this paradigm, the job of human developers is primarily to write and maintain the documentation that agents use to write code. This spec-driven development (SDD) approach is being adopted across the software industry in various ways. Members of the A2UI team have tried many different approaches, including generating detailed design docs which are then reviewed by humans for implementation, maintaining markdown guides which can be used to implement multiple variants of a codebase (e.g. `renderer_guide.md` for web renderers) or creating detailed Github issues that are used by agents to implement features.

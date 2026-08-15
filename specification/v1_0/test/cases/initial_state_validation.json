@@ -145,6 +145,208 @@
           "dataModel": "not-an-object"
         }
       }
+    },
+    {
+      "description": "Invalid: createSurface cannot create a component named Surface",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "components": [
+            {
+              "id": "root",
+              "component": "Surface"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Invalid: updateComponents cannot create a component named Surface",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "Surface"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Valid createSurface with metadata.extensions",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "metadata": {
+            "extensions": {
+              "a2ui_telemetry": {"session": "xyz123"},
+              "wellsky_rbac": {"clearance": "restricted"},
+              "_internal_tag": 42
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Valid createSurface with non-ASCII Unicode UAX #31 extension keys",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "metadata": {
+            "extensions": {
+              "wellsky_über": {"locale": "de"},
+              "wellsky_τάξις": {"category": "greek"}
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Invalid: createSurface with extension key violating UAX #31 identifier pattern",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "metadata": {
+            "extensions": {
+              "invalid-key-with-dashes": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Invalid: createSurface metadata contains unrecognized property (additionalProperties: false)",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "metadata": {
+            "unrecognizedProperty": true
+          }
+        }
+      }
+    },
+    {
+      "description": "Valid component with metadata.extensions in createSurface",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "components": [
+            {
+              "id": "root",
+              "component": "Text",
+              "text": "Hello world",
+              "metadata": {
+                "extensions": {
+                  "custom_theme": {"variant": "dark"}
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Invalid: component metadata.extensions has invalid key name",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "components": [
+            {
+              "id": "root",
+              "component": "Text",
+              "text": "Hello world",
+              "metadata": {
+                "extensions": {
+                  "123start_with_number": true
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Invalid: component missing id required by ComponentCommon",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "components": [
+            {
+              "component": "Text",
+              "text": "Missing ID component"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Valid component with accessibility attributes",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "components": [
+            {
+              "id": "root",
+              "component": "Text",
+              "text": "Accessible component",
+              "accessibility": {
+                "label": "Greeting text",
+                "description": "Welcomes the user to the application"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Invalid: component with unexpected property on envelope",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "components": [
+            {
+              "id": "root",
+              "component": "Text",
+              "text": "Invalid prop component",
+              "unknownEnvelopeProp": "invalid"
+            }
+          ]
+        }
+      }
     }
   ]
 }

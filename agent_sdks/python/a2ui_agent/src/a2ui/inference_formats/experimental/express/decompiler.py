@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -118,19 +118,37 @@ class _ExpressDecompiler:
         self.helper = CatalogSchemaHelper(catalog)
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-        # Merge individual express blocks into a single wrapper block
+        """Wraps individual decompiled A2UI Express DSL blocks within sentinel tags.
+
+        Args:
+            blocks: A list of decompiled A2UI Express DSL statement strings.
+
+        Returns:
+            The merged A2UI Express DSL string enclosed within opening and closing sentinel tags.
+        """
         full_dsl = "\n".join(blocks)
         return f"{A2UI_INFERENCE_OPEN_TAG}\n{full_dsl}\n{A2UI_INFERENCE_CLOSE_TAG}"
 
-    def decompile(self, envelope_json: dict) -> str:
+    def decompile(
+        self,
+        envelope_json: Union[dict[str, Any], list[dict[str, Any]]],
+        use_keyword_args: bool = False,
+    ) -> str:
         """Decompiles standard A2UI wire JSON into clean A2UI Express lines.
 
         Args:
-            envelope_json: The standard A2UI v1.0 JSON envelope.
+            envelope_json: Standard A2UI wire JSON envelope dict or list of message dicts.
+            use_keyword_args: Whether to format component arguments as keyword parameters (e.g., param=value).
 
         Returns:
             The decompiled A2UI Express DSL string.
         """
+        if isinstance(envelope_json, list):
+            return "\n".join(
+                self.decompile(item, use_keyword_args=use_keyword_args)
+                for item in envelope_json
+                if item
+            )
         # Handle deleteSurface action
         if SurfaceOperation.DELETE in envelope_json:
             surf_op = envelope_json[SurfaceOperation.DELETE]
@@ -190,10 +208,36 @@ class _ExpressDecompiler:
             return f"{fn_name}({args_str})"
 
         create_surface = envelope_json.get(SurfaceOperation.CREATE, {})
+        if not create_surface and SurfaceOperation.UPDATE_COMPONENTS in envelope_json:
+            create_surface = envelope_json[SurfaceOperation.UPDATE_COMPONENTS]
+
+        surface_id = create_surface.get("surfaceId", "")
+        catalog_id = create_surface.get("catalogId", "")
         components = create_surface.get("components", [])
         data_model = create_surface.get("dataModel", {})
 
+        catalog = self.helper.catalog if self.helper else None
+        default_catalog_id = "https://a2ui.org/catalog.json"
+        if isinstance(catalog, dict):
+            default_catalog_id = catalog.get("catalogId") or default_catalog_id
+        elif catalog and hasattr(catalog, "catalog_id"):
+            default_catalog_id = catalog.catalog_id or default_catalog_id
+        elif (
+            self.helper
+            and hasattr(self.helper, "catalog_model")
+            and getattr(self.helper.catalog_model, "catalog_id", None)
+        ):
+            default_catalog_id = (
+                self.helper.catalog_model.catalog_id or default_catalog_id
+            )
+
         dsl_lines = []
+        if surface_id and surface_id != "default_surface":
+            if catalog_id and catalog_id != default_catalog_id:
+                dsl_lines.append(f'surface("{surface_id}", catalogId="{catalog_id}")')
+            else:
+                dsl_lines.append(f'surface("{surface_id}")')
+
         # Index components by ID for hierarchy mapping
         comp_ids = {c["id"] for c in components}
 
@@ -268,17 +312,22 @@ class _ExpressDecompiler:
                     val = c[prop_name]
                     p_schema = self.helper.get_property_schema(comp_name, prop_name)
                     is_prop_ref = _is_component_reference_property(p_schema)
-                    args_reprs.append(self._decompile_value(val, comp_ids, is_prop_ref))
+                    val_str = self._decompile_value(val, comp_ids, is_prop_ref)
+                    if use_keyword_args:
+                        args_reprs.append(f"{prop_name}={val_str}")
+                    else:
+                        args_reprs.append(val_str)
                 else:
-                    # Only append "_" if there is a subsequent regular property that has a value
-                    idx = properties.index(prop_name)
-                    has_subsequent_val = False
-                    for p in properties[idx + 1 :]:
-                        if p != "checks" and p in c:
-                            has_subsequent_val = True
-                            break
-                    if has_subsequent_val:
-                        args_reprs.append("_")
+                    if not use_keyword_args:
+                        # Only append "_" if there is a subsequent regular property that has a value
+                        idx = properties.index(prop_name)
+                        has_subsequent_val = False
+                        for p in properties[idx + 1 :]:
+                            if p != "checks" and p in c:
+                                has_subsequent_val = True
+                                break
+                        if has_subsequent_val:
+                            args_reprs.append("_")
 
             # Strip trailing optional skipped arguments for readability
             while args_reprs and args_reprs[-1] == "_":

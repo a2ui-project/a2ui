@@ -95,6 +95,7 @@ Here is a simple catalog defining a single component.
 ```json
 {
   "$id": "https://github.com/.../hello_world/v1/catalog.json",
+  "catalogId": "https://github.com/.../hello_world/v1/catalog.json",
   "components": {
     "HelloWorldBanner": {
       "type": "object",
@@ -164,6 +165,7 @@ This catalog imports all elements from the Basic Catalog and adds a new `Suggest
 ```json
 {
   "$id": "https://github.com/.../hello_world_with_all_basic/v1/catalog.json",
+  "catalogId": "https://github.com/.../hello_world_with_all_basic/v1/catalog.json",
   "components": {
     "allOf": [
       {"$ref": "basic_catalog_definition.json#/components"},
@@ -194,6 +196,7 @@ This catalog imports only `Text` from the Basic Catalog to build a simple Popup 
 ```json
 {
   "$id": "https://github.com/.../hello_world_with_some_basic/v1/catalog.json",
+  "catalogId": "https://github.com/.../hello_world_with_some_basic/v1/catalog.json",
   "components": {
     "allOf": [
       {"$ref": "catalogs/basic/catalog.json#/components/Text"},
@@ -218,48 +221,71 @@ This catalog imports only `Text` from the Basic Catalog to build a simple Popup 
 
 Client renderers implement the catalog by mapping the schema definition to actual code.
 
-Example typescript renderer for the hello world catalog
+First, define the component API in TypeScript matching your catalog schema:
 
 ```typescript
-import {Catalog, DEFAULT_CATALOG} from '@a2ui/angular';
-import {inputBinding} from '@angular/core';
+// api.ts
+import {ComponentApi} from '@a2ui/web_core/v0_9';
+import {z} from 'zod';
 
-export const RIZZ_CHARTS_CATALOG = {
-  ...DEFAULT_CATALOG, // Include the basic catalog
-  HelloWorldBanner: {
-    type: () => import('./hello_world_banner').then(r => r.HelloWorldBanner),
-    bindings: ({properties}) => [
-      inputBinding(
-        'message',
-        () => ('message' in properties && properties['message']) || undefined,
-      ),
-    ],
-  },
-} as Catalog;
+export const HelloWorldBannerApi = {
+  name: 'HelloWorldBanner',
+  schema: z.object({
+    message: z.string(),
+    backgroundColor: z.string().default('#f0f0f0'),
+  }).strict(),
+} satisfies ComponentApi;
 ```
 
-and the hello_world_banner implementation
+Next, implement the component extending `CatalogComponent`:
 
 ```typescript
-import {DynamicComponent} from '@a2ui/angular';
-import {Component, Input} from '@angular/core';
+// hello_world_banner.ts
+import {CatalogComponent} from '@a2ui/angular/v0_9';
+import {Component, computed} from '@angular/core';
+import {HelloWorldBannerApi} from './api';
 
 @Component({
   selector: 'hello-world-banner',
-  imports: [],
   template: `
-    <div>
+    <div [style.background-color]="backgroundColor()">
       <h2>Hello World Banner</h2>
-      <p>{{ message }}</p>
+      <p>{{ message() }}</p>
     </div>
   `,
 })
-export class HelloWorldBanner extends DynamicComponent {
-  @Input() message?: string;
+export class HelloWorldBanner extends CatalogComponent<typeof HelloWorldBannerApi> {
+  protected readonly message = computed(() => this.props()['message']?.value() || '');
+  protected readonly backgroundColor = computed(() => this.props()['backgroundColor']?.value() || '#f0f0f0');
 }
 ```
 
+Finally, register your custom components in an `AngularCatalog`:
+
+```typescript
+// catalog.ts
+import {AngularCatalog, BASIC_COMPONENTS, BASIC_FUNCTIONS} from '@a2ui/angular/v0_9';
+import {HelloWorldBanner} from './hello_world_banner';
+import {HelloWorldBannerApi} from './api';
+
+const customBannerComponent = {
+  ...HelloWorldBannerApi,
+  component: HelloWorldBanner
+};
+
+export const MY_CATALOG = new AngularCatalog(
+  'https://github.com/.../hello_world/v1/catalog.json',
+  [...BASIC_COMPONENTS, customBannerComponent],
+  BASIC_FUNCTIONS
+);
+```
+
 You can see a working example of a client renderer in the [Orchestrator demo](../../../samples/community/client/angular/projects/orchestrator/src/a2ui-catalog/catalog.ts).
+
+> [!NOTE]
+> The Orchestrator demo currently uses v0.8 APIs. For a v0.9 example of catalog registration, see the [DemoCatalog](../../../renderers/angular/a2ui_explorer/src/app/demo-catalog.ts) in the Angular explorer.
+>
+> Additionally, for client-side functions, the client determines the function's execution boundary (such as `clientOnly` status) at runtime by reading its configuration from the active catalog definition.
 
 ## A2UI Catalog Negotiation
 
@@ -342,6 +368,7 @@ The `catalogId` is a unique text identifier used for negotiation between the cli
 - **Format:** While the `catalogId` is technically a string, the A2UI convention is to use a **URI** (e.g., `https://example.com/catalogs/mysurface/v1/catalog.json`).
 - **Purpose:** We use URIs to make the ID globally unique and easy for human developers to inspect in a browser.
 - **No Runtime Fetching:** This URI does not imply that the agent or client downloads the catalog at runtime. **The catalog definition must be known to the agent and client beforehand (at compile/deploy time)**. The URI serves only as a stable identifier.
+- **JSON Schema Compatibility (`$id` and `catalogId`):** Because A2UI catalogs are currently represented as JSON Schema documents, catalog definitions should include both `$id` (for JSON Schema tooling) and `catalogId` (for A2UI SDKs and catalog negotiation), setting both fields to the same URI.
 
 ### Versioning Guidelines
 

@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -162,7 +162,7 @@ def load_a2ui_dataset(
         for yaml_file in sorted(DATASETS_DIR.glob("*.yaml")):
             target_files.append(yaml_file)
 
-    is_json = format_name is None or format_name in ("direct_json", "json", "transport")
+    is_json = format_name is None or format_name == "direct_json"
     samples: list[Sample] = []
 
     for target_file in target_files:

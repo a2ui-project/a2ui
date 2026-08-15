@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import {SurfaceGroupModel} from '../state/surface-group-model.js';
 import {ComponentModel} from '../state/component-model.js';
 import {Subscription} from '../common/events.js';
 import {zodToJsonSchema} from 'zod-to-json-schema';
+import {z} from 'zod';
 
 import {
   A2uiMessage,
@@ -49,6 +50,45 @@ export interface CapabilitiesOptions {
 export interface MessageProcessorOptions {
   /** The default protocol version to use for capability generation and data model reporting. Defaults to 'v0.9'. */
   version?: 'v0.9' | 'v0.9.1';
+}
+
+/**
+ * Formats a Zod validation issue into a descriptive, human-readable string.
+ *
+ * Direct attribute extraction is used so that issue details (such as unrecognized
+ * property keys or invalid enum options) are preserved even when running in
+ * optimized/minified production builds where Zod's internal error map messages
+ * may degrade into generic strings (e.g. "Expected undefined, received undefined").
+ */
+export function formatZodIssue(err: z.ZodIssue): string {
+  const path = err.path.join('.') || 'root';
+
+  // 1. Unrecognized keys on .strict() schemas
+  if ('keys' in err && Array.isArray((err as any).keys) && (err as any).keys.length > 0) {
+    const keysStr = (err as any).keys.map((k: string) => `'${k}'`).join(', ');
+    return `${path}: Unrecognized key(s) in object: ${keysStr}`;
+  }
+
+  // 2. Invalid enum values
+  if (err.code === 'invalid_enum_value' && Array.isArray((err as any).options)) {
+    const optionsStr = (err as any).options.join(' | ');
+    return `${path}: Invalid enum value. Expected ${optionsStr}, received '${(err as any).received}'`;
+  }
+
+  // 3. Fallback when message is corrupted into "Expected undefined, received undefined"
+  if (err.message && !err.message.includes('Expected undefined, received undefined')) {
+    return `${path}: ${err.message}`;
+  }
+
+  if (
+    'expected' in err &&
+    (err as any).expected !== undefined &&
+    (err as any).received !== undefined
+  ) {
+    return path + ': Expected ' + (err as any).expected + ', received ' + (err as any).received;
+  }
+
+  return `${path}: Validation error (${err.code || 'invalid'})`;
 }
 
 /**
@@ -308,6 +348,7 @@ export class MessageProcessor<T extends ComponentApi> {
       throw new A2uiStateError(`Surface not found for message: ${payload.surfaceId}`);
     }
 
+    // 1. Validation pass: validate all components before mutating state
     for (const comp of payload.components) {
       const {id, component, ...properties} = comp;
 
@@ -316,6 +357,34 @@ export class MessageProcessor<T extends ComponentApi> {
       }
 
       const existing = surface.componentsModel.get(id);
+      const componentType = component || existing?.type;
+      if (componentType) {
+        const componentApi = surface.catalog.components.get(componentType);
+        if (componentApi) {
+          const validationResult = componentApi.schema.safeParse(properties);
+          if (!validationResult.success) {
+            const formattedErrors = validationResult.error.errors.map(formatZodIssue).join(', ');
+            console.error(
+              "[A2UI Validation Error] Component '" + componentType + "' (" + id + '):',
+              {
+                propertyKeys: Object.keys(properties),
+                issues: validationResult.error.issues,
+              },
+            );
+            throw new A2uiValidationError(
+              `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
+              validationResult.error.issues,
+            );
+          }
+        }
+      }
+    }
+
+    // 2. Mutation pass: apply state updates
+    for (const comp of payload.components) {
+      const {id, component, ...properties} = comp;
+      const existing = surface.componentsModel.get(id);
+
       if (existing) {
         if (component && component !== existing.type) {
           // Recreate component if type changes

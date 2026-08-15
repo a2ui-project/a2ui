@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ object A2uiConstants {
   const val COMMON_TYPES_SCHEMA_KEY = "common_types"
   const val CATALOG_SCHEMA_KEY = "catalog"
   const val CATALOG_COMPONENTS_KEY = "components"
+  const val CATALOG_FUNCTIONS_KEY = "functions"
   const val CATALOG_ID_KEY = "catalogId"
   const val CATALOG_STYLES_KEY = "styles"
 
@@ -46,6 +47,8 @@ object A2uiConstants {
 
   const val A2UI_OPEN_TAG = "<a2ui-json>"
   const val A2UI_CLOSE_TAG = "</a2ui-json>"
+  const val A2UI_INFERENCE_OPEN_TAG = "<a2ui>"
+  const val A2UI_INFERENCE_CLOSE_TAG = "</a2ui>"
 
   const val A2UI_SCHEMA_BLOCK_START = "---BEGIN A2UI JSON SCHEMA---"
   const val A2UI_SCHEMA_BLOCK_END = "---END A2UI JSON SCHEMA---"

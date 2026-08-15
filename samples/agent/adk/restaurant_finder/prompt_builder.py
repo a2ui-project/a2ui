@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@ from a2ui.basic_catalog.provider import BasicCatalog
 from a2ui.schema.common_modifiers import remove_strict_validation
 
 ROLE_DESCRIPTION = (
-    "You are a helpful restaurant finding assistant. Your final output MUST be a a2ui"
-    " UI JSON response."
+    "You are a helpful restaurant finding assistant. Your final output MUST be an A2UI"
+    " UI definition."
 )
 
 UI_DESCRIPTION = """
