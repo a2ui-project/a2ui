@@ -74,6 +74,21 @@ You can use the provided script to format the entire repo or check formatting:
 ./scripts/fix_format.sh --check
 ```
 
+To format only what your branch changed — which is what presubmit does on a
+pull request — add `--changed`. Formatters whose languages you did not touch
+are skipped entirely, so you are never asked to fix unrelated formatting drift
+just to get your change through:
+
+```bash
+./scripts/fix_format.sh --changed              # compares against origin/main
+./scripts/fix_format.sh --check --changed
+./scripts/fix_format.sh --changed --base upstream/main
+./scripts/fix_format.sh --plan --changed       # show what would run, and skip
+```
+
+`--plan` needs no language toolchains installed, so it is a quick way to see
+whether your change will pull in the Dart, Swift, or Kotlin formatters.
+
 ### IDE Recommendations (VS Code)
 
 We recommend using [VS Code](https://code.visualstudio.com/) for development. To help enforce formatting, please install the following extensions:

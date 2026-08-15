@@ -62,6 +62,9 @@ jobs:
       - name: Run fix_licenses unit tests
         run: python3 -m unittest scripts.test_fix_licenses
 
+      - name: Run fix_format scoping unit tests
+        run: python3 -m unittest scripts.test_fix_format
+
       - name: Check license headers
         run: ./scripts/fix_licenses.py --check
 
@@ -71,16 +74,52 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
+          # Needed so that --changed can find the merge base with the PR base.
+          fetch-depth: 0
+
+      # This job deliberately has no workflow-level `paths:` filter. It is a
+      # required check, and a filtered-out required check never reports a
+      # conclusion, which leaves PRs stuck pending. Instead the job always
+      # runs and narrows its own work below.
+      - name: Determine formatting scope
+        id: scope
+        run: |
+          set -euo pipefail
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ -n "$BASE_SHA" ]; then
+            SCOPE_ARGS="--changed --base $BASE_SHA"
+          else
+            # Post-submit on main sweeps the whole repo, so drift can never
+            # accumulate behind the per-PR scoping.
+            SCOPE_ARGS=""
+          fi
+          echo "args=$SCOPE_ARGS" >> "$GITHUB_OUTPUT"
+
+          # --plan resolves the changed set without needing any language
+          # toolchain, so it can decide which toolchains are worth installing.
+          PLAN="$(./scripts/fix_format.sh --plan $SCOPE_ARGS)"
+          echo "$PLAN"
+
+          needs() {
+            echo "$PLAN" | grep -qE "^$1: (all|[1-9])"
+          }
+          for tool in prettier pyink dart; do
+            if needs "$tool"; then echo "$tool=true" >> "$GITHUB_OUTPUT"; else echo "$tool=false" >> "$GITHUB_OUTPUT"; fi
+          done
+
       - uses: ./.github/actions/setup-node
+        if: steps.scope.outputs.prettier == 'true'
         with:
           install: false
       - uses: ./.github/actions/setup-python
+        if: steps.scope.outputs.pyink == 'true'
       - name: Set up Dart (Lightweight)
+        if: steps.scope.outputs.dart == 'true'
         uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
         with:
           sdk: "3.12.2"
       - name: Run enforce-formatting check
-        run: ./scripts/fix_format.sh --check
+        run: ./scripts/fix_format.sh --check ${{ steps.scope.outputs.args }}
 
   workspace-lint:
     runs-on: ubuntu-latest
