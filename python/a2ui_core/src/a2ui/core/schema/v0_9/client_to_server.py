@@ -99,6 +99,9 @@ class A2uiClientErrorMessage(StrictBaseModel):
 
 
 A2uiClientMessage = Union[A2uiClientActionMessage, A2uiClientErrorMessage]
+ClientToServerMessage = A2uiClientMessage
+RendererToAgentMessage = A2uiClientMessage
+A2uiRendererAction = A2uiClientAction
 
 
 class A2uiClientDataModel(StrictBaseModel):

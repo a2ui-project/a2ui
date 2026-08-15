@@ -24,8 +24,8 @@ from a2ui.core.catalog import (
 from a2ui.core.catalog.catalog import TComponent, TFunction
 from a2ui.core.validating import CatalogSchemaValidator
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.core.schema.common_types import ComponentId
-from a2ui.core.schema.constants import SPEC_VERSION
+from a2ui.core.schema.v0_9.common_types import ComponentId
+from a2ui.core.schema.v0_9.constants import SPEC_VERSION
 
 
 def _val(

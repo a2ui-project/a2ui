@@ -16,8 +16,8 @@
 from typing import Any, Dict, List, Literal, Optional, Union, Annotated
 from pydantic import BaseModel, Field, ConfigDict
 
-from ..schema.common_types import StrictBaseModel, DynamicString, DynamicNumber, DynamicBoolean, DynamicValue, DynamicStringList
-from ..catalog.functions import FunctionApi
+from ...schema.v0_9.common_types import StrictBaseModel, DynamicString, DynamicNumber, DynamicBoolean, DynamicValue, DynamicStringList
+from ...catalog.functions import FunctionApi
 
 
 class RequiredArgs(StrictBaseModel):

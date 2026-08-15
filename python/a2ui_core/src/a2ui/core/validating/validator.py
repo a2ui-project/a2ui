@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from ..exceptions import A2uiValidationError, A2uiErrorDetail
 from ..schema import A2uiMessageListWrapper
-from ..schema.constants import (
+from ..schema.v0_9.constants import (
     SPEC_VERSION,
     MSG_TYPE_CREATE_SURFACE,
     MSG_TYPE_UPDATE_COMPONENTS,

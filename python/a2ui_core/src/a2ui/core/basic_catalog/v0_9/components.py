@@ -16,7 +16,7 @@
 from typing import Any, Dict, List, Literal, Optional, Union, Annotated
 from pydantic import BaseModel, Field, ConfigDict
 
-from ..schema.common_types import (
+from ...schema.v0_9.common_types import (
     StrictBaseModel,
     ComponentCommon,
     AccessibilityAttributes,
@@ -30,7 +30,7 @@ from ..schema.common_types import (
     DataBinding,
     ComponentId,
 )
-from ..catalog.components import ModelComponentApi
+from ...catalog.components import ModelComponentApi
 
 
 class CatalogComponentCommon(ComponentCommon):

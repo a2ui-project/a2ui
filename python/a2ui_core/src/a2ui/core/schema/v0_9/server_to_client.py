@@ -124,6 +124,9 @@ A2uiMessage = Union[
     DeleteSurfaceMessage,
 ]
 
+ServerToClientMessage = A2uiMessage
+AgentToRendererMessage = A2uiMessage
+
 
 class A2uiMessageListWrapper(StrictBaseModel):
     messages: List[A2uiMessage] = Field(..., description="A list of messages.")
