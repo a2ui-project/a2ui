@@ -178,6 +178,12 @@ class FixFormatScopingTest(unittest.TestCase):
             self.write(f"{module}/src/main/kotlin/Thing.kt", "val a = 1\n")
         self.assertEqual(self.counts()["ktfmt"], 2)
 
+    def test_staged_changes_are_included(self):
+        """Diffing a commit against the working tree already covers the index."""
+        self.write("swift/Sources/A2UI/Staged.swift", "let a = 1\n")
+        self._git("add", "swift/Sources/A2UI/Staged.swift")
+        self.assertEqual(self.counts()["swift"], 1)
+
     def test_untracked_files_are_included(self):
         self.write("renderers/flutter/lib/new_file.dart", "void main() {}\n")
         # Deliberately not staged or committed.

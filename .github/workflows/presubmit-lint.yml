@@ -83,10 +83,14 @@ jobs:
       # runs and narrows its own work below.
       - name: Determine formatting scope
         id: scope
+        # Passed through env rather than interpolated into the script body:
+        # `${{ }}` expansion inside `run:` is a template-injection vector.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          BASE_SHA="${{ github.event.pull_request.base.sha }}"
-          if [ "${{ github.event_name }}" = "pull_request" ] && [ -n "$BASE_SHA" ]; then
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "${BASE_SHA:-}" ]; then
             SCOPE_ARGS="--changed --base $BASE_SHA"
           else
             # Post-submit on main sweeps the whole repo, so drift can never
@@ -119,7 +123,11 @@ jobs:
         with:
           sdk: "3.12.2"
       - name: Run enforce-formatting check
-        run: ./scripts/fix_format.sh --check ${{ steps.scope.outputs.args }}
+        env:
+          SCOPE_ARGS: ${{ steps.scope.outputs.args }}
+        # SCOPE_ARGS is intentionally unquoted: it is either empty or the two
+        # words "--changed --base <sha>", and must word-split.
+        run: ./scripts/fix_format.sh --check $SCOPE_ARGS
 
   workspace-lint:
     runs-on: ubuntu-latest

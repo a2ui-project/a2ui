@@ -135,12 +135,14 @@ collect_changed_files() {
   fi
 
   {
+    # Diffing a commit against the working tree (rather than against HEAD)
+    # already covers committed, staged, and unstaged changes in one pass.
     git diff --name-only --diff-filter=ACMRT "$diff_point" --
-    git diff --name-only --diff-filter=ACMRT --
-    git diff --cached --name-only --diff-filter=ACMRT --
     git ls-files --others --exclude-standard
   } | sort -u | while IFS= read -r path; do
-    [[ -n "$path" && -f "$path" ]] && echo "$path"
+    # printf rather than echo: a path such as "-n" would be swallowed as an
+    # option by echo.
+    [[ -n "$path" && -f "$path" ]] && printf '%s\n' "$path"
   done
 }
 
