@@ -17,7 +17,7 @@
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
 import {z} from 'zod';
-import {RpcHandler} from './rpc-handler.js';
+import {RpcHandler, RpcError, RpcErrorCode} from './rpc-handler.js';
 import {
   Catalog,
   createFunctionImplementation,
@@ -61,8 +61,16 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     [customRpcImpl, rendererOnlyImpl, restrictedImpl, IndexImplementation],
   );
 
+  it('instantiates via options bag RpcHandlerOptions', () => {
+    const handler = new RpcHandler({
+      catalogs: [mockCatalog],
+      defaultTimeoutMs: 5000,
+    });
+    assert.strictEqual(handler.disposed, false);
+  });
+
   it('executes valid callRendererFunction remote RPC and returns value payload', async () => {
-    const handler = new RpcHandler([mockCatalog]);
+    const handler = new RpcHandler({catalogs: [mockCatalog]});
     const surface = new SurfaceModel('s1', mockCatalog);
     const context = new DataContext(surface, '/');
 
@@ -104,7 +112,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const response = await handler.handleCallRendererFunction(message, context, false);
     assert.strictEqual(response.rendererFunctionResponse.functionCallId, 'rpc-2');
     assert.strictEqual(response.rendererFunctionResponse.value, undefined);
-    assert.strictEqual(response.rendererFunctionResponse.error?.code, 'INVALID_FUNCTION_CALL');
+    assert.strictEqual(response.rendererFunctionResponse.error?.code, RpcErrorCode.INVALID_FUNCTION_CALL);
   });
 
   it('rejects function call requiring user activation when isUserActivated is false', async () => {
@@ -124,7 +132,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     };
 
     const response = await handler.handleCallRendererFunction(message, context, false);
-    assert.strictEqual(response.rendererFunctionResponse.error?.code, 'INVALID_FUNCTION_CALL');
+    assert.strictEqual(response.rendererFunctionResponse.error?.code, RpcErrorCode.INVALID_FUNCTION_CALL);
 
     const authorizedResponse = await handler.handleCallRendererFunction(message, context, true);
     assert.strictEqual(authorizedResponse.rendererFunctionResponse.value, true);
@@ -132,8 +140,11 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
 
   it('tracks outbound callAgentFunction and resolves promise via handleAgentFunctionResponse', async () => {
     let emittedMessage: any;
-    const handler = new RpcHandler([mockCatalog], msg => {
-      emittedMessage = msg;
+    const handler = new RpcHandler({
+      catalogs: [mockCatalog],
+      outboundListener: msg => {
+        emittedMessage = msg;
+      },
     });
 
     const callPromise = handler.callAgentFunction('surface-1', 'agent-call-100', {
@@ -165,23 +176,83 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
   });
 
   it('rejects pending agent function calls when RpcHandler is disposed', async () => {
-    const handler = new RpcHandler([mockCatalog]);
+    const handler = new RpcHandler({
+      catalogs: [mockCatalog],
+      outboundListener: () => {},
+    });
     const promise = handler.callAgentFunction('surface-1', 'pending-1', {
       call: 'slowFunc',
     });
     handler.dispose();
-    await assert.rejects(promise, /CANCELLED/);
+    assert.strictEqual(handler.disposed, true);
+    await assert.rejects(promise, (err: any) => {
+      assert.ok(err instanceof RpcError);
+      assert.strictEqual(err.code, RpcErrorCode.CANCELLED);
+      return true;
+    });
+  });
+
+  it('fails fast on post-disposal calls', async () => {
+    const handler = new RpcHandler({
+      catalogs: [mockCatalog],
+      outboundListener: () => {},
+    });
+    handler.dispose();
+
+    const surface = new SurfaceModel('s1', mockCatalog);
+    const context = new DataContext(surface, '/');
+    const response = await handler.handleCallRendererFunction(
+      {
+        version: 'v1.0',
+        callRendererFunction: {
+          functionCallId: 'call-post-dispose',
+          callFunction: {call: 'customRpc', catalogId: 'basic', args: {text: 'hi'}},
+        },
+      },
+      context,
+      true,
+    );
+
+    assert.strictEqual(response.rendererFunctionResponse.error?.code, RpcErrorCode.DISPOSED);
+
+    await assert.rejects(
+      handler.callAgentFunction('surface-1', {call: 'test'}),
+      (err: any) => {
+        assert.ok(err instanceof RpcError);
+        assert.strictEqual(err.code, RpcErrorCode.DISPOSED);
+        return true;
+      },
+    );
+  });
+
+  it('fails fast when calling callAgentFunction without outboundListener', async () => {
+    const handler = new RpcHandler({catalogs: [mockCatalog]});
+    await assert.rejects(
+      handler.callAgentFunction('surface-1', {call: 'test'}),
+      (err: any) => {
+        assert.ok(err instanceof RpcError);
+        assert.strictEqual(err.code, RpcErrorCode.NO_LISTENER);
+        return true;
+      },
+    );
   });
 
   it('times out callAgentFunction when timeoutMs is exceeded', async () => {
-    const handler = new RpcHandler([mockCatalog]);
+    const handler = new RpcHandler({
+      catalogs: [mockCatalog],
+      outboundListener: () => {},
+    });
     const promise = handler.callAgentFunction(
       'surface-1',
       'pending-timeout',
       {call: 'timeoutFunc'},
       10,
     );
-    await assert.rejects(promise, /TIMEOUT/);
+    await assert.rejects(promise, (err: any) => {
+      assert.ok(err instanceof RpcError);
+      assert.strictEqual(err.code, RpcErrorCode.TIMEOUT);
+      return true;
+    });
   });
 
   it('falls back to surface default catalog when catalogId is omitted', async () => {
@@ -230,7 +301,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     );
 
     assert.ok(res.rendererFunctionResponse.error);
-    assert.strictEqual(res.rendererFunctionResponse.error.code, 'INVALID_FUNCTION_CALL');
+    assert.strictEqual(res.rendererFunctionResponse.error.code, RpcErrorCode.INVALID_FUNCTION_CALL);
   });
 
   it('cleans up pending agent call when outboundListener throws', async () => {

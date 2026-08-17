@@ -45,6 +45,7 @@ import {
   FormatDateApi,
   PluralizeApi,
   OpenUrlApi,
+  IndexApi,
 } from './basic_functions_api.js';
 import {A2uiExpressionError} from '../../../errors.js';
 
@@ -447,6 +448,28 @@ export const OpenUrlImplementation = createFunctionImplementation(OpenUrlApi, ar
 });
 
 /**
+ * Implementation of the `@index` function.
+ * Returns the loop index offset from context.
+ */
+export const IndexImplementation = createFunctionImplementation(IndexApi, (args, context) => {
+  const offset = typeof args.offset === 'number' ? args.offset : 0;
+  let index = 0;
+  if (typeof (context as any)?.getIndex === 'function') {
+    index = (context as any).getIndex();
+  } else if (context?.path) {
+    const parts = context.path.split('/').filter(Boolean);
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const num = parseInt(parts[i], 10);
+      if (!isNaN(num)) {
+        index = num;
+        break;
+      }
+    }
+  }
+  return index + offset;
+});
+
+/**
  * Creates standard function implementations for the Basic Catalog.
  *
  * @param options Configuration options.
@@ -480,6 +503,7 @@ export function createBasicCatalogFunctions(options?: {locale?: string}): Functi
     FormatDateImplementation,
     createPluralizeImplementation(locale),
     OpenUrlImplementation,
+    IndexImplementation,
   ];
 }
 
@@ -488,33 +512,3 @@ export function createBasicCatalogFunctions(options?: {locale?: string}): Functi
  * These functions cover arithmetic, comparison, logic, string manipulation, validation, and formatting.
  */
 export const BASIC_FUNCTIONS: FunctionImplementation[] = createBasicCatalogFunctions();
-
-/**
- * Implementation of the `@index` function.
- * Returns the loop index offset from context.
- */
-export const IndexApi = {
-  name: '@index',
-  returnType: 'number' as const,
-  schema: z.object({
-    offset: z.number().optional(),
-  }),
-};
-
-export const IndexImplementation = createFunctionImplementation(IndexApi, (args, context) => {
-  const offset = typeof args.offset === 'number' ? args.offset : 0;
-  let index = 0;
-  if (typeof (context as any).getIndex === 'function') {
-    index = (context as any).getIndex();
-  } else if (context.path) {
-    const parts = context.path.split('/').filter(Boolean);
-    for (let i = parts.length - 1; i >= 0; i--) {
-      const num = parseInt(parts[i], 10);
-      if (!isNaN(num)) {
-        index = num;
-        break;
-      }
-    }
-  }
-  return index + offset;
-});

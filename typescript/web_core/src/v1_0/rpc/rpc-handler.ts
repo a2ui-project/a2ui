@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-import {Catalog, ComponentApi} from '../../catalog/types.js';
+import {Catalog} from '../../catalog/types.js';
 import {DataContext} from '../../rendering/data-context.js';
 import {isSignal, getValue} from '../../reactivity/signals.js';
+import {FunctionCall} from '../schema/common-types.js';
 import {
   CallRendererFunctionMessage,
   AgentFunctionResponseMessage,
@@ -27,14 +28,53 @@ import {
 } from '../schema/renderer-to-agent.js';
 
 /**
- * A callback function to emit outbound client messages to the agent.
+ * Standard error codes for A2UI RPC failures.
+ */
+export enum RpcErrorCode {
+  INVALID_FUNCTION_CALL = 'INVALID_FUNCTION_CALL',
+  EXECUTION_ERROR = 'EXECUTION_ERROR',
+  TIMEOUT = 'TIMEOUT',
+  CANCELLED = 'CANCELLED',
+  DISPOSED = 'DISPOSED',
+  DUPLICATE = 'DUPLICATE',
+  NO_LISTENER = 'NO_LISTENER',
+}
+
+/**
+ * Custom error class for A2UI RPC operation failures.
+ */
+export class RpcError extends Error {
+  constructor(
+    public readonly code: RpcErrorCode | string,
+    message: string,
+    public readonly functionCallId?: string,
+  ) {
+    super(`[${code}] ${message}`);
+    this.name = 'RpcError';
+  }
+}
+
+/**
+ * Callback function type receiving outbound renderer messages intended for the agent.
  */
 export type OutboundMessageListener = (
   message: RendererFunctionResponseMessage | CallAgentFunctionMessage,
-) => void;
+) => void | Promise<void>;
 
 /**
- * A pending agent function callback record.
+ * Options for configuring an RpcHandler instance.
+ */
+export interface RpcHandlerOptions {
+  /** Catalogs available for function resolution. */
+  catalogs: Catalog<any>[];
+  /** Listener receiving outbound renderer messages. Required for callAgentFunction. */
+  outboundListener?: OutboundMessageListener;
+  /** Default timeout in milliseconds for callAgentFunction requests (default: 30000ms). */
+  defaultTimeoutMs?: number;
+}
+
+/**
+ * Pending agent function callback record.
  */
 interface PendingAgentCall {
   resolve: (value: unknown) => void;
@@ -43,22 +83,37 @@ interface PendingAgentCall {
 
 /**
  * Manages bidirectional RPC function execution between renderer and server agent.
- *
- * @template T The concrete type of the ComponentApi.
  */
-export class RpcHandler<T extends ComponentApi> {
+export class RpcHandler {
+  private readonly catalogs: Catalog<any>[];
+  private readonly outboundListener?: OutboundMessageListener;
+  private readonly defaultTimeoutMs: number;
   private readonly pendingAgentCalls = new Map<string, PendingAgentCall>();
+  private isDisposed = false;
+
+  constructor(options: RpcHandlerOptions);
+  constructor(catalogs: Catalog<any>[], outboundListener?: OutboundMessageListener);
+  constructor(
+    optionsOrCatalogs: RpcHandlerOptions | Catalog<any>[],
+    outboundListener?: OutboundMessageListener,
+  ) {
+    if (Array.isArray(optionsOrCatalogs)) {
+      this.catalogs = optionsOrCatalogs;
+      this.outboundListener = outboundListener;
+      this.defaultTimeoutMs = 30000;
+    } else {
+      this.catalogs = optionsOrCatalogs.catalogs;
+      this.outboundListener = optionsOrCatalogs.outboundListener;
+      this.defaultTimeoutMs = optionsOrCatalogs.defaultTimeoutMs ?? 30000;
+    }
+  }
 
   /**
-   * Creates a new RpcHandler instance.
-   *
-   * @param catalogs The available catalogs for function lookup.
-   * @param outboundListener The listener receiving outbound renderer messages.
+   * Indicates whether this RpcHandler instance has been disposed.
    */
-  constructor(
-    private readonly catalogs: Catalog<T>[],
-    private readonly outboundListener?: OutboundMessageListener,
-  ) {}
+  get disposed(): boolean {
+    return this.isDisposed;
+  }
 
   /**
    * Executes a remote renderer function requested by the server agent.
@@ -72,10 +127,18 @@ export class RpcHandler<T extends ComponentApi> {
     context: DataContext,
     isUserActivated: boolean = false,
   ): Promise<RendererFunctionResponseMessage> {
+    if (this.isDisposed) {
+      return this.createResponseError(
+        message.callRendererFunction?.functionCallId ?? 'unknown',
+        RpcErrorCode.DISPOSED,
+        'RpcHandler has been disposed.',
+      );
+    }
+
     if (!message.callRendererFunction?.callFunction) {
       return this.createResponseError(
         message.callRendererFunction?.functionCallId ?? 'unknown',
-        'INVALID_FUNCTION_CALL',
+        RpcErrorCode.INVALID_FUNCTION_CALL,
         'Malformed message: missing callRendererFunction or callFunction.',
       );
     }
@@ -88,7 +151,7 @@ export class RpcHandler<T extends ComponentApi> {
     if (!catalog) {
       return this.createResponseError(
         functionCallId,
-        'INVALID_FUNCTION_CALL',
+        RpcErrorCode.INVALID_FUNCTION_CALL,
         `Catalog '${targetCatalogId}' not found.`,
       );
     }
@@ -98,7 +161,7 @@ export class RpcHandler<T extends ComponentApi> {
     if (!funcImpl) {
       return this.createResponseError(
         functionCallId,
-        'INVALID_FUNCTION_CALL',
+        RpcErrorCode.INVALID_FUNCTION_CALL,
         `Function '${call}' not found in catalog '${targetCatalogId}'.`,
       );
     }
@@ -108,7 +171,7 @@ export class RpcHandler<T extends ComponentApi> {
     if (boundary !== 'rendererOrAgent' && boundary !== 'agentOnly') {
       return this.createResponseError(
         functionCallId,
-        'INVALID_FUNCTION_CALL',
+        RpcErrorCode.INVALID_FUNCTION_CALL,
         `Function '${call}' cannot be called by agent (callableFrom is ${boundary}).`,
       );
     }
@@ -117,7 +180,7 @@ export class RpcHandler<T extends ComponentApi> {
     if (funcImpl.requiresUserActivation && !isUserActivated) {
       return this.createResponseError(
         functionCallId,
-        'INVALID_FUNCTION_CALL',
+        RpcErrorCode.INVALID_FUNCTION_CALL,
         `Function '${call}' requires user activation context to execute.`,
       );
     }
@@ -132,17 +195,16 @@ export class RpcHandler<T extends ComponentApi> {
       const errMsg = err instanceof Error ? err.message : String(err);
       return this.createResponseError(
         functionCallId,
-        'INVALID_FUNCTION_CALL',
+        RpcErrorCode.INVALID_FUNCTION_CALL,
         `Invalid function arguments for '${call}': ${errMsg}`,
       );
     }
 
     // 6. Execute function safely
-    let responseMsg: RendererFunctionResponseMessage;
     try {
       const rawResult = await Promise.resolve(funcImpl.execute(safeArgs, context));
       const result = isSignal(rawResult) ? getValue(rawResult) : rawResult;
-      responseMsg = {
+      return {
         version: 'v1.0',
         rendererFunctionResponse: {
           functionCallId,
@@ -151,22 +213,17 @@ export class RpcHandler<T extends ComponentApi> {
       };
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      responseMsg = {
+      return {
         version: 'v1.0',
         rendererFunctionResponse: {
           functionCallId,
           error: {
-            code: 'EXECUTION_ERROR',
+            code: RpcErrorCode.EXECUTION_ERROR,
             message: errMsg || 'An error occurred during function execution.',
           },
         },
       };
     }
-
-    if (this.outboundListener) {
-      this.outboundListener(responseMsg);
-    }
-    return responseMsg;
   }
 
   /**
@@ -182,7 +239,7 @@ export class RpcHandler<T extends ComponentApi> {
 
     this.pendingAgentCalls.delete(functionCallId);
     if (error) {
-      pending.reject(new Error(`[${error.code}] ${error.message}`));
+      pending.reject(new RpcError(error.code, error.message, functionCallId));
     } else {
       pending.resolve(value);
     }
@@ -192,38 +249,71 @@ export class RpcHandler<T extends ComponentApi> {
    * Invokes a remote function on the server agent from the renderer.
    *
    * @param surfaceId The ID of the surface requesting execution.
-   * @param functionCallId The unique identifier for this RPC call.
-   * @param call The function call details.
-   * @param timeoutMs Optional timeout duration in milliseconds.
+   * @param functionCallIdOrCall The unique ID or function call details.
+   * @param callOrOptions The function call details or invocation options.
+   * @param timeoutMs Optional timeout duration in milliseconds (legacy signature).
    * @returns A promise resolving to the agent function return value.
    */
   callAgentFunction(
     surfaceId: string,
-    functionCallId: string,
-    call: {call: string; catalogId?: string; args?: Record<string, unknown>},
+    functionCallIdOrCall: string | FunctionCall,
+    callOrOptions?: FunctionCall | {functionCallId?: string; timeoutMs?: number},
     timeoutMs?: number,
   ): Promise<unknown> {
+    if (this.isDisposed) {
+      return Promise.reject(
+        new RpcError(RpcErrorCode.DISPOSED, 'RpcHandler has been disposed.'),
+      );
+    }
+    if (!this.outboundListener) {
+      return Promise.reject(
+        new RpcError(
+          RpcErrorCode.NO_LISTENER,
+          'Cannot call agent function without outboundListener configured.',
+        ),
+      );
+    }
+
+    let functionCallId: string;
+    let call: FunctionCall;
+    let effectiveTimeoutMs: number;
+
+    if (typeof functionCallIdOrCall === 'string') {
+      functionCallId = functionCallIdOrCall;
+      call = callOrOptions as FunctionCall;
+      effectiveTimeoutMs = timeoutMs ?? this.defaultTimeoutMs;
+    } else {
+      call = functionCallIdOrCall;
+      const opts = (callOrOptions as {functionCallId?: string; timeoutMs?: number}) ?? {};
+      functionCallId = opts.functionCallId ?? crypto.randomUUID();
+      effectiveTimeoutMs = opts.timeoutMs ?? this.defaultTimeoutMs;
+    }
+
     return new Promise((resolve, reject) => {
       if (this.pendingAgentCalls.has(functionCallId)) {
         reject(
-          new Error(
-            `[DUPLICATE] A call with functionCallId '${functionCallId}' is already pending.`,
+          new RpcError(
+            RpcErrorCode.DUPLICATE,
+            `A call with functionCallId '${functionCallId}' is already pending.`,
+            functionCallId,
           ),
         );
         return;
       }
       let timer: ReturnType<typeof setTimeout> | undefined;
-      if (timeoutMs && timeoutMs > 0) {
+      if (effectiveTimeoutMs > 0) {
         timer = setTimeout(() => {
           if (this.pendingAgentCalls.has(functionCallId)) {
             this.pendingAgentCalls.delete(functionCallId);
             reject(
-              new Error(
-                `[TIMEOUT] Agent function call '${call.call}' timed out after ${timeoutMs}ms.`,
+              new RpcError(
+                RpcErrorCode.TIMEOUT,
+                `Agent function call '${call.call}' timed out after ${effectiveTimeoutMs}ms.`,
+                functionCallId,
               ),
             );
           }
-        }, timeoutMs);
+        }, effectiveTimeoutMs);
       }
 
       this.pendingAgentCalls.set(functionCallId, {
@@ -246,14 +336,19 @@ export class RpcHandler<T extends ComponentApi> {
         },
       };
 
-      if (this.outboundListener) {
-        try {
-          this.outboundListener(outboundMsg);
-        } catch (err) {
-          if (timer) clearTimeout(timer);
-          this.pendingAgentCalls.delete(functionCallId);
-          reject(err);
+      try {
+        const result = this.outboundListener!(outboundMsg);
+        if (result && typeof (result as any).catch === 'function') {
+          (result as Promise<void>).catch(err => {
+            if (timer) clearTimeout(timer);
+            this.pendingAgentCalls.delete(functionCallId);
+            reject(err);
+          });
         }
+      } catch (err) {
+        if (timer) clearTimeout(timer);
+        this.pendingAgentCalls.delete(functionCallId);
+        reject(err);
       }
     });
   }
@@ -262,28 +357,31 @@ export class RpcHandler<T extends ComponentApi> {
    * Disposes the RpcHandler and rejects all pending agent function calls.
    */
   dispose(): void {
+    if (this.isDisposed) return;
+    this.isDisposed = true;
     for (const [id, pending] of this.pendingAgentCalls.entries()) {
-      pending.reject(new Error(`[CANCELLED] RpcHandler disposed while call '${id}' was pending.`));
+      pending.reject(
+        new RpcError(
+          RpcErrorCode.CANCELLED,
+          `RpcHandler disposed while call '${id}' was pending.`,
+          id,
+        ),
+      );
     }
     this.pendingAgentCalls.clear();
   }
 
   private createResponseError(
     functionCallId: string,
-    code: string,
+    code: RpcErrorCode | string,
     message: string,
   ): RendererFunctionResponseMessage {
-    const responseMsg: RendererFunctionResponseMessage = {
+    return {
       version: 'v1.0',
       rendererFunctionResponse: {
         functionCallId,
         error: {code, message},
       },
     };
-
-    if (this.outboundListener) {
-      this.outboundListener(responseMsg);
-    }
-    return responseMsg;
   }
 }
