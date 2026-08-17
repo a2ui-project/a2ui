@@ -42,7 +42,7 @@ Version postfixes:
 
 The packages code should be always release ready. That means:
 
-1. Use `-wip` version (format `0.1.0-wip002`) if ready versions for this packages were never published yet, and are planned to be published in the future. 
+1. Use `-wip` version (format `0.1.0-wip002`) if release-ready versions for this package were never published yet, and are planned to be published in the future. 
 
 2. You can publish `-wip<number>` versions, if you need it for development, but do not merge `wip` versions for prod-ready published packages.
 
