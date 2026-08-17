@@ -18,10 +18,7 @@ import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
 import {z} from 'zod';
 import {RpcHandler, RpcError, RpcErrorCode} from './rpc-handler.js';
-import {
-  Catalog,
-  createFunctionImplementation,
-} from '../../catalog/types.js';
+import {Catalog, createFunctionImplementation} from '../../catalog/types.js';
 import {DataContext} from '../../rendering/data-context.js';
 import {SurfaceModel} from '../../state/surface-model.js';
 import {IndexImplementation} from '../../v0_9/basic_catalog/functions/basic_functions.js';
@@ -112,7 +109,10 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const response = await handler.handleCallRendererFunction(message, context, false);
     assert.strictEqual(response.rendererFunctionResponse.functionCallId, 'rpc-2');
     assert.strictEqual(response.rendererFunctionResponse.value, undefined);
-    assert.strictEqual(response.rendererFunctionResponse.error?.code, RpcErrorCode.INVALID_FUNCTION_CALL);
+    assert.strictEqual(
+      response.rendererFunctionResponse.error?.code,
+      RpcErrorCode.INVALID_FUNCTION_CALL,
+    );
   });
 
   it('rejects function call requiring user activation when isUserActivated is false', async () => {
@@ -132,7 +132,10 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     };
 
     const response = await handler.handleCallRendererFunction(message, context, false);
-    assert.strictEqual(response.rendererFunctionResponse.error?.code, RpcErrorCode.INVALID_FUNCTION_CALL);
+    assert.strictEqual(
+      response.rendererFunctionResponse.error?.code,
+      RpcErrorCode.INVALID_FUNCTION_CALL,
+    );
 
     const authorizedResponse = await handler.handleCallRendererFunction(message, context, true);
     assert.strictEqual(authorizedResponse.rendererFunctionResponse.value, true);
@@ -252,26 +255,20 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
 
     assert.strictEqual(response.rendererFunctionResponse.error?.code, RpcErrorCode.DISPOSED);
 
-    await assert.rejects(
-      handler.callAgentFunction('surface-1', {call: 'test'}),
-      (err: any) => {
-        assert.ok(err instanceof RpcError);
-        assert.strictEqual(err.code, RpcErrorCode.DISPOSED);
-        return true;
-      },
-    );
+    await assert.rejects(handler.callAgentFunction('surface-1', {call: 'test'}), (err: any) => {
+      assert.ok(err instanceof RpcError);
+      assert.strictEqual(err.code, RpcErrorCode.DISPOSED);
+      return true;
+    });
   });
 
   it('fails fast when calling callAgentFunction without outboundListener', async () => {
     const handler = new RpcHandler({catalogs: [mockCatalog]});
-    await assert.rejects(
-      handler.callAgentFunction('surface-1', {call: 'test'}),
-      (err: any) => {
-        assert.ok(err instanceof RpcError);
-        assert.strictEqual(err.code, RpcErrorCode.NO_LISTENER);
-        return true;
-      },
-    );
+    await assert.rejects(handler.callAgentFunction('surface-1', {call: 'test'}), (err: any) => {
+      assert.ok(err instanceof RpcError);
+      assert.strictEqual(err.code, RpcErrorCode.NO_LISTENER);
+      return true;
+    });
   });
 
   it('times out callAgentFunction when timeoutMs is exceeded', async () => {
@@ -350,5 +347,36 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       handler.callAgentFunction('surface-1', 'fail-outbound', {call: 'testFunc'}),
       /Connection failed/,
     );
+  });
+
+  it('rejects callAgentFunction when function call or call name is missing', async () => {
+    const handler = new RpcHandler([mockCatalog], () => {});
+    await assert.rejects(
+      handler.callAgentFunction('surface-1', 'call-1', undefined as any),
+      (err: RpcError) => err.code === RpcErrorCode.INVALID_FUNCTION_CALL,
+    );
+  });
+
+  it('handles null/undefined message gracefully in handleCallRendererFunction', async () => {
+    const handler = new RpcHandler([mockCatalog]);
+    const surface = new SurfaceModel('s1', mockCatalog);
+    const dataContext = new DataContext(surface, '/');
+    const res = await handler.handleCallRendererFunction(null as any, dataContext);
+    assert.strictEqual(
+      res.rendererFunctionResponse.error?.code,
+      RpcErrorCode.INVALID_FUNCTION_CALL,
+    );
+  });
+
+  it('handles null/undefined message gracefully in handleAgentFunctionResponse', () => {
+    const handler = new RpcHandler([mockCatalog]);
+    assert.doesNotThrow(() => {
+      handler.handleAgentFunctionResponse(null as any);
+    });
+  });
+
+  it('handles null/undefined options in RpcHandler constructor', () => {
+    const handler = new RpcHandler(null as any);
+    assert.strictEqual(handler.disposed, false);
   });
 });
