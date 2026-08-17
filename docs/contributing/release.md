@@ -4,9 +4,21 @@
 
 Release cadance: every 1-2 weeks.
 
-### Pub.dev
+### Pub.dev release steps
 
-See https://github.com/flutter/genui/blob/main/docs/contributing/release.md.
+For each packages, where the top version in CHANGELOG.md:
+
+- is not `-wip...`
+- and is not released yet (click link in the header to verify)
+
+From main branch, release through `flutter publish`, making sure there is no warnings in console.
+
+Changelogs of the packages:
+
+- [a2ui_core](../../dart/a2ui_core/CHANGELOG.md)
+- [a2ui_agent](../../dart/a2ui_agent/CHANGELOG.md)
+
+For troubleshooting and maintanance check [release-pub-dev.md](release-pub-dev.md).
 
 ### NPM
 
