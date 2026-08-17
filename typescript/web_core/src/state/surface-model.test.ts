@@ -44,6 +44,13 @@ describe('SurfaceModel', () => {
     assert.deepStrictEqual(surface.dataModel.get('/'), {});
   });
 
+  it('accepts custom data model in constructor', () => {
+    const customData = new (surface.dataModel.constructor as any)({custom: 'data'});
+    const customSurface = new SurfaceModel('surface-2', catalog, {}, false, customData);
+    assert.strictEqual(customSurface.dataModel, customData);
+    assert.strictEqual(customSurface.dataModel.get('/custom'), 'data');
+  });
+
   it('exposes components model', () => {
     surface.componentsModel.addComponent(new ComponentModel('c1', 'Button', {}));
     assert.ok(surface.componentsModel.get('c1'));
@@ -59,6 +66,19 @@ describe('SurfaceModel', () => {
     assert.deepStrictEqual(action.context, {foo: 'bar'});
     assert.ok(action.timestamp);
     assert.doesNotThrow(() => new Date(action.timestamp));
+  });
+
+  it('dispatches functionCall actions with call and args', async () => {
+    await surface.dispatchAction(
+      {functionCall: {call: 'doTask', args: {param: 123}}},
+      'comp-2',
+    );
+    assert.strictEqual(actions.length, 1);
+    const action = actions[0];
+    assert.strictEqual(action.name, 'doTask');
+    assert.strictEqual(action.surfaceId, 'surface-1');
+    assert.strictEqual(action.sourceComponentId, 'comp-2');
+    assert.deepStrictEqual(action.context, {param: 123});
   });
 
   it('dispatches actions with default context', async () => {

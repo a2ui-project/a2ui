@@ -1,5 +1,8 @@
 ## Unreleased
 
+- (v1_0) Refine `SurfaceModel` constructor to accept optional custom `DataModel` and expand `dispatchAction` payload parsing to support `functionCall` as well as `event` structures for Python SDK parity.
+- (v1_0) Add `componentsMap` property getter to `SurfaceComponentsModel` matching `SurfaceGroupModel.surfacesMap`.
+
 ## 0.10.6
 
 - (v0_9) Validate component properties against catalog schema in `MessageProcessor` to prevent malformed component actions.
