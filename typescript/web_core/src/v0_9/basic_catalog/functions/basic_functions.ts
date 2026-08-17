@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {z} from 'zod';
 import {ExpressionParser} from '../../../expressions/expression_parser.js';
 import {computed, isSignal, getValue} from '../../../reactivity/signals.js';
 import {createFunctionImplementation, FunctionImplementation} from '../../../catalog/types.js';
@@ -487,3 +488,33 @@ export function createBasicCatalogFunctions(options?: {locale?: string}): Functi
  * These functions cover arithmetic, comparison, logic, string manipulation, validation, and formatting.
  */
 export const BASIC_FUNCTIONS: FunctionImplementation[] = createBasicCatalogFunctions();
+
+/**
+ * Implementation of the `@index` function.
+ * Returns the loop index offset from context.
+ */
+export const IndexApi = {
+  name: '@index',
+  returnType: 'number' as const,
+  schema: z.object({
+    offset: z.number().optional(),
+  }),
+};
+
+export const IndexImplementation = createFunctionImplementation(IndexApi, (args, context) => {
+  const offset = typeof args.offset === 'number' ? args.offset : 0;
+  let index = 0;
+  if (typeof (context as any).getIndex === 'function') {
+    index = (context as any).getIndex();
+  } else if (context.path) {
+    const parts = context.path.split('/').filter(Boolean);
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const num = parseInt(parts[i], 10);
+      if (!isNaN(num)) {
+        index = num;
+        break;
+      }
+    }
+  }
+  return index + offset;
+});
