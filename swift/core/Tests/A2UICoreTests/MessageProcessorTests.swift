@@ -477,10 +477,12 @@ struct MessageProcessorTests {
 
 private struct TestAddFunction: FunctionImplementation {
   let api: FunctionAPI
+  
   init(schema: Schema) {
     self.api = FunctionAPI(name: "add", returnType: .number, schema: schema)
   }
-  func evaluate(arguments: [String: JSONValue]) throws -> JSONValue {
+
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     .null
   }
 }
