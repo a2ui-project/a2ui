@@ -103,9 +103,10 @@ export class RpcHandler {
       this.outboundListener = outboundListener;
       this.defaultTimeoutMs = 30000;
     } else {
-      this.catalogs = optionsOrCatalogs.catalogs;
-      this.outboundListener = optionsOrCatalogs.outboundListener;
-      this.defaultTimeoutMs = optionsOrCatalogs.defaultTimeoutMs ?? 30000;
+      const options = optionsOrCatalogs ?? {};
+      this.catalogs = options.catalogs ?? [];
+      this.outboundListener = options.outboundListener;
+      this.defaultTimeoutMs = options.defaultTimeoutMs ?? 30000;
     }
   }
 
@@ -128,6 +129,14 @@ export class RpcHandler {
     context: DataContext,
     isUserActivated: boolean = false,
   ): Promise<RendererFunctionResponseMessage> {
+    if (!message) {
+      return this.createResponseError(
+        'unknown',
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+        'Inbound message is null or undefined.',
+      );
+    }
+
     if (this.isDisposed) {
       return this.createResponseError(
         message.callRendererFunction?.functionCallId ?? 'unknown',
@@ -240,7 +249,7 @@ export class RpcHandler {
    * @param message The inbound agentFunctionResponse message.
    */
   handleAgentFunctionResponse(message: AgentFunctionResponseMessage): void {
-    if (!message.agentFunctionResponse) return;
+    if (!message || !message.agentFunctionResponse) return;
     const {functionCallId, value, error} = message.agentFunctionResponse;
     const pending = this.pendingAgentCalls.get(functionCallId);
     if (!pending) return;
@@ -269,9 +278,7 @@ export class RpcHandler {
     timeoutMs?: number,
   ): Promise<unknown> {
     if (this.isDisposed) {
-      return Promise.reject(
-        new RpcError(RpcErrorCode.DISPOSED, 'RpcHandler has been disposed.'),
-      );
+      return Promise.reject(new RpcError(RpcErrorCode.DISPOSED, 'RpcHandler has been disposed.'));
     }
     if (!this.outboundListener) {
       return Promise.reject(
@@ -299,6 +306,12 @@ export class RpcHandler {
           ? globalThis.crypto.randomUUID()
           : `call-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
       effectiveTimeoutMs = opts.timeoutMs ?? this.defaultTimeoutMs;
+    }
+
+    if (!call || !call.call) {
+      return Promise.reject(
+        new RpcError(RpcErrorCode.INVALID_FUNCTION_CALL, 'Missing or invalid function call name.'),
+      );
     }
 
     return new Promise((resolve, reject) => {

@@ -452,8 +452,7 @@ export const OpenUrlImplementation = createFunctionImplementation(OpenUrlApi, ar
  * Returns the loop index offset from context.
  */
 export const IndexImplementation = createFunctionImplementation(IndexApi, (args, context) => {
-  const offset =
-    typeof args.offset === 'number' && Number.isFinite(args.offset) ? args.offset : 0;
+  const offset = typeof args.offset === 'number' && Number.isFinite(args.offset) ? args.offset : 0;
   let index = 0;
   if (typeof (context as any)?.getIndex === 'function') {
     index = (context as any).getIndex();
