@@ -90,6 +90,13 @@ describe('SurfaceComponentsModel', () => {
     assert.deepStrictEqual(entries[1], ['c2', c2]);
   });
 
+  it('exposes componentsMap property', () => {
+    const c1 = new ComponentModel('c1', 'Button', {}, defaultCatalog);
+    model.addComponent(c1);
+    assert.strictEqual(model.componentsMap.get('c1'), c1);
+    assert.strictEqual(model.componentsMap.size, 1);
+  });
+
   it('disposes components during model dispose', () => {
     const c1 = new ComponentModel('c1', 'Button', {}, defaultCatalog);
     model.addComponent(c1);
