@@ -78,31 +78,37 @@ export class SurfaceModel<T extends ComponentApi = ComponentApi> {
     readonly catalog: Catalog<T>,
     readonly theme: any = {},
     readonly sendDataModel: boolean = false,
+    dataModel?: DataModel,
   ) {
-    this.dataModel = new DataModel({});
+    this.dataModel = dataModel ?? new DataModel({});
     this.componentsModel = new SurfaceComponentsModel();
   }
 
   /**
    * Dispatches an action from this surface to listeners.
    *
-   * @param payload The action payload (name and context) to dispatch.
+   * @param payload The action payload (name/call and context/args) to dispatch.
    * @param sourceComponentId The ID of the component that triggered the action.
    */
   async dispatchAction(payload: any, sourceComponentId: string): Promise<void> {
-    if (payload && typeof payload === 'object' && 'event' in payload && payload.event) {
+    if (payload && typeof payload === 'object') {
+      let eventPayload = payload;
+      if ('event' in payload && payload.event) {
+        eventPayload = payload.event;
+      } else if ('functionCall' in payload && payload.functionCall) {
+        eventPayload = payload.functionCall;
+      }
+
       const actionToDispatch: ActionPayload = {
-        name: payload.event.name,
+        name: eventPayload.name || eventPayload.call || '',
         surfaceId: this.id,
         sourceComponentId,
         timestamp: new Date().toISOString(),
-        context: payload.event.context || {},
+        context: eventPayload.context || eventPayload.args || {},
       };
 
       await this._onAction.emit(actionToDispatch);
     }
-    // Note: local functionCall actions are currently handled by the renderer or binder
-    // and do not necessarily need to be emitted here if they are not intended for the agent.
   }
 
   /**

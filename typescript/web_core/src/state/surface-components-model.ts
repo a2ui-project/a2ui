@@ -63,6 +63,13 @@ export class SurfaceComponentsModel {
   }
 
   /**
+   * Returns a readonly map of all active components in the model.
+   */
+  get componentsMap(): ReadonlyMap<string, ComponentModel> {
+    return this.components;
+  }
+
+  /**
    * Adds a component to the model.
    * Throws an error if a component with the same ID already exists.
    *
