@@ -138,7 +138,7 @@
     "build": {
       "command": "tsup && node scripts/postbuild.mjs",
       "dependencies": [
-        "../../renderers/web_core:build"
+        "../../typescript/web_core:build"
       ],
       "files": [
         "src/**/*",

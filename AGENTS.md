@@ -60,7 +60,8 @@ For a detailed explanation of the methodology, lifecycle, and workflows, read th
 - **`agent_sdks/`**: Server integration SDKs for Python (`python/`).
 - **`conformance/`**: Language-agnostic test suites (`core/`, `agent/`, `extensions/`) and test data (`test_data/`) for verifying behavioral parity across all SDK implementations.
 - **`kotlin/`**: Legacy Kotlin agent SDK (`agent_sdk_legacy/`).
-- **`renderers/`**: Shared core state logic (`web_core/`), Lit renderer (`lit/`), Angular renderer (`angular/`), React renderer (`react/`), markdown parser (`markdown/`), and placeholder for Flutter (`flutter/`).
+- **`typescript/`**: Framework-agnostic Web Core state and protocol logic (`web_core/`).
+- **`renderers/`**: Lit renderer (`lit/`), Angular renderer (`angular/`), React renderer (`react/`), markdown parser (`markdown/`), and placeholder for Flutter (`flutter/`).
 - **`samples/`**: Ready-to-run demo agents utilizing Python ADK (`agent/adk/`), MCP server (`agent/mcp/`), and sample clients (`client/lit/`, `client/angular/`, `client/react/`, `client/flutter/`).
 - **`tools/`**: Developer utility suite including visual Editor (`editor/`), visual Composer (`composer/`), payload Inspector (`inspector/`), and catalog builder (`build_catalog/`).
 
