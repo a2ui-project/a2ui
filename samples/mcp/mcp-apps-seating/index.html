@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Venue Seating</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0;
+      color: white;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #111; /* default */
+    }
+
+    /* Layout specific containers */
+    .venue-layout { display: none; width: 100%; height: 100%; flex-direction: column; align-items: center; }
+    .venue-layout.active { display: flex; }
+
+    /* Common seat styling */
+    .seat { cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; }
+    .seat.booked { cursor: not-allowed; }
+    
+    /* Stadium */
+    #layout-stadium { background: #111; padding: 20px; }
+    #layout-stadium .field { width: 300px; height: 150px; background: #2d5a27; border: 2px solid #fff; border-radius: 75px; display: flex; align-items: center; justify-content: center; margin-bottom: 50px; letter-spacing: 2px; font-weight: bold; }
+    #layout-stadium .seating-container { display: flex; flex-wrap: wrap; width: 400px; justify-content: center; gap: 10px; }
+    #layout-stadium .seat { width: 30px; height: 30px; background: #4caf50; border-radius: 5px 5px 0 0; }
+    #layout-stadium .seat:hover { transform: scale(1.1); }
+    #layout-stadium .seat.booked { background: #f44336; }
+
+    /* Concert */
+    #layout-concert { background: #0f172a; padding: 50px 20px; }
+    #layout-concert .stage { width: 400px; height: 80px; background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%); border-radius: 10px 10px 50px 50px; display: flex; align-items: center; justify-content: center; margin-bottom: 60px; font-size: 24px; font-weight: 700; box-shadow: 0 10px 30px rgba(59, 130, 246, 0.5); }
+    #layout-concert .seating-container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; margin-bottom: 30px; }
+    #layout-concert .seat { width: 40px; height: 40px; background: #10b981; border-radius: 50%; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+    #layout-concert .seat:hover { transform: translateY(-5px); box-shadow: 0 10px 15px rgba(16, 185, 129, 0.4); }
+    #layout-concert .seat.booked { background: #ef4444; box-shadow: none; }
+    #layout-concert .seat.booked:hover { transform: none; }
+
+    /* Theater */
+    #layout-theater { background: #2c1a1a; padding: 30px; }
+    #layout-theater .screen { width: 500px; height: 20px; background: #fff; box-shadow: 0 0 40px #fff; margin-bottom: 80px; border-radius: 10px; }
+    #layout-theater .seating-container { display: flex; flex-direction: column; align-items: center; gap: 15px; }
+    #layout-theater .row { display: flex; gap: 10px; justify-content: center; }
+    #layout-theater .row-0 { transform: scale(1); }
+    #layout-theater .row-1 { transform: scale(1.05); margin-top: 10px; }
+    #layout-theater .row-2 { transform: scale(1.1); margin-top: 15px; }
+    #layout-theater .row-3 { transform: scale(1.15); margin-top: 20px; }
+    #layout-theater .seat { width: 35px; height: 35px; background: #9e2a2b; border-radius: 8px 8px 4px 4px; box-shadow: inset 0 -5px 0 rgba(0,0,0,0.2); }
+    #layout-theater .seat:hover { background: #e03131; }
+    #layout-theater .seat.booked { background: #495057; box-shadow: inset 0 -2px 0 rgba(0,0,0,0.5); color: #adb5bd; }
+
+    /* Arena */
+    #layout-arena { background: #1a1a2e; padding: 50px; }
+    #layout-arena .ring { width: 120px; height: 120px; background: #0f3460; border: 4px solid #e94560; margin: 60px; position: relative; display: flex; align-items: center; justify-content: center; }
+    #layout-arena .seating-container { position: relative; width: 400px; height: 400px; display: flex; align-items: center; justify-content: center; }
+    #layout-arena .seat-wrapper { position: absolute; width: 30px; height: 30px; margin-left: -15px; margin-top: -15px; }
+    #layout-arena .seat { width: 100%; height: 100%; background: #e94560; border-radius: 4px; border: 2px solid #fff; }
+    #layout-arena .seat:hover { background: #ff7b93; box-shadow: 0 0 15px #ff7b93; }
+    #layout-arena .seat.booked { background: #533440; border-color: #8c6a76; color: #8c6a76; }
+
+    /* Cinema */
+    #layout-cinema { background: #000; padding: 20px; perspective: 1000px; }
+    #layout-cinema .screen-3d { width: 400px; height: 150px; background: linear-gradient(135deg, #ddd 0%, #fff 50%, #ddd 100%); margin-bottom: 60px; transform: rotateX(-15deg); box-shadow: 0 50px 100px rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; color: #333; font-weight: bold; font-size: 20px; }
+    #layout-cinema .seating-container { display: grid; grid-template-columns: repeat(6, 1fr); gap: 15px; transform: rotateX(20deg) translateZ(-50px); transform-style: preserve-3d; }
+    #layout-cinema .seat { width: 45px; height: 50px; background: #c0392b; border-radius: 10px 10px 0 0; position: relative; }
+    #layout-cinema .seat::after { content: ''; position: absolute; bottom: -10px; left: 0; width: 100%; height: 10px; background: #922b21; border-radius: 0 0 5px 5px; }
+    #layout-cinema .seat:hover { transform: translateZ(10px); background: #e74c3c; }
+    #layout-cinema .seat.booked { background: #34495e; color: #7f8c8d; }
+    #layout-cinema .seat.booked::after { background: #2c3e50; }
+  </style>
+</head>
+<body>
+
+  <div id="layout-stadium" class="venue-layout">
+    <h1>Grand Stadium</h1>
+    <div class="field">PITCH</div>
+    <div class="seating-container" id="seats-stadium"></div>
+  </div>
+
+  <div id="layout-concert" class="venue-layout">
+    <h1>Symphony Hall</h1>
+    <div class="stage">STAGE</div>
+    <div class="seating-container" id="seats-concert"></div>
+  </div>
+
+  <div id="layout-theater" class="venue-layout">
+    <h1>Classic Theater</h1>
+    <div class="screen"></div>
+    <div class="seating-container" id="seats-theater"></div>
+  </div>
+
+  <div id="layout-arena" class="venue-layout">
+    <h1>Boxing Arena</h1>
+    <div class="seating-container">
+      <div class="ring">RING</div>
+      <div id="seats-arena"></div>
+    </div>
+  </div>
+
+  <div id="layout-cinema" class="venue-layout">
+    <h1>MegaPlex 3D</h1>
+    <div class="screen-3d">SILVER SCREEN</div>
+    <div class="seating-container" id="seats-cinema"></div>
+  </div>
+
+  <script type="module" src="./index.ts"></script>
+</body>
+</html>
