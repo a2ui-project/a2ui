@@ -147,7 +147,6 @@ class FileResolver:
 
         final_mime = detected_mime or claimed_mime or "application/octet-stream"
 
-
         if self.allowed_mime_types and not any(
             fnmatch.fnmatch(final_mime, t) for t in self.allowed_mime_types
         ):
@@ -196,7 +195,11 @@ class FileResolver:
                     for part in event.message.parts:
                         if getattr(part, "inline_data", None):
                             part_meta = getattr(part, "part_metadata", None) or {}
-                            part_file_id = part_meta.get("fileId") if isinstance(part_meta, dict) else getattr(part_meta, "fileId", None)
+                            part_file_id = (
+                                part_meta.get("fileId")
+                                if isinstance(part_meta, dict)
+                                else getattr(part_meta, "fileId", None)
+                            )
                             if part_file_id == file_id:
                                 raw_bytes = part.inline_data.data
                                 claimed_mime = part.inline_data.mime_type
@@ -322,9 +325,7 @@ class FileResolver:
                             preprocess(f, args, kwargs)
                 try:
                     bound_args.arguments[inject_name] = (
-                        await self.resolve_all_to_genai_parts(
-                            file_pointers, session
-                        )
+                        await self.resolve_all_to_genai_parts(file_pointers, session)
                     )
                 except Exception as e:
                     if on_error:

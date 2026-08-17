@@ -203,7 +203,10 @@ async def summarize_file_tool(
             "summary_title": f"Summary: {title_suffix}",
             "summary_text": summary_text,
             "status": "success",
-            "instruction_to_model": "You MUST generate a Markdown text response to the user containing the summary right now. Do not skip this step.",
+            "instruction_to_model": (
+                "You MUST generate a Markdown text response to the user containing the"
+                " summary right now. Do not skip this step."
+            ),
         }
     except Exception as e:
         logger.error(f"Error summarizing files: {e}\n{traceback.format_exc()}")
