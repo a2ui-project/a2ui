@@ -66,7 +66,7 @@ Update [items with label `status: needs-triage`][needs-triage], so that the labe
 - Answer external comment
 - Add `status: waiting-for-author-response` when you need more information
 
-You can remove the label manually to fasten the proces, but if the item still matches a rule, the label will come back within a minute.
+You can remove the label manually to speed up the process, but if the item still matches a rule, the label will come back within a minute.
 
 For items where you need an input from the team:
 
