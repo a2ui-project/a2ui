@@ -82,11 +82,17 @@ def get_seating_state(venue_id: str) -> str:
 
 
 @click.command()
+@click.option("--host", default="127.0.0.1", help="Host to listen on for SSE")
 @click.option("--port", default=8000, help="Port to listen on for SSE")
-@click.option("--transport", type=click.Choice(["stdio", "sse"]), default="sse", help="Transport type")
-def main(port: int, transport: str) -> int:
+@click.option(
+    "--transport",
+    type=click.Choice(["stdio", "sse"]),
+    default="stdio",
+    help="Transport type: stdio (for Claude Desktop / CLI) or sse (via Uvicorn for web hosts)",
+)
+def main(host: str, port: int, transport: str) -> int:
     if transport == "sse":
-        print(f"Starting SSE server on port {port}...")
+        print(f"Starting SSE server on {host}:{port} via Uvicorn...")
         app.settings.port = port
         starlette_app = app.sse_app()
         from starlette.middleware.cors import CORSMiddleware
@@ -97,7 +103,7 @@ def main(port: int, transport: str) -> int:
             allow_headers=["*"],
         )
         import uvicorn
-        uvicorn.run(starlette_app, host="127.0.0.1", port=port)
+        uvicorn.run(starlette_app, host=host, port=port)
     else:
         app.run(transport="stdio")
     return 0
