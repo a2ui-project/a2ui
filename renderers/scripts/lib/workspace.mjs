@@ -64,6 +64,7 @@ export function getPackageGraph() {
 
   for (const path of packagePaths) {
     const pkg = JSON.parse(readFileSync(path, 'utf8'));
+    if (!pkg.name) continue;
     const dir = dirname(path);
 
     // If we have a duplicate name, prioritize packages in 'renderers/'
