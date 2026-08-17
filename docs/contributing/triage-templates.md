@@ -52,7 +52,7 @@ Marked as `P4`: we do not plan to invest in it, and PRs against it will not be r
 
 ## Pull requests
 
-These cases are handled by the oncall engineer directly. The dashboard and apply script
+These cases are handled by the gardener directly. The dashboard and apply script
 cover issues only, so the actions below are performed by hand.
 
 ### Superseded PR

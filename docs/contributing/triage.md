@@ -74,11 +74,10 @@ For items where you need an input from the team:
 Use [standard replies](triage-templates.md) that are provided for standard cases.
 
 [needs-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20label%3A%22status%3A%20needs-triage%22%20repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui%20-label%3A%22status%3A%20in-discussion%22%20sort%3Aupdated-asc%20-label%3A%22status%3A%20waiting-for-user-response%22
-[in-discussion]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20label%3A%22status%3A%20in-discussion%22
-
-See internal steps in: go/a2ui-oncall-notes-template.
 
 ## AI assistance
+
+Point of contact: [gspencergoogle](https://github.com/gspencergoog).
 
 Use this skill to get agent's help with triage process: [.agents/skills/a2ui-issue-triage](../../.agents/skills/a2ui-issue-triage/SKILL.md).
 
@@ -86,9 +85,7 @@ It forks multiple subagents (one for each issue) to try and tries to reproduce t
 
 ## Q\&A
 
-This tab contains explanations behind decisions made for the triage process.
-
-### Why do we allow branches on the repo and thus create work for on-call?
+### Why do we allow branches on the repo and thus create work for maintainers?
 
 Eval and e2e tests cannot be executed on pre-submit for PRs from forks, because they require an API key that is visible only on the original repo.
 
