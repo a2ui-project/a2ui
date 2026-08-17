@@ -51,6 +51,7 @@ export class RpcError extends Error {
   ) {
     super(`[${code}] ${message}`);
     this.name = 'RpcError';
+    Object.setPrototypeOf(this, RpcError.prototype);
   }
 }
 
@@ -146,7 +147,14 @@ export class RpcHandler {
     const {call, catalogId, args} = callFunction;
 
     // 1. Resolve catalog (fallback to surface default catalog if catalogId is omitted)
-    const targetCatalogId = catalogId || context.surface.catalog.id;
+    const targetCatalogId = catalogId || context?.surface?.catalog?.id;
+    if (!targetCatalogId) {
+      return this.createResponseError(
+        functionCallId,
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+        'No catalogId provided and surface catalog is unavailable.',
+      );
+    }
     const catalog = this.catalogs.find(c => c.id === targetCatalogId);
     if (!catalog) {
       return this.createResponseError(
@@ -285,7 +293,11 @@ export class RpcHandler {
     } else {
       call = functionCallIdOrCall;
       const opts = (callOrOptions as {functionCallId?: string; timeoutMs?: number}) ?? {};
-      functionCallId = opts.functionCallId ?? crypto.randomUUID();
+      functionCallId =
+        opts.functionCallId ??
+        (typeof globalThis.crypto?.randomUUID === 'function'
+          ? globalThis.crypto.randomUUID()
+          : `call-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
       effectiveTimeoutMs = opts.timeoutMs ?? this.defaultTimeoutMs;
     }
 
