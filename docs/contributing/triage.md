@@ -46,14 +46,18 @@ Two of these are automated by [scripts/triage.mjs](../../scripts/triage.mjs): `s
 
 ## Triage responsibilities
 
-### First line triage
+### Prerequisites
+
+Make sure you understand what is explained in the sections above.
+
+### First line triage (daily)
 
 For each issue that is [not first-line-handled](https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3A%22status%3A%20first-line-handled%22):
 
 - If it is P0, add label `P0` and notify team chat
 - Add label `status: first-line-handled`
 
-### Second line triage
+### Second line triage (weekly)
 
 Update [items with label `status: needs-triage`][needs-triage], so that the label, managed by [triage.mjs](../../scripts/triage.mjs), disappears:
 
