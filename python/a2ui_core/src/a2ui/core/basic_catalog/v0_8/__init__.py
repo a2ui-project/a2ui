@@ -1,0 +1,151 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Auto-generated. Do not edit manually.
+from __future__ import annotations
+from typing import Optional
+
+from .components import (
+    TextItem,
+    UrlItem,
+    AltTextItem,
+    NameItem,
+    DescriptionItem,
+    ChildrenItem,
+    TabItemItem,
+    ActionItem,
+    LabelItem,
+    ValueItem,
+    SelectionItem,
+    OptionItem,
+    TemplateItem,
+    TitleItem,
+    ContextItem,
+    TextComponent,
+    ImageComponent,
+    IconComponent,
+    VideoComponent,
+    AudioPlayerComponent,
+    RowComponent,
+    ColumnComponent,
+    ListComponent,
+    CardComponent,
+    TabsComponent,
+    DividerComponent,
+    ModalComponent,
+    ButtonComponent,
+    CheckBoxComponent,
+    TextFieldComponent,
+    DateTimeInputComponent,
+    MultipleChoiceComponent,
+    SliderComponent,
+    AnyComponent,
+    TEXT_COMPONENT_API,
+    IMAGE_COMPONENT_API,
+    ICON_COMPONENT_API,
+    VIDEO_COMPONENT_API,
+    AUDIO_PLAYER_COMPONENT_API,
+    ROW_COMPONENT_API,
+    COLUMN_COMPONENT_API,
+    LIST_COMPONENT_API,
+    CARD_COMPONENT_API,
+    TABS_COMPONENT_API,
+    DIVIDER_COMPONENT_API,
+    MODAL_COMPONENT_API,
+    BUTTON_COMPONENT_API,
+    CHECK_BOX_COMPONENT_API,
+    TEXT_FIELD_COMPONENT_API,
+    DATE_TIME_INPUT_COMPONENT_API,
+    MULTIPLE_CHOICE_COMPONENT_API,
+    SLIDER_COMPONENT_API,
+    BASIC_COMPONENTS,
+)
+from .styles import Theme
+from ...schema.v0_8.constants import SPEC_VERSION, SPEC_BASE_URL
+from ...catalog import Catalog, ModelComponentApi, FunctionImplementation
+
+
+def _basic_catalog_id(spec_version: str) -> str:
+    return (
+        f"{SPEC_BASE_URL}/{spec_version.replace('.', '_')}/catalogs/basic/catalog.json"
+    )
+
+
+class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
+
+    def __init__(self, locale: Optional[str] = None):
+        super().__init__(
+            catalog_id=_basic_catalog_id(SPEC_VERSION),
+            spec_version=SPEC_VERSION,
+            components=BASIC_COMPONENTS,
+            functions=[],
+        )
+
+
+__all__ = [
+    "TextItem",
+    "UrlItem",
+    "AltTextItem",
+    "NameItem",
+    "DescriptionItem",
+    "ChildrenItem",
+    "TabItemItem",
+    "ActionItem",
+    "LabelItem",
+    "ValueItem",
+    "SelectionItem",
+    "OptionItem",
+    "TemplateItem",
+    "TitleItem",
+    "ContextItem",
+    "TextComponent",
+    "ImageComponent",
+    "IconComponent",
+    "VideoComponent",
+    "AudioPlayerComponent",
+    "RowComponent",
+    "ColumnComponent",
+    "ListComponent",
+    "CardComponent",
+    "TabsComponent",
+    "DividerComponent",
+    "ModalComponent",
+    "ButtonComponent",
+    "CheckBoxComponent",
+    "TextFieldComponent",
+    "DateTimeInputComponent",
+    "MultipleChoiceComponent",
+    "SliderComponent",
+    "AnyComponent",
+    "TEXT_COMPONENT_API",
+    "IMAGE_COMPONENT_API",
+    "ICON_COMPONENT_API",
+    "VIDEO_COMPONENT_API",
+    "AUDIO_PLAYER_COMPONENT_API",
+    "ROW_COMPONENT_API",
+    "COLUMN_COMPONENT_API",
+    "LIST_COMPONENT_API",
+    "CARD_COMPONENT_API",
+    "TABS_COMPONENT_API",
+    "DIVIDER_COMPONENT_API",
+    "MODAL_COMPONENT_API",
+    "BUTTON_COMPONENT_API",
+    "CHECK_BOX_COMPONENT_API",
+    "TEXT_FIELD_COMPONENT_API",
+    "DATE_TIME_INPUT_COMPONENT_API",
+    "MULTIPLE_CHOICE_COMPONENT_API",
+    "SLIDER_COMPONENT_API",
+    "BASIC_COMPONENTS",
+    "BasicCatalog",
+]
