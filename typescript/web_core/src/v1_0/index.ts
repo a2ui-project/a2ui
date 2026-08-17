@@ -18,3 +18,4 @@ export * from './schema/index.js';
 export * from './functions/system_functions.js';
 export * from './functions/validation_functions_api.js';
 export * from './functions/validation_functions.js';
+export * from './rpc/rpc-handler.js';
