@@ -202,6 +202,34 @@ def test_compile_union_def():
     assert code == "StringOrBinding = Union[str, DataBinding]\n"
 
 
+def test_extract_exported_symbols():
+    sample_code = """
+class TextComponent(CatalogComponentCommon):
+    pass
+
+class ButtonComponent(CatalogComponentCommon):
+    pass
+
+def helper_func():
+    pass
+
+def _private_func():
+    pass
+
+AnyComponent = Union[TextComponent, ButtonComponent]
+BASIC_COMPONENTS = [TextComponent, ButtonComponent]
+_PRIVATE_VAR = 123
+"""
+    symbols = codegen_pydantic.extract_exported_symbols(sample_code)
+    assert symbols == [
+        "TextComponent",
+        "ButtonComponent",
+        "helper_func",
+        "AnyComponent",
+        "BASIC_COMPONENTS",
+    ]
+
+
 def test_generate_basic_catalog_components():
     # Scenario A: Fallback to all components
     mock_catalog_data = {
@@ -212,10 +240,7 @@ def test_generate_basic_catalog_components():
             }
         }
     }
-    code, names = codegen_pydantic.generate_basic_catalog_components(
-        "v0.9", mock_catalog_data
-    )
-    assert names == ["TextComponent"]
+    code = codegen_pydantic.generate_basic_catalog_components("v0.9", mock_catalog_data)
     assert "class CatalogComponentCommon(ComponentCommon):" in code
     assert "class TextComponent(CatalogComponentCommon):" in code
     assert '    component: Literal["Text"] = "Text"' in code
@@ -245,10 +270,9 @@ def test_generate_basic_catalog_components():
             }
         },
     }
-    code_defs, names_defs = codegen_pydantic.generate_basic_catalog_components(
+    code_defs = codegen_pydantic.generate_basic_catalog_components(
         "v0.9", mock_catalog_data_defs
     )
-    assert names_defs == ["TextComponent", "PrivateHelperComponent"]
     assert "class CatalogComponentCommon(ComponentCommon):" in code_defs
     assert "class TextComponent(CatalogComponentCommon):" in code_defs
     assert (
@@ -286,10 +310,9 @@ def test_generate_basic_catalog_components():
             }
         }
     }
-    code_svg, names_svg = codegen_pydantic.generate_basic_catalog_components(
+    code_svg = codegen_pydantic.generate_basic_catalog_components(
         "v0.9", mock_catalog_data_svg
     )
-    assert names_svg == ["IconComponent"]
     assert "class SvgPath(StrictBaseModel):" in code_svg
     assert '    svg_path: str = Field(..., alias="svgPath")' in code_svg
     assert 'Union[Literal["add", "close"], SvgPath]' in code_svg
@@ -304,10 +327,7 @@ def test_generate_basic_catalog_functions():
             }
         }
     }
-    code, names = codegen_pydantic.generate_basic_catalog_functions(
-        "v0.9", mock_catalog_data
-    )
-    assert names == ["ToastApi"]
+    code = codegen_pydantic.generate_basic_catalog_functions("v0.9", mock_catalog_data)
     assert "class ToastApi(FunctionApi):" in code
 
     # Scenario B: Intersects functions map and anyFunction/oneOf refs
@@ -329,11 +349,9 @@ def test_generate_basic_catalog_functions():
             }
         },
     }
-    code_defs, names_defs = codegen_pydantic.generate_basic_catalog_functions(
+    code_defs = codegen_pydantic.generate_basic_catalog_functions(
         "v0.9", mock_catalog_data_defs
     )
-    assert "ToastApi" in names_defs
-    assert "PrivateFuncApi" in names_defs
     assert "class ToastApi(FunctionApi):" in code_defs
     assert "class PrivateFuncApi(FunctionApi):" in code_defs
 
@@ -373,16 +391,25 @@ def test_generate_agent_to_renderer():
             }
         }
     }
-    code, names = codegen_pydantic.generate_agent_to_renderer("v0.9", mock_a2r_data)
-    assert names == ["CreateSurfaceMessage"]
+    code = codegen_pydantic.generate_agent_to_renderer("v0.9", mock_a2r_data)
     assert "class CreateSurface(StrictBaseModel):" in code
     assert "class CreateSurfaceMessage(StrictBaseModel):" in code
 
 
 def test_generate_schema_init():
-    code = codegen_pydantic.generate_schema_init("v0.9", ["CreateSurfaceMessage"])
-    assert "from .common_types import (" in code
+    mock_modules = {
+        "common_types": (
+            "class StrictBaseModel:\n    pass\nclass DataBinding:\n    pass"
+        ),
+        "server_to_client": (
+            "class CreateSurface(StrictBaseModel):\n    pass\nclass"
+            " CreateSurfaceMessage(StrictBaseModel):\n    pass"
+        ),
+    }
+    code = codegen_pydantic.generate_schema_init("v0.9", mock_modules)
     assert "from .constants import *" in code
+    assert "from .common_types import (" in code
+    assert "    StrictBaseModel," in code
     assert "from .server_to_client import (" in code
     assert "    CreateSurfaceMessage," in code
     assert "    CreateSurface," in code
@@ -444,12 +471,13 @@ def test_generate_renderer_to_agent():
         'code: Literal["VALIDATION_FAILED"] = Field("VALIDATION_FAILED")' in code
         or "code: Literal['VALIDATION_FAILED'] = Field(\"VALIDATION_FAILED\")" in code
     )
-    assert "A2uiValidationFailedError = A2uiValidationError" in code
-    assert "A2uiClientError = Union[A2uiValidationError]" in code
+    assert "A2uiRendererError = Union[A2uiValidationError]" in code
     assert "class A2uiClientActionMessage(StrictBaseModel):" in code
-    assert "class A2uiClientErrorMessage(StrictBaseModel):" in code
+    assert "class A2uiRendererErrorMessage(StrictBaseModel):" in code
     assert (
-        "A2uiClientMessage = Union[A2uiClientActionMessage, A2uiClientErrorMessage]"
+        "A2uiClientMessage = Union[A2uiClientActionMessage, A2uiRendererErrorMessage]"
+        in code
+        or "A2uiClientMessage = Union[A2uiRendererActionMessage, A2uiRendererErrorMessage]"
         in code
     )
 

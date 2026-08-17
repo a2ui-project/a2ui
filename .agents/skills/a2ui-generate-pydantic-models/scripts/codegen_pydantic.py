@@ -15,6 +15,7 @@
 """Dynamic, version-agnostic automated generator for Pydantic v2 schemas and basic catalogs across any A2UI spec version."""
 
 import argparse
+import ast
 import json
 import os
 import re
@@ -156,6 +157,27 @@ def _generate_constants_code(
 
     lines.append("")
     return "\n".join(lines)
+
+
+def extract_exported_symbols(code: str) -> List[str]:
+    """Extracts top-level public class names, function names, and variable/alias assignments from Python code."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return []
+    symbols: List[str] = []
+    for node in tree.body:
+        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            if not node.name.startswith("_"):
+                symbols.append(node.name)
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and not target.id.startswith("_"):
+                    symbols.append(target.id)
+        elif isinstance(node, ast.AnnAssign):
+            if isinstance(node.target, ast.Name) and not node.target.id.startswith("_"):
+                symbols.append(node.target.id)
+    return list(dict.fromkeys(symbols))
 
 
 class PydanticCodegen:
@@ -644,8 +666,8 @@ def generate_agent_to_renderer(
     version: str,
     a2r_data: Dict[str, Any],
     a2r_name: str = "",
-) -> Tuple[str, List[str]]:
-    """Generates agent_to_renderer.py / server_to_client.py content and message names."""
+) -> str:
+    """Generates agent_to_renderer.py / server_to_client.py content."""
     codegen = PydanticCodegen(version)
     codegen.allow_inline = False
     dir_name = _version_to_underscore(version)
@@ -754,7 +776,7 @@ def generate_agent_to_renderer(
                 ' messages.")'
             )
 
-    return "\n\n\n".join(b.strip() for b in a2r_blocks if b.strip()) + "\n", msg_names
+    return "\n\n\n".join(b.strip() for b in a2r_blocks if b.strip()) + "\n"
 
 
 def generate_renderer_to_agent(
@@ -853,16 +875,11 @@ def generate_renderer_to_agent(
             err_classes.append("A2uiGenericError")
 
         if err_classes:
-            if "A2uiValidationFailedError" in err_classes:
-                r2a_blocks.append("A2uiValidationError = A2uiValidationFailedError")
-            elif "A2uiValidationError" in err_classes:
-                r2a_blocks.append("A2uiValidationFailedError = A2uiValidationError")
-            else:
+            if "A2uiValidationError" not in err_classes:
                 r2a_blocks.append(
                     "class A2uiValidationError(StrictBaseModel):\n    pass"
                 )
-            r2a_blocks.append(f"A2uiClientError = Union[{', '.join(err_classes)}]")
-            r2a_blocks.append("A2uiRendererError = A2uiClientError")
+            r2a_blocks.append(f"A2uiRendererError = Union[{', '.join(err_classes)}]")
 
     msg_union_members = []
     if action_key:
@@ -909,11 +926,11 @@ def generate_renderer_to_agent(
 
     if "error" in props:
         r2a_blocks.append(
-            "class A2uiClientErrorMessage(StrictBaseModel):\n"
+            "class A2uiRendererErrorMessage(StrictBaseModel):\n"
             "    version: SPEC_VERSION_TYPE = SPEC_VERSION\n"
-            "    error: A2uiClientError = Field(...)"
+            "    error: A2uiRendererError = Field(...)"
         )
-        msg_union_members.append("A2uiClientErrorMessage")
+        msg_union_members.append("A2uiRendererErrorMessage")
 
     union_def = f"Union[{', '.join(msg_union_members)}]" if msg_union_members else "Any"
 
@@ -1020,149 +1037,36 @@ def generate_renderer_capabilities(
 
 def generate_schema_init(
     version: str,
-    msg_names: List[str],
-    c2s_names: Optional[List[str]] = None,
+    modules: Dict[str, str],
 ) -> str:
-    """Generates __init__.py content for a version schema directory."""
-    dir_name = _version_to_underscore(version)
-    is_modern = _is_modern_terminology(version)
-    common_types_list = [
-        "StrictBaseModel",
-        "DataBinding",
-        "FunctionCall",
-        "AccessibilityAttributes",
-        "CheckRule",
-        "ActionEvent",
-        "Action",
-        "ComponentCommon",
-    ]
-    common_export_lines = [f"    {c}," for c in common_types_list]
-
-    s2c_export_list = []
-    for mn in msg_names:
-        s2c_export_list.append(mn)
-        payload = mn.replace("Message", "")
-        if payload != mn and payload not in s2c_export_list:
-            s2c_export_list.append(payload)
-    if dir_name == "v0_8":
-        s2c_export_list.extend([
-            "CreateSurface",
-            "CreateSurfaceMessage",
-            "UpdateComponents",
-            "UpdateComponentsMessage",
-            "UpdateDataModel",
-            "UpdateDataModelMessage",
-        ])
-    if is_modern:
-        s2c_export_list.extend([
-            "AgentToRendererMessage",
-            "A2uiMessage",
-            "ServerToClientMessage",
-            "A2uiMessageListWrapper",
-        ])
-    else:
-        s2c_export_list.extend([
-            "A2uiMessage",
-            "ServerToClientMessage",
-            "AgentToRendererMessage",
-            "A2uiMessageListWrapper",
-        ])
-    s2c_lines = [f"    {name}," for name in s2c_export_list]
-
-    caps_module_name = "renderer_capabilities" if is_modern else "client_capabilities"
-    if is_modern:
-        v_tag = f"V{dir_name.replace('v', '').replace('_', '')}Capabilities"
-        caps_export_list = [
-            "A2uiRendererCapabilities",
-            "A2uiClientCapabilities",
-            v_tag,
-            "InlineCatalog",
-            "FunctionDefinition",
-            f"V{dir_name.replace('v', '').capitalize()}Capabilities",
-        ]
-    else:
-        v_tag = "V08Capabilities" if dir_name == "v0_8" else "V09Capabilities"
-        v_tag_alt = "V0_8Capabilities" if dir_name == "v0_8" else "V0_9Capabilities"
-        caps_export_list = [
-            "A2uiClientCapabilities",
-            "A2uiRendererCapabilities",
-            v_tag,
-            "InlineCatalog",
-            "FunctionDefinition",
-            v_tag_alt,
-        ]
-    caps_lines = [f"    {name}," for name in caps_export_list]
-
-    c2s_module_name = "renderer_to_agent" if is_modern else "client_to_server"
-    if is_modern:
-        c2s_export_list = [
-            "RendererToAgentMessage",
-            "ClientToServerMessage",
-            "A2uiClientMessage",
-            "A2uiRendererActionMessage",
-            "A2uiClientActionMessage",
-            "A2uiClientUserActionMessage",
-            "A2uiClientErrorMessage",
-            "A2uiRendererAction",
-            "A2uiClientAction",
-            "A2uiClientUserAction",
-            "ActionPayload",
-            "A2uiValidationError",
-            "A2uiGenericError",
-            "A2uiClientError",
-            "A2uiRendererError",
-            "A2uiClientDataModel",
-            "A2uiClientMessageList",
-            "A2uiClientMessageListWrapper",
-        ]
-    else:
-        c2s_export_list = [
-            "A2uiClientMessage",
-            "ClientToServerMessage",
-            "RendererToAgentMessage",
-            "A2uiClientActionMessage",
-            "A2uiClientErrorMessage",
-            "A2uiClientAction",
-            "A2uiRendererAction",
-            "A2uiValidationError",
-            "A2uiGenericError",
-            "A2uiClientError",
-            "A2uiClientDataModel",
-            "A2uiClientMessageList",
-            "A2uiClientMessageListWrapper",
-        ]
-    c2s_lines = [f"    {name}," for name in c2s_export_list]
-
-    all_exports = (
-        common_types_list + s2c_export_list + caps_export_list + c2s_export_list
-    )
-    deduped_exports = list(dict.fromkeys(all_exports))
-    all_export_lines = [f'    "{name}",' for name in deduped_exports]
-
-    out_s2c_name = "agent_to_renderer" if is_modern else "server_to_client"
+    """Generates __init__.py content for a version schema directory by inspecting module symbols."""
     ver_init = [
         FILE_HEADER,
         "",
-        "from .common_types import (",
-        "\n".join(common_export_lines),
-        ")",
         "from .constants import *",
-        f"from .{out_s2c_name} import (",
-        "\n".join(s2c_lines),
-        ")",
-        f"from .{caps_module_name} import (",
-        "\n".join(caps_lines),
-        ")",
-        f"from .{c2s_module_name} import (",
-        "\n".join(c2s_lines),
-        ")",
+    ]
+    all_exports: List[str] = []
+
+    for mod_name, mod_code in modules.items():
+        symbols = extract_exported_symbols(mod_code)
+        if not symbols:
+            continue
+        all_exports.extend(symbols)
+        import_lines = [f"    {s}," for s in symbols]
+        ver_init.append(
+            f"from .{mod_name} import (\n" + "\n".join(import_lines) + "\n)"
+        )
+
+    deduped_exports = list(dict.fromkeys(all_exports))
+    all_export_lines = [f'    "{name}",' for name in deduped_exports]
+    ver_init.extend([
         "",
         "",
         "__all__ = [",
         "\n".join(all_export_lines),
         "]",
         "",
-    ]
+    ])
     return "\n".join(ver_init)
 
 
@@ -1170,8 +1074,8 @@ def generate_basic_catalog_components(
     version: str,
     catalog_data: Dict[str, Any],
     common_data: Optional[Dict[str, Any]] = None,
-) -> Tuple[str, List[str]]:
-    """Generates components.py content and generated class names."""
+) -> str:
+    """Generates components.py content."""
     codegen = PydanticCodegen(version)
     dir_name = _version_to_underscore(version)
     common_defs = common_data.get("$defs", {}) if common_data else {}
@@ -1315,14 +1219,14 @@ def generate_basic_catalog_components(
         "\n".join(basic_comp_lines),
     ]
     comp_blocks.append("\n\n".join(tail_sections))
-    return "\n\n\n".join(b.strip() for b in comp_blocks if b.strip()) + "\n", comp_names
+    return "\n\n\n".join(b.strip() for b in comp_blocks if b.strip()) + "\n"
 
 
 def generate_basic_catalog_functions(
     version: str,
     catalog_data: Dict[str, Any],
-) -> Tuple[str, List[str]]:
-    """Generates function_apis.py content and generated class names."""
+) -> str:
+    """Generates function_apis.py content."""
     codegen = PydanticCodegen(version)
     dir_name = _version_to_underscore(version)
     func_blocks = [
@@ -1390,10 +1294,7 @@ def generate_basic_catalog_functions(
         if not allowed_funcs or fname in allowed_funcs:
             api_func_names.append(func_class_name)
 
-    return (
-        "\n\n\n".join(b.strip() for b in func_blocks if b.strip()) + "\n",
-        names,
-    )
+    return "\n\n\n".join(b.strip() for b in func_blocks if b.strip()) + "\n"
 
 
 def generate_basic_catalog_styles(
@@ -1473,6 +1374,8 @@ def generate_version_schemas(
     with open(constants_path, "w", encoding="utf-8") as f:
         f.write(constants_code)
 
+    modules: Dict[str, str] = {}
+
     # 2. Generate common_types.py
     common_types_possible = [
         os.path.join(json_dir, "common_types.json"),
@@ -1490,24 +1393,20 @@ def generate_version_schemas(
     common_types_out = os.path.join(out_dir, "common_types.py")
     with open(common_types_out, "w", encoding="utf-8") as f:
         f.write(common_types_code)
+    modules["common_types"] = common_types_code
 
     # 3. Generate agent_to_renderer.py / server_to_client.py
     is_modern = _is_modern_terminology(version, a2r_name)
-    msg_names: List[str] = []
     if a2r_data:
-        a2r_code, msg_names = generate_agent_to_renderer(version, a2r_data, a2r_name)
-        out_file_name = "agent_to_renderer.py" if is_modern else "server_to_client.py"
-        with open(os.path.join(out_dir, out_file_name), "w", encoding="utf-8") as f:
+        a2r_code = generate_agent_to_renderer(version, a2r_data, a2r_name)
+        out_file_name = "agent_to_renderer" if is_modern else "server_to_client"
+        with open(
+            os.path.join(out_dir, f"{out_file_name}.py"), "w", encoding="utf-8"
+        ) as f:
             f.write(a2r_code)
+        modules[out_file_name] = a2r_code
 
-    # 4. Generate renderer_to_agent.py / client_to_server.py
-    if r2a_data:
-        r2a_code = generate_renderer_to_agent(version, r2a_data, a2r_name)
-        out_r2a_name = "renderer_to_agent.py" if is_modern else "client_to_server.py"
-        with open(os.path.join(out_dir, out_r2a_name), "w", encoding="utf-8") as f:
-            f.write(r2a_code)
-
-    # 5. Generate renderer_capabilities.py / client_capabilities.py
+    # 4. Generate renderer_capabilities.py / client_capabilities.py
     caps_name = (
         "renderer_capabilities.json"
         if os.path.exists(os.path.join(json_dir, "renderer_capabilities.json"))
@@ -1523,14 +1422,25 @@ def generate_version_schemas(
         caps_code = generate_renderer_capabilities(
             version, caps_data, is_modern=is_modern
         )
-        out_caps_name = (
-            "renderer_capabilities.py" if is_modern else "client_capabilities.py"
-        )
-        with open(os.path.join(out_dir, out_caps_name), "w", encoding="utf-8") as f:
+        out_caps_name = "renderer_capabilities" if is_modern else "client_capabilities"
+        with open(
+            os.path.join(out_dir, f"{out_caps_name}.py"), "w", encoding="utf-8"
+        ) as f:
             f.write(caps_code)
+        modules[out_caps_name] = caps_code
+
+    # 5. Generate renderer_to_agent.py / client_to_server.py
+    if r2a_data:
+        r2a_code = generate_renderer_to_agent(version, r2a_data, a2r_name)
+        out_r2a_name = "renderer_to_agent" if is_modern else "client_to_server"
+        with open(
+            os.path.join(out_dir, f"{out_r2a_name}.py"), "w", encoding="utf-8"
+        ) as f:
+            f.write(r2a_code)
+        modules[out_r2a_name] = r2a_code
 
     # 6. Generate schema/__init__.py for version package
-    schema_init_code = generate_schema_init(version, msg_names)
+    schema_init_code = generate_schema_init(version, modules)
     with open(os.path.join(out_dir, "__init__.py"), "w", encoding="utf-8") as f:
         f.write(schema_init_code)
 
@@ -1576,17 +1486,15 @@ def generate_basic_catalog(
             common_data = json.load(f)
 
     # 1. Components
-    comp_code, comp_names = generate_basic_catalog_components(
-        version, cat_data, common_data
-    )
+    comp_code = generate_basic_catalog_components(version, cat_data, common_data)
     with open(os.path.join(out_dir, "components.py"), "w", encoding="utf-8") as f:
         f.write(comp_code)
 
     # 2. Functions
     functions = cat_data.get("functions", {})
-    api_func_names = []
+    func_code = ""
     if functions:
-        func_code, api_func_names = generate_basic_catalog_functions(version, cat_data)
+        func_code = generate_basic_catalog_functions(version, cat_data)
         with open(
             os.path.join(out_dir, "function_apis.py"), "w", encoding="utf-8"
         ) as f:
@@ -1598,10 +1506,16 @@ def generate_basic_catalog(
         f.write(style_code)
 
     # 4. Catalog & __init__.py
-    comp_exports = list(
-        dict.fromkeys(["BASIC_COMPONENTS"] + comp_names + ["AnyComponent"])
-    )
+    comp_symbols = extract_exported_symbols(comp_code)
+    comp_exports = [
+        s
+        for s in comp_symbols
+        if s != "CatalogComponentCommon" and not s.startswith("_")
+    ]
     comp_import_lines = [f"    {name}," for name in comp_exports]
+
+    func_symbols = extract_exported_symbols(func_code) if func_code else []
+    api_func_names = [s for s in func_symbols if s.endswith("Api")]
     func_import_lines = [f"    {name}," for name in api_func_names]
 
     operator_sections = []

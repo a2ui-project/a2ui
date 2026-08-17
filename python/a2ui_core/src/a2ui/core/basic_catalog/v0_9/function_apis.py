@@ -13,10 +13,10 @@
 # limitations under the License.
 
 # Auto-generated. Do not edit manually.
-from typing import Any, Dict, List, Literal, Optional, Union, Annotated
+from __future__ import annotations
+from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field, ConfigDict
-
-from ...schema.v0_9.common_types import StrictBaseModel, DynamicString, DynamicNumber, DynamicBoolean, DynamicValue, DynamicStringList
+from ...schema.v0_9.common_types import StrictBaseModel, DynamicString, DynamicNumber, DynamicBoolean, DynamicValue, DynamicStringList, DataBinding, FunctionCall
 from ...catalog.functions import FunctionApi
 
 

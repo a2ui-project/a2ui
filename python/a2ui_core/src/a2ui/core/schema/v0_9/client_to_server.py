@@ -13,6 +13,7 @@
 # limitations under the License.
 
 # Auto-generated. Do not edit manually.
+from __future__ import annotations
 from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field, ConfigDict
 from .common_types import StrictBaseModel
@@ -20,6 +21,8 @@ from .constants import SPEC_VERSION, SPEC_VERSION_TYPE
 
 
 class A2uiClientAction(StrictBaseModel):
+    """Reports a user-initiated action from a component."""
+
     name: str = Field(
         ...,
         description=(
@@ -49,6 +52,11 @@ class A2uiClientAction(StrictBaseModel):
     )
 
 
+A2uiRendererAction = A2uiClientAction
+A2uiClientUserAction = A2uiClientAction
+ActionPayload = A2uiClientAction
+
+
 class A2uiValidationError(StrictBaseModel):
     code: Literal["VALIDATION_FAILED"] = Field("VALIDATION_FAILED")
     surface_id: str = Field(
@@ -70,7 +78,7 @@ class A2uiValidationError(StrictBaseModel):
 
 
 class A2uiGenericError(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
     code: Any = Field(...)
     message: str = Field(
         ...,
@@ -85,7 +93,7 @@ class A2uiGenericError(BaseModel):
     )
 
 
-A2uiClientError = Union[A2uiValidationError, A2uiGenericError]
+A2uiRendererError = Union[A2uiValidationError, A2uiGenericError]
 
 
 class A2uiClientActionMessage(StrictBaseModel):
@@ -93,28 +101,31 @@ class A2uiClientActionMessage(StrictBaseModel):
     action: A2uiClientAction = Field(...)
 
 
-class A2uiClientErrorMessage(StrictBaseModel):
+A2uiRendererActionMessage = A2uiClientActionMessage
+A2uiClientUserActionMessage = A2uiClientActionMessage
+
+
+class A2uiRendererErrorMessage(StrictBaseModel):
     version: SPEC_VERSION_TYPE = SPEC_VERSION
-    error: A2uiClientError = Field(...)
+    error: A2uiRendererError = Field(...)
 
 
-A2uiClientMessage = Union[A2uiClientActionMessage, A2uiClientErrorMessage]
+A2uiClientMessage = Union[A2uiClientActionMessage, A2uiRendererErrorMessage]
+
+
 ClientToServerMessage = A2uiClientMessage
 RendererToAgentMessage = A2uiClientMessage
-A2uiRendererAction = A2uiClientAction
 
 
 class A2uiClientDataModel(StrictBaseModel):
     version: SPEC_VERSION_TYPE = SPEC_VERSION
     surfaces: Dict[str, Dict[str, Any]] = Field(
-        ..., description="A map of surface IDs to their current data models."
+        ..., description="A map of surface IDs to data models."
     )
 
 
-A2uiClientMessageList = List[A2uiClientMessage]
+A2uiClientMessageList = List[ClientToServerMessage]
 
 
 class A2uiClientMessageListWrapper(StrictBaseModel):
-    messages: A2uiClientMessageList = Field(
-        ..., description="An object wrapping a list of A2UI Client-to-Server messages."
-    )
+    messages: A2uiClientMessageList = Field(..., description="List wrapper.")

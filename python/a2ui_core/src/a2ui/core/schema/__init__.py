@@ -12,15 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI Multi-Version Schema Module."""
-
+# Auto-generated. Do not edit manually.
+from __future__ import annotations
 from enum import Enum
+from typing import Any, Union
 
-from . import v0_9
-from .v0_9 import *
+# Versioned schema namespaces
+from . import v0_9 as v0_9
 
 
+# Multi-version Protocol Version Enum
 class A2uiProtocolVersion(str, Enum):
     V0_9 = "v0.9"
-    V0_9_1 = "v0.9.1"
-    V1_0 = "v1.0"
+
+
+# Multi-version envelope unions (v1.0+ primary terminology)
+AgentToRendererMessage = Union[v0_9.ServerToClientMessage,]
+
+RendererToAgentMessage = Union[v0_9.ClientToServerMessage,]
+
+# Aliases for cross-version consistency
+ServerToClientMessage = AgentToRendererMessage
+ClientToServerMessage = RendererToAgentMessage
+A2uiMessage = AgentToRendererMessage
+A2uiClientMessage = RendererToAgentMessage
+A2uiRendererAction = v0_9.A2uiRendererAction
+A2uiClientAction = A2uiRendererAction
+A2uiClientUserAction = A2uiRendererAction
+
+# Re-exports from primary schema namespace for backwards compatibility
+from .v0_9.common_types import *
+from .v0_9.constants import *
+from .v0_9.server_to_client import *
+from .v0_9.client_to_server import *
+from .v0_9.client_capabilities import *

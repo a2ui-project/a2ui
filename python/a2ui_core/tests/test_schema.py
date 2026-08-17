@@ -19,7 +19,7 @@ from typing import get_args
 from a2ui.core.schema import (
     A2uiClientMessageListWrapper,
     A2uiClientActionMessage,
-    A2uiClientErrorMessage,
+    A2uiRendererErrorMessage,
     A2uiClientDataModel,
     A2uiValidationError,
     A2uiGenericError,
@@ -55,7 +55,7 @@ def test_valid_validation_error_message():
             "message": "Too short",
         },
     }
-    msg = A2uiClientErrorMessage.model_validate(valid_error)
+    msg = A2uiRendererErrorMessage.model_validate(valid_error)
     assert msg.version == "v0.9"
     assert isinstance(msg.error, A2uiValidationError)
     assert msg.error.code == "VALIDATION_FAILED"
@@ -71,7 +71,7 @@ def test_valid_generic_error_message():
             "surfaceId": "s1",
         },
     }
-    msg = A2uiClientErrorMessage.model_validate(valid_error)
+    msg = A2uiRendererErrorMessage.model_validate(valid_error)
     assert msg.version == "v0.9"
     assert isinstance(msg.error, A2uiGenericError)
     assert msg.error.code == "INTERNAL_ERROR"
