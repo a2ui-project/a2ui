@@ -25,7 +25,7 @@ from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.events.event import Event
 from google.adk.events.event_actions import EventActions
 from google.adk.runners import Runner
-from tools import STATE_KEY_BASE_URL
+from file_resolution import STATE_KEY_BASE_URL
 
 logger = logging.getLogger(__name__)
 
