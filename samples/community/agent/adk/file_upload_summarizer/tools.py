@@ -155,7 +155,7 @@ async def summarize_file_tool(
         file_names = []
         for f in files:
             if isinstance(f, dict):
-                metadata = f.get("metadata", {})
+                metadata = f.get("metadata") or {}
                 name = metadata.get("fileName") or f.get("fileName") or "document"
                 file_names.append(name)
 

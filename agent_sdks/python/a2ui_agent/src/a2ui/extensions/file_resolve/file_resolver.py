@@ -195,8 +195,9 @@ class FileResolver:
                 ):
                     for part in event.message.parts:
                         if getattr(part, "inline_data", None):
-                            part_meta = getattr(part, "part_metadata", {}) or {}
-                            if part_meta.get("fileId") == file_id:
+                            part_meta = getattr(part, "part_metadata", None) or {}
+                            part_file_id = part_meta.get("fileId") if isinstance(part_meta, dict) else getattr(part_meta, "fileId", None)
+                            if part_file_id == file_id:
                                 raw_bytes = part.inline_data.data
                                 claimed_mime = part.inline_data.mime_type
                                 found_in_session = True

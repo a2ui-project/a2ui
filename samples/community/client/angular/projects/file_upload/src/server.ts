@@ -133,7 +133,11 @@ app.post('/a2a', (req, res) => {
       return;
     }
 
-    if ('contextId' in response.result && typeof response.result.contextId === 'string') {
+    if (
+      response.result &&
+      'contextId' in response.result &&
+      typeof response.result.contextId === 'string'
+    ) {
       sessionContextId = response.result.contextId;
     }
 
