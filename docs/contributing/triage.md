@@ -1,8 +1,6 @@
 # Triage for PRs and issues
 
-go/a2ui-triage
-
-See go/a2ui-triage for internal information.
+See go/a2ui-triage-internal for internal information.
 
 ## Goals
 
@@ -57,9 +55,21 @@ For each issue that is [not first-line-handled](https://github.com/a2ui-project/
 
 ### Second line triage
 
-Push forward items [with label `status: needs-triage`][needs-triage], temporarily adding `status: in-discussion` for items that are [actively discussed by the team][in-discussion].
+Update [items with label `status: needs-triage`][needs-triage], so that the label, managed by [triage.mjs](../../scripts/triage.mjs), disappears:
 
-Push forward means to address each item until it no longer matches a [flagging rule](../../scripts/triage.mjs): set a priority, assign P0/P1, answer the external comment, or add `status: waiting-for-author-response` when you need more information. The label is owned by the automation and disappears on its next run. Removing it by hand just speeds that up — if the item still matches a rule, it comes back within a minute.
+- Set priority (P0-P4)
+- Assign P0/P1
+- Answer external comment
+- Add `status: waiting-for-author-response` when you need more information
+
+You can remove the label manually to fasten the proces, but if the item still matches a rule, the label will come back within a minute.
+
+For items where you need an input from the team:
+
+- add `status: in-discussion`
+- post a message to the team chat, suggesting options and/or asking for input
+- drive the discussion to resolution
+- remove the label `status: in-discussion`
 
 Use [standard replies](triage-templates.md) that are provided for standard cases.
 
