@@ -447,6 +447,34 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
 });
 
 describe('NodeResolver defect coverage (fixes over the Python reference)', () => {
+  it('does not emit when an action-bearing component is resent unchanged', () => {
+    const {surface, resolver} = setup();
+    add(surface, 'root', 'Column', {children: ['b1']});
+    add(surface, 'b1', 'Button', {label: 'Go', action: {event: {name: 'tap'}}});
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const button = (peekValue(root.props)['children'] as ComponentNode[])[0];
+    assert.strictEqual(typeof peekValue(button.props)['action'], 'function');
+
+    const emissions = countEmissions(button.props);
+    const model = surface.componentsModel.get('b1');
+    assert.ok(model);
+    model.properties = {label: 'Go', action: {event: {name: 'tap'}}};
+    assert.strictEqual(
+      emissions.count,
+      0,
+      'an unchanged resend must not emit for action-bearing components',
+    );
+
+    const closureBefore = peekValue(button.props)['action'];
+    model.properties = {label: 'Go', action: {event: {name: 'other'}}};
+    assert.strictEqual(emissions.count, 1);
+    assert.notStrictEqual(peekValue(button.props)['action'], closureBefore);
+
+    emissions.dispose();
+    resolver.dispose();
+  });
+
   it('resolves action context at dispatch time, not bind time (late resolution)', async () => {
     const {surface, resolver} = setup();
     const actions: A2uiClientAction[] = [];
