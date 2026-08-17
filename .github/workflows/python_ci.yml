@@ -18,7 +18,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "agent_sdks/python/**"
+      - "python/**"
       - "specification/**/json/**"
       - "conformance/**"
       - "samples/agent/adk/**"
@@ -29,7 +29,7 @@ on:
       - ".github/actions/setup-python/**"
   pull_request:
     paths:
-      - "agent_sdks/python/**"
+      - "python/**"
       - "specification/**/json/**"
       - "conformance/**"
       - "samples/agent/adk/**"
@@ -65,7 +65,7 @@ jobs:
       - name: Run Unit Tests
         run: uv run pytest
       - name: Verify Load Real
-        run: uv run python agent_sdks/python/a2ui_agent/tests/integration/verify_load_real.py
+        run: uv run python python/a2ui_agent/tests/integration/verify_load_real.py
       - name: Build All Packages
         run: uv build --all
       - name: Run Skills Unit Tests

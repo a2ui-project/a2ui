@@ -284,10 +284,9 @@ To keep specifications organized and isolated by default, all SDD blueprints, va
 │   │   ├── renderers/
 │   │   │   └── web_core/
 │   │   │       └── codebase.blueprint.md
-│   │   └── agent_sdks/
-│   │       └── python/
-│   │           └── a2ui_core/
-│   │               └── codebase.blueprint.md
+│   │   └── python/
+│   │       └── a2ui_core/
+│   │           └── codebase.blueprint.md
 │   └── skills/                             # SDD Blueprint Skills (isolated from default agent use)
 │       ├── a2ui-blueprint-maintenance/
 │       ├── a2ui-blueprint-navigator/

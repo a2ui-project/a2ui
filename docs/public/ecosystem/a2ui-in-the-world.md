@@ -82,7 +82,7 @@ ADK integrated the A2UI v0.8 basic catalog to automatically render spec-complian
 
 - **Built-in rendering**: ADK Web renders A2UI components natively in the dev UI.
 - **A2A integration**: A2UI messages are converted between A2A DataPart metadata and ADK events.
-- **Agent SDK**: The [A2UI Python agent SDK](../../../agent_sdks/python) provides an ADK extension for generating A2UI from agents.
+- **Agent SDK**: The [A2UI Python agent SDK](../../../python/a2ui_agent) provides an ADK extension for generating A2UI from agents.
 
 **Try it:**
 

@@ -75,7 +75,7 @@ def sync_worktree_history(
     parents = list(Path(skill_dir).parents)
     detected_root = None
     for p in [Path(skill_dir)] + parents:
-        if (p / "specification").exists() and (p / "agent_sdks").exists():
+        if (p / "specification").exists() and (p / "python").exists():
             detected_root = str(p)
             break
     workspace_root = detected_root or skill_dir

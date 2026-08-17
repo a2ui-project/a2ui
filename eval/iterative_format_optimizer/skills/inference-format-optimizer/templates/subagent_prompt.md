@@ -7,7 +7,7 @@ Task instructions:
    Hypothesis: {{HYPOTHESIS}}
 
 2. Run Pytest unit tests:
-   PYTHONPATH=agent_sdks/python/a2ui_agent/src:agent_sdks/python/a2ui_core/src /usr/local/google/home/gspencer/code/a2ui/iterative_optimization/.venv/bin/python -m pytest agent_sdks/python/a2ui_agent/tests/{{FORMAT}}/
+   PYTHONPATH=python/a2ui_agent/src:python/a2ui_core/src /usr/local/google/home/gspencer/code/a2ui/iterative_optimization/.venv/bin/python -m pytest python/a2ui_agent/tests/{{FORMAT}}/
 
 3. Run optimization evaluation:
    /usr/local/google/home/gspencer/code/a2ui/iterative_optimization/.venv/bin/python eval/iterative/optimize_format.py --format {{FORMAT}}

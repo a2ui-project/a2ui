@@ -23,12 +23,12 @@ from typing import Any, Dict
 current = Path(__file__).resolve()
 REPO_ROOT = current.parents[5]
 for p in [current] + list(current.parents):
-    if (p / "specification").exists() and (p / "agent_sdks").exists():
+    if (p / "specification").exists() and (p / "python").exists():
         REPO_ROOT = p
         break
 
-SDK_SRC = str(REPO_ROOT / "agent_sdks/python/a2ui_agent/src")
-SDK_CORE_SRC = str(REPO_ROOT / "agent_sdks/python/a2ui_core/src")
+SDK_SRC = str(REPO_ROOT / "python/a2ui_agent/src")
+SDK_CORE_SRC = str(REPO_ROOT / "python/a2ui_core/src")
 if SDK_SRC not in sys.path:
     sys.path.insert(0, SDK_SRC)
 if SDK_CORE_SRC not in sys.path:
