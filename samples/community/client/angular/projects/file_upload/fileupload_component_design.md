@@ -106,7 +106,7 @@ two resolution models depending on the trust boundary and coupling between the a
 | :------------------------------------ | :-------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **UX & UI state management**          | A2UI core library                 | Implements drag-and-drop zones, file queues, progress indicators, pause/resume controls, and error states natively inside the web component.                                                                                                             |
 | **Host-delegated transport (IoC)**    | Host developer (primary strategy) | Passes an upload callback (`onUploadFile`) programmatically when registering the component in the catalog to route uploads through native OS daemons or internal VPC endpoints.                                                                          |
-| **Inline upload transport**           | A2UI core library (fallback)      | Automatically encodes small files as inline base64 data URIs or passes them as in-band session attachments when no host callback is present, enabling out-of-the-box rapid prototyping.                                                                                                                |
+| **Inline upload transport**           | A2UI core library (fallback)      | Automatically encodes small files as inline base64 data URIs or passes them as in-band session attachments when no host callback is present, enabling out-of-the-box rapid prototyping.                                                                  |
 | **Storage infrastructure & security** | Host developer                    | Provisions cloud storage buckets (S3 or GCS), configures CORS and CSP headers, enforces malware scanning, and sets lifecycle rules for orphaned files.                                                                                                   |
 | **Pointer resolution & inference**    | Agent backend developer           | Resolves the `fileId` payload into raw bytes just in time—using implicit schema agreements (such as `gdrive://` or `s3://`) for internal agents, or explicit resolution mechanisms (such as ephemeral HTTPS URLs or resource tools) for external agents. |
 
@@ -159,7 +159,8 @@ export const FileUploadDefinition: ComponentDefinition = {
         },
         files: {
           type: 'array',
-          description: 'Array of resolved abstract file pointers, inline data URIs, or in-band session pointers.',
+          description:
+            'Array of resolved abstract file pointers, inline data URIs, or in-band session pointers.',
           items: {
             type: 'object',
             properties: {
