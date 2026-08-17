@@ -97,7 +97,7 @@ class MemoryCatalogProvider:
 
 def _get_conformance_path(filename):
     return os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "../../../../conformance", filename)
+        os.path.join(os.path.dirname(__file__), "../../../../../conformance", filename)
     )
 
 
@@ -108,7 +108,7 @@ def load_json_file(filename):
 
 
 def load_tests(filename):
-    path = _get_conformance_path(os.path.join("suites", filename))
+    path = _get_conformance_path(filename)
     with open(path, "r", encoding="utf-8") as f:
 
         return yaml.safe_load(f)
@@ -173,7 +173,7 @@ def get_conformance_cases(filename):
 
 
 # --- Streaming Parser Conformance ---
-cases_parser = get_conformance_cases("streaming_parser.yaml")
+cases_parser = get_conformance_cases("agent/streaming_parser.yaml")
 
 
 @pytest.mark.parametrize(
@@ -204,7 +204,7 @@ def test_parser_conformance(name, test_case):
 
 
 # --- Non-Streaming Parser Conformance ---
-cases_parser_non_streaming = get_conformance_cases("parser.yaml")
+cases_parser_non_streaming = get_conformance_cases("agent/parser.yaml")
 
 
 @pytest.mark.parametrize(
@@ -248,7 +248,7 @@ def test_parser_non_streaming_conformance(name, test_case):
 
 # --- Validator Conformance ---
 
-cases_validator = get_conformance_cases("validator.yaml")
+cases_validator = get_conformance_cases("core/validator.yaml")
 
 
 @pytest.mark.parametrize(
@@ -276,7 +276,7 @@ def test_validator_conformance(name, test_case):
 
 
 # --- Catalog Conformance ---
-cases_catalog = get_conformance_cases("catalog.yaml")
+cases_catalog = get_conformance_cases("core/catalog.yaml")
 
 
 @pytest.mark.parametrize(
@@ -307,9 +307,7 @@ def test_catalog_conformance(name, test_case):
     elif action == "load":
         path = args.get("path")
         if path:
-            full_path = os.path.join(
-                os.path.dirname(__file__), "../../../../conformance", path
-            )
+            full_path = _get_conformance_path(path)
         else:
             full_path = None
         validate = args.get("validate", False)
@@ -331,7 +329,7 @@ def test_catalog_conformance(name, test_case):
 
 
 # --- Schema Manager Conformance ---
-cases_schema_manager = get_conformance_cases("inference_format.yaml")
+cases_schema_manager = get_conformance_cases("agent/inference_format.yaml")
 
 
 @pytest.mark.parametrize(
@@ -381,9 +379,7 @@ def test_schema_manager_conformance(name, test_case):
             schema_modifiers.append(remove_strict_validation)
         configs = []
         for cfg in catalog_configs:
-            full_path = os.path.join(
-                os.path.dirname(__file__), "../../../../conformance", cfg["path"]
-            )
+            full_path = _get_conformance_path(cfg["path"])
             configs.append(
                 CatalogConfig.from_path(name=cfg["name"], catalog_path=full_path)
             )
@@ -407,9 +403,7 @@ def test_schema_manager_conformance(name, test_case):
 
         examples_path = args.get("examples_path")
         if examples_path:
-            examples_path = os.path.join(
-                os.path.dirname(__file__), "../../../../conformance", examples_path
-            )
+            examples_path = _get_conformance_path(examples_path)
 
         config = BasicCatalog.get_config(version)
         if examples_path:

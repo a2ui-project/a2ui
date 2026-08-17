@@ -805,4 +805,4 @@ response_parts = processor.parse_response(llm_output_text)
 
 To ensure behavioral parity across all SDK implementations (Python, Kotlin, etc.), the project maintains a language-agnostic conformance suite.
 
-For complete setup instructions, test harness requirements, suite descriptions, and schema definitions, see [Conformance README](../../agent_sdks/conformance/README.md).
+For complete setup instructions, test harness requirements, suite descriptions, and schema definitions, see [Conformance README](../../conformance/README.md).

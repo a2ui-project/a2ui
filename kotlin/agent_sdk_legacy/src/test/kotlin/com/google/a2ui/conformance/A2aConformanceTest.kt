@@ -69,7 +69,8 @@ class A2aConformanceTest {
 
   @TestFactory
   fun testA2aIntegrationConformance(): List<DynamicTest> {
-    val conformanceFile = ConformanceTestHelper.getConformanceFile("suites/a2a_integration.yaml")
+    val conformanceFile =
+      ConformanceTestHelper.getConformanceFile("extensions/a2a/a2a_integration.yaml")
     val rawList = yamlMapper.readValue(conformanceFile, Any::class.java) as List<*>
 
     return rawList.map { caseObj ->
