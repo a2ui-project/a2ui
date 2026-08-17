@@ -16,7 +16,7 @@ import A2UICore
 import JSONSchema
 
 /// Performs string interpolation of data model values and other functions.
-public struct FormatStringFunction: FunctionImplementation, Sendable {
+public final class FormatStringFunction: FunctionImplementation, Sendable {
   public let api = FunctionAPI(
     name: "formatString",
     returnType: .string,

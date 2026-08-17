@@ -15,7 +15,7 @@
 import A2UICore
 import JSONSchema
 
-public struct OrFunction: FunctionImplementation, Sendable {
+public final class OrFunction: FunctionImplementation, Sendable {
   public let api = FunctionAPI(
     name: "or",
     returnType: .boolean,
