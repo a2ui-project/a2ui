@@ -337,7 +337,7 @@ def test_actions_open_url():
 
 def test_localized_formatting():
     def invoke_localized(locale: str, name: str, args: dict) -> Any:
-        impls = create_basic_catalog_functions(locale)
+        impls = create_basic_catalog_functions(locale=locale)
         impls_map = {impl.name: impl for impl in impls}
         impl = impls_map.get(name)
         if not impl:
@@ -407,3 +407,43 @@ def test_localized_formatting():
         )
         == "dim"
     )
+
+
+def test_validation_return_types_v09_vs_v10():
+    from a2ui.core.basic_catalog import v0_9, v1_0
+
+    v09_impls = {impl.name: impl for impl in v0_9.BASIC_FUNCTION_IMPLEMENTATIONS}
+    v10_impls = {impl.name: impl for impl in v1_0.BASIC_FUNCTION_IMPLEMENTATIONS}
+
+    # v0.9 returns raw boolean
+    assert v09_impls["required"].execute({"value": "hello"}) is True
+    assert v09_impls["required"].execute({"value": ""}) is False
+    assert v09_impls["regex"].execute({"value": "123", "pattern": r"^\d+$"}) is True
+    assert v09_impls["regex"].execute({"value": "abc", "pattern": r"^\d+$"}) is False
+    assert v09_impls["length"].execute({"value": "abc", "min": 2, "max": 4}) is True
+    assert v09_impls["numeric"].execute({"value": 5, "min": 1, "max": 10}) is True
+    assert v09_impls["email"].execute({"value": "user@example.com"}) is True
+
+    # v1.0 returns ValidationResult dict {"valid": bool}
+    assert v10_impls["required"].execute({"value": "hello"}) == {"valid": True}
+    assert v10_impls["required"].execute({"value": ""}) == {"valid": False}
+    assert v10_impls["regex"].execute({"value": "123", "pattern": r"^\d+$"}) == {
+        "valid": True
+    }
+    assert v10_impls["regex"].execute({"value": "abc", "pattern": r"^\d+$"}) == {
+        "valid": False
+    }
+    assert v10_impls["length"].execute({"value": "abc", "min": 2, "max": 4}) == {
+        "valid": True
+    }
+    assert v10_impls["numeric"].execute({"value": 5, "min": 1, "max": 10}) == {
+        "valid": True
+    }
+    assert v10_impls["email"].execute({"value": "user@example.com"}) == {"valid": True}
+
+    # @index is in v1.0 but not in v0.9
+    assert "@index" not in v09_impls
+    assert "@index" in v10_impls
+    assert v10_impls["@index"].execute({}, context={"index": 2}) == 2
+    assert v10_impls["@index"].execute({"offset": 1}, context={"index": 2}) == 3
+    assert v10_impls["@index"].execute({"offset": 10}) == 10

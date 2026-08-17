@@ -90,6 +90,7 @@ class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
             spec_version=SPEC_VERSION,
             components=BASIC_COMPONENTS,
             functions=[],
+            theme_schema=Theme.model_json_schema(),
         )
 
 
@@ -147,5 +148,6 @@ __all__ = [
     "MULTIPLE_CHOICE_COMPONENT_API",
     "SLIDER_COMPONENT_API",
     "BASIC_COMPONENTS",
+    "Theme",
     "BasicCatalog",
 ]

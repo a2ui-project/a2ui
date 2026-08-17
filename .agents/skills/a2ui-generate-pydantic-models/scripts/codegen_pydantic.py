@@ -68,6 +68,14 @@ def _is_modern_terminology(version: str, a2r_name: str = "") -> bool:
 
 def _to_snake_case(name: str) -> str:
     """Converts a camelCase or PascalCase identifier to snake_case."""
+    if name == "$schema":
+        return "schema_uri"
+    if name == "$id":
+        return "schema_id"
+    if name == "$defs":
+        return "defs"
+    if name.startswith("$"):
+        name = name[1:]
     if re.match(r"^v\d+(?:_\d+)*$", name):
         return name
     s1 = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
@@ -209,8 +217,10 @@ class PydanticCodegen:
                     return "str"
                 if ref.endswith("/Child"):
                     return "Child"
-                if ref.endswith("/Extensions"):
-                    return "Optional[Dict[str, Any]]"
+                if ref.endswith("catalog_definition.json") or ref.endswith(
+                    "catalog_description_schema.json"
+                ):
+                    return "CatalogDefinition"
                 if "common_types.json" in ref or ref.startswith("#/$defs/"):
                     return ref.split("/")[-1]
                 elif ref.startswith("#/components/"):
@@ -370,7 +380,8 @@ class PydanticCodegen:
     ) -> str:
         """Compiles a single object schema definition into a Pydantic class."""
         add_props = spec.get("additionalProperties", False)
-        if add_props is True or isinstance(add_props, dict):
+        has_pattern_props = bool(spec.get("patternProperties"))
+        if has_pattern_props or add_props is True or isinstance(add_props, dict):
             bcls = base_class or "BaseModel"
             lines = [
                 f"class {class_name}({bcls}):",
@@ -565,6 +576,36 @@ CallId = str""",
             " Field(None)"
         )
 
+    if "FunctionCommon" in defs:
+        common_blocks.append(
+            codegen.compile_object_def("FunctionCommon", defs["FunctionCommon"])
+        )
+
+    if "IndexSystemFunction" in defs:
+        index_spec = defs["IndexSystemFunction"]
+        if (
+            "properties" in index_spec
+            and "args" in index_spec["properties"]
+            and "properties" in index_spec["properties"]["args"]
+        ):
+            args_spec = index_spec["properties"]["args"]
+            common_blocks.append(
+                codegen.compile_object_def("IndexSystemFunctionArgs", args_spec)
+            )
+            idx_spec_copy = dict(index_spec)
+            idx_spec_copy["properties"] = dict(index_spec["properties"])
+            idx_spec_copy["properties"]["args"] = {
+                "$ref": "#/$defs/IndexSystemFunctionArgs",
+                "description": "Arguments passed to the @index function.",
+            }
+            common_blocks.append(
+                codegen.compile_object_def("IndexSystemFunction", idx_spec_copy)
+            )
+        else:
+            common_blocks.append(
+                codegen.compile_object_def("IndexSystemFunction", index_spec)
+            )
+
     if "ValidationResult" in defs:
         common_blocks.append(
             codegen.compile_object_def("ValidationResult", defs["ValidationResult"])
@@ -756,13 +797,12 @@ def generate_agent_to_renderer(
         if is_modern:
             a2r_blocks.append(f"AgentToRendererMessage = Union[{', '.join(msg_names)}]")
             a2r_blocks.append(
-                "ServerToClientMessage = AgentToRendererMessage\nA2uiMessage ="
-                " AgentToRendererMessage"
+                "AgentToRendererMessageList = List[AgentToRendererMessage]"
             )
             a2r_blocks.append(
-                "class A2uiMessageListWrapper(StrictBaseModel):\n    messages:"
-                ' List[AgentToRendererMessage] = Field(..., description="A list of'
-                ' messages.")'
+                "class AgentToRendererMessageListWrapper(StrictBaseModel):\n   "
+                ' messages: AgentToRendererMessageList = Field(..., description="An'
+                ' object wrapping a list of A2UI Agent-to-Renderer messages.")'
             )
         else:
             a2r_blocks.append(f"ServerToClientMessage = Union[{', '.join(msg_names)}]")
@@ -806,6 +846,8 @@ def generate_renderer_to_agent(
         + r2a_imports
         + "from .constants import SPEC_VERSION, SPEC_VERSION_TYPE",
     ]
+    r2a_names: List[str] = []
+
     action_key = (
         "action"
         if "action" in props
@@ -818,11 +860,8 @@ def generate_renderer_to_agent(
             r2a_blocks.append(
                 codegen.compile_object_def("A2uiRendererAction", props[action_key])
             )
-            r2a_blocks.append(
-                "A2uiClientAction = A2uiRendererAction\n"
-                "A2uiClientUserAction = A2uiRendererAction\n"
-                "ActionPayload = A2uiRendererAction"
-            )
+            r2a_blocks.append("ActionPayload = A2uiRendererAction")
+            r2a_names.extend(["A2uiRendererAction", "ActionPayload"])
         else:
             r2a_blocks.append(
                 codegen.compile_object_def("A2uiClientAction", props[action_key])
@@ -832,11 +871,18 @@ def generate_renderer_to_agent(
                 "A2uiClientUserAction = A2uiClientAction\n"
                 "ActionPayload = A2uiClientAction"
             )
+            r2a_names.extend([
+                "A2uiClientAction",
+                "A2uiRendererAction",
+                "A2uiClientUserAction",
+                "ActionPayload",
+            ])
 
     if "callAgentFunction" in props:
         r2a_blocks.append(
             codegen.compile_object_def("CallAgentFunction", props["callAgentFunction"])
         )
+        r2a_names.append("CallAgentFunction")
 
     if "error" in props:
         err_spec = props["error"]
@@ -863,9 +909,12 @@ def generate_renderer_to_agent(
                         class_name = f"A2ui{class_name}"
                 r2a_blocks.append(codegen.compile_object_def(class_name, item))
                 err_classes.append(class_name)
+                r2a_names.append(class_name)
         elif "properties" in err_spec:
-            r2a_blocks.append(codegen.compile_object_def("A2uiClientError", err_spec))
-            err_classes.append("A2uiClientError")
+            err_cls = "A2uiRendererError" if is_modern else "A2uiClientError"
+            r2a_blocks.append(codegen.compile_object_def(err_cls, err_spec))
+            err_classes.append(err_cls)
+            r2a_names.append(err_cls)
         else:
             r2a_blocks.append(
                 "class A2uiGenericError(StrictBaseModel):\n"
@@ -873,13 +922,16 @@ def generate_renderer_to_agent(
                 "    message: Optional[str] = Field(None)"
             )
             err_classes.append("A2uiGenericError")
+            r2a_names.append("A2uiGenericError")
 
         if err_classes:
             if "A2uiValidationError" not in err_classes:
                 r2a_blocks.append(
                     "class A2uiValidationError(StrictBaseModel):\n    pass"
                 )
+                r2a_names.append("A2uiValidationError")
             r2a_blocks.append(f"A2uiRendererError = Union[{', '.join(err_classes)}]")
+            r2a_names.append("A2uiRendererError")
 
     msg_union_members = []
     if action_key:
@@ -891,11 +943,8 @@ def generate_renderer_to_agent(
                 "    version: SPEC_VERSION_TYPE = SPEC_VERSION\n"
                 f"    {snake_act}: A2uiRendererAction = Field(...{alias_opt})"
             )
-            r2a_blocks.append(
-                "A2uiClientActionMessage = A2uiRendererActionMessage\n"
-                "A2uiClientUserActionMessage = A2uiRendererActionMessage"
-            )
             msg_union_members.append("A2uiRendererActionMessage")
+            r2a_names.append("A2uiRendererActionMessage")
         else:
             r2a_blocks.append(
                 "class A2uiClientActionMessage(StrictBaseModel):\n"
@@ -907,6 +956,11 @@ def generate_renderer_to_agent(
                 "A2uiClientUserActionMessage = A2uiClientActionMessage"
             )
             msg_union_members.append("A2uiClientActionMessage")
+            r2a_names.extend([
+                "A2uiClientActionMessage",
+                "A2uiRendererActionMessage",
+                "A2uiClientUserActionMessage",
+            ])
 
     if "callAgentFunction" in props:
         r2a_blocks.append(
@@ -915,6 +969,7 @@ def generate_renderer_to_agent(
             ' CallAgentFunction = Field(..., alias="callAgentFunction")'
         )
         msg_union_members.append("CallAgentFunctionMessage")
+        r2a_names.append("CallAgentFunctionMessage")
 
     if "rendererFunctionResponse" in props:
         r2a_blocks.append(
@@ -923,6 +978,7 @@ def generate_renderer_to_agent(
             ' FunctionResponse = Field(..., alias="rendererFunctionResponse")'
         )
         msg_union_members.append("RendererFunctionResponseMessage")
+        r2a_names.append("RendererFunctionResponseMessage")
 
     if "error" in props:
         r2a_blocks.append(
@@ -931,33 +987,55 @@ def generate_renderer_to_agent(
             "    error: A2uiRendererError = Field(...)"
         )
         msg_union_members.append("A2uiRendererErrorMessage")
+        r2a_names.append("A2uiRendererErrorMessage")
 
     union_def = f"Union[{', '.join(msg_union_members)}]" if msg_union_members else "Any"
 
     if is_modern:
         r2a_blocks.append(f"RendererToAgentMessage = {union_def}")
         r2a_blocks.append(
-            "ClientToServerMessage = RendererToAgentMessage\n"
-            "A2uiClientMessage = RendererToAgentMessage"
+            "class A2uiRendererDataModel(StrictBaseModel):\n    version:"
+            " SPEC_VERSION_TYPE = SPEC_VERSION\n    surfaces: Dict[str, Dict[str, Any]]"
+            ' = Field(..., description="A map of surface IDs to data models.")'
         )
+        r2a_blocks.append("RendererToAgentMessageList = List[RendererToAgentMessage]")
+        r2a_blocks.append(
+            "class RendererToAgentMessageListWrapper(StrictBaseModel):\n    messages:"
+            ' RendererToAgentMessageList = Field(..., description="An object'
+            ' wrapping a list of A2UI Renderer-to-Agent messages.")'
+        )
+        r2a_names.extend([
+            "RendererToAgentMessage",
+            "A2uiRendererDataModel",
+            "RendererToAgentMessageList",
+            "RendererToAgentMessageListWrapper",
+        ])
     else:
         r2a_blocks.append(f"A2uiClientMessage = {union_def}")
         r2a_blocks.append(
             "ClientToServerMessage = A2uiClientMessage\n"
             "RendererToAgentMessage = A2uiClientMessage"
         )
-
-    union_name = "RendererToAgentMessage" if is_modern else "ClientToServerMessage"
-    r2a_blocks.append(
-        "class A2uiClientDataModel(StrictBaseModel):\n    version:"
-        " SPEC_VERSION_TYPE = SPEC_VERSION\n    surfaces: Dict[str, Dict[str, Any]]"
-        ' = Field(..., description="A map of surface IDs to data models.")'
-    )
-    r2a_blocks.append(f"A2uiClientMessageList = List[{union_name}]")
-    r2a_blocks.append(
-        "class A2uiClientMessageListWrapper(StrictBaseModel):\n    messages:"
-        ' A2uiClientMessageList = Field(..., description="List wrapper.")'
-    )
+        r2a_names.extend([
+            "A2uiClientMessage",
+            "ClientToServerMessage",
+            "RendererToAgentMessage",
+        ])
+        r2a_blocks.append(
+            "class A2uiClientDataModel(StrictBaseModel):\n    version:"
+            " SPEC_VERSION_TYPE = SPEC_VERSION\n    surfaces: Dict[str, Dict[str, Any]]"
+            ' = Field(..., description="A map of surface IDs to data models.")'
+        )
+        r2a_blocks.append(f"A2uiClientMessageList = List[ClientToServerMessage]")
+        r2a_blocks.append(
+            "class A2uiClientMessageListWrapper(StrictBaseModel):\n    messages:"
+            ' A2uiClientMessageList = Field(..., description="List wrapper.")'
+        )
+        r2a_names.extend([
+            "A2uiClientDataModel",
+            "A2uiClientMessageList",
+            "A2uiClientMessageListWrapper",
+        ])
 
     return "\n\n\n".join(b.strip() for b in r2a_blocks if b.strip()) + "\n"
 
@@ -966,6 +1044,7 @@ def generate_renderer_capabilities(
     version: str,
     capabilities_data: Dict[str, Any],
     is_modern: Optional[bool] = None,
+    has_catalog_definition: bool = False,
 ) -> str:
     """Generates renderer_capabilities.py / client_capabilities.py content."""
     codegen = PydanticCodegen(version)
@@ -983,29 +1062,25 @@ def generate_renderer_capabilities(
         ),
     ]
 
-    defs_caps = capabilities_data.get("$defs", {})
-    if "FunctionDefinition" in defs_caps:
+    defs = capabilities_data.get("$defs", {})
+    if "FunctionDefinition" in defs:
+        fd_spec = dict(defs["FunctionDefinition"])
+        if "properties" not in fd_spec and "additionalProperties" not in fd_spec:
+            fd_spec["additionalProperties"] = True
+        caps_blocks.append(codegen.compile_object_def("FunctionDefinition", fd_spec))
+
+    if is_modern:
         caps_blocks.append(
-            codegen.compile_object_def(
-                "FunctionDefinition", defs_caps["FunctionDefinition"]
-            )
+            "\nfrom .catalog_definition import CatalogDefinition\n\n"
+            "InlineCatalog = CatalogDefinition\n"
+            "Catalog = InlineCatalog"
         )
-    if "Catalog" in defs_caps:
-        caps_blocks.append(
-            codegen.compile_object_def("InlineCatalog", defs_caps["Catalog"])
-        )
-        caps_blocks.append("Catalog = InlineCatalog")
     else:
         caps_blocks.append(
             "class InlineCatalog(BaseModel):\n"
-            '    model_config = ConfigDict(extra="allow")'
+            '    model_config = ConfigDict(extra="allow")\n\n'
+            "Catalog = InlineCatalog"
         )
-        caps_blocks.append("Catalog = InlineCatalog")
-        if "FunctionDefinition" not in defs_caps:
-            caps_blocks.append(
-                "class FunctionDefinition(BaseModel):\n"
-                '    model_config = ConfigDict(extra="allow")'
-            )
 
     v_key = spec_dot
     v_props = (
@@ -1026,11 +1101,200 @@ def generate_renderer_capabilities(
     if alt_cap_cls_name != cap_cls_name:
         caps_blocks.append(f"{alt_cap_cls_name} = {cap_cls_name}")
 
-    caps_blocks.append(
-        f"class A2uiRendererCapabilities(StrictBaseModel):\n    {dir_name}:"
-        f" Optional[{cap_cls_name}] = Field(None, alias=SPEC_VERSION)"
+    if is_modern:
+        caps_blocks.append(
+            f"class A2uiRendererCapabilities(StrictBaseModel):\n    {dir_name}:"
+            f" Optional[{cap_cls_name}] = Field(None, alias=SPEC_VERSION)"
+        )
+    else:
+        caps_blocks.append(
+            f"class A2uiClientCapabilities(StrictBaseModel):\n    {dir_name}:"
+            f" Optional[{cap_cls_name}] = Field(None, alias=SPEC_VERSION)"
+        )
+        caps_blocks.append("A2uiRendererCapabilities = A2uiClientCapabilities")
+
+    return "\n\n\n".join(b.strip() for b in caps_blocks if b.strip()) + "\n"
+
+
+def generate_catalog_definition(
+    version: str,
+    cat_def_data: Dict[str, Any],
+) -> str:
+    """Generates catalog_definition.py content."""
+    codegen = PydanticCodegen(version)
+    has_extensions = _version_to_underscore(version) == "v1_0"
+    common_imports = (
+        "Extensions, StrictBaseModel" if has_extensions else "StrictBaseModel"
     )
-    caps_blocks.append("A2uiClientCapabilities = A2uiRendererCapabilities")
+    blocks = [
+        (
+            f"{FILE_HEADER}\n"
+            "from typing import Any, Dict, List, Literal, Optional, Union\n"
+            "from pydantic import BaseModel, Field, ConfigDict\n"
+            f"from .common_types import {common_imports}\n"
+            "from .constants import SPEC_VERSION, SPEC_VERSION_TYPE"
+        ),
+    ]
+
+    defs = cat_def_data.get("$defs", {})
+
+    # 1. ValidationResult
+    if "ValidationResult" in defs:
+        vr_spec = defs["ValidationResult"]
+        blocks.append(codegen.compile_object_def("ValidationResult", vr_spec))
+
+    # 2. ComponentDefinition
+    if "ComponentDefinition" in defs:
+        cd_spec = dict(defs["ComponentDefinition"])
+        cd_props = {}
+        cd_req = []
+        if "allOf" in cd_spec:
+            for item in cd_spec["allOf"]:
+                if isinstance(item, dict):
+                    cd_props.update(item.get("properties", {}))
+                    cd_req.extend(item.get("required", []))
+        if not cd_props:
+            cd_props = cd_spec.get("properties", {})
+            cd_req = cd_spec.get("required", [])
+        cd_model_spec = {
+            "description": cd_spec.get(
+                "description",
+                "Describes a component's validation schema and composition"
+                " constraints.",
+            ),
+            "properties": cd_props,
+            "required": cd_req,
+            "additionalProperties": True,
+        }
+        blocks.append(
+            codegen.compile_object_def(
+                "ComponentDefinition", cd_model_spec, base_class="BaseModel"
+            )
+        )
+
+    # 3. FunctionDefinition
+    if "FunctionDefinition" in defs:
+        fd_spec = dict(defs["FunctionDefinition"])
+        fd_props = {}
+        fd_req = []
+        if "allOf" in fd_spec:
+            for item in fd_spec["allOf"]:
+                if isinstance(item, dict):
+                    fd_props.update(item.get("properties", {}))
+                    fd_req.extend(item.get("required", []))
+        if not cd_props:
+            fd_props = fd_spec.get("properties", {})
+            fd_req = fd_spec.get("required", [])
+        fd_model_spec = {
+            "description": fd_spec.get(
+                "description",
+                "Describes a function's validation schema and interface metadata.",
+            ),
+            "properties": fd_props,
+            "required": fd_req,
+            "additionalProperties": True,
+        }
+        blocks.append(
+            codegen.compile_object_def(
+                "FunctionDefinition", fd_model_spec, base_class="BaseModel"
+            )
+        )
+
+    # 4. CatalogDefs
+    defs_prop = cat_def_data.get("properties", {}).get("$defs", {})
+    if defs_prop:
+        catalog_defs_spec = {
+            "description": defs_prop.get(
+                "description",
+                "Standardized schema definitions referenced from outside the catalog"
+                " file.",
+            ),
+            "properties": defs_prop.get("properties", {}),
+            "required": defs_prop.get("required", []),
+            "additionalProperties": True,
+        }
+        blocks.append(
+            codegen.compile_object_def(
+                "CatalogDefs", catalog_defs_spec, base_class="BaseModel"
+            )
+        )
+
+    # 5. CatalogDefinition
+    root_props = dict(cat_def_data.get("properties", {}))
+    root_req = list(cat_def_data.get("required", []))
+    if "$defs" in root_props:
+        root_props["$defs"] = {"$ref": "#/$defs/CatalogDefs"}
+    root_spec = {
+        "description": cat_def_data.get(
+            "description", "A collection of component and function definitions."
+        ),
+        "properties": root_props,
+        "required": root_req,
+    }
+    blocks.append(codegen.compile_object_def("CatalogDefinition", root_spec))
+
+    return "\n\n\n".join(b.strip() for b in blocks if b.strip()) + "\n"
+
+
+def generate_agent_capabilities(
+    version: str,
+    capabilities_data: Dict[str, Any],
+    is_modern: Optional[bool] = None,
+) -> str:
+    """Generates agent_capabilities.py / server_capabilities.py content."""
+    codegen = PydanticCodegen(version)
+    dir_name = _version_to_underscore(version)
+    spec_dot = _ensure_v_prefix(version)
+    if is_modern is None:
+        is_modern = _is_modern_terminology(version)
+    caps_blocks = [
+        (
+            f"{FILE_HEADER}\n"
+            "from typing import Any, Dict, List, Literal, Optional\n"
+            "from pydantic import BaseModel, Field, ConfigDict\n"
+            "from .common_types import StrictBaseModel\n"
+            "from .constants import SPEC_VERSION, SPEC_VERSION_TYPE"
+        ),
+    ]
+
+    v_key = spec_dot
+    v_props = (
+        capabilities_data.get("properties", {}).get(v_key, {}).get("properties", {})
+    )
+    v_req = capabilities_data.get("properties", {}).get(v_key, {}).get("required", [])
+
+    prefix = "Agent" if is_modern else "Server"
+    cap_cls_name = f"V{dir_name[1:].replace('_', '')}{prefix}Capabilities"
+    alt_cap_cls_name = f"V{dir_name[1:]}{prefix}Capabilities"
+
+    cap_lines = [f"class {cap_cls_name}(StrictBaseModel):"]
+    cap_props_lines = codegen.compile_properties(v_props, v_req)
+    if cap_props_lines:
+        cap_lines.extend(cap_props_lines)
+    else:
+        cap_lines.append("    pass")
+    caps_blocks.append("\n".join(cap_lines))
+
+    if alt_cap_cls_name != cap_cls_name:
+        caps_blocks.append(f"{alt_cap_cls_name} = {cap_cls_name}")
+
+    if is_modern:
+        caps_blocks.append(
+            f"class A2uiAgentCapabilities(StrictBaseModel):\n    {dir_name}:"
+            f" Optional[{cap_cls_name}] = Field(None, alias=SPEC_VERSION)"
+        )
+    else:
+        alt_prefix = "Agent"
+        cross_cap_cls_name = f"V{dir_name[1:].replace('_', '')}{alt_prefix}Capabilities"
+        cross_alt_cap_cls_name = f"V{dir_name[1:]}{alt_prefix}Capabilities"
+        caps_blocks.append(f"{cross_cap_cls_name} = {cap_cls_name}")
+        if cross_alt_cap_cls_name != cross_cap_cls_name:
+            caps_blocks.append(f"{cross_alt_cap_cls_name} = {cap_cls_name}")
+        caps_blocks.append(
+            f"class A2uiServerCapabilities(StrictBaseModel):\n    {dir_name}:"
+            f" Optional[{cap_cls_name}] = Field(None, alias=SPEC_VERSION)"
+        )
+        caps_blocks.append("A2uiAgentCapabilities = A2uiServerCapabilities")
 
     return "\n\n\n".join(b.strip() for b in caps_blocks if b.strip()) + "\n"
 
@@ -1229,15 +1493,7 @@ def generate_basic_catalog_functions(
     """Generates function_apis.py content."""
     codegen = PydanticCodegen(version)
     dir_name = _version_to_underscore(version)
-    func_blocks = [
-        (
-            f"{FILE_HEADER}\nfrom typing import Any, Dict, List, Literal, Optional,"
-            " Union\nfrom pydantic import BaseModel, Field, ConfigDict\nfrom"
-            f" ...schema.{dir_name}.common_types import StrictBaseModel, DynamicString,"
-            " DynamicNumber, DynamicBoolean, DynamicValue, DynamicStringList,"
-            " DataBinding, FunctionCall\nfrom ...catalog.functions import FunctionApi"
-        ),
-    ]
+    func_blocks = []
 
     names = []
     functions = catalog_data.get("functions", {})
@@ -1276,12 +1532,21 @@ def generate_basic_catalog_functions(
             )
 
         func_class_name = f"{_to_pascal_case(fname)}Api"
-        ret_type_val = fprops.get("returnType", {}).get("const", "boolean")
-        if (
-            isinstance(fprops.get("returnType"), dict)
-            and "enum" in fprops["returnType"]
-        ):
-            ret_type_val = fprops["returnType"]["enum"][0]
+        ret_type_val = fschema.get("returnType")
+        if isinstance(ret_type_val, dict):
+            ret_type_val = ret_type_val.get("const") or (
+                ret_type_val.get("enum", [None])[0]
+            )
+        if not ret_type_val:
+            ret_prop = fprops.get("returnType")
+            if isinstance(ret_prop, str):
+                ret_type_val = ret_prop
+            elif isinstance(ret_prop, dict):
+                ret_type_val = ret_prop.get("const") or (
+                    ret_prop.get("enum", [None])[0]
+                )
+        if not ret_type_val:
+            ret_type_val = "boolean"
 
         func_class_lines = [
             f"class {func_class_name}(FunctionApi):",
@@ -1294,7 +1559,33 @@ def generate_basic_catalog_functions(
         if not allowed_funcs or fname in allowed_funcs:
             api_func_names.append(func_class_name)
 
-    return "\n\n\n".join(b.strip() for b in func_blocks if b.strip()) + "\n"
+    body_text = "\n\n\n".join(b.strip() for b in func_blocks if b.strip())
+    candidate_imports = [
+        "DataBinding",
+        "DynamicBoolean",
+        "DynamicNumber",
+        "DynamicString",
+        "DynamicValue",
+        "DynamicStringList",
+        "FunctionCall",
+        "StrictBaseModel",
+    ]
+    used_imports = [
+        c
+        for c in candidate_imports
+        if re.search(r"\b" + re.escape(c) + r"\b", body_text)
+    ]
+    if not used_imports:
+        used_imports = ["StrictBaseModel"]
+
+    header = (
+        f"{FILE_HEADER}\nfrom typing import Any, Dict, List, Literal, Optional,"
+        " Union\nfrom pydantic import BaseModel, Field, ConfigDict\nfrom"
+        f" ...schema.{dir_name}.common_types import {', '.join(used_imports)}\nfrom"
+        " ...catalog.functions import FunctionApi\n\n\n"
+    )
+
+    return header + body_text + "\n"
 
 
 def generate_basic_catalog_styles(
@@ -1406,7 +1697,21 @@ def generate_version_schemas(
             f.write(a2r_code)
         modules[out_file_name] = a2r_code
 
-    # 4. Generate renderer_capabilities.py / client_capabilities.py
+    # 4. Generate catalog_definition.py (if catalog_definition.json or catalog_description_schema.json exists)
+    cat_def_json_path = os.path.join(json_dir, "catalog_definition.json")
+    if not os.path.exists(cat_def_json_path):
+        cat_def_json_path = os.path.join(json_dir, "catalog_description_schema.json")
+    if os.path.exists(cat_def_json_path):
+        with open(cat_def_json_path, "r", encoding="utf-8") as f:
+            cat_def_data = json.load(f)
+        cat_def_code = generate_catalog_definition(version, cat_def_data)
+        with open(
+            os.path.join(out_dir, "catalog_definition.py"), "w", encoding="utf-8"
+        ) as f:
+            f.write(cat_def_code)
+        modules["catalog_definition"] = cat_def_code
+
+    # 5. Generate renderer_capabilities.py / client_capabilities.py
     caps_name = (
         "renderer_capabilities.json"
         if os.path.exists(os.path.join(json_dir, "renderer_capabilities.json"))
@@ -1415,12 +1720,16 @@ def generate_version_schemas(
     if not os.path.exists(os.path.join(json_dir, caps_name)):
         caps_name = "a2ui_client_capabilities_schema.json"
     caps_path = os.path.join(json_dir, caps_name)
+    has_cat_def = "catalog_definition" in modules
     if os.path.exists(caps_path):
         with open(caps_path, "r", encoding="utf-8") as f:
             caps_data = json.load(f)
 
         caps_code = generate_renderer_capabilities(
-            version, caps_data, is_modern=is_modern
+            version,
+            caps_data,
+            is_modern=is_modern,
+            has_catalog_definition=has_cat_def,
         )
         out_caps_name = "renderer_capabilities" if is_modern else "client_capabilities"
         with open(
@@ -1429,7 +1738,29 @@ def generate_version_schemas(
             f.write(caps_code)
         modules[out_caps_name] = caps_code
 
-    # 5. Generate renderer_to_agent.py / client_to_server.py
+    # 6. Generate agent_capabilities.py / server_capabilities.py
+    agent_caps_name = (
+        "agent_capabilities.json"
+        if os.path.exists(os.path.join(json_dir, "agent_capabilities.json"))
+        else "server_capabilities.json"
+    )
+    agent_caps_path = os.path.join(json_dir, agent_caps_name)
+    if os.path.exists(agent_caps_path):
+        with open(agent_caps_path, "r", encoding="utf-8") as f:
+            agent_caps_data = json.load(f)
+        agent_caps_code = generate_agent_capabilities(
+            version, agent_caps_data, is_modern=is_modern
+        )
+        out_agent_caps_name = (
+            "agent_capabilities" if is_modern else "server_capabilities"
+        )
+        with open(
+            os.path.join(out_dir, f"{out_agent_caps_name}.py"), "w", encoding="utf-8"
+        ) as f:
+            f.write(agent_caps_code)
+        modules[out_agent_caps_name] = agent_caps_code
+
+    # 7. Generate renderer_to_agent.py / client_to_server.py
     if r2a_data:
         r2a_code = generate_renderer_to_agent(version, r2a_data, a2r_name)
         out_r2a_name = "renderer_to_agent" if is_modern else "client_to_server"
@@ -1439,8 +1770,10 @@ def generate_version_schemas(
             f.write(r2a_code)
         modules[out_r2a_name] = r2a_code
 
-    # 6. Generate schema/__init__.py for version package
+    # 8. Generate schema/__init__.py for version package
     schema_init_code = generate_schema_init(version, modules)
+    with open(os.path.join(out_dir, "__init__.py"), "w", encoding="utf-8") as f:
+        f.write(schema_init_code)
     with open(os.path.join(out_dir, "__init__.py"), "w", encoding="utf-8") as f:
         f.write(schema_init_code)
 
@@ -1518,29 +1851,72 @@ def generate_basic_catalog(
     api_func_names = [s for s in func_symbols if s.endswith("Api")]
     func_import_lines = [f"    {name}," for name in api_func_names]
 
-    operator_sections = []
-    if os.path.exists(os.path.join(out_dir, "operator_apis.py")):
-        operator_sections = [
-            "from .operator_apis import (",
-            "    AddApi,",
-            "    SubtractApi,",
-            "    MultiplyApi,",
-            "    DivideApi,",
-            "    EqualsApi,",
-            "    NotEqualsApi,",
-            "    GreaterThanApi,",
-            "    LessThanApi,",
-            "    ContainsApi,",
-            "    StartsWithApi,",
-            "    EndsWithApi,",
-            ")",
+    style_symbols = extract_exported_symbols(style_code)
+    has_theme = "Theme" in style_symbols
+
+    shared_op_path = os.path.join(os.path.dirname(out_dir), "operator_apis.py")
+    local_op_path = os.path.join(out_dir, "operator_apis.py")
+
+    shared_op_names = []
+    local_op_names = []
+
+    if os.path.exists(shared_op_path) and func_code:
+        # Shared operators supported across all versions with functions
+        shared_op_names = [
+            "AddApi",
+            "SubtractApi",
+            "MultiplyApi",
+            "DivideApi",
+            "EqualsApi",
+            "NotEqualsApi",
+            "GreaterThanApi",
+            "LessThanApi",
+            "ContainsApi",
+            "StartsWithApi",
+            "EndsWithApi",
         ]
 
-    has_func_impls = os.path.exists(os.path.join(out_dir, "function_impls.py"))
+    if os.path.exists(local_op_path) and func_code:
+        # Extract exported symbols from version-specific operator_apis.py
+        with open(local_op_path, "r", encoding="utf-8") as f:
+            local_content = f.read()
+        local_symbols = extract_exported_symbols(local_content)
+        local_op_names = [s for s in local_symbols if s.endswith("Api")]
+
+    operator_sections = []
+    if shared_op_names:
+        op_lines = [f"    {name}," for name in shared_op_names]
+        operator_sections.extend([
+            "from ..operator_apis import (",
+            "\n".join(op_lines),
+            ")",
+        ])
+    if local_op_names:
+        op_lines = [f"    {name}," for name in local_op_names]
+        operator_sections.extend([
+            "from .operator_apis import (",
+            "\n".join(op_lines),
+            ")",
+        ])
+
+    operator_names = shared_op_names + local_op_names
+
+    has_func_impls = (
+        os.path.exists(os.path.join(out_dir, "function_impls.py"))
+        or os.path.exists(os.path.join(os.path.dirname(out_dir), "function_impls.py"))
+    ) and bool(func_code)
+    shared_impls = not os.path.exists(
+        os.path.join(out_dir, "function_impls.py")
+    ) and os.path.exists(os.path.join(os.path.dirname(out_dir), "function_impls.py"))
+
+    typing_types = ["Optional"]
+    if shared_impls and has_func_impls:
+        typing_types.insert(0, "Any")
+    typing_line = f"from typing import {', '.join(typing_types)}"
 
     cat_init = [
         FILE_HEADER,
-        "from typing import Optional",
+        typing_line,
         "",
     ]
     if comp_import_lines:
@@ -1558,12 +1934,9 @@ def generate_basic_catalog(
     if operator_sections:
         cat_init.extend(operator_sections)
 
-    theme_spec = cat_data.get("$defs", {}).get("theme", {}) or cat_data.get(
-        "$defs", {}
-    ).get("Theme", {})
-    if theme_spec or os.path.exists(os.path.join(out_dir, "styles.py")):
+    if has_theme:
         cat_init.append("from .styles import Theme")
-    if has_func_impls:
+    if has_func_impls and not shared_impls:
         cat_init.extend([
             "from .function_impls import (",
             "    BASIC_FUNCTION_IMPLEMENTATIONS,",
@@ -1571,9 +1944,16 @@ def generate_basic_catalog(
             ")",
         ])
 
-    functions_arg = "create_basic_catalog_functions(locale)" if has_func_impls else "[]"
+    functions_arg = (
+        "create_basic_catalog_functions(locale=locale)" if has_func_impls else "[]"
+    )
     theme_arg_line = (
-        "            theme_schema=Theme.model_json_schema(),\n" if theme_spec else ""
+        "            theme_schema=Theme.model_json_schema(),\n" if has_theme else ""
+    )
+    lazy_func_import = (
+        "        from ..function_impls import create_basic_catalog_functions\n"
+        if (shared_impls and has_func_impls)
+        else ""
     )
 
     cat_init.extend([
@@ -1593,7 +1973,7 @@ def generate_basic_catalog(
         "class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):",
         "",
         "    def __init__(self, locale: Optional[str] = None):",
-        "        super().__init__(",
+        f"{lazy_func_import}        super().__init__(",
         "            catalog_id=_basic_catalog_id(SPEC_VERSION),",
         "            spec_version=SPEC_VERSION,",
         "            components=BASIC_COMPONENTS,",
@@ -1603,33 +1983,34 @@ def generate_basic_catalog(
         "",
     ])
 
+    if shared_impls and has_func_impls:
+        cat_init.extend([
+            "def __getattr__(name: str) -> Any:",
+            "    if name == 'BASIC_FUNCTION_IMPLEMENTATIONS':",
+            "        from ..function_impls import create_basic_catalog_functions",
+            "        return create_basic_catalog_functions(SPEC_VERSION)",
+            "    if name == 'create_basic_catalog_functions':",
+            "        from .. import function_impls",
+            "        return getattr(function_impls, name)",
+            (
+                "    raise AttributeError(f'module {__name__!r} has no attribute"
+                " {name!r}')"
+            ),
+            "",
+            "",
+        ])
+
     func_impl_exports = (
         ["BASIC_FUNCTION_IMPLEMENTATIONS", "create_basic_catalog_functions"]
         if has_func_impls
         else []
     )
-    theme_exports = ["Theme"] if theme_spec else []
+    theme_exports = ["Theme"] if has_theme else []
     all_cat_exports = list(
         dict.fromkeys(
             comp_exports
             + api_func_names
-            + (
-                [
-                    "AddApi",
-                    "SubtractApi",
-                    "MultiplyApi",
-                    "DivideApi",
-                    "EqualsApi",
-                    "NotEqualsApi",
-                    "GreaterThanApi",
-                    "LessThanApi",
-                    "ContainsApi",
-                    "StartsWithApi",
-                    "EndsWithApi",
-                ]
-                if operator_sections
-                else []
-            )
+            + operator_names
             + theme_exports
             + func_impl_exports
             + ["BasicCatalog"]

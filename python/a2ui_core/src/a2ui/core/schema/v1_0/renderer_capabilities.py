@@ -20,46 +20,23 @@ from .common_types import StrictBaseModel
 from .constants import SPEC_VERSION, SPEC_VERSION_TYPE
 
 
-class FunctionDefinition(StrictBaseModel):
-    """Describes a function's interface."""
+from .catalog_definition import CatalogDefinition
 
-    name: str = Field(..., description="The unique name of the function.")
-    description: Optional[str] = Field(
-        None,
-        description=(
-            "A human-readable description of what the function does and how to use it."
-        ),
-    )
-    parameters: Any = Field(
-        ...,
-        description=(
-            "A JSON Schema describing the expected arguments (args) for this function."
-        ),
-    )
-    return_type: Literal[
-        "string", "number", "boolean", "array", "object", "any", "void"
-    ] = Field(
-        ..., alias="returnType", description="The type of value this function returns."
-    )
-
-
-class InlineCatalog(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
-
+InlineCatalog = CatalogDefinition
 Catalog = InlineCatalog
 
 
-class V09Capabilities(StrictBaseModel):
+class V10Capabilities(StrictBaseModel):
     supported_catalog_ids: List[str] = Field(
         ...,
         alias="supportedCatalogIds",
         description=(
             "An array of string identifiers for each of the component and function"
-            " catalogs supported by the client."
+            " catalogs supported by the renderer. Multiple catalogs can be mixed in a"
+            " single surface."
         ),
     )
-    inline_catalogs: Optional[List[Catalog]] = Field(
+    inline_catalogs: Optional[List[CatalogDefinition]] = Field(
         None,
         alias="inlineCatalogs",
         description=(
@@ -70,11 +47,8 @@ class V09Capabilities(StrictBaseModel):
     )
 
 
-V0_9Capabilities = V09Capabilities
+V1_0Capabilities = V10Capabilities
 
 
-class A2uiClientCapabilities(StrictBaseModel):
-    v0_9: Optional[V09Capabilities] = Field(None, alias=SPEC_VERSION)
-
-
-A2uiRendererCapabilities = A2uiClientCapabilities
+class A2uiRendererCapabilities(StrictBaseModel):
+    v1_0: Optional[V10Capabilities] = Field(None, alias=SPEC_VERSION)

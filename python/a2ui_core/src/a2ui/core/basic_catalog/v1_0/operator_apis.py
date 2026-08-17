@@ -14,10 +14,11 @@
 
 from typing import Any, Dict, List, Optional
 from pydantic import Field
-from ...schema.v0_9.common_types import (
+from ...schema.v1_0.common_types import (
     StrictBaseModel,
     DynamicString,
     DynamicNumber,
+    IndexSystemFunctionArgs,
 )
 from ...catalog.functions import FunctionApi
 
@@ -141,3 +142,12 @@ class EndsWithApi(FunctionApi):
     name = "ends_with"
     schema = EndsWithArgs
     return_type = "boolean"
+
+
+IndexArgs = IndexSystemFunctionArgs
+
+
+class IndexApi(FunctionApi):
+    name = "@index"
+    schema = IndexArgs
+    return_type = "number"

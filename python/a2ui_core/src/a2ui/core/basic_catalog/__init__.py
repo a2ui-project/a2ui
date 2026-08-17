@@ -14,5 +14,14 @@
 
 """A2UI Basic Catalog Module."""
 
+from .expression_parser import ExpressionParser, Scanner
+from .locale_config import (
+    LocaleFormattingRules,
+    register_locale_rules,
+    get_locale_rules,
+    CURRENCY_SYMBOLS,
+)
+from . import v0_8
 from . import v0_9
+from . import v1_0
 from .v0_9 import *

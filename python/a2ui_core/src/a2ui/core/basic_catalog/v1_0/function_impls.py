@@ -50,6 +50,7 @@ from .operator_apis import (
     ContainsApi,
     StartsWithApi,
     EndsWithApi,
+    IndexApi,
 )
 from ..expression_parser import ExpressionParser
 from ..locale_config import get_locale_rules, CURRENCY_SYMBOLS
@@ -78,17 +79,18 @@ def _to_str(val: Any) -> str:
     return str(val)
 
 
-# Validation (v0.9 returns boolean)
+# Validation (v1.0 returns validationResult: {"valid": bool})
 def _required_execute(
     args: Dict[str, Any],
     context: Any = None,
     abort_signal: Optional[Any] = None,
-) -> bool:
-    return _to_bool(
+) -> Dict[str, Any]:
+    valid = _to_bool(
         args.get("value") is not None
         and args.get("value") != ""
         and args.get("value") != []
     )
+    return {"valid": valid}
 
 
 RequiredImplementation = create_function_implementation(RequiredApi, _required_execute)
@@ -98,10 +100,11 @@ def _regex_execute(
     args: Dict[str, Any],
     context: Any = None,
     abort_signal: Optional[Any] = None,
-) -> bool:
-    return bool(
+) -> Dict[str, Any]:
+    valid = bool(
         re.search(_to_str(args.get("pattern", "")), _to_str(args.get("value", "")))
     )
+    return {"valid": valid}
 
 
 RegexImplementation = create_function_implementation(RegexApi, _regex_execute)
@@ -111,14 +114,15 @@ def _length_execute(
     args: Dict[str, Any],
     context: Any = None,
     abort_signal: Optional[Any] = None,
-) -> bool:
-    return (
+) -> Dict[str, Any]:
+    valid = (
         args.get("min") is None
         or len(_to_str(args.get("value", ""))) >= int(args["min"])
     ) and (
         args.get("max") is None
         or len(_to_str(args.get("value", ""))) <= int(args["max"])
     )
+    return {"valid": valid}
 
 
 LengthImplementation = create_function_implementation(LengthApi, _length_execute)
@@ -128,12 +132,13 @@ def _numeric_execute(
     args: Dict[str, Any],
     context: Any = None,
     abort_signal: Optional[Any] = None,
-) -> bool:
-    return (
+) -> Dict[str, Any]:
+    valid = (
         args.get("min") is None or _to_float(args["value"]) >= _to_float(args["min"])
     ) and (
         args.get("max") is None or _to_float(args["value"]) <= _to_float(args["max"])
     )
+    return {"valid": valid}
 
 
 NumericImplementation = create_function_implementation(NumericApi, _numeric_execute)
@@ -143,16 +148,37 @@ def _email_execute(
     args: Dict[str, Any],
     context: Any = None,
     abort_signal: Optional[Any] = None,
-) -> bool:
-    return bool(
+) -> Dict[str, Any]:
+    valid = bool(
         re.match(
             r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
             _to_str(args.get("value", "")),
         )
     )
+    return {"valid": valid}
 
 
 EmailImplementation = create_function_implementation(EmailApi, _email_execute)
+
+
+# System Functions
+def _index_execute(
+    args: Dict[str, Any],
+    context: Any = None,
+    abort_signal: Optional[Any] = None,
+) -> int:
+    offset = args.get("offset")
+    offset_val = int(offset) if offset is not None else 0
+    idx = 0
+    if context is not None:
+        if hasattr(context, "index"):
+            idx = int(getattr(context, "index"))
+        elif isinstance(context, dict) and "index" in context:
+            idx = int(context["index"])
+    return idx + offset_val
+
+
+IndexImplementation = create_function_implementation(IndexApi, _index_execute)
 
 
 # Formatting
@@ -565,6 +591,7 @@ def create_basic_catalog_functions(
         LengthImplementation,
         NumericImplementation,
         EmailImplementation,
+        IndexImplementation,
         FormatStringImplementation,
         create_format_number_implementation(locale),
         create_format_currency_implementation(locale),

@@ -87,13 +87,14 @@ from .operator_apis import (
     ContainsApi,
     StartsWithApi,
     EndsWithApi,
+    IndexApi,
 )
 from .styles import Theme
 from .function_impls import (
     BASIC_FUNCTION_IMPLEMENTATIONS,
     create_basic_catalog_functions,
 )
-from ...schema.v0_9.constants import SPEC_VERSION, SPEC_BASE_URL
+from ...schema.v1_0.constants import SPEC_VERSION, SPEC_BASE_URL
 from ...catalog import Catalog, ModelComponentApi, FunctionImplementation
 
 
@@ -182,6 +183,7 @@ __all__ = [
     "ContainsApi",
     "StartsWithApi",
     "EndsWithApi",
+    "IndexApi",
     "Theme",
     "BASIC_FUNCTION_IMPLEMENTATIONS",
     "create_basic_catalog_functions",

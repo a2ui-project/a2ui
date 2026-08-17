@@ -63,14 +63,16 @@ from .server_to_client import (
     A2uiMessage,
     A2uiMessageListWrapper,
 )
+from .catalog_definition import (
+    CatalogDefinition,
+)
 from .client_capabilities import (
     InlineCatalog,
     Catalog,
-    FunctionDefinition,
     V08Capabilities,
     V0_8Capabilities,
-    A2uiRendererCapabilities,
     A2uiClientCapabilities,
+    A2uiRendererCapabilities,
 )
 from .client_to_server import (
     A2uiClientAction,
@@ -137,13 +139,13 @@ __all__ = [
     "AgentToRendererMessage",
     "A2uiMessage",
     "A2uiMessageListWrapper",
+    "CatalogDefinition",
     "InlineCatalog",
     "Catalog",
-    "FunctionDefinition",
     "V08Capabilities",
     "V0_8Capabilities",
-    "A2uiRendererCapabilities",
     "A2uiClientCapabilities",
+    "A2uiRendererCapabilities",
     "A2uiClientAction",
     "A2uiRendererAction",
     "A2uiClientUserAction",

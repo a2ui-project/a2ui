@@ -16,7 +16,7 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field, ConfigDict
-from ...schema.v0_9.common_types import DynamicBoolean, DynamicNumber, DynamicString, DynamicValue, StrictBaseModel
+from ...schema.v1_0.common_types import DataBinding, DynamicBoolean, DynamicNumber, DynamicString, DynamicValue, FunctionCall, StrictBaseModel
 from ...catalog.functions import FunctionApi
 
 
@@ -27,7 +27,7 @@ class RequiredArgs(StrictBaseModel):
 class RequiredApi(FunctionApi):
     name = "required"
     schema = RequiredArgs
-    return_type = "boolean"
+    return_type = "validationResult"
 
 
 class RegexArgs(StrictBaseModel):
@@ -38,7 +38,7 @@ class RegexArgs(StrictBaseModel):
 class RegexApi(FunctionApi):
     name = "regex"
     schema = RegexArgs
-    return_type = "boolean"
+    return_type = "validationResult"
 
 
 class LengthArgs(StrictBaseModel):
@@ -50,7 +50,7 @@ class LengthArgs(StrictBaseModel):
 class LengthApi(FunctionApi):
     name = "length"
     schema = LengthArgs
-    return_type = "boolean"
+    return_type = "validationResult"
 
 
 class NumericArgs(StrictBaseModel):
@@ -62,7 +62,7 @@ class NumericArgs(StrictBaseModel):
 class NumericApi(FunctionApi):
     name = "numeric"
     schema = NumericArgs
-    return_type = "boolean"
+    return_type = "validationResult"
 
 
 class EmailArgs(StrictBaseModel):
@@ -72,7 +72,7 @@ class EmailArgs(StrictBaseModel):
 class EmailApi(FunctionApi):
     name = "email"
     schema = EmailArgs
-    return_type = "boolean"
+    return_type = "validationResult"
 
 
 class FormatStringArgs(StrictBaseModel):
@@ -196,7 +196,9 @@ class PluralizeApi(FunctionApi):
 
 
 class OpenUrlArgs(StrictBaseModel):
-    url: str = Field(..., description="The URL to open.")
+    url: Union[str, DataBinding, FunctionCall] = Field(
+        ..., description="The URL to open."
+    )
 
 
 class OpenUrlApi(FunctionApi):

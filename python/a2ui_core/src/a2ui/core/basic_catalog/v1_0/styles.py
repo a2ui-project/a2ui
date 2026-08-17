@@ -14,28 +14,10 @@
 
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, Optional
 from pydantic import BaseModel, Field, ConfigDict
-from .common_types import StrictBaseModel
-from .constants import SPEC_VERSION, SPEC_VERSION_TYPE
 
 
-class InlineCatalog(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
-
-Catalog = InlineCatalog
-
-
-class V08Capabilities(StrictBaseModel):
+class Theme(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
     pass
-
-
-V0_8Capabilities = V08Capabilities
-
-
-class A2uiClientCapabilities(StrictBaseModel):
-    v0_8: Optional[V08Capabilities] = Field(None, alias=SPEC_VERSION)
-
-
-A2uiRendererCapabilities = A2uiClientCapabilities
