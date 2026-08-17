@@ -452,16 +452,16 @@ export const OpenUrlImplementation = createFunctionImplementation(OpenUrlApi, ar
  * Returns the loop index offset from context.
  */
 export const IndexImplementation = createFunctionImplementation(IndexApi, (args, context) => {
-  const offset = typeof args.offset === 'number' ? args.offset : 0;
+  const offset =
+    typeof args.offset === 'number' && Number.isFinite(args.offset) ? args.offset : 0;
   let index = 0;
   if (typeof (context as any)?.getIndex === 'function') {
     index = (context as any).getIndex();
   } else if (context?.path) {
     const parts = context.path.split('/').filter(Boolean);
     for (let i = parts.length - 1; i >= 0; i--) {
-      const num = parseInt(parts[i], 10);
-      if (!isNaN(num)) {
-        index = num;
+      if (/^\d+$/.test(parts[i])) {
+        index = parseInt(parts[i], 10);
         break;
       }
     }

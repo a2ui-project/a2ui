@@ -173,6 +173,41 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const context = new DataContext(surface, '/items/3/user/address');
     const indexValue = IndexImplementation.execute({offset: 1}, context);
     assert.strictEqual(indexValue, 4);
+
+    // Alphanumeric segment starting with digit should be ignored
+    const context2 = new DataContext(surface, '/order_99/items/2');
+    const indexValue2 = IndexImplementation.execute({offset: 0}, context2);
+    assert.strictEqual(indexValue2, 2);
+
+    // Schema coercion parses string offsets and falls back safely on NaN
+    const parsedArgs = IndexImplementation.schema?.parse({offset: '5'});
+    const indexValue3 = IndexImplementation.execute(parsedArgs, context2);
+    assert.strictEqual(indexValue3, 7);
+  });
+
+  it('generates fallback call function ID when globalThis.crypto is unavailable', async () => {
+    const originalCrypto = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    try {
+      Object.defineProperty(globalThis, 'crypto', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
+      let emittedMsg: any;
+      const handler = new RpcHandler({
+        catalogs: [mockCatalog],
+        outboundListener: msg => {
+          emittedMsg = msg;
+        },
+      });
+
+      handler.callAgentFunction('s1', {call: 'testFunc'});
+      assert.ok(emittedMsg.callAgentFunction.functionCallId.startsWith('call-'));
+    } finally {
+      if (originalCrypto) {
+        Object.defineProperty(globalThis, 'crypto', originalCrypto);
+      }
+    }
   });
 
   it('rejects pending agent function calls when RpcHandler is disposed', async () => {
