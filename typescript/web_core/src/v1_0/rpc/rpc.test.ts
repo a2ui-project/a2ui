@@ -201,8 +201,10 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
         },
       });
 
-      handler.callAgentFunction('s1', {call: 'testFunc'});
+      const callPromise = handler.callAgentFunction('s1', {call: 'testFunc'});
       assert.ok(emittedMsg.callAgentFunction.functionCallId.startsWith('call-'));
+      handler.dispose();
+      await assert.rejects(callPromise, /CANCELLED/);
     } finally {
       if (originalCrypto) {
         Object.defineProperty(globalThis, 'crypto', originalCrypto);
