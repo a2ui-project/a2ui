@@ -15,8 +15,8 @@
  */
 
 import {ExpressionParser} from '../expressions/expression_parser.js';
-import {computed, isSignal, getValue} from '../../reactivity/signals.js';
-import {createFunctionImplementation, FunctionImplementation} from '../../catalog/types.js';
+import {computed, isSignal, getValue} from '../../../reactivity/signals.js';
+import {createFunctionImplementation, FunctionImplementation} from '../../../catalog/types.js';
 import {format} from 'date-fns';
 import {
   AddApi,
@@ -45,7 +45,7 @@ import {
   PluralizeApi,
   OpenUrlApi,
 } from './basic_functions_api.js';
-import {A2uiExpressionError} from '../../errors.js';
+import {A2uiExpressionError} from '../../../errors.js';
 
 // Arithmetic
 /**

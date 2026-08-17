@@ -16,7 +16,7 @@
 
 import {z} from 'zod';
 import {ComponentContext} from './component-context.js';
-import {Action, ChildList, DataBinding, FunctionCall} from '../schema/common-types.js';
+import {Action, ChildList, DataBinding, FunctionCall} from '../v0_9/schema/common-types.js';
 
 // --- Schema Scraping ---
 

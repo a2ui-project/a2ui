@@ -81,7 +81,7 @@ def should_ignore(rel_path: str) -> bool:
 
 
 def is_generated_file(content: str) -> bool:
-    """Checks if a file contains a generated code header in its first 10 lines.
+    """Checks if a file contains a generated code header in its first 20 lines.
 
     Args:
         content: The text content of the file.
@@ -89,7 +89,7 @@ def is_generated_file(content: str) -> bool:
     Returns:
         True if the file contains markers indicating it was generated, False otherwise.
     """
-    lines = content.splitlines()[:10]
+    lines = content.splitlines()[:20]
     pattern = re.compile(r"generated.*(file|code)|auto-generated", re.IGNORECASE)
     return any(pattern.search(line) for line in lines)
 

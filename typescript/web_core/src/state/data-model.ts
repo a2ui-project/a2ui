@@ -48,7 +48,7 @@ function isNumeric(value: string): boolean {
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 /**
- * A standalone, observable data store representing the client-side state.
+ * A standalone, observable data store representing the renderer-side state.
  * It handles JSON Pointer path resolution and subscription management.
  */
 export class DataModel {
@@ -108,13 +108,17 @@ export class DataModel {
     }
 
     if (path === '/' || path === '') {
-      this.data = value;
+      this.data = value === null || value === undefined ? {} : value;
       this.notifyAllSignals();
       return this;
     }
 
     const segments = this.parsePath(path);
     const lastSegment = segments.pop()!;
+
+    if ((value === undefined || value === null) && this.get(path) === undefined) {
+      return this;
+    }
 
     if (!this.data) {
       this.data = {};
@@ -181,7 +185,7 @@ export class DataModel {
       );
     }
 
-    if (value === undefined) {
+    if (value === undefined || value === null) {
       if (Array.isArray(current)) {
         current[parseInt(lastSegment, 10)] = undefined;
       } else {
@@ -196,45 +200,63 @@ export class DataModel {
   }
 
   /**
+   * Resolves a relative path against a base context path.
+   *
+   * @param path The path to resolve.
+   * @param contextPath The base path (optional).
+   */
+  static resolvePath(path: string, contextPath?: string): string {
+    if (path.startsWith('/')) {
+      return path;
+    }
+    if (contextPath) {
+      const base = contextPath.endsWith('/') ? contextPath : `${contextPath}/`;
+      return `${base}${path}`;
+    }
+    return `/${path}`;
+  }
+
+  /**
    * Retrieves data at a specific JSON pointer path.
    *
+   * @template T The expected type of the returned value. Defaults to `any`.
    * @param path The JSON pointer path to read from.
    * @returns The value at the specified path, or undefined if not found.
    * @throws {A2uiDataError} If path is null, undefined, or contains forbidden
    *     segments (`__proto__`, `constructor`, `prototype`).
    */
-  get(path: string): any {
+  get<T = any>(path: string): T {
     if (path === null || path === undefined) {
       throw new A2uiDataError('Path cannot be null or undefined.');
     }
     if (path === '/' || path === '') {
-      return this.data;
+      return this.data as T;
     }
 
     const segments = this.parsePath(path);
     let current: any = this.data;
     for (const segment of segments) {
       if (current === undefined || current === null || typeof current !== 'object') {
-        return undefined;
+        return undefined as T;
       }
 
       if (Array.isArray(current)) {
         if (!isNumeric(segment)) {
-          return undefined;
+          return undefined as T;
         }
         const index = parseInt(segment, 10);
         if (index < 0 || index >= current.length) {
-          return undefined;
+          return undefined as T;
         }
         current = current[index];
       } else {
         if (!Object.prototype.hasOwnProperty.call(current, segment)) {
-          return undefined;
+          return undefined as T;
         }
         current = current[segment];
       }
     }
-    return current;
+    return current as T;
   }
 
   /**

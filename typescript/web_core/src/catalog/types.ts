@@ -42,6 +42,8 @@ export interface FunctionApi {
   readonly name: string;
   readonly returnType: A2uiReturnType;
   readonly schema: z.ZodTypeAny;
+  readonly callableFrom?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
+  readonly requiresUserActivation?: boolean;
 }
 
 /**
@@ -59,7 +61,13 @@ export function createFunctionImplementation<
   Schema extends z.ZodTypeAny,
   TReturn extends A2uiReturnType,
 >(
-  api: {name: string; returnType: TReturn; schema: Schema},
+  api: {
+    name: string;
+    returnType: TReturn;
+    schema: Schema;
+    callableFrom?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
+    requiresUserActivation?: boolean;
+  },
   execute: (
     args: z.infer<Schema>,
     context: DataContext,
@@ -70,6 +78,8 @@ export function createFunctionImplementation<
     name: api.name,
     returnType: api.returnType,
     schema: api.schema,
+    callableFrom: api.callableFrom,
+    requiresUserActivation: api.requiresUserActivation,
     execute: execute as (args: Record<string, any>, ctx: DataContext, ab?: AbortSignal) => unknown,
   };
 }
@@ -94,6 +104,12 @@ export interface ComponentApi<Schema extends z.ZodTypeAny = z.ZodTypeAny> {
    * - MUST NOT include 'component' or 'id' as those are handled by the framework/envelope.
    */
   readonly schema: Schema;
+
+  /** Optional allowed parent component types (e.g. ['Column', 'Surface']). */
+  readonly allowedParents?: string[];
+
+  /** Optional allowed child component types (e.g. ['Text', 'Button']). */
+  readonly allowedChildren?: string[];
 }
 
 /**

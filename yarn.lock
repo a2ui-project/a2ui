@@ -467,6 +467,7 @@ __metadata:
     google-artifactregistry-auth: "npm:^3.5.0"
     gts: "npm:^7.0.0"
     js-yaml: "npm:^4.1.0"
+    json-schema-to-zod: "npm:^2.8.1"
     rxjs: "npm:^7.8.2"
     typescript: "npm:5.9.3"
     wireit: "npm:^0.15.0-pre.2"
@@ -18824,6 +18825,15 @@ __metadata:
     "@babel/runtime": "npm:^7.18.3"
     ts-algebra: "npm:^2.0.0"
   checksum: 10c0/609bae04aa5e860a11b6d30ccf41445fae1c7f66fb600c1d170257cf33aa468aa9d03aa046428c3688aff0ff450c2b0c76584b66fa4a5d0da8e33799e4c439a6
+  languageName: node
+  linkType: hard
+
+"json-schema-to-zod@npm:^2.8.1":
+  version: 2.8.1
+  resolution: "json-schema-to-zod@npm:2.8.1"
+  bin:
+    json-schema-to-zod: dist/cjs/cli.js
+  checksum: 10c0/cb6513960ea15de440182523c1b1df25b10877c80b98493ae6e3c1be96e675940b82bfd30b2e68c29ea11503301287086d062e19fc7b3dfa758e168eb5e7a134
   languageName: node
   linkType: hard
 

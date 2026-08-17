@@ -38,6 +38,14 @@
       "types": "./dist/src/v0_9/basic_catalog/index.d.ts",
       "default": "./dist/src/v0_9/basic_catalog/index.js"
     },
+    "./v1_0": {
+      "types": "./dist/src/v1_0/index.d.ts",
+      "default": "./dist/src/v1_0/index.js"
+    },
+    "./adapters": {
+      "types": "./dist/src/processing/adapters/index.d.ts",
+      "default": "./dist/src/processing/adapters/index.js"
+    },
     "./data/*": {
       "types": "./dist/src/v0_8/data/*.d.ts",
       "default": "./dist/src/v0_8/data/*.js"
@@ -65,6 +73,7 @@
     "build:tsc": "wireit",
     "test": "wireit",
     "test:coverage": "c8 node --test \"dist/**/*.test.js\"",
+    "generate-zod-schemas": "wireit",
     "compile": "tsc",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -74,6 +83,16 @@
     "clean": "wireit"
   },
   "wireit": {
+    "generate-zod-schemas": {
+      "command": "node scripts/generate-zod-schemas.mjs",
+      "files": [
+        "../../specification/v1_0/json/*.json",
+        "scripts/generate-zod-schemas.mjs"
+      ],
+      "output": [
+        "src/v1_0/schema/*.ts"
+      ]
+    },
     "copy-spec": {
       "command": "node scripts/copy-spec.js",
       "files": [
@@ -100,7 +119,8 @@
     "build:tsc": {
       "command": "tsc -b --pretty",
       "dependencies": [
-        "copy-spec"
+        "copy-spec",
+        "generate-zod-schemas"
       ],
       "files": [
         "src/**/*.ts",
@@ -153,6 +173,7 @@
     "google-artifactregistry-auth": "^3.5.0",
     "gts": "^7.0.0",
     "js-yaml": "^4.1.0",
+    "json-schema-to-zod": "^2.8.1",
     "rxjs": "^7.8.2",
     "typescript": "5.9.3",
     "wireit": "^0.15.0-pre.2"

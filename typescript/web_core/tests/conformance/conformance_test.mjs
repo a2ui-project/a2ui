@@ -16,6 +16,22 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import yaml from 'js-yaml';
+import {MessageProcessor} from '../../dist/src/processing/message-processor.js';
+import {BASIC_COMPONENTS as V09_BASIC_COMPONENTS} from '../../dist/src/v0_9/basic_catalog/index.js';
+// Note: When dedicated v0.8 or v1.0 basic catalog implementations are added in web_core,
+// import their component definitions here:
+// import {BASIC_COMPONENTS as V10_BASIC_COMPONENTS} from '../../dist/src/v1_0/basic_catalog/index.js';
+
+// Fallback component definitions per specification version until dedicated implementations exist
+const v08Components = V09_BASIC_COMPONENTS;
+const v09Components = V09_BASIC_COMPONENTS;
+const v10Components = V09_BASIC_COMPONENTS; // Replace with V10_BASIC_COMPONENTS when created
+
+const basicCatalog = {id: 'basic', components: v09Components};
+const v08Catalog = {id: 'v0.8:basic', components: v08Components};
+const v09Catalog = {id: 'v0.9:basic', components: v09Components};
+const v10Catalog = {id: 'v1.0:basic', components: v10Components};
+const allCatalogs = [basicCatalog, v08Catalog, v09Catalog, v10Catalog];
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -197,9 +213,38 @@ function validateSelectCatalogTestCase(testCase) {
 }
 
 function validateValidateTestCase(testCase) {
-  const {steps, payload, messages} = testCase;
+  const {steps, payload, messages, expectError, expectValid} = testCase;
   if (!steps && !payload && !messages) {
     throw new Error('validate test case requires "steps", "messages", or "payload" input.');
+  }
+
+  const processor = new MessageProcessor(allCatalogs);
+  const inputMessages = messages || (payload ? [payload] : []);
+
+  if (inputMessages.length > 0) {
+    try {
+      processor.processMessages(inputMessages);
+      if (expectError) {
+        throw new Error(
+          `Expected error (${expectError.code || 'UNKNOWN'}) but message processing succeeded.`,
+        );
+      }
+    } catch (err) {
+      if (expectValid) {
+        throw err;
+      }
+      if (expectError && expectError.code) {
+        if (
+          !err.message.includes(expectError.code) &&
+          err.name !== expectError.code &&
+          err.code !== expectError.code
+        ) {
+          throw new Error(
+            `Expected error matching '${expectError.code}' but received: ${err.message}`,
+          );
+        }
+      }
+    }
   }
 }
 

@@ -16,13 +16,13 @@
 
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
-import {effect, Signal, getValue} from '../../reactivity/signals.js';
+import {effect, Signal, getValue} from '../../../reactivity/signals.js';
 
 import {BASIC_FUNCTIONS, createBasicCatalogFunctions} from './basic_functions.js';
-import {DataModel} from '../../state/data-model.js';
-import {DataContext} from '../../rendering/data-context.js';
-import {A2uiExpressionError} from '../../errors.js';
-import {Catalog, ComponentApi} from '../../catalog/types.js';
+import {DataModel} from '../../../state/data-model.js';
+import {DataContext} from '../../../rendering/data-context.js';
+import {A2uiExpressionError} from '../../../errors.js';
+import {Catalog, ComponentApi} from '../../../catalog/types.js';
 
 const testCatalog = new Catalog<ComponentApi>('test', [], BASIC_FUNCTIONS);
 

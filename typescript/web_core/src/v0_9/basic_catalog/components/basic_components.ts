@@ -26,7 +26,7 @@ import {
   AccessibilityAttributesSchema,
   CheckableSchema,
 } from '../../schema/common-types.js';
-import {ComponentApi} from '../../catalog/types.js';
+import {ComponentApi} from '../../../catalog/types.js';
 
 const CommonProps = {
   'accessibility': AccessibilityAttributesSchema.optional(),

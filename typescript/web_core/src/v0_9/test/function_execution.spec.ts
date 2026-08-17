@@ -16,10 +16,10 @@
 
 import {describe, it} from 'node:test';
 import assert from 'node:assert';
-import {DataModel} from '../state/data-model.js';
-import {DataContext} from '../rendering/data-context.js';
+import {DataModel} from '../../state/data-model.js';
+import {DataContext} from '../../rendering/data-context.js';
 
-import {signal, setValue} from '../reactivity/signals.js';
+import {signal, setValue} from '../../reactivity/signals.js';
 
 const createTestDataContext = (
   model: DataModel,

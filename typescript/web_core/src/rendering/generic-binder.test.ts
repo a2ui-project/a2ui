@@ -22,7 +22,7 @@ import {ComponentContext} from './component-context.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {Catalog} from '../catalog/types.js';
 import {ComponentModel} from '../state/component-model.js';
-import {CommonSchemas} from '../schema/common-types.js';
+import {CommonSchemas} from '../v0_9/schema/common-types.js';
 
 describe('GenericBinder Checkable Trait', () => {
   const mockCatalog = new Catalog('test', [], []);

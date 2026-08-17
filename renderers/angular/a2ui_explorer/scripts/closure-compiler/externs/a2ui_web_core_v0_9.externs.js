@@ -62,6 +62,40 @@ function AnyComponentExterns() {}
 /** @type {?} */ AnyComponentExterns.prototype.component;
 /** @type {?} */ AnyComponentExterns.prototype.children;
 /** @type {?} */ AnyComponentExterns.prototype.child;
+/** @type {?} */ AnyComponentExterns.prototype.text;
+/** @type {?} */ AnyComponentExterns.prototype.variant;
+/** @type {?} */ AnyComponentExterns.prototype.url;
+/** @type {?} */ AnyComponentExterns.prototype.fit;
+/** @type {?} */ AnyComponentExterns.prototype.altText;
+/** @type {?} */ AnyComponentExterns.prototype.description;
+/** @type {?} */ AnyComponentExterns.prototype.name;
+/** @type {?} */ AnyComponentExterns.prototype.svgPath;
+/** @type {?} */ AnyComponentExterns.prototype.justify;
+/** @type {?} */ AnyComponentExterns.prototype.align;
+/** @type {?} */ AnyComponentExterns.prototype.distribution;
+/** @type {?} */ AnyComponentExterns.prototype.direction;
+/** @type {?} */ AnyComponentExterns.prototype.listStyle;
+/** @type {?} */ AnyComponentExterns.prototype.axis;
+/** @type {?} */ AnyComponentExterns.prototype.tabs;
+/** @type {?} */ AnyComponentExterns.prototype.title;
+/** @type {?} */ AnyComponentExterns.prototype.weight;
+/** @type {?} */ AnyComponentExterns.prototype.label;
+/** @type {?} */ AnyComponentExterns.prototype.value;
+/** @type {?} */ AnyComponentExterns.prototype.textFieldType;
+/** @type {?} */ AnyComponentExterns.prototype.obscured;
+/** @type {?} */ AnyComponentExterns.prototype.options;
+/** @type {?} */ AnyComponentExterns.prototype.selections;
+/** @type {?} */ AnyComponentExterns.prototype.action;
+/** @type {?} */ AnyComponentExterns.prototype.trigger;
+/** @type {?} */ AnyComponentExterns.prototype.content;
+/** @type {?} */ AnyComponentExterns.prototype.min;
+/** @type {?} */ AnyComponentExterns.prototype.max;
+/** @type {?} */ AnyComponentExterns.prototype.minValue;
+/** @type {?} */ AnyComponentExterns.prototype.maxValue;
+/** @type {?} */ AnyComponentExterns.prototype.step;
+/** @type {?} */ AnyComponentExterns.prototype.enableDate;
+/** @type {?} */ AnyComponentExterns.prototype.enableTime;
+/** @type {?} */ AnyComponentExterns.prototype.accessibility;
 
 /**
  * Externs for `UpdateDataModelMessage` interface (`renderers/web_core/src/v0_9/schema/server-to-client.ts`).
@@ -108,6 +142,7 @@ function FunctionCallExterns() {}
 /** @type {?} */ FunctionCallExterns.prototype.call;
 /** @type {?} */ FunctionCallExterns.prototype.args;
 /** @type {?} */ FunctionCallExterns.prototype.returnType;
+/** @type {?} */ FunctionCallExterns.prototype.schema;
 
 /**
  * Externs for `ChildList` interface (`renderers/web_core/src/v0_9/schema/common-types.ts`).
@@ -190,3 +225,44 @@ function LocaleOptionsExterns() {}
 /** @type {?} */ LocaleOptionsExterns.prototype.width;
 /** @type {?} */ LocaleOptionsExterns.prototype.abbreviated;
 /** @type {?} */ LocaleOptionsExterns.prototype.wide;
+
+/**
+ * Externs for VersionAdapter and VersionAdapterFactory interfaces.
+ * @record
+ * @struct
+ */
+function VersionAdapterExterns() {}
+/** @type {?} */ VersionAdapterExterns.prototype.extractSurfaceProperties;
+/** @type {?} */ VersionAdapterExterns.prototype.extractInitialState;
+/** @type {?} */ VersionAdapterExterns.prototype.extractMessageType;
+/** @type {?} */ VersionAdapterExterns.prototype.resolveFromPayload;
+/** @type {?} */ VersionAdapterExterns.prototype.getAdapter;
+
+/**
+ * Externs for state models (`ComponentModel`, `SurfaceModel`, `ComponentContext`, etc.).
+ * @record
+ * @struct
+ */
+function StateModelExterns() {}
+/** @type {?} */ StateModelExterns.prototype.properties;
+/** @type {?} */ StateModelExterns.prototype.componentModel;
+/** @type {?} */ StateModelExterns.prototype.dataContext;
+/** @type {?} */ StateModelExterns.prototype.componentsModel;
+/** @type {?} */ StateModelExterns.prototype.dataModel;
+/** @type {?} */ StateModelExterns.prototype.surfacesMap;
+/** @type {?} */ StateModelExterns.prototype.surfaceComponents;
+/** @type {?} */ StateModelExterns.prototype.onUpdated;
+/** @type {?} */ StateModelExterns.prototype.onCreated;
+/** @type {?} */ StateModelExterns.prototype.onDeleted;
+/** @type {?} */ StateModelExterns.prototype.onAction;
+/** @type {?} */ StateModelExterns.prototype.onError;
+/** @type {?} */ StateModelExterns.prototype.onSurfaceCreated;
+/** @type {?} */ StateModelExterns.prototype.onSurfaceDeleted;
+/** @type {?} */ StateModelExterns.prototype.resolveSignal;
+/** @type {?} */ StateModelExterns.prototype.dispatchAction;
+/** @type {?} */ StateModelExterns.prototype.processMessages;
+/** @type {?} */ StateModelExterns.prototype.addComponent;
+/** @type {?} */ StateModelExterns.prototype.removeComponent;
+/** @type {?} */ StateModelExterns.prototype.addSurface;
+/** @type {?} */ StateModelExterns.prototype.deleteSurface;
+/** @type {?} */ StateModelExterns.prototype.getSurface;

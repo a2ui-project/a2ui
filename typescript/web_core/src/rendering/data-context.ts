@@ -27,7 +27,7 @@ import {
 } from '../reactivity/signals.js';
 import {z} from 'zod';
 import {DataModel, DataSubscription} from '../state/data-model.js';
-import type {DynamicValue, DataBinding, FunctionCall, Action} from '../schema/common-types.js';
+import type {DynamicValue, DataBinding, FunctionCall, Action} from '../v0_9/schema/common-types.js';
 import {A2uiExpressionError} from '../errors.js';
 
 import {FunctionInvoker} from '../catalog/function_invoker.js';

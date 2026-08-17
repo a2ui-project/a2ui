@@ -21,20 +21,20 @@
  * including the data model, component model, and expression parsing logic.
  */
 
-export * from './catalog/function_invoker.js';
-export * from './catalog/types.js';
-export * from './common/events.js';
-export * from './processing/message-processor.js';
-export * from './rendering/component-context.js';
-export * from './rendering/data-context.js';
-export * from './rendering/generic-binder.js';
+export * from '../catalog/function_invoker.js';
+export * from '../catalog/types.js';
+export * from '../common/events.js';
+export * from '../processing/message-processor.js';
+export * from '../rendering/component-context.js';
+export * from '../rendering/data-context.js';
+export * from '../rendering/generic-binder.js';
 export * from './schema/index.js';
-export * from './state/component-model.js';
-export * from './state/data-model.js';
-export * from './state/surface-components-model.js';
-export * from './state/surface-group-model.js';
-export * from './state/surface-model.js';
-export * from './errors.js';
+export * from '../state/component-model.js';
+export * from '../state/data-model.js';
+export * from '../state/surface-components-model.js';
+export * from '../state/surface-group-model.js';
+export * from '../state/surface-model.js';
+export * from '../errors.js';
 export * from './basic_catalog/index.js';
 
 export {
@@ -50,7 +50,7 @@ export {
   setSignalImplementation,
   _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
   type SignalImplementations,
-} from './reactivity/signals.js';
+} from '../reactivity/signals.js';
 
 import A2uiMessageSchemaRaw from './schemas/server_to_client.json' with {type: 'json'};
 

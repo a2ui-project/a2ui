@@ -15,7 +15,7 @@
  */
 
 import {DynamicValue} from '../../schema/common-types.js';
-import {A2uiExpressionError} from '../../errors.js';
+import {A2uiExpressionError} from '../../../errors.js';
 
 /**
  * A parser for A2UI expressions, supporting string interpolation and functional calls.

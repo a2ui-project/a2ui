@@ -18,10 +18,29 @@ import {DataModel} from './data-model.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {SurfaceComponentsModel} from './surface-components-model.js';
 import {EventEmitter, EventSource} from '../common/events.js';
-import {A2uiClientAction, A2uiClientActionSchema} from '../schema/client-to-server.js';
+
+/** Representation of an action payload emitted by a renderer component. */
+export interface ActionPayload {
+  name: string;
+  surfaceId: string;
+  sourceComponentId: string;
+  timestamp?: string;
+  context?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/** Representation of an error payload emitted by a surface. */
+export interface A2uiErrorPayload {
+  code: string;
+  message: string;
+  surfaceId?: string;
+  expression?: string;
+  details?: Record<string, unknown>;
+  [key: string]: unknown;
+}
 
 /** A function that listens for actions emitted from a surface. */
-export type ActionListener = (action: A2uiClientAction) => void | Promise<void>;
+export type ActionListener = (action: ActionPayload) => void | Promise<void>;
 
 /**
  * The state model for a single UI surface.
@@ -37,14 +56,14 @@ export class SurfaceModel<T extends ComponentApi = ComponentApi> {
   /** The collection of component models for this surface. */
   readonly componentsModel: SurfaceComponentsModel;
 
-  private readonly _onAction = new EventEmitter<A2uiClientAction>();
-  private readonly _onError = new EventEmitter<any>();
+  private readonly _onAction = new EventEmitter<ActionPayload>();
+  private readonly _onError = new EventEmitter<A2uiErrorPayload>();
 
   /** Fires whenever an action is dispatched from this surface. */
-  readonly onAction: EventSource<A2uiClientAction> = this._onAction;
+  readonly onAction: EventSource<ActionPayload> = this._onAction;
 
   /** Fires whenever an error occurs on this surface. */
-  readonly onError: EventSource<any> = this._onError;
+  readonly onError: EventSource<A2uiErrorPayload> = this._onError;
 
   /**
    * Creates a new surface model.
@@ -52,7 +71,7 @@ export class SurfaceModel<T extends ComponentApi = ComponentApi> {
    * @param id The unique identifier for this surface.
    * @param catalog The component catalog used by this surface.
    * @param theme The theme to apply to this surface.
-   * @param sendDataModel If true, the client will send the full data model.
+   * @param sendDataModel If true, the renderer will send the full data model.
    */
   constructor(
     readonly id: string,
@@ -72,7 +91,7 @@ export class SurfaceModel<T extends ComponentApi = ComponentApi> {
    */
   async dispatchAction(payload: any, sourceComponentId: string): Promise<void> {
     if (payload && typeof payload === 'object' && 'event' in payload && payload.event) {
-      const actionToValidate = {
+      const actionToDispatch: ActionPayload = {
         name: payload.event.name,
         surfaceId: this.id,
         sourceComponentId,
@@ -80,23 +99,18 @@ export class SurfaceModel<T extends ComponentApi = ComponentApi> {
         context: payload.event.context || {},
       };
 
-      const validationResult = A2uiClientActionSchema.safeParse(actionToValidate);
-      if (validationResult.success) {
-        await this._onAction.emit(validationResult.data);
-      } else {
-        console.error('A2UI: Invalid action payload dispatched.', validationResult.error.format());
-      }
+      await this._onAction.emit(actionToDispatch);
     }
     // Note: local functionCall actions are currently handled by the renderer or binder
-    // and do not necessarily need to be emitted here if they are not intended for the server.
+    // and do not necessarily need to be emitted here if they are not intended for the agent.
   }
 
   /**
    * Dispatches an error from this surface to listeners.
    *
-   * @param error The error object to dispatch, conforming to client_to_server schema.
+   * @param error The error object to dispatch, conforming to renderer_to_agent schema.
    */
-  async dispatchError(error: {code: string; message: string; [key: string]: any}): Promise<void> {
+  async dispatchError(error: A2uiErrorPayload): Promise<void> {
     await this._onError.emit({
       ...error,
       surfaceId: this.id,
