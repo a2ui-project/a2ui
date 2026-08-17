@@ -18,7 +18,7 @@ import {html, nothing, css} from 'lit';
 import {customElement} from 'lit/decorators.js';
 import {CardApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
-import {WebComponentImplementation} from '../../catalog/types.js';
+import {createComponentImplementation} from '../../catalog/types.js';
 
 @customElement('a2ui-card')
 export class A2uiCardElement extends BasicCatalogA2uiLitElement<typeof CardApi> {
@@ -59,7 +59,4 @@ export class A2uiCardElement extends BasicCatalogA2uiLitElement<typeof CardApi> 
   }
 }
 
-export const A2uiCard: WebComponentImplementation = {
-  ...CardApi,
-  tagName: 'a2ui-card',
-};
+export const A2uiCard = createComponentImplementation(CardApi, A2uiCardElement);

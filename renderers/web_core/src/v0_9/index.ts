@@ -26,6 +26,7 @@ export * from './catalog/types.js';
 export * from './catalog/a2ui-controller.js';
 export * from './catalog/a2ui-lit-element.js';
 export * from './catalog/render-a2ui-node.js';
+export * from './catalog/create_component_implementation.js';
 export * from './common/events.js';
 export * from './processing/message-processor.js';
 export * from './rendering/component-context.js';
