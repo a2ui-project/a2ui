@@ -81,6 +81,30 @@ def get_seating_state(venue_id: str) -> str:
     return json.dumps(venues[venue_id]["seats"])
 
 
+@app.tool(
+    meta={
+        "ui": {
+            "resourceUri": "ui://seating/app"
+        }
+    }
+)
+def call_webmcp_tool(inner_tool: str, args: dict | None = None) -> types.CallToolResult:
+    """Dispatches a dynamic tool call directly to the embedded WebMCP application UI.
+    
+    Args:
+        inner_tool: The name of the inner tool to execute in the app (e.g. 'highlight_seats')
+        args: Arguments dictionary for the inner tool (e.g. {'seat_ids': ['C1', 'C2'], 'style': 'glow'})
+    """
+    args_dict = args or {}
+    return types.CallToolResult(
+        content=[types.TextContent(
+            type="text",
+            text=f"Dispatched '{inner_tool}' to the seating UI with args: {json.dumps(args_dict)}"
+        )]
+    )
+
+
+
 @click.command()
 @click.option("--host", default="127.0.0.1", help="Host to listen on for SSE")
 @click.option("--port", default=8000, help="Port to listen on for SSE")

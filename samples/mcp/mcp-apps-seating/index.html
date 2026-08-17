@@ -23,6 +23,31 @@
     /* Common seat styling */
     .seat { cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; }
     .seat.booked { cursor: not-allowed; }
+
+    /* Glowing / Recommended seat highlight */
+    @keyframes seat-pulse-glow {
+      0% {
+        box-shadow: 0 0 8px #ffd700, 0 0 16px #ffd700;
+        transform: scale(1.05);
+      }
+      50% {
+        box-shadow: 0 0 22px #ffd700, 0 0 35px #ff9900, inset 0 0 10px #fff;
+        transform: scale(1.22);
+      }
+      100% {
+        box-shadow: 0 0 8px #ffd700, 0 0 16px #ffd700;
+        transform: scale(1.05);
+      }
+    }
+
+    .seat.glow, .seat.recommended {
+      background: linear-gradient(135deg, #ffd700 0%, #ff9900 100%) !important;
+      color: #111 !important;
+      font-weight: 900 !important;
+      border: 2px solid #fff !important;
+      animation: seat-pulse-glow 1.4s infinite ease-in-out !important;
+      z-index: 10 !important;
+    }
     
     /* Stadium */
     #layout-stadium { background: #111; padding: 20px; }

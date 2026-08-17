@@ -45,14 +45,17 @@ To execute one of the dynamic inner tools advertised by the app, you cannot call
 Instead, you must use the generic server-side dispatcher tool provided by the MCP server, typically named **`call_webmcp_tool`**.
 
 ### Usage:
-When you need to call an inner tool (e.g., `get_ball_position`), format your request using the dispatcher:
+When you need to call an inner tool (e.g., `get_ball_position` or `highlight_seats`), format your request using the dispatcher:
 ```json
-// Example of calling the generic dispatcher
+// Example: Highlighting recommended seats in the Seating App
 {
   "name": "call_webmcp_tool",
   "arguments": {
-    "inner_tool": "get_ball_position",
-    "args": {}
+    "inner_tool": "highlight_seats",
+    "args": {
+      "seat_ids": ["C1", "C2"],
+      "style": "glow"
+    }
   }
 }
 ```
