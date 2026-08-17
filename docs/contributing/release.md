@@ -17,6 +17,10 @@ Changelogs of the packages:
 
 - [a2ui_core](../../dart/a2ui_core/CHANGELOG.md)
 - [a2ui_agent](../../dart/a2ui_agent/CHANGELOG.md)
+- [genui](https://github.com/flutter/genui/blob/main/packages/genui/CHANGELOG.md)
+- [genui_a2ui](https://github.com/flutter/genui/blob/main/packages/genui_a2a/CHANGELOG.md)
+- [genai_primitives](https://github.com/flutter/genui/blob/main/packages/genai_primitives/CHANGELOG.md)
+- [json_schema_builder](https://github.com/flutter/genui/tree/main/packages/json_schema_builder)
 
 For troubleshooting and maintanance check [release-pub-dev.md](release-pub-dev.md).
 
