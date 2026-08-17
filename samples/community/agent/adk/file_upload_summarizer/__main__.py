@@ -50,7 +50,7 @@ def main(host, port):
                 )
 
         lite_llm_model = os.getenv(
-            "LITELLM_MODEL", "gemini/gemini-3.1-flash-lite-preview"
+            "LITELLM_MODEL", "gemini/gemini-3.5-flash-lite"
         )
         gemini_model = (
             lite_llm_model[len("gemini/") :]

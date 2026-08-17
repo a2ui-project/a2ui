@@ -34,7 +34,16 @@ import fnmatch
 import functools
 import inspect
 import logging
-from typing import Any, Awaitable, Callable, Coroutine, Dict, List, Optional, Union
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Coroutine,
+    Dict,
+    List,
+    Optional,
+    Union,
+)
 import urllib.parse
 from google.genai import types as genai_types
 import httpx
@@ -138,6 +147,7 @@ class FileResolver:
 
         final_mime = detected_mime or claimed_mime or "application/octet-stream"
 
+
         if self.allowed_mime_types and not any(
             fnmatch.fnmatch(final_mime, t) for t in self.allowed_mime_types
         ):
@@ -147,13 +157,15 @@ class FileResolver:
 
         return final_mime
 
-    async def resolve_bytes(self, file_info: Dict[str, Any]) -> tuple[bytes, str]:
+    async def resolve_bytes(
+        self, file_info: Dict[str, Any], session: Optional[Any] = None
+    ) -> tuple[bytes, str]:
         """Resolves raw bytes and verified MIME type from a file pointer dictionary."""
         async with self._semaphore:
-            return await self._resolve_bytes_internal(file_info)
+            return await self._resolve_bytes_internal(file_info, session)
 
     async def _resolve_bytes_internal(
-        self, file_info: Dict[str, Any]
+        self, file_info: Dict[str, Any], session: Optional[Any] = None
     ) -> tuple[bytes, str]:
         if not isinstance(file_info, dict):
             raise TypeError("file_info must be a dictionary")
@@ -168,22 +180,34 @@ class FileResolver:
 
         raw_bytes: bytes
 
-        # 1. Inline Data URI
-        if file_id.startswith("data:"):
-            if "," not in file_id:
-                raise ValueError("Invalid data URI: missing comma separator")
-            header, base64_data = file_id.split(",", 1)
-            if not claimed_mime and ";" in header:
-                header_mime = header[5:].split(";", 1)[0]
-                if header_mime:
-                    claimed_mime = header_mime
+        # 1. Inline File resolving
+        if file_id.startswith("inline://"):
+            if not session:
+                raise ValueError(f"Cannot resolve {file_id}: No session provided.")
 
-            estimated_size = (len(base64_data) * 3) // 4
-            if estimated_size > self.max_file_bytes:
-                raise FileResolverSecurityError(
-                    f"File exceeded max size of {self.max_file_bytes} bytes"
+            # Search for the file in the ADK Session history
+            found_in_session = False
+            for event in getattr(session, "events", []):
+                if (
+                    hasattr(event, "message")
+                    and event.message
+                    and getattr(event.message, "parts", None)
+                ):
+                    for part in event.message.parts:
+                        if getattr(part, "inline_data", None):
+                            part_meta = getattr(part, "part_metadata", {}) or {}
+                            if part_meta.get("fileId") == file_id:
+                                raw_bytes = part.inline_data.data
+                                claimed_mime = part.inline_data.mime_type
+                                found_in_session = True
+                                break
+                    if found_in_session:
+                        break
+
+            if not found_in_session:
+                raise ValueError(
+                    f"Inline data pointer {file_id} not found in session history."
                 )
-            raw_bytes = base64.b64decode(base64_data)
 
         # 2. Registered Scheme Handler
         elif any(file_id.startswith(p) for p in self._custom_schemes):
@@ -241,16 +265,18 @@ class FileResolver:
         verified_mime = self._verify_magic_bytes(raw_bytes, claimed_mime)
         return raw_bytes, verified_mime
 
-    async def to_genai_part(self, file_info: Dict[str, Any]) -> genai_types.Part:
+    async def to_genai_part(
+        self, file_info: Dict[str, Any], session: Optional[Any] = None
+    ) -> genai_types.Part:
         """Resolves pointer and constructs a ready-to-use GenAI Part."""
-        raw_bytes, verified_mime = await self.resolve_bytes(file_info)
+        raw_bytes, verified_mime = await self.resolve_bytes(file_info, session)
         return genai_types.Part.from_bytes(data=raw_bytes, mime_type=verified_mime)
 
     async def resolve_all_to_genai_parts(
-        self, files: List[Dict[str, Any]]
+        self, files: List[Dict[str, Any]], session: Optional[Any] = None
     ) -> List[genai_types.Part]:
         """Concurrently resolves a list of file attachments with throttling protection."""
-        return await asyncio.gather(*(self.to_genai_part(f) for f in files))
+        return await asyncio.gather(*(self.to_genai_part(f, session) for f in files))
 
     def as_tool_decorator(
         self,
@@ -280,19 +306,30 @@ class FileResolver:
                 bound_args.apply_defaults()
                 file_pointers = bound_args.arguments.get(arg_name)
 
-                if file_pointers is not None and isinstance(file_pointers, list):
-                    if preprocess:
-                        for f in file_pointers:
-                            if isinstance(f, dict):
-                                preprocess(f, args, kwargs)
-                    try:
-                        bound_args.arguments[inject_name] = (
-                            await self.resolve_all_to_genai_parts(file_pointers)
+                session = None
+                if "tool_context" in bound_args.arguments:
+                    session = getattr(
+                        bound_args.arguments["tool_context"], "session", None
+                    )
+
+                if file_pointers is None or not isinstance(file_pointers, list):
+                    return await func(*bound_args.args, **bound_args.kwargs)
+
+                if preprocess:
+                    for f in file_pointers:
+                        if isinstance(f, dict):
+                            preprocess(f, args, kwargs)
+                try:
+                    bound_args.arguments[inject_name] = (
+                        await self.resolve_all_to_genai_parts(
+                            file_pointers, session
                         )
-                    except Exception as e:
-                        if on_error:
-                            return on_error(e)
-                        raise
+                    )
+                except Exception as e:
+                    if on_error:
+                        return on_error(e)
+                    raise
+
                 return await func(*bound_args.args, **bound_args.kwargs)
 
             return wrapper
