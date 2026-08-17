@@ -37,7 +37,7 @@ fix issues.
 5. **Format and Detail Requirements**:
    - **MANDATORY COMPLETE REPOSITORY COVERAGE**: The report MUST include status rows and detailed findings for **ALL 8 production codebases** discovered by `check_compliance.py`. Do NOT truncate, shortcut, or abbreviate the summary tables or detailed findings.
    - For each audit section, provide specific evidence:
-     - Exact file paths (e.g. `agent_sdks/python/a2ui_agent/transport.py:L45-L60`).
+     - Exact file paths (e.g. `python/a2ui_agent/transport.py:L45-L60`).
      - Specific function/class names, parameter mismatches, or missing feature descriptions.
      - Concrete examples of weak assertions (e.g. `assert response is not None` in `eval/tests/test_strategies.py`).
    - Follow the structure provided in the **Report Format Template** below.

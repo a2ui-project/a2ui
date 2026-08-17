@@ -98,7 +98,7 @@ def archive_run(
     else:
         detected_root = None
         for p in [skill_dir] + list(skill_dir.parents):
-            if (p / "specification").exists() and (p / "agent_sdks").exists():
+            if (p / "specification").exists() and (p / "python").exists():
                 detected_root = p
                 break
         if detected_root:

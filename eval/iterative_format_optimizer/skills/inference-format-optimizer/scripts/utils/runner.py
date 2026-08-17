@@ -46,7 +46,7 @@ def run_unit_tests() -> Dict[str, Any]:
     print("Running pytest unit tests...")
     curr = os.path.dirname(os.path.abspath(__file__))
     while curr and not (
-        os.path.exists(os.path.join(curr, "agent_sdks"))
+        os.path.exists(os.path.join(curr, "python"))
         and os.path.exists(os.path.join(curr, "eval"))
     ):
         parent = os.path.dirname(curr)
@@ -59,12 +59,12 @@ def run_unit_tests() -> Dict[str, Any]:
         sys.executable,
         "-m",
         "pytest",
-        "agent_sdks/python/a2ui_agent/tests/express/",
+        "python/a2ui_agent/tests/express/",
     ]
     env = dict(os.environ)
     pythonpath_dirs = [
-        os.path.join(workspace_root, "agent_sdks/python/a2ui_agent/src"),
-        os.path.join(workspace_root, "agent_sdks/python/a2ui_core/src"),
+        os.path.join(workspace_root, "python/a2ui_agent/src"),
+        os.path.join(workspace_root, "python/a2ui_core/src"),
     ]
     env["PYTHONPATH"] = ":".join(pythonpath_dirs) + (
         ":" + env["PYTHONPATH"] if "PYTHONPATH" in env else ""
@@ -173,15 +173,15 @@ def load_log_data(log_path: str) -> Dict[str, Any]:
 
 
 def get_git_diff(workspace_root: str) -> str:
-    """Retrieves the git diff patch for active changes under `agent_sdks/`.
+    """Retrieves the git diff patch for active changes under `python/`.
 
     Args:
         workspace_root: The filesystem path to the git workspace root.
 
     Returns:
-        The git diff string for `agent_sdks/`, or an empty string if unchanged.
+        The git diff string for `python/`, or an empty string if unchanged.
     """
-    cmd = ["git", "diff", "HEAD", "--", "agent_sdks/"]
+    cmd = ["git", "diff", "HEAD", "--", "python/"]
     try:
         result = subprocess.run(
             cmd, cwd=workspace_root, capture_output=True, text=True, encoding="utf-8"
