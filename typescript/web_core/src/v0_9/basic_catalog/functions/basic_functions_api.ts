@@ -459,6 +459,20 @@ export const OpenUrlApi = {
 };
 
 /**
+ * Calculates the current 0-based iteration index in array contexts.
+ *
+ * Arguments:
+ * - `offset`: Optional numerical offset added to the calculated index.
+ */
+export const IndexApi = {
+  name: '@index' as const,
+  returnType: 'number' as const,
+  schema: z.object({
+    'offset': z.coerce.number().optional(),
+  }),
+};
+
+/**
  * Collection containing ALL available Basic Function API descriptors.
  */
 export const BASIC_FUNCTION_APIS = [
@@ -487,4 +501,5 @@ export const BASIC_FUNCTION_APIS = [
   FormatDateApi,
   PluralizeApi,
   OpenUrlApi,
+  IndexApi,
 ];
