@@ -222,7 +222,33 @@ class FileResolver:
             else:
                 raw_bytes = handler_res
 
-        # 3. HTTPS / HTTP Ephemeral Download URL
+        # 3. Data URI
+        elif file_id.startswith("data:"):
+            try:
+                header, encoded = file_id.split(",", 1)
+            except ValueError:
+                raise ValueError(f"Invalid data URI format: {file_id[:50]}...")
+
+            is_base64 = header.endswith(";base64")
+            if is_base64:
+                mime_part = header[5:-7].strip()
+            else:
+                mime_part = header[5:].strip()
+
+            if mime_part and not claimed_mime:
+                claimed_mime = mime_part.split(";")[0]
+            elif not mime_part and not claimed_mime:
+                claimed_mime = "text/plain"
+
+            try:
+                if is_base64:
+                    raw_bytes = base64.b64decode(encoded)
+                else:
+                    raw_bytes = urllib.parse.unquote_to_bytes(encoded)
+            except Exception as e:
+                raise ValueError(f"Failed to decode data URI: {e}")
+
+        # 4. HTTPS / HTTP Ephemeral Download URL
         elif file_id.startswith("https://") or file_id.startswith("http://"):
             parsed_url = urllib.parse.urlparse(file_id)
             hostname = (parsed_url.hostname or "").lower()
