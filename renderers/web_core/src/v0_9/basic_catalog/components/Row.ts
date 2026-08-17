@@ -22,7 +22,7 @@ import {
   BasicCatalogA2uiLitElement,
   type ResolvedChildList,
 } from '../basic-catalog-a2ui-lit-element.js';
-import {WebComponentImplementation} from '../../catalog/types.js';
+import {createComponentImplementation} from '../../catalog/types.js';
 
 const JUSTIFY_MAP: Record<string, string> = {
   start: 'flex-start',
@@ -94,7 +94,4 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowAp
   }
 }
 
-export const A2uiRow: WebComponentImplementation = {
-  ...RowApi,
-  tagName: 'a2ui-basic-row',
-};
+export const A2uiRow = createComponentImplementation(RowApi, A2uiBasicRowElement);

@@ -19,7 +19,7 @@ import {customElement} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {DividerApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
-import {WebComponentImplementation} from '../../catalog/types.js';
+import {createComponentImplementation} from '../../catalog/types.js';
 
 @customElement('a2ui-divider')
 export class A2uiDividerElement extends BasicCatalogA2uiLitElement<typeof DividerApi> {
@@ -69,7 +69,4 @@ export class A2uiDividerElement extends BasicCatalogA2uiLitElement<typeof Divide
   }
 }
 
-export const A2uiDivider: WebComponentImplementation = {
-  ...DividerApi,
-  tagName: 'a2ui-divider',
-};
+export const A2uiDivider = createComponentImplementation(DividerApi, A2uiDividerElement);

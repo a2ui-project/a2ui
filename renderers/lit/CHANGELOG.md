@@ -14,6 +14,7 @@
   - `Text`: Directly render semantic HTML tags for non-markdown variants (`h1`-`h5`, `caption` wrapped in `<em>`) and add flex weight styling.
   - `Video`: Wrap video in `.a2ui-video-container` with fallback message for unsupported browsers.
   - `ChoicePicker`: Align DOM structures and CSS classes with the Angular reference implementation (`.a2ui-choice-picker`, `.a2ui-option-label`, `.a2ui-option-text`, `.a2ui-chip`, `type="button"`), scope radio input `name` attributes to surface and data context path to prevent cross-surface radio collisions in Light DOM, and omit `name` attributes on checkbox inputs.
+- (v0_9) Export `createComponentImplementation` from `@a2ui/lit/v0_9` and refactor all basic catalog component definitions to use `createComponentImplementation`. [#2313](https://github.com/a2ui-project/a2ui/pull/2313)
 
 ## 0.10.4
 

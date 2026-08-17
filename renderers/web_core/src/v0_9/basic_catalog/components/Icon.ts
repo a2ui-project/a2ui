@@ -18,7 +18,7 @@ import {html, nothing, css} from 'lit';
 import {customElement} from 'lit/decorators.js';
 import {IconApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
-import {WebComponentImplementation} from '../../catalog/types.js';
+import {createComponentImplementation} from '../../catalog/types.js';
 
 const ICON_NAME_OVERRIDES: Record<string, string> = {
   play: 'play_arrow',
@@ -96,7 +96,4 @@ export class A2uiIconElement extends BasicCatalogA2uiLitElement<typeof IconApi> 
   }
 }
 
-export const A2uiIcon: WebComponentImplementation = {
-  ...IconApi,
-  tagName: 'a2ui-icon',
-};
+export const A2uiIcon = createComponentImplementation(IconApi, A2uiIconElement);
