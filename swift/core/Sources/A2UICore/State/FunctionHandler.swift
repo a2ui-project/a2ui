@@ -12,11 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Errors that occur during local function evaluation.
-public enum FunctionError: Error, Sendable {
-  case functionNotFound(String)
-  case missingArgument(String)
-  case invalidArgumentType(expected: String, actual: String)
-  case securityConstraintViolation(String)
-  case executionFailed(name: String, message: String)
+public protocol FunctionHandler: AnyObject, Sendable {
+  func function(named: String, catalogID: String?) -> (any FunctionImplementation)?
 }
