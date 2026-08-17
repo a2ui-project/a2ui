@@ -1,5 +1,5 @@
 ---
-codebase_path: renderers/web_core
+codebase_path: typescript/web_core
 associated_module: a2ui_core
 module_blueprint_commit: null
 implemented_features: []

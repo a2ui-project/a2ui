@@ -24,7 +24,7 @@
     "build:deps": {
       "dependencies": [
         "generate-examples",
-        "../../web_core:build",
+        "../../../typescript/web_core:build",
         "../../markdown/markdown-it:build",
         "../:build"
       ]

@@ -4,7 +4,7 @@
   "description": "A2UI Core Library",
   "homepage": "https://a2ui.org/",
   "repository": {
-    "directory": "renderers/web_core",
+    "directory": "typescript/web_core",
     "type": "git",
     "url": "git+https://github.com/a2ui-project/a2ui.git"
   },

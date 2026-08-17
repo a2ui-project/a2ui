@@ -136,7 +136,7 @@ Functionality of A2UI renderer consists of layers that can be developed separate
 
     Set of primitives, needed to describe catalog and to interact with the agent.
 
-    For example, see the [JavaScript web core library](../../../renderers/web_core/README.md).
+    For example, see the [JavaScript web core library](../../../typescript/web_core/README.md).
 
 - **Catalog Schema**:
 

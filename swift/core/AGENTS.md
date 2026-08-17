@@ -69,7 +69,7 @@ payloads, error types), JSON Pointer semantics, or data model behavior, agents
 2. **Core SDK Blueprint** (`blueprints/modules/a2ui_core.blueprint.md`) — defines
    cross-language behavioral rules (e.g., JSON Pointer Implementation Rules,
    auto-vivification, sparse arrays, notification strategy).
-3. **`web_core` Reference** (`renderers/web_core/src/v0_9/`) — the canonical
+3. **`web_core` Reference** (`typescript/web_core/src/v0_9/`) — the canonical
    TypeScript implementation to cross-check behavioral semantics (e.g., how
    `undefined`/`nil` is handled for arrays vs objects, auto-vivification
    conditions, root replacement rules).

@@ -27,7 +27,7 @@ permissions:
   contents: read
 
 env:
-  RENDERERS_INC: "--include 'renderers/**'"
+  RENDERERS_INC: "--include 'renderers/**' --include 'typescript/**'"
   TOOLS_INC: "--include 'tools/**'"
   SAMPLES_INC: "--include 'samples/client/**'"
 
@@ -50,6 +50,7 @@ jobs:
           filters: |
             renderers:
               - 'renderers/**'
+              - 'typescript/**'
               - 'package.json'
               - 'yarn.lock'
               - '.github/workflows/web_ci.yml'
