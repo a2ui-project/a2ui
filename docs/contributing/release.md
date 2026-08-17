@@ -6,12 +6,12 @@ Release cadance: every 1-2 weeks.
 
 ### Pub.dev release steps
 
-For each packages, where the top version in CHANGELOG.md:
+For each package listed below, where the top version in CHANGELOG.md:
 
 - is not `-wip...`
 - and is not released yet (click link in the header to verify)
 
-From main branch, release through `flutter publish`, making sure there is no warnings in console.
+From main branch, release through `flutter pub publish`, making sure there is no warnings in console.
 
 Changelogs of the packages:
 

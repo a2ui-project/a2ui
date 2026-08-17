@@ -6,17 +6,14 @@ For main release steps, see [release.md](release.md).
 
 ## CI
 
-CI workflows that support publishing:
+CI workflows that support publishing, making sure the packages are always release-ready:
 
-1. In this repo:
+In this repo:
   -[pub_health.yaml](../../.github/workflows/pub_health.yml)
 
-2. In genui repo:
+In genui repo:
   -[pub_health.yaml](https://github.com/flutter/genui/blob/main/.github/workflows/pub_health.yaml)
   -[pub_post_summaries.yaml](https://github.com/flutter/genui/blob/main/.github/workflows/pub_post_summaries.yaml)
-
-
-1. [post_summaries.yaml](../../.github/workflows/post_summaries.yaml) - job `publish / validate` runs on pre-submit.
 
 ## Package categories
 
