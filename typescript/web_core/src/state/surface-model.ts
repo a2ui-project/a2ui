@@ -92,15 +92,30 @@ export class SurfaceModel<T extends ComponentApi = ComponentApi> {
    */
   async dispatchAction(payload: any, sourceComponentId: string): Promise<void> {
     if (payload && typeof payload === 'object') {
-      let eventPayload = payload;
-      if ('event' in payload && payload.event) {
+      let eventPayload: any = null;
+      if ('event' in payload && payload.event && typeof payload.event === 'object') {
         eventPayload = payload.event;
-      } else if ('functionCall' in payload && payload.functionCall) {
+      } else if (
+        'functionCall' in payload &&
+        payload.functionCall &&
+        typeof payload.functionCall === 'object'
+      ) {
         eventPayload = payload.functionCall;
+      } else if ('name' in payload || 'call' in payload) {
+        eventPayload = payload;
+      }
+
+      if (!eventPayload) {
+        return;
+      }
+
+      const name = eventPayload.name || eventPayload.call;
+      if (!name || typeof name !== 'string') {
+        return;
       }
 
       const actionToDispatch: ActionPayload = {
-        name: eventPayload.name || eventPayload.call || '',
+        name,
         surfaceId: this.id,
         sourceComponentId,
         timestamp: new Date().toISOString(),
