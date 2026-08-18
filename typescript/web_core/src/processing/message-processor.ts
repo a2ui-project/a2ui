@@ -45,7 +45,7 @@ export interface VersionAdapterResolver {
 }
 
 /**
- * Options for generating client capabilities.
+ * Options for generating renderer capabilities.
  */
 export interface CapabilitiesOptions {
   /** If true, the full definition of all catalogs will be included. */

@@ -373,7 +373,7 @@ export const TextFieldApi = {
         .optional(),
       'validationRegexp': z
         .string()
-        .describe('A regular expression used for client-side validation of the input.')
+        .describe('A regular expression used for renderer-side validation of the input.')
         .optional(),
       ...CheckableSchema.shape,
     })
