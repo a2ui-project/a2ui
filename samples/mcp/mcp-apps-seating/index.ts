@@ -91,11 +91,35 @@ async function fetchAndUpdateState(initialRender: boolean = false) {
         });
         
         if (result && result.content && result.content[0].text) {
-            const data = JSON.parse(result.content[0].text as string);
-            // Support both old format (just state object) and new format { seats: {}, highlights: [] }
-            const state = data.seats || data;
-            const highlights = data.highlights || [];
+            let parsedData;
+            try {
+                // Handle potential double-stringification
+                let text = result.content[0].text;
+                parsedData = typeof text === 'string' ? JSON.parse(text) : text;
+                if (typeof parsedData === 'string') {
+                    parsedData = JSON.parse(parsedData);
+                }
+            } catch (err) {
+                console.error("Failed to parse seating state JSON", err);
+                return;
+            }
+
+            // Robustly extract seats and highlights
+            let state = parsedData;
+            let highlights = [];
             
+            if (parsedData && typeof parsedData === 'object') {
+                if (parsedData.seats && typeof parsedData.seats === 'object') {
+                    state = parsedData.seats;
+                    highlights = parsedData.highlights || [];
+                }
+            }
+            
+            // Ultimate fallback safety: if state STILL contains 'seats' and 'highlights' at the top level
+            if (state && state.seats && state.highlights !== undefined) {
+                state = state.seats;
+            }
+
             if (initialRender) {
                 renderSeatsDOM(currentVenue, state);
             }
