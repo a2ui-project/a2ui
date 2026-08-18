@@ -19,6 +19,31 @@ import {InternalComponentPayload, InternalOperation} from '../operations.js';
 import {A2uiValidationError} from '../../errors.js';
 import {A2uiMessageSchema} from '../../v0_8/schema/server-to-client.js';
 
+function normalizeV08Component(comp: any): InternalComponentPayload {
+  if (!comp || typeof comp !== 'object') return comp;
+  let componentName = comp.component;
+  let props = {...comp};
+  delete props.component;
+  delete props.id;
+
+  if (comp.component && typeof comp.component === 'object') {
+    const keys = Object.keys(comp.component);
+    if (keys.length > 0) {
+      componentName = keys[0];
+      const compProps = comp.component[keys[0]];
+      if (compProps && typeof compProps === 'object') {
+        props = {...props, ...compProps};
+      }
+    }
+  }
+
+  return {
+    id: String(comp.id || ''),
+    component: String(componentName || ''),
+    ...props,
+  };
+}
+
 export class V0_8VersionAdapter extends BaseVersionAdapter {
   readonly version: ProtocolVersion = 'v0.8';
   protected readonly schema = A2uiMessageSchema;
@@ -59,7 +84,7 @@ export class V0_8VersionAdapter extends BaseVersionAdapter {
         theme: cs?.theme ?? cs?.styles,
         sendDataModel: Boolean(cs?.sendDataModel),
         components: Array.isArray(cs?.components)
-          ? (cs.components as InternalComponentPayload[])
+          ? cs.components.map(normalizeV08Component)
           : undefined,
         dataModel:
           cs?.dataModel && typeof cs.dataModel === 'object' && !Array.isArray(cs.dataModel)
@@ -72,17 +97,39 @@ export class V0_8VersionAdapter extends BaseVersionAdapter {
       ops.push({
         type: 'updateComponents',
         surfaceId: String(uc?.surfaceId || ''),
-        components: Array.isArray(uc?.components) ? uc.components : [],
+        components: Array.isArray(uc?.components) ? uc.components.map(normalizeV08Component) : [],
       });
     }
     if ('dataModelUpdate' in msgObj) {
       const ud = msgObj.dataModelUpdate as Record<string, unknown>;
-      ops.push({
-        type: 'updateDataModel',
-        surfaceId: String(ud?.surfaceId || ''),
-        path: typeof ud?.path === 'string' ? ud.path : undefined,
-        value: ud?.value,
-      });
+      const surfaceId = String(ud?.surfaceId || '');
+
+      if (Array.isArray(ud?.contents)) {
+        for (const item of ud.contents as Record<string, unknown>[]) {
+          if (item && typeof item === 'object' && typeof item.key === 'string') {
+            const val =
+              item.valueNumber ??
+              item.valueString ??
+              item.valueBoolean ??
+              item.valueObject ??
+              item.valueArray ??
+              item.value;
+            ops.push({
+              type: 'updateDataModel',
+              surfaceId,
+              path: item.key,
+              value: val,
+            });
+          }
+        }
+      } else {
+        ops.push({
+          type: 'updateDataModel',
+          surfaceId,
+          path: typeof ud?.path === 'string' ? ud.path : undefined,
+          value: ud?.value,
+        });
+      }
     }
     if ('deleteSurface' in msgObj) {
       const ds = msgObj.deleteSurface as Record<string, unknown>;
