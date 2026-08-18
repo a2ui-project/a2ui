@@ -27,7 +27,8 @@ public protocol FunctionImplementation: Sendable {
   /// Evaluates the function with the given arguments.
   ///
   /// - Parameter arguments: A dictionary of named arguments.
+  /// - Parameter context: The data context.
   /// - Returns: The result of the function evaluation.
   /// - Throws: ``FunctionError`` if evaluation fails.
-  func evaluate(arguments: [String: JSONValue]) throws -> JSONValue
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue
 }
