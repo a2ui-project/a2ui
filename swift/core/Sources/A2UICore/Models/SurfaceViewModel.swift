@@ -127,7 +127,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
   }
 
   private func setUpSubscriptions() {
-    Publishers.CombineLatest(componentsModel.$components, dataModel.dataPublisher)
+    Publishers.CombineLatest(componentsModel.componentsPublisher, dataModel.dataPublisher)
       .sink { [weak self] components, data in
         self?.rebuildTree(components: components, data: data)
       }
@@ -153,8 +153,13 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
     case dynamicString
     case dynamicNumber
     case dynamicValue
+    case dynamicStringList
+    case checks
     case action
     case childList
+    case componentId
+    case number
+    case integer
     case standard
   }
 
@@ -176,8 +181,12 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
       case "DynamicString": return .dynamicString
       case "DynamicNumber": return .dynamicNumber
       case "DynamicValue": return .dynamicValue
+      case "DynamicStringList": return .dynamicStringList
+      case "DataBinding": return .dynamicString
+      case "CheckRule", "Checkable": return .checks
       case "Action": return .action
       case "ChildList": return .childList
+      case "ComponentId": return .componentId
       default: break
       }
     }
@@ -206,7 +215,60 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
       }
     }
 
+    if let items = schemaJSON["items"] {
+      let type = classifySchema(items)
+      if type == .checks { return .checks }
+    }
+
+    // Check type keyword for number/integer primitives
+    if let type = schemaJSON["type"]?.stringValue {
+      switch type {
+      case "number": return .number
+      case "integer": return .integer
+      default: break
+      }
+    } else if let types = schemaJSON["type"]?.arrayValue {
+      let typeStrings = types.compactMap(\.stringValue)
+      if typeStrings.contains("number") { return .number }
+      if typeStrings.contains("integer") { return .integer }
+    }
+
     return .standard
+  }
+
+  /// Recursively extracts all property schemas from a component's JSON schema (including nested allOf, anyOf, oneOf).
+  private func extractPropertiesSchema(from schemaJSON: JSONValue) -> [String: JSONValue] {
+    var result: [String: JSONValue] = [:]
+    if let props = schemaJSON["properties"]?.objectValue {
+      for (k, v) in props {
+        result[k] = v
+      }
+    }
+    if let allOf = schemaJSON["allOf"]?.arrayValue {
+      for subSchema in allOf {
+        let subProps = extractPropertiesSchema(from: subSchema)
+        for (k, v) in subProps {
+          result[k] = v
+        }
+      }
+    }
+    if let oneOf = schemaJSON["oneOf"]?.arrayValue {
+      for subSchema in oneOf {
+        let subProps = extractPropertiesSchema(from: subSchema)
+        for (k, v) in subProps {
+          result[k] = v
+        }
+      }
+    }
+    if let anyOf = schemaJSON["anyOf"]?.arrayValue {
+      for subSchema in anyOf {
+        let subProps = extractPropertiesSchema(from: subSchema)
+        for (k, v) in subProps {
+          result[k] = v
+        }
+      }
+    }
+    return result
   }
 
   // MARK: - Node Resolution
@@ -263,23 +325,31 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
     let targetCatalog = getCatalog(id: effectiveCatalogID)
     let schema = targetCatalog?.components[type]?.schema
     let schemaJSON = schema?.jsonValue ?? .object([:])
-    let propertiesSchema = schemaJSON["properties"]?.objectValue
+    let propertiesSchema = extractPropertiesSchema(from: schemaJSON)
+
+    // Pre-resolve checks if present so action handlers and views have validation context
+    var componentChecks: [ResolvedCheck] = []
+    if let checksVal = component.properties["checks"] {
+      componentChecks = resolveChecks(checksVal, basePath: basePath, data: data)
+    }
 
     var resolvedProperties: [String: any Resolved] = [:]
 
     for (key, val) in component.properties {
-      let propSchema = propertiesSchema?[key] ?? .boolean(true)
-      let propType = classifySchema(propSchema)
+      let propSchema = propertiesSchema[key] ?? .boolean(true)
+      let propType: PropertyType = (key == "checks") ? .checks : classifySchema(propSchema)
 
       if let resolvedVal = resolveProperty(
         value: val,
+        schema: propSchema,
         type: propType,
         basePath: basePath,
         componentID: instanceID,
         propertyKey: key,
         visited: visited,
         components: components,
-        data: data
+        data: data,
+        checks: componentChecks
       ) {
         resolvedProperties[key] = resolvedVal
       }
@@ -295,14 +365,54 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
 
   private func resolveProperty(
     value: JSONValue,
+    schema: JSONValue,
     type: PropertyType,
     basePath: String?,
     componentID: String,
     propertyKey: String,
     visited: Set<String>,
     components: [String: ComponentModel],
-    data: JSONValue
+    data: JSONValue,
+    checks: [ResolvedCheck] = []
   ) -> (any Resolved)? {
+    // Check if the value is a dictionary (and not a DataBinding/FunctionCall itself)
+    // with sub-properties defined in the schema (or oneOf/allOf variants)
+    if let obj = value.objectValue, obj["path"] == nil, obj["call"] == nil {
+      let objProps = extractPropertiesSchema(from: schema)
+      if !objProps.isEmpty {
+        var resolvedObj: [String: any Resolved] = [:]
+        for (k, v) in obj {
+          let nestedPropSchema = objProps[k] ?? .boolean(true)
+          let nestedPropType: PropertyType
+          if k == "checks" {
+            nestedPropType = .checks
+          } else {
+            let classified = classifySchema(nestedPropSchema)
+            if classified == .standard, v.objectValue?["path"] != nil {
+              nestedPropType = .dynamicValue
+            } else {
+              nestedPropType = classified
+            }
+          }
+          if let resVal = resolveProperty(
+            value: v,
+            schema: nestedPropSchema,
+            type: nestedPropType,
+            basePath: basePath,
+            componentID: componentID,
+            propertyKey: "\(propertyKey).\(k)",
+            visited: visited,
+            components: components,
+            data: data,
+            checks: checks
+          ) {
+            resolvedObj[k] = resVal
+          }
+        }
+        return ResolvedDictionary(resolvedObj)
+      }
+    }
+
     switch type {
     case .dynamicBoolean:
       return resolveDynamicBoolean(value, basePath: basePath, data: data)
@@ -312,8 +422,18 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
       return resolveDynamicNumber(value, basePath: basePath, data: data)
     case .dynamicValue:
       return resolveDynamicValueBinding(value, basePath: basePath, data: data)
+    case .dynamicStringList:
+      return resolveDynamicStringList(value, basePath: basePath, data: data)
+    case .checks:
+      return resolveChecks(value, basePath: basePath, data: data)
     case .action:
-      return resolveAction(value, basePath: basePath, componentID: componentID, data: data)
+      return resolveAction(
+        value,
+        checks: checks,
+        basePath: basePath,
+        componentID: componentID,
+        data: data
+      )
     case .childList:
       return resolveChildList(
         value,
@@ -324,8 +444,113 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
         components: components,
         data: data
       )
+    case .componentId:
+      guard let childID = value.stringValue else { return nil }
+      return resolveNode(
+        definitionID: childID,
+        instanceID: childID,
+        basePath: basePath,
+        visited: visited,
+        components: components,
+        data: data
+      )
+    case .number:
+      return value.doubleValue
+    case .integer:
+      return value.intValue
     case .standard:
-      return value
+      // Check if schema describes an array of objects or typed items
+      if let itemsSchema = schema["items"], let array = value.arrayValue {
+        let itemsProps = extractPropertiesSchema(from: itemsSchema)
+        if !itemsProps.isEmpty {
+          var resolvedElements: [any Resolved] = []
+          for item in array {
+            if let obj = item.objectValue {
+              var resolvedObj: [String: any Resolved] = [:]
+              for (itemKey, itemVal) in obj {
+                let itemPropSchema = itemsProps[itemKey] ?? .boolean(true)
+                let itemPropType = (itemKey == "checks") ? .checks : classifySchema(itemPropSchema)
+                if let resVal = resolveProperty(
+                  value: itemVal,
+                  schema: itemPropSchema,
+                  type: itemPropType,
+                  basePath: basePath,
+                  componentID: componentID,
+                  propertyKey: itemKey,
+                  visited: visited,
+                  components: components,
+                  data: data,
+                  checks: checks
+                ) {
+                  resolvedObj[itemKey] = resVal
+                }
+              }
+              resolvedElements.append(ResolvedDictionary(resolvedObj))
+            } else {
+              resolvedElements.append(item)
+            }
+          }
+          return ResolvedArray(resolvedElements)
+        } else {
+          let itemPropType = classifySchema(itemsSchema)
+          if itemPropType != .standard {
+            var resolvedElements: [any Resolved] = []
+            for item in array {
+              if let resVal = resolveProperty(
+                value: item,
+                schema: itemsSchema,
+                type: itemPropType,
+                basePath: basePath,
+                componentID: componentID,
+                propertyKey: propertyKey,
+                visited: visited,
+                components: components,
+                data: data,
+                checks: checks
+              ) {
+                resolvedElements.append(resVal)
+              }
+            }
+            return ResolvedArray(resolvedElements)
+          }
+        }
+      }
+
+      // Check if schema describes an object with sub-properties
+      if let obj = value.objectValue {
+        let objProps = extractPropertiesSchema(from: schema)
+        if !objProps.isEmpty {
+          var resolvedObj: [String: any Resolved] = [:]
+          for (k, v) in obj {
+            let nestedPropSchema = objProps[k] ?? .boolean(true)
+            let nestedPropType = (k == "checks") ? .checks : classifySchema(nestedPropSchema)
+            if let resVal = resolveProperty(
+              value: v,
+              schema: nestedPropSchema,
+              type: nestedPropType,
+              basePath: basePath,
+              componentID: componentID,
+              propertyKey: k,
+              visited: visited,
+              components: components,
+              data: data,
+              checks: checks
+            ) {
+              resolvedObj[k] = resVal
+            }
+          }
+          return ResolvedDictionary(resolvedObj)
+        }
+      }
+
+      switch value {
+      case .string(let str): return str
+      case .boolean(let b): return b
+      case .number(let n): return n
+      case .integer(let i): return i
+      case .null: return nil
+      default: return value
+      }
     }
   }
 
@@ -336,8 +561,43 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
     _ value: JSONValue,
     basePath: String?
   ) -> JSONValue {
-    let context = DataContext(dataModel: dataModel, path: basePath ?? "", functionHandler: self)
+    let context = DataContext(
+      dataModel: dataModel,
+      path: basePath ?? "",
+      functionHandler: self
+    )
     return context.resolveDynamicValue(value)
+  }
+
+  /// Coerces a JSON value to a string according to the A2UI type conversion rules.
+  ///
+  /// - Strings: Returns the unwrapped string.
+  /// - Numbers and Booleans: Returns their standard string representation.
+  /// - Null or missing values: Returns `nil`.
+  /// - Objects and Arrays: Returns the serialized JSON string.
+  private func coerceToString(_ value: JSONValue?) -> String? {
+    guard let value, value != .null else { return nil }
+    switch value {
+    case .string(let s):
+      return s
+    case .integer(let i):
+      return String(i)
+    case .number(let d):
+      if let exactInt = Int(exactly: d) {
+        return String(exactInt)
+      } else {
+        return String(d)
+      }
+    case .boolean(let b):
+      return b ? "true" : "false"
+    default:
+      if let encoded = try? JSONEncoder().encode(value),
+        let str = String(data: encoded, encoding: .utf8)
+      {
+        return str
+      }
+      return "\(value)"
+    }
   }
 
   // MARK: - Dynamic Type-Specific Resolvers
@@ -373,7 +633,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
   ) -> DataBinding<String> {
     if let dict = value.dictionaryValue, let pathStr = dict["path"]?.stringValue {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-      let resolvedValue = data[absPath]?.stringValue
+      let resolvedValue = coerceToString(data[absPath])
       return DataBinding<String>(
         identity: .path(absPath),
         value: resolvedValue,
@@ -382,7 +642,8 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
         }
       )
     }
-    let resolvedValue = evaluateDynamicValue(value, basePath: basePath).stringValue
+    let evaluated = evaluateDynamicValue(value, basePath: basePath)
+    let resolvedValue = coerceToString(evaluated)
     return DataBinding<String>(
       identity: .literal(value),
       value: resolvedValue,
@@ -438,10 +699,54 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
     )
   }
 
+  private func resolveDynamicStringList(
+    _ value: JSONValue,
+    basePath: String?,
+    data: JSONValue
+  ) -> DataBinding<[String]> {
+    if let dict = value.dictionaryValue, let pathStr = dict["path"]?.stringValue {
+      let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+      let resolvedValue = data[absPath]?.arrayValue?.compactMap { self.coerceToString($0) }
+      return DataBinding<[String]>(
+        identity: .path(absPath),
+        value: resolvedValue,
+        set: { [weak self] newValue in
+          self?.dataModel.set(absPath, value: .array(newValue.map { .string($0) }))
+        }
+      )
+    }
+    let resolvedValue = evaluateDynamicValue(value, basePath: basePath).arrayValue?.compactMap {
+      self.coerceToString($0)
+    }
+    return DataBinding<[String]>(
+      identity: .literal(value),
+      value: resolvedValue,
+      set: { _ in }
+    )
+  }
+
+  // MARK: - Validation Checks Resolution
+
+  private func resolveChecks(
+    _ value: JSONValue,
+    basePath: String?,
+    data: JSONValue
+  ) -> [ResolvedCheck] {
+    guard let array = value.arrayValue else { return [] }
+    return array.compactMap { ruleJSON in
+      guard let ruleDict = ruleJSON.dictionaryValue else { return nil }
+      let conditionJSON = ruleDict["condition"] ?? ruleJSON
+      let message = ruleDict["message"]?.stringValue ?? "Validation failed"
+      let condition = resolveDynamicBoolean(conditionJSON, basePath: basePath, data: data)
+      return ResolvedCheck(condition: condition, message: message)
+    }
+  }
+
   // MARK: - Action Resolution
 
   private func resolveAction(
     _ value: JSONValue,
+    checks: [ResolvedCheck] = [],
     basePath: String?,
     componentID: String,
     data: JSONValue
@@ -461,6 +766,21 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
         identity: unresolvedIdentity,
         trigger: { [weak self] in
           guard let self else { return }
+
+          // Validate checks before executing action
+          let failedChecks = checks.filter { !$0.isValid }
+          if !failedChecks.isEmpty {
+            let errorMsg = failedChecks.map(\.message).joined(separator: ", ")
+            self.actionHandler?.handle(
+              error: .validationFailed(
+                ValidationFailedError(
+                  surfaceID: self.surfaceID, path: componentID, message: errorMsg)
+              ),
+              from: self.surfaceID
+            )
+            return
+          }
+
           var resolvedContext: [String: JSONValue] = [:]
           if let contextDict {
             for (key, val) in contextDict {
@@ -489,6 +809,21 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
         identity: unresolvedIdentity,
         trigger: { [weak self] in
           guard let self else { return }
+
+          // Validate checks before executing action
+          let failedChecks = checks.filter { !$0.isValid }
+          if !failedChecks.isEmpty {
+            let errorMsg = failedChecks.map(\.message).joined(separator: ", ")
+            self.actionHandler?.handle(
+              error: .validationFailed(
+                ValidationFailedError(
+                  surfaceID: self.surfaceID, path: componentID, message: errorMsg)
+              ),
+              from: self.surfaceID
+            )
+            return
+          }
+
           var resolvedArgs: [String: JSONValue] = [:]
           if let argsDict {
             for (argKey, argVal) in argsDict {
