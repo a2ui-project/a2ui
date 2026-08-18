@@ -15,6 +15,7 @@
  */
 
 import {z} from 'zod';
+import {createFunctionImplementation, FunctionImplementation} from '../../catalog/types.js';
 
 /**
  * Universal v1.0 system function to calculate the current 0-based iteration index in array contexts.
@@ -29,3 +30,29 @@ export const IndexApi = {
     'offset': z.coerce.number().optional(),
   }),
 };
+
+/**
+ * Implementation of the `@index` function.
+ * Returns the loop index offset from context.
+ */
+export const IndexImplementation = createFunctionImplementation(IndexApi, (args, context) => {
+  const offset = typeof args.offset === 'number' && Number.isFinite(args.offset) ? args.offset : 0;
+  let index = 0;
+  if (typeof (context as any)?.getIndex === 'function') {
+    index = (context as any).getIndex();
+  } else if (context?.path) {
+    const parts = context.path.split('/').filter(Boolean);
+    for (let i = parts.length - 1; i >= 0; i--) {
+      if (/^\d+$/.test(parts[i])) {
+        index = parseInt(parts[i], 10);
+        break;
+      }
+    }
+  }
+  return index + offset;
+});
+
+/**
+ * Standard v1.0 system function implementations.
+ */
+export const SYSTEM_FUNCTIONS: FunctionImplementation[] = [IndexImplementation];
