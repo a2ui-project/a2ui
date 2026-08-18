@@ -132,7 +132,6 @@ If the server must remain stateless, the client CAN pass A2UI capabilities in th
             "supportedCatalogIds": [
               "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
             ],
-            "inlineCatalogs": []
           }
         }
       }
@@ -278,6 +277,85 @@ Interactive A2UI components trigger user actions with an `event.name` and an `ev
    ```
 4. The server processes the tool call and returns an `agentFunctionResponse` (along with any other updated A2UI messages, such as `updateDataModel` or `updateComponents`) in an embedded resource for the A2UI surface renderer to handle.
 5. The client parses the A2UI messages and updates the local A2UI surface model.
+
+### Model Context Synchronization (`sendDataModel`)
+
+When the server creates a surface with `sendDataModel: true`, the host client MUST synchronize the current surface data model back to the server. For this MCP extension, the transport's data synchronization mechanism maps directly to the `ui/update-model-context` JSON-RPC method defined by the MCP Apps specification.
+
+When the user interacts with the UI or sends a message to the agent, the client MUST issue a `ui/update-model-context` request containing the full current data model of the surface. This guarantees that the agent possesses the most up-to-date UI state when processing the interaction.
+
+**Example Context Update Request:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "method": "ui/update-model-context",
+  "params": {
+    "structuredContent": {
+      "counter_surface": {
+        "count": 42
+      }
+    }
+  }
+}
+```
+
+### Dispatching Messages to the Agent (`ui/message`)
+
+The MCP Apps specification provides the `ui/message` JSON-RPC method to send message content directly to the host's chat interface.
+
+To support this natively within A2UI, renderers SHOULD expose the `sendMessageToAgent` function within the A2UI catalog that components can bind to user actions. When the user triggers this action, the host client MUST translate the A2UI function call into a `ui/message` JSON-RPC request.
+
+**Catalog Function Definition Example:**
+
+```json
+{
+  "sendMessageToAgent": {
+    "type": "object",
+    "description": "Sends a message directly to the host's chat interface via MCP Apps ui/message.",
+    "returnType": "void",
+    "allowedCallers": "rendererOnly",
+    "properties": {
+      "call": {
+        "const": "sendMessageToAgent"
+      },
+      "args": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The text content of the message."
+          }
+        },
+        "required": ["text"],
+        "additionalProperties": false
+      }
+    },
+    "required": ["call", "args"],
+    "unevaluatedProperties": false
+  }
+}
+```
+
+**Client JSON-RPC Translation:**
+
+When the A2UI surface executes `sendMessageToAgent` (e.g., triggered by a button click), the client dispatches the following request to the host:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 6,
+  "method": "ui/message",
+  "params": {
+    "role": "user",
+    "content": {
+      "type": "text",
+      "text": "The text provided by the component."
+    }
+  }
+}
+```
 
 ### Message Format & Response Processing
 
