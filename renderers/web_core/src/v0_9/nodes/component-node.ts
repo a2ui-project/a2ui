@@ -16,7 +16,7 @@
 
 import {EventEmitter, EventSource} from '../common/events.js';
 import {Signal, signal, peekValue, setValue} from '../reactivity/signals.js';
-import {ResolvedBinding} from './resolved-binding.js';
+import {Binding} from './binding.js';
 
 /** The `type` of a node whose component definition has not arrived yet. */
 export const PLACEHOLDER_TYPE = 'Placeholder';
@@ -27,7 +27,7 @@ export type NodeProps = Record<string, unknown>;
 /**
  * One resolved component instance in the rendered tree.
  *
- * A node's `props` hold fully resolved values: `ResolvedBinding`s for
+ * A node's `props` hold fully resolved values: `Binding`s for
  * dynamic values, ready-to-call `() => void` closures for actions, and live
  * `ComponentNode` references (or arrays of them) for child properties.
  *
@@ -175,7 +175,7 @@ function serializeValue(value: unknown): unknown {
   if (value instanceof ComponentNode) {
     return value.toJSON();
   }
-  if (value instanceof ResolvedBinding) {
+  if (value instanceof Binding) {
     return serializeValue(value.value);
   }
   if (typeof value === 'function') {

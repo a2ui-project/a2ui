@@ -15,27 +15,32 @@
  */
 
 /**
- * A resolved two-way value in a node's props: a snapshot of the current
- * value, plus a write capability present only when the payload bound a data
- * path. `set` is absent for literal and function-call values, so a write
- * without checking writability is a type error rather than a silent no-op.
+ * A resolved dynamic value in a node's props: a snapshot of the current
+ * value, pinned at emission. A new binding arrives through the node's props
+ * whenever the underlying value changes.
  *
- * The snapshot is pinned at emission: a new binding arrives through the
- * node's props whenever the underlying value changes.
- *
- * Named `ResolvedBinding` because `DataBinding` is the wire model of the
- * `{"path": ...}` payload.
+ * Literal and function-call values resolve to a read-only `Binding`, so a
+ * write without narrowing to {@link WritableBinding} is a type error rather
+ * than a silent no-op. `DataBinding` is the wire model of the
+ * `{"path": ...}` payload; this is its resolved counterpart.
  */
-export class ResolvedBinding<T> {
-  constructor(
-    readonly value: T,
-    readonly set?: (value: T) => void,
-  ) {}
+export class Binding<T> {
+  constructor(readonly value: T) {}
+}
 
-  /** Whether writes have a destination (the payload bound a data path). */
-  get writable(): boolean {
-    return this.set !== undefined;
+/** A binding whose payload bound a data path, so writes have a destination. */
+export class WritableBinding<T> extends Binding<T> {
+  constructor(
+    value: T,
+    readonly set: (value: T) => void,
+  ) {
+    super(value);
   }
+}
+
+/** Narrows a binding to {@link WritableBinding}. */
+export function isWritable<T>(binding: Binding<T>): binding is WritableBinding<T> {
+  return binding instanceof WritableBinding;
 }
 
 /**
@@ -44,8 +49,8 @@ export class ResolvedBinding<T> {
  * structurally; non-plain objects compare by identity only, mirroring the
  * resolver's change detection for props.
  */
-export function sameBinding(a: ResolvedBinding<unknown>, b: ResolvedBinding<unknown>): boolean {
-  return a.writable === b.writable && valueEquals(a.value, b.value);
+export function sameBinding(a: Binding<unknown>, b: Binding<unknown>): boolean {
+  return isWritable(a) === isWritable(b) && valueEquals(a.value, b.value);
 }
 
 function valueEquals(a: unknown, b: unknown): boolean {

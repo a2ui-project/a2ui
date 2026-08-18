@@ -19,7 +19,8 @@ import {createContext, useCallback, useContext, useMemo, useSyncExternalStore} f
 import {
   ComponentContext,
   ComponentNode,
-  ResolvedBinding,
+  Binding,
+  isWritable,
   effect,
   getValue,
   peekValue,
@@ -81,7 +82,7 @@ function toViewValue(parent: ComponentNode, value: unknown, index: ChildIndex): 
     }
     return value.componentId;
   }
-  if (value instanceof ResolvedBinding) {
+  if (value instanceof Binding) {
     return toViewValue(parent, value.value, index);
   }
   if (Array.isArray(value)) {
@@ -104,7 +105,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Converts one object level of node props, unwrapping each `ResolvedBinding`
+ * Converts one object level of node props, unwrapping each `Binding`
  * into the value + `set<Prop>` pair the views were written against. A
  * read-only binding gets a no-op setter, matching what `GenericBinder`
  * synthesizes for literal-valued properties.
@@ -116,9 +117,9 @@ function toViewProps(
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, inner] of Object.entries(props)) {
-    if (inner instanceof ResolvedBinding) {
+    if (inner instanceof Binding) {
       result[key] = toViewValue(parent, inner.value, index);
-      result[`set${key.charAt(0).toUpperCase()}${key.slice(1)}`] = inner.set ?? (() => {});
+      result[`set${key.charAt(0).toUpperCase()}${key.slice(1)}`] = isWritable(inner) ? inner.set : () => {};
     } else {
       result[key] = toViewValue(parent, inner, index);
     }

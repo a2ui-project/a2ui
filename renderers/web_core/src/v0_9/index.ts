@@ -32,7 +32,7 @@ export * from './rendering/generic-binder.js';
 export {ComponentNode, PLACEHOLDER_TYPE, type NodeProps} from './nodes/component-node.js';
 export * from './nodes/node-resolver.js';
 export * from './nodes/ref-fields.js';
-export * from './nodes/resolved-binding.js';
+export * from './nodes/binding.js';
 export * from './schema/index.js';
 export * from './state/component-model.js';
 export * from './state/data-model.js';

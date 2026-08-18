@@ -43,7 +43,7 @@ import {effect, getValue, peekValue, Signal} from '../reactivity/signals.js';
 import * as v0_9 from '../index.js';
 import {ComponentNode, NodeProps, PLACEHOLDER_TYPE} from './component-node.js';
 import {NodeResolver} from './node-resolver.js';
-import {ResolvedBinding} from './resolved-binding.js';
+import {Binding, isWritable} from './binding.js';
 
 const TextApi = {
   name: 'Text',
@@ -97,10 +97,10 @@ function props(node: ComponentNode): NodeProps {
   return peekValue(node.props);
 }
 
-/** Unwraps a dynamic prop's `ResolvedBinding` snapshot, asserting it is one. */
+/** Unwraps a dynamic prop's `Binding` snapshot, asserting it is one. */
 function bound(node: ComponentNode, key: string): unknown {
   const binding = props(node)[key];
-  assert.ok(binding instanceof ResolvedBinding, `expected ${key} to resolve to a ResolvedBinding`);
+  assert.ok(binding instanceof Binding, `expected ${key} to resolve to a Binding`);
   return binding.value;
 }
 
@@ -677,20 +677,22 @@ describe('NodeResolver resolved bindings (write path)', () => {
     assert.ok(root);
     const [literalNode, boundNode, callNode] = props(root).children as ComponentNode[];
 
-    const literal = props(literalNode).text as ResolvedBinding<unknown>;
+    const literal = props(literalNode).text as Binding<unknown>;
     assert.strictEqual(literal.value, 'Literal');
-    assert.strictEqual(literal.writable, false);
-    assert.strictEqual(literal.set, undefined);
+    assert.strictEqual(isWritable(literal), false);
+    assert.strictEqual('set' in literal, false);
 
-    const call = props(callNode).text as ResolvedBinding<unknown>;
+    const call = props(callNode).text as Binding<unknown>;
     assert.strictEqual(call.value, 'ALICE');
-    assert.strictEqual(call.writable, false);
-    assert.strictEqual(call.set, undefined);
+    assert.strictEqual(isWritable(call), false);
+    assert.strictEqual('set' in call, false);
 
-    const pathBound = props(boundNode).text as ResolvedBinding<unknown>;
+    const pathBound = props(boundNode).text as Binding<unknown>;
     assert.strictEqual(pathBound.value, 'alice');
-    assert.strictEqual(pathBound.writable, true);
-    pathBound.set!('bob');
+    if (!isWritable(pathBound)) {
+      assert.fail('expected a writable binding');
+    }
+    pathBound.set('bob');
     assert.strictEqual(surface.dataModel.get('/username'), 'bob');
     assert.strictEqual(bound(boundNode, 'text'), 'bob');
     resolver.dispose();
@@ -704,9 +706,11 @@ describe('NodeResolver resolved bindings (write path)', () => {
     const root = getValue(resolver.rootNode);
     assert.ok(root);
     const children = props(root).children as ComponentNode[];
-    const item1 = props(children[1]).text as ResolvedBinding<unknown>;
-    assert.strictEqual(item1.writable, true);
-    item1.set!('B2');
+    const item1 = props(children[1]).text as Binding<unknown>;
+    if (!isWritable(item1)) {
+      assert.fail('expected a writable binding');
+    }
+    item1.set('B2');
 
     assert.strictEqual(surface.dataModel.get('/items/1/name'), 'B2');
     assert.strictEqual(bound(children[1], 'text'), 'B2');
