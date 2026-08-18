@@ -296,7 +296,8 @@ struct CatalogImplementationTests {
       properties: [:]
     )
     let renderedView = Surface.render(node: node, using: catalogImplementation)
-    #expect(renderedView == nil)
+    let isNil = (renderedView == nil)
+    #expect(isNil)
   }
 
   @Test func catalogImplementationEnvironmentDefaultsToNil() {

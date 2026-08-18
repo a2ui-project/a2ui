@@ -569,7 +569,7 @@ struct SurfaceViewModelTests {
     // by updateComponents would have infinite-looped without the guard.
     // rootNode resolves from "root" — but we only have "a" and "b", so
     // it will be nil. The key assertion is that we didn't hang.
-    #expect(true)
+    #expect(Bool(true))
   }
 
   @Test func legitimateDataDrivenRecursionResolves() throws {
@@ -608,7 +608,7 @@ struct SurfaceViewModelTests {
     // If we get here without hanging, the guard correctly allowed
     // legitimate recursion. Each nested "card" gets a unique
     // instanceID (card_0, card_0_0, etc.) so the guard never triggers.
-    #expect(true)
+    #expect(Bool(true))
   }
 }
 
