@@ -6,7 +6,7 @@ This document serves as a comprehensive guide to the changes between A2UI versio
 
 Version 1.0 differs from 0.9 in the following ways:
 
-- Bidirectional RPC function calls are supported via explicit role-based messages: `callRendererFunction` for agent-initiated calls on the renderer (returning `rendererFunctionResponse`), and `callAgentFunction` for renderer-initiated calls on the agent (returning `agentFunctionResponse`). Execution results or errors are returned via shared `FunctionResponse` payloads. Runtime execution boundaries (`callableFrom`) and return types are defined in catalogs and verified at runtime.
+- Bidirectional RPC function calls are supported via explicit role-based messages: `callRendererFunction` for agent-initiated calls on the renderer (returning `rendererFunctionResponse`), and `callAgentFunction` for renderer-initiated calls on the agent (returning `agentFunctionResponse`). Execution results or errors are returned via shared `FunctionResponse` payloads. Runtime authorized callers (`allowedCallers`) and return types are defined in catalogs and verified at runtime.
 - Catalogs can now be mixed within a single UI surface. Advertised `supportedCatalogIds` are mixable, allowing UI trees to combine components and functions from multiple catalogs simultaneously.
 - Added an optional `catalogId` property to `ComponentCommon` and `FunctionCall` to allow individual components and function calls to explicitly declare their source catalog. Added `$defs/FunctionCommon` in `common_types.json` for function-level catalog overrides.
 - Retained `catalogId` on `createSurface` as an optional parameter that defines the default catalog for that surface.
@@ -29,8 +29,8 @@ Version 1.0 differs from 0.9 in the following ways:
 
 - Removed the `$defs/theme` schema and the `primaryColor` property from the Catalog schema.
 - Formalized the `functions` property in `catalog_definition.json` as a map object, keyed by function name.
-- Added `callableFrom` (enum: `rendererOnly`, `agentOnly`, `rendererOrAgent`, default: `rendererOnly`) to `FunctionDefinition` to restrict where a function can be invoked.
-- Added `requiresUserActivation` (boolean, default: `false`) to `FunctionDefinition` to declare if a function requires user gesture/activation context to execute, conditionally restricting `callableFrom` to `rendererOnly` or `rendererOrAgent`.
+- Added `allowedCallers` (enum: `rendererOnly`, `agentOnly`, `rendererOrAgent`, default: `rendererOnly`) to `FunctionDefinition` to restrict which roles can invoke a function.
+- Added `requiresUserActivation` (boolean, default: `false`) to `FunctionDefinition` to declare if a function requires user gesture/activation context to execute, conditionally restricting `allowedCallers` to `rendererOnly`.
 - Added `$defs/ValidationResult` schema (`valid`, `code`, `message`, `severity`) as the standard schema definition for validation function return payloads.
 - Added an optional `instructions` field to the `Catalog` schema to embed design guidelines and component usage rules directly in the catalog, replacing the external `rules.txt` file.
 - Supported standard JSON Schema metadata fields (`$schema`, `$id`, `title`, and `description`) in the Catalog object definition. Since the Catalog schema restricts properties with `additionalProperties: false`, this ensures inline catalogs containing standard schema metadata do not fail schema validation.
@@ -82,7 +82,7 @@ Version 1.0 differs from 0.9 in the following ways:
 ### 2.6. Data encoding
 
 - Standardized data deletion behavior in `updateDataModel` by making the `value` property required. Setting a path's value to `null` deletes the key at that path. Omitting the `value` property is now a schema validation error.
-- Removed `callableFrom` and `returnType` properties and validation constraints from `FunctionCall` and dynamic value schemas in `common_types.json`, deferring boundary checking and return type validation entirely to runtime execution.
+- Removed `allowedCallers` and `returnType` properties and validation constraints from `FunctionCall` and dynamic value schemas in `common_types.json`, deferring boundary checking and return type validation entirely to runtime execution.
 - Added built-in `@index` function (with optional `offset` parameter) under `FunctionCall` to retrieve the iteration index during list template rendering. Reserved the `@` prefix for core system context evaluations.
 - Updated `CheckRule` in `common_types.json` to support dynamic `ValidationResult` objects returned directly by function evaluations or data model bindings, adding the `$defs/ValidationResult` schema (`valid`, `code`, `message`, `severity`) and making `CheckRule.message` optional as a fallback message.
 
@@ -125,7 +125,7 @@ This section outlines the steps required to migrate existing applications and co
 - Formalize the `functions` property in catalog definitions as a JSON object map keyed by function name.
 - Remove the `$defs/theme` catalog definition and the `primaryColor` field.
 - Ensure all generated catalog entity names conform to UAX #31 identifier rules.
-- Do not include `callableFrom` or `returnType` properties in wire-level `FunctionCall` payloads. Set static `callableFrom`, `returnType`, and optional `requiresUserActivation` metadata in catalog function definitions where needed.
+- Do not include `allowedCallers` or `returnType` properties in wire-level `FunctionCall` payloads. Set static `allowedCallers`, `returnType`, and optional `requiresUserActivation` metadata in catalog function definitions where needed.
 - Update `Video`, `TextField`, and `Slider` components to support optional `posterUrl`, `placeholder`, and `steps` properties. Update `openUrl` functions to specify `"requiresUserActivation": true`.
 - Explicitly set values to `null` in `updateDataModel` messages to delete keys at specified paths. The `value` property is now required, and omitting it is a schema validation error.
 - Handle remote function execution requests from renderers (`callAgentFunction`) and respond with `agentFunctionResponse` messages.
@@ -135,7 +135,7 @@ This section outlines the steps required to migrate existing applications and co
 
 - Implement multi-catalog mixing by supporting components and function calls from any catalog in `supportedCatalogIds` or negotiated `inlineCatalogs`. All catalogs mixed within a surface must use the same A2UI specification version.
 - Implement component and function resolution order: (1) explicit component/call `catalogId`, (2) surface default `catalogId`, (3) error if neither exists (no fallback to capabilities).
-- Implement function execution by adding support for parsing `callRendererFunction` messages from the agent, checking boundary definitions in the catalog (`callableFrom`), rejecting invalid calls with `INVALID_FUNCTION_CALL`, and returning `rendererFunctionResponse` messages.
+- Implement function execution by adding support for parsing `callRendererFunction` messages from the agent, checking authorized callers in the catalog (`allowedCallers`), rejecting invalid calls with `INVALID_FUNCTION_CALL`, and returning `rendererFunctionResponse` messages.
 - Implement renderer-initiated function calls by sending `callAgentFunction` messages to the agent and handling incoming `agentFunctionResponse` messages.
 - Support simultaneous version handling during session initialization by inspecting the `version` property (e.g., `"v1.0"`) to route payloads to version-specific controllers.
 - Enforce surface uniqueness by raising an error if `createSurface` is received for an existing `surfaceId`.

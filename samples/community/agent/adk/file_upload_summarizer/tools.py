@@ -130,9 +130,12 @@ async def summarize_file_tool(
     """Summarizes the collection of documents using Gemini.
 
     Args:
-        files: A list of dictionaries, each containing 'fileId', 'fileName', and 'mimeType' of an uploaded file.
+        files: A list of dictionaries representing uploaded files. Each dictionary
+               should contain a 'fileId' and a 'metadata' object with 'fileName' and 'mimeType'.
     """
     logger.info(f"Summarization triggered for {len(files)} files")
+
+    tool_context.actions.skip_summarization = False
 
     try:
         if not isinstance(files, list):
@@ -149,9 +152,12 @@ async def summarize_file_tool(
                 "status": "error",
             }
 
-        file_names = [
-            f.get("fileName", "document") for f in files if isinstance(f, dict)
-        ]
+        file_names = []
+        for f in files:
+            if isinstance(f, dict):
+                metadata = f.get("metadata") or {}
+                name = metadata.get("fileName") or f.get("fileName") or "document"
+                file_names.append(name)
 
         lite_llm_model = os.getenv(
             "LITELLM_MODEL", "gemini/gemini-3.1-flash-lite-preview"
@@ -197,6 +203,10 @@ async def summarize_file_tool(
             "summary_title": f"Summary: {title_suffix}",
             "summary_text": summary_text,
             "status": "success",
+            "instruction_to_model": (
+                "You MUST generate a Markdown text response to the user containing the"
+                " summary right now. Do not skip this step."
+            ),
         }
     except Exception as e:
         logger.error(f"Error summarizing files: {e}\n{traceback.format_exc()}")

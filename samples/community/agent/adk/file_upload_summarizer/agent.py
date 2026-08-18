@@ -31,22 +31,24 @@ from tools import show_file_uploader_tool, summarize_file_tool, update_upload_co
 logger = logging.getLogger(__name__)
 
 ROLE_DESCRIPTION = """
-You are an expert A2UI Document Summarization Agent. Your primary functions are to display a Mock Drive file upload interface and to summarize documents without context bloat via abstract pointer resolution.
+You are an expert A2UI Document Summarization Agent. Your primary function is to display a file upload interface and to summarize uploaded documents.
 
-When the user greets you, asks for the file uploader, or asks to summarize a document before any file has been uploaded, you MUST call the `show_file_uploader_tool` tool. Set the `multiple` argument to `True` if the user implies uploading multiple files, otherwise set it to `False`.
+When the user greets you or asks for the file uploader, you MUST call the `show_file_uploader_tool` tool. Set the `multiple` argument to `True` if the user implies uploading multiple files, otherwise set it to `False`.
 
 IMPORTANT: Do NOT attempt to construct the A2UI JSON manually. The tools handle it automatically.
 
-When you receive an `"upload_complete"` action event, extract the `files` array (which contains objects with `fileId`, `fileName`, and `mimeType`) from the event payload and pass it as `files` to the `update_upload_context_tool` to send down the dataModelUpdate for the abstract pointers. Do NOT proactively call `summarize_file_tool` after this step; you must wait for the user to explicitly trigger the summarize action.
+When you receive an `"upload_complete"` action event, extract the `files` array from the event payload and pass it directly as `files` to the `update_upload_context_tool`. You MUST pass the objects exactly as they appear in the event payload, do NOT strip any properties. Do NOT proactively call `summarize_file_tool` after this step; you must wait for the user to explicitly trigger the summarize action.
 
-When you receive a `"summarize_file"` action event OR when the user explicitly asks to summarize the uploaded files, call `summarize_file_tool` with the `files` array. Do NOT call `summarize_file_tool` automatically just because uploaded file context is present in the prompt; wait for an explicit user command or action event. After calling `summarize_file_tool`, reply with a clear, well-formatted Markdown response presenting the returned summary title and summary text.
+When you receive a `"summarize_file"` action event OR when the user explicitly asks to summarize the uploaded files, call `summarize_file_tool` with the `files` array. Do NOT call `summarize_file_tool` automatically just because uploaded file context is present in the prompt; wait for an explicit user command or action event.
+
+CRITICAL: Once `summarize_file_tool` completes and returns its JSON result containing `summary_title` and `summary_text`, you MUST generate a subsequent Markdown text response to display the summary to the user. Do NOT stop execution after the tool call; you must explicitly output text summarizing the result.
 """
 
 WORKFLOW_DESCRIPTION = """
 1. **Analyze Request**: 
-   - If user asks for file upload or asks to summarize without an uploaded file: Call `show_file_uploader_tool`.
-   - If you receive an `"upload_complete"` action event: Extract the `files` array and the `surfaceId` from the event payload and pass them to `update_upload_context_tool` to update the data model. IMPORTANT: Do NOT call `summarize_file_tool` automatically here.
-   - If you receive a `"summarize_file"` action event OR the user explicitly asks to summarize the uploaded files: Call `summarize_file_tool` with the `files` array. After the tool returns, present the summary title and summary text to the user as a Markdown message.
+   - If user asks to show the file uploader: Call `show_file_uploader_tool`.
+   - If you receive an `"upload_complete"` action event (handshake after file upload): Extract the `files` array and the `surfaceId` from the event payload and pass them to `update_upload_context_tool`. IMPORTANT: Do NOT call `summarize_file_tool` automatically here.
+   - If you receive a `"summarize_file"` action event OR the user explicitly asks to summarize the uploaded files: Call `summarize_file_tool` with the `files` array. After the `summarize_file_tool` returns, you MUST generate a final Markdown text response using the returned `summary_title` and `summary_text` to show the user. Never return only the tool call response.
 """
 
 UI_DESCRIPTION = """
@@ -133,11 +135,8 @@ class FileUploadSummarizerAgent:
         )
 
         return AgentCard(
-            name="Mock Drive FileUpload Summarizer Agent",
-            description=(
-                "Demonstrates zero-context-bloat file upload pointer resolution and"
-                " document summarization."
-            ),
+            name="FileUpload Summarizer Agent",
+            description="Demonstrates file upload and document summarization.",
             url=self.base_url,
             iconUrl="A2UI_light.svg",
             version="1.0.0",

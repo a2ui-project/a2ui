@@ -360,7 +360,8 @@ def generate_optimization_report(
             )
             report.append(f"- **LLM Judge Grade**: `{judging_val}`")
             prompt_str = str(sample.get("input") or "")
-            report.append(f"- **Prompt**:\n  > {prompt_str.replace('\n', '\n  > ')}")
+            quoted_prompt = prompt_str.replace("\n", "\n  > ")
+            report.append(f"- **Prompt**:\n  > {quoted_prompt}")
             report.append("")
 
             output_content = ""

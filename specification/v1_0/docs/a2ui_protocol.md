@@ -296,7 +296,7 @@ This message instructs the renderer to remove a surface and all its associated c
 
 ### `callRendererFunction`
 
-This message is sent by the agent to execute a function registered on the renderer. Functions are catalog-defined abstractions that avoid sending raw executable code across the wire. Only functions which have `callableFrom: ["agent"]` in their catalog definition can be called by the agent. Renderer functions can only be called after a session has been initiated by the renderer. Functions are resolved by the specified `catalogId`. Upon completing execution of a `callRendererFunction` message, the renderer MUST always send a corresponding `functionResponse` or `error` message back to the agent, even if the function's return type is `void`.
+This message is sent by the agent to execute a function registered on the renderer. Functions are catalog-defined abstractions that avoid sending raw executable code across the wire. Only functions which have `allowedCallers: "agentOnly"` or `allowedCallers: "rendererOrAgent"` in their catalog definition can be called by the agent. Renderer functions can only be called after a session has been initiated by the renderer. Functions are resolved by the specified `catalogId`. Upon completing execution of a `callRendererFunction` message, the renderer MUST always send a corresponding `functionResponse` or `error` message back to the agent, even if the function's return type is `void`.
 
 **Properties:**
 
@@ -309,10 +309,11 @@ This message is sent by the agent to execute a function registered on the render
 
 **Security Boundaries and Verification:**
 
-Execution boundary verification (`agentOnly` vs `rendererOnly`) is enforced strictly at runtime by the renderer application:
+Execution boundary verification (`"rendererOnly"`, `"agentOnly"`, or `"rendererOrAgent"`) is enforced strictly at runtime by the renderer application:
 
-- When a renderer receives a `callRendererFunction` message, it determines the function's execution boundary (e.g., `callableFrom` status) at runtime by reading its configuration from the active catalog definition.
-- If the requested function is configured in the catalog as `agentOnly`, or if the function is not registered at all, the renderer MUST immediately reject the call and return a renderer-to-agent `error` message with `code: "INVALID_FUNCTION_CALL"`.
+- When a renderer receives a `callRendererFunction` message, it determines the function's execution boundary (e.g., `allowedCallers` status) at runtime by reading its configuration from the active catalog definition.
+- If the requested function is configured in the catalog as `"rendererOnly"`, or if the function is not registered at all, the renderer MUST immediately reject the call and return a renderer-to-agent `error` message with `code: "INVALID_FUNCTION_CALL"`.
+- Functions marked as `"agentOnly"` or `"rendererOrAgent"` are authorized for agent invocation via `callRendererFunction`. Functions configured as `"agentOnly"` CANNOT be bound to UI component properties or executed by renderer UI actions; they are restricted exclusively to agent-initiated `callRendererFunction` execution.
 
 **Example:**
 
@@ -594,8 +595,8 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - A `properties` block with a `call` property containing a constant of the function's name (e.g., `"call": { "const": "email" }`).
      - An optional `args` property representing arguments (or absent if the function accepts no arguments).
      - Mandatory metadata fields outside the strict JSON validation properties to advertise interface details:
-       - **`returnType`**: Must be a string enum indicating the return type (`string`, `number`, `boolean`, `array`, `object`, `any`, or `void`).
-       - **`callableFrom`**: Must be a string enum indicating the execution boundary (`rendererOnly`, `agentOnly`, or `rendererOrAgent`). If omitted, it defaults to `rendererOnly`.
+       - **`returnType`**: Must be a string enum indicating the return type (`string`, `number`, `boolean`, `array`, `object`, `validationResult`, `any`, or `void`).
+       - **`allowedCallers`**: Must be a string enum indicating the authorized callers (`rendererOnly`, `agentOnly`, or `rendererOrAgent`). If omitted, it defaults to `rendererOnly`.
 7. **Strict Top-Level Schema Keys:**
    - To keep catalog schemas predictable and prevent custom extensions from polluting the global file space, a `catalog.json` file is restricted to the following root-level keys:
      - `$schema`
@@ -650,8 +651,8 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
       "type": "object",
       "description": "Checks that the value is not null, undefined, or empty.",
       // Strict function metadata defined outside the properties block.
-      "returnType": "boolean",
-      "callableFrom": "rendererOnly",
+      "returnType": "validationResult",
+      "allowedCallers": "rendererOnly",
       "properties": {
         // Function call schema requires constant with function's name.
         "call": {
@@ -1479,7 +1480,7 @@ The `a2uiRendererCapabilities` object in the transport metadata follows the [`re
 
 - `v1.0` (object, required): The capability structure for version 1.0 of the A2UI protocol.
   - `supportedCatalogIds` (array of strings, required): The string identifiers of supported component and function catalogs.
-  - `inlineCatalogs` (array, optional): An array of custom catalog definitions provided inline by the renderer. Functions defined within inline catalogs support declaring execution boundaries (`callableFrom: "rendererOnly" | "agentOnly" | "rendererOrAgent"`) to statically specify remote invocation safety.
+  - `inlineCatalogs` (array, optional): An array of custom catalog definitions provided inline by the renderer. Functions defined within inline catalogs support declaring authorized callers (`allowedCallers: "rendererOnly" | "agentOnly" | "rendererOrAgent"`) to statically specify remote invocation safety.
 
 ### Renderer data model
 
