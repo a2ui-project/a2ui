@@ -45,7 +45,6 @@ import {
   PluralizeApi,
   OpenUrlApi,
 } from './basic_functions_api.js';
-import {IndexApi} from '../../../v1_0/functions/system_functions.js';
 import {A2uiExpressionError} from '../../../errors.js';
 
 // Arithmetic

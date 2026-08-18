@@ -51,11 +51,6 @@ function normalizeV08Component(comp: unknown): InternalComponentPayload {
   }
 
   return {
-<<<<<<< HEAD
-=======
-    id: String(c.id ?? ''),
-    component: componentName,
->>>>>>> f5e617448 (fix(web_core): address PR review feedback for v0.8 component normalization and catalog fallback)
     ...props,
     id: String(c.id ?? ''),
     component: componentName,
