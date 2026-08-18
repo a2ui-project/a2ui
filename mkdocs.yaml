@@ -203,8 +203,6 @@ hooks:
 # Plugins
 plugins:
   - search
-  # Fail the build on template errors (e.g. unescaped `{{ }}` in code
-  # samples) instead of publishing a "Macro Rendering Error" page.
   - macros:
       on_error_fail: true
   # - include-markdown
