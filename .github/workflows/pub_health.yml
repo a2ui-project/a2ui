@@ -24,6 +24,7 @@ jobs:
     # Ignored because dart-lang ecosystem reusable workflows are designed to run from @main.
     uses: dart-lang/ecosystem/.github/workflows/health.yaml@main # zizmor: ignore[unpinned-uses]
     with:
-      checks: "changelog"
+      checks: "version, changelog"
+      fail_on: "version, changelog"
     permissions:
       pull-requests: write
