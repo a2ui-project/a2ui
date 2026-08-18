@@ -12,7 +12,7 @@ This specification defines the standard protocol extension for delivering A2UI (
 
 ## Motivation
 
-While MCP Apps (SEP-1865) introduced a standardized pattern for declaring UI resources via the `ui://` URI scheme and rendering them in sandboxed iframes, it enforces an iframe-centric architecture. For native hosts that integrate A2UI rendering capabilities directly (using Angular, Lit, React, etc.), the iframe sandbox introduces unnecessary overhead, limits visual integration, and complicates event dispatching. 
+While MCP Apps (SEP-1865) introduced a standardized pattern for declaring UI resources via the `ui://` URI scheme and rendering them in sandboxed iframes, it enforces an iframe-centric architecture. For native hosts that integrate A2UI rendering capabilities directly (using Angular, Android Mobile, iOS, Flutter, etc.), the iframe sandbox introduces unnecessary overhead, limits visual integration, and complicates event dispatching. 
 
 Without this A2UI extension:
 - Hosts incur the performance and memory overhead of double-iframe sandboxes.
