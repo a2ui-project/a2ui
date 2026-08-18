@@ -147,7 +147,11 @@ export class NodeResolver<
     setValue(this.rootNode, undefined);
   }
 
+  /** No-op while a root record exists; root deletion clears it so a re-sent root rebuilds. */
   private buildRoot(): void {
+    if (this.rootRecord) {
+      return;
+    }
     const node = this.createNode(ROOT_COMPONENT_ID, ROOT_DATA_PATH, ROOT_EDGE_KEY, undefined);
     this.rootRecord = this.records.get(node);
     setValue(this.rootNode, node);
@@ -157,7 +161,7 @@ export class NodeResolver<
     if (this._disposed) {
       return;
     }
-    if (component.id === ROOT_COMPONENT_ID && !this.rootRecord) {
+    if (component.id === ROOT_COMPONENT_ID) {
       this.buildRoot();
     }
     const waiting = this.pendingParents.get(component.id);
