@@ -405,12 +405,13 @@ describe('v0.9.1 Angular Renderer Integration', () => {
 
   it('safely renders surfaces with unrecognized component types without throwing', async () => {
     const consoleErrorSpy = spyOn(console, 'error');
+    const catalogId = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
     const messagesWithUnknownComponent: A2uiMessage[] = [
       {
         version: 'v0.9',
         createSurface: {
           surfaceId: 'unknown-comp-surface',
-          catalogId: basicCatalog.id,
+          catalogId,
         },
       },
       {
@@ -451,7 +452,7 @@ describe('v0.9.1 Angular Renderer Integration', () => {
 
     // Verify console.error was logged for the unknown component type
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      `Component type "FutureGizmo" not found in catalog "${basicCatalog.id}"`,
+      `Component type "FutureGizmo" not found in catalog "${catalogId}"`,
     );
   });
 });

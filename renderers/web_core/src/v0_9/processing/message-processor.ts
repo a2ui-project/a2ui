@@ -124,6 +124,36 @@ export function filterZodRealIssues(issues: z.ZodIssue[]): z.ZodIssue[] {
 }
 
 /**
+ * Recursively extracts all unrecognized property keys from Zod issues,
+ * including those nested inside invalid_union branches.
+ */
+export function extractUnrecognizedKeys(issues: z.ZodIssue[]): string[] {
+  const keys: string[] = [];
+  for (const issue of issues) {
+    if (
+      issue.code === 'unrecognized_keys' &&
+      'keys' in issue &&
+      Array.isArray((issue as any).keys)
+    ) {
+      keys.push(...(issue as any).keys);
+    } else if (
+      issue.code === 'invalid_union' &&
+      'unionErrors' in issue &&
+      Array.isArray((issue as any).unionErrors)
+    ) {
+      const unionErrors = (issue as any).unionErrors as z.ZodError[];
+      // Find the branches where all failures were solely due to unrecognized keys
+      for (const branchError of unionErrors) {
+        if (filterZodRealIssues(branchError.issues).length === 0) {
+          keys.push(...extractUnrecognizedKeys(branchError.issues));
+        }
+      }
+    }
+  }
+  return Array.from(new Set(keys));
+}
+
+/**
  * The central processor for A2UI messages.
  * @template T The concrete type of the ComponentApi.
  */
@@ -392,9 +422,21 @@ export class MessageProcessor<T extends ComponentApi> {
       const componentType = component || existing?.type;
       if (componentType) {
         const componentApi = surface.catalog.components.get(componentType);
-        if (componentApi) {
+        if (!componentApi) {
+          console.warn(
+            `[A2UI] Unrecognized component type '${componentType}' (${id}) on surface '${payload.surfaceId}'.`,
+          );
+        } else {
           const validationResult = componentApi.schema.safeParse(properties);
           if (!validationResult.success) {
+            // Log warning for ignored unrecognized keys (including inside z.union)
+            const unrecognizedKeys = extractUnrecognizedKeys(validationResult.error.issues);
+            if (unrecognizedKeys.length > 0) {
+              console.warn(
+                `[A2UI] Ignored unrecognized property keys on component '${componentType}' (${id}): ${unrecognizedKeys.join(', ')}`,
+              );
+            }
+
             // Client-side validation ignores unrecognized keys (including inside z.union)
             const realIssues = filterZodRealIssues(validationResult.error.issues);
             if (realIssues.length > 0) {

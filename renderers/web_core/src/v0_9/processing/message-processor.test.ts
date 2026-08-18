@@ -16,7 +16,7 @@
 
 import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
-import {MessageProcessor, formatZodIssue} from './message-processor.js';
+import {MessageProcessor, formatZodIssue, extractUnrecognizedKeys} from './message-processor.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {CardApi, RowApi, TabsApi} from '../basic_catalog/components/basic_components.js';
 import {ButtonApi} from '../basic_catalog/index.js';
@@ -1057,6 +1057,37 @@ describe('MessageProcessor', () => {
       assert.ok(unknownComp);
       assert.strictEqual(unknownComp.type, 'UnknownGizmo');
       assert.strictEqual((unknownComp.properties as any).arbitraryProp, 'someValue');
+    });
+
+    it('extracts unrecognized keys recursively from direct schemas and invalid_union branches', () => {
+      // 1. Direct strict schema
+      const directStrict = z
+        .object({
+          name: z.string(),
+        })
+        .strict();
+      const directResult = directStrict.safeParse({name: 'Alice', extraA: 1, extraB: 2});
+      assert.strictEqual(directResult.success, false);
+      if (!directResult.success) {
+        const keys = extractUnrecognizedKeys(directResult.error.issues);
+        assert.deepStrictEqual(keys.sort(), ['extraA', 'extraB']);
+      }
+
+      // 2. Union with strict schema branch
+      const unionSchema = z.union([
+        z.string(),
+        z
+          .object({
+            path: z.string(),
+          })
+          .strict(),
+      ]);
+      const unionResult = unionSchema.safeParse({path: '/user/name', unexpectedProp: 'foo'});
+      assert.strictEqual(unionResult.success, false);
+      if (!unionResult.success) {
+        const keys = extractUnrecognizedKeys(unionResult.error.issues);
+        assert.deepStrictEqual(keys, ['unexpectedProp']);
+      }
     });
   });
 });

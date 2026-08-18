@@ -407,38 +407,58 @@ public final class MessageProcessor: ObservableObject {
 
       let componentCatalogID = componentDict["catalogId"]?.stringValue ?? surface.defaultCatalogID
       let targetCatalog = surface.getCatalog(id: componentCatalogID)
-      guard let schema = targetCatalog?.components[type]?.schema else {
-        let error = ClientServerError.validationFailed(
-          ValidationFailedError(
-            surfaceID: surfaceID,
-            path: "/component",
-            message: "Unknown component type '\(type)' not registered in catalog"
+      let componentAPI = targetCatalog?.components[type]
+
+      if let schema = componentAPI?.schema {
+        let instance: JSONValue = .object(
+          OrderedDictionary(
+            uniqueKeysWithValues: componentDict.map { ($0.key, $0.value) }
           )
         )
-        actionHandler?.handle(error: error, from: surfaceID)
-        return
+        let result = schema.validate(instance)
+        guard result.isValid else {
+          let specificError = result.errors?.first.map(mostSpecificError(from:))
+          let errorMessage = specificError?.message ?? "Validation failed"
+          let errorPath = specificError?.instanceLocation.jsonPointerString ?? "/"
+          let error = ClientServerError.validationFailed(
+            ValidationFailedError(
+              surfaceID: surfaceID,
+              path: errorPath.isEmpty ? "/" : errorPath,
+              message: errorMessage
+            )
+          )
+          actionHandler?.handle(error: error, from: surfaceID)
+          return
+        }
+      } else {
+        print("[A2UI] Warning: Unrecognized component type '\(type)' (\(id)) on surface '\(surfaceID)'.")
       }
 
-      let instance: JSONValue = .object(
-        OrderedDictionary(
-          uniqueKeysWithValues: componentDict.map { ($0.key, $0.value) }
-        )
-      )
-      let result = schema.validate(instance)
-      guard result.isValid else {
-        let specificError = result.errors?.first.map(mostSpecificError(from:))
-        let errorMessage = specificError?.message ?? "Validation failed"
-        let errorPath = specificError?.instanceLocation.jsonPointerString ?? "/"
-        let error = ClientServerError.validationFailed(
-          ValidationFailedError(
-            surfaceID: surfaceID,
-            path: errorPath.isEmpty ? "/" : errorPath,
-            message: errorMessage
-          )
-        )
-        actionHandler?.handle(error: error, from: surfaceID)
-        return
+      var props: [String: JSONValue] = [:]
+      for (key, val) in componentDict
+      where key != "id" && key != "component" && key != "catalogId" {
+        props[key] = val
       }
+
+      if let componentAPI {
+        if let schemaJSON = schemaToJSONValue(componentAPI.schema),
+          let knownProps = schemaJSON["properties"]?.objectValue {
+          let unrecognizedKeys = props.keys.filter { !knownProps.keys.contains($0) }
+          if !unrecognizedKeys.isEmpty {
+            print(
+              "[A2UI] Warning: Ignored unrecognized property keys on component '\(type)' (\(id)): \(unrecognizedKeys.joined(separator: ", "))"
+            )
+          }
+        }
+      }
+
+      let existing = surface.componentsModel.get(id)
+      if let existing, existing.type != type {
+        surface.componentsModel.removeComponent(id)
+      }
+      surface.componentsModel.addComponent(
+        ComponentModel(id: id, type: type, catalogID: componentCatalogID, properties: props)
+      )
     }
 
     // Pass 2: Mutation Pass
