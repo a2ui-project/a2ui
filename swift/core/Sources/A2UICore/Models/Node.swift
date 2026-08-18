@@ -1,4 +1,4 @@
-// Copyright 2026 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,17 +16,24 @@
 public struct Node: Identifiable, Equatable, Sendable {
   public let id: String
   public let type: String
+  public let catalogID: String?
   public let properties: [String: any Resolved]
 
   /// Creates a new resolved component node.
-  public init(id: String, type: String, properties: [String: any Resolved]) {
+  public init(
+    id: String,
+    type: String,
+    catalogID: String? = nil,
+    properties: [String: any Resolved]
+  ) {
     self.id = id
     self.type = type
+    self.catalogID = catalogID
     self.properties = properties
   }
 
   public static func == (lhs: Node, rhs: Node) -> Bool {
-    guard lhs.id == rhs.id && lhs.type == rhs.type else {
+    guard lhs.id == rhs.id && lhs.type == rhs.type && lhs.catalogID == rhs.catalogID else {
       return false
     }
     guard lhs.properties.count == rhs.properties.count else {

@@ -95,6 +95,7 @@ Here is a simple catalog defining a single component.
 ```json
 {
   "$id": "https://github.com/.../hello_world/v1/catalog.json",
+  "catalogId": "https://github.com/.../hello_world/v1/catalog.json",
   "components": {
     "HelloWorldBanner": {
       "type": "object",
@@ -164,6 +165,7 @@ This catalog imports all elements from the Basic Catalog and adds a new `Suggest
 ```json
 {
   "$id": "https://github.com/.../hello_world_with_all_basic/v1/catalog.json",
+  "catalogId": "https://github.com/.../hello_world_with_all_basic/v1/catalog.json",
   "components": {
     "allOf": [
       {"$ref": "basic_catalog_definition.json#/components"},
@@ -194,6 +196,7 @@ This catalog imports only `Text` from the Basic Catalog to build a simple Popup 
 ```json
 {
   "$id": "https://github.com/.../hello_world_with_some_basic/v1/catalog.json",
+  "catalogId": "https://github.com/.../hello_world_with_some_basic/v1/catalog.json",
   "components": {
     "allOf": [
       {"$ref": "catalogs/basic/catalog.json#/components/Text"},
@@ -365,6 +368,7 @@ The `catalogId` is a unique text identifier used for negotiation between the cli
 - **Format:** While the `catalogId` is technically a string, the A2UI convention is to use a **URI** (e.g., `https://example.com/catalogs/mysurface/v1/catalog.json`).
 - **Purpose:** We use URIs to make the ID globally unique and easy for human developers to inspect in a browser.
 - **No Runtime Fetching:** This URI does not imply that the agent or client downloads the catalog at runtime. **The catalog definition must be known to the agent and client beforehand (at compile/deploy time)**. The URI serves only as a stable identifier.
+- **JSON Schema Compatibility (`$id` and `catalogId`):** Because A2UI catalogs are currently represented as JSON Schema documents, catalog definitions should include both `$id` (for JSON Schema tooling) and `catalogId` (for A2UI SDKs and catalog negotiation), setting both fields to the same URI.
 
 ### Versioning Guidelines
 

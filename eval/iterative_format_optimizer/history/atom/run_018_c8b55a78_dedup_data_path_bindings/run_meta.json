@@ -1,0 +1,5 @@
+{
+  "hypothesis": "Dynamic compiler-side deduplication of identical data path bindings in _compile_component and _resolve_val.",
+  "notes": "Pytest 100% pass (507 passed). Algorithmic Schema Acc 100%, Quality Score 100%. However, reasoning tokens increased from 5,168 to 6,074 (+17.5%, exceeding 15% efficiency cap) and composite score dropped from +0.600 to +0.590 (-0.010). Reverted per Rule 2 efficiency cap and Rule 3.",
+  "status": "Backtracked"
+}

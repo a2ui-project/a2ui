@@ -1,0 +1,49 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
+index 1e0a7c3d..b0a1456e 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
+@@ -701,6 +701,17 @@ class ExpressCompiler:
+             return compiled_list
+ 
+         if isinstance(val, str):
++            if val == "$" or (
++                val.startswith("$")
++                and len(val) > 1
++                and (val[1].isalpha() or val[1] in ("/", "_"))
++            ):
++                path_val = val.replace(".", "/")
++                if path_val.startswith("$/"):
++                    path_val = path_val[1:]
++                elif path_val.startswith("$"):
++                    path_val = path_val[1:]
++                return {"path": path_val}
+             if enum_vals:
+                 enum_map = {e.lower(): e for e in enum_vals if isinstance(e, str)}
+                 if val.lower() in enum_map:
+diff --git a/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py b/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py
+index c4f0e8f4..efab29ca 100644
+--- a/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py
++++ b/agent_sdks/python/a2ui_agent/tests/express/test_compiler.py
+@@ -685,6 +685,22 @@ root = Text("Hello")"""
+         btn = next(c for c in comps if c["id"] == "root")
+         self.assertEqual(btn["action"], {"call": "submitForm", "args": {}})
+ 
++    def test_quoted_data_path_string_literal_normalization(self):
++        """Verifies that string literals starting with '$' compile to data binding objects consistently."""
++        compiler = ExpressCompiler(self.catalog)
++        dsl = """root = Column([field1, field2, field3])
++field1 = TextField("Rep", "$user")
++field2 = TextField("Name", "$name")
++field3 = TextField("Val", "$/form/val")"""
++        envelope = compiler.compile(dsl)
++        comps = envelope["createSurface"]["components"]
++        f1 = next(c for c in comps if c["id"] == "field1")
++        f2 = next(c for c in comps if c["id"] == "field2")
++        f3 = next(c for c in comps if c["id"] == "field3")
++        self.assertEqual(f1["value"], {"path": "user"})
++        self.assertEqual(f2["value"], {"path": "name"})
++        self.assertEqual(f3["value"], {"path": "/form/val"})
++
+ 
+ if __name__ == "__main__":
+     unittest.main()

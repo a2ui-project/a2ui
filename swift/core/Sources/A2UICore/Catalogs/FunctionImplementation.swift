@@ -1,4 +1,4 @@
-// Copyright 2026 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,7 +27,8 @@ public protocol FunctionImplementation: Sendable {
   /// Evaluates the function with the given arguments.
   ///
   /// - Parameter arguments: A dictionary of named arguments.
+  /// - Parameter context: The data context.
   /// - Returns: The result of the function evaluation.
   /// - Throws: ``FunctionError`` if evaluation fails.
-  func evaluate(arguments: [String: JSONValue]) throws -> JSONValue
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue
 }
