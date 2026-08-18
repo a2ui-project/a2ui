@@ -57,8 +57,7 @@ public struct FormatNumberFunction: FunctionImplementation, Sendable {
 
     // Force decimals if provided
     if let decimalsDouble = arguments["decimals"]?.doubleValue,
-      let decimals = Int(exactly: decimalsDouble)
-    {
+       let decimals = Int(exactly: decimalsDouble) {
       formatter.minimumFractionDigits = decimals
       formatter.maximumFractionDigits = decimals
     }

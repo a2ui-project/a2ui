@@ -69,8 +69,7 @@ public struct OpenUrlFunction: FunctionImplementation, @unchecked Sendable {
     }
 
     guard let url = URL(string: urlString, relativeTo: baseURL) else {
-      throw FunctionError.invalidArgumentType(
-        expected: "valid URL string", actual: "invalid format")
+      throw FunctionError.invalidArgumentType(expected: "valid URL string", actual: "invalid format")
     }
 
     // Resolve relative paths
