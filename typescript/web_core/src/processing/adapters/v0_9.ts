@@ -37,6 +37,11 @@ export class V0_9VersionAdapter implements VersionAdapter {
       'updateDataModel',
       'deleteSurface',
     ].filter(k => k in msgObj);
+    if (updateTypes.length === 0) {
+      throw new A2uiValidationError(
+        'A2UI Protocol message must contain exactly one update action: createSurface, updateComponents, updateDataModel, or deleteSurface.',
+      );
+    }
     if (updateTypes.length > 1) {
       throw new A2uiValidationError(
         `Message contains multiple update types: ${updateTypes.join(', ')}.`,

@@ -123,6 +123,24 @@ describe('VersionAdapterFactory', () => {
     assert.strictEqual((dataOps[0] as any).value, 42);
   });
 
+  it('throws A2uiValidationError in v0.8 and v0.9 adapters when payload contains no update action', () => {
+    const v08Adapter = VersionAdapterFactory.getAdapter('v0.8');
+    const v09Adapter = VersionAdapterFactory.getAdapter('v0.9');
+
+    assert.throws(
+      () => v08Adapter.extractOperations({}),
+      err =>
+        err instanceof A2uiValidationError &&
+        /A2UI Protocol message must contain exactly one update action/.test(err.message),
+    );
+    assert.throws(
+      () => v09Adapter.extractOperations({}),
+      err =>
+        err instanceof A2uiValidationError &&
+        /A2UI Protocol message must contain exactly one update action/.test(err.message),
+    );
+  });
+
   it('supports dynamic registration of custom version adapters', () => {
     const customAdapter: VersionAdapter = {
       version: 'v2.0',
