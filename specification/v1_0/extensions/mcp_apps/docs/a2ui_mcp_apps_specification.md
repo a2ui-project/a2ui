@@ -1,30 +1,47 @@
-# A2UI over MCP Apps Protocol Extension Specification (v1.0)
+# SEP-XXXX: A2UI over MCP Apps Protocol Extension (v1.0)
 
-## Overview
+**Track:** Extensions
 
-This specification defines the standard protocol extension for delivering **A2UI (Agent-to-User Interface) v1.0** interactive interfaces over the **Model Context Protocol (MCP)** and **MCP Apps**.
+**Status:** Draft
 
-By combining A2UI with MCP, MCP servers and AI agents can provide dynamic, streaming, and stateful user interfaces directly to host clients. The protocol supports dynamic **dual-mode capability negotiation**:
+**Created:** 2026-08-18
 
-1. **Native A2UI Mode (Preferred)**: When the host client supports native A2UI (`application/a2ui+json`), UI payloads are delivered directly as MCP resources or embedded tool call results. The host application renders the UI natively using client-side A2UI renderers (e.g. Angular, Lit, React) with zero iframe overhead, ensuring full fidelity with host styling and responsive layouts.
-2. **Iframe Sandboxed Mode (Fallback)**: When the host client only supports standard MCP Apps HTML interfaces (`text/html;profile=mcp-app`), the server serves a self-contained HTML/JS bundle. The bundle embeds an isolated A2UI runtime inside a sandboxed iframe, communicating back to the host via MCP Apps JSON-RPC `postMessage` protocol.
+## Abstract
 
----
+This specification defines the standard protocol extension for delivering A2UI (Agent-to-User Interface) v1.0 interactive interfaces over the Model Context Protocol (MCP) and MCP Apps. By combining A2UI with MCP, servers and AI agents can provide dynamic, streaming, and stateful user interfaces directly to host clients. The protocol introduces a dual-mode capability negotiation mechanism that prioritizes native, iframe-free A2UI rendering while maintaining a robust HTML iframe fallback for broader compatibility.
 
-## Extension Identifiers
+## Motivation
+
+While MCP Apps (SEP-1865) introduced a standardized pattern for declaring UI resources via the `ui://` URI scheme and rendering them in sandboxed iframes, it enforces an iframe-centric architecture. For native hosts that integrate A2UI rendering capabilities directly (using Angular, Lit, React, etc.), the iframe sandbox introduces unnecessary overhead, limits visual integration, and complicates event dispatching. 
+
+Without this A2UI extension:
+- Hosts incur the performance and memory overhead of double-iframe sandboxes.
+- Seamless, zero-latency communication between the host application and the A2UI surface is impeded.
+- Developers must maintain separate UI rendering paradigms for native and MCP contexts.
+
+This specification addresses these limitations through an optional capability negotiation. It enables hosts with native A2UI rendering to receive raw UI payloads (`application/a2ui+json`) directly via MCP tools and resources, bypassing the iframe sandbox while retaining full HTML fallback support (`text/html;profile=mcp-app`) for legacy hosts.
+
+## Specification
+
+### Extension Identifiers
 
 - **Extension URI**: `https://a2ui.org/mcp-apps-extension/a2ui/v1.0`
 - **Capability Identifier**: `io.modelcontextprotocol/ui`
 - **Native A2UI MIME Type**: `application/a2ui+json`
 - **MCP App HTML MIME Type**: `text/html;profile=mcp-app`
 
----
+### Overview
 
-## 1. Capability Negotiation (`initialize`)
+The A2UI MCP Apps extension enables servers to deliver interactive user interfaces to hosts through two rendering modes:
+
+1. **Native A2UI Mode (Preferred)**: When the host client supports native A2UI (`application/a2ui+json`), UI payloads are delivered directly as MCP resources or embedded tool call results. The host application renders the UI natively using client-side A2UI renderers with zero iframe overhead, ensuring full fidelity with host styling and responsive layouts.
+2. **Iframe Sandboxed Mode (Fallback)**: When the host client only supports standard MCP Apps HTML interfaces (`text/html;profile=mcp-app`), the server serves a self-contained HTML/JS bundle. The bundle embeds an isolated A2UI runtime inside a sandboxed iframe, communicating back to the host via MCP Apps JSON-RPC `postMessage` protocol.
+
+### Capability Negotiation (`initialize`)
 
 Clients advertise supported UI rendering capabilities to the MCP server during the initial MCP `initialize` handshake within `capabilities.extensions`.
 
-### Client Initialization Request
+#### Client Initialization Request
 
 When connecting to the MCP server, a client supporting native A2UI and/or fallback MCP App HTML includes `io.modelcontextprotocol/ui` in its extension capabilities:
 
@@ -53,20 +70,14 @@ When connecting to the MCP server, a client supporting native A2UI and/or fallba
 }
 ```
 
-### Server Capability Detection
+#### Server Capability Detection
 
-Servers inspect the `capabilities.extensions["io.modelcontextprotocol/ui"].mimeTypes` array during connection or tool invocation:
+Servers MUST inspect the `capabilities.extensions["io.modelcontextprotocol/ui"].mimeTypes` array during connection or tool invocation:
 
-- If `application/a2ui+json` is present in `mimeTypes`: The server delivers native A2UI JSON payloads (`application/a2ui+json`).
-- If only `text/html;profile=mcp-app` is present: The server provides the sandboxed HTML application bundle.
+- If `application/a2ui+json` is present in `mimeTypes`: The server SHOULD deliver native A2UI JSON payloads (`application/a2ui+json`).
+- If only `text/html;profile=mcp-app` is present: The server MUST provide the sandboxed HTML application bundle.
 
----
-
-## 2. Resource & Tool Delivery
-
-A2UI payloads can be delivered via MCP **Resources** or MCP **Tools**.
-
-### A. Resource Delivery (`resources/read`)
+### Resource Delivery (`resources/read`)
 
 Clients can fetch UI definitions directly as static or dynamically generated resources.
 
@@ -110,9 +121,7 @@ If the client does not support native A2UI, reading `ui://counter/app` returns s
 }
 ```
 
----
-
-### B. Tool Result Delivery (`tools/call`)
+### Tool Result Delivery (`tools/call`)
 
 When an MCP Tool produces UI output, the server returns a `CallToolResult` containing an `EmbeddedResource` with `mimeType: "application/a2ui+json"`.
 
@@ -139,16 +148,14 @@ When an MCP Tool produces UI output, the server returns a `CallToolResult` conta
 }
 ```
 
----
-
-## 3. Action-to-Tool Mapping
+### Action-to-Tool Mapping
 
 Interactive A2UI components trigger user actions with an `event.name` and an `event.context` payload. In Native Mode, these user actions map directly to MCP `tools/call` requests.
 
-### Client Action Dispatch Flow
+#### Client Action Dispatch Flow
 
-1. User interacts with a component (e.g. clicks a button with action `event.name: "increment_counter"` and context `{"step": 1}`).
-2. A2UI Surface dispatches `A2uiClientAction`:
+1. The user interacts with a component (e.g., clicks a button with action `event.name: "increment_counter"` and context `{"step": 1}`).
+2. The A2UI Surface dispatches an `A2uiClientAction`:
    ```json
    {
      "name": "increment_counter",
@@ -177,11 +184,9 @@ Interactive A2UI components trigger user actions with an `event.name` and an `ev
 4. The server processes the tool call and returns updated A2UI messages (e.g., `updateDataModel` or `updateComponents`) in an embedded resource.
 5. The client parses the A2UI messages and updates the local A2UI surface model.
 
----
+### Message Format & Response Processing
 
-## 4. Message Format & Response Processing
-
-A2UI messages returned inside `application/a2ui+json` resources must conform to the **A2UI v1.0 Agent-to-Renderer Schema** (`agent_to_renderer.json`).
+A2UI messages returned inside `application/a2ui+json` resources MUST conform to the **A2UI v1.0 Agent-to-Renderer Schema** (`agent_to_renderer.json`).
 
 Supported message types include:
 
@@ -192,15 +197,15 @@ Supported message types include:
 - **`callRendererFunction`**: Requests local client-side function evaluation.
 - **`agentFunctionResponse`**: Returns execution output for agent-side function invocations.
 
-Payloads may be delivered as a single JSON message object or an array of message objects (e.g. `[createSurface, updateComponents, updateDataModel]`).
+Servers MAY deliver payloads as a single JSON message object or an array of message objects (e.g., `[createSurface, updateComponents, updateDataModel]`).
 
----
+### Security & Sandboxing Architecture
 
-## 5. Security & Sandboxing Architecture
+#### Architecture Diagram
 
 ```
 +-------------------------------------------------------------------------+
-| Client Host Application (e.g. Lit / Angular / React Host)               |
+| Client Host Application                                                 |
 |                                                                         |
 |  [ Native A2UI Mode (Zero Iframe Overhead) ]                            |
 |    <a2ui-surface> <--- Native A2UI Messages (application/a2ui+json)     |
@@ -210,7 +215,7 @@ Payloads may be delivered as a single JSON message object or an array of message
 |                                                                   |     |
 |  [ Iframe Sandboxed Mode (Fallback) ]                             |     |
 |    <iframe src="sandbox_proxy.html">                              |     |
-|      <iframe sandbox="..." srcdoc="<mcp-app>">                     |     |
+|      <iframe sandbox="..." srcdoc="<mcp-app>">                    |     |
 |        postMessage JSON-RPC (ui/initialize, tools/call)           |     |
 |          ^                                                        |     |
 |          +---------> McpSandboxHost Controller -------------------+     |
@@ -222,12 +227,12 @@ Payloads may be delivered as a single JSON message object or an array of message
 +-------------------------------------------------------------------------+
 | MCP Server (Python / TypeScript)                                        |
 |   - Inspects clientCapabilities.extensions["io.modelcontextprotocol/ui"]|
-|   - Native Mode: Returns CallToolResult(EmbeddedResource(a2ui+json))   |
-|   - Fallback Mode: Returns ReadResourceContents(text/html;mcp-app)     |
+|   - Native Mode: Returns CallToolResult(EmbeddedResource(a2ui+json))    |
+|   - Fallback Mode: Returns ReadResourceContents(text/html;mcp-app)      |
 +-------------------------------------------------------------------------+
 ```
 
-### Security Isolation Rules
+#### Security Isolation Rules
 
-1. **Native Mode**: UI is rendered with the host application's certified component catalogs. No arbitrary JavaScript or untrusted HTML strings are executed in the DOM.
-2. **Fallback Mode**: Untrusted HTML bundles are restricted within a double-iframe sandbox with strict `sandbox` flags (omitting `allow-same-origin` on inner frames and omitting `allow-top-navigation`) and strict `Permissions-Policy` headers.
+1. **Native Mode**: The host MUST render the UI with its certified component catalogs. The host MUST NOT execute arbitrary JavaScript or untrusted HTML strings in the DOM.
+2. **Fallback Mode**: The host MUST restrict untrusted HTML bundles within a double-iframe sandbox with strict `sandbox` flags (omitting `allow-same-origin` on inner frames and omitting `allow-top-navigation`) and strict `Permissions-Policy` headers.
