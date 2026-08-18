@@ -17,4 +17,6 @@ public enum FunctionError: Error, Sendable {
   case functionNotFound(String)
   case missingArgument(String)
   case invalidArgumentType(expected: String, actual: String)
+  case securityConstraintViolation(String)
+  case executionFailed(name: String, message: String)
 }
