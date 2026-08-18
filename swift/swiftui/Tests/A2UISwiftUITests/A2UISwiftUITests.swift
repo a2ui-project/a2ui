@@ -288,10 +288,7 @@ struct CatalogImplementationTests {
   }
 
   @Test func renderUnrecognizedComponentReturnsNil() {
-    let catalogImplementation = CatalogImplementation(
-      catalogID: "default",
-      components: []
-    )
+    let catalogImplementation = CatalogImplementation()
     let node = Node(
       id: "unknown1",
       type: "unrecognizedFutureWidget",
@@ -299,8 +296,7 @@ struct CatalogImplementationTests {
       properties: [:]
     )
     let renderedView = Surface.render(node: node, using: catalogImplementation)
-    let isNil = (renderedView == nil)
-    #expect(isNil)
+    #expect(renderedView == nil)
   }
 
   @Test func catalogImplementationEnvironmentDefaultsToNil() {
