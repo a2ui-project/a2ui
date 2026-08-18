@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
 import {ExpressionParser} from '../../../expressions/expression_parser.js';
 import {computed, isSignal, getValue} from '../../../reactivity/signals.js';
 import {createFunctionImplementation, FunctionImplementation} from '../../../catalog/types.js';
@@ -46,7 +45,6 @@ import {
   PluralizeApi,
   OpenUrlApi,
 } from './basic_functions_api.js';
-import {IndexApi} from '../../../v1_0/functions/system_functions.js';
 import {A2uiExpressionError} from '../../../errors.js';
 
 // Arithmetic
@@ -448,27 +446,6 @@ export const OpenUrlImplementation = createFunctionImplementation(OpenUrlApi, ar
 });
 
 /**
- * Implementation of the `@index` function.
- * Returns the loop index offset from context.
- */
-export const IndexImplementation = createFunctionImplementation(IndexApi, (args, context) => {
-  const offset = typeof args.offset === 'number' && Number.isFinite(args.offset) ? args.offset : 0;
-  let index = 0;
-  if (typeof (context as any)?.getIndex === 'function') {
-    index = (context as any).getIndex();
-  } else if (context?.path) {
-    const parts = context.path.split('/').filter(Boolean);
-    for (let i = parts.length - 1; i >= 0; i--) {
-      if (/^\d+$/.test(parts[i])) {
-        index = parseInt(parts[i], 10);
-        break;
-      }
-    }
-  }
-  return index + offset;
-});
-
-/**
  * Creates standard function implementations for the Basic Catalog.
  *
  * @param options Configuration options.
@@ -502,7 +479,6 @@ export function createBasicCatalogFunctions(options?: {locale?: string}): Functi
     FormatDateImplementation,
     createPluralizeImplementation(locale),
     OpenUrlImplementation,
-    IndexImplementation,
   ];
 }
 
