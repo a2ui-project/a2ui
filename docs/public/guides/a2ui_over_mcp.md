@@ -318,7 +318,7 @@ When the user clicks the button, the client resolves data bindings (like `/dates
 ### 3. Handle the Action on the Server
 
 ```python
-@self.tool()
+@app.tool()
 async def a2ui_action(
     name: str,
     surfaceId: str,
@@ -365,7 +365,7 @@ Clients can report A2UI rendering and validation errors back to the server via a
 Handle it on the server:
 
 ```python
-@self.tool()
+@app.tool()
 async def a2ui_error(
     code: str,
     surfaceId: str,
