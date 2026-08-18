@@ -17,6 +17,8 @@
 import {ProtocolVersion, VersionAdapter} from './base.js';
 import {InternalComponentPayload, InternalOperation} from '../operations.js';
 import {A2uiValidationError} from '../../errors.js';
+import {AgentToRendererMessageSchema} from '../../v1_0/schema/agent-to-renderer.js';
+import {formatZodIssue} from '../message-processor.js';
 
 /**
  * Protocol version adapter for specification v1.0.
@@ -32,6 +34,13 @@ export class V1_0VersionAdapter implements VersionAdapter {
     const msgObj = payload as Record<string, unknown>;
     if (Array.isArray(msgObj.messages)) {
       return this.extractOperations(msgObj.messages);
+    }
+
+    const msgWithVersion = 'version' in msgObj ? msgObj : {version: 'v1.0', ...msgObj};
+    const parseResult = AgentToRendererMessageSchema.safeParse(msgWithVersion);
+    if (!parseResult.success) {
+      const formattedErrors = parseResult.error.errors.map(formatZodIssue).join('; ');
+      throw new A2uiValidationError(`Invalid v1.0 message: ${formattedErrors}`, parseResult.error);
     }
 
     const updateTypes = [

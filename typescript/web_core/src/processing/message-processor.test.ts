@@ -161,7 +161,7 @@ describe('MessageProcessor', () => {
             components: [{id: 'comp1', label: 'No Type'} as any],
           },
         });
-      }, /Cannot create component comp1 without a type/);
+      }, /Invalid v0.9 message/);
     });
 
     it('throws when catalog not found', () => {
@@ -196,7 +196,7 @@ describe('MessageProcessor', () => {
           version: 'v0.9',
           updateComponents: {
             surfaceId: 'unknown-s',
-            components: [] as any,
+            components: [{id: 'root', component: 'Column'}],
           },
         });
       }, /Surface not found for message: unknown-s/);

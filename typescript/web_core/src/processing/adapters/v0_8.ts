@@ -17,6 +17,8 @@
 import {ProtocolVersion, VersionAdapter} from './base.js';
 import {InternalComponentPayload, InternalOperation} from '../operations.js';
 import {A2uiValidationError} from '../../errors.js';
+import {A2uiMessageSchema} from '../../v0_8/schema/server-to-client.js';
+import {formatZodIssue} from '../message-processor.js';
 
 export class V0_8VersionAdapter implements VersionAdapter {
   readonly version: ProtocolVersion = 'v0.8';
@@ -29,6 +31,14 @@ export class V0_8VersionAdapter implements VersionAdapter {
     const msgObj = payload as Record<string, unknown>;
     if (Array.isArray(msgObj.messages)) {
       return this.extractOperations(msgObj.messages);
+    }
+
+    const msgWithoutVersion = {...msgObj};
+    delete msgWithoutVersion.version;
+    const parseResult = A2uiMessageSchema.safeParse(msgWithoutVersion);
+    if (!parseResult.success) {
+      const formattedErrors = parseResult.error.errors.map(formatZodIssue).join('; ');
+      throw new A2uiValidationError(`Invalid v0.8 message: ${formattedErrors}`, parseResult.error);
     }
 
     const updateTypes = [

@@ -429,9 +429,8 @@ export class MessageProcessor<T extends ComponentApi> {
         throw new A2uiValidationError(`Component '${component}' is missing an 'id'.`);
       }
 
-      const existing = surface.componentsModel.get(id);
-      const componentType = component || existing?.type;
-      const mergedProperties = existing ? {...existing.properties, ...properties} : properties;
+      const componentType = component;
+      const mergedProperties = properties;
       if (componentType) {
         const componentApi = surface.catalog.components.get(componentType);
         if (componentApi) {

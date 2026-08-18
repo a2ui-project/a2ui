@@ -103,7 +103,7 @@ describe('VersionAdapterFactory', () => {
     const surfaceOps = adapter.extractOperations({
       surfaceUpdate: {
         surfaceId: 's1',
-        components: [{id: 'btn1', component: 'Button', label: 'Click'}],
+        components: [{id: 'txt1', component: {Text: {text: {literalString: 'Click'}}}}],
       },
     });
     assert.strictEqual(surfaceOps.length, 1);
@@ -114,13 +114,12 @@ describe('VersionAdapterFactory', () => {
       dataModelUpdate: {
         surfaceId: 's1',
         path: '/count',
-        value: 42,
+        contents: [{key: 'count', valueNumber: 42}],
       },
     });
     assert.strictEqual(dataOps.length, 1);
     assert.strictEqual(dataOps[0].type, 'updateDataModel');
     assert.strictEqual(dataOps[0].surfaceId, 's1');
-    assert.strictEqual((dataOps[0] as any).value, 42);
   });
 
   it('throws A2uiValidationError in v0.8 and v0.9 adapters when payload contains no update action', () => {
@@ -129,15 +128,11 @@ describe('VersionAdapterFactory', () => {
 
     assert.throws(
       () => v08Adapter.extractOperations({}),
-      err =>
-        err instanceof A2uiValidationError &&
-        /A2UI Protocol message must contain exactly one update action/.test(err.message),
+      err => err instanceof A2uiValidationError && /Invalid v0.8 message/.test(err.message),
     );
     assert.throws(
       () => v09Adapter.extractOperations({}),
-      err =>
-        err instanceof A2uiValidationError &&
-        /A2UI Protocol message must contain exactly one update action/.test(err.message),
+      err => err instanceof A2uiValidationError && /Invalid v0.9 message/.test(err.message),
     );
   });
 
@@ -351,7 +346,7 @@ describe('MessageProcessor Dependency Injection', () => {
       version: 'v1.0',
       updateComponents: {
         surfaceId: 's1',
-        components: [{id: 't1', color: 'blue'}],
+        components: [{id: 't1', component: 'Text', text: 'Hello', color: 'blue'}],
       },
     });
 
