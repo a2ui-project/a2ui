@@ -50,15 +50,7 @@ const SUPPORTED_PROTOCOL_VERSIONS = new Set(['v0.8', 'v0.9', 'v1.0']);
  * Transition skip list containing specific test case names to skip during active feature transitions.
  * Remove test names from this set as feature implementations are completed.
  */
-const SKIP_TEST_NAMES = new Set([
-  'test_topology_missing_root_error',
-  'test_topology_direct_circular_reference_error',
-  'test_topology_indirect_circular_reference_error',
-  'test_topology_self_reference_error',
-  'test_topology_dangling_child_reference_error',
-  'test_topology_orphaned_component_error',
-  'test_update_components_strict_schema_validation_failure',
-]);
+const SKIP_TEST_NAMES = new Set([]);
 
 /**
  * Transition skip list containing specific test suite files to skip during active feature transitions.
@@ -309,6 +301,52 @@ const flexibleComponents = [
   schema: z.object({}).passthrough(),
 }));
 
+function jsonSchemaToZod(schemaDef) {
+  if (!schemaDef || typeof schemaDef !== 'object') return z.object({}).passthrough();
+
+  if (schemaDef.type === 'object' || schemaDef.properties) {
+    const shape = {};
+    const properties = schemaDef.properties || {};
+    const required = new Set(schemaDef.required || []);
+
+    for (const [propName, propDef] of Object.entries(properties)) {
+      let fieldSchema = jsonSchemaToZod(propDef);
+      if (!required.has(propName)) {
+        fieldSchema = fieldSchema.optional();
+      }
+      shape[propName] = fieldSchema;
+    }
+
+    let objSchema = z.object(shape);
+    if (schemaDef.additionalProperties === false) {
+      objSchema = objSchema.strict();
+    } else {
+      objSchema = objSchema.passthrough();
+    }
+    return objSchema;
+  }
+
+  if (schemaDef.type === 'string' || schemaDef.$ref) {
+    let strSchema = z.string();
+    if (schemaDef.pattern) {
+      try {
+        strSchema = strSchema.regex(new RegExp(schemaDef.pattern));
+      } catch {
+        // ignore regex compilation errors if any
+      }
+    }
+    return strSchema;
+  }
+  if (schemaDef.type === 'number' || schemaDef.type === 'integer') return z.number();
+  if (schemaDef.type === 'boolean') return z.boolean();
+  if (schemaDef.type === 'array') {
+    const itemSchema = schemaDef.items ? jsonSchemaToZod(schemaDef.items) : z.any();
+    return z.array(itemSchema);
+  }
+
+  return z.any();
+}
+
 function getCatalogsForTestCase(testCase) {
   const catalogsMap = new Map(allCatalogs.map(c => [c.id, c]));
   const addCatalogId = id => {
@@ -319,7 +357,20 @@ function getCatalogsForTestCase(testCase) {
 
   if (testCase.catalogs) {
     for (const cat of testCase.catalogs) {
-      if (cat.catalogId) addCatalogId(cat.catalogId);
+      if (cat.catalogId) {
+        if (cat.components || cat.theme) {
+          const compApis = cat.components
+            ? Object.entries(cat.components).map(([name, def]) => ({
+                name,
+                schema: jsonSchemaToZod(def),
+              }))
+            : flexibleComponents;
+          const themeSchema = cat.theme ? jsonSchemaToZod(cat.theme) : undefined;
+          catalogsMap.set(cat.catalogId, new Catalog(cat.catalogId, compApis, [], themeSchema));
+        } else {
+          addCatalogId(cat.catalogId);
+        }
+      }
     }
   }
 
@@ -387,7 +438,10 @@ function validateProcessMessagesTestCase(testCase) {
   }
 
   const testCatalogs = getCatalogsForTestCase(testCase);
-  const processorOptions = protocolVersion ? {version: protocolVersion} : {};
+  const processorOptions = {
+    ...(protocolVersion ? {version: protocolVersion} : {}),
+    strictMode: Boolean(testCase.strictMode),
+  };
   const processor = new MessageProcessor(testCatalogs, undefined, processorOptions);
 
   if (expectError) {
