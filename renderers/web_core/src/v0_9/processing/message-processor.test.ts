@@ -892,5 +892,118 @@ describe('MessageProcessor', () => {
         },
       );
     });
+
+    it('accepts unrecognized properties on component schemas with z.union of strict objects', () => {
+      const unionComponentApi: ComponentApi = {
+        name: 'VariantCard',
+        schema: z.union([
+          z
+            .object({
+              type: z.literal('simple'),
+              title: z.string(),
+            })
+            .strict(),
+          z
+            .object({
+              type: z.literal('advanced'),
+              title: z.string(),
+              rating: z.number(),
+            })
+            .strict(),
+        ]),
+      };
+
+      const proc = new MessageProcessor([new Catalog('cat-union', [unionComponentApi])]);
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1', catalogId: 'cat-union'},
+        },
+      ]);
+
+      // Simple variant with extra unrecognized properties
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [
+              {
+                id: 'card1',
+                component: 'VariantCard',
+                type: 'simple',
+                title: 'Card 1',
+                extraProperty: 'should-be-ignored',
+                nestedInfo: {foo: 'bar'},
+              } as any,
+            ],
+          },
+        },
+      ]);
+
+      const surface = proc.model.getSurface('s1');
+      const comp = surface?.componentsModel.get('card1');
+      assert.ok(comp);
+      assert.strictEqual(comp.properties.type, 'simple');
+      assert.strictEqual(comp.properties.title, 'Card 1');
+      assert.strictEqual((comp.properties as any).extraProperty, 'should-be-ignored');
+    });
+
+    it('still rejects invalid union types when neither branch matches on valid properties', () => {
+      const unionComponentApi: ComponentApi = {
+        name: 'VariantCard',
+        schema: z.union([
+          z
+            .object({
+              type: z.literal('simple'),
+              title: z.string(),
+            })
+            .strict(),
+          z
+            .object({
+              type: z.literal('advanced'),
+              title: z.string(),
+              rating: z.number(),
+            })
+            .strict(),
+        ]),
+      };
+
+      const proc = new MessageProcessor([new Catalog('cat-union', [unionComponentApi])]);
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1', catalogId: 'cat-union'},
+        },
+      ]);
+
+      assert.throws(
+        () => {
+          proc.processMessages([
+            {
+              version: 'v0.9',
+              updateComponents: {
+                surfaceId: 's1',
+                components: [
+                  {
+                    id: 'card1',
+                    component: 'VariantCard',
+                    type: 'advanced',
+                    title: 12345, // Invalid type
+                    rating: 'not-a-number', // Invalid type
+                    extraProp: 'ignored',
+                  } as any,
+                ],
+              },
+            },
+          ]);
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.ok(err.message.includes("Validation failed for component 'VariantCard'"));
+          return true;
+        },
+      );
+    });
   });
 });

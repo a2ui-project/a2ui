@@ -92,6 +92,38 @@ export function formatZodIssue(err: z.ZodIssue): string {
 }
 
 /**
+ * Recursively filters out Zod validation issues that are solely caused by unrecognized keys
+ * (including inside z.union / discriminated union branches where extra keys on strict schemas cause invalid_union).
+ */
+export function filterZodRealIssues(issues: z.ZodIssue[]): z.ZodIssue[] {
+  return issues.filter(issue => {
+    // 1. Direct unrecognized_keys issues are ignored on the client
+    if (issue.code === 'unrecognized_keys') {
+      return false;
+    }
+
+    // 2. If a union failed, check whether at least one branch would have succeeded
+    //    if not for unrecognized keys.
+    if (
+      issue.code === 'invalid_union' &&
+      'unionErrors' in issue &&
+      Array.isArray((issue as any).unionErrors)
+    ) {
+      const unionErrors = (issue as any).unionErrors as z.ZodError[];
+      const hasMatchingBranch = unionErrors.some(branchError => {
+        const branchRealIssues = filterZodRealIssues(branchError.issues);
+        return branchRealIssues.length === 0;
+      });
+      if (hasMatchingBranch) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+}
+
+/**
  * The central processor for A2UI messages.
  * @template T The concrete type of the ComponentApi.
  */
@@ -363,10 +395,8 @@ export class MessageProcessor<T extends ComponentApi> {
         if (componentApi) {
           const validationResult = componentApi.schema.safeParse(properties);
           if (!validationResult.success) {
-            // Client-side validation ignores unrecognized keys
-            const realIssues = validationResult.error.issues.filter(
-              issue => issue.code !== 'unrecognized_keys',
-            );
+            // Client-side validation ignores unrecognized keys (including inside z.union)
+            const realIssues = filterZodRealIssues(validationResult.error.issues);
             if (realIssues.length > 0) {
               const formattedErrors = realIssues.map(formatZodIssue).join(', ');
               console.error(
