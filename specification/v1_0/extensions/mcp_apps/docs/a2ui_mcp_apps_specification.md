@@ -1,7 +1,7 @@
 # SEP-XXXX: A2UI over MCP Apps Protocol Extension (v1.0)
 
-**Track:** Extensions
 **Status:** Draft
+
 **Created:** 2026-08-18
 
 ## Abstract
