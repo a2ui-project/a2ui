@@ -103,7 +103,13 @@ let package = Package(
     ),
     .testTarget(
       name: "BasicCatalogTests",
-      dependencies: ["BasicCatalog"],
+      dependencies: [
+        "BasicCatalog",
+        "A2UICore",
+        "A2UIJSON",
+        .product(name: "JSONSchema", package: "swift-json-schema"),
+        .product(name: "OrderedJSON", package: "swift-json-schema"),
+      ],
       path: "swift/core/Tests/BasicCatalogTests"
     ),
   ]
