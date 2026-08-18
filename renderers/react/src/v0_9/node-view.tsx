@@ -19,6 +19,7 @@ import {createContext, useCallback, useContext, useMemo, useSyncExternalStore} f
 import {
   ComponentContext,
   ComponentNode,
+  isComponentNode,
   Binding,
   isWritable,
   effect,
@@ -31,11 +32,14 @@ import {
 import type {ReactComponentImplementation} from './adapter';
 
 /** Renders a resolved child node, or falls back for an unresolved id. */
-export type NodeBuildChild = (child: ComponentNode | string, basePath?: string) => React.ReactNode;
+export type NodeBuildChild = (
+  child: ComponentNode<ReactComponentImplementation> | string,
+  basePath?: string,
+) => React.ReactNode;
 
 /** What a component implementation's `view` receives from the node surface. */
 export type NodeViewProps = {
-  node: ComponentNode;
+  node: ComponentNode<ReactComponentImplementation>;
   buildChild: NodeBuildChild;
 };
 
@@ -58,9 +62,12 @@ export function useSignalValue<T>(signal: Signal<T>): T {
 }
 
 /** Child nodes of one view, keyed by componentId and by componentId@dataPath. */
-type ChildIndex = Map<string, ComponentNode>;
+type ChildIndex = Map<string, ComponentNode<ReactComponentImplementation>>;
 
-function registerChild(index: ChildIndex, child: ComponentNode): void {
+function registerChild(
+  index: ChildIndex,
+  child: ComponentNode<ReactComponentImplementation>,
+): void {
   index.set(`${child.componentId}@${child.dataPath}`, child);
   if (!index.has(child.componentId)) {
     index.set(child.componentId, child);
@@ -75,8 +82,10 @@ function registerChild(index: ChildIndex, child: ComponentNode): void {
  * `index` for `buildChild` to find again.
  */
 function toViewValue(parent: ComponentNode, value: unknown, index: ChildIndex): unknown {
-  if (value instanceof ComponentNode) {
-    registerChild(index, value);
+  if (isComponentNode(value)) {
+    // Every node in this surface's props came from its own resolver, whose
+    // catalog carries ReactComponentImplementation entries.
+    registerChild(index, value as ComponentNode<ReactComponentImplementation>);
     if (value.dataPath !== parent.dataPath) {
       return {id: value.componentId, basePath: value.dataPath};
     }
@@ -119,7 +128,9 @@ function toViewProps(
   for (const [key, inner] of Object.entries(props)) {
     if (inner instanceof Binding) {
       result[key] = toViewValue(parent, inner.value, index);
-      result[`set${key.charAt(0).toUpperCase()}${key.slice(1)}`] = isWritable(inner) ? inner.set : () => {};
+      result[`set${key.charAt(0).toUpperCase()}${key.slice(1)}`] = isWritable(inner)
+        ? inner.set
+        : () => {};
     } else {
       result[key] = toViewValue(parent, inner, index);
     }

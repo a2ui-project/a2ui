@@ -33,6 +33,7 @@ import React, {memo, useCallback, useMemo, useSyncExternalStore} from 'react';
 import {
   ComponentContext,
   ComponentNode,
+  isComponentNode,
   NodeResolver,
   effect,
   getValue,
@@ -46,7 +47,7 @@ import {DeferredChild} from './A2uiSurface';
 /** Renders an implementation that has no `view`: its wrapper binds itself. */
 const RenderFallback: React.FC<{
   surface: SurfaceModel<ReactComponentImplementation>;
-  node: ComponentNode;
+  node: ComponentNode<ReactComponentImplementation>;
   impl: ReactComponentImplementation;
   buildChild: (id: string, basePath?: string) => React.ReactNode;
 }> = ({surface, node, impl, buildChild}) => {
@@ -59,10 +60,16 @@ const RenderFallback: React.FC<{
 };
 
 const NodeView = memo(
-  ({surface, node}: {surface: SurfaceModel<ReactComponentImplementation>; node: ComponentNode}) => {
+  ({
+    surface,
+    node,
+  }: {
+    surface: SurfaceModel<ReactComponentImplementation>;
+    node: ComponentNode<ReactComponentImplementation>;
+  }) => {
     const buildChild = useCallback<NodeBuildChild>(
       (child, basePath) => {
-        if (child instanceof ComponentNode) {
+        if (isComponentNode(child)) {
           return <NodeView key={child.instanceId} surface={surface} node={child} />;
         }
         // Not resolved by the node layer; recurse over the raw definitions.
@@ -81,7 +88,7 @@ const NodeView = memo(
     if (node.isPlaceholder) {
       return <div style={{color: 'gray', padding: '4px'}}>[Loading {node.componentId}...]</div>;
     }
-    const impl = surface.catalog.components.get(node.type);
+    const impl = node.impl;
     if (!impl) {
       return <div style={{color: 'red'}}>Unknown component: {node.type}</div>;
     }

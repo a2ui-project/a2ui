@@ -22,6 +22,7 @@ import {DataContext} from '../rendering/data-context.js';
 import {BehaviorNode, GenericBinder, scrapeSchemaBehavior} from '../rendering/generic-binder.js';
 import {
   ComponentNode,
+  isComponentNode,
   MutableComponentNode,
   NodeProps,
   PLACEHOLDER_TYPE,
@@ -85,7 +86,7 @@ export class NodeResolver<
   F extends FunctionImplementation = FunctionImplementation,
 > {
   /** The resolved root of the tree; undefined until the root component arrives. */
-  readonly rootNode: Signal<ComponentNode | undefined>;
+  readonly rootNode: Signal<ComponentNode<C> | undefined>;
 
   private readonly surface: SurfaceModel<C, F>;
   private readonly catalog: Catalog<C, F>;
@@ -106,7 +107,7 @@ export class NodeResolver<
     }
     this.surface = surface;
     this.catalog = catalog;
-    this.rootNode = signal<ComponentNode | undefined>(undefined);
+    this.rootNode = signal<ComponentNode<C> | undefined>(undefined);
 
     this.modelSubs.push(
       surface.componentsModel.onCreated.subscribe(component => this.onComponentCreated(component)),
@@ -154,7 +155,8 @@ export class NodeResolver<
     }
     const node = this.createNode(ROOT_COMPONENT_ID, ROOT_DATA_PATH, ROOT_EDGE_KEY, undefined);
     this.rootRecord = this.records.get(node);
-    setValue(this.rootNode, node);
+    // Sound: every impl a node carries came from this resolver's Catalog<C>.
+    setValue(this.rootNode, node as ComponentNode<C>);
   }
 
   private onComponentCreated(component: ComponentModel): void {
@@ -271,6 +273,7 @@ export class NodeResolver<
         model.type,
         dataPath,
         {},
+        api,
       ),
       {
         edgeKey,
@@ -657,7 +660,7 @@ function stabilize(prev: unknown, next: unknown): unknown {
   if (prev instanceof Binding && next instanceof Binding) {
     return sameBinding(prev, next) ? prev : next;
   }
-  if (prev instanceof ComponentNode || next instanceof ComponentNode) {
+  if (isComponentNode(prev) || isComponentNode(next)) {
     return next;
   }
   if (Array.isArray(prev) && Array.isArray(next) && prev.length === next.length) {
@@ -691,12 +694,7 @@ function stabilize(prev: unknown, next: unknown): unknown {
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (
-    !value ||
-    typeof value !== 'object' ||
-    Array.isArray(value) ||
-    value instanceof ComponentNode
-  ) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || isComponentNode(value)) {
     return false;
   }
   // Maps, Dates, and class instances have no own enumerable keys to compare,

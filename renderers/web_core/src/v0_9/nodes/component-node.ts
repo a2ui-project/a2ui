@@ -15,6 +15,7 @@
  */
 
 import {EventEmitter, EventSource} from '../common/events.js';
+import type {ComponentApi} from '../catalog/types.js';
 import {Signal, signal, peekValue, setValue} from '../reactivity/signals.js';
 import {Binding} from './binding.js';
 
@@ -37,9 +38,13 @@ export type NodeProps = Record<string, unknown>;
  * internal properties change; subscribe to the child's `props` for that.
  *
  * The resolver creates, updates, and disposes nodes; application code reads
- * them.
+ * them through this interface. {@link MutableComponentNode} is the only
+ * implementation.
  */
-export class ComponentNode<TProps extends NodeProps = NodeProps> {
+export interface ComponentNode<
+  C extends ComponentApi = ComponentApi,
+  TProps extends NodeProps = NodeProps,
+> {
   /**
    * Identifier for this node in the rendered tree. The bare component id at
    * the root data scope; for template-spawned items the scoped data path is
@@ -56,54 +61,85 @@ export class ComponentNode<TProps extends NodeProps = NodeProps> {
   readonly type: string;
   /** The data model scope this node resolves against, e.g. `/items/0`. */
   readonly dataPath: string;
+  /** The resolved catalog entry for `type`; undefined while a placeholder. */
+  readonly impl: C | undefined;
   /** Resolved, reactive properties. Read with `getValue`/`peekValue`. */
   readonly props: Signal<TProps>;
-
-  protected readonly _onDestroyed = new EventEmitter<void>();
   /** Fires exactly once, when this node is disposed. */
-  readonly onDestroyed: EventSource<void> = this._onDestroyed;
-
-  protected cleanups: Array<() => void> = [];
-  protected _disposed = false;
-
-  protected constructor(
-    instanceId: string,
-    componentId: string,
-    type: string,
-    dataPath: string,
-    initialProps: TProps,
-  ) {
-    this.instanceId = instanceId;
-    this.componentId = componentId;
-    this.type = type;
-    this.dataPath = dataPath;
-    this.props = signal(initialProps);
-  }
-
-  get disposed(): boolean {
-    return this._disposed;
-  }
-
+  readonly onDestroyed: EventSource<void>;
+  readonly disposed: boolean;
   /**
    * True when this node stands in for a component whose definition has not
    * arrived or whose type has no catalog entry. A placeholder holds the child
    * position with empty props; when the definition becomes resolvable, the
    * resolver replaces it in place with a real node and the parent emits once.
    */
-  get isPlaceholder(): boolean {
-    return this.type === PLACEHOLDER_TYPE;
-  }
-
+  readonly isPlaceholder: boolean;
   /** Registers teardown work to run when this node is disposed. */
-  addCleanup(cleanup: () => void): void {
-    this.cleanups.push(cleanup);
-  }
-
+  addCleanup(cleanup: () => void): void;
   /**
    * Serializes the resolved tree for debugging and headless assertions.
    * Child nodes serialize recursively, bindings as their snapshot values,
    * and action closures as the string `'<Action>'`.
    */
+  toJSON(): Record<string, unknown>;
+}
+
+/** Narrows an unknown prop value to a {@link ComponentNode}. */
+export function isComponentNode(value: unknown): value is ComponentNode {
+  return value instanceof MutableComponentNode;
+}
+
+/**
+ * The write side and only implementation of {@link ComponentNode}. Not
+ * exported from the package barrel: the resolver constructs, updates, and
+ * disposes nodes; application code sees the read-only interface.
+ */
+export class MutableComponentNode<TProps extends NodeProps = NodeProps> implements ComponentNode<
+  ComponentApi,
+  TProps
+> {
+  readonly instanceId: string;
+  readonly componentId: string;
+  readonly type: string;
+  readonly dataPath: string;
+  readonly impl: ComponentApi | undefined;
+  readonly props: Signal<TProps>;
+
+  private readonly _onDestroyed = new EventEmitter<void>();
+  readonly onDestroyed: EventSource<void> = this._onDestroyed;
+
+  private cleanups: Array<() => void> = [];
+  private _disposed = false;
+
+  constructor(
+    instanceId: string,
+    componentId: string,
+    type: string,
+    dataPath: string,
+    initialProps: TProps,
+    impl?: ComponentApi,
+  ) {
+    this.instanceId = instanceId;
+    this.componentId = componentId;
+    this.type = type;
+    this.dataPath = dataPath;
+    this.props = signal(initialProps);
+    this.impl = impl;
+  }
+
+  get disposed(): boolean {
+    return this._disposed;
+  }
+
+  get isPlaceholder(): boolean {
+    return this.type === PLACEHOLDER_TYPE;
+  }
+
+  addCleanup(cleanup: () => void): void {
+    this.cleanups.push(cleanup);
+  }
+
   toJSON(): Record<string, unknown> {
     if (this.isPlaceholder) {
       return {id: this.componentId, type: PLACEHOLDER_TYPE};
@@ -117,21 +153,6 @@ export class ComponentNode<TProps extends NodeProps = NodeProps> {
       serialized[key] = serializeValue(value);
     }
     return serialized;
-  }
-}
-
-/** The write side of {@link ComponentNode}. */
-export class MutableComponentNode<
-  TProps extends NodeProps = NodeProps,
-> extends ComponentNode<TProps> {
-  constructor(
-    instanceId: string,
-    componentId: string,
-    type: string,
-    dataPath: string,
-    initialProps: TProps,
-  ) {
-    super(instanceId, componentId, type, dataPath, initialProps);
   }
 
   /**
@@ -172,7 +193,7 @@ export class MutableComponentNode<
 }
 
 function serializeValue(value: unknown): unknown {
-  if (value instanceof ComponentNode) {
+  if (isComponentNode(value)) {
     return value.toJSON();
   }
   if (value instanceof Binding) {

@@ -41,7 +41,7 @@ import {
 } from '../schema/common-types.js';
 import {effect, getValue, peekValue, Signal} from '../reactivity/signals.js';
 import * as v0_9 from '../index.js';
-import {ComponentNode, NodeProps, PLACEHOLDER_TYPE} from './component-node.js';
+import {ComponentNode, NodeProps, PLACEHOLDER_TYPE, isComponentNode} from './component-node.js';
 import {NodeResolver} from './node-resolver.js';
 import {Binding, isWritable} from './binding.js';
 
@@ -106,10 +106,7 @@ function bound(node: ComponentNode, key: string): unknown {
 
 function child(node: ComponentNode, key: string, index?: number): ComponentNode {
   const value = index === undefined ? props(node)[key] : (props(node)[key] as unknown[])[index];
-  assert.ok(
-    value instanceof ComponentNode,
-    `expected ${key}[${index ?? ''}] to be a ComponentNode`,
-  );
+  assert.ok(isComponentNode(value), `expected ${key}[${index ?? ''}] to be a ComponentNode`);
   return value;
 }
 
@@ -157,7 +154,7 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
 
     add(surface, 'root', 'Column', {children: []});
     const root = getValue(resolver.rootNode);
-    assert.ok(root instanceof ComponentNode);
+    assert.ok(isComponentNode(root));
     assert.strictEqual(root.componentId, 'root');
     assert.strictEqual(root.type, 'Column');
 
@@ -372,10 +369,10 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     assert.strictEqual(items.length, 2);
     assert.strictEqual(items[0].title, 'One');
     const first = items[0].child;
-    assert.ok(first instanceof ComponentNode);
+    assert.ok(isComponentNode(first));
     assert.strictEqual(bound(first, 'text'), 'First');
     const second = items[1].child;
-    assert.ok(second instanceof ComponentNode);
+    assert.ok(isComponentNode(second));
     assert.strictEqual(bound(second, 'text'), 'Second');
     resolver.dispose();
   });
@@ -760,8 +757,9 @@ describe('NodeResolver constructor checks and disposal', () => {
     const _setProps = root.setProps;
     // @ts-expect-error dispose lives on MutableComponentNode, internal to the resolver
     const _dispose = root.dispose;
-    // @ts-expect-error node construction is not public API
-    new ComponentNode('id', 'id', 'Text', '/', {});
+    // ComponentNode is an interface: the package ships no runtime
+    // constructor for nodes at all.
+    assert.strictEqual('ComponentNode' in v0_9, false);
     // @ts-expect-error MutableComponentNode is not exported from the package
     const _leaked = v0_9.MutableComponentNode;
     resolver.dispose();
