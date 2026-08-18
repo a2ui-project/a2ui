@@ -242,6 +242,7 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     assert.ok(root);
     const placeholder = child(root, 'children', 0);
     assert.strictEqual(placeholder.type, PLACEHOLDER_TYPE);
+    assert.strictEqual(placeholder.state, 'pending');
     assert.strictEqual(placeholder.componentId, 'late');
 
     let destroyed = 0;
@@ -255,6 +256,7 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     const upgraded = child(root, 'children', 0);
     assert.notStrictEqual(upgraded, placeholder);
     assert.strictEqual(upgraded.type, 'Text');
+    assert.strictEqual(upgraded.state, 'resolved');
     assert.strictEqual(bound(upgraded, 'text'), 'Arrived');
     assert.strictEqual(placeholder.disposed, true);
     assert.strictEqual(destroyed, 1);
@@ -436,7 +438,7 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
           child: {id: 'txt', type: 'Text', text: 'Hello'},
         },
         {id: 'btn', type: 'Button', label: 'Go', action: '<Action>'},
-        {id: 'late', type: PLACEHOLDER_TYPE},
+        {id: 'late', type: PLACEHOLDER_TYPE, state: 'pending'},
       ],
     });
     resolver.dispose();
@@ -601,6 +603,7 @@ describe('NodeResolver malformed and unusual payloads', () => {
     const b = child(a, 'child');
     const backReference = child(b, 'child');
     assert.strictEqual(backReference.type, PLACEHOLDER_TYPE);
+    assert.strictEqual(backReference.state, 'cyclic');
     assert.strictEqual(backReference.componentId, 'a');
     assert.ok(errors.some(e => e.code === 'CYCLIC_REFERENCE'));
     assert.ok(resolver.activeNodeCount <= 5);
@@ -646,6 +649,7 @@ describe('NodeResolver malformed and unusual payloads', () => {
     assert.ok(root);
     const placeholder = child(root, 'child');
     assert.strictEqual(placeholder.type, PLACEHOLDER_TYPE);
+    assert.strictEqual(placeholder.state, 'unknown-type');
     const reportsBefore = errors.filter(e => e.code === 'UNKNOWN_COMPONENT_TYPE').length;
 
     const rootModel = surface.componentsModel.get('root');

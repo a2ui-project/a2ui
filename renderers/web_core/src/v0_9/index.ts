@@ -34,6 +34,7 @@ export {
   PLACEHOLDER_TYPE,
   type ComponentNode,
   type NodeProps,
+  type NodeState,
 } from './nodes/component-node.js';
 export * from './nodes/node-resolver.js';
 export * from './nodes/ref-fields.js';

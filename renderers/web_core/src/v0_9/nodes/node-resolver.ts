@@ -232,6 +232,8 @@ export class NodeResolver<
           PLACEHOLDER_TYPE,
           dataPath,
           {},
+          undefined,
+          'pending',
         ),
         {edgeKey, parent, refFields: EMPTY_REF_FIELDS},
       );
@@ -259,6 +261,8 @@ export class NodeResolver<
           PLACEHOLDER_TYPE,
           dataPath,
           {},
+          undefined,
+          'unknown-type',
         ),
         {edgeKey, parent, refFields: EMPTY_REF_FIELDS},
       ).node;
@@ -363,6 +367,8 @@ export class NodeResolver<
           PLACEHOLDER_TYPE,
           dataPath,
           {},
+          undefined,
+          'cyclic',
         ),
         {edgeKey, parent, refFields: EMPTY_REF_FIELDS},
       ).node;
@@ -370,13 +376,17 @@ export class NodeResolver<
     if (existing && !existing.disposed) {
       const model = this.surface.componentsModel.get(componentId);
       const api = model ? this.catalog.components.get(model.type) : undefined;
-      // A placeholder stays up to date while its component is missing, and
-      // also while the component exists but has no catalog entry; recreating
-      // it cannot improve either situation.
+      // A placeholder stays up to date only while its own state's
+      // preconditions hold, so a pending node whose definition arrives with
+      // an unknown type is replaced (once) by an unknown-type node, and
+      // either kind resolves when the type gains a catalog entry.
       const upToDate =
         existing.componentId === componentId &&
         existing.dataPath === dataPath &&
-        (existing.isPlaceholder ? !model || !api : !!model && existing.type === model.type);
+        (existing.isPlaceholder
+          ? (model === undefined && existing.state === 'pending') ||
+            (model !== undefined && api === undefined && existing.state === 'unknown-type')
+          : model !== undefined && existing.type === model.type);
       if (upToDate) {
         return existing;
       }

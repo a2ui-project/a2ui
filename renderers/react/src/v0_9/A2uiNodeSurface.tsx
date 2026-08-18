@@ -85,12 +85,16 @@ const NodeView = memo(
       [surface, node],
     );
 
+    if (node.state === 'unknown-type') {
+      return <div style={{color: 'red'}}>Unknown component type: {node.componentId}</div>;
+    }
     if (node.isPlaceholder) {
       return <div style={{color: 'gray', padding: '4px'}}>[Loading {node.componentId}...]</div>;
     }
     const impl = node.impl;
     if (!impl) {
-      return <div style={{color: 'red'}}>Unknown component: {node.type}</div>;
+      // A resolved node always carries its impl; this narrows the type.
+      return null;
     }
     const View = impl.view;
     if (!View) {

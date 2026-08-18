@@ -19,8 +19,21 @@ import type {ComponentApi} from '../catalog/types.js';
 import {Signal, signal, peekValue, setValue} from '../reactivity/signals.js';
 import {Binding} from './binding.js';
 
-/** The `type` of a node whose component definition has not arrived yet. */
+/** The `type` of a node standing in for a component it cannot resolve. */
 export const PLACEHOLDER_TYPE = 'Placeholder';
+
+/**
+ * Why a node is or is not resolved:
+ *
+ * - `resolved`: a real component with a catalog entry; `impl` is set.
+ * - `pending`: the component definition has not arrived; upgraded in place
+ *   when it does.
+ * - `unknown-type`: the definition arrived but its type has no catalog
+ *   entry; an `UNKNOWN_COMPONENT_TYPE` error was dispatched.
+ * - `cyclic`: the reference repeats one of the node's own ancestors; a
+ *   `CYCLIC_REFERENCE` error was dispatched.
+ */
+export type NodeState = 'resolved' | 'pending' | 'unknown-type' | 'cyclic';
 
 /** Resolved node properties, keyed by the component's schema property names. */
 export type NodeProps = Record<string, unknown>;
@@ -63,16 +76,18 @@ export interface ComponentNode<
   readonly dataPath: string;
   /** The resolved catalog entry for `type`; undefined while a placeholder. */
   readonly impl: C | undefined;
+  /** Why this node is or is not resolved. */
+  readonly state: NodeState;
   /** Resolved, reactive properties. Read with `getValue`/`peekValue`. */
   readonly props: Signal<TProps>;
   /** Fires exactly once, when this node is disposed. */
   readonly onDestroyed: EventSource<void>;
   readonly disposed: boolean;
   /**
-   * True when this node stands in for a component whose definition has not
-   * arrived or whose type has no catalog entry. A placeholder holds the child
-   * position with empty props; when the definition becomes resolvable, the
-   * resolver replaces it in place with a real node and the parent emits once.
+   * True for any unresolved stand-in (`state` other than `resolved`). A
+   * placeholder holds the child position with empty props; when its
+   * component becomes resolvable, the resolver replaces it in place with a
+   * real node and the parent emits once.
    */
   readonly isPlaceholder: boolean;
   /** Registers teardown work to run when this node is disposed. */
@@ -104,6 +119,7 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
   readonly type: string;
   readonly dataPath: string;
   readonly impl: ComponentApi | undefined;
+  readonly state: NodeState;
   readonly props: Signal<TProps>;
 
   private readonly _onDestroyed = new EventEmitter<void>();
@@ -119,6 +135,7 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
     dataPath: string,
     initialProps: TProps,
     impl?: ComponentApi,
+    state: NodeState = 'resolved',
   ) {
     this.instanceId = instanceId;
     this.componentId = componentId;
@@ -126,6 +143,7 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
     this.dataPath = dataPath;
     this.props = signal(initialProps);
     this.impl = impl;
+    this.state = state;
   }
 
   get disposed(): boolean {
@@ -133,7 +151,7 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
   }
 
   get isPlaceholder(): boolean {
-    return this.type === PLACEHOLDER_TYPE;
+    return this.state !== 'resolved';
   }
 
   addCleanup(cleanup: () => void): void {
@@ -142,7 +160,7 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
 
   toJSON(): Record<string, unknown> {
     if (this.isPlaceholder) {
-      return {id: this.componentId, type: PLACEHOLDER_TYPE};
+      return {id: this.componentId, type: PLACEHOLDER_TYPE, state: this.state};
     }
     const serialized: Record<string, unknown> = {
       id: this.componentId,
