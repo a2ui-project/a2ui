@@ -23,7 +23,7 @@ import {zodToJsonSchema} from 'zod-to-json-schema';
 import {z} from 'zod';
 
 import {A2uiStateError, A2uiValidationError} from '../errors.js';
-import {VersionAdapterFactory} from './adapters/factory.js';
+import {VersionAdapterFactory, defaultVersionAdapterFactory} from './adapters/factory.js';
 import {
   InternalOperation,
   InternalCreateSurfaceOp,
@@ -138,7 +138,7 @@ export function formatZodIssue(err: z.ZodIssue): string {
  * @template T The concrete type of the ComponentApi.
  */
 export class MessageProcessor<T extends ComponentApi> {
-  protected readonly model: SurfaceGroupModel<T>;
+  readonly model: SurfaceGroupModel<T>;
   readonly version: ProtocolVersion;
   private readonly adapterRegistry: VersionAdapterResolver;
 
@@ -156,7 +156,7 @@ export class MessageProcessor<T extends ComponentApi> {
   ) {
     this.model = new SurfaceGroupModel<T>();
     this.version = options?.version ?? 'v0.9';
-    this.adapterRegistry = options?.adapterRegistry ?? VersionAdapterFactory;
+    this.adapterRegistry = options?.adapterRegistry ?? defaultVersionAdapterFactory;
     if (this.actionHandler) {
       this.model.onAction.subscribe(this.actionHandler);
     }
@@ -500,7 +500,6 @@ export class MessageProcessor<T extends ComponentApi> {
     const value = op.value;
     surface.dataModel.set(path, value);
   }
-
 
   private extractChildIds(childVal: unknown, list: string[] = []): string[] {
     if (!childVal) return list;

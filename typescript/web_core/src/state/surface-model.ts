@@ -24,8 +24,8 @@ export interface ActionPayload {
   name: string;
   surfaceId: string;
   sourceComponentId: string;
-  timestamp?: string;
-  context?: Record<string, unknown>;
+  timestamp: string;
+  context: Record<string, unknown>;
   [key: string]: unknown;
 }
 

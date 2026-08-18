@@ -19,7 +19,12 @@ import * as assert from 'node:assert';
 import {z} from 'zod';
 import {A2uiValidationError} from '../../errors.js';
 import {VersionAdapterFactory} from './factory.js';
-import {InternalCreateSurfaceOp} from '../operations.js';
+import {
+  InternalCreateSurfaceOp,
+  InternalUpdateComponentsOp,
+  InternalUpdateDataModelOp,
+  InternalDeleteSurfaceOp,
+} from '../operations.js';
 import {VersionAdapter} from './base.js';
 
 describe('VersionAdapterFactory', () => {
@@ -29,7 +34,6 @@ describe('VersionAdapterFactory', () => {
       createSurface: {
         surfaceId: 's1',
         catalogId: 'basic',
-        theme: {primaryColor: '#00FF00'},
         sendDataModel: true,
         components: [{id: 'root', component: 'Column'}],
         dataModel: {
@@ -46,7 +50,7 @@ describe('VersionAdapterFactory', () => {
     const op = ops[0] as InternalCreateSurfaceOp;
     assert.strictEqual(op.type, 'createSurface');
     assert.strictEqual(op.surfaceId, 's1');
-    assert.deepStrictEqual(op.theme, {primaryColor: '#00FF00'});
+    assert.strictEqual(op.theme, undefined);
     assert.strictEqual(op.sendDataModel, true);
     assert.deepStrictEqual(op.components, [{id: 'root', component: 'Column'}]);
     assert.deepStrictEqual(op.dataModel, {key: 'value'});
@@ -77,7 +81,8 @@ describe('VersionAdapterFactory', () => {
       version: 'v0.8',
       beginRendering: {
         surfaceId: 's1',
-        theme: {dark: true},
+        root: 'root',
+        styles: {primaryColor: '#FF0000'},
       },
     };
 
@@ -89,7 +94,33 @@ describe('VersionAdapterFactory', () => {
     const op = ops[0] as InternalCreateSurfaceOp;
     assert.strictEqual(op.type, 'createSurface');
     assert.strictEqual(op.surfaceId, 's1');
-    assert.deepStrictEqual(op.theme, {dark: true});
+    assert.deepStrictEqual(op.theme, {primaryColor: '#FF0000'});
+  });
+
+  it('extracts surfaceUpdate and dataModelUpdate operations in v0.8 adapter', () => {
+    const adapter = VersionAdapterFactory.getAdapter('v0.8');
+
+    const surfaceOps = adapter.extractOperations({
+      surfaceUpdate: {
+        surfaceId: 's1',
+        components: [{id: 'btn1', component: 'Button', label: 'Click'}],
+      },
+    });
+    assert.strictEqual(surfaceOps.length, 1);
+    assert.strictEqual(surfaceOps[0].type, 'updateComponents');
+    assert.strictEqual(surfaceOps[0].surfaceId, 's1');
+
+    const dataOps = adapter.extractOperations({
+      dataModelUpdate: {
+        surfaceId: 's1',
+        path: '/count',
+        value: 42,
+      },
+    });
+    assert.strictEqual(dataOps.length, 1);
+    assert.strictEqual(dataOps[0].type, 'updateDataModel');
+    assert.strictEqual(dataOps[0].surfaceId, 's1');
+    assert.strictEqual((dataOps[0] as any).value, 42);
   });
 
   it('supports dynamic registration of custom version adapters', () => {
@@ -125,6 +156,115 @@ describe('VersionAdapterFactory', () => {
       err =>
         err instanceof A2uiValidationError && /missing a valid 'version' string/.test(err.message),
     );
+  });
+
+  it('resolves v0.9.1 version string to v0.9 adapter', () => {
+    const adapter = VersionAdapterFactory.getAdapter('v0.9.1');
+    assert.strictEqual(adapter.version, 'v0.9');
+
+    const fromPayload = VersionAdapterFactory.resolveFromPayload({version: 'v0.9.1'});
+    assert.strictEqual(fromPayload.version, 'v0.9');
+  });
+
+  it('resolves adapter and extracts operations from batch array payloads', () => {
+    const payload = [
+      {version: 'v1.0', createSurface: {surfaceId: 's1', catalogId: 'basic'}},
+      {version: 'v1.0', deleteSurface: {surfaceId: 's1'}},
+    ];
+
+    const adapter = VersionAdapterFactory.resolveFromPayload(payload);
+    assert.strictEqual(adapter.version, 'v1.0');
+
+    const ops = adapter.extractOperations(payload);
+    assert.strictEqual(ops.length, 2);
+    assert.strictEqual(ops[0].type, 'createSurface');
+    assert.strictEqual(ops[1].type, 'deleteSurface');
+  });
+
+  it('resolves adapter and extracts operations from wrapped { messages: [...] } payload', () => {
+    const payload = {
+      messages: [
+        {version: 'v1.0', createSurface: {surfaceId: 's1'}},
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'root', component: 'Column'}],
+          },
+        },
+      ],
+    };
+
+    const adapter = VersionAdapterFactory.resolveFromPayload(payload);
+    assert.strictEqual(adapter.version, 'v1.0');
+
+    const ops = adapter.extractOperations(payload);
+    assert.strictEqual(ops.length, 2);
+    assert.strictEqual(ops[0].type, 'createSurface');
+    assert.strictEqual(ops[1].type, 'updateComponents');
+  });
+
+  it('extracts updateComponents, updateDataModel, and deleteSurface operations', () => {
+    const adapter = VersionAdapterFactory.getAdapter('v1.0');
+
+    const ucOps = adapter.extractOperations({
+      version: 'v1.0',
+      updateComponents: {
+        surfaceId: 's1',
+        components: [{id: 'c1', component: 'Text', text: 'Hi'}],
+      },
+    });
+    assert.strictEqual(ucOps.length, 1);
+    const ucOp = ucOps[0] as InternalUpdateComponentsOp;
+    assert.strictEqual(ucOp.type, 'updateComponents');
+    assert.strictEqual(ucOp.surfaceId, 's1');
+    assert.deepStrictEqual(ucOp.components, [{id: 'c1', component: 'Text', text: 'Hi'}]);
+
+    const udOps = adapter.extractOperations({
+      version: 'v1.0',
+      updateDataModel: {
+        surfaceId: 's1',
+        path: '/user/name',
+        value: 'Alice',
+      },
+    });
+    assert.strictEqual(udOps.length, 1);
+    const udOp = udOps[0] as InternalUpdateDataModelOp;
+    assert.strictEqual(udOp.type, 'updateDataModel');
+    assert.strictEqual(udOp.surfaceId, 's1');
+    assert.strictEqual(udOp.path, '/user/name');
+    assert.strictEqual(udOp.value, 'Alice');
+
+    const dsOps = adapter.extractOperations({
+      version: 'v1.0',
+      deleteSurface: {
+        surfaceId: 's1',
+      },
+    });
+    assert.strictEqual(dsOps.length, 1);
+    const dsOp = dsOps[0] as InternalDeleteSurfaceOp;
+    assert.strictEqual(dsOp.type, 'deleteSurface');
+    assert.strictEqual(dsOp.surfaceId, 's1');
+  });
+
+  it('throws A2uiValidationError for null, undefined, primitive, or non-object payloads in resolveFromPayload', () => {
+    const invalidPayloads = [null, undefined, 42, 'v1.0', [], {version: 123}, {version: null}];
+    for (const invalid of invalidPayloads) {
+      assert.throws(
+        () => VersionAdapterFactory.resolveFromPayload(invalid),
+        err =>
+          err instanceof A2uiValidationError &&
+          /missing a valid 'version' string/.test(err.message),
+      );
+    }
+  });
+
+  it('returns empty array when extractOperations is called with non-object/null values', () => {
+    const adapter = VersionAdapterFactory.getAdapter('v1.0');
+    assert.deepStrictEqual(adapter.extractOperations(null), []);
+    assert.deepStrictEqual(adapter.extractOperations(undefined), []);
+    assert.deepStrictEqual(adapter.extractOperations('not-an-object'), []);
+    assert.deepStrictEqual(adapter.extractOperations(123), []);
   });
 });
 
@@ -185,9 +325,7 @@ describe('MessageProcessor Dependency Injection', () => {
       createSurface: {
         surfaceId: 's1',
         catalogId: 'basic',
-        components: [
-          {id: 't1', component: 'Text', text: 'Hello', color: 'red'},
-        ],
+        components: [{id: 't1', component: 'Text', text: 'Hello', color: 'red'}],
       },
     });
 
@@ -195,9 +333,7 @@ describe('MessageProcessor Dependency Injection', () => {
       version: 'v1.0',
       updateComponents: {
         surfaceId: 's1',
-        components: [
-          {id: 't1', color: 'blue'},
-        ],
+        components: [{id: 't1', color: 'blue'}],
       },
     });
 

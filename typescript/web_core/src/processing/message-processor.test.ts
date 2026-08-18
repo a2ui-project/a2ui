@@ -218,27 +218,57 @@ describe('MessageProcessor', () => {
       }, /missing an 'id'/);
     });
 
-    it('processes message list wrapper', () => {
+    it('processes updateDataModel message at root and specific JSON pointer paths', () => {
       processor.processMessages({
-        messages: [
-          {
-            version: 'v0.9',
-            createSurface: {
-              surfaceId: 's1',
-              catalogId: 'test-catalog',
-            },
-          },
-          {
-            version: 'v0.9',
-            createSurface: {
-              surfaceId: 's2',
-              catalogId: 'test-catalog',
-            },
-          },
-        ],
+        version: 'v1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'test-catalog'},
       });
-      assert.ok(processor.getSurface('s1'));
-      assert.ok(processor.getSurface('s2'));
+
+      processor.processMessages({
+        version: 'v1.0',
+        updateDataModel: {
+          surfaceId: 's1',
+          path: '/user/profile',
+          value: {name: 'Bob', age: 30},
+        },
+      });
+
+      const surface = processor.getSurface('s1');
+      assert.strictEqual(surface?.dataModel.get('/user/profile/name'), 'Bob');
+
+      processor.processMessages({
+        version: 'v1.0',
+        updateDataModel: {
+          surfaceId: 's1',
+          value: {rootKey: 'rootValue'},
+        },
+      });
+      assert.strictEqual(surface?.dataModel.get('/rootKey'), 'rootValue');
+    });
+
+    it('throws A2uiStateError when updateDataModel targets non-existent surface', () => {
+      assert.throws(() => {
+        processor.processMessages({
+          version: 'v1.0',
+          updateDataModel: {
+            surfaceId: 'non_existent',
+            path: '/key',
+            value: 'val',
+          },
+        });
+      }, /Surface not found for message: non_existent/);
+    });
+
+    it('directly processes InternalOperation objects passed to processMessages', () => {
+      processor.processMessages({
+        type: 'createSurface',
+        surfaceId: 's_direct',
+        catalogId: 'test-catalog',
+        dataModel: {foo: 'bar'},
+      });
+
+      assert.ok(processor.getSurface('s_direct'));
+      assert.strictEqual(processor.getSurface('s_direct')?.dataModel.get('/foo'), 'bar');
     });
   });
 

@@ -79,4 +79,14 @@ export class VersionAdapterFactory {
       "[VersionAdapterFactory] Message payload is missing a valid 'version' string.",
     );
   }
+
+  getAdapter(version: ProtocolVersion | string): VersionAdapter {
+    return VersionAdapterFactory.getAdapter(version);
+  }
+
+  resolveFromPayload(payload: unknown): VersionAdapter {
+    return VersionAdapterFactory.resolveFromPayload(payload);
+  }
 }
+
+export const defaultVersionAdapterFactory = new VersionAdapterFactory();

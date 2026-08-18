@@ -14,5 +14,18 @@
  * limitations under the License.
  */
 
-export * from './schema/index.js';
-export * from './functions/system_functions.js';
+import {z} from 'zod';
+
+/**
+ * Universal v1.0 system function to calculate the current 0-based iteration index in array contexts.
+ *
+ * Arguments:
+ * - `offset`: Optional numerical offset added to the calculated index.
+ */
+export const IndexApi = {
+  name: '@index' as const,
+  returnType: 'number' as const,
+  schema: z.object({
+    'offset': z.coerce.number().optional(),
+  }),
+};

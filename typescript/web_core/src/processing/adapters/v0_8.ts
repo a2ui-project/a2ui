@@ -32,10 +32,9 @@ export class V0_8VersionAdapter implements VersionAdapter {
     }
 
     const updateTypes = [
-      'createSurface',
       'beginRendering',
-      'updateComponents',
-      'updateDataModel',
+      'surfaceUpdate',
+      'dataModelUpdate',
       'deleteSurface',
     ].filter(k => k in msgObj);
     if (updateTypes.length > 1) {
@@ -45,13 +44,13 @@ export class V0_8VersionAdapter implements VersionAdapter {
     }
 
     const ops: InternalOperation[] = [];
-    if ('createSurface' in msgObj || 'beginRendering' in msgObj) {
-      const cs = (msgObj.createSurface || msgObj.beginRendering) as Record<string, unknown>;
+    if ('beginRendering' in msgObj) {
+      const cs = msgObj.beginRendering as Record<string, unknown>;
       ops.push({
         type: 'createSurface',
         surfaceId: String(cs?.surfaceId || ''),
         catalogId: typeof cs?.catalogId === 'string' ? cs.catalogId : undefined,
-        theme: cs?.theme,
+        theme: cs?.theme ?? cs?.styles,
         sendDataModel: Boolean(cs?.sendDataModel),
         components: Array.isArray(cs?.components)
           ? (cs.components as InternalComponentPayload[])
@@ -62,16 +61,16 @@ export class V0_8VersionAdapter implements VersionAdapter {
             : undefined,
       });
     }
-    if ('updateComponents' in msgObj) {
-      const uc = msgObj.updateComponents as Record<string, unknown>;
+    if ('surfaceUpdate' in msgObj) {
+      const uc = msgObj.surfaceUpdate as Record<string, unknown>;
       ops.push({
         type: 'updateComponents',
         surfaceId: String(uc?.surfaceId || ''),
         components: Array.isArray(uc?.components) ? uc.components : [],
       });
     }
-    if ('updateDataModel' in msgObj) {
-      const ud = msgObj.updateDataModel as Record<string, unknown>;
+    if ('dataModelUpdate' in msgObj) {
+      const ud = msgObj.dataModelUpdate as Record<string, unknown>;
       ops.push({
         type: 'updateDataModel',
         surfaceId: String(ud?.surfaceId || ''),
