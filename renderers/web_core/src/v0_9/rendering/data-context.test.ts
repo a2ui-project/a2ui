@@ -106,6 +106,25 @@ describe('DataContext', () => {
     assert.deepStrictEqual(context.resolveDynamicValue(['literal', 'array']), ['literal', 'array']);
   });
 
+  it('returns fully static arrays as-is without re-allocation', () => {
+    const staticArray = ['literal', 1, true, null, [2, 'nested']];
+    assert.strictEqual(context.resolveDynamicValue(staticArray), staticArray);
+  });
+
+  it('resolves arrays of DynamicValues element-wise', () => {
+    assert.deepStrictEqual(context.resolveDynamicValue([{path: 'name'}, 'literal']), [
+      'Alice',
+      'literal',
+    ]);
+  });
+
+  it('resolves DynamicValues nested inside inner arrays', () => {
+    assert.deepStrictEqual(context.resolveDynamicValue(['outer', [{path: 'name'}, 'inner']]), [
+      'outer',
+      ['Alice', 'inner'],
+    ]);
+  });
+
   it('subscribes literal arrays as static', () => {
     let called = false;
     const sub = context.subscribeDynamicValue(['literal', 'array'], () => {
@@ -116,6 +135,84 @@ describe('DataContext', () => {
     // Simulate some generic path update that shouldn't trigger anything for this static sub
     context.set('name', 'Charlie');
     assert.strictEqual(called, false);
+  });
+
+  it('subscribes arrays containing path bindings reactively', () => {
+    let latest: unknown;
+    const sub = context.subscribeDynamicValue([{path: 'name'}, 'x'], val => {
+      latest = val;
+    });
+    assert.deepStrictEqual(sub.value, ['Alice', 'x']);
+
+    context.set('name', 'Bob');
+    assert.deepStrictEqual(latest, ['Bob', 'x']);
+    sub.unsubscribe();
+  });
+
+  it('resolves nested DynamicValues inside and/or function args', () => {
+    const fnInvoker = (name: string, args: Record<string, any>) => {
+      if (name === 'and') return args.values.every((v: unknown) => !!v);
+      if (name === 'or') return args.values.some((v: unknown) => !!v);
+      if (name === 'required') {
+        const val = args.value;
+        if (val === null || val === undefined) return false;
+        if (typeof val === 'string' && val === '') return false;
+        return true;
+      }
+      return null;
+    };
+    const root = createTestDataContext(
+      new DataModel({
+        formData: {email: '', phone: '', zip: '', agree: false},
+      }),
+      '/',
+      fnInvoker,
+    );
+
+    const result = root.resolveDynamicValue({
+      call: 'and',
+      args: {
+        values: [
+          {path: '/formData/agree'},
+          {
+            call: 'or',
+            args: {
+              values: [
+                {call: 'required', args: {value: {path: '/formData/email'}}},
+                {call: 'required', args: {value: {path: '/formData/phone'}}},
+              ],
+            },
+          },
+          {call: 'required', args: {value: {path: '/formData/zip'}}},
+        ],
+      },
+      returnType: 'boolean',
+    });
+    assert.strictEqual(result, false);
+
+    root.set('/formData/agree', true);
+    root.set('/formData/email', 'a@b.com');
+    root.set('/formData/zip', '12345');
+    const valid = root.resolveDynamicValue({
+      call: 'and',
+      args: {
+        values: [
+          {path: '/formData/agree'},
+          {
+            call: 'or',
+            args: {
+              values: [
+                {call: 'required', args: {value: {path: '/formData/email'}}},
+                {call: 'required', args: {value: {path: '/formData/phone'}}},
+              ],
+            },
+          },
+          {call: 'required', args: {value: {path: '/formData/zip'}}},
+        ],
+      },
+      returnType: 'boolean',
+    });
+    assert.strictEqual(valid, true);
   });
 
   it('resolves function calls synchronously', () => {
