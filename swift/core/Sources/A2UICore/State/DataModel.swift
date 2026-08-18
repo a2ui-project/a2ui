@@ -54,7 +54,12 @@ public final class DataModel: @unchecked Sendable, ObservableObject {
   /// - Parameter path: The path (e.g., `/user/name`).
   /// - Returns: The value at the path, or `nil` if not found.
   public func get(_ path: String) -> JSONValue? {
-    lock.withLock { dataSubject.value[path] }
+    lock.withLock {
+      if path.isEmpty || path == "/" {
+        return dataSubject.value
+      }
+      return dataSubject.value[path]
+    }
   }
 
   /// Sets a value at the given JSON Pointer path.
@@ -68,7 +73,11 @@ public final class DataModel: @unchecked Sendable, ObservableObject {
     lock.withLock {
       objectWillChange.send()
       var current = dataSubject.value
-      current[path] = value
+      if path.isEmpty || path == "/" {
+        current = value ?? .object([:])
+      } else {
+        current[path] = value
+      }
       dataSubject.send(current)
     }
   }

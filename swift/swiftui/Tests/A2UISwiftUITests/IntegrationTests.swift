@@ -70,12 +70,33 @@ func makeIntegrationCatalog() throws -> Catalog {
     remoteSchemas: remote
   )
 
+  let iconSchema = try Schema(
+    instance: """
+      {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "component": {"type": "string"},
+          "name": {
+            "oneOf": [
+              {"type": "string"},
+              {"$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DataBinding"}
+            ]
+          }
+        },
+        "required": ["id", "component", "name"]
+      }
+      """,
+    remoteSchemas: remote
+  )
+
   return Catalog(
     id: "default",
     components: [
       ComponentAPI(name: "button", schema: buttonSchema),
       ComponentAPI(name: "text", schema: textSchema),
       ComponentAPI(name: "textField", schema: textFieldSchema),
+      ComponentAPI(name: "icon", schema: iconSchema),
     ]
   )
 }
@@ -105,7 +126,7 @@ struct IntegrationTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
@@ -138,7 +159,7 @@ struct IntegrationTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
@@ -174,7 +195,7 @@ struct IntegrationTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
@@ -204,7 +225,7 @@ struct IntegrationTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
@@ -277,7 +298,7 @@ struct IntegrationTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
@@ -302,7 +323,7 @@ struct IntegrationTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
@@ -325,5 +346,39 @@ struct IntegrationTests {
 
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     #expect(vm?.dataModel.get("/title")?.stringValue == "Dynamic Title")
+  }
+
+  @Test func iconComponentResolvesDynamicDataBinding() async throws {
+    let catalog = try makeIntegrationCatalog()
+    let handler = IntegrationActionHandler()
+    let processor = MessageProcessor(
+      catalogs: [catalog],
+      actionHandler: handler
+    )
+
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
+        """)
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "updateDataModel": {"surfaceId": "s1", "path": "/icon", "value": "check"}}
+        """)
+    try processor.process(
+      line: """
+        {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
+          {
+            "id": "root",
+            "component": "icon",
+            "name": {"path": "/icon"}
+          }
+        ]}}
+        """)
+
+    await Task.yield()
+    let vm = try #require(processor.surfaceGroupModel.surfacesMap["s1"])
+    let root = try #require(vm.rootNode)
+    let binding = try #require(root.properties["name"] as? DataBinding<String>)
+    #expect(binding.value == "check")
   }
 }
