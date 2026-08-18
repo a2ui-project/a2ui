@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Health
+# This workflow is used to check that CHANGELOG.md is properly updated.
+# https://github.com/dart-lang/ecosystem/tree/main/pkgs/firehose#integrating-this-tool-into-a-repo
+name: Pub Health
 on:
   pull_request:
     branches: [ main ]
