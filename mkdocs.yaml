@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,7 +40,9 @@ nav:
       - How Can I Use It?: introduction/how-to-use.md
       - How Does A2UI Compare?: introduction/agent-ui-ecosystem.md
   - Quickstart: quickstart.md
-  - A2UI Composer ⭐: composer.md
+  - A2UI Composer ⭐:
+      - composer/index.md
+      - Composer Integration: composer/composer_renderer_integration.md
   - Concepts:
       - Overview: concepts/overview.md
       - Glossary: concepts/glossary.md

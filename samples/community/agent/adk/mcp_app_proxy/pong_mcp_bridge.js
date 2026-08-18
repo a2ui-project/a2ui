@@ -1,10 +1,10 @@
-// Copyright 2026 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -91,22 +91,22 @@ window.addEventListener('message', event => {
 
       // Automatically restart if scores reset to 0
       if (localPlayerScore === 0 && localCpuScore === 0) {
-        if (typeof isPaused !== 'undefined') {
+        if (typeof isPaused !== 'undefined' && isPaused) {
           isPaused = false;
+          if (typeof hideOverlay === 'function') {
+            hideOverlay();
+          }
+          if (typeof resetBall === 'function') {
+            resetBall();
+          }
+          sendRequest('tools/call', {
+            name: 'commentate_pong',
+            arguments: {
+              game_event: 'Match started! Current Score: Player 0 - CPU 0.',
+              silent: true,
+            },
+          }).catch(e => console.error('Failed to request commentary:', e));
         }
-        if (typeof hideOverlay === 'function') {
-          hideOverlay();
-        }
-        if (typeof resetBall === 'function') {
-          resetBall();
-        }
-        sendRequest('tools/call', {
-          name: 'commentate_pong',
-          arguments: {
-            game_event: 'Match started! Current Score: Player 0 - CPU 0.',
-            silent: true,
-          },
-        }).catch(e => console.error('Failed to request commentary:', e));
       }
     }
   }

@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -123,6 +123,21 @@ class AccessibilityAttributes(StrictBaseModel):
             " such as instructions, format requirements, or result of an action. For"
             " example, a mute button might have a label of 'Mute' and a description of"
             " 'Silences notifications about this conversation'."
+        ),
+    )
+    live: Literal["off", "polite", "assertive"] = Field(
+        default="off",
+        description=(
+            "Controls screen reader announcements for dynamic updates (WAI-ARIA"
+            " aria-live). 'polite' waits for user pause; 'assertive' interrupts"
+            " immediately for alerts."
+        ),
+    )
+    hidden: Optional[DynamicBoolean] = Field(
+        None,
+        description=(
+            "Hides the element and its children from assistive technologies when set to"
+            " true."
         ),
     )
 

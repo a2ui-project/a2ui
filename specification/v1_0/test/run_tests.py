@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -432,7 +432,8 @@ def validate_a2a_schemas():
             "refs": {
                 "catalog_definition.json": os.path.join(
                     SCHEMA_DIR, "catalog_definition.json"
-                )
+                ),
+                "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
             },
         },
         {
@@ -509,6 +510,7 @@ def validate_a2a_schemas():
                     SCHEMA_DIR, "renderer_to_agent.json"
                 ),
                 "common_types.json": os.path.join(SCHEMA_DIR, "common_types.json"),
+                "catalog.json": TEMP_CATALOG_FILE,
             },
         },
     ]
