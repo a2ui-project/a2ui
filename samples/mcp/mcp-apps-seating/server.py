@@ -7,11 +7,11 @@ import json
 
 # Mock seating state
 venues = {
-    "stadium": {"name": "Grand Stadium", "seats": {f"S{i}": "available" for i in range(1, 21)}},
-    "concert": {"name": "Symphony Hall", "seats": {f"C{i}": "available" for i in range(1, 16)}},
-    "theater": {"name": "Classic Theater", "seats": {f"T{i}": "available" for i in range(1, 26)}},
-    "arena": {"name": "Mega Arena", "seats": {f"A{i}": "available" for i in range(1, 31)}},
-    "cinema": {"name": "Starlight Cinema", "seats": {f"M{i}": "available" for i in range(1, 13)}},
+    "stadium": {"name": "Grand Stadium", "seats": {f"S{i}": "available" for i in range(1, 21)}, "highlights": []},
+    "concert": {"name": "Symphony Hall", "seats": {f"C{i}": "available" for i in range(1, 16)}, "highlights": []},
+    "theater": {"name": "Classic Theater", "seats": {f"T{i}": "available" for i in range(1, 26)}, "highlights": []},
+    "arena": {"name": "Mega Arena", "seats": {f"A{i}": "available" for i in range(1, 31)}, "highlights": []},
+    "cinema": {"name": "Starlight Cinema", "seats": {f"M{i}": "available" for i in range(1, 13)}, "highlights": []},
 }
 
 app = FastMCP("mcp-apps-seating")
@@ -78,16 +78,13 @@ def get_seating_state(venue_id: str) -> str:
     """
     if venue_id not in venues:
         raise ValueError(f"Invalid venue: {venue_id}")
-    return json.dumps(venues[venue_id]["seats"])
+    return json.dumps({
+        "seats": venues[venue_id]["seats"],
+        "highlights": venues[venue_id].get("highlights", [])
+    })
 
 
-@app.tool(
-    meta={
-        "ui": {
-            "resourceUri": "ui://seating/app"
-        }
-    }
-)
+@app.tool()
 def call_webmcp_tool(inner_tool: str, args: dict | None = None) -> types.CallToolResult:
     """Dispatches a dynamic tool call directly to the embedded WebMCP application UI.
     
@@ -96,10 +93,32 @@ def call_webmcp_tool(inner_tool: str, args: dict | None = None) -> types.CallToo
         args: Arguments dictionary for the inner tool (e.g. {'seat_ids': ['C1', 'C2'], 'style': 'glow'})
     """
     args_dict = args or {}
+    
+    if inner_tool == "highlight_seats":
+        # Find which venue this is for. If not provided, fallback to all or a default.
+        # But realistically, the model should target a venue.
+        # For this mock, we just apply highlights to the first venue matching the seat prefix,
+        # or we just iterate and set it.
+        seat_ids = args_dict.get("seat_ids", [])
+        
+        # Determine venue by seat prefix if venue_id not explicitly given
+        venue_id = args_dict.get("venue_id")
+        if not venue_id and seat_ids:
+            prefix = seat_ids[0][0].upper()
+            prefix_map = {"S": "stadium", "C": "concert", "T": "theater", "A": "arena", "M": "cinema"}
+            venue_id = prefix_map.get(prefix)
+            
+        if venue_id in venues:
+            venues[venue_id]["highlights"] = seat_ids
+            
+    elif inner_tool == "clear_highlights":
+        for v in venues.values():
+            v["highlights"] = []
+            
     return types.CallToolResult(
         content=[types.TextContent(
             type="text",
-            text=f"Dispatched '{inner_tool}' to the seating UI with args: {json.dumps(args_dict)}"
+            text=f"Server executed '{inner_tool}'. UI will poll and update shortly."
         )]
     )
 

@@ -61,10 +61,10 @@ When you need to call an inner tool (e.g., `get_ball_position` or `highlight_sea
 ```
 
 ### How it Works:
-1. You call `call_webmcp_tool`.
-2. The MCP Server (which registers `call_webmcp_tool` with the app's `_meta.ui.resourceUri`) routes the call.
-3. Claude Desktop intercepts the call and forwards it to the App's `ontoolinput` handler.
-4. The App processes the `inner_tool` execution and returns the result back to you via `ontoolresult`.
+1. You call `call_webmcp_tool` with the inner tool name and arguments.
+2. The MCP Server processes this tool call silently (it does **not** have a `_meta.ui.resourceUri` attached, so Claude Desktop will **not** render a new iframe).
+3. The server updates its internal state (e.g., adding `highlights` to the venue state).
+4. The existing, embedded WebMCP App continuously polls the server state (via `get_seating_state`) and instantly updates its UI in place.
 
 ## 3. Resource Probing (Nouns)
 

@@ -1,123 +1,14 @@
 import { App, PostMessageTransport } from "@modelcontextprotocol/ext-apps";
 
-// Unique ID for this iframe instance to prevent echo loops
-const iframeId = Math.random().toString(36).substring(2, 9);
-
-type ActionHandler = (params: any) => void | Promise<void>;
-
-interface ActionPayload {
-    action: string;
-    params: any;
-    senderId: string;
-    timestamp: number;
-}
-
-/**
- * Generic BroadcastChannel Event Bus for MCP Apps.
- * Bridges actions across multiple iframes loaded within the same host session.
- */
-class BroadcastChannelBus {
-    private channel: BroadcastChannel | null = null;
-    private handlers: Map<string, ActionHandler> = new Map();
-
-    constructor(channelName: string = "webmcp-action-bus") {
-        try {
-            this.channel = new BroadcastChannel(channelName);
-            this.channel.onmessage = (event: MessageEvent<ActionPayload>) => {
-                this.handleIncoming(event.data);
-            };
-        } catch (e) {
-            console.warn("BroadcastChannel not available, falling back to storage events", e);
-        }
-
-        // Secondary fallback: storage event for cross-iframe sync
-        window.addEventListener("storage", (event) => {
-            if (event.key === "webmcp-app-action" && event.newValue) {
-                try {
-                    const payload: ActionPayload = JSON.parse(event.newValue);
-                    this.handleIncoming(payload);
-                } catch (err) {
-                    console.error("Failed to parse storage event data", err);
-                }
-            }
-        });
-    }
-
-    /**
-     * Registers a local JS function to handle a specific action name.
-     */
-    register(actionName: string, handler: ActionHandler) {
-        this.handlers.set(actionName, handler);
-        // Also register snake_case and camelCase aliases if applicable
-        const camelCase = actionName.replace(/_([a-z])/g, (_, g) => g.toUpperCase());
-        const snakeCase = actionName.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-        this.handlers.set(camelCase, handler);
-        this.handlers.set(snakeCase, handler);
-    }
-
-    /**
-     * Dispatches an action: executes locally AND broadcasts to all other iframes.
-     */
-    dispatch(actionName: string, params: any = {}, broadcast: boolean = true) {
-        const payload: ActionPayload = {
-            action: actionName,
-            params: params,
-            senderId: iframeId,
-            timestamp: Date.now()
-        };
-
-        // 1. Execute locally on this iframe
-        this.executeHandler(actionName, params);
-
-        // 2. Broadcast to other iframes
-        if (broadcast) {
-            if (this.channel) {
-                this.channel.postMessage(payload);
-            }
-            try {
-                localStorage.setItem("webmcp-app-action", JSON.stringify(payload));
-            } catch (e) {
-                // Ignore storage quota/permission errors
-            }
-        }
-    }
-
-    private handleIncoming(payload: ActionPayload) {
-        if (!payload || payload.senderId === iframeId) return; // Skip own messages
-        this.executeHandler(payload.action, payload.params);
-    }
-
-    private executeHandler(actionName: string, params: any) {
-        const handler = this.handlers.get(actionName);
-        if (handler) {
-            try {
-                handler(params);
-            } catch (e) {
-                console.error(`Error executing action '${actionName}':`, e);
-            }
-        } else {
-            console.warn(`No handler registered for action '${actionName}'`);
-        }
-    }
-}
-
-// Instantiate the generic bus
-const bus = new BroadcastChannelBus("mcp-seating-bus");
-
 let bookSeatFn: ((seatId: string) => Promise<void>) | null = null;
 let currentVenue: string | null = null;
 
 const app = new App({ name: `seating-app`, version: "1.0.0" }, {});
 
-// --- Registered JS Action Handlers ---
-
 /**
- * Highlights specific seats with an animated golden glow or custom style.
+ * Applies highlights (animated glow) to the DOM elements.
  */
-function highlightSeats(params: { seat_ids?: string[]; seatIds?: string[]; style?: string } = {}) {
-    const seatIds = params.seat_ids || params.seatIds || [];
-    const style = params.style || "glow";
-
+function highlightSeats(seatIds: string[] = [], style: string = "glow") {
     // Clear existing glow or recommended highlights
     document.querySelectorAll(".seat.glow, .seat.recommended").forEach(el => {
         el.classList.remove("glow", "recommended");
@@ -140,17 +31,38 @@ function highlightSeats(params: { seat_ids?: string[]; seatIds?: string[]; style
 }
 
 /**
- * Clears all seat highlights in the active venue.
+ * Updates the seating DOM classes based on the server state.
+ * Only modifies classes, does not recreate DOM elements to prevent flickering/focus loss.
  */
-function clearHighlights() {
-    highlightSeats({ seat_ids: [], style: "clear" });
+function updateSeatsState(state: Record<string, string>, highlights: string[] = []) {
+    Object.keys(state).forEach(seatId => {
+        const status = state[seatId];
+        const seat = document.querySelector(`.seat[data-seat-id="${seatId}"]`);
+        if (seat) {
+            // Keep basic seat class and add status (available/booked)
+            seat.className = `seat ${status}`;
+            // If it's not booked, reattach onclick just in case
+            if (status !== "booked") {
+                (seat as HTMLElement).onclick = () => {
+                    seat.className = "seat booked";
+                    if (bookSeatFn) bookSeatFn(seatId);
+                };
+            } else {
+                (seat as HTMLElement).onclick = null;
+            }
+        }
+    });
+    
+    // Apply server-directed highlights
+    if (highlights.length > 0) {
+        highlightSeats(highlights, "glow");
+    }
 }
 
 /**
- * Switches the active venue layout and loads its seating state.
+ * Switches the active venue layout, renders initial DOM, and starts polling.
  */
-async function switchVenue(params: { venue_id?: string; venueId?: string }) {
-    const venueId = params.venue_id || params.venueId;
+async function switchVenue(venueId: string) {
     if (!venueId) return;
 
     document.querySelectorAll(".venue-layout").forEach(el => el.classList.remove("active"));
@@ -162,68 +74,67 @@ async function switchVenue(params: { venue_id?: string; venueId?: string }) {
         localStorage.setItem("mcp-seating-current-venue", venueId);
     } catch (e) {}
 
-    // Fetch and render seats from server
-    try {
-        const result = await app.callServerTool({
-            name: "get_seating_state",
-            arguments: { venue_id: venueId }
-        });
-        if (result && result.content && result.content[0].text) {
-            const state = JSON.parse(result.content[0].text as string);
-            renderSeats(venueId, state);
-        }
-    } catch (e) {
-        console.error("Failed to fetch state for venue", venueId, e);
-    }
+    // Fetch and render initial seats from server
+    await fetchAndUpdateState(true);
 }
 
-// Register all actions on the generic bus
-bus.register("highlightSeats", highlightSeats);
-bus.register("clearHighlights", clearHighlights);
-bus.register("switchVenue", switchVenue);
-
-app.onhostcontextchanged = async () => {
-    // wait for ontoolinput instead!
-};
-
-app.ontoolinput = async (request) => {
-    const args = request.arguments || {};
-
-    // If this newly opened iframe has no active venue yet, restore last active venue
-    if (!currentVenue && !args.venue_id) {
-        const savedVenue = localStorage.getItem("mcp-seating-current-venue") || "concert";
-        await switchVenue({ venue_id: savedVenue });
-    }
-
-    // 1. Handle WebMCP Tool Dispatcher: call_webmcp_tool
-    if (args.inner_tool) {
-        const innerTool = args.inner_tool as string;
-        const innerArgs = (args.args || {}) as Record<string, any>;
-
-        // Dispatch through generic bus (executes locally + broadcasts to prior iframes)
-        bus.dispatch(innerTool, innerArgs);
-        return;
-    }
-
-    // 2. Handle Venue Switch: open_venue
-    if (args.venue_id) {
-        bus.dispatch("switchVenue", { venue_id: args.venue_id as string });
-    }
-};
-
-app.ontoolresult = async () => {
+/**
+ * Fetches the latest seating state from the server and updates the UI.
+ * @param initialRender If true, recreates the DOM elements. If false, just updates classes.
+ */
+async function fetchAndUpdateState(initialRender: boolean = false) {
     if (!currentVenue) return;
     try {
         const result = await app.callServerTool({
             name: "get_seating_state",
             arguments: { venue_id: currentVenue }
         });
+        
         if (result && result.content && result.content[0].text) {
-            const state = JSON.parse(result.content[0].text as string);
-            renderSeats(currentVenue, state);
+            const data = JSON.parse(result.content[0].text as string);
+            // Support both old format (just state object) and new format { seats: {}, highlights: [] }
+            const state = data.seats || data;
+            const highlights = data.highlights || [];
+            
+            if (initialRender) {
+                renderSeatsDOM(currentVenue, state);
+            }
+            updateSeatsState(state, highlights);
         }
     } catch (e) {
-        console.error("Failed to fetch state after tool result", e);
+        console.error("Failed to fetch state for venue", currentVenue, e);
+    }
+}
+
+// ----------------------------------------------------
+// Start Polling (Server State acts as the Source of Truth)
+// ----------------------------------------------------
+setInterval(() => {
+    // Only poll if we have a venue active
+    if (currentVenue) {
+        fetchAndUpdateState(false);
+    }
+}, 1000);
+
+app.onhostcontextchanged = async () => {};
+
+app.ontoolinput = async (request) => {
+    const args = request.arguments || {};
+
+    // 2. Handle Venue Switch: open_venue
+    if (args.venue_id) {
+        await switchVenue(args.venue_id as string);
+    } else if (!currentVenue) {
+        // If this iframe opened without a venue, restore the last active venue
+        const savedVenue = localStorage.getItem("mcp-seating-current-venue") || "concert";
+        await switchVenue(savedVenue);
+    }
+};
+
+app.ontoolresult = async () => {
+    // We already poll every 1s, but we can do an immediate fetch on tool result
+    if (currentVenue) {
+        await fetchAndUpdateState(false);
     }
 };
 
@@ -234,6 +145,8 @@ bookSeatFn = async (seatId: string) => {
             name: "book_seat",
             arguments: { venue_id: currentVenue, seat_id: seatId }
         });
+        // Immediately fetch updated state to confirm booking
+        await fetchAndUpdateState(false);
     } catch (e) {
         console.error("Failed to book seat", e);
     }
@@ -291,9 +204,19 @@ async function sendWebMcpHandshake() {
 const transport = new PostMessageTransport(window.parent);
 app.connect(transport).then(() => {
     sendWebMcpHandshake();
+    
+    // Attempt to load the last venue immediately upon connection
+    const savedVenue = localStorage.getItem("mcp-seating-current-venue");
+    if (savedVenue && !currentVenue) {
+        switchVenue(savedVenue);
+    }
 });
 
-function renderSeats(venueId: string, state: Record<string, string>) {
+/**
+ * Renders the initial DOM structure for the seats.
+ * Only called once per venue switch.
+ */
+function renderSeatsDOM(venueId: string, state: Record<string, string>) {
     const container = document.getElementById(`seats-${venueId}`) || document.getElementById(`seats-arena`);
     if (!container) return;
     container.innerHTML = "";
@@ -311,17 +234,10 @@ function renderSeats(venueId: string, state: Record<string, string>) {
             container.appendChild(row);
         }
         seatIds.sort().forEach(seatId => {
-            const status = state[seatId];
             const div = document.createElement("div");
-            div.className = `seat ${status}`;
+            div.className = `seat`;
             div.innerText = seatId;
             div.dataset.seatId = seatId;
-            if (status !== "booked") {
-                div.onclick = () => {
-                    div.className = "seat booked";
-                    if (bookSeatFn) bookSeatFn(seatId);
-                };
-            }
             const rowPrefix = seatId.substring(0, 2);
             if (rows[rowPrefix]) rows[rowPrefix].appendChild(div);
             else container.appendChild(div);
@@ -331,7 +247,6 @@ function renderSeats(venueId: string, state: Record<string, string>) {
         const total = seatIds.length;
         const radius = 120;
         seatIds.sort().forEach((seatId, i) => {
-            const status = state[seatId];
             const angle = (i / total) * 2 * Math.PI;
             const x = Math.cos(angle) * radius;
             const y = Math.sin(angle) * radius;
@@ -344,16 +259,10 @@ function renderSeats(venueId: string, state: Record<string, string>) {
             wrapper.style.transform = `rotate(${rotation}deg)`;
 
             const div = document.createElement("div");
-            div.className = `seat ${status}`;
+            div.className = `seat`;
             div.innerText = seatId.replace("A", "");
             div.dataset.seatId = seatId;
 
-            if (status !== "booked") {
-                div.onclick = () => {
-                    div.className = "seat booked";
-                    if (bookSeatFn) bookSeatFn(seatId);
-                };
-            }
             wrapper.appendChild(div);
             container.appendChild(wrapper);
         });
@@ -363,18 +272,10 @@ function renderSeats(venueId: string, state: Record<string, string>) {
     }
 
     seatIds.forEach(seatId => {
-        const status = state[seatId];
         const div = document.createElement("div");
-        div.className = `seat ${status}`;
+        div.className = `seat`;
         div.innerText = seatId;
         div.dataset.seatId = seatId;
-
-        if (status !== "booked") {
-            div.onclick = () => {
-                div.className = "seat booked";
-                if (bookSeatFn) bookSeatFn(seatId);
-            };
-        }
         container.appendChild(div);
     });
 }
