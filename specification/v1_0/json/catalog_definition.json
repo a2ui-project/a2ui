@@ -157,17 +157,43 @@
           "properties": {
             "returnType": {
               "type": "string",
-              "enum": ["string", "number", "boolean", "array", "object", "any", "void"],
+              "enum": [
+                "string",
+                "number",
+                "boolean",
+                "array",
+                "object",
+                "validationResult",
+                "any",
+                "void"
+              ],
               "description": "The type of value this function returns."
             },
-            "callableFrom": {
+            "allowedCallers": {
               "type": "string",
               "enum": ["rendererOnly", "agentOnly", "rendererOrAgent"],
               "default": "rendererOnly",
-              "description": "Specifies where this function can be invoked from."
+              "description": "Specifies which roles are authorized to invoke this function."
+            },
+            "requiresUserActivation": {
+              "type": "boolean",
+              "default": false,
+              "description": "Specifies whether this function requires a user activation context to execute."
             }
           },
           "required": ["returnType"]
+        },
+        {
+          "if": {
+            "properties": {
+              "requiresUserActivation": {"const": true}
+            }
+          },
+          "then": {
+            "properties": {
+              "allowedCallers": {"enum": ["rendererOnly"]}
+            }
+          }
         }
       ],
       "unevaluatedProperties": false
@@ -197,10 +223,45 @@
               },
               "description": "The list of child component type names allowed inside this container or slot. If omitted, all child component types are allowed.",
               "uniqueItems": true
+            },
+            "metadata": {
+              "type": "object",
+              "description": "Optional static metadata.",
+              "properties": {
+                "extensions": {
+                  "$ref": "common_types.json#/$defs/Extensions"
+                }
+              },
+              "additionalProperties": false
             }
           }
         }
       ]
+    },
+    "ValidationResult": {
+      "type": "object",
+      "description": "Dynamic validation result object returned by a validation condition function or data binding.",
+      "properties": {
+        "valid": {
+          "type": "boolean",
+          "description": "Whether the check passed."
+        },
+        "code": {
+          "type": "string",
+          "description": "Machine-readable error code (e.g. EXPIRED_CARD, OUT_OF_RANGE)."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable error or warning message."
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["error", "warning", "info"],
+          "default": "error",
+          "description": "Severity level of the validation result."
+        }
+      },
+      "required": ["valid"]
     }
   }
 }

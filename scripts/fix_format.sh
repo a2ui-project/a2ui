@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -45,14 +45,14 @@ if [ -f ".yarn/install-state.gz" ]; then
   if [ "$CHECK_ONLY" = true ]; then
     "${YARN_CMD[@]}" format:check:all
   else
-    "${YARN_CMD[@]}" format:all
+    "${YARN_CMD[@]}" format:all | sed '/ (unchanged)$/d'
   fi
 else
   # Non-Node contributor or CI; run standalone Prettier via dlx without full monorepo install
   if [ "$CHECK_ONLY" = true ]; then
     "${YARN_CMD[@]}" dlx prettier@3.8.4 --config .prettierrc --check .
   else
-    "${YARN_CMD[@]}" dlx prettier@3.8.4 --config .prettierrc --write .
+    "${YARN_CMD[@]}" dlx prettier@3.8.4 --config .prettierrc --write . | sed '/ (unchanged)$/d'
   fi
 fi
 
@@ -110,6 +110,35 @@ if command -v swift-format >/dev/null 2>&1; then
   fi
 else
   echo "Warning: swift-format command not found. Skipping Swift formatting."
+fi
+
+echo "Running ktfmt for Kotlin files..."
+cd "$REPO_ROOT"
+if command -v java >/dev/null 2>&1; then
+  while IFS= read -r -d '' build_file; do
+    dir="$(dirname "$build_file")"
+    if grep -q "ktfmt" "$build_file" 2>/dev/null; then
+      (
+        cd "$dir"
+        if [ -x "./gradlew" ]; then
+          GRADLE_CMD=(./gradlew)
+        elif command -v gradle >/dev/null 2>&1; then
+          GRADLE_CMD=(gradle)
+        else
+          echo "Warning: Neither ./gradlew nor gradle command found in $dir. Skipping."
+          exit 0
+        fi
+
+        if [ "$CHECK_ONLY" = true ]; then
+          "${GRADLE_CMD[@]}" -q ktfmtCheck
+        else
+          "${GRADLE_CMD[@]}" -q ktfmtFormat
+        fi
+      )
+    fi
+  done < <(find "$REPO_ROOT" \( -name build -o -name .gradle -o -name node_modules -o -name .git -o -name .yarn -o -name .dart_tool \) -prune -o -name "build.gradle.kts" -print0)
+else
+  echo "Warning: java command not found. Skipping Kotlin formatting."
 fi
 
 echo "Done."

@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -96,8 +96,7 @@ fun main(args: Array<String>) {
         isEnabled
       },
       { ctx: ReadonlyContext ->
-        ctx.state()[RizzchartsAgentExecutor.A2UI_CATALOG_KEY]
-          as A2uiCatalog
+        ctx.state()[RizzchartsAgentExecutor.A2UI_CATALOG_KEY] as A2uiCatalog
       },
       { ctx: ReadonlyContext -> ctx.state()[RizzchartsAgentExecutor.A2UI_EXAMPLES_KEY] as String },
     )

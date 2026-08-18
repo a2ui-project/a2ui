@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -425,6 +425,32 @@ describe('issueTriage reconciliation', () => {
 
     assert.deepEqual(calls.get, [14]); // we re-checked before mutating
     assert.equal(calls.addLabels.length, 0); // ...and backed off
+  });
+
+  it('does not flag an item that was prioritized between snapshot and mutation', async () => {
+    // Snapshot shows no priority label (wants flag), but a live re-read finds
+    // it was prioritized before we mutated.
+    const item = issue({number: 15});
+    item.__fresh = issue({number: 15, labels: ['P3']});
+    github = makeGithub([item]);
+    await issueTriage({github, context});
+
+    assert.deepEqual(calls.get, [15]); // we re-checked before mutating
+    assert.equal(calls.addLabels.length, 0); // ...and backed off from flagging
+    assert.equal(calls.removeLabel.length, 0);
+  });
+
+  it('does not unflag an item that was already unflagged between snapshot and mutation', async () => {
+    // Snapshot shows a prioritized item with flag (wants unflag), but a live
+    // re-read finds the flag was already removed before we mutated.
+    const item = issue({number: 24, labels: ['P3', FLAG_LABEL]});
+    item.__fresh = issue({number: 24, labels: ['P3']});
+    github = makeGithub([item]);
+    await issueTriage({github, context});
+
+    assert.deepEqual(calls.get, [24]); // we re-checked before mutating
+    assert.equal(calls.removeLabel.length, 0); // ...and backed off from unflagging
+    assert.equal(calls.addLabels.length, 0);
   });
 
   it('skips the comments API call for items with zero comments', async () => {
