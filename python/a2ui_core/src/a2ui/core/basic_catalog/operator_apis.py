@@ -6,24 +6,21 @@
 #
 #      https://www.apache.org/licenses/LICENSE-2.0
 #
-#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This file mirrors the TypeScript API definitions in:
-# renderers/web_core/src/v0_9/basic_catalog/functions/basic_functions_api.ts
-
+from __future__ import annotations
 from typing import Any, Dict, List, Optional
 from pydantic import Field
-from ...schema.v0_9.common_types import (
-    StrictBaseModel,
-    DynamicString,
+from ..catalog.functions import FunctionApi
+from ..schema.common_types import (
     DynamicNumber,
+    DynamicString,
+    StrictBaseModel,
 )
-from ...catalog.functions import FunctionApi
 
 
 class AddArgs(StrictBaseModel):
@@ -145,3 +142,29 @@ class EndsWithApi(FunctionApi):
     name = "ends_with"
     schema = EndsWithArgs
     return_type = "boolean"
+
+
+__all__ = [
+    "AddApi",
+    "AddArgs",
+    "SubtractApi",
+    "SubtractArgs",
+    "MultiplyApi",
+    "MultiplyArgs",
+    "DivideApi",
+    "DivideArgs",
+    "EqualsApi",
+    "EqualsArgs",
+    "NotEqualsApi",
+    "NotEqualsArgs",
+    "GreaterThanApi",
+    "GreaterThanArgs",
+    "LessThanApi",
+    "LessThanArgs",
+    "ContainsApi",
+    "ContainsArgs",
+    "StartsWithApi",
+    "StartsWithArgs",
+    "EndsWithApi",
+    "EndsWithArgs",
+]

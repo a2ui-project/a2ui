@@ -43,9 +43,9 @@ class FunctionDefinition(StrictBaseModel):
     )
 
 
-class InlineCatalog(StrictBaseModel):
+class InlineCatalog(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
     """A collection of component and function definitions."""
-
     catalog_id: str = Field(
         ..., alias="catalogId", description="Unique identifier for this catalog."
     )
@@ -91,8 +91,8 @@ class V09Capabilities(StrictBaseModel):
 V0_9Capabilities = V09Capabilities
 
 
-class A2uiRendererCapabilities(StrictBaseModel):
+class A2uiClientCapabilities(StrictBaseModel):
     v0_9: Optional[V09Capabilities] = Field(None, alias=SPEC_VERSION)
 
 
-A2uiClientCapabilities = A2uiRendererCapabilities
+A2uiRendererCapabilities = A2uiClientCapabilities

@@ -19,7 +19,7 @@ including array literals, object literals, and path bindings prefixed with '$'.
 """
 
 from typing import Any, Dict, List
-from a2ui.core.basic_catalog.v0_9.expression_parser import ExpressionParser, Scanner
+from a2ui.core.basic_catalog.expression_parser import ExpressionParser, Scanner
 
 
 class ElementalExpressionParser(ExpressionParser):

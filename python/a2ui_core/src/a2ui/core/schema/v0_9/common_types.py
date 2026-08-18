@@ -15,101 +15,23 @@
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
-from pydantic import BaseModel, Field, ConfigDict, GetCoreSchemaHandler, ValidationInfo, field_validator
-from pydantic_core import CoreSchema
-
-
-class ComponentReference:
-    """Base marker class for all A2UI component references."""
-
-
-class SingleReference(str, ComponentReference):
-
-    @classmethod
-    def __get_pydantic_core_schema__(
-        cls, source_type: Any, handler: GetCoreSchemaHandler
-    ) -> CoreSchema:
-        from pydantic_core import core_schema
-
-        return core_schema.no_info_after_validator_function(
-            cls,
-            core_schema.str_schema(),
-            serialization=core_schema.plain_serializer_function_ser_schema(str),
-        )
-
-
-class ListReference(ComponentReference):
-    """Marker class indicating a field holds a list of component references."""
-
-
-class StrictBaseModel(BaseModel):
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    @field_validator("version", mode="after", check_fields=False)
-    @classmethod
-    def validate_version_field(cls, v: Any, info: ValidationInfo) -> Any:
-        context = info.context or {}
-        target_version = context.get("target_version")
-        if target_version is None:
-            from .constants import SPEC_VERSION
-
-            target_version = SPEC_VERSION
-        if v != target_version:
-            raise ValueError(f"Input should be '{target_version}'")
-        return v
-
-
-ComponentId = SingleReference
-Child = SingleReference
-CallId = str
-
-
-class DataBinding(StrictBaseModel):
-    path: str = Field(
-        ..., description="A JSON Pointer path to a value in the data model."
-    )
-
-
-class FunctionCall(StrictBaseModel):
-    """Invokes a named function on the client."""
-
-    call: str = Field(..., description="The name of the function to call.")
-    args: Optional[Dict[str, Union[DynamicValue, Dict[str, Any]]]] = Field(
-        None, description="Arguments passed to the function."
-    )
-    return_type: Optional[
-        Literal["string", "number", "boolean", "array", "object", "any", "void"]
-    ] = Field(
-        alias="returnType",
-        description="The expected return type of the function call.",
-        default="boolean",
-    )
-
-
-DynamicValue = Union[str, float, bool, List[Any], DataBinding, FunctionCall]
-
-DynamicString = Union[str, DataBinding, FunctionCall]
-
-DynamicNumber = Union[float, DataBinding, FunctionCall]
-
-DynamicBoolean = Union[bool, DataBinding, FunctionCall]
-
-DynamicStringList = Union[List[str], DataBinding, FunctionCall]
-
-
-class TemplateChildList(StrictBaseModel, ListReference):
-    """A template for generating a dynamic list of children from a data model list. The `componentId` is the component to use as a template."""
-
-    component_id: ComponentId = Field(..., alias="componentId")
-    path: str = Field(
-        ...,
-        description=(
-            "The path to the list of component property objects in the data model."
-        ),
-    )
-
-
-ChildList = Union[List[ComponentId], TemplateChildList]
+from pydantic import AfterValidator, BaseModel, Field, ConfigDict
+from ..common_types import (
+    Child,
+    ChildList,
+    ComponentId,
+    ComponentReference,
+    DataBinding,
+    DynamicBoolean,
+    DynamicNumber,
+    DynamicString,
+    DynamicStringList,
+    FunctionCall,
+    ListReference,
+    SingleReference,
+    StrictBaseModel,
+    TemplateChildList,
+)
 
 
 class AccessibilityAttributes(StrictBaseModel):
@@ -135,12 +57,32 @@ class AccessibilityAttributes(StrictBaseModel):
     )
 
 
+class ComponentCommon(StrictBaseModel):
+    id: ComponentId = Field(...)
+    accessibility: Optional[AccessibilityAttributes] = Field(None)
+
+
+DynamicValue = Union[str, float, bool, List[Any], DataBinding, FunctionCall]
+
+
 class CheckRule(StrictBaseModel):
     """A single validation rule applied to an input component."""
 
     condition: DynamicBoolean = Field(...)
     message: str = Field(
         ..., description="The error message to display if the check fails."
+    )
+
+
+class Checkable(StrictBaseModel):
+    """Properties for components that support client-side checks."""
+
+    checks: Optional[List[CheckRule]] = Field(
+        None,
+        description=(
+            "A list of checks to perform. These are function calls that must return a"
+            " boolean indicating validity."
+        ),
     )
 
 
@@ -174,7 +116,28 @@ class ActionFunctionCallWrapper(StrictBaseModel):
 
 Action = Union[ActionEventWrapper, ActionFunctionCallWrapper]
 
-
-class ComponentCommon(StrictBaseModel):
-    id: ComponentId = Field(...)
-    accessibility: Optional[AccessibilityAttributes] = Field(None)
+__all__ = [
+    "AccessibilityAttributes",
+    "Action",
+    "ActionEvent",
+    "ActionEventWrapper",
+    "ActionFunctionCallWrapper",
+    "CheckRule",
+    "Checkable",
+    "Child",
+    "ChildList",
+    "ComponentCommon",
+    "ComponentId",
+    "ComponentReference",
+    "DataBinding",
+    "DynamicBoolean",
+    "DynamicNumber",
+    "DynamicString",
+    "DynamicStringList",
+    "DynamicValue",
+    "FunctionCall",
+    "ListReference",
+    "SingleReference",
+    "StrictBaseModel",
+    "TemplateChildList",
+]

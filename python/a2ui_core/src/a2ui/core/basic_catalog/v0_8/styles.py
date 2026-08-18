@@ -12,16 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI Basic Catalog Module."""
+# Auto-generated. Do not edit manually.
+from __future__ import annotations
+from typing import Any, Dict, Optional
+from pydantic import BaseModel, Field, ConfigDict
 
-from .expression_parser import ExpressionParser, Scanner
-from .locale_config import (
-    LocaleFormattingRules,
-    register_locale_rules,
-    get_locale_rules,
-    CURRENCY_SYMBOLS,
-)
-from . import v0_8
-from . import v0_9
-from . import v1_0
-from .v0_9 import *
+
+class Styles(BaseModel):
+    font: Optional[str] = Field(None, description="The primary font for the UI.")
+    primary_color: Optional[str] = Field(
+        None,
+        alias="primaryColor",
+        description="The primary UI color as a hexadecimal code (e.g., '#00BFFF').",
+        pattern=r"^#[0-9a-fA-F]{6}$",
+    )
+
+
+Theme = Styles

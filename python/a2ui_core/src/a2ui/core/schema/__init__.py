@@ -18,18 +18,30 @@ from enum import Enum
 from typing import Any, Union
 
 # Versioned schema namespaces
-from . import v0_9 as v0_9
+from . import v0_8
+from . import v0_9
+from . import v1_0
 
 
 # Multi-version Protocol Version Enum
 class A2uiProtocolVersion(str, Enum):
+    V0_8 = "v0.8"
     V0_9 = "v0.9"
+    V1_0 = "v1.0"
 
 
 # Multi-version envelope unions (v1.0+ primary terminology)
-AgentToRendererMessage = Union[v0_9.ServerToClientMessage,]
+AgentToRendererMessage = Union[
+    v0_8.ServerToClientMessage,
+    v0_9.ServerToClientMessage,
+    v1_0.AgentToRendererMessage,
+]
 
-RendererToAgentMessage = Union[v0_9.ClientToServerMessage,]
+RendererToAgentMessage = Union[
+    v0_8.ClientToServerMessage,
+    v0_9.ClientToServerMessage,
+    v1_0.RendererToAgentMessage,
+]
 
 # Aliases for cross-version consistency
 ServerToClientMessage = AgentToRendererMessage
