@@ -270,12 +270,46 @@ export type RendererToAgentMessage = z.infer<typeof RendererToAgentMessageSchema
 
 writeFileSync(join(destDir, 'renderer-to-agent.ts'), r2aTs);
 
-// 4. index.ts
+// 4. renderer-capabilities.ts
+const rcJson = JSON.parse(readFileSync(join(specDir, 'renderer_capabilities.json'), 'utf8'));
+
+// Prepare inlineCatalogs items by relaxing external catalog_definition.json ref
+if (rcJson?.properties?.['v1.0']?.properties?.inlineCatalogs?.items?.$ref) {
+  rcJson.properties['v1.0'].properties.inlineCatalogs.items = {
+    type: 'object',
+    additionalProperties: true,
+  };
+}
+
+let rcTs =
+  HEADER +
+  `import {z} from 'zod';
+
+/** Zod schema validating the strict v1.0 protocol renderer capabilities payload. */
+export const V10RendererCapabilitiesSchema = z.object({
+  supportedCatalogIds: z.array(z.string()).describe("An array of string identifiers for each of the component and function catalogs supported by the renderer."),
+  inlineCatalogs: z.array(z.record(z.string(), z.any())).describe("An array of inline catalog definitions.").optional(),
+}).strict();
+export type V10RendererCapabilities = z.infer<typeof V10RendererCapabilitiesSchema>;
+
+/** Zod schema validating multi-version renderer capabilities maps across protocol versions. */
+export const RendererCapabilitiesSchema = z.object({
+  "v1.0": V10RendererCapabilitiesSchema.optional(),
+  supportedCatalogIds: z.array(z.string()).optional(),
+  inlineCatalogs: z.array(z.record(z.string(), z.any())).optional(),
+}).catchall(z.any());
+export type RendererCapabilities = z.infer<typeof RendererCapabilitiesSchema>;
+`;
+
+writeFileSync(join(destDir, 'renderer-capabilities.ts'), rcTs);
+
+// 5. index.ts
 const indexTs =
   HEADER +
   `export * from './common-types.js';
 export * from './agent-to-renderer.js';
 export * from './renderer-to-agent.js';
+export * from './renderer-capabilities.js';
 `;
 
 writeFileSync(join(destDir, 'index.ts'), indexTs);

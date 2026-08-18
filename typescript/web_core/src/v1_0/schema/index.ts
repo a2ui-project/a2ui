@@ -19,3 +19,4 @@
 export * from './common-types.js';
 export * from './agent-to-renderer.js';
 export * from './renderer-to-agent.js';
+export * from './renderer-capabilities.js';

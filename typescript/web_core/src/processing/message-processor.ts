@@ -33,15 +33,8 @@ import {
 } from './operations.js';
 
 import {ProtocolVersion, VersionAdapter} from './adapters/base.js';
-
-/**
- * Structured capabilities map returned by getRendererCapabilities.
- */
-export interface RendererCapabilities {
-  supportedCatalogIds: string[];
-  inlineCatalogs?: Record<string, unknown>[];
-  [version: string]: unknown;
-}
+import {RendererCapabilities} from '../v1_0/schema/index.js';
+export type {RendererCapabilities};
 
 /**
  * Interface for version adapter resolution services.
