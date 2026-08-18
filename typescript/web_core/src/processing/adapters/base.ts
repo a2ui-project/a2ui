@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
+import {z} from 'zod';
 import {InternalOperation} from '../operations.js';
+import {A2uiValidationError} from '../../errors.js';
+import {formatZodIssue} from '../message-processor.js';
 
 /**
  * Union of supported A2UI protocol version strings.
@@ -35,4 +38,51 @@ export interface VersionAdapter {
    * @returns Array of canonical internal operations.
    */
   extractOperations(payload: unknown): InternalOperation[];
+}
+
+/**
+ * Base abstract class providing common payload unwrapping, Zod safeParse validation,
+ * and error formatting for protocol version adapters.
+ */
+export abstract class BaseVersionAdapter implements VersionAdapter {
+  abstract readonly version: ProtocolVersion;
+  protected abstract readonly schema: z.ZodTypeAny;
+
+  extractOperations(payload: unknown): InternalOperation[] {
+    if (!payload || typeof payload !== 'object') return [];
+    if (Array.isArray(payload)) {
+      return payload.flatMap(item => this.extractOperations(item));
+    }
+    const msgObj = payload as Record<string, unknown>;
+    if (Array.isArray(msgObj.messages)) {
+      return this.extractOperations(msgObj.messages);
+    }
+
+    const preparedPayload = this.preparePayloadForValidation(msgObj);
+    const parseResult = this.schema.safeParse(preparedPayload);
+    if (!parseResult.success) {
+      const formattedErrors = parseResult.error.errors.map(formatZodIssue).join('; ');
+      throw new A2uiValidationError(
+        `Invalid ${this.version} message: ${formattedErrors}`,
+        parseResult.error,
+      );
+    }
+
+    return this.extractOperationsFromObject(msgObj);
+  }
+
+  /**
+   * Normalizes the message object before running schema validation.
+   * Defaults to attaching `version` if not present.
+   */
+  protected preparePayloadForValidation(msgObj: Record<string, unknown>): Record<string, unknown> {
+    return 'version' in msgObj ? msgObj : {version: this.version, ...msgObj};
+  }
+
+  /**
+   * Converts a validated message object into canonical internal operations.
+   */
+  protected abstract extractOperationsFromObject(
+    msgObj: Record<string, unknown>,
+  ): InternalOperation[];
 }

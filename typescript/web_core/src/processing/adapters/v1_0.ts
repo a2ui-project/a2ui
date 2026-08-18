@@ -14,35 +14,19 @@
  * limitations under the License.
  */
 
-import {ProtocolVersion, VersionAdapter} from './base.js';
+import {BaseVersionAdapter, ProtocolVersion} from './base.js';
 import {InternalComponentPayload, InternalOperation} from '../operations.js';
 import {A2uiValidationError} from '../../errors.js';
 import {AgentToRendererMessageSchema} from '../../v1_0/schema/agent-to-renderer.js';
-import {formatZodIssue} from '../message-processor.js';
 
 /**
  * Protocol version adapter for specification v1.0.
  */
-export class V1_0VersionAdapter implements VersionAdapter {
+export class V1_0VersionAdapter extends BaseVersionAdapter {
   readonly version: ProtocolVersion = 'v1.0';
+  protected readonly schema = AgentToRendererMessageSchema;
 
-  extractOperations(payload: unknown): InternalOperation[] {
-    if (!payload || typeof payload !== 'object') return [];
-    if (Array.isArray(payload)) {
-      return payload.flatMap(item => this.extractOperations(item));
-    }
-    const msgObj = payload as Record<string, unknown>;
-    if (Array.isArray(msgObj.messages)) {
-      return this.extractOperations(msgObj.messages);
-    }
-
-    const msgWithVersion = 'version' in msgObj ? msgObj : {version: 'v1.0', ...msgObj};
-    const parseResult = AgentToRendererMessageSchema.safeParse(msgWithVersion);
-    if (!parseResult.success) {
-      const formattedErrors = parseResult.error.errors.map(formatZodIssue).join('; ');
-      throw new A2uiValidationError(`Invalid v1.0 message: ${formattedErrors}`, parseResult.error);
-    }
-
+  protected extractOperationsFromObject(msgObj: Record<string, unknown>): InternalOperation[] {
     const updateTypes = [
       'createSurface',
       'updateComponents',
