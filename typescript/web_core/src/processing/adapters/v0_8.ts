@@ -19,27 +19,35 @@ import {InternalComponentPayload, InternalOperation} from '../operations.js';
 import {A2uiValidationError} from '../../errors.js';
 import {A2uiMessageSchema} from '../../v0_8/schema/server-to-client.js';
 
-function normalizeV08Component(comp: any): InternalComponentPayload {
-  if (!comp || typeof comp !== 'object') return comp;
-  let componentName = comp.component;
-  let props = {...comp};
-  delete props.component;
-  delete props.id;
+function normalizeV08Component(comp: unknown): InternalComponentPayload {
+  if (!comp || typeof comp !== 'object') {
+    return {id: '', component: ''};
+  }
+  const c = comp as Record<string, unknown>;
+  let componentName = typeof c.component === 'string' ? c.component : '';
+  const props: Record<string, unknown> = {};
 
-  if (comp.component && typeof comp.component === 'object') {
-    const keys = Object.keys(comp.component);
+  for (const [k, v] of Object.entries(c)) {
+    if (k !== 'component' && k !== 'id') {
+      props[k] = v;
+    }
+  }
+
+  if (c.component && typeof c.component === 'object') {
+    const obj = c.component as Record<string, unknown>;
+    const keys = Object.keys(obj);
     if (keys.length > 0) {
       componentName = keys[0];
-      const compProps = comp.component[keys[0]];
-      if (compProps && typeof compProps === 'object') {
-        props = {...props, ...compProps};
+      const compProps = obj[keys[0]];
+      if (compProps && typeof compProps === 'object' && compProps !== null) {
+        Object.assign(props, compProps);
       }
     }
   }
 
   return {
-    id: String(comp.id || ''),
-    component: String(componentName || ''),
+    id: String(c.id ?? ''),
+    component: componentName,
     ...props,
   };
 }
@@ -79,7 +87,7 @@ export class V0_8VersionAdapter extends BaseVersionAdapter {
       const cs = msgObj.beginRendering as Record<string, unknown>;
       ops.push({
         type: 'createSurface',
-        surfaceId: String(cs?.surfaceId || ''),
+        surfaceId: String(cs?.surfaceId ?? ''),
         catalogId: typeof cs?.catalogId === 'string' ? cs.catalogId : undefined,
         theme: cs?.theme ?? cs?.styles,
         sendDataModel: Boolean(cs?.sendDataModel),
@@ -96,24 +104,29 @@ export class V0_8VersionAdapter extends BaseVersionAdapter {
       const uc = msgObj.surfaceUpdate as Record<string, unknown>;
       ops.push({
         type: 'updateComponents',
-        surfaceId: String(uc?.surfaceId || ''),
+        surfaceId: String(uc?.surfaceId ?? ''),
         components: Array.isArray(uc?.components) ? uc.components.map(normalizeV08Component) : [],
       });
     }
     if ('dataModelUpdate' in msgObj) {
       const ud = msgObj.dataModelUpdate as Record<string, unknown>;
-      const surfaceId = String(ud?.surfaceId || '');
+      const surfaceId = String(ud?.surfaceId ?? '');
 
       if (Array.isArray(ud?.contents)) {
         for (const item of ud.contents as Record<string, unknown>[]) {
           if (item && typeof item === 'object' && typeof item.key === 'string') {
             const val =
-              item.valueNumber ??
-              item.valueString ??
-              item.valueBoolean ??
-              item.valueObject ??
-              item.valueArray ??
-              item.value;
+              'valueNumber' in item
+                ? item.valueNumber
+                : 'valueString' in item
+                  ? item.valueString
+                  : 'valueBoolean' in item
+                    ? item.valueBoolean
+                    : 'valueObject' in item
+                      ? item.valueObject
+                      : 'valueArray' in item
+                        ? item.valueArray
+                        : item.value;
             ops.push({
               type: 'updateDataModel',
               surfaceId,
@@ -135,7 +148,7 @@ export class V0_8VersionAdapter extends BaseVersionAdapter {
       const ds = msgObj.deleteSurface as Record<string, unknown>;
       ops.push({
         type: 'deleteSurface',
-        surfaceId: String(ds?.surfaceId || ''),
+        surfaceId: String(ds?.surfaceId ?? ''),
       });
     }
     return ops;
