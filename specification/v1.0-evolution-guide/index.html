@@ -2520,7 +2520,7 @@
 <h2 id="1-executive-summary">1. Executive summary<a class="headerlink" href="#1-executive-summary" title="Permanent link">&para;</a></h2>
 <p>Version 1.0 differs from 0.9 in the following ways:</p>
 <ul>
-<li>Bidirectional RPC function calls are supported via explicit role-based messages: <code>callRendererFunction</code> for agent-initiated calls on the renderer (returning <code>rendererFunctionResponse</code>), and <code>callAgentFunction</code> for renderer-initiated calls on the agent (returning <code>agentFunctionResponse</code>). Execution results or errors are returned via shared <code>FunctionResponse</code> payloads. Runtime execution boundaries (<code>callableFrom</code>) and return types are defined in catalogs and verified at runtime.</li>
+<li>Bidirectional RPC function calls are supported via explicit role-based messages: <code>callRendererFunction</code> for agent-initiated calls on the renderer (returning <code>rendererFunctionResponse</code>), and <code>callAgentFunction</code> for renderer-initiated calls on the agent (returning <code>agentFunctionResponse</code>). Execution results or errors are returned via shared <code>FunctionResponse</code> payloads. Runtime authorized callers (<code>allowedCallers</code>) and return types are defined in catalogs and verified at runtime.</li>
 <li>Catalogs can now be mixed within a single UI surface. Advertised <code>supportedCatalogIds</code> are mixable, allowing UI trees to combine components and functions from multiple catalogs simultaneously.</li>
 <li>Added an optional <code>catalogId</code> property to <code>ComponentCommon</code> and <code>FunctionCall</code> to allow individual components and function calls to explicitly declare their source catalog. Added <code>$defs/FunctionCommon</code> in <code>common_types.json</code> for function-level catalog overrides.</li>
 <li>Retained <code>catalogId</code> on <code>createSurface</code> as an optional parameter that defines the default catalog for that surface.</li>
@@ -2542,8 +2542,8 @@
 <ul>
 <li>Removed the <code>$defs/theme</code> schema and the <code>primaryColor</code> property from the Catalog schema.</li>
 <li>Formalized the <code>functions</code> property in <code>catalog_definition.json</code> as a map object, keyed by function name.</li>
-<li>Added <code>callableFrom</code> (enum: <code>rendererOnly</code>, <code>agentOnly</code>, <code>rendererOrAgent</code>, default: <code>rendererOnly</code>) to <code>FunctionDefinition</code> to restrict where a function can be invoked.</li>
-<li>Added <code>requiresUserActivation</code> (boolean, default: <code>false</code>) to <code>FunctionDefinition</code> to declare if a function requires user gesture/activation context to execute, conditionally restricting <code>callableFrom</code> to <code>rendererOnly</code> or <code>rendererOrAgent</code>.</li>
+<li>Added <code>allowedCallers</code> (enum: <code>rendererOnly</code>, <code>agentOnly</code>, <code>rendererOrAgent</code>, default: <code>rendererOnly</code>) to <code>FunctionDefinition</code> to restrict which roles can invoke a function.</li>
+<li>Added <code>requiresUserActivation</code> (boolean, default: <code>false</code>) to <code>FunctionDefinition</code> to declare if a function requires user gesture/activation context to execute, conditionally restricting <code>allowedCallers</code> to <code>rendererOnly</code>.</li>
 <li>Added <code>$defs/ValidationResult</code> schema (<code>valid</code>, <code>code</code>, <code>message</code>, <code>severity</code>) as the standard schema definition for validation function return payloads.</li>
 <li>Added an optional <code>instructions</code> field to the <code>Catalog</code> schema to embed design guidelines and component usage rules directly in the catalog, replacing the external <code>rules.txt</code> file.</li>
 <li>Supported standard JSON Schema metadata fields (<code>$schema</code>, <code>$id</code>, <code>title</code>, and <code>description</code>) in the Catalog object definition. Since the Catalog schema restricts properties with <code>additionalProperties: false</code>, this ensures inline catalogs containing standard schema metadata do not fail schema validation.</li>
@@ -2595,7 +2595,7 @@
 <h3 id="26-data-encoding">2.6. Data encoding<a class="headerlink" href="#26-data-encoding" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Standardized data deletion behavior in <code>updateDataModel</code> by making the <code>value</code> property required. Setting a path's value to <code>null</code> deletes the key at that path. Omitting the <code>value</code> property is now a schema validation error.</li>
-<li>Removed <code>callableFrom</code> and <code>returnType</code> properties and validation constraints from <code>FunctionCall</code> and dynamic value schemas in <code>common_types.json</code>, deferring boundary checking and return type validation entirely to runtime execution.</li>
+<li>Removed <code>allowedCallers</code> and <code>returnType</code> properties and validation constraints from <code>FunctionCall</code> and dynamic value schemas in <code>common_types.json</code>, deferring boundary checking and return type validation entirely to runtime execution.</li>
 <li>Added built-in <code>@index</code> function (with optional <code>offset</code> parameter) under <code>FunctionCall</code> to retrieve the iteration index during list template rendering. Reserved the <code>@</code> prefix for core system context evaluations.</li>
 <li>Updated <code>CheckRule</code> in <code>common_types.json</code> to support dynamic <code>ValidationResult</code> objects returned directly by function evaluations or data model bindings, adding the <code>$defs/ValidationResult</code> schema (<code>valid</code>, <code>code</code>, <code>message</code>, <code>severity</code>) and making <code>CheckRule.message</code> optional as a fallback message.</li>
 </ul>
@@ -2636,7 +2636,7 @@
 <li>Formalize the <code>functions</code> property in catalog definitions as a JSON object map keyed by function name.</li>
 <li>Remove the <code>$defs/theme</code> catalog definition and the <code>primaryColor</code> field.</li>
 <li>Ensure all generated catalog entity names conform to UAX #31 identifier rules.</li>
-<li>Do not include <code>callableFrom</code> or <code>returnType</code> properties in wire-level <code>FunctionCall</code> payloads. Set static <code>callableFrom</code>, <code>returnType</code>, and optional <code>requiresUserActivation</code> metadata in catalog function definitions where needed.</li>
+<li>Do not include <code>allowedCallers</code> or <code>returnType</code> properties in wire-level <code>FunctionCall</code> payloads. Set static <code>allowedCallers</code>, <code>returnType</code>, and optional <code>requiresUserActivation</code> metadata in catalog function definitions where needed.</li>
 <li>Update <code>Video</code>, <code>TextField</code>, and <code>Slider</code> components to support optional <code>posterUrl</code>, <code>placeholder</code>, and <code>steps</code> properties. Update <code>openUrl</code> functions to specify <code>"requiresUserActivation": true</code>.</li>
 <li>Explicitly set values to <code>null</code> in <code>updateDataModel</code> messages to delete keys at specified paths. The <code>value</code> property is now required, and omitting it is a schema validation error.</li>
 <li>Handle remote function execution requests from renderers (<code>callAgentFunction</code>) and respond with <code>agentFunctionResponse</code> messages.</li>
@@ -2646,7 +2646,7 @@
 <ul>
 <li>Implement multi-catalog mixing by supporting components and function calls from any catalog in <code>supportedCatalogIds</code> or negotiated <code>inlineCatalogs</code>. All catalogs mixed within a surface must use the same A2UI specification version.</li>
 <li>Implement component and function resolution order: (1) explicit component/call <code>catalogId</code>, (2) surface default <code>catalogId</code>, (3) error if neither exists (no fallback to capabilities).</li>
-<li>Implement function execution by adding support for parsing <code>callRendererFunction</code> messages from the agent, checking boundary definitions in the catalog (<code>callableFrom</code>), rejecting invalid calls with <code>INVALID_FUNCTION_CALL</code>, and returning <code>rendererFunctionResponse</code> messages.</li>
+<li>Implement function execution by adding support for parsing <code>callRendererFunction</code> messages from the agent, checking authorized callers in the catalog (<code>allowedCallers</code>), rejecting invalid calls with <code>INVALID_FUNCTION_CALL</code>, and returning <code>rendererFunctionResponse</code> messages.</li>
 <li>Implement renderer-initiated function calls by sending <code>callAgentFunction</code> messages to the agent and handling incoming <code>agentFunctionResponse</code> messages.</li>
 <li>Support simultaneous version handling during session initialization by inspecting the <code>version</code> property (e.g., <code>"v1.0"</code>) to route payloads to version-specific controllers.</li>
 <li>Enforce surface uniqueness by raising an error if <code>createSurface</code> is received for an existing <code>surfaceId</code>.</li>
