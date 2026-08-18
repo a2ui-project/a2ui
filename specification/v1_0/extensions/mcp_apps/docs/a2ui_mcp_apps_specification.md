@@ -77,13 +77,77 @@ Servers MUST inspect the `capabilities.extensions["io.modelcontextprotocol/ui"].
 - If `application/a2ui+json` is present in `mimeTypes`: The server SHOULD deliver native A2UI JSON payloads (`application/a2ui+json`).
 - If only `text/html;profile=mcp-app` is present: The server MUST provide the sandboxed HTML application bundle.
 
+#### Component Catalog Capability Advertisement
+
+To render native A2UI payloads, the host MUST declare the specific A2UI component catalogs it supports. Clients declare these capabilities either globally during connection setup or per-message.
+
+**Option A: During MCP Initialization (Recommended)**
+
+Because MCP is a stateful session protocol, the most efficient approach is to declare capabilities once during connection setup. The client declares its A2UI support under the root `capabilities` object:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "initialize",
+  "id": "init-123",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "clientInfo": {
+      "name": "a2ui-enabled-client",
+      "version": "1.0.0"
+    },
+    "capabilities": {
+      "a2ui": {
+        "clientCapabilities": {
+          "v1.0": {
+            "supportedCatalogIds": [
+              "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+The server stores this state for the duration of the session.
+
+**Option B: Per-Message Metadata (For Stateless Servers)**
+
+If the server must remain stateless, the client CAN pass A2UI capabilities in the `_meta` field of every tool call:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "id": "id-123",
+  "params": {
+    "name": "generate_report",
+    "arguments": {"date": "2026-03-01"},
+    "_meta": {
+      "a2ui": {
+        "clientCapabilities": {
+          "v1.0": {
+            "supportedCatalogIds": [
+              "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            ],
+            "inlineCatalogs": []
+          }
+        }
+      }
+    }
+  }
+}
+```
+
 ### Resource Delivery (`resources/read`)
 
 Clients can fetch UI definitions directly as static or dynamically generated resources.
 
 #### Native A2UI Resource
 
-When reading a native A2UI resource (e.g., `a2ui://counter-view` or `ui://counter/app` with native support), the server returns `ReadResourceContents` with `mimeType: "application/a2ui+json"`:
+When reading a native A2UI resource (e.g., `a2ui://counter-view`), the server returns `ReadResourceContents` with `mimeType: "application/a2ui+json"`:
 
 ```json
 {
@@ -103,7 +167,7 @@ When reading a native A2UI resource (e.g., `a2ui://counter-view` or `ui://counte
 
 #### Fallback HTML MCP App Resource
 
-If the client does not support native A2UI, reading `ui://counter/app` returns standard `text/html;profile=mcp-app`:
+If the client does not support native A2UI, reading `ui://counter-view` returns standard `text/html;profile=mcp-app` that bundles an A2UI renderer in the payload to render A2UI:
 
 ```json
 {
@@ -112,7 +176,7 @@ If the client does not support native A2UI, reading `ui://counter/app` returns s
   "result": {
     "contents": [
       {
-        "uri": "ui://counter/app",
+        "uri": "ui://counter-view",
         "mimeType": "text/html;profile=mcp-app",
         "text": "<!DOCTYPE html><html><head><script type=\"module\" src=\"app.js\"></script></head><body><div id=\"root\"></div></body></html>"
       }
@@ -123,7 +187,11 @@ If the client does not support native A2UI, reading `ui://counter/app` returns s
 
 ### Tool Result Delivery (`tools/call`)
 
-When an MCP Tool produces UI output, the server returns a `CallToolResult` containing an `EmbeddedResource` with `mimeType: "application/a2ui+json"`.
+When an MCP Tool produces UI output, the server determines the response format based on the client's declared capabilities.
+
+#### Native A2UI Tool Result
+
+If the client supports native A2UI, the server returns a `CallToolResult` containing an `EmbeddedResource` with `mimeType: "application/a2ui+json"`:
 
 ```json
 {
@@ -141,6 +209,33 @@ When an MCP Tool produces UI output, the server returns a `CallToolResult` conta
           "uri": "a2ui://counter-state",
           "mimeType": "application/a2ui+json",
           "text": "[{\"version\":\"v1.0\",\"createSurface\":{\"surfaceId\":\"counter\",\"catalogId\":\"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json\"}},{\"version\":\"v1.0\",\"updateDataModel\":{\"surfaceId\":\"counter\",\"path\":\"/count\",\"value\":42}}]"
+        }
+      }
+    ]
+  }
+}
+```
+
+#### Fallback HTML MCP App Tool Result
+
+If the client does not support native A2UI, the server falls back to returning a standard `CallToolResult` containing an `EmbeddedResource` with `mimeType: "text/html;profile=mcp-app"`. This resource contains a self-contained HTML bundle that includes an A2UI renderer to render the interface inside a sandboxed iframe:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Counter successfully loaded."
+      },
+      {
+        "type": "resource",
+        "resource": {
+          "uri": "ui://counter-state",
+          "mimeType": "text/html;profile=mcp-app",
+          "text": "<!DOCTYPE html><html><head><script type=\"module\" src=\"app.js\"></script></head><body><div id=\"root\"></div></body></html>"
         }
       }
     ]
@@ -181,7 +276,7 @@ Interactive A2UI components trigger user actions with an `event.name` and an `ev
      }
    }
    ```
-4. The server processes the tool call and returns updated A2UI messages (e.g., `updateDataModel` or `updateComponents`) in an embedded resource.
+4. The server processes the tool call and returns an `agentFunctionResponse` (along with any other updated A2UI messages, such as `updateDataModel` or `updateComponents`) in an embedded resource for the A2UI surface renderer to handle.
 5. The client parses the A2UI messages and updates the local A2UI surface model.
 
 ### Message Format & Response Processing
