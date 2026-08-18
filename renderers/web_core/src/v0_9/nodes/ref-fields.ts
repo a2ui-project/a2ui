@@ -27,25 +27,29 @@ import {z} from 'zod';
 const COMPONENT_ID_REF = 'REF:common_types.json#/$defs/ComponentId';
 const CHILD_LIST_REF = 'REF:common_types.json#/$defs/ChildList';
 
-/** Which properties of a component's schema reference child components. */
-export interface RefFields {
-  /** Properties holding a single child component id. */
-  readonly single: ReadonlySet<string>;
-  /** Properties holding a `ChildList` (static id array or template). */
-  readonly list: ReadonlySet<string>;
-  /**
-   * Properties holding an array of plain objects in which some keys are
-   * single child references (e.g. a tab strip's `items[].child`), mapped to
-   * those keys.
-   */
-  readonly nested: ReadonlyMap<string, ReadonlySet<string>>;
-}
+/** How one property of a component's schema references child components. */
+export type RefKind =
+  | {
+      /** The property holds a single child component id. */
+      readonly kind: 'single';
+    }
+  | {
+      /** The property holds a `ChildList` (static id array or template). */
+      readonly kind: 'list';
+    }
+  | {
+      /**
+       * The property holds an array of plain objects in which `keys` are
+       * single child references (e.g. a tab strip's `items[].child`).
+       */
+      readonly kind: 'nested';
+      readonly keys: ReadonlySet<string>;
+    };
 
-const EMPTY_REF_FIELDS: RefFields = {
-  single: new Set(),
-  list: new Set(),
-  nested: new Map(),
-};
+/** Child-referencing properties of a component schema, keyed by property name. */
+export type RefFields = ReadonlyMap<string, RefKind>;
+
+const EMPTY_REF_FIELDS: RefFields = new Map();
 
 const refFieldsCache = new WeakMap<z.ZodTypeAny, RefFields>();
 
@@ -70,19 +74,17 @@ export function extractRefFields(schema: z.ZodTypeAny): RefFields {
     return EMPTY_REF_FIELDS;
   }
 
-  const single = new Set<string>();
-  const list = new Set<string>();
-  const nested = new Map<string, ReadonlySet<string>>();
+  const fields = new Map<string, RefKind>();
 
   const shape = (unwrapped.schema as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
   for (const [key, value] of Object.entries(shape)) {
     const field = unwrap(value);
     if (hasPointer(field.descriptions, CHILD_LIST_REF) || isChildListUnion(field.schema)) {
-      list.add(key);
+      fields.set(key, {kind: 'list'});
       continue;
     }
     if (hasPointer(field.descriptions, COMPONENT_ID_REF)) {
-      single.add(key);
+      fields.set(key, {kind: 'single'});
       continue;
     }
     if (field.schema._def.typeName === 'ZodArray') {
@@ -99,13 +101,13 @@ export function extractRefFields(schema: z.ZodTypeAny): RefFields {
           }
         }
         if (subKeys.size > 0) {
-          nested.set(key, subKeys);
+          fields.set(key, {kind: 'nested', keys: subKeys});
         }
       }
     }
   }
 
-  const result: RefFields = {single, list, nested};
+  const result: RefFields = fields;
   refFieldsCache.set(schema, result);
   return result;
 }

@@ -36,7 +36,7 @@ const ROOT_COMPONENT_ID = 'root';
 const ROOT_DATA_PATH = '/';
 const ROOT_EDGE_KEY = '>root>root@/';
 
-const EMPTY_REF_FIELDS: RefFields = {single: new Set(), list: new Set(), nested: new Map()};
+const EMPTY_REF_FIELDS: RefFields = new Map();
 
 interface NodeRecord {
   readonly node: MutableComponentNode;
@@ -415,14 +415,7 @@ export class NodeResolver<
     // lifecycles, so their presence must follow the component model exactly.
     const modelProps = record.componentModel?.properties;
     if (modelProps) {
-      for (const refKeys of [record.refFields.single, record.refFields.list]) {
-        for (const key of refKeys) {
-          if (key in next && !(key in modelProps)) {
-            delete next[key];
-          }
-        }
-      }
-      for (const key of record.refFields.nested.keys()) {
+      for (const key of record.refFields.keys()) {
         if (key in next && !(key in modelProps)) {
           delete next[key];
         }
@@ -436,61 +429,66 @@ export class NodeResolver<
       return child;
     };
 
-    for (const key of record.refFields.single) {
-      const value = next[key];
-      if (typeof value === 'string' && value) {
-        next[key] = resolveChild(key, value, record.node.dataPath);
-      }
-    }
-
-    for (const key of record.refFields.list) {
-      const value = next[key];
-      if (!Array.isArray(value)) {
-        continue;
-      }
-      next[key] = value.map((item, index) => {
-        if (typeof item === 'string' && item) {
-          return resolveChild(`${key}[${index}]`, item, record.node.dataPath);
-        }
-        if (item && typeof item === 'object' && !Array.isArray(item)) {
-          const entry = item as Record<string, unknown>;
-          // The binder resolves a {componentId, path} template into
-          // {id, basePath} pairs, one per array element.
-          if (typeof entry.id === 'string' && typeof entry.basePath === 'string') {
-            return resolveChild(`${key}[${index}]`, entry.id, entry.basePath);
+    for (const [key, ref] of record.refFields) {
+      switch (ref.kind) {
+        case 'single': {
+          const value = next[key];
+          if (typeof value === 'string' && value) {
+            next[key] = resolveChild(key, value, record.node.dataPath);
           }
-          if (typeof entry.componentId === 'string' && entry.componentId) {
-            return resolveChild(`${key}[${index}]`, entry.componentId, record.node.dataPath);
-          }
+          break;
         }
-        return item;
-      });
-    }
-
-    for (const [key, subKeys] of record.refFields.nested) {
-      const value = next[key];
-      if (!Array.isArray(value)) {
-        continue;
+        case 'list': {
+          const value = next[key];
+          if (!Array.isArray(value)) {
+            break;
+          }
+          next[key] = value.map((item, index) => {
+            if (typeof item === 'string' && item) {
+              return resolveChild(`${key}[${index}]`, item, record.node.dataPath);
+            }
+            if (item && typeof item === 'object' && !Array.isArray(item)) {
+              const entry = item as Record<string, unknown>;
+              // The binder resolves a {componentId, path} template into
+              // {id, basePath} pairs, one per array element.
+              if (typeof entry.id === 'string' && typeof entry.basePath === 'string') {
+                return resolveChild(`${key}[${index}]`, entry.id, entry.basePath);
+              }
+              if (typeof entry.componentId === 'string' && entry.componentId) {
+                return resolveChild(`${key}[${index}]`, entry.componentId, record.node.dataPath);
+              }
+            }
+            return item;
+          });
+          break;
+        }
+        case 'nested': {
+          const value = next[key];
+          if (!Array.isArray(value)) {
+            break;
+          }
+          next[key] = value.map((item, index) => {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+              return item;
+            }
+            const entry = {...(item as Record<string, unknown>)};
+            let resolvedAny = false;
+            for (const subKey of ref.keys) {
+              const childId = entry[subKey];
+              if (typeof childId === 'string' && childId) {
+                entry[subKey] = resolveChild(
+                  `${key}[${index}].${subKey}`,
+                  childId,
+                  record.node.dataPath,
+                );
+                resolvedAny = true;
+              }
+            }
+            return resolvedAny ? entry : item;
+          });
+          break;
+        }
       }
-      next[key] = value.map((item, index) => {
-        if (!item || typeof item !== 'object' || Array.isArray(item)) {
-          return item;
-        }
-        const entry = {...(item as Record<string, unknown>)};
-        let resolvedAny = false;
-        for (const subKey of subKeys) {
-          const childId = entry[subKey];
-          if (typeof childId === 'string' && childId) {
-            entry[subKey] = resolveChild(
-              `${key}[${index}].${subKey}`,
-              childId,
-              record.node.dataPath,
-            );
-            resolvedAny = true;
-          }
-        }
-        return resolvedAny ? entry : item;
-      });
     }
 
     for (const [edgeKey, child] of record.childEdges) {
