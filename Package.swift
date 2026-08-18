@@ -21,7 +21,7 @@ let package = Package(
   name: "A2UISwiftCore",
   platforms: [
     .iOS(.v16),
-    .macOS(.v13),
+    .macOS(.v14),
   ],
   products: [
     .library(
@@ -31,6 +31,10 @@ let package = Package(
     .library(
       name: "A2UISwiftUI",
       targets: ["A2UISwiftUI"]
+    ),
+    .library(
+      name: "BasicCatalog",
+      targets: ["BasicCatalog"]
     ),
   ],
   dependencies: [
@@ -45,10 +49,7 @@ let package = Package(
       name: "A2UIJSON",
       dependencies: [
         .product(name: "JSONSchema", package: "swift-json-schema"),
-        .product(
-          name: "OrderedJSON",
-          package: "swift-json-schema"
-        ),
+        .product(name: "OrderedJSON", package: "swift-json-schema"),
       ],
       path: "swift/core/Sources/A2UIJSON"
     ),
@@ -57,12 +58,18 @@ let package = Package(
       dependencies: [
         "A2UIJSON",
         .product(name: "JSONSchema", package: "swift-json-schema"),
-        .product(
-          name: "OrderedJSON",
-          package: "swift-json-schema"
-        ),
+        .product(name: "OrderedJSON", package: "swift-json-schema"),
       ],
       path: "swift/core/Sources/A2UICore"
+    ),
+    .target(
+      name: "BasicCatalog",
+      dependencies: [
+        "A2UICore",
+        .product(name: "JSONSchema", package: "swift-json-schema"),
+        .product(name: "JSONSchemaBuilder", package: "swift-json-schema"),
+      ],
+      path: "swift/core/Sources/BasicCatalog"
     ),
 
     // ── SwiftUI ──
@@ -87,6 +94,11 @@ let package = Package(
       name: "A2UISwiftUITests",
       dependencies: ["A2UISwiftUI", "A2UICore"],
       path: "swift/swiftui/Tests/A2UISwiftUITests"
+    ),
+    .testTarget(
+      name: "BasicCatalogTests",
+      dependencies: ["BasicCatalog"],
+      path: "swift/core/Tests/BasicCatalogTests"
     ),
   ]
 )

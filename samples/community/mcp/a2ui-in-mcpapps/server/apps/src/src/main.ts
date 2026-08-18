@@ -226,7 +226,7 @@ export class McpAppRoot implements OnInit, AfterViewInit {
   }
 
   private postToParent(msg: any) {
-    window.parent.postMessage(msg, 'http://localhost:4200');
+    window.parent.postMessage(msg, '*');
   }
 }
 
