@@ -237,6 +237,7 @@ This runs a client-only demo showcasing every standard component (Card, Button, 
 While this guide uses the Lit client as an example, A2UI provides samples for other popular frameworks in the `samples/client` directory:
 
 - **Angular**: `samples/client/angular`
+- **Flutter**: `samples/client/flutter`
 - **React**: `samples/client/react`
 
 Explore the [samples/client](../../samples/client) directory to see all available client implementations.

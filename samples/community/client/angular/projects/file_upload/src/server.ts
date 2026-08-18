@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ const browserDistFolder = join(import.meta.dirname, '../browser');
 const app = express();
 const angularApp = new AngularNodeAppEngine();
 let clientPromise: Promise<A2AClient> | null = null;
+let sessionContextId: string | undefined = undefined;
 const agentUrl = process.env['AGENT_URL'] || 'http://localhost:10008';
 
 app.use(
@@ -92,6 +93,7 @@ app.post('/a2a', (req, res) => {
 
     const sendParams: MessageSendParams = {
       message: {
+        contextId: sessionContextId,
         messageId: uuidv4(),
         role: 'user',
         parts,
@@ -129,6 +131,14 @@ app.post('/a2a', (req, res) => {
     if ('error' in response) {
       res.status(500).json({error: JSON.stringify(response.error)});
       return;
+    }
+
+    if (
+      response.result &&
+      'contextId' in response.result &&
+      typeof response.result.contextId === 'string'
+    ) {
+      sessionContextId = response.result.contextId;
     }
 
     res.json(response);

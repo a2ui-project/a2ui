@@ -34,7 +34,7 @@ End of agent turn is signaled by [transport layer](../../../docs/public/concepts
 
 The major differences between version 1.0 and 0.9 (including 0.9.1) are:
 
-- **Bidirectional RPC Messaging**: Supports synchronous agent responses to renderer actions (`actionResponse`) and remote agent-initiated function execution (`callFunction` / `functionResponse`) verified against runtime catalog definitions.
+- **Bidirectional Function Calls**: Supports explicit, typed function invocation messages (`callRendererFunction`, `callAgentFunction`, `rendererFunctionResponse`, and `agentFunctionResponse`) verified against runtime catalog definitions.
 - **Single-Message UI Instantiation**: Allows initial component trees and data models to be embedded directly within `createSurface`, enabling complete UI composition in a single payload.
 - **Decoupled Branding**: Removes rigid theme properties (removing hardcoded brand colors) to defer visual styling entirely to the target framework's native theme.
 - **Enhanced Catalog Schemas**: Refactors function definitions into object maps for direct O(1) lookups and supports standard JSON Schema metadata fields (`$schema`, `$id`) on inline catalogs.
@@ -131,6 +131,7 @@ The [`common_types.json`] schema defines reusable primitives used throughout the
   - `object`: A template for generating children from a data binding list (requires a template `componentId` and a data binding `path`).
 
 - **`ComponentId`**: A reference to the unique ID of another component within the same surface.
+- **`AccessibilityAttributes`**: Standardized accessibility properties attached via `ComponentCommon` to any component, supporting `label` (`DynamicString`), `description` (`DynamicString`), `live` (`"off"` | `"polite"` | `"assertive"`), and `hidden` (`DynamicBoolean`).
 
 ### Agent to renderer message structure: the envelope
 
@@ -142,7 +143,7 @@ The [`catalogs/basic/catalog.json`] schema contains the definitions for all spec
 
 **Swappable Catalogs & Validation:**
 
-The [`agent_to_renderer.json`] envelope schema is designed to be catalog-agnostic. It references components using a placeholder filename: `catalog.json` (specifically `$ref: "catalog.json#/$defs/anyComponent"`).
+The [`agent_to_renderer.json`] envelope schema is designed to be catalog-agnostic. Within its `Component` definition (referenced by `ComponentsList`), it validates base properties against `common_types.json#/$defs/ComponentCommon` and references components using a placeholder filename: `catalog.json` (specifically `$ref: "catalog.json#/$defs/anyComponent"`).
 
 To validate A2UI messages:
 
@@ -168,7 +169,7 @@ Validators determine which fields represent structural links by looking for thes
 
 ## Envelope message structure
 
-The envelope defines several message types, and every message streamed by the agent must be a JSON object containing exactly one of the following keys: `createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`, `callFunction`, or `actionResponse`. The key indicates the type of message, and these are the messages that make up each message in the protocol stream.
+The envelope defines several message types, and every message streamed by the agent must be a JSON object containing exactly one of the following keys: `createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`, `callRendererFunction`, or `agentFunctionResponse`. The key indicates the type of message, and these are the messages that make up each message in the protocol stream.
 
 ### `createSurface`
 
@@ -293,71 +294,26 @@ This message instructs the renderer to remove a surface and all its associated c
 }
 ```
 
-### `actionResponse`
+### `callRendererFunction`
 
-This message is sent by the agent to respond to a renderer-initiated `action` that requested a response via `wantResponse: true`.
-
-**Properties:**
-
-- `actionId` (string, required): The unique ID of the action call this response belongs to. MUST match the `actionId` sent by the renderer.
-- `actionResponse` (object, required): The payload containing the response.
-  - `value` (any): The return value of the action. Present on success.
-  - `error` (object): Error details if the action failed.
-    - `code` (string): Error code.
-    - `message` (string): Description of the error.
-
-Exactly one of `value` or `error` must be present.
-
-**Example:**
-
-Renderer sends this to the agent:
-
-```json
-{
-  "version": "v1.0",
-  "action": {
-    "name": "get_typeahead_suggestions",
-    "surfaceId": "mysurface",
-    "sourceComponentId": "myinput",
-    "context": {
-      "prefix": "app"
-    },
-    "wantResponse": true,
-    "actionId": "get_typeahead_suggestions_1"
-  }
-}
-```
-
-Agent responds with:
-
-```json
-{
-  "version": "v1.0",
-  "actionId": "get_typeahead_suggestions_1",
-  "actionResponse": {
-    "value": ["apple", "application", "approved"]
-  }
-}
-```
-
-### `callFunction`
-
-This message is sent by the agent to execute a function registered on the renderer. Functions are catalog-defined abstractions that avoid sending raw executable code across the wire.
+This message is sent by the agent to execute a function registered on the renderer. Functions are catalog-defined abstractions that avoid sending raw executable code across the wire. Only functions which have `allowedCallers: "agentOnly"` or `allowedCallers: "rendererOrAgent"` in their catalog definition can be called by the agent. Renderer functions can only be called after a session has been initiated by the renderer. Functions are resolved by the specified `catalogId`. Upon completing execution of a `callRendererFunction` message, the renderer MUST always send a corresponding `functionResponse` or `error` message back to the agent, even if the function's return type is `void`.
 
 **Properties:**
 
-- `functionCallId` (string, required): A unique identifier for this invocation instance. The renderer MUST copy this ID verbatim into the subsequent `functionResponse` or `error` message.
-- `wantResponse` (boolean, optional, default `false`): Specifies whether the agent expects a response payload back from the renderer. If set to `true`, the renderer MUST reply with either a `functionResponse` or an `error` message.
-- `callFunction` (object, required): The description of the function call.
-  - `call` (string, required): The registered name of the function to execute.
-  - `args` (object, optional): Arguments passed to the function, as defined by its schema in the catalog.
+- `callRendererFunction` (object, required):
+  - `functionCallId` (string, required): A unique identifier for this invocation instance. The renderer MUST copy this ID verbatim into the subsequent `functionResponse` or `error` message.
+  - `callFunction` (object, required): The description of the function call.
+    - `call` (string, required): The registered name of the function to execute.
+    - `catalogId` (string, required): The catalog ID defining the function to execute.
+    - `args` (object, optional): Arguments passed to the function, as defined by its schema in the catalog.
 
 **Security Boundaries and Verification:**
 
-Execution boundary verification (`agentOnly` vs `rendererOnly`) is enforced strictly at runtime by the renderer application:
+Execution boundary verification (`"rendererOnly"`, `"agentOnly"`, or `"rendererOrAgent"`) is enforced strictly at runtime by the renderer application:
 
-- When a renderer receives a `callFunction` message, it MUST look up the requested function name in its active catalog registry. (Note: The renderer determines the execution boundary of a function by reading the `callableFrom` metadata property or schema annotation declared in the catalog; if omitted, the boundary defaults to `"rendererOnly"`.)
-- If the requested function is configured in the catalog as `rendererOnly`, or if the function is not registered at all, the renderer MUST immediately reject the call and return a renderer-to-agent `error` message with `code: "INVALID_FUNCTION_CALL"`.
+- When a renderer receives a `callRendererFunction` message, it determines the function's execution boundary (e.g., `allowedCallers` status) at runtime by reading its configuration from the active catalog definition.
+- If the requested function is configured in the catalog as `"rendererOnly"`, or if the function is not registered at all, the renderer MUST immediately reject the call and return a renderer-to-agent `error` message with `code: "INVALID_FUNCTION_CALL"`.
+- Functions marked as `"agentOnly"` or `"rendererOrAgent"` are authorized for agent invocation via `callRendererFunction`. Functions configured as `"agentOnly"` CANNOT be bound to UI component properties or executed by renderer UI actions; they are restricted exclusively to agent-initiated `callRendererFunction` execution.
 
 **Example:**
 
@@ -366,25 +322,26 @@ Agent sends this message to the renderer:
 ```json
 {
   "version": "v1.0",
-  "functionCallId": "get_device_resolution_123",
-  "wantResponse": true,
-  "callFunction": {
-    "call": "getScreenResolution",
-    "args": {
-      "screenIndex": 0
+  "callRendererFunction": {
+    "functionCallId": "get_device_resolution_123",
+    "callFunction": {
+      "call": "getScreenResolution",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+      "args": {
+        "screenIndex": 0
+      }
     }
   }
 }
 ```
 
-If the function executes successfully, the renderer responds with:
+If the function executes successfully, the renderer responds with a `rendererFunctionResponse`:
 
 ```json
 {
   "version": "v1.0",
-  "functionResponse": {
+  "rendererFunctionResponse": {
     "functionCallId": "get_device_resolution_123",
-    "call": "getScreenResolution",
     "value": [1920, 1080]
   }
 }
@@ -402,6 +359,110 @@ If the agent attempts to call a `rendererOnly` function (e.g., a local-only comp
   }
 }
 ```
+
+### `agentFunctionResponse`
+
+This message is streamed by the agent to return the execution result or error of a renderer-initiated `callAgentFunction` request.
+
+**Properties:**
+
+- `agentFunctionResponse` (object, required):
+  - `functionCallId` (string, required): The unique invocation ID matching the initiating `callAgentFunction` call.
+  - `value` (any, optional): The returned execution value of the function call.
+  - `error` (object, optional): An error object containing `code` (string) and `message` (string) describing execution failure.
+
+The payload MUST include either `value` or `error`.
+
+**Example (Success):**
+
+```json
+{
+  "version": "v1.0",
+  "agentFunctionResponse": {
+    "functionCallId": "verify_provider_99",
+    "value": {
+      "valid": true,
+      "name": "Acme Provider"
+    }
+  }
+}
+```
+
+**Example (Failure):**
+
+```json
+{
+  "version": "v1.0",
+  "agentFunctionResponse": {
+    "functionCallId": "verify_provider_99",
+    "error": {
+      "code": "PROVIDER_NOT_FOUND",
+      "message": "Provider ID PRV-102 was not found."
+    }
+  }
+}
+```
+
+## Transport Interaction Patterns
+
+A2UI messages can be transported over both request-response channels (such as HTTP POST or polling) and bidirectional streaming channels (such as WebSockets, gRPC, or Server-Sent Events).
+
+### 1. Request-Response Transport (e.g. HTTP POST)
+
+In request-response environments, the agent cannot initiate an unprompted connection to the client. Agent-initiated function calls (`callRendererFunction`) and renderer-initiated calls (`callAgentFunction`) operate within the request-response cycle:
+
+#### Agent-to-Renderer Function Call over HTTP
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client as Renderer (Client)
+    participant Agent as Agent (Server)
+
+    Client->>Agent: HTTP POST (Action / Event)
+    Agent-->>Client: 200 OK (callRendererFunction)
+    Client->>Agent: HTTP POST (functionResponse)
+    Agent-->>Client: 200 OK (updateComponents)
+```
+
+1. **Initiation:** The renderer sends a standard HTTP POST request (e.g., dispatching an event action or polling).
+2. **Server Response:** The agent returns a `callRendererFunction` payload in the HTTP response.
+3. **Execution & Delivery:** The renderer executes the function locally, then initiates a follow-up HTTP POST request delivering the `functionResponse` (or `error`).
+4. **Completion:** The agent processes `functionResponse` and returns updated UI components (`updateComponents`).
+
+---
+
+### 2. Bidirectional Streaming Transport (e.g. WebSockets / gRPC)
+
+In streaming environments, either party can send protocol messages asynchronously over the active downstream/upstream connection:
+
+#### Agent-to-Renderer Function Call over Stream
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client as Renderer (Client)
+    participant Agent as Agent (Server)
+
+    Agent->>Client: Stream Message (callRendererFunction)
+    Client->>Agent: Stream Message (functionResponse)
+    Agent->>Client: Stream Message (updateComponents)
+```
+
+#### Renderer-to-Agent Function Call over Stream
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client as Renderer (Client)
+    participant Agent as Agent (Server)
+
+    Client->>Agent: Stream Message (callAgentFunction)
+    Agent->>Client: Stream Message (functionResponse)
+```
+
+1. **Asynchronous Dispatch:** Messages flow over the established stream without requiring HTTP request-response wrapping.
+2. **Correlation:** Every function call includes a `functionCallId` which is copied verbatim into the returning `functionResponse` or `error` message to correlate requests and responses asynchronously.
 
 ## Example Stream
 
@@ -442,6 +503,16 @@ When resolving a component (or function call), the renderer evaluates catalog id
 > [!IMPORTANT]
 > There is **no fallback** to the list of catalogs declared in `rendererCapabilities` (even if the renderer only advertises a single supported catalog). Every component and function call must resolve through either its explicit `catalogId` or the surface default `catalogId`.
 
+### Catalog-Agnostic Accessibility Requirements
+
+Because JSON Schema cannot inspect arbitrary catalog component property semantics to infer which properties represent visible text labels or which components accept user interaction, accessibility rules are enforced through normative specification requirements and SDK tooling:
+
+**Catalog and renderer implementations MUST:**
+
+- **Plumb Accessibility Attributes**: Map all relevant A2UI `AccessibilityAttributes` (`label`, `description`, `live`, `hidden`) to the underlying UI framework's accessibility APIs (e.g., WAI-ARIA `aria-label`, `aria-describedby`, `aria-live`, and `aria-hidden` for web renderers; `Semantics` properties for Flutter; `AccessibilityNodeInfo` / `accessibilityLabel` for Android and iOS renderers).
+- **Infer Default Semantics**: Use component types and non-accessibility properties (such as visible titles or text labels) to configure accessibility defaults automatically. When explicit `AccessibilityAttributes` (e.g., `label` or `description`) are provided, they MUST override inferred visual defaults. For example, a button component with a title of `"Submit"` and an explicit `accessibility.label` of `"Send Form"` must be announced by assistive technologies as `"Send Form"`.
+- **SDK Linter Checks**: SDK tooling and catalog linters MUST verify that component schemas accepting actions or input bindings declare accessible label requirements or fallbacks.
+
 ### The component catalog
 
 The set of available UI components and functions is defined in a **Catalog**. The basic catalog is defined in [`catalogs/basic/catalog.json`]. While the Basic Catalog is useful for starting out, most production applications will define their own catalog to reflect their specific design system. The agent must generate messages that conform to the catalog understood by the renderer.
@@ -450,7 +521,7 @@ The set of available UI components and functions is defined in a **Catalog**. Th
 
 Every catalog follows the standard `Catalog` object definition:
 
-- **catalogId** (string, required): A unique string identifier for this catalog. While conventionally formatted as a URI to avoid naming collisions across organizations, it is an arbitrary string ID and not a resolvable URI. Renderer and agent developers must agree on shared catalogs with well-known IDs in order to build systems that are compatible with each other.
+- **catalogId** (string, required): A unique string identifier for this catalog. While conventionally formatted as a URI to avoid naming collisions across organizations, it is an arbitrary string ID and not a resolvable URI. Because A2UI catalogs are represented as JSON Schema documents, catalog definitions should include both `$id` (used by JSON Schema tooling) and `catalogId` (used by A2UI SDKs and catalog negotiation), setting both fields to the same URI. Renderer and agent developers must agree on shared catalogs with well-known IDs in order to build systems that are compatible with each other.
 - **instructions** (string, optional): Markdown-formatted design principles, rules, or developer guidelines specific to this catalog. These rules guide LLMs when generating UI layouts under this catalog.
 - **components** (object, optional): A map of supported UI components, where each key is the component type (e.g., `Text`) and its value is its JSON Schema definition. All keys MUST conform to the UAX #31 entity naming rules defined below.
 - **functions** (object, optional): A map of renderer-side validation or utility functions supported by the catalog, where each key is the function name and its value is its definition. All function names MUST conform to the UAX #31 entity naming rules defined below. The renderer determines a function's execution boundary (e.g., rendererOnly status) at runtime by reading its configuration from the active catalog definition.
@@ -501,8 +572,8 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `DynamicBoolean`
      - `DynamicStringList`
      - `DynamicValue`
+     - `AccessibilityAttributes`
      - `CheckRule`
-     - `ComponentCommon`
      - `Checkable`
      - `Action`
 4. **Component Discriminator Rule:**
@@ -517,17 +588,15 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      ```
      This enables route-dispatch matching via the `discriminator` block inside `anyComponent` (designating `"propertyName": "component"`).
 5. **Standard Component Structure:**
-   - All components defined in the `components` object must use an `allOf` structure that combines:
-     1. An external reference to the baseline identity and accessibility attributes:
-        `{"$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"}`
-     2. A local object schema defining the unique properties of that specific component (e.g., its children, variant, specific layouts).
+   - Catalog components define their discriminator (`component: { const: "<Name>" }`) and local properties (e.g., its children, variant, specific layouts), and can optionally import common property sets (such as `Checkable`) via `$ref`.
+   - Base component envelope properties (`id`, `catalogId`, and `accessibility` via `ComponentCommon`) are composed at the envelope level in `agent_to_renderer.json` via `allOf` inside the `Component` definition (referenced by `ComponentsList`), and therefore MUST NOT be redundantly wrapped with `ComponentCommon` via `allOf` inside individual catalog component definitions.
 6. **Strict Function Interface Pattern:**
    - Every function schema defined inside the `functions` map must validate a wire-level `FunctionCall` object. This requires:
      - A `properties` block with a `call` property containing a constant of the function's name (e.g., `"call": { "const": "email" }`).
      - An optional `args` property representing arguments (or absent if the function accepts no arguments).
      - Mandatory metadata fields outside the strict JSON validation properties to advertise interface details:
-       - **`returnType`**: Must be a string enum indicating the return type (`string`, `number`, `boolean`, `array`, `object`, `any`, or `void`).
-       - **`callableFrom`**: Must be a string enum indicating the execution boundary (`rendererOnly`, `agentOnly`, or `rendererOrAgent`). If omitted, it defaults to `rendererOnly`.
+       - **`returnType`**: Must be a string enum indicating the return type (`string`, `number`, `boolean`, `array`, `object`, `validationResult`, `any`, or `void`).
+       - **`allowedCallers`**: Must be a string enum indicating the authorized callers (`rendererOnly`, `agentOnly`, or `rendererOrAgent`). If omitted, it defaults to `rendererOnly`.
 7. **Strict Top-Level Schema Keys:**
    - To keep catalog schemas predictable and prevent custom extensions from polluting the global file space, a `catalog.json` file is restricted to the following root-level keys:
      - `$schema`
@@ -554,36 +623,25 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
   "protocolVersion": "1.0",
   "title": "A2UI Basic Catalog Template",
   "description": "An annotated example showcasing structural rules and conventions.",
-  "catalogId": "https://example.com/catalogs/custom-v1",
+  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
   "instructions": "Design instructions for LLMs when generating layouts under this catalog.",
 
   // Top-level components declared under top-level "components" map.
   "components": {
     "Text": {
       "type": "object",
-      // Components must combine ComponentCommon and local properties using "allOf".
-      "allOf": [
-        {
-          // External references must reference standard types in common_types.json.
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon",
+      "properties": {
+        // Required "component" property must be a constant matching the component key.
+        "component": {
+          "const": "Text",
         },
-        {
-          "type": "object",
-          "properties": {
-            // Required "component" property must be a constant matching the component key.
-            "component": {
-              "const": "Text",
-            },
-            // Leaf properties can be standard JSON primitives or Dynamic wrappers
-            "text": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
-              "description": "Text content to display.",
-            },
-          },
-          "required": ["component", "text"],
+        // Leaf properties can be standard JSON primitives or Dynamic wrappers
+        "text": {
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+          "description": "Text content to display.",
         },
-      ],
-      "unevaluatedProperties": false,
+      },
+      "required": ["component", "text"],
     },
   },
 
@@ -593,8 +651,8 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
       "type": "object",
       "description": "Checks that the value is not null, undefined, or empty.",
       // Strict function metadata defined outside the properties block.
-      "returnType": "boolean",
-      "callableFrom": "rendererOnly",
+      "returnType": "validationResult",
+      "allowedCallers": "rendererOnly",
       "properties": {
         // Function call schema requires constant with function's name.
         "call": {
@@ -731,10 +789,7 @@ Interactive components (like `Button`) use an `action` property to define what h
 
 #### Agent actions
 
-To send an event to the agent, use the `event` property within the `action` object. It requires a `name` and supports an optional `context`, `wantResponse`, and `responsePath`.
-
-- `wantResponse` (boolean, optional): If true, the renderer expects an `actionResponse` from the agent. Defaults to false.
-- `responsePath` (string, optional): A JSON Pointer path in the local data model where the response `value` should be saved.
+To send an event to the agent, use the `event` property within the `action` object. It requires a `name` and supports an optional `context` object containing parameters to dispatch to the agent.
 
 ```json
 {
@@ -977,24 +1032,47 @@ A2UI v1.0 generalizes renderer-side logic into **Functions**. These can be used 
 
 The renderer supports a set of named **Functions** (e.g., `required`, `regex`, `email`, `add`, `concat`) which are defined in the JSON schema (e.g. `catalogs/basic/catalog.json`) alongside the component definitions. The agent references these functions by name in `FunctionCall` objects. This avoids sending executable code.
 
-Input components (like `TextField`, `CheckBox`) can define a list of checks. Each failure produces a specific error message that can be displayed when the component is rendered. Note that for validation checks, the function must return a boolean.
+### Component Validation & Check Rules
+
+Input components (like `TextField`, `ChoicePicker`) and interactive elements (like `Button`) can define a list of `checks` (`CheckRule` objects).
+
+A `CheckRule` contains a `condition` (a `DataBinding` path or a `FunctionCall`) that evaluates to a `ValidationResult` object (defined in [`catalog_definition.json#/$defs/ValidationResult`](../json/catalog_definition.json)).
+
+#### `ValidationResult` Structure
+
+Validation functions (declared with `"returnType": "validationResult"`) or data model bindings evaluate directly to a `ValidationResult` object:
+
+- **`valid`** (`boolean`, required): Whether the check passed.
+- **`code`** (`string`, optional): Machine-readable error code (e.g., `EXPIRED_CARD`, `OUT_OF_RANGE`).
+- **`message`** (`string`, optional): Human-readable error or warning message to display.
+- **`severity`** (`"error" | "warning" | "info"`, optional, default `"error"`).
+
+Because `ValidationResult` permits additional unconstrained properties, validation functions and specialized components can extend the object with custom domain-specific metadata (such as suggested fix values, field paths, or retry parameters).
+
+_Example Component Definition:_
 
 ```json
 "checks": [
   {
-    "call": "required",
-    "args": { "value": { "path": "/formData/zip" } },
-    "message": "Zip code is required"
-  },
-  {
-    "call": "regex",
-    "args": {
-      "value": { "path": "/formData/zip" },
-      "pattern": "^[0-9]{5}$"
-    },
-    "message": "Must be a 5-digit zip code"
+    "condition": {
+      "call": "validateCreditCard",
+      "args": {
+        "cardNumber": { "path": "/payment/cardNumber" }
+      }
+    }
   }
 ]
+```
+
+_Example Dynamic `ValidationResult` Returned by `validateCreditCard`:_
+
+```json
+{
+  "valid": false,
+  "code": "EXPIRED_CARD",
+  "message": "The card expiration date (05/24) has passed.",
+  "severity": "error"
+}
 ```
 
 ### Example: button validation
@@ -1216,7 +1294,7 @@ If validation fails, the renderer (or the system acting on behalf of the rendere
 
 ## Renderer-to-agent event messages
 
-The protocol defines messages that the renderer can send to the agent to report user interactions, execution results of agent-initiated function calls, or renderer-side runtime errors. Every renderer-to-agent message must validate against the [`renderer_to_agent.json`] schema and contain exactly one of the following top-level keys: `action`, `functionResponse`, or `error`.
+The protocol defines messages that the renderer can send to the agent to report user interactions, execution results of agent-initiated function calls, or renderer-side runtime errors. Every renderer-to-agent message must validate against the [`renderer_to_agent.json`] schema and contain exactly one of the following top-level keys: `action`, `callAgentFunction`, `rendererFunctionResponse`, or `error`.
 
 ### `action`
 
@@ -1229,8 +1307,6 @@ This message is sent when a user interacts with a component that has an agent ac
 - `sourceComponentId` (string, required): The ID of the component that triggered the interaction.
 - `timestamp` (string, required): An ISO 8601 timestamp representing when the event occurred.
 - `context` (object, required): A JSON object containing the key-value pairs of the action's context parameters, after resolving all dynamic data bindings.
-- `wantResponse` (boolean, optional, default `false`): If `true`, indicates that the renderer expects the agent to respond with a corresponding `actionResponse` message.
-- `actionId` (string, optional): A unique ID for this specific action instance. This field is REQUIRED if `wantResponse` is set to `true`.
 
 **Example:**
 
@@ -1244,32 +1320,84 @@ This message is sent when a user interacts with a component that has an agent ac
     "timestamp": "2026-06-02T08:57:23Z",
     "context": {
       "isSubscribed": true
-    },
-    "wantResponse": true,
-    "actionId": "form_submit_773"
+    }
   }
 }
 ```
 
-### `functionResponse`
+### `callAgentFunction`
 
-This message is sent by the renderer to return the successful execution result of an agent-initiated function call. It is required only if the agent sent the `callFunction` request with `wantResponse: true`.
+This message is sent by the renderer to execute a function remotely on the agent (e.g. verifying a provider ID or checking inventory availability).
+
+**Function Location Resolution & Fallback Routing:**
+
+When the renderer evaluates a `FunctionCall` (from an action handler, validation check, or dynamic value), it determines the execution target using implicit fallback routing:
+
+1. **Local Lookup:** The renderer checks if a local renderer-side function with that name is registered in its local catalog/registry. If found, the renderer executes the function locally.
+2. **Fallback to Agent RPC:** If the function is not registered in the local renderer catalog, the renderer assumes it is an agent-side function and dispatches a `callAgentFunction` message over the protocol.
+3. **Agent Error Handling:** If the agent does not recognize the function name (or if parameter validation fails on the server), the agent MUST return an `agentFunctionResponse` message containing an `error` payload (`code: "UNKNOWN_FUNCTION"` or `"INVALID_FUNCTION_CALL"`). The renderer then handles the error state locally (e.g., via component error boundaries or fallbacks).
 
 **Properties:**
 
-- `functionCallId` (string, required): The unique invocation ID copied verbatim from the agent's `callFunction` message.
-- `call` (string, required): The name of the executed function, copied verbatim from the agent's `callFunction` message.
-- `value` (any, required): The returned execution value of the function call.
+- `callAgentFunction` (object, required):
+  - `surfaceId` (string, required): The surface ID where the call originated.
+  - `functionCallId` (string, required): A unique identifier for this invocation instance. The agent MUST copy this ID verbatim into the return `agentFunctionResponse`.
+  - `callFunction` (object, required): The description of the function call (`call`, `catalogId`, `args`).
 
 **Example:**
 
 ```json
 {
   "version": "v1.0",
-  "functionResponse": {
-    "functionCallId": "ping-call-id-102",
-    "call": "pingAgent",
-    "value": true
+  "callAgentFunction": {
+    "surfaceId": "contact_form_1",
+    "functionCallId": "verify_provider_99",
+    "callFunction": {
+      "call": "verifyProvider",
+      "args": {
+        "providerId": "PRV-102"
+      }
+    }
+  }
+}
+```
+
+### `rendererFunctionResponse`
+
+This message is sent by the renderer to return the execution result or error of an agent-initiated `callRendererFunction` request.
+
+**Properties:**
+
+- `rendererFunctionResponse` (object, required):
+  - `functionCallId` (string, required): The unique invocation ID matching the initiating `callRendererFunction` call.
+  - `value` (any, optional): The returned execution value of the function call.
+  - `error` (object, optional): An error object containing `code` (string) and `message` (string) describing execution failure.
+
+The payload MUST include either `value` or `error`.
+
+**Example (Success):**
+
+```json
+{
+  "version": "v1.0",
+  "rendererFunctionResponse": {
+    "functionCallId": "get_device_resolution_123",
+    "value": [1920, 1080]
+  }
+}
+```
+
+**Example (Failure):**
+
+```json
+{
+  "version": "v1.0",
+  "rendererFunctionResponse": {
+    "functionCallId": "get_device_resolution_123",
+    "error": {
+      "code": "EXECUTION_FAILED",
+      "message": "Failed to query screen resolution."
+    }
   }
 }
 ```
@@ -1298,6 +1426,36 @@ This message is sent by the renderer to report runtime or execution errors to th
 }
 ```
 
+## Functions in A2UI Content Execution
+
+In addition to top-level protocol RPC messages (`callRendererFunction` and `callAgentFunction`), functions in A2UI can be embedded directly within UI component trees and content definitions.
+
+### 1. Polymorphic Function Usage in UI Content
+
+`FunctionCall` objects can be used interchangeably across UI content bindings regardless of whether the target function executes locally on the renderer or remotely on the agent:
+
+- **Dynamic Value Bindings:** A `FunctionCall` can compute dynamic property values (e.g. formatting a timestamp or fetching calculated user statistics).
+- **Validation Rules (`Checkable`):** Components that support client validation (such as input fields) use `FunctionCall` objects inside check rules to perform validation logic.
+- **Action Handlers (`Action`):** Component interaction handlers can execute a `FunctionCall` directly on click or trigger.
+
+The component tree syntax is completely uniform. The renderer evaluates whether to execute the function locally or route a `callAgentFunction` RPC to the agent based on function target resolution rules.
+
+### 2. Asynchronous Evaluation & Pending States
+
+When a UI component binding or validation rule depends on a function that routes remotely to the agent (or executes an asynchronous renderer function):
+
+1. **Async Evaluation:** The renderer dispatches the function call (e.g. emitting `callAgentFunction`) and enters an asynchronous evaluation state.
+2. **Pending UI State:** The renderer maintains a pending/loading state for the affected component binding (e.g., displaying a loading indicator or preserving existing component values) while awaiting `functionResponse`.
+3. **Value Resolution:** Upon receiving `functionResponse`, the renderer updates the local dynamic value or validation state with the returned `value`.
+
+### 3. Failure Propagation & Recovery Rules
+
+If a function call within a content pipeline fails (returns a `functionResponse` containing an `error` payload, times out, or triggers a transport error), the renderer applies the following recovery rules:
+
+- **Dynamic Value Binding Failure:** The property binding resolves to `null` (or a declared fallback value), and the renderer logs an evaluation error without crashing the surrounding component tree.
+- **Validation Rule Failure (`Checkable`):** The check rule evaluates as invalid, displaying the rule's specified error message to the user.
+- **Action Pipeline Failure:** Halts execution of any subsequent steps in the action execution pipeline and dispatches a local error boundary event or toast notification. Any side effects of previously executed steps are preserved.
+
 ---
 
 ## Capabilities and metadata
@@ -1322,7 +1480,7 @@ The `a2uiRendererCapabilities` object in the transport metadata follows the [`re
 
 - `v1.0` (object, required): The capability structure for version 1.0 of the A2UI protocol.
   - `supportedCatalogIds` (array of strings, required): The string identifiers of supported component and function catalogs.
-  - `inlineCatalogs` (array, optional): An array of custom catalog definitions provided inline by the renderer. Functions defined within inline catalogs support declaring execution boundaries (`callableFrom: "rendererOnly" | "agentOnly" | "rendererOrAgent"`) to statically specify remote invocation safety.
+  - `inlineCatalogs` (array, optional): An array of custom catalog definitions provided inline by the renderer. Functions defined within inline catalogs support declaring authorized callers (`allowedCallers: "rendererOnly" | "agentOnly" | "rendererOrAgent"`) to statically specify remote invocation safety.
 
 ### Renderer data model
 

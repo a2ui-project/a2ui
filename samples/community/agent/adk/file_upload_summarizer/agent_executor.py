@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,11 +21,10 @@ from a2ui.schema.constants import A2UI_CLIENT_CAPABILITIES_KEY
 from google.adk.a2a.converters.request_converter import AgentRunRequest
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor, A2aAgentExecutorConfig
 from google.adk.agents.invocation_context import new_invocation_context_id
-from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.events.event import Event
 from google.adk.events.event_actions import EventActions
 from google.adk.runners import Runner
-from tools import STATE_KEY_BASE_URL
+from file_resolution import STATE_KEY_BASE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +59,7 @@ class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
         logger.info(f"Loading session for message {context.message}")
 
         active_ui_version = try_activate_a2ui_extension(context, self._agent.agent_card)
+
         runner = self._agent.get_runner(active_ui_version)
         inference_format = self._agent.get_inference_format(active_ui_version)
 

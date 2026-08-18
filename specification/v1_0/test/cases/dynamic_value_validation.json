@@ -1,0 +1,180 @@
+{
+  "schema": "agent_to_renderer.json",
+  "catalog": "testing_catalog.json",
+  "tests": [
+    {
+      "description": "DynamicValue: Valid literal string",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "TestComponent",
+              "value": "hello"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "DynamicValue: Valid literal number",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "TestComponent",
+              "value": 42
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "DynamicValue: Valid literal boolean",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "TestComponent",
+              "value": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "DynamicValue: Valid literal array",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "TestComponent",
+              "value": [1, "two", {"three": 3}]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "DynamicValue: Valid literal object",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "TestComponent",
+              "value": {
+                "vega": "lite",
+                "spec": {
+                  "data": {"values": []}
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "DynamicValue: Valid DataBinding",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "TestComponent",
+              "value": {
+                "path": "/my/data/pointer"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "DynamicValue: Valid FunctionCall",
+      "valid": true,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "TestComponent",
+              "value": {
+                "call": "openUrl",
+                "args": {
+                  "url": "https://example.com"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "DynamicValue: Invalid DataBinding with extra properties",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "TestComponent",
+              "value": {
+                "path": "/my/data/pointer",
+                "extra": "field"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "DynamicValue: Invalid FunctionCall with extra properties",
+      "valid": false,
+      "data": {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "TestComponent",
+              "value": {
+                "call": "openUrl",
+                "args": {
+                  "url": "https://example.com"
+                },
+                "extra": "field"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -360,7 +360,8 @@ def generate_optimization_report(
             )
             report.append(f"- **LLM Judge Grade**: `{judging_val}`")
             prompt_str = str(sample.get("input") or "")
-            report.append(f"- **Prompt**:\n  > {prompt_str.replace('\n', '\n  > ')}")
+            quoted_prompt = prompt_str.replace("\n", "\n  > ")
+            report.append(f"- **Prompt**:\n  > {quoted_prompt}")
             report.append("")
 
             output_content = ""

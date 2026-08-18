@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -49,9 +49,7 @@ def main(host, port):
                     " may fail if no API key is provided."
                 )
 
-        lite_llm_model = os.getenv(
-            "LITELLM_MODEL", "gemini/gemini-3.1-flash-lite-preview"
-        )
+        lite_llm_model = os.getenv("LITELLM_MODEL", "gemini/gemini-3.5-flash-lite")
         gemini_model = (
             lite_llm_model[len("gemini/") :]
             if lite_llm_model.startswith("gemini/")
