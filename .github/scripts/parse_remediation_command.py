@@ -35,11 +35,19 @@ def parse_recommendation_index(comment_body: str) -> str | None:
 
     lines = comment_body.splitlines()
     in_quoted_paragraph = False
+    in_code_block = False
 
     for line in lines:
         stripped = line.lstrip()
         if not stripped:
             in_quoted_paragraph = False
+            continue
+
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_code_block = not in_code_block
+            continue
+
+        if in_code_block:
             continue
 
         if stripped.startswith(">"):
@@ -49,7 +57,7 @@ def parse_recommendation_index(comment_body: str) -> str | None:
         if in_quoted_paragraph:
             continue
 
-        match = re.search(r"/fix\s+([0-9]+)", line)
+        match = re.search(r"(?:^|\s)/fix\s+([0-9]+)", line)
         if match:
             return match.group(1)
 

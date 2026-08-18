@@ -40,7 +40,8 @@ struct LengthFunctionTests {
 
   @Test func evaluatesToTrueWhenWithinMinAndMax() throws {
     let result = try function.evaluate(
-      arguments: ["value": .string("hello"), "min": .number(3), "max": .number(10)], context: context)
+      arguments: ["value": .string("hello"), "min": .number(3), "max": .number(10)],
+      context: context)
     #expect(result == .boolean(true))
   }
 

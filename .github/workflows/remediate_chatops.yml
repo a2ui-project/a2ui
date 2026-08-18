@@ -96,4 +96,3 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
           python .github/scripts/run_remediation.py
-

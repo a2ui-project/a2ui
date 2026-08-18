@@ -91,6 +91,21 @@ class TestParseRemediationCommand(unittest.TestCase):
     def test_no_fix_command(self) -> None:
         self.assertIsNone(parse_recommendation_index("Looks great, thanks!"))
         self.assertIsNone(parse_recommendation_index("/fix notanumber"))
+        self.assertIsNone(parse_recommendation_index("http://example.com/fix 123"))
+        self.assertIsNone(parse_recommendation_index("some/path/fix 123"))
+        self.assertIsNone(parse_recommendation_index("```\n/fix 123\n```"))
+        self.assertIsNone(parse_recommendation_index("~~~\n/fix 123\n~~~"))
+
+    def test_code_block_with_unquoted_command_after(self) -> None:
+        comment = "\n".join([
+            "```",
+            "Example usage:",
+            "/fix 1",
+            "```",
+            "",
+            "Please apply /fix 2",
+        ])
+        self.assertEqual(parse_recommendation_index(comment), "2")
 
     def test_main_with_valid_command(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

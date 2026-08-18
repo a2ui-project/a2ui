@@ -49,7 +49,7 @@ struct EmailFunctionTests {
       arguments: ["value": .string("test@example")], context: context)
     #expect(result == .boolean(false))
   }
-  
+
   @Test func evaluatesToFalseWhenEmailIsMissingDomain() throws {
     let result = try function.evaluate(
       arguments: ["value": .string("test@.com")], context: context)
