@@ -13,6 +13,7 @@
 # limitations under the License.
 
 # Auto-generated. Do not edit manually.
+from __future__ import annotations
 from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field, ConfigDict
 from .common_types import StrictBaseModel
@@ -20,6 +21,8 @@ from .constants import SPEC_VERSION, SPEC_VERSION_TYPE
 
 
 class FunctionDefinition(StrictBaseModel):
+    """Describes a function's interface."""
+
     name: str = Field(..., description="The unique name of the function.")
     description: Optional[str] = Field(
         None,
@@ -41,6 +44,8 @@ class FunctionDefinition(StrictBaseModel):
 
 
 class InlineCatalog(StrictBaseModel):
+    """A collection of component and function definitions."""
+
     catalog_id: str = Field(
         ..., alias="catalogId", description="Unique identifier for this catalog."
     )
@@ -60,16 +65,19 @@ class InlineCatalog(StrictBaseModel):
     )
 
 
+Catalog = InlineCatalog
+
+
 class V09Capabilities(StrictBaseModel):
     supported_catalog_ids: List[str] = Field(
         ...,
         alias="supportedCatalogIds",
         description=(
-            "The URI of each of the component and function catalogs that is supported"
-            " by the client."
+            "An array of string identifiers for each of the component and function"
+            " catalogs supported by the client."
         ),
     )
-    inline_catalogs: Optional[List[InlineCatalog]] = Field(
+    inline_catalogs: Optional[List[Catalog]] = Field(
         None,
         alias="inlineCatalogs",
         description=(
@@ -80,8 +88,11 @@ class V09Capabilities(StrictBaseModel):
     )
 
 
-class A2uiClientCapabilities(StrictBaseModel):
+V0_9Capabilities = V09Capabilities
+
+
+class A2uiRendererCapabilities(StrictBaseModel):
     v0_9: Optional[V09Capabilities] = Field(None, alias=SPEC_VERSION)
 
 
-A2uiRendererCapabilities = A2uiClientCapabilities
+A2uiClientCapabilities = A2uiRendererCapabilities

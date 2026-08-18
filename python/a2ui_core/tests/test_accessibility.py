@@ -26,38 +26,15 @@ def test_accessibility_attributes_defaults():
     attr = AccessibilityAttributes(label="Click Me")
     assert attr.label == "Click Me"
     assert attr.description is None
-    assert attr.live == "off"
-    assert attr.hidden is None
 
 
 def test_accessibility_attributes_all_fields():
     attr = AccessibilityAttributes(
         label="Submit Button",
         description="Submits the current active form",
-        live="polite",
-        hidden=False,
     )
     assert attr.label == "Submit Button"
     assert attr.description == "Submits the current active form"
-    assert attr.live == "polite"
-    assert attr.hidden is False
-
-
-def test_accessibility_attributes_live_assertive():
-    attr = AccessibilityAttributes(live="assertive")
-    assert attr.live == "assertive"
-
-
-def test_accessibility_attributes_invalid_live_value():
-    with pytest.raises(ValidationError):
-        AccessibilityAttributes(live="invalid_value")
-
-
-def test_accessibility_attributes_hidden_data_binding():
-    binding = DataBinding(path="/form/is_disabled")
-    attr = AccessibilityAttributes(hidden=binding)
-    assert isinstance(attr.hidden, DataBinding)
-    assert attr.hidden.path == "/form/is_disabled"
 
 
 def test_accessibility_attributes_forbid_extra_properties():
@@ -70,29 +47,24 @@ def test_accessibility_attributes_component_common_integration():
         id="btn1",
         accessibility=AccessibilityAttributes(
             label="Mute Notifications",
-            live="polite",
-            hidden=False,
+            description="Mutes audio",
         ),
     )
     assert comp.id == "btn1"
     assert comp.accessibility is not None
     assert comp.accessibility.label == "Mute Notifications"
-    assert comp.accessibility.live == "polite"
-    assert comp.accessibility.hidden is False
+    assert comp.accessibility.description == "Mutes audio"
 
     dumped = comp.model_dump(mode="json", exclude_none=True)
     assert dumped["id"] == "btn1"
     assert dumped["accessibility"]["label"] == "Mute Notifications"
-    assert dumped["accessibility"]["live"] == "polite"
-    assert dumped["accessibility"]["hidden"] is False
+    assert dumped["accessibility"]["description"] == "Mutes audio"
 
 
 def test_accessibility_attributes_json_serialization_roundtrip():
     payload = {
         "label": "Mute",
         "description": "Mutes audio",
-        "live": "assertive",
-        "hidden": True,
     }
     attr = AccessibilityAttributes.model_validate(payload)
     dumped = attr.model_dump(mode="json", exclude_none=True)

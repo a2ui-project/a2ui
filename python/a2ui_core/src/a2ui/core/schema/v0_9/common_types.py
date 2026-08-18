@@ -13,8 +13,9 @@
 # limitations under the License.
 
 # Auto-generated. Do not edit manually.
+from __future__ import annotations
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
-from pydantic import BaseModel, Field, ConfigDict, GetCoreSchemaHandler, field_validator, ValidationInfo
+from pydantic import BaseModel, Field, ConfigDict, GetCoreSchemaHandler, ValidationInfo, field_validator
 from pydantic_core import CoreSchema
 
 
@@ -53,13 +54,14 @@ class StrictBaseModel(BaseModel):
             from .constants import SPEC_VERSION
 
             target_version = SPEC_VERSION
-
         if v != target_version:
             raise ValueError(f"Input should be '{target_version}'")
         return v
 
 
 ComponentId = SingleReference
+Child = SingleReference
+CallId = str
 
 
 class DataBinding(StrictBaseModel):
@@ -69,8 +71,10 @@ class DataBinding(StrictBaseModel):
 
 
 class FunctionCall(StrictBaseModel):
+    """Invokes a named function on the client."""
+
     call: str = Field(..., description="The name of the function to call.")
-    args: Optional[Dict[str, Any]] = Field(
+    args: Optional[Dict[str, Union[DynamicValue, Dict[str, Any]]]] = Field(
         None, description="Arguments passed to the function."
     )
     return_type: Optional[
@@ -94,6 +98,8 @@ DynamicStringList = Union[List[str], DataBinding, FunctionCall]
 
 
 class TemplateChildList(StrictBaseModel, ListReference):
+    """A template for generating a dynamic list of children from a data model list. The `componentId` is the component to use as a template."""
+
     component_id: ComponentId = Field(..., alias="componentId")
     path: str = Field(
         ...,
@@ -107,6 +113,8 @@ ChildList = Union[List[ComponentId], TemplateChildList]
 
 
 class AccessibilityAttributes(StrictBaseModel):
+    """Attributes to enhance accessibility when using assistive technologies like screen readers."""
+
     label: Optional[DynamicString] = Field(
         None,
         description=(
@@ -125,24 +133,11 @@ class AccessibilityAttributes(StrictBaseModel):
             " 'Silences notifications about this conversation'."
         ),
     )
-    live: Literal["off", "polite", "assertive"] = Field(
-        default="off",
-        description=(
-            "Controls screen reader announcements for dynamic updates (WAI-ARIA"
-            " aria-live). 'polite' waits for user pause; 'assertive' interrupts"
-            " immediately for alerts."
-        ),
-    )
-    hidden: Optional[DynamicBoolean] = Field(
-        None,
-        description=(
-            "Hides the element and its children from assistive technologies when set to"
-            " true."
-        ),
-    )
 
 
 class CheckRule(StrictBaseModel):
+    """A single validation rule applied to an input component."""
+
     condition: DynamicBoolean = Field(...)
     message: str = Field(
         ..., description="The error message to display if the check fails."
@@ -150,10 +145,12 @@ class CheckRule(StrictBaseModel):
 
 
 class ActionEvent(StrictBaseModel):
+    """The event to dispatch to the server."""
+
     name: str = Field(
         ..., description="The name of the action to be dispatched to the server."
     )
-    context: Optional[Dict[str, Any]] = Field(
+    context: Optional[Dict[str, DynamicValue]] = Field(
         None,
         description=(
             "A JSON object containing the key-value pairs for the action context."
@@ -164,10 +161,14 @@ class ActionEvent(StrictBaseModel):
 
 
 class ActionEventWrapper(StrictBaseModel):
+    """Triggers a server-side event."""
+
     event: ActionEvent = Field(..., description="The event to dispatch to the server.")
 
 
 class ActionFunctionCallWrapper(StrictBaseModel):
+    """Executes a local client-side function."""
+
     function_call: FunctionCall = Field(..., alias="functionCall")
 
 

@@ -13,9 +13,9 @@
 # limitations under the License.
 
 # Auto-generated. Do not edit manually.
+from __future__ import annotations
 from typing import Any, Dict, List, Literal, Optional, Union, Annotated
 from pydantic import BaseModel, Field, ConfigDict
-
 from ...schema.v0_9.common_types import (
     StrictBaseModel,
     ComponentCommon,
@@ -23,8 +23,10 @@ from ...schema.v0_9.common_types import (
     DynamicString,
     DynamicNumber,
     DynamicBoolean,
+    DynamicValue,
     DynamicStringList,
     ChildList,
+    Child,
     Action,
     CheckRule,
     DataBinding,
@@ -44,25 +46,20 @@ class CatalogComponentCommon(ComponentCommon):
     )
 
 
-class OptionItem(StrictBaseModel):
-    label: DynamicString = Field(
-        ..., description="The text to display for this option."
-    )
-    value: str = Field(..., description="The stable value associated with this option.")
-
-
 class SvgPath(StrictBaseModel):
     svg_path: str = Field(..., alias="svgPath")
 
 
 class TabItem(StrictBaseModel):
     title: DynamicString = Field(..., description="The tab title.")
-    child: ComponentId = Field(
-        ...,
-        description=(
-            "The ID of the child component. Do NOT define the component inline."
-        ),
+    child: ComponentId = Field(..., description="The ID of the child component.")
+
+
+class OptionItem(StrictBaseModel):
+    label: DynamicString = Field(
+        ..., description="The text to display for this option."
     )
+    value: str = Field(..., description="The stable value associated with this option.")
 
 
 class TextComponent(CatalogComponentCommon):
@@ -286,7 +283,7 @@ class CardComponent(CatalogComponentCommon):
             "The ID of the single child component to be rendered inside the card. To"
             " display multiple elements, you MUST wrap them in a layout component (like"
             " Column or Row) and pass that container's ID here. Do NOT pass multiple"
-            " IDs or a non-existent ID. Do NOT define the child component inline."
+            " IDs or a non-existent ID."
         ),
     )
 
@@ -308,15 +305,11 @@ class ModalComponent(CatalogComponentCommon):
         ...,
         description=(
             "The ID of the component that opens the modal when interacted with (e.g., a"
-            " button). Do NOT define the component inline."
+            " button)."
         ),
     )
     content: ComponentId = Field(
-        ...,
-        description=(
-            "The ID of the component to be displayed inside the modal. Do NOT define"
-            " the component inline."
-        ),
+        ..., description="The ID of the component to be displayed inside the modal."
     )
 
 
@@ -341,7 +334,7 @@ class ButtonComponent(CatalogComponentCommon):
         description=(
             "The ID of the child component. Use a 'Text' component for a labeled"
             " button. Only use an 'Icon' if the requirements explicitly ask for an"
-            " icon-only button. Do NOT define the child component inline."
+            " icon-only button."
         ),
     )
     variant: Optional[Literal["default", "primary", "borderless"]] = Field(

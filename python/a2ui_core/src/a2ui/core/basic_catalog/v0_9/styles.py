@@ -13,12 +13,13 @@
 # limitations under the License.
 
 # Auto-generated. Do not edit manually.
-from typing import Any, Dict, List, Literal, Optional, Union
+from __future__ import annotations
+from typing import Any, Dict, Optional
 from pydantic import BaseModel, Field, ConfigDict
 
 
 class Theme(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
     primary_color: Optional[str] = Field(
         None,
         alias="primaryColor",
@@ -27,7 +28,7 @@ class Theme(BaseModel):
             " borders). Renderers may generate variants of this color for different"
             " contexts. Format: Hexadecimal code (e.g., '#00BFFF')."
         ),
-        pattern="^#[0-9a-fA-F]{6}$",
+        pattern=r"^#[0-9a-fA-F]{6}$",
     )
     icon_url: Optional[str] = Field(
         None,
