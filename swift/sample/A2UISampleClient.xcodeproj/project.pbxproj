@@ -1,0 +1,372 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A20000000000000000000001 /* A2UISampleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000101 /* A2UISampleApp.swift */; };
+		A20000000000000000000002 /* SampleStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000102 /* SampleStream.swift */; };
+		A20000000000000000000003 /* SampleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000103 /* SampleLoader.swift */; };
+		A20000000000000000000004 /* EmptyBasicCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000104 /* EmptyBasicCatalog.swift */; };
+		A20000000000000000000005 /* GalleryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000105 /* GalleryViewModel.swift */; };
+		A20000000000000000000006 /* SurfacePreviewPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000106 /* SurfacePreviewPane.swift */; };
+		A20000000000000000000007 /* InspectorPanes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000107 /* InspectorPanes.swift */; };
+		A20000000000000000000008 /* GalleryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000108 /* GalleryDetailView.swift */; };
+		A20000000000000000000009 /* GalleryMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000109 /* GalleryMainView.swift */; };
+		A20000000000000000000010 /* examples in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000201 /* examples */; };
+		A20000000000000000000011 /* cases in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000202 /* cases */; };
+		A20000000000000000000012 /* A2UISwiftCore in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000302 /* A2UISwiftCore */; };
+		A20000000000000000000013 /* A2UISwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000303 /* A2UISwiftUI */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A20000000000000000000101 /* A2UISampleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = A2UISampleApp.swift; sourceTree = "<group>"; };
+		A20000000000000000000102 /* SampleStream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleStream.swift; sourceTree = "<group>"; };
+		A20000000000000000000103 /* SampleLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleLoader.swift; sourceTree = "<group>"; };
+		A20000000000000000000104 /* EmptyBasicCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyBasicCatalog.swift; sourceTree = "<group>"; };
+		A20000000000000000000105 /* GalleryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryViewModel.swift; sourceTree = "<group>"; };
+		A20000000000000000000106 /* SurfacePreviewPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurfacePreviewPane.swift; sourceTree = "<group>"; };
+		A20000000000000000000107 /* InspectorPanes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorPanes.swift; sourceTree = "<group>"; };
+		A20000000000000000000108 /* GalleryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryDetailView.swift; sourceTree = "<group>"; };
+		A20000000000000000000109 /* GalleryMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryMainView.swift; sourceTree = "<group>"; };
+		A20000000000000000000201 /* examples */ = {isa = PBXFileReference; lastKnownFileType = folder; name = examples; path = "../../specification/v0_9_1/catalogs/basic/examples"; sourceTree = "<group>"; };
+		A20000000000000000000202 /* cases */ = {isa = PBXFileReference; lastKnownFileType = folder; name = cases; path = "../../specification/v0_9_1/test/cases"; sourceTree = "<group>"; };
+		A20000000000000000000300 /* A2UISampleClient.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = A2UISampleClient.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A20000000000000000000401 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A20000000000000000000012 /* A2UISwiftCore in Frameworks */,
+				A20000000000000000000013 /* A2UISwiftUI in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A20000000000000000000501 /* MainGroup */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000502 /* Sources */,
+				A20000000000000000000507 /* Specification Resources */,
+				A20000000000000000000508 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A20000000000000000000502 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000101 /* A2UISampleApp.swift */,
+				A20000000000000000000503 /* Models */,
+				A20000000000000000000504 /* Services */,
+				A20000000000000000000505 /* Catalog */,
+				A20000000000000000000506 /* ViewModels */,
+				A20000000000000000000509 /* Views */,
+			);
+			path = Sources/A2UISampleClient;
+			sourceTree = "<group>";
+		};
+		A20000000000000000000503 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000102 /* SampleStream.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		A20000000000000000000504 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000103 /* SampleLoader.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		A20000000000000000000505 /* Catalog */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000104 /* EmptyBasicCatalog.swift */,
+			);
+			path = Catalog;
+			sourceTree = "<group>";
+		};
+		A20000000000000000000506 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000105 /* GalleryViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		A20000000000000000000509 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000106 /* SurfacePreviewPane.swift */,
+				A20000000000000000000107 /* InspectorPanes.swift */,
+				A20000000000000000000108 /* GalleryDetailView.swift */,
+				A20000000000000000000109 /* GalleryMainView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A20000000000000000000507 /* Specification Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000201 /* examples */,
+				A20000000000000000000202 /* cases */,
+			);
+			name = "Specification Resources";
+			sourceTree = "<group>";
+		};
+		A20000000000000000000508 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000300 /* A2UISampleClient.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A20000000000000000000601 /* A2UISampleClient */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A20000000000000000000701 /* Build configuration list for PBXNativeTarget "A2UISampleClient" */;
+			buildPhases = (
+				A20000000000000000000801 /* Sources */,
+				A20000000000000000000401 /* Frameworks */,
+				A20000000000000000000802 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = A2UISampleClient;
+			packageProductDependencies = (
+				A20000000000000000000302 /* A2UISwiftCore */,
+				A20000000000000000000303 /* A2UISwiftUI */,
+			);
+			productName = A2UISampleClient;
+			productReference = A20000000000000000000300 /* A2UISampleClient.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A20000000000000000000901 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					A20000000000000000000601 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = A20000000000000000000702 /* Build configuration list for PBXProject "A2UISampleClient" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A20000000000000000000501 /* MainGroup */;
+			packageReferences = (
+				A20000000000000000000301 /* XCLocalSwiftPackageReference */,
+			);
+			productRefGroup = A20000000000000000000508 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A20000000000000000000601 /* A2UISampleClient */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A20000000000000000000802 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A20000000000000000000010 /* examples in Resources */,
+				A20000000000000000000011 /* cases in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A20000000000000000000801 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A20000000000000000000001 /* A2UISampleApp.swift in Sources */,
+				A20000000000000000000002 /* SampleStream.swift in Sources */,
+				A20000000000000000000003 /* SampleLoader.swift in Sources */,
+				A20000000000000000000004 /* EmptyBasicCatalog.swift in Sources */,
+				A20000000000000000000005 /* GalleryViewModel.swift in Sources */,
+				A20000000000000000000006 /* SurfacePreviewPane.swift in Sources */,
+				A20000000000000000000007 /* InspectorPanes.swift in Sources */,
+				A20000000000000000000008 /* GalleryDetailView.swift in Sources */,
+				A20000000000000000000009 /* GalleryMainView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A20000000000000000000703 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		A20000000000000000000704 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		A20000000000000000000705 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.a2ui.A2UISampleClient;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A20000000000000000000706 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.a2ui.A2UISampleClient;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A20000000000000000000701 /* Build configuration list for PBXNativeTarget "A2UISampleClient" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A20000000000000000000705 /* Debug */,
+				A20000000000000000000706 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A20000000000000000000702 /* Build configuration list for PBXProject "A2UISampleClient" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A20000000000000000000703 /* Debug */,
+				A20000000000000000000704 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A20000000000000000000301 /* XCLocalSwiftPackageReference */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "../..";
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A20000000000000000000302 /* A2UISwiftCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A20000000000000000000301 /* XCLocalSwiftPackageReference */;
+			productName = A2UISwiftCore;
+		};
+		A20000000000000000000303 /* A2UISwiftUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A20000000000000000000301 /* XCLocalSwiftPackageReference */;
+			productName = A2UISwiftUI;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = A20000000000000000000901 /* Project object */;
+}

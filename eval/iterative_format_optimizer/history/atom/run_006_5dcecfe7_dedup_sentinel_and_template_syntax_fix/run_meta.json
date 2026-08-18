@@ -1,0 +1,15 @@
+{
+  "run_id": "run_006_5dcecfe7_dedup_sentinel_and_template_syntax_fix",
+  "hypothesis": "Deduplicate sentinel tag instructions, harmonize template syntax in Example 2 (:item item), and condense catalog adherence rules in ATOM_RULES.",
+  "status": "REVERT",
+  "notes": "Reverted. Quality Score regressed from 100.0% to 83.3% (-16.7%) and median reasoning tokens increased by +32.7% (+1,699 tokens), leading to S_opt drop from +0.600 to +0.383 vs run_004.",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 366.5,
+    "reasoning_tokens_median": 6891.0,
+    "input_tokens_median": 4382.5,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

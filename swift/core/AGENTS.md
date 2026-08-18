@@ -34,9 +34,9 @@ Agents must strictly respect target boundaries:
    - **Rule**: Only SwiftUI views and environment keys. No business logic.
 
 4. **`A2UISampleClient`** (`swift/sample/Sources/A2UISampleClient/`):
-   - **Purpose**: Ready-to-run iOS SwiftUI demo app.
-   - **Dependencies**: `A2UISwiftUI`, `A2UICore`.
-   - **Rule**: Application-level code only. No reusable library types.
+   - **Purpose**: Ready-to-run iOS SwiftUI Gallery app for testing streaming evaluation and UI inspection.
+   - **Build Management**: Managed and compiled exclusively via native Xcode project (`swift/sample/A2UISampleClient.xcodeproj`), linking root package dependencies (`A2UISwiftCore` and `A2UISwiftUI`) without an SPM executable target in `Package.swift`.
+   - **Rule**: Application-level code only. Uses direct Xcode Folder References for specification examples to prevent source duplication. Do not add mock component schemas before real basic catalog views exist.
 
 ---
 

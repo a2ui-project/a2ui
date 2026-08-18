@@ -32,7 +32,9 @@ Once started, the server will output:
 Serving at port 8081
 ```
 
-You can then use the Pong web frame application as a frame source URL in your web client at:
-`http://localhost:8081/pong_app_web_frame.html`
+You can then use the Pong web frame application in your web client at:
+
+- `http://localhost:8081/pong_app_web_frame.html` (for `WebAppFrameUrl`)
+- `http://localhost:8081/pong_app_web_frame_srcdoc.html` (for `WebAppFrameSrcdoc`, fetched remotely by the agent)
 
 The server runs indefinitely until stopped. You can stop it by pressing `Ctrl+C` in your terminal.

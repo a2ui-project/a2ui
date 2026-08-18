@@ -1,0 +1,50 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+index 05f65274..1abef665 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/atom/compiler.py
+@@ -882,16 +882,22 @@ class AtomCompiler:
+                 while i < len(val):
+                     item = val[i]
+                     if isinstance(item, str) and item.startswith(":") and i + 1 < len(val):
+-                        args_dict[item[1:]] = self._resolve_val(val[i + 1], components)
++                        k = item[1:]
++                        if head == "formatDate" and k in ("date", "val", "input"):
++                            k = "value"
++                        args_dict[k] = self._resolve_val(val[i + 1], components)
+                         i += 2
+                     else:
+-                        args_dict[f"arg_{arg_idx}"] = self._resolve_val(item, components)
++                        param_name = "value" if (arg_idx == 0 and head == "formatDate") else f"arg_{arg_idx}"
++                        args_dict[param_name] = self._resolve_val(item, components)
+                         i += 1
+                         arg_idx += 1
+                 if head == "openUrl":
+                     if "url" not in args_dict and "arg_0" in args_dict:
+                         args_dict["url"] = args_dict.pop("arg_0")
+                     return {"functionCall": {"call": "openUrl", "args": args_dict}}
++                if head == "formatDate" and "value" not in args_dict and "arg_0" in args_dict:
++                    args_dict["value"] = args_dict.pop("arg_0")
+                 return {
+                     "call": head,
+                     "args": args_dict,
+@@ -910,12 +916,18 @@ class AtomCompiler:
+                 while i < len(val):
+                     item = val[i]
+                     if isinstance(item, str) and item.startswith(":") and i + 1 < len(val):
+-                        args_dict[item[1:]] = self._resolve_val(val[i + 1], components)
++                        k = item[1:]
++                        if k in ("str", "text", "val", "value", "pattern"):
++                            k = "template"
++                        args_dict[k] = self._resolve_val(val[i + 1], components)
+                         i += 2
+                     else:
+-                        args_dict[f"arg_{arg_idx}"] = self._resolve_val(item, components)
++                        param_name = "template" if arg_idx == 0 else f"arg_{arg_idx}"
++                        args_dict[param_name] = self._resolve_val(item, components)
+                         i += 1
+                         arg_idx += 1
++                if "template" not in args_dict and "arg_0" in args_dict:
++                    args_dict["template"] = args_dict.pop("arg_0")
+                 return {"call": "formatString", "args": args_dict}
+             elif not self._is_component_type(head) and head[0].islower():
+                 # Direct function call like (openUrl :url "...")

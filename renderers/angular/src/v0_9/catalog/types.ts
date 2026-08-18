@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -49,3 +49,24 @@ export interface AngularComponentImplementation extends ComponentApi {
  * correct Angular components.
  */
 export class AngularCatalog extends Catalog<AngularComponentImplementation> {}
+
+/**
+ * Helper function to create an {@link AngularComponentImplementation}.
+ *
+ * It extracts the name and schema from a generic {@link ComponentApi} and
+ * associates it with the given Angular component type.
+ *
+ * @param api The generic component API definition.
+ * @param component The Angular component class implementing the API.
+ * @returns The structured Angular component implementation.
+ */
+export function createComponentImplementation(
+  api: ComponentApi,
+  component: Type<CatalogComponentInstance>,
+): AngularComponentImplementation {
+  return {
+    name: api.name,
+    schema: api.schema,
+    component,
+  };
+}

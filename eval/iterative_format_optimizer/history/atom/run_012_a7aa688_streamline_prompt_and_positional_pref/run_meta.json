@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Streamline ATOM_RULES prompt grammar and add explicit positional property preference to reduce input/reasoning tokens and output code token overhead.",
+  "notes": "Quality Score regressed from 100.0% to 91.7% (-8.3%) due to single sample missing action property mapping when positional preference was added. Reverted per Rule 1.",
+  "status": "Backtracked",
+  "metrics": {
+    "schema_acc": 1.0,
+    "quality_acc": 0.917,
+    "code_tokens_median": 0.0,
+    "reasoning_tokens_median": 0.0,
+    "input_tokens_median": 0.0,
+    "latency_seconds_median": 8.5,
+    "total_samples": 6
+  }
+}

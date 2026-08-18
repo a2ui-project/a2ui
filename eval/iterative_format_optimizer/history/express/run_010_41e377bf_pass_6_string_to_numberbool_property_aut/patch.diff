@@ -1,0 +1,108 @@
+diff --git a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
+index c5367b27..ecd9f646 100644
+--- a/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
++++ b/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/express/compiler.py
+@@ -20,6 +20,7 @@ AST, compiling it directly into standard A2UI v1.0 JSON messages.
+ The grammar for A2UI Express is defined in Express.g4.
+ """
+ 
++import math
+ from typing import Any, Optional, Union
+ from antlr4 import InputStream, CommonTokenStream
+ from a2ui.core.catalog import Catalog
+@@ -113,6 +114,40 @@ def _is_check_expression(val: Any) -> bool:
+     return False
+ 
+ 
++def _is_string_schema(schema: Any) -> bool:
++    """Checks if a property schema expects a string value."""
++    if not isinstance(schema, dict):
++        return False
++    if schema.get("type") == "string":
++        return True
++    if "$ref" in schema and isinstance(schema["$ref"], str):
++        ref = schema["$ref"]
++        if any(tok in ref for tok in ["String", "Text", "Id", "URI", "Url"]):
++            return True
++    for k in ["allOf", "oneOf", "anyOf"]:
++        if k in schema and isinstance(schema[k], list):
++            if any(_is_string_schema(sub) for sub in schema[k]):
++                return True
++    return False
++
++
++def _is_number_schema(schema: Any) -> bool:
++    """Checks if a property schema expects a numeric value."""
++    if not isinstance(schema, dict):
++        return False
++    if schema.get("type") in ["number", "integer"]:
++        return True
++    if "$ref" in schema and isinstance(schema["$ref"], str):
++        ref = schema["$ref"]
++        if any(tok in ref for tok in ["Number", "Integer", "Float", "Int"]):
++            return True
++    for k in ["allOf", "oneOf", "anyOf"]:
++        if k in schema and isinstance(schema[k], list):
++            if any(_is_number_schema(sub) for sub in schema[k]):
++                return True
++    return False
++
++
+ # ANTLR-generated lexer, parser, and custom visitor are used for compilation.
+ 
+ 
+@@ -371,13 +406,14 @@ class ExpressCompiler:
+                     comp_dict[prop_name] = None
+                     continue
+ 
++                prop_schema = self.helper.get_property_schema(comp_name, prop_name)
+                 mapped_val = self._compile_value(
+                     arg,
+                     raw_symbols,
+                     ctx,
+                     is_action=(prop_name in ["action", "submitAction"]),
++                    prop_schema=prop_schema,
+                 )
+-                prop_schema = self.helper.get_property_schema(comp_name, prop_name)
+                 if prop_schema and not _schema_allows_databinding(prop_schema):
+ 
+                     def has_databinding(v: Any) -> bool:
+@@ -494,7 +530,12 @@ class ExpressCompiler:
+         return {k: v for k, v in comp_dict.items() if v is not None}
+ 
+     def _compile_value(
+-        self, val: Any, raw_symbols: dict, ctx: _CompileContext, is_action: bool = False
++        self,
++        val: Any,
++        raw_symbols: dict,
++        ctx: _CompileContext,
++        is_action: bool = False,
++        prop_schema: Optional[dict] = None,
+     ) -> Any:
+         """Compiles an individual AST node value into valid A2UI equivalents.
+ 
+@@ -674,4 +715,24 @@ class ExpressCompiler:
+                 compiled_list.append(comp_item)
+             return compiled_list
+ 
++        if isinstance(val, str):
++            if prop_schema and _is_string_schema(prop_schema):
++                return val
++
++            if val == "true":
++                return True
++            if val == "false":
++                return False
++
++            if prop_schema and _is_number_schema(prop_schema):
++                try:
++                    return int(val)
++                except ValueError:
++                    try:
++                        num = float(val)
++                        if not (math.isnan(num) or math.isinf(num)):
++                            return num
++                    except ValueError:
++                        pass
++
+         return val

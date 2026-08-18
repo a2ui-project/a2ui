@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Refine ATOM_RULES prompt grammar rules for explicit action completion on interactive controls and add property conciseness guidance.",
+  "notes": "Pytest 100% pass (507 passed). Quality Score improved from 83.3% to 100.0% (+16.7%), Algorithmic Schema Acc maintained at 100.0%. Parallel wall latency reduced by -14.9% (6.67s vs 7.83s), reasoning tokens reduced by -11.0% (5,061 vs 5,684), code output tokens reduced by -9.5% (289 vs 320). Composite score S_opt increased from +0.550 to +0.620 (+0.070).",
+  "status": "Kept",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 289.0,
+    "reasoning_tokens_median": 5061.0,
+    "input_tokens_median": 4451.5,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

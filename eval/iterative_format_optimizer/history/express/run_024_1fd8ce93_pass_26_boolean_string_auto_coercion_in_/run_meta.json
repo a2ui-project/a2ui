@@ -1,0 +1,15 @@
+{
+  "format": "express",
+  "hypothesis": "Pass 26: Boolean string auto-coercion in compiler.py",
+  "status": "Kept",
+  "notes": "Pytest PASS",
+  "metrics": {
+    "schema_acc": 1.0,
+    "quality_acc": 1.0,
+    "code_tokens_median": 284.5,
+    "reasoning_tokens_median": 2250.0,
+    "input_tokens_median": 5936.5,
+    "latency_seconds_median": 27.825792524847202,
+    "total_samples": 6
+  }
+}
