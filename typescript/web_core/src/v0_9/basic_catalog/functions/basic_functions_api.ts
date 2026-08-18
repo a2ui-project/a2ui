@@ -488,3 +488,23 @@ export const BASIC_FUNCTION_APIS = [
   PluralizeApi,
   OpenUrlApi,
 ];
+
+/**
+ * Collection containing function APIs defined in specification/v0_9/catalogs/basic/catalog.json.
+ */
+export const V09_SPEC_FUNCTION_APIS = [
+  AndApi,
+  OrApi,
+  NotApi,
+  RequiredApi,
+  RegexApi,
+  LengthApi,
+  NumericApi,
+  EmailApi,
+  FormatStringApi,
+  FormatNumberApi,
+  FormatCurrencyApi,
+  FormatDateApi,
+  PluralizeApi,
+  OpenUrlApi,
+];

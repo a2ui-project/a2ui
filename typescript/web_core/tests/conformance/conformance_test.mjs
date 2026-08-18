@@ -181,10 +181,22 @@ function runConformanceHarness() {
           case 'process_messages':
             validateProcessMessagesTestCase(testCase);
             break;
-          default:
-            // Generic validation for standard conformance test vectors
+          case 'get_renderer_capabilities':
+            validateGetRendererCapabilitiesTestCase(testCase);
+            break;
+          case 'from_json':
+          case 'catalog_schema':
+          case 'get_renderer_data_model':
+          case 'resolve_path':
+          case 'load_catalog':
+          case 'generate_prompt':
+          case 'parse_full':
+          case 'fix_payload':
+          case 'has_parts':
             validateGenericTestCase(testCase);
             break;
+          default:
+            throw new Error(`Unhandled action type in conformance harness: '${action}'`);
         }
 
         totalPassed++;
@@ -276,6 +288,12 @@ function validateProcessChunkTestCase(testCase) {
 function validateAccessibilityCheckTestCase(testCase) {
   const {surface, assertions} = testCase;
   if (!surface && !assertions) return;
+}
+
+function validateGetRendererCapabilitiesTestCase(testCase) {
+  if (!testCase.expect) {
+    throw new Error('get_renderer_capabilities test requires "expect" object.');
+  }
 }
 
 function getCatalogsForTestCase(testCase) {

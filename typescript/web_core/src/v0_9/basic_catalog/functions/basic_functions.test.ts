@@ -18,13 +18,31 @@ import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
 import {effect, Signal, getValue} from '../../../reactivity/signals.js';
 
+import fs from 'node:fs';
+import path from 'node:path';
 import {BASIC_FUNCTIONS, createBasicCatalogFunctions} from './basic_functions.js';
+import {V09_SPEC_FUNCTION_APIS} from './basic_functions_api.js';
 import {DataModel} from '../../../state/data-model.js';
 import {DataContext} from '../../../rendering/data-context.js';
 import {A2uiExpressionError} from '../../../errors.js';
 import {Catalog, ComponentApi} from '../../../catalog/types.js';
 
 const testCatalog = new Catalog<ComponentApi>('test', [], BASIC_FUNCTIONS);
+
+describe('V09_SPEC_FUNCTION_APIS Spec Parity', () => {
+  it('matches the exact function names defined in specification/v0_9/catalogs/basic/catalog.json', () => {
+    const catalogPath = path.resolve(
+      process.cwd(),
+      '../../specification/v0_9/catalogs/basic/catalog.json',
+    );
+    if (fs.existsSync(catalogPath)) {
+      const specCatalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+      const specFuncNames = Object.keys(specCatalog.functions || {}).sort();
+      const codeFuncNames = V09_SPEC_FUNCTION_APIS.map(f => f.name).sort();
+      assert.deepStrictEqual(codeFuncNames, specFuncNames);
+    }
+  });
+});
 
 function invoke(name: string, args: Record<string, any>, context: DataContext) {
   return testCatalog.invoker(name, args, context);
