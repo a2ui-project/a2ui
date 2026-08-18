@@ -12,62 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
-import base64
 import logging
 import os
 import traceback
-import httpx
+from typing import Any
+import uuid
 from google.adk.tools import ToolContext
 from google.genai import Client
-from google.genai import types as genai_types
-
-import uuid
+from file_resolution import resolve_files
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_BASE_URL = "http://localhost:10008"
-STATE_KEY_BASE_URL = "base_url"
-
-
-async def fetch_and_process(file_info, http_client, base_url):
-    if not isinstance(file_info, dict):
-        return None
-    file_id = file_info.get("fileId", "")
-    file_name = file_info.get("fileName", "document")
-    mime_type = file_info.get("mimeType", "text/plain")
-
-    drive_id = file_id
-    if file_id.startswith("mockdrive://"):
-        drive_id = file_id.split("mockdrive://", 1)[1]
-
-    url = f"{base_url}/api/mock-drive/v3/files/{drive_id}?alt=media"
-    response = await http_client.get(url, follow_redirects=True)
-    response.raise_for_status()
-    file_bytes = response.content
-
-    logger.info(
-        f"Successfully downloaded {len(file_bytes)} bytes out of band for {drive_id}"
-    )
-
-    content_parts = [f"\n\n--- Document: {file_name} ---"]
-    if mime_type.startswith("text/") or mime_type in [
-        "application/json",
-        "application/javascript",
-        "application/xml",
-    ]:
-        try:
-            text_content = file_bytes.decode("utf-8", errors="replace")
-            content_parts.append(f"Content:\n{text_content}")
-        except Exception:
-            content_parts.append(
-                genai_types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
-            )
-    else:
-        content_parts.append(
-            genai_types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
-        )
-    return file_name, content_parts
 
 
 async def show_file_uploader_tool(tool_context: ToolContext, multiple: bool = False):
@@ -167,16 +121,21 @@ async def update_upload_context_tool(
     }
 
 
+@resolve_files
 async def summarize_file_tool(
     tool_context: ToolContext,
     files: list[dict],
+    genai_parts: list[Any] = None,
 ):
-    """Resolves abstract file pointers out-of-band and summarizes the collection of documents using Gemini 3.1 Flash Lite.
+    """Summarizes the collection of documents using Gemini.
 
     Args:
-        files: A list of dictionaries, each containing 'fileId', 'fileName', and 'mimeType' of an uploaded file.
+        files: A list of dictionaries representing uploaded files. Each dictionary
+               should contain a 'fileId' and a 'metadata' object with 'fileName' and 'mimeType'.
     """
-    logger.info(f"Out-of-band resolution triggered for {len(files)} files")
+    logger.info(f"Summarization triggered for {len(files)} files")
+
+    tool_context.actions.skip_summarization = False
 
     try:
         if not isinstance(files, list):
@@ -186,19 +145,19 @@ async def summarize_file_tool(
                 "status": "error",
             }
 
-        base_url = tool_context.session.state.get(STATE_KEY_BASE_URL, DEFAULT_BASE_URL)
+        if not files:
+            return {
+                "summary_title": "Invalid Input",
+                "summary_text": "No files provided for summarization.",
+                "status": "error",
+            }
 
-        contents = []
         file_names = []
-
-        async with httpx.AsyncClient() as http_client:
-            tasks = [fetch_and_process(f, http_client, base_url) for f in files]
-            results = await asyncio.gather(*tasks)
-            for res in results:
-                if res:
-                    file_name, content_parts = res
-                    file_names.append(file_name)
-                    contents.extend(content_parts)
+        for f in files:
+            if isinstance(f, dict):
+                metadata = f.get("metadata") or {}
+                name = metadata.get("fileName") or f.get("fileName") or "document"
+                file_names.append(name)
 
         lite_llm_model = os.getenv(
             "LITELLM_MODEL", "gemini/gemini-3.1-flash-lite-preview"
@@ -225,7 +184,7 @@ async def summarize_file_tool(
                 " Markdown."
             )
 
-        final_contents = [prompt] + contents
+        final_contents = [prompt, *(genai_parts or [])]
 
         llm_response = client.models.generate_content(
             model=gemini_model,
@@ -244,13 +203,15 @@ async def summarize_file_tool(
             "summary_title": f"Summary: {title_suffix}",
             "summary_text": summary_text,
             "status": "success",
+            "instruction_to_model": (
+                "You MUST generate a Markdown text response to the user containing the"
+                " summary right now. Do not skip this step."
+            ),
         }
     except Exception as e:
         logger.error(f"Error summarizing files: {e}\n{traceback.format_exc()}")
         return {
-            "summary_title": "Resolution Error",
-            "summary_text": (
-                f"Could not resolve file pointers or generate summary: {str(e)}"
-            ),
+            "summary_title": "Summarization Error",
+            "summary_text": f"Could not generate summary: {str(e)}",
             "status": "error",
         }

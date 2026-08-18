@@ -169,11 +169,11 @@
               ],
               "description": "The type of value this function returns."
             },
-            "callableFrom": {
+            "allowedCallers": {
               "type": "string",
               "enum": ["rendererOnly", "agentOnly", "rendererOrAgent"],
               "default": "rendererOnly",
-              "description": "Specifies where this function can be invoked from."
+              "description": "Specifies which roles are authorized to invoke this function."
             },
             "requiresUserActivation": {
               "type": "boolean",
@@ -191,7 +191,7 @@
           },
           "then": {
             "properties": {
-              "callableFrom": {"enum": ["rendererOnly", "rendererOrAgent"]}
+              "allowedCallers": {"enum": ["rendererOnly"]}
             }
           }
         }
