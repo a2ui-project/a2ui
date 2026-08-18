@@ -62,6 +62,8 @@ export interface MessageProcessorOptions {
   version?: ProtocolVersion;
   /** Custom version adapter resolver or registry. Defaults to VersionAdapterFactory. */
   adapterRegistry?: VersionAdapterResolver;
+  /** Enable strict mode schema and topology validation. */
+  strictMode?: boolean;
 }
 
 /**
@@ -134,6 +136,7 @@ export class MessageProcessor<T extends ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
   readonly version: ProtocolVersion;
   private readonly adapterRegistry: VersionAdapterResolver;
+  private readonly strictMode: boolean;
 
   /**
    * Creates a new message processor.
@@ -150,6 +153,7 @@ export class MessageProcessor<T extends ComponentApi> {
     this.model = new SurfaceGroupModel<T>();
     this.version = options?.version ?? 'v0.9';
     this.adapterRegistry = options?.adapterRegistry ?? defaultVersionAdapterFactory;
+    this.strictMode = Boolean(options?.strictMode);
     if (this.actionHandler) {
       this.model.onAction.subscribe(this.actionHandler);
     }
@@ -390,6 +394,17 @@ export class MessageProcessor<T extends ComponentApi> {
       throw new A2uiStateError(`Surface ${surfaceId} already exists.`);
     }
 
+    if (this.strictMode) {
+      if (catalog.themeSchema) {
+        const themeResult = catalog.themeSchema.safeParse(theme);
+        if (!themeResult.success) {
+          throw new A2uiValidationError(
+            `Validation failed for theme on surface '${surfaceId}': ${themeResult.error.message}`,
+          );
+        }
+      }
+    }
+
     const surface = new SurfaceModel<T>(surfaceId, catalog, theme, sendDataModel ?? false);
     this.model.addSurface(surface);
 
@@ -477,6 +492,86 @@ export class MessageProcessor<T extends ComponentApi> {
         }
         const newComponent = new ComponentModel(id, component, properties);
         surface.componentsModel.addComponent(newComponent);
+      }
+    }
+
+    if (this.strictMode) {
+      this.validateTopology(surface);
+    }
+  }
+
+  private validateTopology(surface: SurfaceModel<T>): void {
+    const components = surface.componentsModel;
+    if (components.size === 0) return;
+
+    // Root presence check
+    const rootId = components.get('root') ? 'root' : undefined;
+    if (!rootId || !components.get(rootId)) {
+      throw new A2uiValidationError(`Missing root component`);
+    }
+
+    const visited = new Set<string>();
+    const visiting = new Set<string>();
+
+    const getChildren = (compId: string): string[] => {
+      const comp = components.get(compId);
+      if (!comp) return [];
+      const children: string[] = [];
+      const addRef = (val: unknown) => {
+        if (typeof val === 'string' && val.length > 0) {
+          children.push(val);
+        }
+      };
+
+      for (const [k, v] of Object.entries(comp.properties)) {
+        if (k === 'child' || k.endsWith('Child') || k === 'root') {
+          addRef(v);
+        } else if (k === 'children' || k === 'items' || k === 'components') {
+          if (Array.isArray(v)) {
+            v.forEach(addRef);
+          } else {
+            addRef(v);
+          }
+        } else if (
+          typeof v === 'string' &&
+          k !== 'id' &&
+          (k.toLowerCase().includes('child') || k.toLowerCase().includes('component'))
+        ) {
+          addRef(v);
+        }
+      }
+      return children;
+    };
+
+    const dfs = (currId: string) => {
+      visiting.add(currId);
+      visited.add(currId);
+
+      const children = getChildren(currId);
+      for (const childId of children) {
+        if (!components.get(childId)) {
+          throw new A2uiValidationError(`Dangling reference '${childId}' in component '${currId}'`);
+        }
+        if (visiting.has(childId)) {
+          throw new A2uiValidationError(`Circular reference detected in component hierarchy`);
+        }
+        if (!visited.has(childId)) {
+          dfs(childId);
+        }
+      }
+
+      visiting.delete(currId);
+    };
+
+    dfs(rootId);
+
+    if (visited.size < components.size) {
+      for (const comp of components.values) {
+        if (!visited.has(comp.id)) {
+          throw new A2uiValidationError(
+            `Orphaned component '${comp.id}' is not reachable from root`,
+          );
+        }
       }
     }
   }
