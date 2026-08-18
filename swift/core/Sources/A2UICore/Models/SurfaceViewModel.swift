@@ -127,7 +127,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
   }
 
   private func setUpSubscriptions() {
-    Publishers.CombineLatest(componentsModel.$components, dataModel.$data)
+    Publishers.CombineLatest(componentsModel.$components, dataModel.dataPublisher)
       .sink { [weak self] components, data in
         self?.rebuildTree(components: components, data: data)
       }
