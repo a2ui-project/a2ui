@@ -1005,5 +1005,58 @@ describe('MessageProcessor', () => {
         },
       );
     });
+
+    it('accepts unrecognized component types without throwing validation errors', () => {
+      const knownButtonApi: ComponentApi = {
+        name: 'KnownButton',
+        schema: z.object({
+          label: z.string(),
+        }),
+      };
+
+      const proc = new MessageProcessor([new Catalog('cat-partial', [knownButtonApi])]);
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1', catalogId: 'cat-partial'},
+        },
+      ]);
+
+      // Process message containing both known and unknown component types
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [
+              {
+                id: 'btn1',
+                component: 'KnownButton',
+                label: 'Save',
+              },
+              {
+                id: 'custom1',
+                component: 'UnknownGizmo',
+                arbitraryProp: 'someValue',
+                nested: {foo: 123},
+              } as any,
+            ],
+          },
+        },
+      ]);
+
+      const surface = proc.model.getSurface('s1');
+      assert.ok(surface);
+
+      const knownComp = surface.componentsModel.get('btn1');
+      assert.ok(knownComp);
+      assert.strictEqual(knownComp.type, 'KnownButton');
+      assert.strictEqual(knownComp.properties.label, 'Save');
+
+      const unknownComp = surface.componentsModel.get('custom1');
+      assert.ok(unknownComp);
+      assert.strictEqual(unknownComp.type, 'UnknownGizmo');
+      assert.strictEqual((unknownComp.properties as any).arbitraryProp, 'someValue');
+    });
   });
 });

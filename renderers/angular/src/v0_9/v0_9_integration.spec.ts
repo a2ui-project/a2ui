@@ -402,4 +402,56 @@ describe('v0.9.1 Angular Renderer Integration', () => {
     expect(textEl).toBeTruthy();
     expect(textEl.textContent).toContain('Click Me');
   });
+
+  it('safely renders surfaces with unrecognized component types without throwing', async () => {
+    const consoleErrorSpy = spyOn(console, 'error');
+    const messagesWithUnknownComponent: A2uiMessage[] = [
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'unknown-comp-surface',
+          catalogId: basicCatalog.id,
+        },
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'unknown-comp-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'Column',
+              children: ['known-txt', 'unknown-gizmo'],
+            },
+            {
+              id: 'known-txt',
+              component: 'Text',
+              text: 'Known Visible Text',
+            },
+            {
+              id: 'unknown-gizmo',
+              component: 'FutureGizmo',
+              someData: 'test',
+            } as any,
+          ],
+        },
+      },
+    ];
+
+    rendererService.processMessages(messagesWithUnknownComponent);
+    fixture.componentInstance.surfaceId = 'unknown-comp-surface';
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Verify known text component rendered
+    const textEl = fixture.nativeElement.querySelector('a2ui-v09-text');
+    expect(textEl).toBeTruthy();
+    expect(textEl.textContent).toContain('Known Visible Text');
+
+    // Verify console.error was logged for the unknown component type
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      `Component type "FutureGizmo" not found in catalog "${basicCatalog.id}"`,
+    );
+  });
 });

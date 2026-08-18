@@ -341,6 +341,56 @@ struct MessageProcessorTests {
     #expect(comp?.properties["customMetadata"]?.intValue == 123)
   }
 
+  @Test func processUpdateComponentsWithUnrecognizedComponentType() throws {
+    let (processor, handler) = try makeProcessor()
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v0.9.1",
+          "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "default"
+          }
+        }
+        """))
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v0.9.1",
+          "updateComponents": {
+            "surfaceId": "s1",
+            "components": [
+              {
+                "id": "known1",
+                "component": "text",
+                "text": "Known Text"
+              },
+              {
+                "id": "unknown1",
+                "component": "FutureUnregisteredGizmo",
+                "customData": "abc",
+                "count": 42
+              }
+            ]
+          }
+        }
+        """))
+    #expect(handler.capturedErrors.isEmpty)
+    let vm = processor.surfaceGroupModel.surfacesMap["s1"]
+    let knownComp = vm?.componentsModel.components["known1"]
+    #expect(knownComp != nil)
+    #expect(knownComp?.type == "text")
+    #expect(knownComp?.properties["text"]?.stringValue == "Known Text")
+
+    let unknownComp = vm?.componentsModel.components["unknown1"]
+    #expect(unknownComp != nil)
+    #expect(unknownComp?.type == "FutureUnregisteredGizmo")
+    #expect(unknownComp?.properties["customData"]?.stringValue == "abc")
+    #expect(unknownComp?.properties["count"]?.intValue == 42)
+  }
+
   @Test func processUpdateComponentsValidBatch() throws {
     let (processor, handler) = try makeProcessor()
     processor.process(

@@ -287,6 +287,21 @@ struct CatalogImplementationTests {
     #expect(builderCalled)
   }
 
+  @Test func renderUnrecognizedComponentReturnsNil() {
+    let catalogImplementation = CatalogImplementation(
+      catalogID: "default",
+      components: []
+    )
+    let node = Node(
+      id: "unknown1",
+      type: "unrecognizedFutureWidget",
+      catalogID: "default",
+      properties: [:]
+    )
+    let renderedView = Surface.render(node: node, using: catalogImplementation)
+    #expect(renderedView == nil)
+  }
+
   @Test func catalogImplementationEnvironmentDefaultsToNil() {
     let environment = EnvironmentValues()
     #expect(environment.a2uiCatalogImplementation == nil)

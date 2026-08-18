@@ -80,4 +80,51 @@ describe('Gallery Integration Tests', () => {
 
     expect(surface!.dataModel.get('/email')).toBe('alice@example.com');
   });
+
+  it('safely renders surfaces containing unrecognized component types without crashing', async () => {
+    const processor = new MessageProcessor([basicCatalog as any], async () => {});
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {surfaceId: 'surface-unrecognized', catalogId: basicCatalog.id},
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'surface-unrecognized',
+          components: [
+            {
+              id: 'root',
+              component: 'Column',
+              children: ['valid-text', 'unrecognized-widget'],
+            },
+            {
+              id: 'valid-text',
+              component: 'Text',
+              text: 'Valid Visible Text',
+            },
+            {
+              id: 'unrecognized-widget',
+              component: 'FutureAIGizmo',
+              customProps: {foo: 'bar'},
+            } as any,
+          ],
+        },
+      },
+    ]);
+
+    const surface = processor.model.getSurface('surface-unrecognized');
+    expect(surface).toBeDefined();
+
+    render(
+      <React.StrictMode>
+        <A2uiSurface surface={surface as any} />
+      </React.StrictMode>,
+    );
+
+    // Valid sibling renders correctly
+    expect(screen.getByText('Valid Visible Text')).toBeInTheDocument();
+    // Unrecognized component renders fallback indicator without crashing
+    expect(screen.getByText('Unknown component: FutureAIGizmo')).toBeInTheDocument();
+  });
 });
