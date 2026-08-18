@@ -74,10 +74,7 @@ describe('v1.0 Validation Functions (returnType: validationResult)', () => {
   });
 
   it('NumericV1_0 returns valid ValidationResult object', () => {
-    const validRes = NumericV1_0Implementation.execute(
-      {value: 25, min: 18, max: 65},
-      null as any,
-    );
+    const validRes = NumericV1_0Implementation.execute({value: 25, min: 18, max: 65}, null as any);
     assert.deepStrictEqual(validRes, {valid: true});
 
     const tooLow = NumericV1_0Implementation.execute({value: 15, min: 18}, null as any);
