@@ -21,7 +21,7 @@ import {z} from 'zod';
  * referencing child components. The same convention the capabilities
  * generator resolves into wire `$ref`s, reused here as the machine-readable
  * classification source. Catalogs declare single-child properties with
- * `ComponentIdSchema` (or `componentIdWithDescription`, which keeps the
+ * `ComponentIdSchema` (or `componentId`, which keeps the
  * pointer when adding prose).
  */
 const COMPONENT_ID_REF = 'REF:common_types.json#/$defs/ComponentId';

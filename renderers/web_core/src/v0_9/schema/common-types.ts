@@ -104,16 +104,29 @@ export type ComponentId = z.infer<typeof ComponentIdSchema>;
  * generator turns into a wire `$ref` and the node layer reads to classify
  * child-reference properties.
  */
-export function componentIdWithDescription(description: string): typeof ComponentIdSchema {
-  return ComponentIdSchema.describe(`REF:common_types.json#/$defs/ComponentId|${description}`);
+export interface RefSchemaOptions {
+  /** Prose appended after the `REF:` pointer; shown in generated capabilities. */
+  readonly description?: string;
+}
+
+export function componentId(options: RefSchemaOptions = {}): typeof ComponentIdSchema {
+  if (options.description === undefined) {
+    return ComponentIdSchema;
+  }
+  return ComponentIdSchema.describe(
+    `REF:common_types.json#/$defs/ComponentId|${options.description}`,
+  );
 }
 
 /**
  * Describes a child-list property without losing its `REF:` pointer; the
- * same hazard {@link componentIdWithDescription} exists for.
+ * same hazard {@link componentId} exists for.
  */
-export function childListWithDescription(description: string): typeof ChildListSchema {
-  return ChildListSchema.describe(`REF:common_types.json#/$defs/ChildList|${description}`);
+export function childList(options: RefSchemaOptions = {}): typeof ChildListSchema {
+  if (options.description === undefined) {
+    return ChildListSchema;
+  }
+  return ChildListSchema.describe(`REF:common_types.json#/$defs/ChildList|${options.description}`);
 }
 
 export const ChildListSchema = z
