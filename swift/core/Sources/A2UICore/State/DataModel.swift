@@ -14,6 +14,7 @@
 
 import Combine
 import Foundation
+import OrderedCollections
 import OrderedJSON
 
 /// A dedicated store for application data, supporting JSON Pointer
@@ -25,12 +26,11 @@ import OrderedJSON
 public final class DataModel: @unchecked Sendable, ObservableObject {
 
   private let lock = NSRecursiveLock()
-  private var storage: JSONValue
   private let dataSubject: CurrentValueSubject<JSONValue, Never>
 
   /// The current data tree.
   public var data: JSONValue {
-    lock.withLock { storage }
+    lock.withLock { dataSubject.value }
   }
 
   /// Emits the data tree after each update is stored, and replays the
@@ -41,17 +41,11 @@ public final class DataModel: @unchecked Sendable, ObservableObject {
     dataSubject.eraseToAnyPublisher()
   }
 
-  /// Creates an empty data model.
-  public init() {
-    self.storage = .object([:])
-    self.dataSubject = CurrentValueSubject(.object([:]))
-  }
-
-  /// Creates a data model with an initial value.
+  /// Creates a data model.
   ///
-  /// - Parameter initial: The initial JSON value for the root.
-  public init(initial: JSONValue) {
-    self.storage = initial
+  /// - Parameter initial: The initial JSON value for the root, defaulting to
+  ///   an empty object.
+  public init(initial: JSONValue = .object([:])) {
     self.dataSubject = CurrentValueSubject(initial)
   }
 
@@ -60,7 +54,7 @@ public final class DataModel: @unchecked Sendable, ObservableObject {
   /// - Parameter path: The path (e.g., `/user/name`).
   /// - Returns: The value at the path, or `nil` if not found.
   public func get(_ path: String) -> JSONValue? {
-    lock.withLock { storage[path] }
+    lock.withLock { dataSubject.value[path] }
   }
 
   /// Sets a value at the given JSON Pointer path.
@@ -73,8 +67,9 @@ public final class DataModel: @unchecked Sendable, ObservableObject {
   public func set(_ path: String, value: JSONValue?) {
     lock.withLock {
       objectWillChange.send()
-      storage[path] = value
-      dataSubject.send(storage)
+      var current = dataSubject.value
+      current[path] = value
+      dataSubject.send(current)
     }
   }
 }
