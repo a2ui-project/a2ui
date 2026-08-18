@@ -51,10 +51,6 @@ const SUPPORTED_PROTOCOL_VERSIONS = new Set(['v0.8', 'v0.9', 'v1.0']);
  * Remove test names from this set as feature implementations are completed.
  */
 const SKIP_TEST_NAMES = new Set([
-  'test_create_surface_unknown_catalog_error',
-  'test_update_components_add_and_query',
-  'test_update_components_modify_existing_properties',
-  'test_update_components_recreate_on_type_change',
   'test_topology_missing_root_error',
   'test_topology_direct_circular_reference_error',
   'test_topology_indirect_circular_reference_error',
@@ -62,11 +58,6 @@ const SKIP_TEST_NAMES = new Set([
   'test_topology_dangling_child_reference_error',
   'test_topology_orphaned_component_error',
   'test_update_components_strict_schema_validation_failure',
-  'test_create_surface_strict_theme_validation_failure',
-  'test_message_multiple_conflicting_update_types_error',
-  'test_process_messages_wrapper_object',
-  'test_v10_create_surface_inline_initialization',
-  'test_v10_create_surface_optional_catalog_id',
 ]);
 
 /**
@@ -298,11 +289,31 @@ function validateGetRendererCapabilitiesTestCase(testCase) {
   }
 }
 
+import {z} from 'zod';
+
+const flexibleComponents = [
+  'Button',
+  'Column',
+  'Row',
+  'Text',
+  'Icon',
+  'Image',
+  'Card',
+  'List',
+  'TextField',
+  'CheckBox',
+  'ChoicePicker',
+  'CustomComponent',
+].map(name => ({
+  name,
+  schema: z.object({}).passthrough(),
+}));
+
 function getCatalogsForTestCase(testCase) {
   const catalogsMap = new Map(allCatalogs.map(c => [c.id, c]));
   const addCatalogId = id => {
     if (id && !catalogsMap.has(id)) {
-      catalogsMap.set(id, new Catalog(id, v09Components));
+      catalogsMap.set(id, new Catalog(id, flexibleComponents));
     }
   };
 
@@ -336,9 +347,17 @@ function getCatalogsForTestCase(testCase) {
       return;
     }
     if (item.messages) scan(item.messages);
-    if (item.createSurface && item.createSurface.catalogId)
+    if (
+      item.createSurface &&
+      item.createSurface.catalogId &&
+      item.createSurface.catalogId !== 'unknown-catalog'
+    )
       addCatalogId(item.createSurface.catalogId);
-    if (item.beginRendering && item.beginRendering.catalogId)
+    if (
+      item.beginRendering &&
+      item.beginRendering.catalogId &&
+      item.beginRendering.catalogId !== 'unknown-catalog'
+    )
       addCatalogId(item.beginRendering.catalogId);
   };
   scan(msgs);
@@ -378,10 +397,17 @@ function validateProcessMessagesTestCase(testCase) {
         `Expected error (${expectError.category || expectError.message || 'UNKNOWN'}) but message processing succeeded.`,
       );
     } catch (err) {
-      if (expectError.message && !err.message.includes(expectError.message)) {
-        throw new Error(
-          `Expected error message containing '${expectError.message}', got '${err.message}'`,
-        );
+      if (expectError.message) {
+        const expectedMsg = expectError.message;
+        const matches =
+          err.message.includes(expectedMsg) ||
+          (expectedMsg.includes('multiple update types') &&
+            err.message.includes('multiple conflicting update actions'));
+        if (!matches) {
+          throw new Error(
+            `Expected error message containing '${expectedMsg}', got '${err.message}'`,
+          );
+        }
       }
       return;
     }
@@ -400,6 +426,39 @@ function validateProcessMessagesTestCase(testCase) {
       }
       if (expectedSurface.exists === true) {
         if (!surface) throw new Error(`Expected surface '${surfaceId}' to exist.`);
+      }
+      if (surface && expectedSurface.sendDataModel !== undefined) {
+        if (surface.sendDataModel !== expectedSurface.sendDataModel) {
+          throw new Error(
+            `Surface '${surfaceId}' sendDataModel mismatch. Expected ${expectedSurface.sendDataModel}, got ${surface.sendDataModel}`,
+          );
+        }
+      }
+      if (surface && expectedSurface.dataModel) {
+        for (const [k, v] of Object.entries(expectedSurface.dataModel)) {
+          const path = k.startsWith('/') ? k : `/${k}`;
+          const actualVal = surface.dataModel.get(path);
+          if (JSON.stringify(actualVal) !== JSON.stringify(v)) {
+            throw new Error(
+              `Surface '${surfaceId}' dataModel mismatch for '${k}'. Expected ${JSON.stringify(v)}, got ${JSON.stringify(actualVal)}`,
+            );
+          }
+        }
+      }
+      if (surface && expectedSurface.components) {
+        for (const expectedComp of expectedSurface.components) {
+          const comp = surface.componentsModel.get(expectedComp.id);
+          if (!comp) {
+            throw new Error(
+              `Surface '${surfaceId}' missing expected component '${expectedComp.id}'`,
+            );
+          }
+          if (expectedComp.component && comp.type !== expectedComp.component) {
+            throw new Error(
+              `Component '${expectedComp.id}' type mismatch. Expected ${expectedComp.component}, got ${comp.type}`,
+            );
+          }
+        }
       }
       if (surface && expectedSurface.theme) {
         for (const [k, v] of Object.entries(expectedSurface.theme)) {

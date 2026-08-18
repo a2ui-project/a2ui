@@ -380,7 +380,7 @@ export class MessageProcessor<T extends ComponentApi> {
   private processCreateSurfaceOp(op: InternalCreateSurfaceOp): void {
     const {surfaceId, catalogId, theme, sendDataModel, components, dataModel} = op;
 
-    const catalog = this.catalogs.find(c => c.id === catalogId);
+    const catalog = catalogId ? this.catalogs.find(c => c.id === catalogId) : this.catalogs[0];
     if (!catalog) {
       throw new A2uiStateError(`Catalog not found: ${catalogId}`);
     }

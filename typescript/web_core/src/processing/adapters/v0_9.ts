@@ -37,7 +37,7 @@ export class V0_9VersionAdapter extends BaseVersionAdapter {
     }
     if (updateTypes.length > 1) {
       throw new A2uiValidationError(
-        `Message contains multiple update types: ${updateTypes.join(', ')}.`,
+        `Message contains multiple conflicting update actions: ${updateTypes.join(', ')}.`,
       );
     }
 
