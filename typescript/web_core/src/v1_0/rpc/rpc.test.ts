@@ -21,7 +21,7 @@ import {RpcHandler, RpcError, RpcErrorCode} from './rpc-handler.js';
 import {Catalog, createFunctionImplementation} from '../../catalog/types.js';
 import {DataContext} from '../../rendering/data-context.js';
 import {SurfaceModel} from '../../state/surface-model.js';
-import {IndexImplementation} from '../../v0_9/basic_catalog/functions/basic_functions.js';
+import {IndexImplementation} from '../functions/system_functions.js';
 
 describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', () => {
   const customRpcApi = {
