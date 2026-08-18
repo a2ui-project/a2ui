@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MCP App Fallback Counter View</title>
+  <style>
+    :root {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #1e293b;
+      background: #f8fafc;
+    }
+    body {
+      margin: 0;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 24px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+      text-align: center;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #fef3c7;
+      color: #92400e;
+      margin-bottom: 12px;
+    }
+    h2 {
+      margin: 0 0 8px 0;
+      font-size: 20px;
+      color: #0f172a;
+    }
+    p.desc {
+      font-size: 13px;
+      color: #64748b;
+      margin: 0 0 20px 0;
+    }
+    .count-display {
+      font-size: 44px;
+      font-weight: 700;
+      color: #2563eb;
+      margin: 16px 0;
+    }
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+    }
+    button {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      color: #334155;
+      transition: all 0.15s ease;
+    }
+    button:hover {
+      background: #f1f5f9;
+    }
+    button.primary {
+      background: #2563eb;
+      color: #ffffff;
+      border-color: #2563eb;
+    }
+    button.primary:hover {
+      background: #1d4ed8;
+    }
+    button.danger {
+      color: #dc2626;
+      border-color: #fecaca;
+    }
+    button.danger:hover {
+      background: #fef2f2;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">Iframe Sandboxed Mode (Fallback)</div>
+    <h2>MCP App Counter</h2>
+    <p class="desc">Rendered inside an isolated double-iframe sandbox via JSON-RPC postMessage bridge.</p>
+    <div class="count-display" id="count-val">0</div>
+    <div class="btn-group">
+      <button onclick="callTool('decrement_counter', {step: 1})">− Decrement</button>
+      <button class="primary" onclick="callTool('increment_counter', {step: 1})">+ Increment</button>
+      <button class="danger" onclick="callTool('reset_counter', {})">↺ Reset</button>
+    </div>
+  </div>
+
+  <script>
+    let currentCount = 0;
+    let reqId = 1;
+    const pendingCalls = new Map();
+
+    function reportHeight() {
+      const height = document.documentElement.scrollHeight || document.body.scrollHeight;
+      window.parent.postMessage({
+        jsonrpc: '2.0',
+        method: 'ui/notifications/size-changed',
+        params: { height: height + 30 }
+      }, '*');
+    }
+
+    function callTool(name, args) {
+      const id = reqId++;
+      return new Promise((resolve, reject) => {
+        pendingCalls.set(id, { resolve, reject });
+        window.parent.postMessage({
+          jsonrpc: '2.0',
+          id: id,
+          method: 'tools/call',
+          params: { name, arguments: args }
+        }, '*');
+      });
+    }
+
+    window.addEventListener('message', (event) => {
+      const data = event.data;
+      if (!data) return;
+
+      if (data.id != null && pendingCalls.has(data.id)) {
+        const { resolve, reject } = pendingCalls.get(data.id);
+        pendingCalls.delete(data.id);
+        if (data.error) {
+          reject(data.error);
+        } else {
+          resolve(data.result);
+          // Parse result to update count
+          if (data.result && data.result.content) {
+            for (const item of data.result.content) {
+              if (item.type === 'resource' && item.resource && item.resource.text) {
+                try {
+                  const msgs = JSON.parse(item.resource.text);
+                  const arr = Array.isArray(msgs) ? msgs : [msgs];
+                  for (const m of arr) {
+                    if (m.updateDataModel && m.updateDataModel.value !== undefined) {
+                      const val = m.updateDataModel.value;
+                      currentCount = typeof val === 'number' ? val : (val.count !== undefined ? val.count : currentCount);
+                      document.getElementById('count-val').innerText = currentCount;
+                    }
+                  }
+                } catch (e) {
+                  console.error(e);
+                }
+              }
+            }
+          }
+        }
+      } else if (data.method === 'ui/notifications/tool-result') {
+        if (data.params && data.params.content) {
+          for (const item of data.params.content) {
+            if (item.type === 'resource' && item.resource && item.resource.text) {
+              try {
+                const msgs = JSON.parse(item.resource.text);
+                const arr = Array.isArray(msgs) ? msgs : [msgs];
+                for (const m of arr) {
+                  if (m.createSurface && m.createSurface.dataModel && m.createSurface.dataModel.count !== undefined) {
+                    currentCount = m.createSurface.dataModel.count;
+                    document.getElementById('count-val').innerText = currentCount;
+                  }
+                }
+              } catch (e) {
+                console.error(e);
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Notify initialized
+    window.parent.postMessage({
+      jsonrpc: '2.0',
+      id: reqId++,
+      method: 'ui/initialize',
+      params: {
+        appInfo: { name: 'fallback-counter-app', version: '1.0.0' }
+      }
+    }, '*');
+
+    window.parent.postMessage({
+      jsonrpc: '2.0',
+      method: 'ui/notifications/initialized',
+      params: {}
+    }, '*');
+
+    window.addEventListener('load', reportHeight);
+    window.addEventListener('resize', reportHeight);
+  </script>
+</body>
+</html>

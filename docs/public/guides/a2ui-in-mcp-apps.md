@@ -1,6 +1,11 @@
 # A2UI Dynamic Rendering within MCP Applications
 
-This guide shows you how to serve rich, interactive A2UI interfaces within [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) using Tools and Embedded Resources. By the end, you'll have a working MCP server that returns an MCP App which can render A2UI components and handle A2UI interactions. By supporting native A2UI within MCP Apps, your MCP server can securely collaborate with remote agents while maintaining consistency over UI styling.
+This guide shows you how to serve rich, interactive A2UI interfaces within [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) using Tools and Embedded Resources. The architecture supports dynamic **Dual-Mode Capability Negotiation**:
+
+1. **Native A2UI Mode (Preferred)**: Host clients advertising `application/a2ui+json` render `<a2ui-surface>` directly with zero iframe overhead, dispatching actions to MCP tools via the SDK Action Dispatcher.
+2. **Iframe Sandboxed Mode (Fallback)**: Legacy hosts render through an isolated double-iframe sandbox managed by the SDK `McpSandboxHost`.
+
+See the formal [A2UI over MCP Apps Protocol Specification (v1.0)](../../../specification/v1_0/extensions/mcp_apps/docs/a2ui_mcp_apps_specification.md) for full protocol details.
 
 ![Generative document editor demo — highlighting text and interacting with dynamic A2UI controls to generate and revise content](../assets/editor.gif)
 
@@ -10,9 +15,22 @@ This guide shows you how to serve rich, interactive A2UI interfaces within [MCP 
 - **[uv](https://docs.astral.sh/uv/)** — fast Python package manager
 - **[Node.js 18+](https://nodejs.org/)** (for the MCP Inspector)
 
-## Quick Start: Run the Sample
+## Quick Start: Run the Dual-Mode Sample
 
-For detailed instructions on how to run this sample, please refer to the [README.md](../../../samples/community/mcp/a2ui-in-mcpapps/README.md).
+The repository includes a ready-to-run dual-mode sample demonstrating both Native A2UI and Iframe Sandboxed modes:
+
+```bash
+# 1. Start the Python MCP Server
+cd samples/community/mcp/a2ui-mcpapps-extensions/server
+uv run server.py --transport sse --port 8000
+
+# 2. In another terminal, start the Client Web App
+cd samples/community/mcp/a2ui-mcpapps-extensions/client
+yarn install
+yarn dev
+```
+
+For more details, see the [Dual-Mode Sample README](../../../samples/community/mcp/a2ui-mcpapps-extensions/README.md).
 
 ## Architecture Overview
 
@@ -180,89 +198,95 @@ MCP Apps are typically delivered as a single HTML resource from the MCP Server. 
 >
 >     This will ensure that all JS and CSS assets are inlined into the `index.html` file on build, making it ready to be served by your MCP server as a single resource.
 
-### Step 2: Leveraging A2UI-over-MCP
+### Step 2: Leveraging the Official A2UI MCP SDK
 
-Your inlined app is now running in the sandbox. To leverage A2UI:
+Both the server and client SDKs provide high-level helpers to streamline integration:
 
-1.  **Include the A2UI Angular/Lit libraries** in your app's bundle.
-2.  **Define a communication contract** with your Host to interact with the MCP Server.
-3.  When you receive the response from the Host, look for the `application/a2ui+json` mimeType in the content.
-4.  Parse the JSON text and pass it to the A2UI [`MessageProcessor`](../../../renderers/angular/src/v0_8/data/processor.ts).
+#### Python Server (`a2ui.mcp`)
 
-**Example: Fetching and Rendering A2UI**
+```python
+from mcp.server.mcpserver import MCPServer
+from a2ui.mcp import (
+    create_a2ui_tool_result,
+    create_a2ui_resource_contents,
+    supports_native_a2ui,
+    A2UI_MIME_TYPE,
+    MCP_APPS_MIME_TYPE,
+)
+
+app = MCPServer("my-a2ui-mcp-server")
+
+@app.tool(name="get_interactive_ui")
+def get_interactive_ui() -> types.CallToolResult:
+    a2ui_payload = [{
+        "version": "v1.0",
+        "createSurface": {
+            "surfaceId": "main-surface",
+            "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+            "components": [
+                {"id": "root", "component": "Column", "children": ["btn_action"]},
+                {
+                    "id": "btn_action",
+                    "component": "Button",
+                    "text": "Submit Action",
+                    "action": {"event": {"name": "submit_data", "context": {"value": 42}}}
+                }
+            ]
+        }
+    }]
+    return create_a2ui_tool_result(a2ui_payload, text_fallback="A2UI payload ready.")
+```
+
+#### TypeScript Client (`@a2ui/web_core/v1_0`)
 
 ```typescript
-// 1. Request A2UI data from Host
-const result = await callHostMethod('ui/fetch_counter_a2ui');
+import {
+  buildMcpUiClientCapabilities,
+  createMcpActionDispatcher,
+  extractA2uiFromToolResult,
+  McpSandboxHost,
+} from '@a2ui/web_core/v1_0';
+import {MessageProcessor} from '@a2ui/web_core/v0_9';
+import {basicCatalog} from '@a2ui/lit/v0_9';
 
-// 2. Find and parse the A2UI resource
-const a2uiResource = result.find(
-  c => c.type === 'resource' && (c.resource?.mimeType === 'application/a2ui+json' || c.resource?.mimeType === 'application/json+a2ui'),
-);
+// 1. Initialize MCP Client with A2UI capability negotiation
+const clientCaps = buildMcpUiClientCapabilities({
+  enableNativeA2ui: true,
+  enableHtmlApp: true,
+});
 
-if (a2uiResource?.resource?.text) {
-  const messages = JSON.parse(a2uiResource.resource.text);
-  this.processor.processMessages(messages);
-}
+// 2. Set up processor and automatic action dispatcher
+const processor = new MessageProcessor([basicCatalog]);
+const dispatcher = createMcpActionDispatcher(processor.model, mcpClient, {
+  messageProcessor: processor,
+  onError: (err) => console.error('Tool execution error:', err),
+});
 
-// Utility for JSON-RPC communication
-function callHostMethod(method: string, params: any = {}): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const requestId = `${method}-${Date.now()}`;
-
-    const handler = (event: MessageEvent) => {
-      if (event.data.id !== requestId) return;
-      window.removeEventListener('message', handler);
-
-      if (event.data.error) {
-        reject(event.data.error);
-      } else {
-        resolve(event.data.result);
-      }
-    };
-
-    window.addEventListener('message', handler);
-
-    window.parent.postMessage(
-      {
-        jsonrpc: '2.0',
-        id: requestId,
-        method,
-        params,
-      },
-      '*',
-    ); // Note: Replace "*" with explicit target origin in production
-  });
+// 3. Call tool and feed initial UI into processor
+const result = await mcpClient.callTool({name: 'get_interactive_ui', arguments: {}});
+const messages = extractA2uiFromToolResult(result);
+if (messages) {
+  await processor.processMessages(messages);
 }
 ```
 
-### Step 3: Handling User Actions on A2UI Components
+### Step 3: Managing Sandboxed Iframe Fallback (`McpSandboxHost`)
 
-To handle interactivity within the rendered A2UI surface, your MCP App must capture A2UI events and forward them to the Host using JSON-RPC.
-
-**Example: Handling User Actions**
+For legacy hosts or untrusted third-party apps requiring double-iframe sandboxes, use `McpSandboxHost`:
 
 ```typescript
-// Subscribing to A2UI events in the MCP App ([main.ts](../../../samples/community/mcp/a2ui-in-mcpapps/server/apps/src/src/main.ts))
-this.processor.events.subscribe(async event => {
-  if (!event.message.userAction) return;
-
-  const method = `ui/${event.message.userAction.name}`;
-  const params = event.message.userAction.context;
-
-  try {
-    // Translate A2UI UserAction to JSON-RPC, send to Host, and await response
-    const result = await callHostMethod(method, params);
-
-    // Parse the updated A2UI payload and update the rendering
-    const messages = extractA2UIMessages(result);
-    if (messages) {
-      this.processor.processMessages(messages);
-    }
-  } catch (error) {
-    console.error(`Error handling user action[${method}]:`, error);
-  }
+const sandboxHost = new McpSandboxHost({
+  mcpClient,
+  allowedTools: ['submit_data', 'reset_data'],
+  onStatusChange: (status) => console.log('Sandbox status:', status),
 });
+
+// Attach controller to the sandbox proxy iframe
+sandboxHost.attach(iframeElement);
+
+// Load HTML content into the sandbox
+const resource = await mcpClient.readResource({uri: 'ui://my-app'});
+sandboxHost.loadHtml(resource.contents[0].text);
 ```
 
 This pattern enables the MCP App to serve as a dynamic interface for the MCP Server's A2UI capabilities while maintaining strict security isolation.
