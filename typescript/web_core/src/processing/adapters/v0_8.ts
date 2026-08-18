@@ -46,9 +46,9 @@ function normalizeV08Component(comp: unknown): InternalComponentPayload {
   }
 
   return {
+    ...props,
     id: String(c.id ?? ''),
     component: componentName,
-    ...props,
   };
 }
 
