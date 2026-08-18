@@ -281,7 +281,7 @@ if (rcJson?.properties?.['v1.0']?.properties?.inlineCatalogs?.items?.$ref) {
   };
 }
 
-let rcTs =
+const rcTs =
   HEADER +
   `import {z} from 'zod';
 

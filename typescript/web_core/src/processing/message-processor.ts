@@ -23,7 +23,7 @@ import {zodToJsonSchema} from 'zod-to-json-schema';
 import {z} from 'zod';
 
 import {A2uiStateError, A2uiValidationError} from '../errors.js';
-import {VersionAdapterFactory, defaultVersionAdapterFactory} from './adapters/factory.js';
+import {defaultVersionAdapterFactory} from './adapters/factory.js';
 import {
   InternalOperation,
   InternalCreateSurfaceOp,
