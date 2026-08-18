@@ -303,13 +303,43 @@ export type RendererCapabilities = z.infer<typeof RendererCapabilitiesSchema>;
 
 writeFileSync(join(destDir, 'renderer-capabilities.ts'), rcTs);
 
-// 5. index.ts
+// 5. catalog-definition.ts
+const catalogDefJson = JSON.parse(readFileSync(join(specDir, 'catalog_definition.json'), 'utf8'));
+
+let catalogDefTs =
+  HEADER +
+  `import {z} from 'zod';
+import {ExtensionsSchema} from './common-types.js';
+
+`;
+
+for (const [name, rawDef] of Object.entries(catalogDefJson.$defs)) {
+  const prep = prepareRef(rawDef, name);
+  let code = jsonSchemaToZod(prep, {
+    module: 'esm',
+    name: `${name}Schema`,
+    type: name,
+    noImport: true,
+  });
+  code = code.replace(/z\.literal\("__REF__([^"]+)__"\)/g, '$1');
+  code = code.replace(/z\.literal\("__REF__ExtensionsSchema__"\)/g, 'ExtensionsSchema');
+  code = code.replace(/z\.core\.\$ZodIssue/g, 'z.ZodIssue');
+  code = code.replace(/ctx\.addIssue\(([^;]+)\);/g, 'ctx.addIssue($1 as any);');
+  code = code.replace(/== i\)/g, '=== i)');
+  code += `\nexport type ${name}Input = z.input<typeof ${name}Schema>;`;
+  catalogDefTs += code + '\n\n';
+}
+
+writeFileSync(join(destDir, 'catalog-definition.ts'), catalogDefTs);
+
+// 6. index.ts
 const indexTs =
   HEADER +
   `export * from './common-types.js';
 export * from './agent-to-renderer.js';
 export * from './renderer-to-agent.js';
 export * from './renderer-capabilities.js';
+export * from './catalog-definition.js';
 `;
 
 writeFileSync(join(destDir, 'index.ts'), indexTs);

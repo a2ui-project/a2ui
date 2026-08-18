@@ -19,7 +19,15 @@ import {DataContext} from '../rendering/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiExpressionError} from '../errors.js';
 
-export type A2uiReturnType = 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';
+export type A2uiReturnType =
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'array'
+  | 'object'
+  | 'validationResult'
+  | 'any'
+  | 'void';
 
 export type InferA2uiReturnType<T extends A2uiReturnType> = T extends 'string'
   ? string
@@ -31,9 +39,11 @@ export type InferA2uiReturnType<T extends A2uiReturnType> = T extends 'string'
         ? any[]
         : T extends 'object'
           ? Record<string, any>
-          : T extends 'void'
-            ? void
-            : any;
+          : T extends 'validationResult'
+            ? {valid: boolean; message?: string}
+            : T extends 'void'
+              ? void
+              : any;
 
 /**
  * A definition of a UI function's API.
