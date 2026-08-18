@@ -14,7 +14,7 @@
 
 from typing import Optional, Any, Union
 from a2ui.inference_format import InferenceFormat
-from a2ui.core.schema.client_capabilities import V09Capabilities
+from a2ui.core.schema.v0_9.client_capabilities import V09Capabilities
 
 
 class A2uiTemplateManager(InferenceFormat):

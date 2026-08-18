@@ -16,8 +16,6 @@
 from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field, ConfigDict
 
-from ..schema.common_types import StrictBaseModel
-
 
 class Theme(BaseModel):
     model_config = ConfigDict(populate_by_name=True)

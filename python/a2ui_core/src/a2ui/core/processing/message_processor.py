@@ -19,7 +19,7 @@ from ..state import SurfaceGroupModel, SurfaceModel, ComponentModel
 from ..validating import A2uiValidator, CatalogSchemaValidator, ValidationConfig, STRICT_VALIDATION
 from ..catalog import Catalog
 from ..catalog.catalog import TComponent, TFunction
-from ..schema.constants import (
+from ..schema.v0_9.constants import (
     MSG_TYPE_CREATE_SURFACE,
     MSG_TYPE_DELETE_SURFACE,
     MSG_TYPE_UPDATE_COMPONENTS,

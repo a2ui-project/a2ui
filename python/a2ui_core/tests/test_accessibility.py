@@ -15,7 +15,7 @@
 import pytest
 from pydantic import ValidationError
 
-from a2ui.core.schema.common_types import (
+from a2ui.core.schema.v0_9.common_types import (
     AccessibilityAttributes,
     ComponentCommon,
     DataBinding,

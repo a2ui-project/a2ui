@@ -29,7 +29,7 @@ from a2ui.core.catalog import (
     ComponentApi,
     ModelComponentApi,
 )
-from a2ui.core.schema.constants import SPEC_VERSION
+from a2ui.core.schema.v0_9.constants import SPEC_VERSION
 
 
 @pytest.fixture

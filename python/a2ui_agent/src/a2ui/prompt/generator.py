@@ -16,7 +16,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
-from a2ui.core.schema.client_capabilities import V09Capabilities
+from a2ui.core.schema.v0_9.client_capabilities import V09Capabilities
 
 
 class PromptGenerator(ABC):

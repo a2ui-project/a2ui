@@ -26,7 +26,7 @@ from a2ui.inference_formats.experimental.express.schema_helper import (
     CatalogSchemaHelper,
 )
 from a2ui.prompt import PromptGenerator
-from a2ui.core.schema.client_capabilities import V09Capabilities
+from a2ui.core.schema.v0_9.client_capabilities import V09Capabilities
 from .parser import ElementalParser
 
 

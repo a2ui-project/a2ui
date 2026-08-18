@@ -22,12 +22,12 @@ from referencing.jsonschema import DRAFT202012
 from ..catalog import Catalog, ComponentApi, ModelComponentApi, ComponentImplementation
 from ..exceptions import A2uiValidationError, A2uiErrorDetail
 from ..catalog.catalog import TComponent, TFunction
-from ..schema.common_types import (
+from ..schema.v0_9.common_types import (
     ComponentReference,
     ListReference,
     SingleReference,
 )
-from ..schema.constants import CATALOG_COMPONENTS_KEY, SPEC_BASE_URL
+from ..schema.v0_9.constants import CATALOG_COMPONENTS_KEY, SPEC_BASE_URL
 
 JSON_SCHEMA_DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
 COMMON_TYPES_SCHEMA_FILE = "common_types.json"

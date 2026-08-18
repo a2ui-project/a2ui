@@ -14,7 +14,7 @@
 
 from typing import Any, Dict, List, Optional, Set, Tuple, Mapping
 from .integrity_checker import get_component_references, MAX_GLOBAL_DEPTH
-from ..schema.constants import ROOT_ID
+from ..schema.v0_9.constants import ROOT_ID
 from ..exceptions import A2uiRecursionError, A2uiIntegrityError
 
 

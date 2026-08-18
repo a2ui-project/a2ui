@@ -19,7 +19,7 @@ from typing import Any, Optional, Callable, Union
 
 from a2ui.schema.utils import load_from_bundled_resource
 from a2ui.inference_format import InferenceFormat
-from a2ui.core.schema.client_capabilities import V09Capabilities
+from a2ui.core.schema.v0_9.client_capabilities import V09Capabilities
 
 from a2ui.schema.constants import (
     SERVER_TO_CLIENT_SCHEMA_KEY,

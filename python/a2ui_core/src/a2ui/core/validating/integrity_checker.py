@@ -14,7 +14,7 @@
 
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterator, Mapping
 import re
-from ..schema.constants import ROOT_ID
+from ..schema.v0_9.constants import ROOT_ID
 from ..exceptions import A2uiValidationError, A2uiErrorDetail, A2uiIntegrityError, A2uiRecursionError
 
 
