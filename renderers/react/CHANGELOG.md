@@ -1,6 +1,7 @@
 ## Unreleased
 
 - (v0_9) Add `A2uiNodeSurface`, a surface renderer driven by `NodeResolver` from `@a2ui/web_core`; component implementations gain an optional node-driven `view` (see `NodeViewProps` and `useSignalValue`) ([#2077](https://github.com/a2ui-project/a2ui/pull/2077)).
+- (v0_9) Support unrecognized and legacy component properties in React catalog components without rendering or runtime errors.
 
 ## 0.10.2
 

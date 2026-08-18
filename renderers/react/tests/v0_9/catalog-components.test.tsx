@@ -399,5 +399,24 @@ describe('Basic Catalog Components', () => {
       fireEvent.change(screen.getByLabelText('When'), {target: {value: '2026-03-20'}});
       expect(surface.dataModel.get('/date')).toBe('2026-03-20');
     });
+
+    it('ignores unrecognized properties when rendering basic components', () => {
+      // Pass unknown/legacy fields to basic components
+      renderA2uiComponent(Button, 'btn1', {
+        child: 't1',
+        variant: 'primary',
+        color: 'primary',
+        unknownCustomField: 'ignored',
+        extraMetadata: {legacy: true},
+      } as any);
+
+      renderA2uiComponent(Text, 't1', {
+        text: 'Click Me',
+        unknownProperty: 123,
+      } as any);
+
+      expect(screen.getByRole('button')).toBeDefined();
+      expect(screen.getByText('Click Me')).toBeDefined();
+    });
   });
 });

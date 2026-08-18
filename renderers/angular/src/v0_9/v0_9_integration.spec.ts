@@ -353,4 +353,53 @@ describe('v0.9.1 Angular Renderer Integration', () => {
     expect(textEl).toBeTruthy();
     expect(textEl.textContent).toContain('Hello from v0.9.1!');
   });
+
+  it('should process and render surfaces containing components with unrecognized properties', async () => {
+    const messagesWithExtraProps: A2uiMessage[] = [
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'extra-props-surface',
+          catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+        },
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'extra-props-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'Button',
+              variant: 'primary',
+              child: 'btn-text',
+              unknownColor: 'primary',
+              legacyExtraField: {custom: true},
+            } as any,
+            {
+              id: 'btn-text',
+              component: 'Text',
+              text: 'Click Me',
+              unknownAttribute: 12345,
+            } as any,
+          ],
+        },
+      },
+    ];
+
+    rendererService.processMessages(messagesWithExtraProps);
+    fixture.componentInstance.surfaceId = 'extra-props-surface';
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const buttonEl = fixture.nativeElement.querySelector('a2ui-v09-button');
+    expect(buttonEl).toBeTruthy();
+    const btnNative = buttonEl.querySelector('button');
+    expect(btnNative.classList).toContain('primary');
+
+    const textEl = fixture.nativeElement.querySelector('a2ui-v09-text');
+    expect(textEl).toBeTruthy();
+    expect(textEl.textContent).toContain('Click Me');
+  });
 });

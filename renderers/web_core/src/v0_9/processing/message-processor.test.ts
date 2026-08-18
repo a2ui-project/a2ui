@@ -805,7 +805,49 @@ describe('MessageProcessor', () => {
       assert.strictEqual(formatZodIssue(issue), 'label: Expected string, received number');
     });
 
-    it('surfaces unrecognized property validation error and details when processing component updates', () => {
+    it('accepts and ignores unrecognized properties on components during processing (additionalProperties: true)', () => {
+      const strictButtonApi: ComponentApi = {
+        name: 'MaterialButton',
+        schema: z
+          .object({
+            label: z.string(),
+          })
+          .strict(),
+      };
+      const proc = new MessageProcessor([new Catalog('cat-m3', [strictButtonApi])]);
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1', catalogId: 'cat-m3'},
+        },
+      ]);
+
+      // Should succeed and not throw despite 'color' being an unrecognized property
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [
+              {
+                id: 'btn1',
+                component: 'MaterialButton',
+                label: 'Submit',
+                color: 'primary',
+              } as any,
+            ],
+          },
+        },
+      ]);
+
+      const surface = proc.model.getSurface('s1');
+      const comp = surface?.componentsModel.get('btn1');
+      assert.ok(comp);
+      assert.strictEqual(comp.properties.label, 'Submit');
+      assert.strictEqual((comp.properties as any).color, 'primary');
+    });
+
+    it('still rejects invalid property types on components during processing', () => {
       const strictButtonApi: ComponentApi = {
         name: 'MaterialButton',
         schema: z
@@ -833,8 +875,8 @@ describe('MessageProcessor', () => {
                   {
                     id: 'btn1',
                     component: 'MaterialButton',
-                    label: 'Submit',
-                    color: 'primary',
+                    label: 123, // Invalid type
+                    color: 'primary', // Unrecognized property
                   } as any,
                 ],
               },
@@ -843,12 +885,9 @@ describe('MessageProcessor', () => {
         },
         (err: any) => {
           assert.ok(err instanceof A2uiValidationError);
-          assert.strictEqual(
-            err.message,
-            "Validation failed for component 'MaterialButton' (btn1): root: Unrecognized key(s) in object: 'color'",
-          );
-          assert.ok(Array.isArray(err.details));
-          assert.strictEqual(err.details[0].code, 'unrecognized_keys');
+          assert.ok(err.message.includes('Expected string, received number'));
+          assert.strictEqual(err.details.length, 1);
+          assert.strictEqual(err.details[0].code, 'invalid_type');
           return true;
         },
       );

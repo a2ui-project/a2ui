@@ -234,4 +234,35 @@ describe('A2uiController', () => {
     // requestUpdate shouldn't be called again
     assert.strictEqual((mockHost.requestUpdate as any).mock.calls.length, initialCalls);
   });
+
+  it('should tolerate and pass through unrecognized properties without error', async () => {
+    await asyncUpdate(processor, p =>
+      p.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'test-surface',
+            components: [
+              {
+                id: 'test-comp',
+                component: 'Text',
+                text: 'Hello World',
+                unknownColor: 'primary',
+                extraMetadata: {custom: 123},
+              } as any,
+            ],
+          },
+        },
+      ]),
+    );
+
+    const mockHost = await createMockHost(context);
+    const controller = mockHost.testController;
+
+    assert.strictEqual(controller.props.text, 'Hello World');
+    assert.strictEqual((controller.props as any).unknownColor, 'primary');
+    assert.deepStrictEqual((controller.props as any).extraMetadata, {custom: 123});
+
+    controller.dispose();
+  });
 });

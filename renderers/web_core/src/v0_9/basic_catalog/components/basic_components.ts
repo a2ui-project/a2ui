@@ -40,44 +40,40 @@ const CommonProps = {
 
 export const TextApi = {
   name: 'Text',
-  schema: z
-    .object({
-      ...CommonProps,
-      'text': DynamicStringSchema.describe(
-        'The text content to display. While simple Markdown formatting is supported (i.e. without HTML, images, or links), utilizing dedicated UI components is generally preferred for a richer and more structured presentation.',
-      ),
-      'variant': z
-        .enum(['h1', 'h2', 'h3', 'h4', 'h5', 'caption', 'body'])
-        .default('body')
-        .describe('A hint for the base text style.')
-        .optional(),
-    })
-    .strict(),
+  schema: z.object({
+    ...CommonProps,
+    'text': DynamicStringSchema.describe(
+      'The text content to display. While simple Markdown formatting is supported (i.e. without HTML, images, or links), utilizing dedicated UI components is generally preferred for a richer and more structured presentation.',
+    ),
+    'variant': z
+      .enum(['h1', 'h2', 'h3', 'h4', 'h5', 'caption', 'body'])
+      .default('body')
+      .describe('A hint for the base text style.')
+      .optional(),
+  }),
 } satisfies ComponentApi;
 
 export const ImageApi = {
   name: 'Image',
-  schema: z
-    .object({
-      ...CommonProps,
-      'url': DynamicStringSchema.describe('The URL of the image to display.'),
-      'description': DynamicStringSchema.describe(
-        'The accessibility description of the image.',
-      ).optional(),
-      'fit': z
-        .enum(['contain', 'cover', 'fill', 'none', 'scaleDown'])
-        .default('fill')
-        .describe(
-          "Specifies how the image should be resized to fit its container. This corresponds to the CSS 'object-fit' property.",
-        )
-        .optional(),
-      'variant': z
-        .enum(['icon', 'avatar', 'smallFeature', 'mediumFeature', 'largeFeature', 'header'])
-        .default('mediumFeature')
-        .describe('A hint for the image size and style.')
-        .optional(),
-    })
-    .strict(),
+  schema: z.object({
+    ...CommonProps,
+    'url': DynamicStringSchema.describe('The URL of the image to display.'),
+    'description': DynamicStringSchema.describe(
+      'The accessibility description of the image.',
+    ).optional(),
+    'fit': z
+      .enum(['contain', 'cover', 'fill', 'none', 'scaleDown'])
+      .default('fill')
+      .describe(
+        "Specifies how the image should be resized to fit its container. This corresponds to the CSS 'object-fit' property.",
+      )
+      .optional(),
+    'variant': z
+      .enum(['icon', 'avatar', 'smallFeature', 'mediumFeature', 'largeFeature', 'header'])
+      .default('mediumFeature')
+      .describe('A hint for the image size and style.')
+      .optional(),
+  }),
 } satisfies ComponentApi;
 
 const ICON_NAMES = [
@@ -144,49 +140,39 @@ const ICON_NAMES = [
 
 export const IconApi = {
   name: 'Icon',
-  schema: z
-    .object({
-      ...CommonProps,
-      name: z
-        .union([
-          z.enum(ICON_NAMES),
-          z
-            .object({
-              svgPath: z.string().describe('Custom SVG path data'),
-            })
-            .strict(),
-          z
-            .object({
-              path: z.string(),
-            })
-            .strict(),
-        ])
-        .describe('The name of the icon to display.'),
-    })
-    .strict(),
+  schema: z.object({
+    ...CommonProps,
+    name: z
+      .union([
+        z.enum(ICON_NAMES),
+        z.object({
+          svgPath: z.string().describe('Custom SVG path data'),
+        }),
+        z.object({
+          path: z.string(),
+        }),
+      ])
+      .describe('The name of the icon to display.'),
+  }),
 } satisfies ComponentApi;
 
 export const VideoApi = {
   name: 'Video',
-  schema: z
-    .object({
-      ...CommonProps,
-      url: DynamicStringSchema.describe('The URL of the video to display.'),
-    })
-    .strict(),
+  schema: z.object({
+    ...CommonProps,
+    url: DynamicStringSchema.describe('The URL of the video to display.'),
+  }),
 } satisfies ComponentApi;
 
 export const AudioPlayerApi = {
   name: 'AudioPlayer',
-  schema: z
-    .object({
-      ...CommonProps,
-      url: DynamicStringSchema.describe('The URL of the audio to be played.'),
-      description: DynamicStringSchema.describe(
-        'A description of the audio, such as a title or summary.',
-      ).optional(),
-    })
-    .strict(),
+  schema: z.object({
+    ...CommonProps,
+    url: DynamicStringSchema.describe('The URL of the audio to be played.'),
+    description: DynamicStringSchema.describe(
+      'A description of the audio, such as a title or summary.',
+    ).optional(),
+  }),
 } satisfies ComponentApi;
 
 export const RowApi = {
@@ -213,7 +199,6 @@ export const RowApi = {
         )
         .optional(),
     })
-    .strict()
     .describe(
       'A layout component that arranges its children horizontally. To create a grid layout, nest Columns within this Row.',
     ),
@@ -243,7 +228,6 @@ export const ColumnApi = {
         )
         .optional(),
     })
-    .strict()
     .describe(
       'A layout component that arranges its children vertically. To create a grid layout, nest Rows within this Column.',
     ),
@@ -251,33 +235,32 @@ export const ColumnApi = {
 
 export const ListApi = {
   name: 'List',
-  schema: z
-    .object({
-      ...CommonProps,
-      'children': childList({
-        description:
-          'Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list.',
-      }),
-      'direction': z
-        .enum(['vertical', 'horizontal'])
-        .default('vertical')
-        .describe('The direction in which the list items are laid out.')
-        .optional(),
-      'align': z
-        .enum(['start', 'center', 'end', 'stretch'])
-        .default('stretch')
-        .describe('Defines the alignment of children along the cross axis.')
-        .optional(),
-      'listStyle': z
-        .enum(['ordered', 'unordered', 'none'])
-        .describe('The style of the list (ordered, unordered, or none).')
-        .optional(),
-    })
-    .strict(),
+  schema: z.object({
+    ...CommonProps,
+    'children': childList({
+      description:
+        'Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list.',
+    }),
+    'direction': z
+      .enum(['vertical', 'horizontal'])
+      .default('vertical')
+      .describe('The direction in which the list items are laid out.')
+      .optional(),
+    'align': z
+      .enum(['start', 'center', 'end', 'stretch'])
+      .default('stretch')
+      .describe('Defines the alignment of children along the cross axis.')
+      .optional(),
+    'listStyle': z
+      .enum(['ordered', 'unordered', 'none'])
+      .describe('The style of the list (ordered, unordered, or none).')
+      .optional(),
+  }),
 } satisfies ComponentApi;
 
 export const CardApi = {
   name: 'Card',
+<<<<<<< HEAD
   schema: z
     .object({
       ...CommonProps,
@@ -287,10 +270,19 @@ export const CardApi = {
       }),
     })
     .strict(),
+=======
+  schema: z.object({
+    ...CommonProps,
+    'child': ComponentIdSchema.describe(
+      "The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID. Do NOT define the child component inline.",
+    ),
+  }),
+>>>>>>> fb475a77 (fix(renderers): loosen client-side component validation to allow unknown properties)
 } satisfies ComponentApi;
 
 export const TabsApi = {
   name: 'Tabs',
+<<<<<<< HEAD
   schema: z
     .object({
       ...CommonProps,
@@ -311,10 +303,29 @@ export const TabsApi = {
         ),
     })
     .strict(),
+=======
+  schema: z.object({
+    ...CommonProps,
+    'tabs': z
+      .array(
+        z.object({
+          'title': DynamicStringSchema.describe('The tab title.'),
+          'child': ComponentIdSchema.describe(
+            'The ID of the child component. Do NOT define the component inline.',
+          ),
+        }),
+      )
+      .min(1)
+      .describe(
+        'An array of objects, where each object defines a tab with a title and a child component.',
+      ),
+  }),
+>>>>>>> fb475a77 (fix(renderers): loosen client-side component validation to allow unknown properties)
 } satisfies ComponentApi;
 
 export const ModalApi = {
   name: 'Modal',
+<<<<<<< HEAD
   schema: z
     .object({
       ...CommonProps,
@@ -328,24 +339,34 @@ export const ModalApi = {
       }),
     })
     .strict(),
+=======
+  schema: z.object({
+    ...CommonProps,
+    'trigger': ComponentIdSchema.describe(
+      'The ID of the component that opens the modal when interacted with (e.g., a button). Do NOT define the component inline.',
+    ),
+    'content': ComponentIdSchema.describe(
+      'The ID of the component to be displayed inside the modal. Do NOT define the component inline.',
+    ),
+  }),
+>>>>>>> fb475a77 (fix(renderers): loosen client-side component validation to allow unknown properties)
 } satisfies ComponentApi;
 
 export const DividerApi = {
   name: 'Divider',
-  schema: z
-    .object({
-      ...CommonProps,
-      'axis': z
-        .enum(['horizontal', 'vertical'])
-        .default('horizontal')
-        .describe('The orientation of the divider.')
-        .optional(),
-    })
-    .strict(),
+  schema: z.object({
+    ...CommonProps,
+    'axis': z
+      .enum(['horizontal', 'vertical'])
+      .default('horizontal')
+      .describe('The orientation of the divider.')
+      .optional(),
+  }),
 } satisfies ComponentApi;
 
 export const ButtonApi = {
   name: 'Button',
+<<<<<<< HEAD
   schema: z
     .object({
       ...CommonProps,
@@ -364,41 +385,54 @@ export const ButtonApi = {
       ...CheckableSchema.shape,
     })
     .strict(),
+=======
+  schema: z.object({
+    ...CommonProps,
+    'child': ComponentIdSchema.describe(
+      "The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button. Do NOT define the child component inline.",
+    ),
+    'variant': z
+      .enum(['default', 'primary', 'borderless'])
+      .default('default')
+      .describe(
+        "A hint for the button style. If omitted, a default button style is used. 'primary' indicates this is the main call-to-action button. 'borderless' means the button has no visual border or background, making its child content appear like a clickable link.",
+      )
+      .optional(),
+    'action': ActionSchema.optional(),
+    ...CheckableSchema.shape,
+  }),
+>>>>>>> fb475a77 (fix(renderers): loosen client-side component validation to allow unknown properties)
 } satisfies ComponentApi;
 
 export const TextFieldApi = {
   name: 'TextField',
-  schema: z
-    .object({
-      ...CommonProps,
-      'label': DynamicStringSchema.describe('The text label for the input field.'),
-      'value': DynamicStringSchema.describe('The value of the text field.').optional(),
-      'variant': z
-        .enum(['longText', 'number', 'shortText', 'obscured'])
-        .default('shortText')
-        .describe('The type of input field to display.')
-        .optional(),
-      'validationRegexp': z
-        .string()
-        .describe('A regular expression used for client-side validation of the input.')
-        .optional(),
-      ...CheckableSchema.shape,
-    })
-    .strict(),
+  schema: z.object({
+    ...CommonProps,
+    'label': DynamicStringSchema.describe('The text label for the input field.'),
+    'value': DynamicStringSchema.describe('The value of the text field.').optional(),
+    'variant': z
+      .enum(['longText', 'number', 'shortText', 'obscured'])
+      .default('shortText')
+      .describe('The type of input field to display.')
+      .optional(),
+    'validationRegexp': z
+      .string()
+      .describe('A regular expression used for client-side validation of the input.')
+      .optional(),
+    ...CheckableSchema.shape,
+  }),
 } satisfies ComponentApi;
 
 export const CheckBoxApi = {
   name: 'CheckBox',
-  schema: z
-    .object({
-      ...CommonProps,
-      'label': DynamicStringSchema.describe('The text to display next to the checkbox.'),
-      'value': DynamicBooleanSchema.describe(
-        'The current state of the checkbox (true for checked, false for unchecked).',
-      ),
-      ...CheckableSchema.shape,
-    })
-    .strict(),
+  schema: z.object({
+    ...CommonProps,
+    'label': DynamicStringSchema.describe('The text to display next to the checkbox.'),
+    'value': DynamicBooleanSchema.describe(
+      'The current state of the checkbox (true for checked, false for unchecked).',
+    ),
+    ...CheckableSchema.shape,
+  }),
 } satisfies ComponentApi;
 
 export const ChoicePickerApi = {
@@ -414,12 +448,10 @@ export const ChoicePickerApi = {
         .optional(),
       'options': z
         .array(
-          z
-            .object({
-              'label': DynamicStringSchema.describe('The text to display for this option.'),
-              'value': z.string().describe('The stable value associated with this option.'),
-            })
-            .strict(),
+          z.object({
+            'label': DynamicStringSchema.describe('The text to display for this option.'),
+            'value': z.string().describe('The stable value associated with this option.'),
+          }),
         )
         .describe('The list of available options to choose from.'),
       'value': DynamicStringListSchema.describe(
@@ -437,54 +469,49 @@ export const ChoicePickerApi = {
         .optional(),
       ...CheckableSchema.shape,
     })
-    .strict()
     .describe('A component that allows selecting one or more options from a list.'),
 } satisfies ComponentApi;
 
 export const SliderApi = {
   name: 'Slider',
-  schema: z
-    .object({
-      ...CommonProps,
-      'label': DynamicStringSchema.describe('The label for the slider.').optional(),
-      'min': z.number().default(0).describe('The minimum value of the slider.').optional(),
-      'max': z.number().describe('The maximum value of the slider.'),
-      'value': DynamicNumberSchema.describe('The current value of the slider.'),
-      ...CheckableSchema.shape,
-    })
-    .strict(),
+  schema: z.object({
+    ...CommonProps,
+    'label': DynamicStringSchema.describe('The label for the slider.').optional(),
+    'min': z.number().default(0).describe('The minimum value of the slider.').optional(),
+    'max': z.number().describe('The maximum value of the slider.'),
+    'value': DynamicNumberSchema.describe('The current value of the slider.'),
+    ...CheckableSchema.shape,
+  }),
 } satisfies ComponentApi;
 
 export const DateTimeInputApi = {
   name: 'DateTimeInput',
-  schema: z
-    .object({
-      ...CommonProps,
-      'value': DynamicStringSchema.describe(
-        'The selected date and/or time value in ISO 8601 format. If not yet set, initialize with an empty string.',
-      ),
-      'enableDate': z
-        .boolean()
-        .default(false)
-        .describe('If true, allows the user to select a date.')
-        .optional(),
-      'enableTime': z
-        .boolean()
-        .default(false)
-        .describe('If true, allows the user to select a time.')
-        .optional(),
-      'min': z
-        .union([DynamicStringSchema, z.string().date(), z.string().time(), z.string().datetime()])
-        .describe('The minimum allowed date/time in ISO 8601 format.')
-        .optional(),
-      'max': z
-        .union([DynamicStringSchema, z.string().date(), z.string().time(), z.string().datetime()])
-        .describe('The maximum allowed date/time in ISO 8601 format.')
-        .optional(),
-      'label': DynamicStringSchema.describe('The text label for the input field.').optional(),
-      ...CheckableSchema.shape,
-    })
-    .strict(),
+  schema: z.object({
+    ...CommonProps,
+    'value': DynamicStringSchema.describe(
+      'The selected date and/or time value in ISO 8601 format. If not yet set, initialize with an empty string.',
+    ),
+    'enableDate': z
+      .boolean()
+      .default(false)
+      .describe('If true, allows the user to select a date.')
+      .optional(),
+    'enableTime': z
+      .boolean()
+      .default(false)
+      .describe('If true, allows the user to select a time.')
+      .optional(),
+    'min': z
+      .union([DynamicStringSchema, z.string().date(), z.string().time(), z.string().datetime()])
+      .describe('The minimum allowed date/time in ISO 8601 format.')
+      .optional(),
+    'max': z
+      .union([DynamicStringSchema, z.string().date(), z.string().time(), z.string().datetime()])
+      .describe('The maximum allowed date/time in ISO 8601 format.')
+      .optional(),
+    'label': DynamicStringSchema.describe('The text label for the input field.').optional(),
+    ...CheckableSchema.shape,
+  }),
 } satisfies ComponentApi;
 
 export const BASIC_COMPONENTS: ComponentApi[] = [

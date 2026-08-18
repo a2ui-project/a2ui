@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Support unrecognized and legacy component properties in `A2uiController` and Lit components without throwing or interrupting component lifecycle.
+
 ## 0.10.3
 
 - Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.

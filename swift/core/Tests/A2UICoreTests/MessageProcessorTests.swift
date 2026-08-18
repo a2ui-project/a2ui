@@ -300,6 +300,47 @@ struct MessageProcessorTests {
     #expect(components?["root"] != nil)
   }
 
+  @Test func processUpdateComponentsWithUnrecognizedPropertiesSucceeds() throws {
+    let (processor, handler) = try makeProcessor()
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v0.9.1",
+          "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "default"
+          }
+        }
+        """))
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v0.9.1",
+          "updateComponents": {
+            "surfaceId": "s1",
+            "components": [
+              {
+                "id": "root",
+                "component": "text",
+                "text": "Hello",
+                "unknownField": "ignoredValue",
+                "customMetadata": 123
+              }
+            ]
+          }
+        }
+        """))
+    #expect(handler.capturedErrors.isEmpty)
+    let vm = processor.surfaceGroupModel.surfacesMap["s1"]
+    let comp = vm?.componentsModel.components["root"]
+    #expect(comp != nil)
+    #expect(comp?.properties["text"]?.stringValue == "Hello")
+    #expect(comp?.properties["unknownField"]?.stringValue == "ignoredValue")
+    #expect(comp?.properties["customMetadata"]?.intValue == 123)
+  }
+
   @Test func processUpdateComponentsValidBatch() throws {
     let (processor, handler) = try makeProcessor()
     processor.process(

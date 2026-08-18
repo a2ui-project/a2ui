@@ -363,18 +363,24 @@ export class MessageProcessor<T extends ComponentApi> {
         if (componentApi) {
           const validationResult = componentApi.schema.safeParse(properties);
           if (!validationResult.success) {
-            const formattedErrors = validationResult.error.errors.map(formatZodIssue).join(', ');
-            console.error(
-              "[A2UI Validation Error] Component '" + componentType + "' (" + id + '):',
-              {
-                propertyKeys: Object.keys(properties),
-                issues: validationResult.error.issues,
-              },
+            // Client-side validation ignores unrecognized keys
+            const realIssues = validationResult.error.issues.filter(
+              issue => issue.code !== 'unrecognized_keys',
             );
-            throw new A2uiValidationError(
-              `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
-              validationResult.error.issues,
-            );
+            if (realIssues.length > 0) {
+              const formattedErrors = realIssues.map(formatZodIssue).join(', ');
+              console.error(
+                "[A2UI Validation Error] Component '" + componentType + "' (" + id + '):',
+                {
+                  propertyKeys: Object.keys(properties),
+                  issues: realIssues,
+                },
+              );
+              throw new A2uiValidationError(
+                `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
+                realIssues,
+              );
+            }
           }
         }
       }
