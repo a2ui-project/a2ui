@@ -51,12 +51,14 @@ When executed for a target version `<version>` (e.g. `v1.0` -> `v1_0`), the scri
    - `agent_to_renderer.py` / `server_to_client.py`
    - `renderer_to_agent.py` / `client_to_server.py`
    - `renderer_capabilities.py` / `client_capabilities.py`
+   - `agent_capabilities.py` / `server_capabilities.py` (when present in spec)
+   - `catalog_definition.py` (when present in spec)
    - `__init__.py`
 
 2. **`python/a2ui_core/src/a2ui/core/basic_catalog/<version>/`**:
    - `components.py` (strongly typed components & `ModelComponentApi` registrations)
    - `function_apis.py` (strongly typed function schemas & `FunctionApi` classes)
-   - `styles.py` (theme schema)
+   - `styles.py` (theme schema, generated when theme is defined in catalog)
    - `__init__.py`
 
 3. **`python/a2ui_core/src/a2ui/core/schema/__init__.py`**:

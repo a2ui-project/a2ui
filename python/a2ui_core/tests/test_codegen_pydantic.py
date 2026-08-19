@@ -231,7 +231,7 @@ _PRIVATE_VAR = 123
 
 
 def test_generate_basic_catalog_components():
-    # Scenario A: Fallback to all components
+    # Scenario A: Fallback to all components (without CatalogComponentCommon in defs)
     mock_catalog_data = {
         "components": {
             "Text": {
@@ -241,15 +241,15 @@ def test_generate_basic_catalog_components():
         }
     }
     code = codegen_pydantic.generate_basic_catalog_components("v0.9", mock_catalog_data)
-    assert "class CatalogComponentCommon(ComponentCommon):" in code
-    assert "class TextComponent(CatalogComponentCommon):" in code
+    assert "class CatalogComponentCommon" not in code
+    assert "class TextComponent(ComponentCommon):" in code
     assert '    component: Literal["Text"] = "Text"' in code
     assert (
         '    text: str = Field(..., description="")' in code
         or "    text: str = Field(...)" in code
     )
 
-    # Scenario B: Intersects component map and anyComponent/oneOf refs
+    # Scenario B: Intersects component map and anyComponent/oneOf refs (with CatalogComponentCommon in defs)
     mock_catalog_data_defs = {
         "components": {
             "Text": {
@@ -262,12 +262,16 @@ def test_generate_basic_catalog_components():
             },
         },
         "$defs": {
+            "CatalogComponentCommon": {
+                "type": "object",
+                "properties": {"weight": {"type": "number"}},
+            },
             "anyComponent": {
                 "oneOf": [
                     {"$ref": "#/components/Text"},
                     {"$ref": "#/components/NonExistent"},
                 ]
-            }
+            },
         },
     }
     code_defs = codegen_pydantic.generate_basic_catalog_components(
@@ -357,6 +361,29 @@ def test_generate_basic_catalog_functions():
 
 
 def test_generate_basic_catalog_styles():
+    # v0.8 styles mapping (font, primaryColor)
+    v08_catalog_data = {
+        "styles": {
+            "font": {
+                "type": "string",
+                "description": "The primary font for the UI.",
+            },
+            "primaryColor": {
+                "type": "string",
+                "description": (
+                    "The primary UI color as a hexadecimal code (e.g., '#00BFFF')."
+                ),
+            },
+        }
+    }
+    code_v08 = codegen_pydantic.generate_basic_catalog_styles("v0.8", v08_catalog_data)
+    assert code_v08 is not None
+    assert "class Styles(BaseModel):" in code_v08
+    assert "font: Optional[str] = Field(None" in code_v08
+    assert 'primary_color: Optional[str] = Field(None, alias="primaryColor"' in code_v08
+    assert "Theme = Styles" in code_v08
+
+    # v0.9 theme
     mock_catalog_data = {
         "$defs": {
             "theme": {
@@ -369,12 +396,18 @@ def test_generate_basic_catalog_styles():
         }
     }
     code = codegen_pydantic.generate_basic_catalog_styles("v0.9", mock_catalog_data)
+    assert code is not None
     assert "class Theme(BaseModel):" in code
     assert (
         'primary_color: Optional[str] = Field(None, alias="primaryColor",'
         ' description="Test color.")'
         in code
     )
+
+    # v1.0 without styles
+    v10_catalog_data = {"components": {}}
+    code_v10 = codegen_pydantic.generate_basic_catalog_styles("v1.0", v10_catalog_data)
+    assert code_v10 is None
 
 
 def test_generate_agent_to_renderer():
@@ -443,9 +476,64 @@ def test_generate_renderer_capabilities():
     )
     assert "class FunctionDefinition(StrictBaseModel):" in code
     assert "class V09Capabilities(StrictBaseModel):" in code
-    assert "class A2uiRendererCapabilities(StrictBaseModel):" in code
-    assert "A2uiClientCapabilities = A2uiRendererCapabilities" in code
+    assert "class A2uiClientCapabilities(StrictBaseModel):" in code
+    assert "A2uiRendererCapabilities = A2uiClientCapabilities" in code
     assert "v0_9: Optional[V09Capabilities] = Field(None, alias=SPEC_VERSION)" in code
+
+
+def test_generate_agent_capabilities():
+    mock_agent_caps_data = {
+        "properties": {
+            "v1.0": {
+                "properties": {
+                    "supportedCatalogIds": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "acceptsInlineCatalogs": {
+                        "type": "boolean",
+                        "default": False,
+                    },
+                },
+            }
+        },
+        "required": ["v1.0"],
+    }
+    code = codegen_pydantic.generate_agent_capabilities("v1.0", mock_agent_caps_data)
+    assert "class V10AgentCapabilities(StrictBaseModel):" in code
+    assert "class A2uiAgentCapabilities(StrictBaseModel):" in code
+    assert "A2uiServerCapabilities" not in code
+
+
+def test_generate_catalog_definition():
+    mock_cat_def_data = {
+        "$defs": {
+            "ValidationResult": {
+                "properties": {"valid": {"type": "boolean"}},
+                "required": ["valid"],
+            },
+            "ComponentDefinition": {
+                "properties": {
+                    "allowedParents": {"type": "array", "items": {"type": "string"}},
+                },
+            },
+            "FunctionDefinition": {
+                "properties": {
+                    "returnType": {"type": "string"},
+                },
+                "required": ["returnType"],
+            },
+        },
+        "properties": {
+            "catalogId": {"type": "string"},
+        },
+        "required": ["catalogId"],
+    }
+    code = codegen_pydantic.generate_catalog_definition("v1.0", mock_cat_def_data)
+    assert "class ValidationResult(StrictBaseModel):" in code
+    assert "class ComponentDefinition(BaseModel):" in code
+    assert "class FunctionDefinition(BaseModel):" in code
+    assert "class CatalogDefinition(StrictBaseModel):" in code
 
 
 def test_generate_renderer_to_agent():
@@ -554,3 +642,29 @@ def test_generated_python_syntax_validity():
             assert py_files_count > 0
         finally:
             codegen_pydantic.CORE_SRC_ROOT = orig_root
+
+
+def test_basic_catalog_operator_and_index_api():
+    from a2ui.core.basic_catalog import AddApi
+    from a2ui.core.basic_catalog.v1_0.operator_apis import IndexApi, IndexArgs
+    from a2ui.core.basic_catalog import v0_9, v1_0
+
+    # Verify IndexApi definition
+    assert IndexApi.name == "@index"
+    assert IndexApi.return_type == "number"
+    assert IndexApi.schema == IndexArgs
+
+    # Verify shared basic_catalog and v0.9 basic catalog do not have IndexApi
+    import a2ui.core.basic_catalog as basic_catalog
+
+    assert not hasattr(basic_catalog, "IndexApi")
+    assert hasattr(v0_9, "AddApi")
+    assert "AddApi" in v0_9.__all__
+    assert not hasattr(v0_9, "IndexApi")
+    assert "IndexApi" not in v0_9.__all__
+
+    # Verify v1.0 basic catalog exports both AddApi and IndexApi
+    assert hasattr(v1_0, "AddApi")
+    assert "AddApi" in v1_0.__all__
+    assert hasattr(v1_0, "IndexApi")
+    assert "IndexApi" in v1_0.__all__

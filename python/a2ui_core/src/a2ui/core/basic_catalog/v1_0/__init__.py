@@ -88,12 +88,14 @@ from ..operator_apis import (
     StartsWithApi,
     EndsWithApi,
 )
-from .styles import Theme
+from .operator_apis import (
+    IndexApi,
+)
 from .function_impls import (
     BASIC_FUNCTION_IMPLEMENTATIONS,
     create_basic_catalog_functions,
 )
-from ...schema.v0_9.constants import SPEC_VERSION, SPEC_BASE_URL
+from ...schema.v1_0.constants import SPEC_VERSION, SPEC_BASE_URL
 from ...catalog import Catalog, ModelComponentApi, FunctionImplementation
 
 
@@ -111,7 +113,6 @@ class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
             spec_version=SPEC_VERSION,
             components=BASIC_COMPONENTS,
             functions=create_basic_catalog_functions(locale=locale),
-            theme_schema=Theme.model_json_schema(),
         )
 
 
@@ -182,7 +183,7 @@ __all__ = [
     "ContainsApi",
     "StartsWithApi",
     "EndsWithApi",
-    "Theme",
+    "IndexApi",
     "BASIC_FUNCTION_IMPLEMENTATIONS",
     "create_basic_catalog_functions",
     "BasicCatalog",

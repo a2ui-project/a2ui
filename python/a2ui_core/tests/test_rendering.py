@@ -234,7 +234,7 @@ def test_generic_binder_checks_validation():
 
 
 def test_expression_parser_literals_and_interpolation():
-    from a2ui.core.basic_catalog.v0_9.expression_parser import ExpressionParser
+    from a2ui.core.basic_catalog.expression_parser import ExpressionParser
 
     parser = ExpressionParser()
 
@@ -245,7 +245,7 @@ def test_expression_parser_literals_and_interpolation():
 
 
 def test_expression_parser_function_calls():
-    from a2ui.core.basic_catalog.v0_9.expression_parser import ExpressionParser
+    from a2ui.core.basic_catalog.expression_parser import ExpressionParser
 
     parser = ExpressionParser()
 
@@ -257,7 +257,7 @@ def test_expression_parser_function_calls():
 
 
 def test_expression_parser_parse_errors():
-    from a2ui.core.basic_catalog.v0_9.expression_parser import ExpressionParser
+    from a2ui.core.basic_catalog.expression_parser import ExpressionParser
 
     parser = ExpressionParser()
 
@@ -278,7 +278,9 @@ def test_string_interpolation_complex_execution():
 
         def __init__(self):
             super().__init__("mock", "v0_9_1", [], [])
-            from a2ui.core.basic_catalog.v0_9.function_impls import _format_string
+            from a2ui.core.basic_catalog.v0_9.function_impls import (
+                _format_string,
+            )
 
             self.functions["add"] = (
                 lambda args, context, abort_signal=None: args["a"] + args["b"]

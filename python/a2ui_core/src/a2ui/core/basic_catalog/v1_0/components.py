@@ -16,8 +16,7 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Literal, Optional, Union, Annotated
 from pydantic import BaseModel, Field, ConfigDict
-from ...schema.v0_9.common_types import (
-    AccessibilityAttributes,
+from ...schema.v1_0.common_types import (
     Action,
     CheckRule,
     Checkable,
@@ -33,6 +32,8 @@ from ...schema.v0_9.common_types import (
     DynamicStringList,
     DynamicValue,
     FunctionCall,
+    FunctionCommon,
+    IndexSystemFunction,
     ListReference,
     SingleReference,
     StrictBaseModel,
@@ -41,7 +42,35 @@ from ...schema.v0_9.common_types import (
 from ...catalog.components import ModelComponentApi
 
 
-class CatalogComponentCommon(ComponentCommon):
+class SvgPath(StrictBaseModel):
+    svg_path: DynamicString = Field(..., alias="svgPath")
+
+
+class TabItem(StrictBaseModel):
+    title: DynamicString = Field(..., description="The tab title.")
+    child: Child = Field(..., description="The ID of the child component.")
+
+
+class OptionItem(StrictBaseModel):
+    label: DynamicString = Field(
+        ..., description="The text to display for this option."
+    )
+    value: str = Field(..., description="The stable value associated with this option.")
+
+
+class TextComponent(ComponentCommon):
+    component: Literal["Text"] = "Text"
+    text: DynamicString = Field(
+        ...,
+        description=(
+            "The text content to display. While simple Markdown formatting is supported"
+            " (i.e. without HTML, images, or links), utilizing dedicated UI components"
+            " is generally preferred for a richer and more structured presentation."
+        ),
+    )
+    variant: Optional[Literal["caption", "body"]] = Field(
+        description="A hint for the base text style.", default="body"
+    )
     weight: Optional[float] = Field(
         None,
         description=(
@@ -52,38 +81,7 @@ class CatalogComponentCommon(ComponentCommon):
     )
 
 
-class SvgPath(StrictBaseModel):
-    svg_path: str = Field(..., alias="svgPath")
-
-
-class TabItem(StrictBaseModel):
-    title: DynamicString = Field(..., description="The tab title.")
-    child: ComponentId = Field(..., description="The ID of the child component.")
-
-
-class OptionItem(StrictBaseModel):
-    label: DynamicString = Field(
-        ..., description="The text to display for this option."
-    )
-    value: str = Field(..., description="The stable value associated with this option.")
-
-
-class TextComponent(CatalogComponentCommon):
-    component: Literal["Text"] = "Text"
-    text: DynamicString = Field(
-        ...,
-        description=(
-            "The text content to display. While simple Markdown formatting is supported"
-            " (i.e. without HTML, images, or links), utilizing dedicated UI components"
-            " is generally preferred for a richer and more structured presentation."
-        ),
-    )
-    variant: Optional[Literal["h1", "h2", "h3", "h4", "h5", "caption", "body"]] = Field(
-        description="A hint for the base text style.", default="body"
-    )
-
-
-class ImageComponent(CatalogComponentCommon):
+class ImageComponent(ComponentCommon):
     component: Literal["Image"] = "Image"
     url: DynamicString = Field(..., description="The URL of the image to display.")
     description: Optional[DynamicString] = Field(
@@ -103,9 +101,17 @@ class ImageComponent(CatalogComponentCommon):
     ] = Field(
         description="A hint for the image size and style.", default="mediumFeature"
     )
+    weight: Optional[float] = Field(
+        None,
+        description=(
+            "The relative weight of this component within a Row or Column. This is"
+            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
+            " the component is a direct descendant of a Row or Column."
+        ),
+    )
 
 
-class IconComponent(CatalogComponentCommon):
+class IconComponent(ComponentCommon):
     component: Literal["Icon"] = "Icon"
     name: Union[
         Literal[
@@ -172,22 +178,51 @@ class IconComponent(CatalogComponentCommon):
         SvgPath,
         DataBinding,
     ] = Field(..., description="The name of the icon to display.")
+    weight: Optional[float] = Field(
+        None,
+        description=(
+            "The relative weight of this component within a Row or Column. This is"
+            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
+            " the component is a direct descendant of a Row or Column."
+        ),
+    )
 
 
-class VideoComponent(CatalogComponentCommon):
+class VideoComponent(ComponentCommon):
     component: Literal["Video"] = "Video"
     url: DynamicString = Field(..., description="The URL of the video to display.")
+    poster_url: Optional[DynamicString] = Field(
+        None,
+        alias="posterUrl",
+        description="The URL of the poster image to display before the video plays.",
+    )
+    weight: Optional[float] = Field(
+        None,
+        description=(
+            "The relative weight of this component within a Row or Column. This is"
+            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
+            " the component is a direct descendant of a Row or Column."
+        ),
+    )
 
 
-class AudioPlayerComponent(CatalogComponentCommon):
+class AudioPlayerComponent(ComponentCommon):
     component: Literal["AudioPlayer"] = "AudioPlayer"
     url: DynamicString = Field(..., description="The URL of the audio to be played.")
     description: Optional[DynamicString] = Field(
         None, description="A description of the audio, such as a title or summary."
     )
+    weight: Optional[float] = Field(
+        None,
+        description=(
+            "The relative weight of this component within a Row or Column. This is"
+            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
+            " the component is a direct descendant of a Row or Column."
+        ),
+    )
 
 
-class RowComponent(CatalogComponentCommon):
+class RowComponent(ComponentCommon):
     component: Literal["Row"] = "Row"
     children: ChildList = Field(
         ...,
@@ -223,9 +258,17 @@ class RowComponent(CatalogComponentCommon):
         ),
         default="stretch",
     )
+    weight: Optional[float] = Field(
+        None,
+        description=(
+            "The relative weight of this component within a Row or Column. This is"
+            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
+            " the component is a direct descendant of a Row or Column."
+        ),
+    )
 
 
-class ColumnComponent(CatalogComponentCommon):
+class ColumnComponent(ComponentCommon):
     component: Literal["Column"] = "Column"
     children: ChildList = Field(
         ...,
@@ -260,9 +303,17 @@ class ColumnComponent(CatalogComponentCommon):
         ),
         default="stretch",
     )
+    weight: Optional[float] = Field(
+        None,
+        description=(
+            "The relative weight of this component within a Row or Column. This is"
+            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
+            " the component is a direct descendant of a Row or Column."
+        ),
+    )
 
 
-class ListComponent(CatalogComponentCommon):
+class ListComponent(ComponentCommon):
     component: Literal["List"] = "List"
     children: ChildList = Field(
         ...,
@@ -279,11 +330,19 @@ class ListComponent(CatalogComponentCommon):
         description="Defines the alignment of children along the cross axis.",
         default="stretch",
     )
+    weight: Optional[float] = Field(
+        None,
+        description=(
+            "The relative weight of this component within a Row or Column. This is"
+            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
+            " the component is a direct descendant of a Row or Column."
+        ),
+    )
 
 
-class CardComponent(CatalogComponentCommon):
+class CardComponent(ComponentCommon):
     component: Literal["Card"] = "Card"
-    child: ComponentId = Field(
+    child: Child = Field(
         ...,
         description=(
             "The ID of the single child component to be rendered inside the card. To"
@@ -292,9 +351,17 @@ class CardComponent(CatalogComponentCommon):
             " IDs or a non-existent ID."
         ),
     )
+    weight: Optional[float] = Field(
+        None,
+        description=(
+            "The relative weight of this component within a Row or Column. This is"
+            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
+            " the component is a direct descendant of a Row or Column."
+        ),
+    )
 
 
-class TabsComponent(CatalogComponentCommon):
+class TabsComponent(ComponentCommon):
     component: Literal["Tabs"] = "Tabs"
     tabs: List[TabItem] = Field(
         ...,
@@ -303,30 +370,54 @@ class TabsComponent(CatalogComponentCommon):
             " child component."
         ),
     )
+    weight: Optional[float] = Field(
+        None,
+        description=(
+            "The relative weight of this component within a Row or Column. This is"
+            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
+            " the component is a direct descendant of a Row or Column."
+        ),
+    )
 
 
-class ModalComponent(CatalogComponentCommon):
+class ModalComponent(ComponentCommon):
     component: Literal["Modal"] = "Modal"
-    trigger: ComponentId = Field(
+    trigger: Child = Field(
         ...,
         description=(
             "The ID of the component that opens the modal when interacted with (e.g., a"
             " button)."
         ),
     )
-    content: ComponentId = Field(
+    content: Child = Field(
         ..., description="The ID of the component to be displayed inside the modal."
+    )
+    weight: Optional[float] = Field(
+        None,
+        description=(
+            "The relative weight of this component within a Row or Column. This is"
+            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
+            " the component is a direct descendant of a Row or Column."
+        ),
     )
 
 
-class DividerComponent(CatalogComponentCommon):
+class DividerComponent(ComponentCommon):
     component: Literal["Divider"] = "Divider"
     axis: Optional[Literal["horizontal", "vertical"]] = Field(
         description="The orientation of the divider.", default="horizontal"
     )
+    weight: Optional[float] = Field(
+        None,
+        description=(
+            "The relative weight of this component within a Row or Column. This is"
+            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
+            " the component is a direct descendant of a Row or Column."
+        ),
+    )
 
 
-class ButtonComponent(CatalogComponentCommon):
+class ButtonComponent(ComponentCommon):
     component: Literal["Button"] = "Button"
     checks: Optional[List[CheckRule]] = Field(
         None,
@@ -335,7 +426,7 @@ class ButtonComponent(CatalogComponentCommon):
             " boolean indicating validity."
         ),
     )
-    child: ComponentId = Field(
+    child: Child = Field(
         ...,
         description=(
             "The ID of the child component. Use a 'Text' component for a labeled"
@@ -353,9 +444,17 @@ class ButtonComponent(CatalogComponentCommon):
         default="default",
     )
     action: Action = Field(...)
+    weight: Optional[float] = Field(
+        None,
+        description=(
+            "The relative weight of this component within a Row or Column. This is"
+            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
+            " the component is a direct descendant of a Row or Column."
+        ),
+    )
 
 
-class TextFieldComponent(CatalogComponentCommon):
+class TextFieldComponent(ComponentCommon):
     component: Literal["TextField"] = "TextField"
     checks: Optional[List[CheckRule]] = Field(
         None,
@@ -368,19 +467,23 @@ class TextFieldComponent(CatalogComponentCommon):
     value: Optional[DynamicString] = Field(
         None, description="The value of the text field."
     )
+    placeholder: Optional[DynamicString] = Field(
+        None, description="The placeholder text for the input field."
+    )
     variant: Optional[Literal["longText", "number", "shortText", "obscured"]] = Field(
         description="The type of input field to display.", default="shortText"
     )
-    validation_regexp: Optional[str] = Field(
+    weight: Optional[float] = Field(
         None,
-        alias="validationRegexp",
         description=(
-            "A regular expression used for client-side validation of the input."
+            "The relative weight of this component within a Row or Column. This is"
+            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
+            " the component is a direct descendant of a Row or Column."
         ),
     )
 
 
-class CheckBoxComponent(CatalogComponentCommon):
+class CheckBoxComponent(ComponentCommon):
     component: Literal["CheckBox"] = "CheckBox"
     checks: Optional[List[CheckRule]] = Field(
         None,
@@ -398,9 +501,17 @@ class CheckBoxComponent(CatalogComponentCommon):
             "The current state of the checkbox (true for checked, false for unchecked)."
         ),
     )
+    weight: Optional[float] = Field(
+        None,
+        description=(
+            "The relative weight of this component within a Row or Column. This is"
+            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
+            " the component is a direct descendant of a Row or Column."
+        ),
+    )
 
 
-class ChoicePickerComponent(CatalogComponentCommon):
+class ChoicePickerComponent(ComponentCommon):
     component: Literal["ChoicePicker"] = "ChoicePicker"
     checks: Optional[List[CheckRule]] = Field(
         None,
@@ -435,9 +546,17 @@ class ChoicePickerComponent(CatalogComponentCommon):
         description="If true, displays a search input to filter the options.",
         default=False,
     )
+    weight: Optional[float] = Field(
+        None,
+        description=(
+            "The relative weight of this component within a Row or Column. This is"
+            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
+            " the component is a direct descendant of a Row or Column."
+        ),
+    )
 
 
-class SliderComponent(CatalogComponentCommon):
+class SliderComponent(ComponentCommon):
     component: Literal["Slider"] = "Slider"
     checks: Optional[List[CheckRule]] = Field(
         None,
@@ -454,9 +573,24 @@ class SliderComponent(CatalogComponentCommon):
     )
     max: float = Field(..., description="The maximum value of the slider.")
     value: DynamicNumber = Field(..., description="The current value of the slider.")
+    steps: Optional[int] = Field(
+        None,
+        description=(
+            "The number of discrete divisions in the slider range. If specified, the"
+            " slider will snap to discrete values."
+        ),
+    )
+    weight: Optional[float] = Field(
+        None,
+        description=(
+            "The relative weight of this component within a Row or Column. This is"
+            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
+            " the component is a direct descendant of a Row or Column."
+        ),
+    )
 
 
-class DateTimeInputComponent(CatalogComponentCommon):
+class DateTimeInputComponent(ComponentCommon):
     component: Literal["DateTimeInput"] = "DateTimeInput"
     checks: Optional[List[CheckRule]] = Field(
         None,
@@ -490,6 +624,14 @@ class DateTimeInputComponent(CatalogComponentCommon):
     )
     label: Optional[DynamicString] = Field(
         None, description="The text label for the input field."
+    )
+    weight: Optional[float] = Field(
+        None,
+        description=(
+            "The relative weight of this component within a Row or Column. This is"
+            " similar to the CSS 'flex-grow' property. Note: this may ONLY be set when"
+            " the component is a direct descendant of a Row or Column."
+        ),
     )
 
 

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import pytest
-from a2ui.core.basic_catalog.v0_9.expression_parser import ExpressionParser
+from a2ui.core.basic_catalog.expression_parser import ExpressionParser
 
 
 @pytest.fixture

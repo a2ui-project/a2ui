@@ -12,16 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI Basic Catalog Module."""
+from __future__ import annotations
+from ...catalog.functions import FunctionApi
+from ...schema.v1_0.common_types import IndexSystemFunctionArgs
 
-from .expression_parser import ExpressionParser, Scanner
-from .locale_config import (
-    LocaleFormattingRules,
-    register_locale_rules,
-    get_locale_rules,
-    CURRENCY_SYMBOLS,
-)
-from . import v0_8
-from . import v0_9
-from . import v1_0
-from .v0_9 import *
+IndexArgs = IndexSystemFunctionArgs
+
+
+class IndexApi(FunctionApi):
+    name = "@index"
+    schema = IndexArgs
+    return_type = "number"
+
+
+__all__ = [
+    "IndexApi",
+    "IndexArgs",
+]

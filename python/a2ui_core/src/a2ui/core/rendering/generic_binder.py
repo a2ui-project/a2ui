@@ -120,6 +120,20 @@ class GenericBinder:
 
         rule_results = [{"valid": True, "message": ""} for _ in rules]
 
+        def _eval_validity(val: Any) -> bool:
+            if isinstance(val, dict) and "valid" in val:
+                return bool(val["valid"])
+            if hasattr(val, "valid"):
+                return bool(getattr(val, "valid"))
+            return bool(val)
+
+        def _eval_message(val: Any, fallback: str) -> str:
+            if isinstance(val, dict) and val.get("message"):
+                return str(val["message"])
+            if hasattr(val, "message") and getattr(val, "message"):
+                return str(getattr(val, "message"))
+            return fallback
+
         def update_validation_state() -> None:
             errors = [r["message"] for r in rule_results if not r["valid"]]
             self.current_props["isValid"] = len(errors) == 0
@@ -133,17 +147,19 @@ class GenericBinder:
                 condition = rule.get("condition", rule)
                 message = rule.get("message", "Validation failed")
 
-            rule_results[index]["message"] = message
-
-            def on_rule_change(new_val: Any, idx: int = index) -> None:
-                rule_results[idx]["valid"] = bool(new_val)
+            def on_rule_change(
+                new_val: Any, idx: int = index, fallback_msg: str = message
+            ) -> None:
+                rule_results[idx]["valid"] = _eval_validity(new_val)
+                rule_results[idx]["message"] = _eval_message(new_val, fallback_msg)
                 update_validation_state()
 
             bound = self.context.data_context.subscribe_dynamic_value(
                 condition, on_rule_change
             )
             self.data_listeners.append(bound)
-            rule_results[index]["valid"] = bool(bound.value)
+            rule_results[index]["valid"] = _eval_validity(bound.value)
+            rule_results[index]["message"] = _eval_message(bound.value, message)
 
         # Calculate initial validation state
         initial_errors = [r["message"] for r in rule_results if not r["valid"]]

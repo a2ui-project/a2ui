@@ -16,7 +16,7 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field, ConfigDict
-from .common_types import StrictBaseModel
+from ..common_types import StrictBaseModel
 from .constants import SPEC_VERSION, SPEC_VERSION_TYPE
 
 
@@ -26,8 +26,7 @@ class A2uiClientAction(StrictBaseModel):
     name: str = Field(
         ...,
         description=(
-            "The name of the action, taken from the component's action.event.name"
-            " property."
+            "The name of the action, taken from the component's action.name property."
         ),
     )
     surface_id: str = Field(
@@ -47,7 +46,7 @@ class A2uiClientAction(StrictBaseModel):
         ...,
         description=(
             "A JSON object containing the key-value pairs from the component's"
-            " action.event.context, after resolving all data bindings."
+            " action.context, after resolving all data bindings."
         ),
     )
 
@@ -59,50 +58,23 @@ ActionPayload = A2uiClientAction
 
 class A2uiClientActionMessage(StrictBaseModel):
     version: SPEC_VERSION_TYPE = SPEC_VERSION
-    action: A2uiClientAction = Field(...)
+    user_action: A2uiClientAction = Field(..., alias="userAction")
 
 
 A2uiRendererActionMessage = A2uiClientActionMessage
 A2uiClientUserActionMessage = A2uiClientActionMessage
 
 
+class A2uiGenericError(StrictBaseModel):
+    code: Optional[str] = Field(None)
+    message: Optional[str] = Field(None)
+
+
 class A2uiValidationError(StrictBaseModel):
-    code: Literal["VALIDATION_FAILED"] = Field("VALIDATION_FAILED")
-    surface_id: str = Field(
-        ...,
-        alias="surfaceId",
-        description="The id of the surface where the error occurred.",
-    )
-    path: str = Field(
-        ...,
-        description=(
-            "The JSON pointer to the field that failed validation (e.g."
-            " '/components/0/text')."
-        ),
-    )
-    message: str = Field(
-        ...,
-        description="A short one or two sentence description of why validation failed.",
-    )
+    pass
 
 
-class A2uiGenericError(BaseModel):
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
-    code: Any = Field(...)
-    message: str = Field(
-        ...,
-        description=(
-            "A short one or two sentence description of why the error occurred."
-        ),
-    )
-    surface_id: str = Field(
-        ...,
-        alias="surfaceId",
-        description="The id of the surface where the error occurred.",
-    )
-
-
-A2uiRendererError = Union[A2uiValidationError, A2uiGenericError]
+A2uiRendererError = Union[A2uiGenericError]
 
 
 class A2uiRendererErrorMessage(StrictBaseModel):
