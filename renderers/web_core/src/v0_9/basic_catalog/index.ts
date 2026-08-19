@@ -20,3 +20,4 @@ export * from './functions/basic_functions_api.js';
 export * from './components/basic_components.js';
 export {injectBasicCatalogStyles, computeColorVariant} from './styles/default.js';
 export type {ColorVariantLightDarkOptions, ColorVariantHoverOptions} from './styles/default.js';
+export {toMaterialSymbol} from './styles/icons.js';

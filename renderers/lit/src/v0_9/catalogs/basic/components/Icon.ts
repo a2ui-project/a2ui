@@ -16,21 +16,9 @@
 
 import {html, nothing, css} from 'lit';
 import {customElement} from 'lit/decorators.js';
-import {IconApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {IconApi, toMaterialSymbol} from '@a2ui/web_core/v0_9/basic_catalog';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
 import {A2uiController} from '../../../a2ui-controller.js';
-
-const ICON_NAME_OVERRIDES: Record<string, string> = {
-  play: 'play_arrow',
-  rewind: 'fast_rewind',
-  favoriteOff: 'favorite_border',
-  starOff: 'star_border',
-};
-
-function toMaterialSymbol(name: string): string {
-  if (ICON_NAME_OVERRIDES[name]) return ICON_NAME_OVERRIDES[name];
-  return name.replace(/[A-Z]/g, letter => '_' + letter.toLowerCase());
-}
 
 @customElement('a2ui-icon')
 export class A2uiIconElement extends BasicCatalogA2uiLitElement<typeof IconApi> {

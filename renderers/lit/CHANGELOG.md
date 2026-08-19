@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Use the shared `toMaterialSymbol` helper from `web_core` for Icon name conversion instead of a local implementation. [#858](https://github.com/a2ui-project/a2ui/pull/858)
+
 ## 0.10.3
 
 - Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.

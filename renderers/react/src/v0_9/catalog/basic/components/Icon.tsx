@@ -16,23 +16,8 @@
 
 import React from 'react';
 import {createComponentImplementation} from '../../../adapter';
-import {IconApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {IconApi, toMaterialSymbol} from '@a2ui/web_core/v0_9/basic_catalog';
 import {getBaseLeafStyle, useBasicCatalogStyles} from '../utils';
-
-const ICON_NAME_OVERRIDES: Record<string, string> = {
-  play: 'play_arrow',
-  rewind: 'fast_rewind',
-  favoriteOff: 'favorite_border',
-  starOff: 'star_border',
-};
-
-/**
- * Convert camelCase to snake_case for Material Symbols font.
- * e.g., "shoppingCart" -> "shopping_cart", "skipPrevious" -> "skip_previous"
- */
-function toMaterialSymbol(str: string): string {
-  return ICON_NAME_OVERRIDES[str] ?? str.replace(/[A-Z]/g, letter => '_' + letter.toLowerCase());
-}
 
 export const Icon = createComponentImplementation(IconApi, ({props}) => {
   useBasicCatalogStyles();
