@@ -1,0 +1,213 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
+
+export const MAX_GLOBAL_DEPTH = 50;
+export const MAX_FUNC_CALL_DEPTH = 5;
+
+/** Regex pattern matching valid JSON Pointer syntax (RFC 6901 compliant with optional relative path). */
+export const RELAXED_PATH_PATTERN =
+  /^(?:(?:\/(?:[^~/]|~[01])*)*|(?:[^~/]|~[01])+(?:\/(?:[^~/]|~[01])*)*)$/;
+
+export type ComponentRefMap = Record<string, [Set<string>, Set<string>]>;
+
+/** Default component reference map for standard basic catalog component types. */
+export const STANDARD_REF_MAP: ComponentRefMap = {
+  'Column': [new Set(), new Set(['children'])],
+  'Row': [new Set(), new Set(['children'])],
+  'Card': [new Set(['child']), new Set()],
+  'Box': [new Set(['child']), new Set()],
+  'List': [new Set(), new Set(['children'])],
+  'Tabs': [new Set(), new Set(['tabs'])],
+  'Container': [new Set(['singleChild', 'nestedObj']), new Set(['childrenList', 'tabs'])],
+  'Node': [new Set(['next', 'child']), new Set(['children'])],
+};
+
+/**
+ * Extracts child component IDs referenced by a component property definition.
+ */
+export function* getComponentReferences(
+  component: Record<string, any>,
+  refFieldsMap: ComponentRefMap = STANDARD_REF_MAP,
+): Generator<[string, string]> {
+  const compVal = component.component;
+  let compType = '';
+  let props: Record<string, any> = component;
+
+  if (typeof compVal === 'string') {
+    compType = compVal;
+  } else if (typeof compVal === 'object' && compVal !== null) {
+    compType = Object.keys(compVal)[0] ?? '';
+    props = compVal[compType] ?? {};
+  }
+
+  if (!compType || typeof props !== 'object' || props === null) {
+    return;
+  }
+
+  const refTuple = refFieldsMap[compType];
+  const singleRefs = refTuple ? refTuple[0] : new Set<string>();
+  const listRefs = refTuple ? refTuple[1] : new Set<string>();
+
+  // Also check generic property names if not explicitly mapped
+  const isGeneric = !refTuple;
+
+  function* extractPointers(val: any, currentPath: string): Generator<[string, string]> {
+    if (typeof val === 'string') {
+      yield [val, currentPath];
+    } else if (Array.isArray(val)) {
+      for (let idx = 0; idx < val.length; idx++) {
+        const item = val[idx];
+        const subPath =
+          typeof item === 'string' && !currentPath.includes('[')
+            ? currentPath
+            : `${currentPath}[${idx}]`;
+        yield* extractPointers(item, subPath);
+      }
+    } else if (typeof val === 'object' && val !== null) {
+      if ('componentId' in val && typeof val.componentId === 'string') {
+        yield [val.componentId, `${currentPath}.componentId`];
+      } else if ('child' in val && typeof val.child === 'string') {
+        yield [val.child, `${currentPath}.child`];
+      } else {
+        for (const [subKey, subVal] of Object.entries(val)) {
+          yield* extractPointers(subVal, `${currentPath}.${subKey}`);
+        }
+      }
+    }
+  }
+
+  for (const [key, value] of Object.entries(props)) {
+    if (isGeneric) {
+      if (key === 'child' || key === 'children' || key === 'next') {
+        yield* extractPointers(value, key);
+      }
+    } else if (singleRefs.has(key) || listRefs.has(key)) {
+      yield* extractPointers(value, key);
+    }
+  }
+}
+
+export interface IntegrityOptions {
+  rootId?: string;
+  allowDanglingReferences?: boolean;
+  allowMissingRoot?: boolean;
+}
+
+/**
+ * Validates the structural integrity of a list of component definitions.
+ */
+export function validateComponentIntegrity(
+  components: Array<Record<string, any>>,
+  refFieldsMap: ComponentRefMap = STANDARD_REF_MAP,
+  options: IntegrityOptions = {},
+): void {
+  const rootId = options.rootId ?? 'root';
+  const allowDanglingReferences = options.allowDanglingReferences ?? false;
+  const allowMissingRoot = options.allowMissingRoot ?? false;
+
+  const ids = new Set<string>();
+
+  // 1. Collect IDs and check for duplicates
+  for (const comp of components) {
+    const compId = comp.id;
+    if (compId === undefined || compId === null) continue;
+    if (ids.has(compId)) {
+      throw new A2uiIntegrityError(`Duplicate component ID: ${compId}`);
+    }
+    ids.add(compId);
+  }
+
+  if (allowDanglingReferences) {
+    return;
+  }
+
+  // 2. Check for root component
+  if (!allowMissingRoot && !ids.has(rootId)) {
+    throw new A2uiIntegrityError(`Missing root component: No component has id='${rootId}'`);
+  }
+
+  // 3. Check for dangling references
+  for (const comp of components) {
+    const compId = comp.id ?? 'Unknown';
+    for (const [refId, fieldName] of getComponentReferences(comp, refFieldsMap)) {
+      if (!ids.has(refId)) {
+        throw new A2uiIntegrityError(
+          `Component '${compId}' references non-existent component '${refId}' in field '${fieldName}'`,
+        );
+      }
+    }
+  }
+}
+
+/**
+ * Traverses a JSON data payload to validate path syntax and recursion limits.
+ */
+export function validateRecursionAndPaths(data: any): void {
+  function traverse(item: any, globalDepth: number, funcDepth: number): void {
+    if (globalDepth > MAX_GLOBAL_DEPTH) {
+      throw new A2uiRecursionError(`Global recursion limit exceeded: Depth > ${MAX_GLOBAL_DEPTH}`);
+    }
+
+    if (Array.isArray(item)) {
+      for (const x of item) {
+        traverse(x, globalDepth + 1, funcDepth);
+      }
+      return;
+    }
+
+    if (typeof item === 'object' && item !== null) {
+      if ('path' in item && typeof item.path === 'string') {
+        const path = item.path;
+        if (!RELAXED_PATH_PATTERN.test(path)) {
+          throw new A2uiValidationError(`Invalid path syntax: '${path}'`);
+        }
+      }
+
+      const isFuncV08 = 'functionCall' in item && typeof item.functionCall === 'object';
+      const isFuncV09 = 'call' in item && 'args' in item;
+
+      if (isFuncV08) {
+        if (funcDepth >= MAX_FUNC_CALL_DEPTH) {
+          throw new A2uiRecursionError(
+            `Recursion limit exceeded: functionCall depth > ${MAX_FUNC_CALL_DEPTH}`,
+          );
+        }
+        traverse(item.functionCall, globalDepth + 1, funcDepth + 1);
+      } else if (isFuncV09) {
+        if (funcDepth >= MAX_FUNC_CALL_DEPTH) {
+          throw new A2uiRecursionError(
+            `Recursion limit exceeded: functionCall depth > ${MAX_FUNC_CALL_DEPTH}`,
+          );
+        }
+        for (const [k, v] of Object.entries(item)) {
+          if (k === 'args') {
+            traverse(v, globalDepth + 1, funcDepth + 1);
+          } else {
+            traverse(v, globalDepth + 1, funcDepth);
+          }
+        }
+      } else {
+        for (const v of Object.values(item)) {
+          traverse(v, globalDepth + 1, funcDepth);
+        }
+      }
+    }
+  }
+
+  traverse(data, 0, 0);
+}

@@ -89,3 +89,21 @@ export class A2uiStateError extends A2uiError {
     super(message, 'STATE_ERROR');
   }
 }
+
+/**
+ * Thrown when component tree integrity checks fail (duplicate IDs, dangling references, missing root).
+ */
+export class A2uiIntegrityError extends A2uiError {
+  constructor(message: string) {
+    super(message, 'INTEGRITY_ERROR');
+  }
+}
+
+/**
+ * Thrown when global or function call recursion depth limits are exceeded.
+ */
+export class A2uiRecursionError extends A2uiError {
+  constructor(message: string) {
+    super(message, 'RECURSION_ERROR');
+  }
+}
