@@ -14,6 +14,7 @@
 
 import A2UICore
 import A2UIJSON
+import Combine
 import Foundation
 import JSONSchema
 import OrderedJSON
@@ -303,6 +304,42 @@ struct SurfaceViewModelTests {
     await Task.yield()
     let binding = try #require(surface.rootNode?.properties["label"] as? DataBinding<String>)
     #expect(binding.value == "Hello, World!")
+  }
+
+  /// A property bound through a function call must reflect a data update as
+  /// soon as the update is delivered, exactly like a plain path binding to
+  /// the same data.
+  @Test func functionCallBindingReflectsDataUpdate() async throws {
+    let (processor, surface, _) = try makeProcessor()
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/user/first", value: "Alice")
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "label": [
+            "call": "concat",
+            "args": ["a": ["path": "/user/first"], "b": "!"],
+          ],
+          "details": ["path": "/user/first"],
+        ]
+      ]
+    )
+    await Task.yield()
+    let initial = try #require(surface.rootNode?.properties["label"] as? DataBinding<String>)
+    #expect(initial.value == "Alice!")
+
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/user/first", value: "Bob")
+    await Task.yield()
+
+    // Both bindings read the same path; both must see the new value.
+    let plainPath = try #require(
+      surface.rootNode?.properties["details"] as? DataBinding<JSONValue>)
+    let throughCall = try #require(
+      surface.rootNode?.properties["label"] as? DataBinding<String>)
+    #expect(plainPath.value?.stringValue == "Bob")
+    #expect(throughCall.value == "Bob!")
   }
 
   @Test func dynamicBooleanResolvesLiteralAndPathOnRootNode() async throws {
@@ -701,6 +738,21 @@ struct DataModelTests {
   @Test func initializesWithValue() {
     let model = DataModel(initial: ["name": "Bob"])
     #expect(model.get("/name")?.stringValue == "Bob")
+  }
+
+  @Test func subscriberReadingBackThroughModelSeesStoredValue() {
+    let model = DataModel()
+    var announced: [JSONValue] = []
+    var readBack: [JSONValue?] = []
+    let cancellable = model.dataPublisher.sink { value in
+      announced.append(value)
+      readBack.append(model.get("/user/name"))
+    }
+    model.set("/user/name", value: "Alice")
+    cancellable.cancel()
+    #expect(announced.count == 2)
+    #expect(announced[1]["/user/name"]?.stringValue == "Alice")
+    #expect(readBack[1]?.stringValue == "Alice")
   }
 }
 
