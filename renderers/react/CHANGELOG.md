@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Support server rendering and hydration by providing stable server snapshots for surface and component bindings. [#2080](https://github.com/a2ui-project/a2ui/issues/2080)
+
 ## 0.10.2
 
 - (v0_9) Normalize Safari placeholder text color for `DateTimeInput` by injecting WebKit-specific styles via a global stylesheet and adding the `.a2ui-date-time-input` class.

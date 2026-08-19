@@ -82,7 +82,7 @@ export function createComponentImplementation<Api extends ComponentApi>(
     );
 
     const getSnapshot = useCallback(() => binding.snapshot, [binding]);
-    const props = useSyncExternalStore(subscribe, getSnapshot);
+    const props = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
     // Prevent DataModel subscription leaks on unmount
     useEffect(() => {
