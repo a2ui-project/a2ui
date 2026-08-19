@@ -1,17 +1,17 @@
 # Release process
 
-## How to release packages
+## How to publish packages
 
-Release cadance: every 1-2 weeks.
+Release cadence: every 1-2 weeks.
 
-### Pub.dev release steps
+### Pub.dev publishing steps
 
 For each package listed below, where the top version in CHANGELOG.md:
 
 - is not `-wip...`
-- and is not released yet (click link in the header to verify)
+- and is not published yet (click link in the header to verify)
 
-From main branch, release through `flutter pub publish`, making sure there is no warnings in console.
+From main branch, publish through `flutter pub publish`, making sure there is no warnings in console.
 
 Changelogs of the packages:
 
@@ -32,7 +32,7 @@ See [renderers/docs/web_publishing.md](../../renderers/docs/web_publishing.md).
 
 To release a new version of the SDK, follow these steps:
 
-1. Check if there are entries in the Unreleased sections of the CHANGELOG files. If not, you are done.
+1. Check if there are entries in the unreleased sections of the CHANGELOG files. If not, you are done.
     - a2ui_core [CHANGELOG](../../agent_sdks/python/a2ui_core/CHANGELOG.md)
     - a2ui_agent [CHANGELOG](../../agent_sdks/python/a2ui_agent/CHANGELOG.md)
 

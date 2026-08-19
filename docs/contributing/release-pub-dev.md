@@ -1,13 +1,13 @@
-# Maintenance of the pub.dev release process
+# Maintenance of the pub.dev publishing process
 
-This page contains maintenance information for releasing to pub.dev.
+This page contains maintenance information for publishing to pub.dev.
 It is needed when main steps stop working or something needs to be changed.
 
-For main release steps, see [release.md](release.md#pubdev-release-steps).
+For main publishing steps, see [release.md](release.md#pubdev-release-steps).
 
 ## CI
 
-CI workflows that support publishing, making sure the packages are always release-ready:
+CI workflows that support publishing, making sure the packages are always publish-ready:
 
 In this repo:
 
