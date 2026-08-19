@@ -1,4 +1,4 @@
-# Pub.dev release process
+# Maintenance of the pub.dev release process
 
 This page contains maintenance information for releasing to pub.dev.
 It is needed when main steps stop working or something needs to be changed.
