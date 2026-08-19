@@ -47,10 +47,7 @@ function* extractPointers(val: any, currentPath: string): Generator<[string, str
   } else if (Array.isArray(val)) {
     for (let idx = 0; idx < val.length; idx++) {
       const item = val[idx];
-      const subPath =
-        typeof item === 'string' && !currentPath.includes('[')
-          ? currentPath
-          : `${currentPath}[${idx}]`;
+      const subPath = `${currentPath}[${idx}]`;
       yield* extractPointers(item, subPath);
     }
   } else if (typeof val === 'object' && val !== null) {
@@ -158,13 +155,13 @@ export function validateComponentIntegrity(
     ids.add(compIdStr);
   }
 
-  if (allowDanglingReferences) {
-    return;
-  }
-
   // 2. Check for root component
   if (!allowMissingRoot && !ids.has(rootId)) {
     throw new A2uiIntegrityError(`Missing root component: No component has id='${rootId}'`);
+  }
+
+  if (allowDanglingReferences) {
+    return;
   }
 
   // 3. Check for dangling references
@@ -204,12 +201,7 @@ function traverseRecursionAndPaths(item: any, globalDepth: number, funcDepth: nu
     const isFuncV09 = 'call' in item && 'args' in item;
 
     if (isFuncV08) {
-      if (funcDepth >= MAX_FUNC_CALL_DEPTH) {
-        throw new A2uiRecursionError(
-          `Recursion limit exceeded: functionCall depth > ${MAX_FUNC_CALL_DEPTH}`,
-        );
-      }
-      traverseRecursionAndPaths(item.functionCall, globalDepth + 1, funcDepth + 1);
+      traverseRecursionAndPaths(item.functionCall, globalDepth + 1, funcDepth);
     } else if (isFuncV09) {
       if (funcDepth >= MAX_FUNC_CALL_DEPTH) {
         throw new A2uiRecursionError(

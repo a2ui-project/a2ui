@@ -131,13 +131,20 @@ export class A2uiValidator {
     const msgList = Array.isArray(messages) ? messages : [messages];
     this.validateProtocolEnvelope(msgList);
 
+    const accumulatedComponents: Array<Record<string, any>> = [];
     for (const msg of msgList) {
       validateRecursionAndPaths(msg);
 
       const updateComps = msg.updateComponents?.components;
       if (Array.isArray(updateComps)) {
-        this.validateComponents(updateComps, refFieldsMap, config, {skipRecursionCheck: true});
+        accumulatedComponents.push(...updateComps);
       }
+    }
+
+    if (accumulatedComponents.length > 0) {
+      this.validateComponents(accumulatedComponents, refFieldsMap, config, {
+        skipRecursionCheck: true,
+      });
     }
   }
 }
