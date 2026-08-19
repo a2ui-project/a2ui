@@ -22,9 +22,13 @@ import {
   STANDARD_REF_MAP,
 } from './integrity-checker.js';
 
+/** Configuration options for component topology analysis. */
 export interface TopologyOptions {
+  /** Expected root component identifier. Defaults to 'root'. */
   rootId?: string;
+  /** Whether to allow components that are not reachable from the root node. */
   allowOrphanComponents?: boolean;
+  /** Whether to perform analysis when the root component is absent. */
   allowMissingRoot?: boolean;
 }
 
@@ -58,6 +62,18 @@ function dfsTopology(
 
 /**
  * Analyzes the graph topology of a component tree to detect cycles, self-references, and orphans.
+ *
+ * @param components List of component definition objects forming the graph.
+ * @param refFieldsMap Mapping of reference property names per component type.
+ * @param options Topology evaluation options.
+ * @returns Set of all component identifiers visited during graph traversal.
+ * @throws {A2uiRecursionError} If a self-reference, circular dependency, or excessive depth is detected.
+ * @throws {A2uiIntegrityError} If unreachable orphan components exist when prohibited.
+ *
+ * @example
+ * ```ts
+ * const visitedIds = analyzeTopology(components, STANDARD_REF_MAP, { allowOrphanComponents: false });
+ * ```
  */
 export function analyzeTopology(
   components: Array<Record<string, any>>,

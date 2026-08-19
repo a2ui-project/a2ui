@@ -16,13 +16,17 @@
 
 import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
 
+/** Maximum permitted nesting depth for JSON objects and array structures. */
 export const MAX_GLOBAL_DEPTH = 50;
+
+/** Maximum permitted recursion depth for nested function calls. */
 export const MAX_FUNC_CALL_DEPTH = 5;
 
 /** Regex pattern matching valid JSON Pointer syntax (RFC 6901 compliant with optional relative path). */
 export const RELAXED_PATH_PATTERN =
   /^(?:(?:\/(?:[^~/]|~[01])*)*|(?:[^~/]|~[01])+(?:\/(?:[^~/]|~[01])*)*)$/;
 
+/** Map of component type names to sets of single and list child reference property names. */
 export type ComponentRefMap = Record<string, [Set<string>, Set<string>]>;
 
 /** Default component reference map for standard basic catalog component types. */
@@ -64,6 +68,15 @@ function* extractPointers(val: any, currentPath: string): Generator<[string, str
 
 /**
  * Extracts child component IDs referenced by a component property definition.
+ *
+ * @param component Component definition object containing properties and metadata.
+ * @param refFieldsMap Mapping defining single and list reference fields per component type.
+ * @yields Tuple of `[referencedId, propertyPath]` for each child reference found.
+ *
+ * @example
+ * ```ts
+ * const refs = Array.from(getComponentReferences(boxComponent, STANDARD_REF_MAP));
+ * ```
  */
 export function* getComponentReferences(
   component: Record<string, any>,
@@ -100,14 +113,28 @@ export function* getComponentReferences(
   }
 }
 
+/** Configuration options for component integrity validation. */
 export interface IntegrityOptions {
+  /** Expected identifier for the root component in the hierarchy. Defaults to 'root'. */
   rootId?: string;
+  /** Whether to permit references to non-existent component identifiers. */
   allowDanglingReferences?: boolean;
+  /** Whether to allow a component tree that does not contain a root component. */
   allowMissingRoot?: boolean;
 }
 
 /**
  * Validates the structural integrity of a list of component definitions.
+ *
+ * @param components Array of component definition objects to audit.
+ * @param refFieldsMap Component reference field mapping definitions.
+ * @param options Integrity configuration options.
+ * @throws {A2uiIntegrityError} If duplicate IDs, missing root, or dangling references are found.
+ *
+ * @example
+ * ```ts
+ * validateComponentIntegrity(components, STANDARD_REF_MAP, { rootId: 'root' });
+ * ```
  */
 export function validateComponentIntegrity(
   components: Array<Record<string, any>>,
@@ -206,6 +233,10 @@ function traverseRecursionAndPaths(item: any, globalDepth: number, funcDepth: nu
 
 /**
  * Traverses a JSON data payload to validate path syntax and recursion limits.
+ *
+ * @param data Data payload or component hierarchy to evaluate.
+ * @throws {A2uiRecursionError} If global structure depth or function call depth exceeds limits.
+ * @throws {A2uiValidationError} If an invalid JSON Pointer path format is encountered.
  */
 export function validateRecursionAndPaths(data: any): void {
   traverseRecursionAndPaths(data, 0, 0);
