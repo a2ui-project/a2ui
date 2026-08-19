@@ -14,4 +14,7 @@
  * limitations under the License.
  */
 
-export {ExpressionParser} from '../../../expressions/expression_parser.js';
+export * from './schema/index.js';
+export * from './functions/system_functions.js';
+export * from './functions/validation_functions_api.js';
+export * from './functions/validation_functions.js';

@@ -276,11 +276,11 @@
     },
     "CheckRule": {
       "type": "object",
-      "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a ValidationResult object.",
+      "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object.",
       "properties": {
         "condition": {
           "oneOf": [{"$ref": "#/$defs/DataBinding"}, {"$ref": "#/$defs/FunctionCall"}],
-          "description": "Path or function call evaluating to a ValidationResult object."
+          "description": "Path or function call evaluating to a structured validation result object."
         },
         "message": {
           "type": "string",

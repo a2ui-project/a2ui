@@ -14,4 +14,7 @@
  * limitations under the License.
  */
 
-export {ExpressionParser} from '../../../expressions/expression_parser.js';
+export * from './message-processor.js';
+export * from './adapters/factory.js';
+export * from './adapters/base.js';
+export * from '../errors.js';

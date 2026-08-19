@@ -42,7 +42,7 @@
         },
         "metadata": {
           "type": "object",
-          "description": "Optional client-side metadata to send back to the agent with the action.",
+          "description": "Optional renderer-side metadata to send back to the agent with the action.",
           "properties": {
             "extensions": {
               "$ref": "common_types.json#/$defs/Extensions"

@@ -1186,3 +1186,83 @@
     v1.0:
       supportedCatalogIds:
         - "cat-v10"
+
+- name: test_multiple_update_types_error
+  description: Tests that sending a single message envelope containing multiple update actions raises a ValidationError.
+  action: process_messages
+  catalogPaths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog-v10"
+      deleteSurface:
+        surfaceId: "s1"
+  expectError:
+    category: "ValidationError"
+    message: "Message contains multiple update types"
+
+- name: test_batch_message_array_and_wrapper
+  description: Tests that message processor correctly processes message list arrays and wrapped container payloads.
+  action: process_messages
+  catalogPaths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  messages:
+    messages:
+      - version: "v1.0"
+        createSurface:
+          surfaceId: "s1"
+          catalogId: "test-catalog-v10"
+      - version: "v1.0"
+        createSurface:
+          surfaceId: "s2"
+          catalogId: "test-catalog-v10"
+  expect:
+    surfaces:
+      s1:
+        exists: true
+      s2:
+        exists: true
+
+- name: test_v08_rejects_v09_create_surface_action
+  description: Tests that v0.8 MessageProcessor ignores v0.9 createSurface action when protocolVersion is v0.8.
+  action: process_messages
+  protocolVersion: "v0.8"
+  messages:
+    - version: "v0.8"
+      createSurface:
+        surfaceId: "s_v08_invalid"
+        catalogId: "v08-cat"
+  expect:
+    surfaces:
+      s_v08_invalid:
+        exists: false
+
+- name: test_v09_rejects_v08_begin_rendering_action
+  description: Tests that v0.9 MessageProcessor ignores v0.8 beginRendering action when protocolVersion is v0.9.
+  action: process_messages
+  protocolVersion: "v0.9"
+  messages:
+    - version: "v0.9"
+      beginRendering:
+        surfaceId: "s_v09_invalid"
+        catalogId: "v09-cat"
+  expect:
+    surfaces:
+      s_v09_invalid:
+        exists: false
+
+- name: test_v10_rejects_v08_begin_rendering_action
+  description: Tests that v1.0 MessageProcessor ignores v0.8 beginRendering action when protocolVersion is v1.0.
+  action: process_messages
+  protocolVersion: "v1.0"
+  messages:
+    - version: "v1.0"
+      beginRendering:
+        surfaceId: "s_v10_invalid"
+        catalogId: "test-catalog-v10"
+  expect:
+    surfaces:
+      s_v10_invalid:
+        exists: false

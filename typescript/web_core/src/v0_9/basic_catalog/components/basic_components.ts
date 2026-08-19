@@ -26,7 +26,7 @@ import {
   AccessibilityAttributesSchema,
   CheckableSchema,
 } from '../../schema/common-types.js';
-import {ComponentApi} from '../../catalog/types.js';
+import {ComponentApi} from '../../../catalog/types.js';
 
 const CommonProps = {
   'accessibility': AccessibilityAttributesSchema.optional(),
@@ -373,7 +373,7 @@ export const TextFieldApi = {
         .optional(),
       'validationRegexp': z
         .string()
-        .describe('A regular expression used for client-side validation of the input.')
+        .describe('A regular expression used for renderer-side validation of the input.')
         .optional(),
       ...CheckableSchema.shape,
     })

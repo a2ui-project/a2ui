@@ -19,7 +19,15 @@ import {DataContext} from '../rendering/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiExpressionError} from '../errors.js';
 
-export type A2uiReturnType = 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';
+export type A2uiReturnType =
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'array'
+  | 'object'
+  | 'validationResult'
+  | 'any'
+  | 'void';
 
 export type InferA2uiReturnType<T extends A2uiReturnType> = T extends 'string'
   ? string
@@ -31,9 +39,11 @@ export type InferA2uiReturnType<T extends A2uiReturnType> = T extends 'string'
         ? any[]
         : T extends 'object'
           ? Record<string, any>
-          : T extends 'void'
-            ? void
-            : any;
+          : T extends 'validationResult'
+            ? {valid: boolean; message?: string}
+            : T extends 'void'
+              ? void
+              : any;
 
 /**
  * A definition of a UI function's API.
@@ -42,6 +52,8 @@ export interface FunctionApi {
   readonly name: string;
   readonly returnType: A2uiReturnType;
   readonly schema: z.ZodTypeAny;
+  readonly callableFrom?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
+  readonly requiresUserActivation?: boolean;
 }
 
 /**
@@ -59,7 +71,13 @@ export function createFunctionImplementation<
   Schema extends z.ZodTypeAny,
   TReturn extends A2uiReturnType,
 >(
-  api: {name: string; returnType: TReturn; schema: Schema},
+  api: {
+    name: string;
+    returnType: TReturn;
+    schema: Schema;
+    callableFrom?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
+    requiresUserActivation?: boolean;
+  },
   execute: (
     args: z.infer<Schema>,
     context: DataContext,
@@ -70,6 +88,8 @@ export function createFunctionImplementation<
     name: api.name,
     returnType: api.returnType,
     schema: api.schema,
+    callableFrom: api.callableFrom,
+    requiresUserActivation: api.requiresUserActivation,
     execute: execute as (args: Record<string, any>, ctx: DataContext, ab?: AbortSignal) => unknown,
   };
 }
@@ -94,6 +114,12 @@ export interface ComponentApi<Schema extends z.ZodTypeAny = z.ZodTypeAny> {
    * - MUST NOT include 'component' or 'id' as those are handled by the framework/envelope.
    */
   readonly schema: Schema;
+
+  /** Optional allowed parent component types (e.g. ['Column', 'Surface']). */
+  readonly allowedParents?: string[];
+
+  /** Optional allowed child component types (e.g. ['Text', 'Button']). */
+  readonly allowedChildren?: string[];
 }
 
 /**
