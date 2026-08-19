@@ -14,11 +14,9 @@
  * limitations under the License.
  */
 
-/**
- * This interface is needed for typescript to allow us to access the V8-only
- * `captureStackTrace` property in Errors.
- */
+/** Internal extension of `ErrorConstructor` adding V8 `captureStackTrace` support. */
 interface V8ErrorConstructor extends ErrorConstructor {
+  /** Captures a V8 stack trace onto the target object. */
   captureStackTrace(targetObject: object, constructorOpt?: Function): void;
 }
 
@@ -27,11 +25,22 @@ interface V8ErrorConstructor extends ErrorConstructor {
  *
  * Includes a machine-readable `code` for categorical handling and ensures
  * proper stack trace capturing.
+ *
+ * @example
+ * ```ts
+ * throw new A2uiError('Failed to process payload', 'PROCESSING_ERROR');
+ * ```
  */
 export class A2uiError extends Error {
   /** A machine-readable string identifying the error category. */
   public readonly code: string;
 
+  /**
+   * Creates an instance of `A2uiError`.
+   *
+   * @param message Human-readable error description.
+   * @param code Machine-readable error category code.
+   */
   constructor(message: string, code: string = 'UNKNOWN_ERROR') {
     super(message);
     this.name = this.constructor.name;
@@ -45,9 +54,15 @@ export class A2uiError extends Error {
 }
 
 /**
- * Thrown when JSON validation fails or schemas are mismatched.
+ * Error thrown when JSON validation fails or schema validation mismatches occur.
  */
 export class A2uiValidationError extends A2uiError {
+  /**
+   * Creates an instance of `A2uiValidationError`.
+   *
+   * @param message Error description detailing the validation failure.
+   * @param details Additional error context or Zod validation issues.
+   */
   constructor(
     message: string,
     public readonly details?: any,
@@ -57,9 +72,15 @@ export class A2uiValidationError extends A2uiError {
 }
 
 /**
- * Thrown during DataModel mutations (invalid paths, type mismatches).
+ * Error thrown during DataModel mutations (invalid paths, type mismatches).
  */
 export class A2uiDataError extends A2uiError {
+  /**
+   * Creates an instance of `A2uiDataError`.
+   *
+   * @param message Error description.
+   * @param path Target data model path where the mutation failed.
+   */
   constructor(
     message: string,
     public readonly path?: string,
@@ -69,9 +90,16 @@ export class A2uiDataError extends A2uiError {
 }
 
 /**
- * Thrown during string interpolation and function evaluation.
+ * Error thrown during string interpolation and function evaluation.
  */
 export class A2uiExpressionError extends A2uiError {
+  /**
+   * Creates an instance of `A2uiExpressionError`.
+   *
+   * @param message Error description.
+   * @param expression Evaluated expression string.
+   * @param details Additional error details.
+   */
   constructor(
     message: string,
     public readonly expression?: string,
@@ -82,27 +110,42 @@ export class A2uiExpressionError extends A2uiError {
 }
 
 /**
- * Thrown for structural issues in the UI tree (missing surfaces, duplicate components).
+ * Error thrown for structural issues in the UI tree (missing surfaces, duplicate components).
  */
 export class A2uiStateError extends A2uiError {
+  /**
+   * Creates an instance of `A2uiStateError`.
+   *
+   * @param message Error description.
+   */
   constructor(message: string) {
     super(message, 'STATE_ERROR');
   }
 }
 
 /**
- * Thrown when component tree integrity checks fail (duplicate IDs, dangling references, missing root).
+ * Error thrown when component tree integrity checks fail (duplicate IDs, dangling references, missing root).
  */
 export class A2uiIntegrityError extends A2uiError {
+  /**
+   * Creates an instance of `A2uiIntegrityError`.
+   *
+   * @param message Error description.
+   */
   constructor(message: string) {
     super(message, 'INTEGRITY_ERROR');
   }
 }
 
 /**
- * Thrown when global or function call recursion depth limits are exceeded.
+ * Error thrown when global or function call recursion depth limits are exceeded.
  */
 export class A2uiRecursionError extends A2uiError {
+  /**
+   * Creates an instance of `A2uiRecursionError`.
+   *
+   * @param message Error description.
+   */
   constructor(message: string) {
     super(message, 'RECURSION_ERROR');
   }
