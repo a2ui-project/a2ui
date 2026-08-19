@@ -254,5 +254,40 @@ describe('A2uiValidator & Integrity Verification', () => {
 
       assert.doesNotThrow(() => validator.validate(orphanPayload, undefined, RELAXED_VALIDATION));
     });
+
+    it('enforces missing root even when allowDanglingReferences is true', () => {
+      const components = [{id: 'c1', component: 'Text', text: 'No root'}];
+      assert.throws(
+        () =>
+          validateComponentIntegrity(
+            components,
+            {},
+            {allowDanglingReferences: true, allowMissingRoot: false},
+          ),
+        (err: any) =>
+          err instanceof A2uiIntegrityError && err.message.includes("No component has id='root'"),
+      );
+    });
+
+    it('validates components split across multiple stream messages', () => {
+      const splitPayload = [
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'root', component: 'Column', children: ['c1']}],
+          },
+        },
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'c1', component: 'Text', text: 'Child in second message'}],
+          },
+        },
+      ];
+
+      assert.doesNotThrow(() => validator.validate(splitPayload, undefined, STRICT_VALIDATION));
+    });
   });
 });
