@@ -49,9 +49,7 @@ def main(host, port):
                     " may fail if no API key is provided."
                 )
 
-        lite_llm_model = os.getenv(
-            "LITELLM_MODEL", "gemini/gemini-3.1-flash-lite-preview"
-        )
+        lite_llm_model = os.getenv("LITELLM_MODEL", "gemini/gemini-3.5-flash-lite")
         gemini_model = (
             lite_llm_model[len("gemini/") :]
             if lite_llm_model.startswith("gemini/")

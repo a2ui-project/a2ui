@@ -35,7 +35,7 @@ permissions:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-extra-capacity
 
     steps:
       - name: Checkout repository

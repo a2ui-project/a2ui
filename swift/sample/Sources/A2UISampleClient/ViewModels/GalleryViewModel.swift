@@ -166,7 +166,7 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
       activeSurfaceViewModel = firstSurface
       firstSurface.actionHandler = self.handler
 
-      surfaceSubscription = firstSurface.dataModel.$data
+      surfaceSubscription = firstSurface.dataModel.dataPublisher
         .sink { [weak self] newJSON in
           Task { @MainActor in
             self?.updateDataModelString(from: newJSON)

@@ -76,6 +76,20 @@ export class DataContext {
   }
 
   /**
+   * Checks whether a value (typically an array element) contains any dynamic parts
+   * (path bindings or function calls) that require resolution.
+   */
+  private static containsDynamicValue(value: unknown): boolean {
+    if (value === null || typeof value !== 'object') {
+      return false;
+    }
+    if (Array.isArray(value)) {
+      return value.some(item => DataContext.containsDynamicValue(item));
+    }
+    return 'path' in value || 'call' in value;
+  }
+
+  /**
    * Synchronously evaluates a `DynamicValue` (a literal, a path binding, or a function call)
    * into its concrete runtime value.
    *
@@ -87,9 +101,18 @@ export class DataContext {
    * @returns The synchronously resolved value.
    */
   resolveDynamicValue<V>(value: DynamicValue): V {
-    // 1. Literal check (excluding arrays and objects)
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    // 1. Primitive literals (null, string, number, boolean)
+    if (value === null || typeof value !== 'object') {
       return value as V;
+    }
+
+    // 1b. Arrays: each element may itself be a DynamicValue (e.g. `and`/`or` `values`)
+    if (Array.isArray(value)) {
+      // Fast path: fully static arrays need no per-element resolution.
+      if (!DataContext.containsDynamicValue(value)) {
+        return value as V;
+      }
+      return value.map(item => this.resolveDynamicValue(item)) as V;
     }
 
     // 2. Path Check: { path: "..." }
@@ -173,9 +196,25 @@ export class DataContext {
    * @returns A Preact Signal containing the reactive result of the evaluation.
    */
   resolveSignal<V>(value: DynamicValue): Signal<V> {
-    // 1. Literal
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    // 1. Primitive literals
+    if (typeof value !== 'object' || value === null) {
       return signal(value as V);
+    }
+
+    // 1b. Arrays: each element may itself be a DynamicValue (e.g. `and`/`or` `values`)
+    if (Array.isArray(value)) {
+      // Fast path: fully static arrays need no per-element signals.
+      if (!DataContext.containsDynamicValue(value)) {
+        return signal(value as V);
+      }
+      const itemSignals = value.map(item => this.resolveSignal(item));
+      const resultSig = computed(() => itemSignals.map(s => getValue(s))) as Signal<V>;
+      resultSig.unsubscribe = () => {
+        for (const s of itemSignals) {
+          s.unsubscribe?.();
+        }
+      };
+      return resultSig;
     }
 
     // 2. Path Check

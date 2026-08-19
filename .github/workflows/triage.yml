@@ -62,7 +62,7 @@ permissions:
 jobs:
   triage:
     name: Execute Triage
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-extra-capacity
     # Requires issue and PR write permissions for automated labeling and comment management
     permissions:
       contents: read
