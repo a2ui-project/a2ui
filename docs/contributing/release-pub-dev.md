@@ -1,4 +1,4 @@
-# Maintenance of the pub.dev publishing process
+# Maintenance information for publishing to pub.dev
 
 This page contains maintenance information for publishing to pub.dev.
 It is needed when main steps stop working or something needs to be changed.
