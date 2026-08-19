@@ -68,7 +68,7 @@ Update [items with label `status: needs-triage`][needs-triage], so that the labe
 
 You can remove the label manually to speed up the process, but if the item still matches a rule, the label will come back within a minute.
 
-For items where you need an input from the team:
+For items where you need input from the team:
 
 - add `status: in-discussion`
 - post a message to the team chat, suggesting options and/or asking for input
@@ -83,11 +83,11 @@ Use [standard replies](triage-templates.md) that are provided for standard cases
 
 Point of contact: [gspencergoogle](https://github.com/gspencergoog).
 
-Use this skill to get agent's help with triage process: [.agents/skills/a2ui-issue-triage](../../.agents/skills/a2ui-issue-triage/SKILL.md).
+Use [.agents/skills/a2ui-issue-triage](../../.agents/skills/a2ui-issue-triage/SKILL.md) to get agent help with triage.
 
 It forks multiple subagents (one for each issue) to try and tries to reproduce the issue if it is something that can be easily reproduced. It won't attempt to repro something that takes a lot of setup.
 
-## Q\&A
+## Frequently asked questions
 
 ### Why do we allow branches on the repo and thus create work for maintainers?
 
