@@ -33,6 +33,7 @@ members = [
     "personalized-learning-agent",
     "rizzcharts",
 ]
+constraints = [{ name = "a2a-sdk", specifier = ">=0.3.0,<0.4.0" }]
 
 [[package]]
 name = "a2a-sdk"
@@ -79,7 +80,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "a2a-sdk", specifier = ">=0.3.0,<0.4.0" },
+    { name = "a2a-sdk", specifier = ">=0.3.0,<2" },
     { name = "a2ui-core", editable = "agent_sdks/python/a2ui_core" },
     { name = "antlr4-python3-runtime", specifier = ">=4.13.0,<4.14.0" },
     { name = "google-adk", specifier = ">=1.28.1" },

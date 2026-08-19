@@ -146,6 +146,9 @@ class A2uiPartConverter:
                     version=self._version,
                 )
 
-        # 4. Default conversion for other parts
+        # 4. Default conversion for other parts.
+        # ADK 2.x converters may return a list; 1.x returned a single Part.
         converted_part = part_converter.convert_genai_part_to_a2a_part(part)
+        if isinstance(converted_part, list):
+            return converted_part
         return [converted_part] if converted_part else []

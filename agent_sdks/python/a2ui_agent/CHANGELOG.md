@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Add a2a-sdk 0.3 / 1.x dual-compat Part and AgentExtension helpers so ADK 2.x
+  can use either A2A generation. Widen `a2a-sdk` to `>=0.3.0,<2`.
+
 ## 0.5.0
 
 - Rename inference format `Transport` / `transport` terminology to `Direct JSON` / `direct_json` (`DirectJsonFormat`, `DirectJsonParser`, `DirectJsonStreamParser`). Deprecate `a2ui.inference_formats.transport` module alias.
