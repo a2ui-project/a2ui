@@ -21,4 +21,5 @@ import {Injectable, signal} from '@angular/core';
 })
 export class FileUploadSettingsService {
   readonly enableMultiFile = signal(false);
+  readonly enableIoc = signal(false);
 }

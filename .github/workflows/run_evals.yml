@@ -35,7 +35,7 @@ on:
     - cron: "0 0 * * *" # daily
 jobs:
   run-evals:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-extra-capacity
     permissions:
       contents: read
       issues: write
