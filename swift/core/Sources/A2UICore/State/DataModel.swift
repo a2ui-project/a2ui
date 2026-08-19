@@ -14,6 +14,7 @@
 
 import Combine
 import Foundation
+import OrderedCollections
 import OrderedJSON
 
 /// A dedicated store for application data, supporting JSON Pointer
@@ -25,16 +26,27 @@ import OrderedJSON
 public final class DataModel: @unchecked Sendable, ObservableObject {
 
   private let lock = NSRecursiveLock()
-  @Published public private(set) var data: JSONValue = .object([:])
+  private let dataSubject: CurrentValueSubject<JSONValue, Never>
 
-  /// Creates an empty data model.
-  public init() {}
+  /// The current data tree.
+  public var data: JSONValue {
+    lock.withLock { dataSubject.value }
+  }
 
-  /// Creates a data model with an initial value.
+  /// Emits the data tree after each update is stored, and replays the
+  /// current value on subscription. Deliberately not `@Published`, which
+  /// emits during `willSet`: subscribers reading back through the model
+  /// would get the previous tree.
+  public var dataPublisher: AnyPublisher<JSONValue, Never> {
+    dataSubject.eraseToAnyPublisher()
+  }
+
+  /// Creates a data model.
   ///
-  /// - Parameter initial: The initial JSON value for the root.
-  public init(initial: JSONValue) {
-    self.data = initial
+  /// - Parameter initial: The initial JSON value for the root, defaulting to
+  ///   an empty object.
+  public init(initial: JSONValue = .object([:])) {
+    self.dataSubject = CurrentValueSubject(initial)
   }
 
   /// Resolves a JSON Pointer path to a value.
@@ -42,7 +54,7 @@ public final class DataModel: @unchecked Sendable, ObservableObject {
   /// - Parameter path: The path (e.g., `/user/name`).
   /// - Returns: The value at the path, or `nil` if not found.
   public func get(_ path: String) -> JSONValue? {
-    lock.withLock { data[path] }
+    lock.withLock { dataSubject.value[path] }
   }
 
   /// Sets a value at the given JSON Pointer path.
@@ -54,7 +66,10 @@ public final class DataModel: @unchecked Sendable, ObservableObject {
   ///   - value: The value to set, or `nil` to remove.
   public func set(_ path: String, value: JSONValue?) {
     lock.withLock {
-      data[path] = value
+      objectWillChange.send()
+      var current = dataSubject.value
+      current[path] = value
+      dataSubject.send(current)
     }
   }
 }

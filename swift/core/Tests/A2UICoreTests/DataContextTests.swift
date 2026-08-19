@@ -88,24 +88,23 @@ struct DataContextTests {
     #expect(result.stringValue == "Hello, World!")
   }
   
-  @Test func resolveDynamicValueRecursesIntoArraysAndDictionaries() {
+  @Test func resolveDynamicValuePassesThroughNonBindingContainers() {
     let mockHandler = MockFunctionHandler()
     let dataModel = DataModel()
     dataModel.set("/item", value: "apple")
     let context = DataContext(dataModel: dataModel, path: "/", functionHandler: mockHandler)
-    
-    let complexBinding: JSONValue = [
+
+    let literalObject: JSONValue = [
       "list": [
         "static",
-        ["path": "item"]
+        ["path": "item"],
       ]
     ]
-    
-    let result = context.resolveDynamicValue(complexBinding)
-    let list = result["list"]?.arrayValue
-    #expect(list?.count == 2)
-    #expect(list?[0].stringValue == "static")
-    #expect(list?[1].stringValue == "apple")
+    #expect(context.resolveDynamicValue(literalObject) == literalObject)
+
+    let literalWithCall: JSONValue = ["config": ["call": "concat"]]
+    #expect(context.resolveDynamicValue(literalWithCall) == literalWithCall)
+    #expect(mockHandler.lastRequestedName == nil)
   }
 }
 
