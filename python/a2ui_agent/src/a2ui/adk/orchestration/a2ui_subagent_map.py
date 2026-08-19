@@ -90,8 +90,8 @@ from a2ui.schema.constants import (
     A2UI_ERROR_KEY,
     A2UI_CLIENT_DATA_MODEL_SURFACES_KEY,
 )
-from a2ui.a2a.parts import is_a2ui_part
-from a2a.types import Part, DataPart
+from a2ui.a2a.parts import is_a2ui_part, part_data_as_dict
+from a2a.types import Part
 
 
 class SurfaceIdAlreadyExistsError(Exception):
@@ -147,15 +147,11 @@ class A2uiSubagentMap:
         Returns:
             The name of the subagent that owns the targeted surface, or None if not applicable or not found.
         """
-        if (
-            a2a_part is None
-            or not is_a2ui_part(a2a_part)
-            or not isinstance(a2a_part.root, DataPart)
-        ):
+        if a2a_part is None or not is_a2ui_part(a2a_part):
             return None
 
         surface_id = None
-        data = a2a_part.root.data
+        data = part_data_as_dict(a2a_part)
         if isinstance(data, dict):
             if (action := data.get(A2UI_ACTIONS_KEY)) and isinstance(action, dict):
                 surface_id = action.get(A2UI_SURFACE_ID_KEY)
@@ -263,8 +259,7 @@ class A2uiSubagentMap:
         if (
             a2a_part is None
             or not is_a2ui_part(a2a_part)
-            or not isinstance(a2a_part.root, DataPart)
-            or not (data := a2a_part.root.data)
+            or not (data := part_data_as_dict(a2a_part))
             or not isinstance(data, dict)
         ):
             return
