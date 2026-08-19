@@ -28,6 +28,34 @@ export interface TopologyOptions {
   allowMissingRoot?: boolean;
 }
 
+function dfsTopology(
+  nodeId: string,
+  depth: number,
+  adjList: Record<string, string[]>,
+  visited: Set<string>,
+  recursionStack: Set<string>,
+): void {
+  if (depth > MAX_GLOBAL_DEPTH) {
+    throw new A2uiRecursionError(
+      `Global recursion limit exceeded: logical depth > ${MAX_GLOBAL_DEPTH}`,
+    );
+  }
+
+  visited.add(nodeId);
+  recursionStack.add(nodeId);
+
+  const neighbors = adjList[nodeId] ?? [];
+  for (const neighbor of neighbors) {
+    if (!visited.has(neighbor)) {
+      dfsTopology(neighbor, depth + 1, adjList, visited, recursionStack);
+    } else if (recursionStack.has(neighbor)) {
+      throw new A2uiRecursionError(`Circular reference detected involving component '${neighbor}'`);
+    }
+  }
+
+  recursionStack.delete(nodeId);
+}
+
 /**
  * Analyzes the graph topology of a component tree to detect cycles, self-references, and orphans.
  */
@@ -48,18 +76,19 @@ export function analyzeTopology(
     const compId = comp.id;
     if (compId === undefined || compId === null) continue;
 
-    allIds.add(compId);
-    if (!adjList[compId]) {
-      adjList[compId] = [];
+    const compIdStr = String(compId);
+    allIds.add(compIdStr);
+    if (!adjList[compIdStr]) {
+      adjList[compIdStr] = [];
     }
 
     for (const [refId, fieldName] of getComponentReferences(comp, refFieldsMap)) {
-      if (refId === compId) {
+      if (refId === compIdStr) {
         throw new A2uiRecursionError(
-          `Self-reference detected: Component '${compId}' references itself in field '${fieldName}'`,
+          `Self-reference detected: Component '${compIdStr}' references itself in field '${fieldName}'`,
         );
       }
-      adjList[compId].push(refId);
+      adjList[compIdStr].push(refId);
     }
   }
 
@@ -67,40 +96,16 @@ export function analyzeTopology(
   const visited = new Set<string>();
   const recursionStack = new Set<string>();
 
-  function dfs(nodeId: string, depth: number): void {
-    if (depth > MAX_GLOBAL_DEPTH) {
-      throw new A2uiRecursionError(
-        `Global recursion limit exceeded: logical depth > ${MAX_GLOBAL_DEPTH}`,
-      );
-    }
-
-    visited.add(nodeId);
-    recursionStack.add(nodeId);
-
-    const neighbors = adjList[nodeId] ?? [];
-    for (const neighbor of neighbors) {
-      if (!visited.has(neighbor)) {
-        dfs(neighbor, depth + 1);
-      } else if (recursionStack.has(neighbor)) {
-        throw new A2uiRecursionError(
-          `Circular reference detected involving component '${neighbor}'`,
-        );
-      }
-    }
-
-    recursionStack.delete(nodeId);
-  }
-
   if (allowMissingRoot) {
     const sortedIds = Array.from(allIds).sort();
     for (const nodeId of sortedIds) {
       if (!visited.has(nodeId)) {
-        dfs(nodeId, 0);
+        dfsTopology(nodeId, 0, adjList, visited, recursionStack);
       }
     }
   } else {
     if (allIds.has(rootId)) {
-      dfs(rootId, 0);
+      dfsTopology(rootId, 0, adjList, visited, recursionStack);
     }
 
     if (!allowOrphanComponents) {

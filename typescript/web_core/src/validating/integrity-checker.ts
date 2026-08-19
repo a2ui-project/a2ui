@@ -37,6 +37,31 @@ export const STANDARD_REF_MAP: ComponentRefMap = {
   'Node': [new Set(['next', 'child']), new Set(['children'])],
 };
 
+function* extractPointers(val: any, currentPath: string): Generator<[string, string]> {
+  if (typeof val === 'string') {
+    yield [val, currentPath];
+  } else if (Array.isArray(val)) {
+    for (let idx = 0; idx < val.length; idx++) {
+      const item = val[idx];
+      const subPath =
+        typeof item === 'string' && !currentPath.includes('[')
+          ? currentPath
+          : `${currentPath}[${idx}]`;
+      yield* extractPointers(item, subPath);
+    }
+  } else if (typeof val === 'object' && val !== null) {
+    if ('componentId' in val && typeof val.componentId === 'string') {
+      yield [val.componentId, `${currentPath}.componentId`];
+    } else if ('child' in val && typeof val.child === 'string') {
+      yield [val.child, `${currentPath}.child`];
+    } else {
+      for (const [subKey, subVal] of Object.entries(val)) {
+        yield* extractPointers(subVal, `${currentPath}.${subKey}`);
+      }
+    }
+  }
+}
+
 /**
  * Extracts child component IDs referenced by a component property definition.
  */
@@ -62,34 +87,7 @@ export function* getComponentReferences(
   const refTuple = refFieldsMap[compType];
   const singleRefs = refTuple ? refTuple[0] : new Set<string>();
   const listRefs = refTuple ? refTuple[1] : new Set<string>();
-
-  // Also check generic property names if not explicitly mapped
   const isGeneric = !refTuple;
-
-  function* extractPointers(val: any, currentPath: string): Generator<[string, string]> {
-    if (typeof val === 'string') {
-      yield [val, currentPath];
-    } else if (Array.isArray(val)) {
-      for (let idx = 0; idx < val.length; idx++) {
-        const item = val[idx];
-        const subPath =
-          typeof item === 'string' && !currentPath.includes('[')
-            ? currentPath
-            : `${currentPath}[${idx}]`;
-        yield* extractPointers(item, subPath);
-      }
-    } else if (typeof val === 'object' && val !== null) {
-      if ('componentId' in val && typeof val.componentId === 'string') {
-        yield [val.componentId, `${currentPath}.componentId`];
-      } else if ('child' in val && typeof val.child === 'string') {
-        yield [val.child, `${currentPath}.child`];
-      } else {
-        for (const [subKey, subVal] of Object.entries(val)) {
-          yield* extractPointers(subVal, `${currentPath}.${subKey}`);
-        }
-      }
-    }
-  }
 
   for (const [key, value] of Object.entries(props)) {
     if (isGeneric) {
@@ -126,10 +124,11 @@ export function validateComponentIntegrity(
   for (const comp of components) {
     const compId = comp.id;
     if (compId === undefined || compId === null) continue;
-    if (ids.has(compId)) {
-      throw new A2uiIntegrityError(`Duplicate component ID: ${compId}`);
+    const compIdStr = String(compId);
+    if (ids.has(compIdStr)) {
+      throw new A2uiIntegrityError(`Duplicate component ID: ${compIdStr}`);
     }
-    ids.add(compId);
+    ids.add(compIdStr);
   }
 
   if (allowDanglingReferences) {
@@ -143,7 +142,7 @@ export function validateComponentIntegrity(
 
   // 3. Check for dangling references
   for (const comp of components) {
-    const compId = comp.id ?? 'Unknown';
+    const compId = comp.id !== undefined && comp.id !== null ? String(comp.id) : 'Unknown';
     for (const [refId, fieldName] of getComponentReferences(comp, refFieldsMap)) {
       if (!ids.has(refId)) {
         throw new A2uiIntegrityError(
@@ -154,60 +153,60 @@ export function validateComponentIntegrity(
   }
 }
 
+function traverseRecursionAndPaths(item: any, globalDepth: number, funcDepth: number): void {
+  if (globalDepth > MAX_GLOBAL_DEPTH) {
+    throw new A2uiRecursionError(`Global recursion limit exceeded: Depth > ${MAX_GLOBAL_DEPTH}`);
+  }
+
+  if (Array.isArray(item)) {
+    for (const x of item) {
+      traverseRecursionAndPaths(x, globalDepth + 1, funcDepth);
+    }
+    return;
+  }
+
+  if (typeof item === 'object' && item !== null) {
+    if ('path' in item && typeof item.path === 'string') {
+      const path = item.path;
+      if (!RELAXED_PATH_PATTERN.test(path)) {
+        throw new A2uiValidationError(`Invalid path syntax: '${path}'`);
+      }
+    }
+
+    const isFuncV08 = 'functionCall' in item && typeof item.functionCall === 'object';
+    const isFuncV09 = 'call' in item && 'args' in item;
+
+    if (isFuncV08) {
+      if (funcDepth >= MAX_FUNC_CALL_DEPTH) {
+        throw new A2uiRecursionError(
+          `Recursion limit exceeded: functionCall depth > ${MAX_FUNC_CALL_DEPTH}`,
+        );
+      }
+      traverseRecursionAndPaths(item.functionCall, globalDepth + 1, funcDepth + 1);
+    } else if (isFuncV09) {
+      if (funcDepth >= MAX_FUNC_CALL_DEPTH) {
+        throw new A2uiRecursionError(
+          `Recursion limit exceeded: functionCall depth > ${MAX_FUNC_CALL_DEPTH}`,
+        );
+      }
+      for (const [k, v] of Object.entries(item)) {
+        if (k === 'args') {
+          traverseRecursionAndPaths(v, globalDepth + 1, funcDepth + 1);
+        } else {
+          traverseRecursionAndPaths(v, globalDepth + 1, funcDepth);
+        }
+      }
+    } else {
+      for (const v of Object.values(item)) {
+        traverseRecursionAndPaths(v, globalDepth + 1, funcDepth);
+      }
+    }
+  }
+}
+
 /**
  * Traverses a JSON data payload to validate path syntax and recursion limits.
  */
 export function validateRecursionAndPaths(data: any): void {
-  function traverse(item: any, globalDepth: number, funcDepth: number): void {
-    if (globalDepth > MAX_GLOBAL_DEPTH) {
-      throw new A2uiRecursionError(`Global recursion limit exceeded: Depth > ${MAX_GLOBAL_DEPTH}`);
-    }
-
-    if (Array.isArray(item)) {
-      for (const x of item) {
-        traverse(x, globalDepth + 1, funcDepth);
-      }
-      return;
-    }
-
-    if (typeof item === 'object' && item !== null) {
-      if ('path' in item && typeof item.path === 'string') {
-        const path = item.path;
-        if (!RELAXED_PATH_PATTERN.test(path)) {
-          throw new A2uiValidationError(`Invalid path syntax: '${path}'`);
-        }
-      }
-
-      const isFuncV08 = 'functionCall' in item && typeof item.functionCall === 'object';
-      const isFuncV09 = 'call' in item && 'args' in item;
-
-      if (isFuncV08) {
-        if (funcDepth >= MAX_FUNC_CALL_DEPTH) {
-          throw new A2uiRecursionError(
-            `Recursion limit exceeded: functionCall depth > ${MAX_FUNC_CALL_DEPTH}`,
-          );
-        }
-        traverse(item.functionCall, globalDepth + 1, funcDepth + 1);
-      } else if (isFuncV09) {
-        if (funcDepth >= MAX_FUNC_CALL_DEPTH) {
-          throw new A2uiRecursionError(
-            `Recursion limit exceeded: functionCall depth > ${MAX_FUNC_CALL_DEPTH}`,
-          );
-        }
-        for (const [k, v] of Object.entries(item)) {
-          if (k === 'args') {
-            traverse(v, globalDepth + 1, funcDepth + 1);
-          } else {
-            traverse(v, globalDepth + 1, funcDepth);
-          }
-        }
-      } else {
-        for (const v of Object.values(item)) {
-          traverse(v, globalDepth + 1, funcDepth);
-        }
-      }
-    }
-  }
-
-  traverse(data, 0, 0);
+  traverseRecursionAndPaths(data, 0, 0);
 }
