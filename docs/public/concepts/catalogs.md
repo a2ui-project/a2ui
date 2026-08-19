@@ -239,8 +239,6 @@ export const HelloWorldBannerApi = {
 
 Next, implement the component extending `CatalogComponent`:
 
-{% raw %}
-
 ```typescript
 // hello_world_banner.ts
 import {CatalogComponent} from '@a2ui/angular/v0_9';
@@ -261,8 +259,6 @@ export class HelloWorldBanner extends CatalogComponent<typeof HelloWorldBannerAp
   protected readonly backgroundColor = computed(() => this.props()['backgroundColor']?.value() || '#f0f0f0');
 }
 ```
-
-{% endraw %}
 
 Finally, register your custom components in an `AngularCatalog`:
 
