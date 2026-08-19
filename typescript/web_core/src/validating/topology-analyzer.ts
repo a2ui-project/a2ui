@@ -89,6 +89,7 @@ export function analyzeTopology(
 
   // 1. Build Adjacency List
   for (const comp of components) {
+    if (!comp || typeof comp !== 'object') continue;
     const compId = comp.id;
     if (compId === undefined || compId === null) continue;
 

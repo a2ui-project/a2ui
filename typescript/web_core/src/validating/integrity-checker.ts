@@ -79,6 +79,9 @@ export function* getComponentReferences(
   component: Record<string, any>,
   refFieldsMap: ComponentRefMap = STANDARD_REF_MAP,
 ): Generator<[string, string]> {
+  if (!component || typeof component !== 'object') {
+    return;
+  }
   const compVal = component.component;
   let compType = '';
   let props: Record<string, any> = component;
@@ -146,6 +149,7 @@ export function validateComponentIntegrity(
 
   // 1. Collect IDs and check for duplicates
   for (const comp of components) {
+    if (!comp || typeof comp !== 'object') continue;
     const compId = comp.id;
     if (compId === undefined || compId === null) continue;
     const compIdStr = String(compId);
