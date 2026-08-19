@@ -144,8 +144,135 @@ struct MessageProcessorTests {
     #expect(handler.capturedErrors.count == 1)
   }
 
-  @Test func processCreateSurfaceWithTheme() throws {
-    let (processor, _) = try makeProcessor()
+  @Test func processCreateSurfaceWithValidThemeAgainstThemeSchemaPasses() throws {
+    let themeSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "primaryColor": { "type": "string" },
+            "fontSize": { "type": "number" }
+          },
+          "required": ["primaryColor"]
+        }
+        """
+    )
+    let catalog = Catalog(
+      id: "themed-cat",
+      components: [],
+      themeSchema: themeSchema
+    )
+    let handler = TestProcessorActionHandler()
+    let processor = MessageProcessor(catalogs: [catalog], actionHandler: handler)
+
+    try processor.process(
+      line: """
+        {
+          "version": "v0.9.1",
+          "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "themed-cat",
+            "theme": {
+              "primaryColor": "#00BFFF",
+              "fontSize": 14
+            }
+          }
+        }
+        """)
+
+    let surface = processor.surfaceGroupModel.surfacesMap["s1"]
+    #expect(surface != nil)
+    #expect(surface?.theme?["primaryColor"]?.stringValue == "#00BFFF")
+    #expect(surface?.theme?["fontSize"]?.doubleValue == 14.0)
+    #expect(handler.capturedErrors.isEmpty)
+  }
+
+  @Test func processCreateSurfaceWithInvalidThemeAgainstThemeSchemaThrows() throws {
+    let themeSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "primaryColor": { "type": "string" }
+          },
+          "required": ["primaryColor"]
+        }
+        """
+    )
+    let catalog = Catalog(
+      id: "themed-cat",
+      components: [],
+      themeSchema: themeSchema
+    )
+    let handler = TestProcessorActionHandler()
+    let processor = MessageProcessor(catalogs: [catalog], actionHandler: handler)
+
+    #expect(throws: ValidationFailedError.self) {
+      try processor.process(
+        line: """
+          {
+            "version": "v0.9.1",
+            "createSurface": {
+              "surfaceId": "s1",
+              "catalogId": "themed-cat",
+              "theme": {
+                "primaryColor": 123
+              }
+            }
+          }
+          """)
+    }
+
+    #expect(processor.surfaceGroupModel.surfacesMap["s1"] == nil)
+    #expect(handler.capturedErrors.count == 1)
+    if case .validationFailed(let error) = handler.capturedErrors.first {
+      #expect(error.surfaceID == "s1")
+      #expect(error.path == "/theme/primaryColor")
+    } else {
+      Issue.record("Expected .validationFailed captured error")
+    }
+  }
+
+  @Test func processCreateSurfaceWithInvalidThemeDispatchesThroughActionHandler() throws {
+    let themeSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "primaryColor": { "type": "string" }
+          }
+        }
+        """
+    )
+    let catalog = Catalog(
+      id: "themed-cat",
+      components: [],
+      themeSchema: themeSchema
+    )
+    let handler = TestProcessorActionHandler()
+    let processor = MessageProcessor(catalogs: [catalog], actionHandler: handler)
+
+    let message = ServerToClientMessage.createSurface(
+      CreateSurfaceMessage(
+        surfaceID: "s1",
+        catalogID: "themed-cat",
+        theme: ["primaryColor": .integer(123)]
+      )
+    )
+    processor.processMessage(message)
+
+    #expect(processor.surfaceGroupModel.surfacesMap["s1"] == nil)
+    #expect(handler.capturedErrors.count == 1)
+    if case .validationFailed(let error) = handler.capturedErrors.first {
+      #expect(error.surfaceID == "s1")
+      #expect(error.path == "/theme/primaryColor")
+    } else {
+      Issue.record("Expected .validationFailed captured error")
+    }
+  }
+
+  @Test func processCreateSurfaceWithValidThemeWhenThemeSchemaIsNilPasses() throws {
+    let (processor, handler) = try makeProcessor()
     try processor.process(
       line: """
         {
@@ -161,7 +288,8 @@ struct MessageProcessorTests {
         """)
     let surface = processor.surfaceGroupModel.surfacesMap["s1"]
     #expect(surface != nil)
-    #expect(surface?.theme != nil)
+    #expect(surface?.theme?["color"]?.stringValue == "blue")
+    #expect(handler.capturedErrors.isEmpty)
   }
 
   // MARK: - Update Components

@@ -267,7 +267,18 @@ public final class MessageProcessor: ObservableObject {
       let message = try parser.parse(jsonString: line)
       try validateAndProcess(message)
     } catch {
-      let surfaceID = (error as? MessageParseError)?.surfaceID ?? "unknown"
+      let surfaceID: String
+      switch error {
+      case let validationError as ValidationFailedError:
+        surfaceID = validationError.surfaceID
+      case let genericError as GenericError:
+        surfaceID = genericError.surfaceID
+      case let parseError as MessageParseError:
+        surfaceID = parseError.surfaceID ?? "unknown"
+      default:
+        surfaceID = "unknown"
+      }
+
       let clientError = errorMapper.map(error, surfaceID: surfaceID)
       actionHandler?.handle(error: clientError, from: surfaceID)
       throw error
@@ -312,14 +323,21 @@ public final class MessageProcessor: ObservableObject {
     catalogID: String,
     theme: [String: JSONValue]? = nil,
     sendDataModel: Bool = false
-  ) -> SurfaceViewModel? {
+  ) throws -> SurfaceViewModel? {
     guard let catalog = catalogs[catalogID] else { return nil }
-    return createSurface(
+    return try createSurface(
       surfaceID: surfaceID,
       catalog: catalog,
       theme: theme,
       sendDataModel: sendDataModel
     )
+  }
+
+  private func mostSpecificError(from error: ValidationError) -> ValidationError {
+    if let nestedErrors = error.errors, let firstNested = nestedErrors.first {
+      return mostSpecificError(from: firstNested)
+    }
+    return error
   }
 
   @discardableResult
@@ -328,7 +346,32 @@ public final class MessageProcessor: ObservableObject {
     catalog: Catalog,
     theme: [String: JSONValue]? = nil,
     sendDataModel: Bool = false
-  ) -> SurfaceViewModel {
+  ) throws -> SurfaceViewModel {
+    if let theme, let themeSchema = catalog.themeSchema {
+      let themeInstance: JSONValue = .object(
+        OrderedDictionary(uniqueKeysWithValues: theme)
+      )
+      let result = themeSchema.validate(themeInstance)
+      if !result.isValid {
+        let specificError = result.errors?.first.map(mostSpecificError(from:))
+        let errorMessage = specificError?.message ?? "Theme validation failed"
+        let subpath = specificError?.instanceLocation.jsonPointerString ?? ""
+        let errorPath: String
+        if subpath.isEmpty || subpath == "/" {
+          errorPath = "/theme"
+        } else if subpath.hasPrefix("/") {
+          errorPath = "/theme\(subpath)"
+        } else {
+          errorPath = "/theme/\(subpath)"
+        }
+        let error = ValidationFailedError(
+          surfaceID: surfaceID,
+          path: errorPath,
+          message: errorMessage
+        )
+        throw error
+      }
+    }
     let vm = SurfaceViewModel(
       surfaceID: surfaceID,
       catalogs: catalogs.isEmpty ? [catalog.id: catalog] : catalogs,
@@ -406,14 +449,14 @@ public final class MessageProcessor: ObservableObject {
           uniqueKeysWithValues: componentDict.map { ($0.key, $0.value) }
         )
       )
-      let result = schema.validate(instance)
       guard result.isValid else {
-        let errorMessage = result.errors?.first?.message ?? "Validation failed"
-        let errorPath = result.errors?.first?.instanceLocation.jsonPointerString ?? "/"
+        let specificError = result.errors?.first.map(mostSpecificError(from:))
+        let errorMessage = specificError?.message ?? "Validation failed"
+        let errorPath = specificError?.instanceLocation.jsonPointerString ?? "/"
         let error = ClientServerError.validationFailed(
           ValidationFailedError(
             surfaceID: surfaceID,
-            path: errorPath,
+            path: errorPath.isEmpty ? "/" : errorPath,
             message: errorMessage
           )
         )
@@ -487,15 +530,12 @@ public final class MessageProcessor: ObservableObject {
         )
         throw error
       }
-      let vm = SurfaceViewModel(
+      try createSurface(
         surfaceID: msg.surfaceID,
-        catalogs: catalogs,
-        defaultCatalogID: catalog.id,
+        catalog: catalog,
         theme: msg.theme,
-        actionHandler: actionHandler,
         sendDataModel: msg.shouldSendDataModel
       )
-      surfaceGroupModel.addSurface(vm)
 
     case .updateComponents(let msg):
       guard surfaceGroupModel.surfacesMap[msg.surfaceID] != nil else {
