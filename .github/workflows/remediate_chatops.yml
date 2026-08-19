@@ -23,6 +23,10 @@ permissions:
   pull-requests: write
   issues: write
 
+concurrency:
+  group: remediation-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
 jobs:
   run-remediation:
     name: Execute Automated Remediation Draft PR
@@ -34,7 +38,20 @@ jobs:
       contains(github.event.issue.title, 'A2UI Compliance Report')
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Parse Recommendation Index
+        id: parse-command
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          python3 .github/scripts/parse_remediation_command.py
+
       - name: Verify Commenter Permissions
+        if: steps.parse-command.outputs.triggered == 'true'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
@@ -48,6 +65,7 @@ jobs:
             }
 
       - name: React with Eyes to Trigger Comment
+        if: steps.parse-command.outputs.triggered == 'true'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
@@ -58,34 +76,20 @@ jobs:
               content: 'eyes',
             });
 
-      - name: Parse Recommendation Index
-        id: parse-command
-        env:
-          COMMENT_BODY: ${{ github.event.comment.body }}
-        run: |
-          RECOMMENDATION_INDEX=$(echo "$COMMENT_BODY" | sed -n 's/.*\/fix \([0-9]\+\).*/\1/p')
-          if [ -z "$RECOMMENDATION_INDEX" ]; then
-            echo "Failed to parse recommendation index from comment body."
-            exit 1
-          fi
-          echo "RECOMMENDATION_INDEX=$RECOMMENDATION_INDEX" >> $GITHUB_ENV
-
-      - name: Checkout code
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          persist-credentials: false
-
       - name: Set up Python
+        if: steps.parse-command.outputs.triggered == 'true'
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.11"
           cache: "pip"
 
       - name: Install Google GenAI SDK
+        if: steps.parse-command.outputs.triggered == 'true'
         run: |
           pip install "google-genai>=1.0.0"
 
       - name: Execute Automated Remediation Script
+        if: steps.parse-command.outputs.triggered == 'true'
         env:
           GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
