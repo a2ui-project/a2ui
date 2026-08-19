@@ -147,11 +147,13 @@ class IndexSystemFunction(StrictBaseModel):
 
 
 class CheckRule(StrictBaseModel):
-    """A single validation check rule applied to an input component. The condition function or path evaluates to a ValidationResult object."""
+    """A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object."""
 
     condition: Union[DataBinding, FunctionCall] = Field(
         ...,
-        description="Path or function call evaluating to a ValidationResult object.",
+        description=(
+            "Path or function call evaluating to a structured validation result object."
+        ),
     )
     message: Optional[str] = Field(None, description="Optional fallback error message.")
 

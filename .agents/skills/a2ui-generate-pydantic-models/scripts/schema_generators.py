@@ -874,14 +874,14 @@ def generate_catalog_definition(
     common_imports_str = ", ".join(needed_imports)
     common_mod = ".common_types" if common_data else "..common_types"
 
-    blocks = [
-        (
-            f"{FILE_HEADER}\nfrom typing import Any, Dict, List, Literal,"
-            " Optional, Union\nfrom pydantic import BaseModel, Field,"
-            f" ConfigDict\nfrom {common_mod} import {common_imports_str}\nfrom"
-            " .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE"
-        ),
-    ]
+    import_header = (
+        f"{FILE_HEADER}\n"
+        "from typing import Any, Dict, List, Literal, Optional, Union\n"
+        "from pydantic import BaseModel, Field, ConfigDict, model_validator\n"
+        f"from {common_mod} import {common_imports_str}\n"
+        "from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE"
+    )
+    blocks = [import_header]
 
     # 1. Compile all $defs dynamically in topological order
     sorted_def_names = topological_sort_defs(defs)
@@ -913,9 +913,20 @@ def generate_catalog_definition(
                 "additionalProperties": is_extensible,
             }
             base_class = "BaseModel" if is_extensible else "StrictBaseModel"
-            blocks.append(
-                codegen.compile_object_def(def_name, model_spec, base_class=base_class)
+            comp_block = codegen.compile_object_def(
+                def_name, model_spec, base_class=base_class
             )
+            if def_name == "FunctionDefinition":
+                validator_code = (
+                    '    @model_validator(mode="after")\n    def'
+                    " _validate_user_activation(self) -> FunctionDefinition:\n       "
+                    " if self.requires_user_activation and self.allowed_callers =="
+                    " 'agentOnly':\n            raise ValueError(\"Functions with"
+                    " requiresUserActivation=True cannot have"
+                    " allowedCallers='agentOnly'.\")\n        return self\n"
+                )
+                comp_block = comp_block.rstrip() + "\n" + validator_code
+            blocks.append(comp_block)
 
     # 2. Compile property-level $defs (e.g. CatalogDefs) dynamically
     root_props = dict(cat_def_data.get("properties", {}))

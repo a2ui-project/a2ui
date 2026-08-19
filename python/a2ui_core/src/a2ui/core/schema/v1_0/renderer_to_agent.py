@@ -65,7 +65,7 @@ class A2uiRendererAction(StrictBaseModel):
     metadata: Optional[Extensions] = Field(
         None,
         description=(
-            "Optional client-side metadata to send back to the agent with the action."
+            "Optional renderer-side metadata to send back to the agent with the action."
         ),
     )
 

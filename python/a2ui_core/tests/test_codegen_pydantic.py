@@ -687,3 +687,36 @@ def test_validate_version_field_non_dict_context():
         context=["list_context"],
     )
     assert model_list.version == "v0.9"
+
+
+def test_function_definition_conditional_validation():
+    from pydantic import ValidationError
+    from a2ui.core.schema.v1_0.catalog_definition import FunctionDefinition
+
+    # Valid: requiresUserActivation=True with allowedCallers='rendererOnly'
+    fd_valid = FunctionDefinition.model_validate({
+        "returnType": "boolean",
+        "allowedCallers": "rendererOnly",
+        "requiresUserActivation": True,
+    })
+    assert fd_valid.requires_user_activation is True
+    assert fd_valid.allowed_callers == "rendererOnly"
+
+    # Valid: requiresUserActivation=True with allowedCallers='rendererOrAgent'
+    fd_valid2 = FunctionDefinition.model_validate({
+        "returnType": "boolean",
+        "allowedCallers": "rendererOrAgent",
+        "requiresUserActivation": True,
+    })
+    assert fd_valid2.allowed_callers == "rendererOrAgent"
+
+    # Invalid: requiresUserActivation=True with allowedCallers='agentOnly'
+    with pytest.raises(
+        ValidationError,
+        match="requiresUserActivation=True cannot have allowedCallers='agentOnly'",
+    ):
+        FunctionDefinition.model_validate({
+            "returnType": "boolean",
+            "allowedCallers": "agentOnly",
+            "requiresUserActivation": True,
+        })
