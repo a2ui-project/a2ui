@@ -15,13 +15,13 @@ non-breaking changes.
 
 [Semver]: https://semver.org/
 
-Depending on the package category, the version management is different:
+Depending on the package category, the process of publishing to pub.dev follows different rules:
 
-### The package is not planned to be published
+### The package is not published, and is not planned to be published
 
 `pubspec.yaml` has `publish_to: none`.
 
-### The package was never published as production-ready, but is planned to
+### The package is planned to be published as production-ready (but wasn't published as such before)
 
 The package should be published to pub.dev with a `-wip<three digit number>` suffix to reserve the name and maybe to try the package in dev purposes.
 
@@ -34,7 +34,7 @@ The package should be published to pub.dev with a `-wip<three digit number>` suf
 
 ## CI
 
-CI workflows that support publishing, making sure the packages are always publish-ready:
+The following CI workflows support publishing, making sure the packages are always publish-ready:
 
 In this repo:
 
@@ -49,8 +49,8 @@ In genui repo:
 
 For these workflows to function, the GitHub org needs to be configured.
 
-This section instructs how to do that, in case some future reorg will require re-enabling them. The permissions cover more than needed, because we may
-want to do more automation in future.
+This section instructs how to do that, in case some future reorg will require re-enabling them 
+(The permissions cover more than needed, because we may want to do more automation in future).
 
 In https://github.com/organizations/a2ui-project/settings/actions:
 
