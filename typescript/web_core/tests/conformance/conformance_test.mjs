@@ -18,18 +18,20 @@ import {fileURLToPath} from 'node:url';
 import yaml from 'js-yaml';
 import {MessageProcessor} from '../../dist/src/processing/message-processor.js';
 import {Catalog} from '../../dist/src/catalog/types.js';
-import {BASIC_COMPONENTS as V09_BASIC_COMPONENTS} from '../../dist/src/v0_9/basic_catalog/index.js';
+import {BASIC_COMPONENTS as V0_8_BASIC_COMPONENTS} from '../../dist/src/v0_8/basic_catalog/index.js';
+import {BASIC_COMPONENTS as V0_9_BASIC_COMPONENTS} from '../../dist/src/v0_9/basic_catalog/index.js';
+import {BASIC_COMPONENTS as V1_0_BASIC_COMPONENTS} from '../../dist/src/v1_0/basic_catalog/index.js';
 
-// Fallback component definitions per specification version until dedicated implementations exist
-const v08Components = V09_BASIC_COMPONENTS;
-const v09Components = V09_BASIC_COMPONENTS;
-const v10Components = V09_BASIC_COMPONENTS;
+// Dedicated basic catalog component definitions per specification version
+const v0_8Components = V0_8_BASIC_COMPONENTS;
+const v0_9Components = V0_9_BASIC_COMPONENTS;
+const v1_0Components = V1_0_BASIC_COMPONENTS;
 
-const basicCatalog = new Catalog('basic', v09Components);
-const v08Catalog = new Catalog('v0.8:basic', v08Components);
-const v09Catalog = new Catalog('v0.9:basic', v09Components);
-const v10Catalog = new Catalog('v1.0:basic', v10Components);
-const allCatalogs = [basicCatalog, v08Catalog, v09Catalog, v10Catalog];
+const basicCatalog = new Catalog('basic', v0_9Components);
+const v0_8Catalog = new Catalog('v0.8:basic', v0_8Components);
+const v0_9Catalog = new Catalog('v0.9:basic', v0_9Components);
+const v1_0Catalog = new Catalog('v1.0:basic', v1_0Components);
+const allCatalogs = [basicCatalog, v0_8Catalog, v0_9Catalog, v1_0Catalog];
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -283,6 +285,17 @@ function validateGetRendererCapabilitiesTestCase(testCase) {
 
 import {z} from 'zod';
 
+/**
+ * Fallback component definitions with permissive schemas (`z.object({}).passthrough()`).
+ *
+ * Built-in specification catalogs (`basic`, `v0.8:basic`, `v0.9:basic`, `v1.0:basic`) enforce
+ * strict Zod schemas via `v09Components`. However, ad-hoc or dynamic test catalogs (e.g.
+ * `custom-catalog` or unrecognized catalog IDs without explicit inline component schemas)
+ * require permissive validation so test vectors can evaluate message processor semantics,
+ * surface lifecycles, and state handling without failing on strict component prop validation.
+ *
+ * Also includes non-standard component types like `CustomComponent` referenced by test cases.
+ */
 const flexibleComponents = [
   'Button',
   'Column',
