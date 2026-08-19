@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
+import {z} from 'zod';
 import {ComponentApi} from '../../../catalog/types.js';
 import {
-  TextApi,
   ImageApi,
   IconApi,
-  VideoApi,
   AudioPlayerApi,
   RowApi,
   ColumnApi,
@@ -29,19 +28,95 @@ import {
   ModalApi,
   DividerApi,
   ButtonApi,
-  TextFieldApi,
   CheckBoxApi,
   ChoicePickerApi,
-  SliderApi,
   DateTimeInputApi,
-  BASIC_COMPONENTS as V09_BASIC_COMPONENTS,
 } from '../../../v0_9/basic_catalog/components/basic_components.js';
+import {
+  DynamicStringSchema,
+  DynamicNumberSchema,
+  AccessibilityAttributesSchema,
+  CheckableSchema,
+} from '../../../v0_9/schema/common-types.js';
+
+const CommonProps = {
+  'accessibility': AccessibilityAttributesSchema.optional(),
+  'weight': z
+    .number()
+    .describe('The relative weight of this component within a Row or Column.')
+    .optional(),
+};
+
+export const TextApi: ComponentApi = {
+  name: 'Text',
+  schema: z
+    .object({
+      ...CommonProps,
+      'text': DynamicStringSchema.describe('The text content to display.'),
+      'variant': z
+        .enum(['h1', 'h2', 'h3', 'h4', 'h5', 'caption', 'body'])
+        .default('body')
+        .describe('A hint for the base text style.')
+        .optional(),
+    })
+    .strict(),
+};
+
+export const VideoApi: ComponentApi = {
+  name: 'Video',
+  schema: z
+    .object({
+      ...CommonProps,
+      'url': DynamicStringSchema.describe('The URL of the video to display.'),
+      'posterUrl': DynamicStringSchema.describe(
+        'The URL of the poster image to display before playing.',
+      ).optional(),
+    })
+    .strict(),
+};
+
+export const TextFieldApi: ComponentApi = {
+  name: 'TextField',
+  schema: z
+    .object({
+      ...CommonProps,
+      'label': DynamicStringSchema.describe('The text label for the input field.'),
+      'value': DynamicStringSchema.describe('The value of the text field.').optional(),
+      'placeholder': DynamicStringSchema.describe(
+        'The placeholder text for the input field.',
+      ).optional(),
+      'variant': z
+        .enum(['longText', 'number', 'shortText', 'obscured'])
+        .default('shortText')
+        .describe('The type of input field to display.')
+        .optional(),
+      'validationRegexp': z
+        .string()
+        .describe('A regular expression used for validation of the input.')
+        .optional(),
+      ...CheckableSchema.shape,
+    })
+    .strict(),
+};
+
+export const SliderApi: ComponentApi = {
+  name: 'Slider',
+  schema: z
+    .object({
+      ...CommonProps,
+      'label': DynamicStringSchema.describe('The label for the slider.').optional(),
+      'min': z.number().default(0).describe('The minimum value of the slider.').optional(),
+      'max': z.number().describe('The maximum value of the slider.'),
+      'steps': z.number().describe('The number of discrete step intervals.').optional(),
+      'value': DynamicNumberSchema.describe('The current value of the slider.'),
+      ...CheckableSchema.shape,
+    })
+    .strict(),
+};
 
 export {
-  TextApi,
   ImageApi,
   IconApi,
-  VideoApi,
   AudioPlayerApi,
   RowApi,
   ColumnApi,
@@ -51,11 +126,28 @@ export {
   ModalApi,
   DividerApi,
   ButtonApi,
-  TextFieldApi,
   CheckBoxApi,
   ChoicePickerApi,
-  SliderApi,
   DateTimeInputApi,
 };
 
-export const BASIC_COMPONENTS: ComponentApi[] = [...V09_BASIC_COMPONENTS];
+export const BASIC_COMPONENTS: ComponentApi[] = [
+  TextApi,
+  ImageApi,
+  IconApi,
+  VideoApi,
+  AudioPlayerApi,
+  RowApi,
+  ColumnApi,
+  ListApi,
+  CardApi,
+  TabsApi,
+  ModalApi,
+  DividerApi,
+  ButtonApi,
+  TextFieldApi,
+  CheckBoxApi,
+  ChoicePickerApi,
+  SliderApi,
+  DateTimeInputApi,
+];
