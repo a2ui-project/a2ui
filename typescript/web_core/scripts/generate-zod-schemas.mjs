@@ -44,6 +44,39 @@ const HEADER = `/*
 // Generated from specification/v1_0/json/ via scripts/generate-zod-schemas.mjs
 `;
 
+/**
+ * Normalizes and cleans JavaScript/TypeScript code emitted by json-schema-to-zod.
+ *
+ * @param {string} code Raw JS string emitted by json-schema-to-zod.
+ * @param {object} options Contextual metadata for type-specific fixups.
+ * @returns {string} Clean, type-safe, lint-compliant Zod code string.
+ */
+function transformGeneratedZodCode(code, options = {}) {
+  let clean = code;
+
+  // 1. Resolve custom schema references (__REF__FooSchema__ -> FooSchema)
+  clean = clean.replace(/z\.literal\("__REF__([^"]+)__"\)/g, '$1');
+
+  // 2. Replace deprecated Zod core namespace imports (z.core.$ZodIssue -> z.ZodIssue)
+  clean = clean.replace(/z\.core\.\$ZodIssue/g, 'z.ZodIssue');
+
+  // 3. Add type assertions to ctx.addIssue calls for strict TypeScript compliance
+  clean = clean.replace(/ctx\.addIssue\(([^;]+)\);/g, 'ctx.addIssue($1 as any);');
+
+  // 4. Convert loose equality (== i) to strict equality (=== i) for ESLint compliance
+  clean = clean.replace(/== i\)/g, '=== i)');
+
+  // 5. Special-case handling for DynamicValue 'not' constraint
+  if (options.name === 'DynamicValue') {
+    clean = clean.replace(
+      'z.record(z.string(), z.any())',
+      "z.record(z.string(), z.any()).refine((obj) => !obj || (!('path' in obj) && !('call' in obj)))",
+    );
+  }
+
+  return clean;
+}
+
 console.log('Generating v1.0 Zod schemas from JSON specification files...');
 
 // 1. common-types.ts
@@ -136,15 +169,7 @@ for (const name of defKeys) {
     type: name,
     noImport: true,
   });
-  code = code.replace(/z\.literal\("__REF__([^"]+)__"\)/g, '$1');
-  code = code.replace(/z\.core\.\$ZodIssue/g, 'z.ZodIssue');
-  code = code.replace(/ctx\.addIssue\(([^;]+)\);/g, 'ctx.addIssue($1 as any);');
-  if (name === 'DynamicValue') {
-    code = code.replace(
-      'z.record(z.string(), z.any())',
-      "z.record(z.string(), z.any()).refine((obj) => !obj || (!('path' in obj) && !('call' in obj)))",
-    );
-  }
+  code = transformGeneratedZodCode(code, {name});
   commonTs += code + '\n\n';
 }
 
@@ -213,9 +238,7 @@ for (const msgName of a2rMessageNames) {
     type: msgName,
     noImport: true,
   });
-  code = code.replace(/z\.literal\("__REF__([^"]+)__"\)/g, '$1');
-  code = code.replace(/z\.core\.\$ZodIssue/g, 'z.ZodIssue');
-  code = code.replace(/ctx\.addIssue\(([^;]+)\);/g, 'ctx.addIssue($1 as any);');
+  code = transformGeneratedZodCode(code, {name: msgName});
   a2rTs += code + '\n\n';
 }
 
@@ -261,9 +284,7 @@ for (const msgProp of r2aMessageProps) {
     type: msgName,
     noImport: true,
   });
-  code = code.replace(/z\.literal\("__REF__([^"]+)__"\)/g, '$1');
-  code = code.replace(/z\.core\.\$ZodIssue/g, 'z.ZodIssue');
-  code = code.replace(/ctx\.addIssue\(([^;]+)\);/g, 'ctx.addIssue($1 as any);');
+  code = transformGeneratedZodCode(code, {name: msgName});
   r2aTs += code + '\n\n';
 }
 
@@ -327,11 +348,7 @@ for (const [name, rawDef] of Object.entries(catalogDefJson.$defs)) {
     type: name,
     noImport: true,
   });
-  code = code.replace(/z\.literal\("__REF__([^"]+)__"\)/g, '$1');
-  code = code.replace(/z\.literal\("__REF__ExtensionsSchema__"\)/g, 'ExtensionsSchema');
-  code = code.replace(/z\.core\.\$ZodIssue/g, 'z.ZodIssue');
-  code = code.replace(/ctx\.addIssue\(([^;]+)\);/g, 'ctx.addIssue($1 as any);');
-  code = code.replace(/== i\)/g, '=== i)');
+  code = transformGeneratedZodCode(code, {name});
   code += `\nexport type ${name}Input = z.input<typeof ${name}Schema>;`;
   catalogDefTs += code + '\n\n';
 }
