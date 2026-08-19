@@ -1049,15 +1049,17 @@ def test_catalog_v1_0_additions():
 def test_uax31_identifier_validation():
     # 1. Valid UAX #31 identifiers (v1.0 automatically validates by default)
     comp_valid = ComponentApi("MyComponent_1", {})
+    comp_unicode = ComponentApi("组件_1", {})
     func_valid = FunctionApi("format_text_1", "string", {})
     sys_func_valid = FunctionApi("@index", "number", {})
     cat_valid = Catalog(
         catalog_id="cat_1",
         protocol_version="v1.0",
-        components=[comp_valid],
+        components=[comp_valid, comp_unicode],
         functions=[func_valid, sys_func_valid],
     )
     assert cat_valid.get_component("MyComponent_1") is not None
+    assert cat_valid.get_component("组件_1") is not None
     assert cat_valid.get_function("@index") is not None
 
     # 2. Invalid component identifier with hyphen auto-fails under v1.0

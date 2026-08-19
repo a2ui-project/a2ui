@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
 from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union, cast
 from pydantic import BaseModel
 
@@ -26,12 +25,13 @@ from .functions import (
 )
 from .components import ComponentApi, ComponentImplementation, ModelComponentApi
 
-UAX31_IDENTIFIER_PATTERN = re.compile(r"^@?[A-Za-z_][A-Za-z0-9_]*$")
-
 
 def is_valid_uax31_identifier(name: str) -> bool:
     """Validates whether a string conforms to UAX #31 / system identifier syntax."""
-    return bool(UAX31_IDENTIFIER_PATTERN.match(name))
+    if not name:
+        return False
+    test_name = name[1:] if name.startswith("@") else name
+    return test_name.isidentifier()
 
 
 def _is_version_at_least_1_0(protocol_version: Union[str, Any]) -> bool:
