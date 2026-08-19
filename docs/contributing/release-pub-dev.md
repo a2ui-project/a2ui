@@ -17,6 +17,29 @@ In genui repo:
   - [pub_health.yaml](https://github.com/flutter/genui/blob/main/.github/workflows/pub_health.yml)
   - [pub_post_summaries.yaml](https://github.com/flutter/genui/blob/main/.github/workflows/pub_post_summaries.yaml)
 
+## How to enable the workflows
+
+For these workflows to function, the GitHub org needs to be configured. 
+
+This section instructs how to do that, in case some future reorg will require re-enabling them. The permissions cover more than needed, because we may
+want to do more automation in future.
+
+In https://github.com/organizations/a2ui-project/settings/actions:
+
+1. Find the section "Allow or block specified actions and reusable workflows"
+2. Add these values (if they are already here, they will be de-dupped automatically):
+
+   ```
+   peter-evans/create-or-update-comment@*,
+   peter-evans/create-pull-request@*,
+   peter-evans/repository-dispatch@*,
+   dart-lang/ecosystem/.github/workflows/health.yaml@*,
+   dart-lang/ecosystem/.github/workflows/post_summaries.yaml@*,
+   dart-lang/ecosystem/.github/workflows/publish.yaml@*,
+   ```
+
+
+
 ## Package categories
 
 The maintained packages fall into the following categories:
