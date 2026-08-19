@@ -6,12 +6,13 @@ Release cadence: every 1-2 weeks.
 
 ### Pub.dev publishing steps
 
-For each package listed below, where the top version in CHANGELOG.md:
+**1. Identify packages to publish**
+
+Out of the package listed below, find those where the top version in the CHANGELOG.md:
 
 - is not `-wip...`
-- and is not published yet (click link in the header to verify)
-
-From main branch, publish through `flutter pub publish`, making sure there is no warnings in console.
+- and is not published yet (click link in the header of the CHANGELOG.md
+  to verify)
 
 Changelogs of the packages:
 
@@ -22,7 +23,18 @@ Changelogs of the packages:
 - [genai_primitives](https://github.com/flutter/genui/blob/main/packages/genai_primitives/CHANGELOG.md)
 - [json_schema_builder](https://github.com/flutter/genui/blob/main/packages/json_schema_builder/CHANGELOG.md)
 
-For troubleshooting and maintanance check [release-pub-dev.md](release-pub-dev.md).
+**2. Publish packages**
+
+    For each publishable package:
+
+    - Make sure you're on the `main` branch.
+    - Run `flutter pub publish`.
+    - Make sure there are no warnings in console.
+    - Verify that the correct version of the package has been successfully uploaded to pub.dev.
+
+    If any of these steps fail, file a GitHub issue and inform the team.
+
+For troubleshooting and maintenance check [release-pub-dev.md](release-pub-dev.md).
 
 ### NPM
 

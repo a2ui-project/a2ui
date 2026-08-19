@@ -46,10 +46,6 @@ Two of these are automated by [scripts/triage.mjs](../../scripts/triage.mjs): `s
 
 ## Triage responsibilities
 
-### Prerequisites
-
-Make sure you understand what is explained in the sections above.
-
 ### First line triage (daily)
 
 For each issue that is [not first-line-handled](https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3A%22status%3A%20first-line-handled%22):
