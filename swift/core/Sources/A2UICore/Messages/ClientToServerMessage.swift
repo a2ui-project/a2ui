@@ -49,6 +49,8 @@ public enum ClientToServerMessage: Equatable, Codable, Sendable {
     switch payloadKey {
     case .action:
       self = .action(try container.decode(ClientAction.self, forKey: .action))
+    case .error:
+      self = .error(try container.decode(ClientServerError.self, forKey: .error))
     case .version:
       let context = DecodingError.Context(
         codingPath: container.codingPath,

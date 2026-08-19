@@ -62,6 +62,8 @@ public enum ServerToClientMessage: Codable, Sendable, Equatable {
     case .updateDataModel:
       self = .updateDataModel(
         try container.decode(UpdateDataModelMessage.self, forKey: .updateDataModel))
+    case .deleteSurface:
+      self = .deleteSurface(try container.decode(DeleteSurfaceMessage.self, forKey: .deleteSurface))
     case .version:
       let context = DecodingError.Context(
         codingPath: container.codingPath,
