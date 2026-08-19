@@ -39,6 +39,10 @@ export const RELAXED_VALIDATION: ValidationConfig = {
   allowMissingRoot: true,
 };
 
+export interface ValidateComponentsOptions {
+  skipRecursionCheck?: boolean;
+}
+
 /**
  * High-level validator for auditing A2UI message streams, components, and graph topology.
  */
@@ -73,10 +77,13 @@ export class A2uiValidator {
     components: Array<Record<string, any>>,
     refFieldsMap: ComponentRefMap = STANDARD_REF_MAP,
     config: ValidationConfig = STRICT_VALIDATION,
+    options: ValidateComponentsOptions = {},
   ): void {
     validateComponentIntegrity(components, refFieldsMap, config);
     analyzeTopology(components, refFieldsMap, config);
-    validateRecursionAndPaths(components);
+    if (!options.skipRecursionCheck) {
+      validateRecursionAndPaths(components);
+    }
   }
 
   /**
@@ -95,7 +102,7 @@ export class A2uiValidator {
 
       const updateComps = msg.updateComponents?.components;
       if (Array.isArray(updateComps)) {
-        this.validateComponents(updateComps, refFieldsMap, config);
+        this.validateComponents(updateComps, refFieldsMap, config, {skipRecursionCheck: true});
       }
     }
   }
