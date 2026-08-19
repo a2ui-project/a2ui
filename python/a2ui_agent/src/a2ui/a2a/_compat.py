@@ -67,6 +67,8 @@ def make_data_part(
 
 def is_data_part(part: Part) -> bool:
     """Returns True if the Part carries structured data."""
+    if part is None:
+        return False
     if IS_A2A_V1:
         return part.WhichOneof("content") == "data"
     from a2a.types import DataPart  # type: ignore[attr-defined]
