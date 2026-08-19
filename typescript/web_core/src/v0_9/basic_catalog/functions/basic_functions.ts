@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {ExpressionParser} from '../expressions/expression_parser.js';
+import {ExpressionParser} from '../../../expressions/expression_parser.js';
 import {computed, isSignal, getValue} from '../../../reactivity/signals.js';
 import {createFunctionImplementation, FunctionImplementation} from '../../../catalog/types.js';
 import {format} from 'date-fns';
