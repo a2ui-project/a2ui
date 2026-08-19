@@ -41,7 +41,7 @@ export const DynamicValueSchema = z
       z.number(),
       z.boolean(),
       z.array(z.any()),
-      z.record(z.string(), z.any()),
+      z.record(z.string(), z.any()).refine(obj => !obj || (!('path' in obj) && !('call' in obj))),
       DataBindingSchema,
       z.lazy(() => FunctionCallSchema),
     ];

@@ -139,6 +139,12 @@ for (const name of defKeys) {
   code = code.replace(/z\.literal\("__REF__([^"]+)__"\)/g, '$1');
   code = code.replace(/z\.core\.\$ZodIssue/g, 'z.ZodIssue');
   code = code.replace(/ctx\.addIssue\(([^;]+)\);/g, 'ctx.addIssue($1 as any);');
+  if (name === 'DynamicValue') {
+    code = code.replace(
+      'z.record(z.string(), z.any())',
+      "z.record(z.string(), z.any()).refine((obj) => !obj || (!('path' in obj) && !('call' in obj)))",
+    );
+  }
   commonTs += code + '\n\n';
 }
 
