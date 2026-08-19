@@ -26,8 +26,10 @@ want to do more automation in future.
 
 In https://github.com/organizations/a2ui-project/settings/actions:
 
-1. Find the section "Allow or block specified actions and reusable workflows"
-2. Add these values (if they are already here, they will be de-dupped automatically):
+
+
+1. Find the section "General actions permissions"
+2. Either select "Allow all actions and reusable workflows" or choose "Allow enterprise, and select non-enterprise, actions and reusable workflows" and add these values (if they are already here, they will be de-dupped automatically):
 
    ```
    peter-evans/create-or-update-comment@*,
