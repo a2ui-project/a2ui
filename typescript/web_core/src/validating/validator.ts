@@ -25,30 +25,44 @@ import {
 } from './integrity-checker.js';
 import {analyzeTopology, TopologyOptions} from './topology-analyzer.js';
 
+/** Combined configuration specifying integrity and topology rules. */
 export interface ValidationConfig extends IntegrityOptions, TopologyOptions {}
 
+/** Strict validation configuration requiring root node presence, no orphans, and valid references. */
 export const STRICT_VALIDATION: ValidationConfig = {
   allowOrphanComponents: false,
   allowDanglingReferences: false,
   allowMissingRoot: false,
 };
 
+/** Relaxed validation configuration permitting orphan components, missing root, and dangling references. */
 export const RELAXED_VALIDATION: ValidationConfig = {
   allowOrphanComponents: true,
   allowDanglingReferences: true,
   allowMissingRoot: true,
 };
 
+/** Options for fine-tuning component validation operations. */
 export interface ValidateComponentsOptions {
+  /** Whether to bypass path syntax and depth recursion checks on component objects. */
   skipRecursionCheck?: boolean;
 }
 
 /**
  * High-level validator for auditing A2UI message streams, components, and graph topology.
+ *
+ * @example
+ * ```ts
+ * const validator = new A2uiValidator();
+ * validator.validate(messages, STANDARD_REF_MAP, STRICT_VALIDATION);
+ * ```
  */
 export class A2uiValidator {
   /**
    * Validates a list of protocol messages against Zod message envelope schemas.
+   *
+   * @param messages Stream of raw message objects to audit.
+   * @throws {A2uiValidationError} If any message fails Zod envelope schema validation.
    */
   public validateProtocolEnvelope(messages: Array<Record<string, any>>): void {
     if (!Array.isArray(messages)) {
@@ -72,6 +86,14 @@ export class A2uiValidator {
 
   /**
    * Validates component list integrity and graph topology.
+   *
+   * @param components List of component definition objects.
+   * @param refFieldsMap Reference field definitions per component type.
+   * @param config Validation settings for integrity and topology.
+   * @param options Additional component validation options.
+   * @throws {A2uiIntegrityError} If integrity check or reachability check fails.
+   * @throws {A2uiRecursionError} If graph recursion or self-reference is found.
+   * @throws {A2uiValidationError} If invalid path syntax is encountered.
    */
   public validateComponents(
     components: Array<Record<string, any>>,
@@ -88,6 +110,18 @@ export class A2uiValidator {
 
   /**
    * Validates an entire A2UI payload (envelope, components, topology, and path syntax).
+   *
+   * @param messages Single message object or array of message objects to validate.
+   * @param refFieldsMap Component reference mapping.
+   * @param config Validation configuration options.
+   * @throws {A2uiValidationError} If envelope format or path syntax is invalid.
+   * @throws {A2uiIntegrityError} If component references or graph integrity are violated.
+   * @throws {A2uiRecursionError} If recursion limits or circular component links are detected.
+   *
+   * @example
+   * ```ts
+   * validator.validate(payloadMessage);
+   * ```
    */
   public validate(
     messages: Array<Record<string, any>> | Record<string, any>,

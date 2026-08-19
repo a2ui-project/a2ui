@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+/**
+ * @fileoverview Unit tests for A2uiValidator, integrity checks, path syntax validation, and graph topology analysis.
+ */
+
 import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
 import {
