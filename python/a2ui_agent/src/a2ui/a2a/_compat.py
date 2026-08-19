@@ -78,6 +78,8 @@ def is_data_part(part: Part) -> bool:
 
 def is_text_part(part: Part) -> bool:
     """Returns True if the Part carries text."""
+    if part is None:
+        return False
     if IS_A2A_V1:
         return part.WhichOneof("content") == "text"
     from a2a.types import TextPart  # type: ignore[attr-defined]
