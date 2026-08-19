@@ -35,9 +35,9 @@ class FunctionDefinition(BaseModel):
     ] = Field(
         ..., alias="returnType", description="The type of value this function returns."
     )
-    callable_from: Optional[Literal["rendererOnly", "agentOnly", "rendererOrAgent"]] = (
+    allowed_callers: Optional[Literal["rendererOnly", "agentOnly", "rendererOrAgent"]] = (
         Field(
-            alias="callableFrom",
+            alias="allowedCallers",
             description="Specifies where this function can be invoked from.",
             default="rendererOnly",
         )

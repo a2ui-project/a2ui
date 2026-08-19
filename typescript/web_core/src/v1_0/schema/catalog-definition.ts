@@ -112,9 +112,9 @@ export const FunctionDefinitionSchema = z
               'void',
             ])
             .describe('The type of value this function returns.'),
-          'callableFrom': z
+          'allowedCallers': z
             .enum(['rendererOnly', 'agentOnly', 'rendererOrAgent'])
-            .describe('Specifies where this function can be invoked from.')
+            .describe('Specifies which roles are authorized to invoke this function.')
             .default('rendererOnly'),
           'requiresUserActivation': z
             .boolean()

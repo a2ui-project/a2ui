@@ -52,7 +52,7 @@ export interface FunctionApi {
   readonly name: string;
   readonly returnType: A2uiReturnType;
   readonly schema: z.ZodTypeAny;
-  readonly callableFrom?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
+  readonly allowedCallers?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
   readonly requiresUserActivation?: boolean;
 }
 
@@ -75,7 +75,7 @@ export function createFunctionImplementation<
     name: string;
     returnType: TReturn;
     schema: Schema;
-    callableFrom?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
+    allowedCallers?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
     requiresUserActivation?: boolean;
   },
   execute: (
@@ -88,7 +88,7 @@ export function createFunctionImplementation<
     name: api.name,
     returnType: api.returnType,
     schema: api.schema,
-    callableFrom: api.callableFrom,
+    allowedCallers: api.allowedCallers,
     requiresUserActivation: api.requiresUserActivation,
     execute: execute as (args: Record<string, any>, ctx: DataContext, ab?: AbortSignal) => unknown,
   };
