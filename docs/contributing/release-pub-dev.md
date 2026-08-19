@@ -11,37 +11,33 @@ CI workflows that support publishing, making sure the packages are always releas
 
 In this repo:
 
-  - [pub_health.yaml](../../.github/workflows/pub_health.yml)
+- [pub_health.yaml](../../.github/workflows/pub_health.yml)
 
 In genui repo:
 
-  - [pub_health.yaml](https://github.com/flutter/genui/blob/main/.github/workflows/pub_health.yml)
-  - [pub_post_summaries.yaml](https://github.com/flutter/genui/blob/main/.github/workflows/pub_post_summaries.yaml)
+- [pub_health.yaml](https://github.com/flutter/genui/blob/main/.github/workflows/pub_health.yaml)
+- [pub_post_summaries.yaml](https://github.com/flutter/genui/blob/main/.github/workflows/pub_post_summaries.yaml)
 
 ## How to enable the workflows
 
-For these workflows to function, the GitHub org needs to be configured. 
+For these workflows to function, the GitHub org needs to be configured.
 
 This section instructs how to do that, in case some future reorg will require re-enabling them. The permissions cover more than needed, because we may
 want to do more automation in future.
 
 In https://github.com/organizations/a2ui-project/settings/actions:
 
-
-
 1. Find the section "General actions permissions"
 2. Either select "Allow all actions and reusable workflows" or choose "Allow enterprise, and select non-enterprise, actions and reusable workflows" and add these values (if they are already here, they will be de-dupped automatically):
 
-   ```
-   peter-evans/create-or-update-comment@*,
-   peter-evans/create-pull-request@*,
-   peter-evans/repository-dispatch@*,
-   dart-lang/ecosystem/.github/workflows/health.yaml@*,
-   dart-lang/ecosystem/.github/workflows/post_summaries.yaml@*,
-   dart-lang/ecosystem/.github/workflows/publish.yaml@*,
-   ```
-
-
+    ```
+    peter-evans/create-or-update-comment@*,
+    peter-evans/create-pull-request@*,
+    peter-evans/repository-dispatch@*,
+    dart-lang/ecosystem/.github/workflows/health.yaml@*,
+    dart-lang/ecosystem/.github/workflows/post_summaries.yaml@*,
+    dart-lang/ecosystem/.github/workflows/publish.yaml@*,
+    ```
 
 ## How packages are versioned
 
@@ -60,16 +56,16 @@ major number for breaking changes.
 
 <!-- references -->
 
-[Semver]: https://semver.org/ 
+[Semver]: https://semver.org/
 
 Version postfixes:
 
-- **`-wip<three digit number>`**: not ready for production
+- **`-wip<three digit number>`**: ready to be released for debugging goals, but not ready for production
 - **no postfix**: release ready version, that should be pushed to pub.dev right after merging the PR that introduced the changes.
 
 The packages code should be always release ready. That means:
 
-1. Use `-wip` version (format `0.1.0-wip002`) if release-ready versions for this package were never published yet, and are planned to be published in the future. 
+1. Use `-wip` version (format `0.1.0-wip002`) if release-ready versions for this package were never published yet, and are planned to be published in the future.
 
 2. You can publish `-wip<number>` versions, if you need it for development, but do not merge `wip` versions for prod-ready published packages.
 

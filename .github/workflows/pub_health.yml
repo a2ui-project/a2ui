@@ -19,14 +19,18 @@
 name: Pub Health
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
     types: [opened, synchronize, reopened, labeled, unlabeled]
 jobs:
   health:
-    # Ignored because dart-lang ecosystem reusable workflows are designed to run from @main.
-    uses: dart-lang/ecosystem/.github/workflows/health.yaml@main # zizmor: ignore[unpinned-uses]
+    # Pinned to a commit, as required by the unpinned-uses policy. The workflow
+    # itself installs package:firehose from the tip of main, so the checks stay
+    # up to date; bump this hash to pick up changes to the workflow steps.
+    uses: dart-lang/ecosystem/.github/workflows/health.yaml@cda8bd535dfbcff45010bc3c843d325682f944b2 # main, 2026-08-17
     with:
-      checks: "version, changelog"
-      fail_on: "version, changelog"
+      # The changelog check also verifies the version in CHANGELOG.md agrees
+      # with pubspec.yaml. "version" is not a valid check name.
+      checks: "changelog"
+      fail_on: "changelog"
     permissions:
       pull-requests: write
