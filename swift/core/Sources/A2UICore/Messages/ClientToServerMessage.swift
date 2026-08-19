@@ -49,10 +49,12 @@ public enum ClientToServerMessage: Equatable, Codable, Sendable {
     switch payloadKey {
     case .action:
       self = .action(try container.decode(ClientAction.self, forKey: .action))
-    case .error:
-      self = .error(try container.decode(ClientServerError.self, forKey: .error))
     case .version:
-      fatalError("Unreachable: filtered out version key")
+      let context = DecodingError.Context(
+        codingPath: container.codingPath,
+        debugDescription: "Internal error: version key was not filtered out"
+      )
+      throw DecodingError.dataCorrupted(context)
     }
   }
 

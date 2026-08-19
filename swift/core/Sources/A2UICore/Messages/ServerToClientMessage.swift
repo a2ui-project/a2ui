@@ -62,10 +62,12 @@ public enum ServerToClientMessage: Codable, Sendable, Equatable {
     case .updateDataModel:
       self = .updateDataModel(
         try container.decode(UpdateDataModelMessage.self, forKey: .updateDataModel))
-    case .deleteSurface:
-      self = .deleteSurface(try container.decode(DeleteSurfaceMessage.self, forKey: .deleteSurface))
     case .version:
-      fatalError("Unreachable: filtered out version key")
+      let context = DecodingError.Context(
+        codingPath: container.codingPath,
+        debugDescription: "Internal error: version key was not filtered out"
+      )
+      throw DecodingError.dataCorrupted(context)
     }
   }
 
