@@ -60,13 +60,13 @@ major number for breaking changes.
 
 Version postfixes:
 
-- **`-wip<three digit number>`**: ready to be released for debugging goals, but not ready for production
-- **no postfix**: release ready version, that should be pushed to pub.dev right after merging the PR that introduced the changes.
+- **`-wip<three digit number>`**: ready to be published for debugging goals, but not ready for production.
+- **no postfix**: production-ready version, that should be published to pub.dev right after merging the PR that introduced the changes.
 
-The packages code should be always release ready. That means:
+Packages, that were ever published for production, should always have production-ready code. That means:
 
-1. Use `-wip` version (format `0.1.0-wip002`) if release-ready versions for this package were never published yet, and are planned to be published in the future.
+1. Use `-wip` version (format `0.1.0-wip002`) if production-ready versions for this package were never published yet, and are planned to be published in the future.
 
-2. You can publish `-wip<number>` versions, if you need it for development, but do not merge `wip` versions for prod-ready published packages.
+2. You can publish `-wip<number>` versions, if you need it for development, but do not merge `wip` versions for packages that were ever published for production.
 
-3. If your feature is partially implemented, hide the feature's code behind a false-by-default flag, and make sure the package is still ready to be released.
+3. If your feature is partially implemented, hide the feature's code behind a false-by-default flag, and make sure the package is still ready for production.
