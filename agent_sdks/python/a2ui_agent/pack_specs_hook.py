@@ -132,15 +132,15 @@ class PackSpecsBuildHook(BuildHookInterface):
                 "-visitor",
                 "-no-listener",
                 "-o",
-                "generated",
-                g4_path,
+                os.path.abspath(generated_dir),
+                os.path.basename(g4_path),
             ]
             env = os.environ.copy()
             env["ANTLR4_TOOLS_ANTLR_VERSION"] = "4.13.2"
 
             res = subprocess.run(
                 cmd,
-                cwd=express_dir,
+                cwd=os.path.dirname(g4_path),
                 env=env,
                 capture_output=True,
                 text=True,
@@ -190,7 +190,7 @@ class PackSpecsBuildHook(BuildHookInterface):
                     "from .ExpressParser import", "from .express_parser import"
                 )
                 content = content.replace(
-                    "from ExpressParser import", "from .express_parser import"
+                    "from ExpressParser import", "from express_parser import"
                 )
                 with open(visitor_path, "w", encoding="utf-8") as f:
                     f.write(content)

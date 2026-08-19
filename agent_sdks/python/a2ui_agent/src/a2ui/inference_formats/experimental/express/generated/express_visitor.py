@@ -1,10 +1,9 @@
-# Generated from /usr/local/google/home/gspencer/code/a2ui/kotlin_express/specification/inference_formats/express/Express.g4 by ANTLR 4.13.2
+# Generated from Express.g4 by ANTLR 4.13.2
 from antlr4 import *
 if "." in __name__:
     from .express_parser import ExpressParser
 else:
     from express_parser import ExpressParser
-
 
 # This class defines a complete generic visitor for a parse tree produced by ExpressParser.
 

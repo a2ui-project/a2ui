@@ -59,6 +59,10 @@ protocol.
 
 ## Building the SDK
 
+Building from source regenerates the Express parser from
+`specification/inference_formats/express/Express.g4`. That step runs ANTLR, which
+requires a Java runtime (JRE 11 or newer) on the `PATH`.
+
 To build the SDK, run the following command from the `agent_sdks/python/a2ui_agent`
 directory:
 
