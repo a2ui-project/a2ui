@@ -478,7 +478,9 @@ def test_generate_renderer_capabilities():
     assert "class V09Capabilities(StrictBaseModel):" in code
     assert "class A2uiClientCapabilities(StrictBaseModel):" in code
     assert "A2uiRendererCapabilities = A2uiClientCapabilities" in code
-    assert "v0_9: Optional[V09Capabilities] = Field(None, alias=SPEC_VERSION)" in code
+    assert (
+        "v0_9: Optional[V09Capabilities] = Field(None, alias=PROTOCOL_VERSION)" in code
+    )
 
 
 def test_generate_agent_capabilities():
@@ -668,3 +670,20 @@ def test_basic_catalog_operator_and_index_api():
     assert "AddApi" in v1_0.__all__
     assert hasattr(v1_0, "IndexApi")
     assert "IndexApi" in v1_0.__all__
+
+
+def test_validate_version_field_non_dict_context():
+    from a2ui.core.schema.v0_9.client_to_server import A2uiClientDataModel
+
+    # Should not raise AttributeError when context is not a dict
+    model = A2uiClientDataModel.model_validate(
+        {"version": "v0.9", "surfaces": {}},
+        context="not_a_dict",
+    )
+    assert model.version == "v0.9"
+
+    model_list = A2uiClientDataModel.model_validate(
+        {"version": "v0.9", "surfaces": {}},
+        context=["list_context"],
+    )
+    assert model_list.version == "v0.9"

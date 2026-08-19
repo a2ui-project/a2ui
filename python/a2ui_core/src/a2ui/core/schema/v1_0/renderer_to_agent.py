@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field, ConfigDict
 from .common_types import StrictBaseModel, CallId, Extensions, FunctionCall, FunctionResponse
-from .constants import SPEC_VERSION, SPEC_VERSION_TYPE
+from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
 
 class A2uiRendererAction(StrictBaseModel):
@@ -74,7 +74,7 @@ ActionPayload = A2uiRendererAction
 
 
 class A2uiRendererActionMessage(StrictBaseModel):
-    version: SPEC_VERSION_TYPE = SPEC_VERSION
+    version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION
     action: A2uiRendererAction = Field(...)
 
 
@@ -96,12 +96,12 @@ class CallAgentFunction(StrictBaseModel):
 
 
 class CallAgentFunctionMessage(StrictBaseModel):
-    version: SPEC_VERSION_TYPE = SPEC_VERSION
+    version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION
     call_agent_function: CallAgentFunction = Field(..., alias="callAgentFunction")
 
 
 class RendererFunctionResponseMessage(StrictBaseModel):
-    version: SPEC_VERSION_TYPE = SPEC_VERSION
+    version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION
     renderer_function_response: FunctionResponse = Field(
         ..., alias="rendererFunctionResponse"
     )
@@ -163,7 +163,7 @@ A2uiRendererError = Union[A2uiValidationError, A2uiGenericError]
 
 
 class A2uiRendererErrorMessage(StrictBaseModel):
-    version: SPEC_VERSION_TYPE = SPEC_VERSION
+    version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION
     error: A2uiRendererError = Field(...)
 
 
@@ -176,7 +176,7 @@ RendererToAgentMessage = Union[
 
 
 class A2uiRendererDataModel(StrictBaseModel):
-    version: SPEC_VERSION_TYPE = SPEC_VERSION
+    version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION
     surfaces: Dict[str, Dict[str, Any]] = Field(
         ..., description="A map of surface IDs to data models."
     )

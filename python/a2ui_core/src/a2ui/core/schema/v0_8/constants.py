@@ -16,15 +16,15 @@
 from __future__ import annotations
 from typing import Final, Literal
 
-SPEC_VERSION: Final[Literal["v0.8"]] = "v0.8"
-SPEC_VERSION_TYPE = Literal["v0.8"]
+PROTOCOL_VERSION: Final[Literal["v0.8"]] = "v0.8"
+PROTOCOL_VERSION_TYPE = Literal["v0.8"]
 
 ROOT_ID = "root"
 CATALOG_COMPONENTS_KEY = "components"
 SURFACE_ID_KEY = "surfaceId"
 THEME_KEY = "styles"
 STYLES_KEY = "styles"
-SPEC_BASE_URL = "https://a2ui.org/specification"
+PROTOCOL_BASE_URL = "https://a2ui.org/specification"
 
 # Outbound message types
 MSG_TYPE_BEGIN_RENDERING = "beginRendering"

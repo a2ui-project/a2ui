@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field, ConfigDict
 from .common_types import StrictBaseModel
-from .constants import SPEC_VERSION, SPEC_VERSION_TYPE
+from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
 
 ComponentsList = List[Dict[str, Any]]
@@ -60,7 +60,7 @@ class CreateSurface(StrictBaseModel):
 
 
 class CreateSurfaceMessage(StrictBaseModel):
-    version: SPEC_VERSION_TYPE = SPEC_VERSION
+    version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION
     create_surface: CreateSurface = Field(..., alias="createSurface")
 
 
@@ -78,7 +78,7 @@ class UpdateComponents(StrictBaseModel):
 
 
 class UpdateComponentsMessage(StrictBaseModel):
-    version: SPEC_VERSION_TYPE = SPEC_VERSION
+    version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION
     update_components: UpdateComponents = Field(..., alias="updateComponents")
 
 
@@ -110,7 +110,7 @@ class UpdateDataModel(StrictBaseModel):
 
 
 class UpdateDataModelMessage(StrictBaseModel):
-    version: SPEC_VERSION_TYPE = SPEC_VERSION
+    version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION
     update_data_model: UpdateDataModel = Field(..., alias="updateDataModel")
 
 
@@ -125,7 +125,7 @@ class DeleteSurface(StrictBaseModel):
 
 
 class DeleteSurfaceMessage(StrictBaseModel):
-    version: SPEC_VERSION_TYPE = SPEC_VERSION
+    version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION
     delete_surface: DeleteSurface = Field(..., alias="deleteSurface")
 
 

@@ -64,7 +64,7 @@ VERSION_0_9 = "0.9"
 VERSION_0_9_1 = "0.9.1"
 VERSION_1_0 = "1.0"
 
-SPEC_VERSION_MAP = {
+PROTOCOL_VERSION_MAP = {
     VERSION_0_8: {
         SERVER_TO_CLIENT_SCHEMA_KEY: "specification/v0_8/json/server_to_client.json",
     },

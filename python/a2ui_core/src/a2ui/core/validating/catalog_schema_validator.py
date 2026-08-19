@@ -27,16 +27,18 @@ from ..schema.v0_9.common_types import (
     ListReference,
     SingleReference,
 )
-from ..schema.v0_9.constants import CATALOG_COMPONENTS_KEY, SPEC_BASE_URL
+from ..schema.v0_9.constants import CATALOG_COMPONENTS_KEY, PROTOCOL_BASE_URL
 
 JSON_SCHEMA_DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
 COMMON_TYPES_SCHEMA_FILE = "common_types.json"
 CATALOG_SCHEMA_FILE = "catalog.json"
 
 
-def _schema_url(spec_version: str, file_name: str) -> str:
-    ver = spec_version if spec_version.startswith("v") else f"v{spec_version}"
-    return f"{SPEC_BASE_URL}/{ver.replace('.', '_')}/{file_name}"
+def _schema_url(protocol_version: str, file_name: str) -> str:
+    ver = (
+        protocol_version if protocol_version.startswith("v") else f"v{protocol_version}"
+    )
+    return f"{PROTOCOL_BASE_URL}/{ver.replace('.', '_')}/{file_name}"
 
 
 class CatalogSchemaValidator:
@@ -74,7 +76,7 @@ class CatalogSchemaValidator:
             Resource.from_contents(catalog_schema, default_specification=DRAFT202012),
         ))
         resources.append((
-            _schema_url(self.catalog.spec_version, CATALOG_SCHEMA_FILE),
+            _schema_url(self.catalog.protocol_version, CATALOG_SCHEMA_FILE),
             Resource.from_contents(catalog_schema, default_specification=DRAFT202012),
         ))
         if self.common_types_schema:
@@ -86,7 +88,7 @@ class CatalogSchemaValidator:
                 ),
             ))
             resources.append((
-                _schema_url(self.catalog.spec_version, COMMON_TYPES_SCHEMA_FILE),
+                _schema_url(self.catalog.protocol_version, COMMON_TYPES_SCHEMA_FILE),
                 Resource.from_contents(
                     self.common_types_schema,
                     default_specification=DRAFT202012,

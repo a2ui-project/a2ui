@@ -60,7 +60,7 @@ class PackSpecsBuildHook(BuildHookInterface):
             "_basic_catalog_constants_load",
         )
 
-        spec_version_map = a2ui_constants.SPEC_VERSION_MAP
+        protocol_version_map = a2ui_constants.PROTOCOL_VERSION_MAP
         a2ui_asset_package = a2ui_constants.A2UI_ASSET_PACKAGE
         specification_dir = a2ui_constants.SPECIFICATION_DIR
 
@@ -86,7 +86,7 @@ class PackSpecsBuildHook(BuildHookInterface):
             project_root, "src", a2ui_asset_package.replace(".", os.sep)
         )
 
-        self._pack_schemas(repo_root, spec_version_map, target_base)
+        self._pack_schemas(repo_root, protocol_version_map, target_base)
         self._pack_basic_catalogs(
             repo_root, basic_catalog_constants.BASIC_CATALOG_PATHS, target_base
         )

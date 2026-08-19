@@ -465,14 +465,17 @@ def generate_basic_catalog_index(
     )
 
     cat_init.extend([
-        f"from ...schema.{dir_name}.constants import SPEC_VERSION, SPEC_BASE_URL",
+        (
+            f"from ...schema.{dir_name}.constants import PROTOCOL_VERSION,"
+            " PROTOCOL_BASE_URL"
+        ),
         "from ...catalog import Catalog, ModelComponentApi, FunctionImplementation",
         "",
         "",
-        "def _basic_catalog_id(spec_version: str) -> str:",
+        "def _basic_catalog_id(protocol_version: str) -> str:",
         "    return (",
         (
-            "        f\"{SPEC_BASE_URL}/{spec_version.replace('.',"
+            "        f\"{PROTOCOL_BASE_URL}/{protocol_version.replace('.',"
             " '_')}/catalogs/basic/catalog.json\""
         ),
         "    )",
@@ -482,8 +485,8 @@ def generate_basic_catalog_index(
         "",
         "    def __init__(self, locale: Optional[str] = None):",
         f"{lazy_func_import}        super().__init__(",
-        "            catalog_id=_basic_catalog_id(SPEC_VERSION),",
-        "            spec_version=SPEC_VERSION,",
+        "            catalog_id=_basic_catalog_id(PROTOCOL_VERSION),",
+        "            protocol_version=PROTOCOL_VERSION,",
         "            components=BASIC_COMPONENTS,",
         f"            functions={functions_arg},",
         f"{theme_arg_line}        )",
@@ -496,7 +499,7 @@ def generate_basic_catalog_index(
             "def __getattr__(name: str) -> Any:",
             "    if name == 'BASIC_FUNCTION_IMPLEMENTATIONS':",
             "        from ..function_impls import create_basic_catalog_functions",
-            "        return create_basic_catalog_functions(SPEC_VERSION)",
+            "        return create_basic_catalog_functions(PROTOCOL_VERSION)",
             "    if name == 'create_basic_catalog_functions':",
             "        from .. import function_impls",
             "        return getattr(function_impls, name)",

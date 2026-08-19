@@ -49,10 +49,8 @@ class StrictBaseModel(BaseModel):
     @classmethod
     def validate_version_field(cls, v: Any, info: ValidationInfo) -> Any:
         context = info.context if isinstance(info.context, dict) else {}
-        target_version = (
-            context.get("target_version")
-            or context.get("spec_version")
-            or context.get("protocol_version")
+        target_version = context.get("target_version") or context.get(
+            "protocol_version"
         )
         if target_version is None:
             if "version" in cls.model_fields:
@@ -66,9 +64,7 @@ class StrictBaseModel(BaseModel):
             if target_version is None and cls.__module__:
                 mod = sys.modules.get(cls.__module__)
                 if mod:
-                    target_version = getattr(mod, "SPEC_VERSION", None) or getattr(
-                        mod, "PROTOCOL_VERSION", None
-                    )
+                    target_version = getattr(mod, "PROTOCOL_VERSION", None)
         if target_version is not None and v != target_version:
             raise ValueError(f"Input should be '{target_version}'")
         return v

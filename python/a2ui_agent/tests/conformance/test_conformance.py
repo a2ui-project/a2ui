@@ -54,7 +54,7 @@ CATEGORY_TO_EXCEPTION = {
 }
 
 # Set of A2UI specification versions supported by this Python Agent SDK conformance harness.
-SUPPORTED_SPEC_VERSIONS = {"v0.8", "v0.9", "v1.0"}
+SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "v1.0"}
 
 # Transition skip list containing specific test case names to skip during active feature transitions.
 SKIP_TEST_NAMES = set()
@@ -180,7 +180,7 @@ def get_conformance_cases(filename):
         if not version.startswith("v"):
             version = f"v{version}"
 
-        if version not in SUPPORTED_SPEC_VERSIONS or name in SKIP_TEST_NAMES:
+        if version not in SUPPORTED_PROTOCOL_VERSIONS or name in SKIP_TEST_NAMES:
             continue
         filtered.append((name, case))
     return filtered

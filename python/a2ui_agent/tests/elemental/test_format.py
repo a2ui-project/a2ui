@@ -38,7 +38,7 @@ class TestElementalFormat(unittest.TestCase):
     def setUp(self):
         with open(CATALOG_PATH, "r", encoding="utf-8") as f:
             catalog_dict = json.load(f)
-        self.catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
+        self.catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
 
     def test_ensure_catalog_error(self):
         """Verifies that accessing parser or prompt_generator raises ValueError when catalog is missing."""

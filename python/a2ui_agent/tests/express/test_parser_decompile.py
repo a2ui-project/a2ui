@@ -39,7 +39,7 @@ class TestExpressParser(unittest.TestCase):
         self.catalog_path = CATALOG_PATH
         with open(self.catalog_path, "r", encoding="utf-8") as f:
             catalog_dict = json.load(f)
-        self.catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
+        self.catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
 
     def test_decompiler_rpc_actions_functional_expressions_and_custom_checks(self):
         """Verifies decompilation of custom RPC calls, local action mappings, dynamic functional expressions, and custom checks."""
