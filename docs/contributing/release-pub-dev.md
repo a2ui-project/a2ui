@@ -1,8 +1,9 @@
 # Pub.dev release process
 
 This page contains maintenance information for releasing to pub.dev.
+It is needed when main steps stop working or something needs to be changed.
 
-For main release steps, see [release.md](release.md).
+For main release steps, see [release.md](release.md#pubdev-release-steps).
 
 ## CI
 
@@ -42,13 +43,13 @@ In https://github.com/organizations/a2ui-project/settings/actions:
 
 
 
-## Package categories
+## How packages are versioned
 
-The maintained packages fall into the following categories:
+Depending on the package category, the version in `pubspec.yaml` follows different rules:
 
 1. **Not planned to be published**: `pubspec.yaml` contains `publish_to: none`. Workspace tools and example apps that are never pushed to pub.dev.
-2. **Not yet published**: the package's `version:` ends with a `-wip<N>` suffix (see "Versioning" below). Not-ready-for-production versions are pushed to pub.dev to reserve the name and maybe to try the package in dev purposes.
-3. **Published**: any other package. Each has its own version cadence on pub.dev.
+2. **Not yet published**: the package's `version:` in `pubspec.yaml` ends with a `-wip<N>` suffix (see "Versioning" below). Not-ready-for-production versions are pushed to pub.dev to reserve the name and maybe to try the package in dev purposes.
+3. **Published**: any other package. The package's `version:` in `pubspec.yaml` doesn't contain any postfix.
 
 ## Versioning
 
