@@ -183,8 +183,9 @@ export class RpcHandler {
       );
     }
 
-    // 3. Validate boundary execution constraint (callableFrom)
-    const boundary = funcImpl.callableFrom ?? 'rendererOnly';
+    // 3. Validate boundary execution constraint (allowedCallers / callableFrom)
+    const boundary =
+      (funcImpl as any).allowedCallers ?? funcImpl.callableFrom ?? 'rendererOnly';
     if (boundary !== 'rendererOrAgent' && boundary !== 'agentOnly') {
       return this.createResponseError(
         functionCallId,

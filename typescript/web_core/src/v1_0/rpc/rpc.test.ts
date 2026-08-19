@@ -301,7 +301,6 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
           functionCallId: 'call-default-cat',
           callFunction: {
             call: 'customRpc',
-            catalogId: 'basic',
             args: {text: 'hello'},
           },
         },
