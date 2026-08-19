@@ -75,8 +75,8 @@ export class LocalGallery extends LitElement {
 
     window.addEventListener('keydown', this.handleKeyDown);
 
-    this.processor.model.onSurfaceCreated.subscribe((surface) => {
-      surface.onError.subscribe((err: { message?: string }) => {
+    this.processor.model.onSurfaceCreated.subscribe(surface => {
+      surface.onError.subscribe((err: {message?: string}) => {
         this.log(`Error on surface ${surface.id}: ${err.message ?? err}`, err);
       });
     });

@@ -93,8 +93,6 @@ struct OpenUrlFunctionTests {
     }
   }
 
-
-
   // MARK: - Security Constraints
 
   @Test func throwsErrorWhenUsingJavascriptScheme() {
