@@ -299,7 +299,7 @@ def generate_agent_to_renderer(
             "from typing import Any, Dict, List, Literal, Optional, Union\n"
             "from pydantic import BaseModel, Field, ConfigDict\n"
             + a2r_imports
-            + "from .constants import SPEC_VERSION, SPEC_VERSION_TYPE"
+            + "from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE"
         ),
         "ComponentsList = List[Dict[str, Any]]\nComponent = Dict[str, Any]",
     ]
@@ -326,7 +326,7 @@ def generate_agent_to_renderer(
             alias_opt = f', alias="{envelope_key}"' if snake_env != envelope_key else ""
             a2r_blocks.append(
                 f"class {mname}(StrictBaseModel):\n"
-                "    version: SPEC_VERSION_TYPE = SPEC_VERSION\n"
+                "    version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION\n"
                 f"    {snake_env}: {payload_name} = Field(...{alias_opt})"
             )
             msg_names.append(mname)
@@ -341,7 +341,7 @@ def generate_agent_to_renderer(
             alias_opt = f', alias="{key}"' if snake_env != key else ""
             a2r_blocks.append(
                 f"class {mname}(StrictBaseModel):\n"
-                "    version: SPEC_VERSION_TYPE = SPEC_VERSION\n"
+                "    version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION\n"
                 f"    {snake_env}: {payload_name} = Field(...{alias_opt})"
             )
             msg_names.append(mname)
@@ -422,7 +422,7 @@ def generate_renderer_to_agent(
         "from typing import Any, Dict, List, Literal, Optional, Union\n"
         "from pydantic import BaseModel, Field, ConfigDict\n"
         + r2a_imports
-        + "from .constants import SPEC_VERSION, SPEC_VERSION_TYPE",
+        + "from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE",
     ]
     r2a_names: List[str] = []
     msg_union_members: List[str] = []
@@ -445,7 +445,7 @@ def generate_renderer_to_agent(
                 alias_opt = f', alias="{prop_name}"' if snake_prop != prop_name else ""
                 r2a_blocks.append(
                     f"class {msg_cls}(StrictBaseModel):\n"
-                    "    version: SPEC_VERSION_TYPE = SPEC_VERSION\n"
+                    "    version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION\n"
                     f"    {snake_prop}: A2uiRendererAction = Field(...{alias_opt})"
                 )
                 msg_union_members.append(msg_cls)
@@ -470,7 +470,7 @@ def generate_renderer_to_agent(
                 alias_opt = f', alias="{prop_name}"' if snake_prop != prop_name else ""
                 r2a_blocks.append(
                     f"class {msg_cls}(StrictBaseModel):\n"
-                    "    version: SPEC_VERSION_TYPE = SPEC_VERSION\n"
+                    "    version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION\n"
                     f"    {snake_prop}: A2uiClientAction = Field(...{alias_opt})"
                 )
                 r2a_blocks.append(
@@ -540,7 +540,7 @@ def generate_renderer_to_agent(
             err_type = "A2uiRendererError"
             r2a_blocks.append(
                 f"class {msg_cls}(StrictBaseModel):\n"
-                "    version: SPEC_VERSION_TYPE = SPEC_VERSION\n"
+                "    version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION\n"
                 f"    {snake_prop}: {err_type} = Field(...)"
             )
             msg_union_members.append(msg_cls)
@@ -560,7 +560,7 @@ def generate_renderer_to_agent(
             alias_opt = f', alias="{prop_name}"' if snake_prop != prop_name else ""
             r2a_blocks.append(
                 f"class {msg_cls}(StrictBaseModel):\n"
-                "    version: SPEC_VERSION_TYPE = SPEC_VERSION\n"
+                "    version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION\n"
                 f"    {snake_prop}: {payload_type} = Field(...{alias_opt})"
             )
             msg_union_members.append(msg_cls)
@@ -572,8 +572,9 @@ def generate_renderer_to_agent(
         r2a_blocks.append(f"RendererToAgentMessage = {union_def}")
         r2a_blocks.append(
             "class A2uiRendererDataModel(StrictBaseModel):\n    version:"
-            " SPEC_VERSION_TYPE = SPEC_VERSION\n    surfaces: Dict[str, Dict[str, Any]]"
-            ' = Field(..., description="A map of surface IDs to data models.")'
+            " PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION\n    surfaces: Dict[str,"
+            ' Dict[str, Any]] = Field(..., description="A map of surface IDs to data'
+            ' models.")'
         )
         r2a_blocks.append("RendererToAgentMessageList = List[RendererToAgentMessage]")
         r2a_blocks.append(
@@ -600,8 +601,9 @@ def generate_renderer_to_agent(
         ])
         r2a_blocks.append(
             "class A2uiClientDataModel(StrictBaseModel):\n    version:"
-            " SPEC_VERSION_TYPE = SPEC_VERSION\n    surfaces: Dict[str, Dict[str, Any]]"
-            ' = Field(..., description="A map of surface IDs to data models.")'
+            " PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION\n    surfaces: Dict[str,"
+            ' Dict[str, Any]] = Field(..., description="A map of surface IDs to data'
+            ' models.")'
         )
         r2a_blocks.append(f"A2uiClientMessageList = List[ClientToServerMessage]")
         r2a_blocks.append(
@@ -637,7 +639,7 @@ def generate_renderer_capabilities(
             "from typing import Any, Dict, List, Literal, Optional\n"
             "from pydantic import BaseModel, Field, ConfigDict\n"
             f"from {common_mod} import StrictBaseModel\n"
-            "from .constants import SPEC_VERSION, SPEC_VERSION_TYPE"
+            "from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE"
         ),
     ]
 
@@ -737,12 +739,12 @@ def generate_renderer_capabilities(
     if is_modern:
         caps_blocks.append(
             f"class A2uiRendererCapabilities(StrictBaseModel):\n    {dir_name}:"
-            f" Optional[{cap_cls_name}] = Field(None, alias=SPEC_VERSION)"
+            f" Optional[{cap_cls_name}] = Field(None, alias=PROTOCOL_VERSION)"
         )
     else:
         caps_blocks.append(
             f"class A2uiClientCapabilities(StrictBaseModel):\n    {dir_name}:"
-            f" Optional[{cap_cls_name}] = Field(None, alias=SPEC_VERSION)"
+            f" Optional[{cap_cls_name}] = Field(None, alias=PROTOCOL_VERSION)"
         )
         caps_blocks.append("A2uiRendererCapabilities = A2uiClientCapabilities")
 
@@ -768,7 +770,7 @@ def generate_agent_capabilities(
             "from typing import Any, Dict, List, Literal, Optional\n"
             "from pydantic import BaseModel, Field, ConfigDict\n"
             f"from {common_mod} import StrictBaseModel\n"
-            "from .constants import SPEC_VERSION, SPEC_VERSION_TYPE"
+            "from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE"
         ),
     ]
 
@@ -838,7 +840,7 @@ def generate_agent_capabilities(
     if is_modern:
         caps_blocks.append(
             f"class A2uiAgentCapabilities(StrictBaseModel):\n    {dir_name}:"
-            f" Optional[{cap_cls_name}] = Field(None, alias=SPEC_VERSION)"
+            f" Optional[{cap_cls_name}] = Field(None, alias=PROTOCOL_VERSION)"
         )
     else:
         alt_prefix = "Agent"
@@ -849,7 +851,7 @@ def generate_agent_capabilities(
             caps_blocks.append(f"{cross_alt_cap_cls_name} = {cap_cls_name}")
         caps_blocks.append(
             f"class A2uiServerCapabilities(StrictBaseModel):\n    {dir_name}:"
-            f" Optional[{cap_cls_name}] = Field(None, alias=SPEC_VERSION)"
+            f" Optional[{cap_cls_name}] = Field(None, alias=PROTOCOL_VERSION)"
         )
         caps_blocks.append("A2uiAgentCapabilities = A2uiServerCapabilities")
 
@@ -877,7 +879,7 @@ def generate_catalog_definition(
             f"{FILE_HEADER}\nfrom typing import Any, Dict, List, Literal,"
             " Optional, Union\nfrom pydantic import BaseModel, Field,"
             f" ConfigDict\nfrom {common_mod} import {common_imports_str}\nfrom"
-            " .constants import SPEC_VERSION, SPEC_VERSION_TYPE"
+            " .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE"
         ),
     ]
 

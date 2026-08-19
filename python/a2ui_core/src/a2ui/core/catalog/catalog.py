@@ -33,19 +33,21 @@ class Catalog(Generic[TComponent, TFunction]):
     def __init__(
         self,
         catalog_id: str,
-        spec_version: str,
-        components: List[TComponent],
-        functions: List[TFunction],
+        protocol_version: Optional[str] = None,
+        components: Optional[List[TComponent]] = None,
+        functions: Optional[List[TFunction]] = None,
         theme_schema: Dict[str, Any] = {},
     ):
         self.catalog_id = catalog_id
-        self.spec_version = spec_version
+        if not protocol_version:
+            raise ValueError("protocol_version must be provided.")
+        self.protocol_version = protocol_version
 
         # Symmetrical map to Catalog.components in TypeScript
-        self.components: Dict[str, TComponent] = {c.name: c for c in components}
+        self.components: Dict[str, TComponent] = {c.name: c for c in components or []}
 
         # Symmetrical map to Catalog.functions in TypeScript
-        self.functions: Dict[str, TFunction] = {fn.name: fn for fn in functions}
+        self.functions: Dict[str, TFunction] = {fn.name: fn for fn in functions or []}
 
         self.theme_schema = theme_schema
         self._catalog_schema: Optional[Dict[str, Any]] = None
@@ -76,13 +78,17 @@ class Catalog(Generic[TComponent, TFunction]):
     def from_json(
         cls,
         catalog_schema: Dict[str, Any],
-        spec_version: str,
+        protocol_version: Optional[str] = None,
         catalog_id: Optional[str] = None,
     ) -> "Catalog[ComponentApi, FunctionApi]":
         """Constructs a schema-only Catalog directly from raw JSON Schema."""
         catalog_id = catalog_id or catalog_schema.get("catalogId")
         if not catalog_id:
             raise ValueError("catalog_id must be provided or exist in catalog_schema.")
+
+        p_ver = protocol_version or catalog_schema.get("protocolVersion")
+        if not p_ver:
+            raise ValueError("protocol_version must be provided.")
 
         components_map = catalog_schema.get("components", {})
         any_comp_refs = (
@@ -134,7 +140,7 @@ class Catalog(Generic[TComponent, TFunction]):
 
         cat = Catalog[ComponentApi, FunctionApi](
             catalog_id=catalog_id,
-            spec_version=spec_version,
+            protocol_version=p_ver,
             components=components,
             functions=functions,
             theme_schema=catalog_schema.get("theme") or {},

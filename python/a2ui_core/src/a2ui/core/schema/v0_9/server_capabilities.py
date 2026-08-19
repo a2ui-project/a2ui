@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field, ConfigDict
 from .common_types import StrictBaseModel
-from .constants import SPEC_VERSION, SPEC_VERSION_TYPE
+from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
 
 class V09ServerCapabilities(StrictBaseModel):
@@ -50,7 +50,7 @@ V0_9AgentCapabilities = V09ServerCapabilities
 
 
 class A2uiServerCapabilities(StrictBaseModel):
-    v0_9: Optional[V09ServerCapabilities] = Field(None, alias=SPEC_VERSION)
+    v0_9: Optional[V09ServerCapabilities] = Field(None, alias=PROTOCOL_VERSION)
 
 
 A2uiAgentCapabilities = A2uiServerCapabilities

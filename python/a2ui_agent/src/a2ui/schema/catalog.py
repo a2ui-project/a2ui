@@ -195,7 +195,7 @@ class A2uiCatalog:
     def core_catalog(self) -> Catalog[Any, Any]:
         return Catalog.from_json(
             catalog_schema=self.catalog_schema,
-            spec_version=self.version,
+            protocol_version=self.version,
             catalog_id=self.catalog_id,
         )
 

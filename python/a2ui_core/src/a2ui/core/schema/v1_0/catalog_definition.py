@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field, ConfigDict
 from .common_types import StrictBaseModel, Extensions
-from .constants import SPEC_VERSION, SPEC_VERSION_TYPE
+from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
 
 class FunctionDefinition(BaseModel):

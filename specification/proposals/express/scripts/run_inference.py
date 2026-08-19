@@ -103,7 +103,7 @@ def run_inference_and_validate(
 
     with open(catalog_path, "r", encoding="utf-8") as f:
         catalog_dict = json.load(f)
-    catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
+    catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
 
     # 1. Load the original example JSON to extract target component list
     with open(example_path, "r", encoding="utf-8") as f:

@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from ..exceptions import A2uiValidationError, A2uiErrorDetail
 from ..schema import A2uiMessageListWrapper
 from ..schema.v0_9.constants import (
-    SPEC_VERSION,
+    PROTOCOL_VERSION,
     MSG_TYPE_CREATE_SURFACE,
     MSG_TYPE_UPDATE_COMPONENTS,
     MSG_TYPE_UPDATE_DATA_MODEL,
@@ -88,7 +88,7 @@ class A2uiValidator:
         """Validates the overall A2UI protocol payload structure using Pydantic."""
         details = []
         expected_version = (
-            config.target_version if config.target_version else SPEC_VERSION
+            config.target_version if config.target_version else PROTOCOL_VERSION
         )
 
         for i, msg in enumerate(messages):

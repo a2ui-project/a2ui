@@ -24,7 +24,7 @@ from a2ui.core.schema.v0_9.client_capabilities import V09Capabilities
 from a2ui.schema.constants import (
     SERVER_TO_CLIENT_SCHEMA_KEY,
     COMMON_TYPES_SCHEMA_KEY,
-    SPEC_VERSION_MAP,
+    PROTOCOL_VERSION_MAP,
     INLINE_CATALOGS_KEY,
     CATALOG_COMPONENTS_KEY,
     INLINE_CATALOG_NAME,
@@ -115,21 +115,21 @@ class DirectJsonFormat(InferenceFormat):
     ) -> None:
         """Loads separate schema components and processes catalogs."""
         catalogs = catalogs or []
-        if version not in SPEC_VERSION_MAP:
+        if version not in PROTOCOL_VERSION_MAP:
             raise A2uiCatalogError(
                 f"Unknown A2UI specification version: {version}. Supported:"
-                f" {list(SPEC_VERSION_MAP.keys())}"
+                f" {list(PROTOCOL_VERSION_MAP.keys())}"
             )
 
         # Load server-to-client and common types schemas
         self._server_to_client_schema = self._apply_modifiers(
             load_from_bundled_resource(
-                version, SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
+                version, SERVER_TO_CLIENT_SCHEMA_KEY, PROTOCOL_VERSION_MAP
             )
         )
         self._common_types_schema = self._apply_modifiers(
             load_from_bundled_resource(
-                version, COMMON_TYPES_SCHEMA_KEY, SPEC_VERSION_MAP
+                version, COMMON_TYPES_SCHEMA_KEY, PROTOCOL_VERSION_MAP
             )
         )
 

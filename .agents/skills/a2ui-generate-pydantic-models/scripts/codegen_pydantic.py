@@ -79,8 +79,8 @@ def _generate_constants_code(
         FILE_HEADER,
         "from typing import Final, Literal",
         "",
-        f'SPEC_VERSION: Final[Literal["{spec_dot}"]] = "{spec_dot}"',
-        f'SPEC_VERSION_TYPE = Literal["{spec_dot}"]',
+        f'PROTOCOL_VERSION: Final[Literal["{spec_dot}"]] = "{spec_dot}"',
+        f'PROTOCOL_VERSION_TYPE = Literal["{spec_dot}"]',
         "",
         'ROOT_ID = "root"',
         'CATALOG_COMPONENTS_KEY = "components"',
@@ -112,7 +112,7 @@ def _generate_constants_code(
         lines.append('THEME_KEY = "theme"')
         lines.append('STYLES_KEY = "styles"')
 
-    lines.append('SPEC_BASE_URL = "https://a2ui.org/specification"')
+    lines.append('PROTOCOL_BASE_URL = "https://a2ui.org/specification"')
     lines.append("")
 
     # Outbound message type constants

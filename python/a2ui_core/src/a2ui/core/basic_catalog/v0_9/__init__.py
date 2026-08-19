@@ -93,13 +93,13 @@ from .function_impls import (
     BASIC_FUNCTION_IMPLEMENTATIONS,
     create_basic_catalog_functions,
 )
-from ...schema.v0_9.constants import SPEC_VERSION, SPEC_BASE_URL
+from ...schema.v0_9.constants import PROTOCOL_VERSION, PROTOCOL_BASE_URL
 from ...catalog import Catalog, ModelComponentApi, FunctionImplementation
 
 
-def _basic_catalog_id(spec_version: str) -> str:
+def _basic_catalog_id(protocol_version: str) -> str:
     return (
-        f"{SPEC_BASE_URL}/{spec_version.replace('.', '_')}/catalogs/basic/catalog.json"
+        f"{PROTOCOL_BASE_URL}/{protocol_version.replace('.', '_')}/catalogs/basic/catalog.json"
     )
 
 
@@ -107,8 +107,8 @@ class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
 
     def __init__(self, locale: Optional[str] = None):
         super().__init__(
-            catalog_id=_basic_catalog_id(SPEC_VERSION),
-            spec_version=SPEC_VERSION,
+            catalog_id=_basic_catalog_id(PROTOCOL_VERSION),
+            protocol_version=PROTOCOL_VERSION,
             components=BASIC_COMPONENTS,
             functions=create_basic_catalog_functions(locale=locale),
             theme_schema=Theme.model_json_schema(),

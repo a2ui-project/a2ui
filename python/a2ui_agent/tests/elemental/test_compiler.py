@@ -41,7 +41,7 @@ class TestElementalCompiler(unittest.TestCase):
         self.catalog_path = CATALOG_PATH
         with open(self.catalog_path, "r", encoding="utf-8") as f:
             catalog_dict = json.load(f)
-        self.catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
+        self.catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
         self.compiler = ElementalCompiler(self.catalog)
 
     def test_compile_delete_surface(self):

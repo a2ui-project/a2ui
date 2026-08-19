@@ -128,7 +128,7 @@ class ConformanceTest {
       val rawVersion = (catalog["protocolVersion"] ?: "v0.9").toString()
       val version = if (rawVersion.startsWith("v")) rawVersion else "v$rawVersion"
 
-      if (version !in SUPPORTED_SPEC_VERSIONS || (name != null && name in SKIP_TEST_NAMES)) {
+      if (version !in SUPPORTED_PROTOCOL_VERSIONS || (name != null && name in SKIP_TEST_NAMES)) {
         continue
       }
       filtered.add(case)
@@ -739,7 +739,7 @@ class ConformanceTest {
 
   private companion object {
     // Set of A2UI specification versions supported by this Kotlin Agent SDK conformance harness.
-    private val SUPPORTED_SPEC_VERSIONS = setOf("v0.8", "v0.9", "v1.0")
+    private val SUPPORTED_PROTOCOL_VERSIONS = setOf("v0.8", "v0.9", "v1.0")
 
     // Transition skip list containing specific test case names to skip during active feature
     // transitions.

@@ -27,10 +27,10 @@ const CORE_DIR = path.join(CONFORMANCE_ROOT, 'core');
 const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
 
 /**
- * Set of A2UI specification versions supported by this TypeScript conformance harness.
+ * Set of A2UI protocol versions supported by this TypeScript conformance harness.
  * Test cases specifying protocol versions outside this set are skipped.
  */
-const SUPPORTED_SPEC_VERSIONS = new Set(['v0.8', 'v0.9', 'v1.0']);
+const SUPPORTED_PROTOCOL_VERSIONS = new Set(['v0.8', 'v0.9', 'v1.0']);
 
 /**
  * Transition skip list containing specific test case names to skip during active feature transitions.
@@ -111,9 +111,11 @@ function runConformanceHarness() {
       let version = catalog?.protocolVersion || args?.version || 'v0.8';
       if (!version.startsWith('v')) version = `v${version}`;
 
-      if (!SUPPORTED_SPEC_VERSIONS.has(version)) {
+      if (!SUPPORTED_PROTOCOL_VERSIONS.has(version)) {
         totalSkipped++;
-        console.log(`  ⁃ [SKIPPED] ${name} (version ${version} not in SUPPORTED_SPEC_VERSIONS)`);
+        console.log(
+          `  ⁃ [SKIPPED] ${name} (version ${version} not in SUPPORTED_PROTOCOL_VERSIONS)`,
+        );
         continue;
       }
 

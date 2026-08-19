@@ -47,7 +47,7 @@ class TestExpressCompiler(unittest.TestCase):
         self.catalog_path = CATALOG_PATH
         with open(self.catalog_path, "r", encoding="utf-8") as f:
             catalog_dict = json.load(f)
-        self.catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
+        self.catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
         self.helper = CatalogSchemaHelper(self.catalog)
 
     def test_prompt_generator(self):
@@ -567,7 +567,7 @@ btnLabel = Text("Click Thread 2")
             catalog_dict = json.load(f)
 
         # 2. Construct Catalog model
-        core_catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
+        core_catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
 
         # 3. Construct A2uiCatalog model
         a2ui_catalog = A2uiCatalog(

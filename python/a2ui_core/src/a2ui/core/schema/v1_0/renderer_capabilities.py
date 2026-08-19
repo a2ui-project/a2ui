@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field, ConfigDict
 from .common_types import StrictBaseModel
-from .constants import SPEC_VERSION, SPEC_VERSION_TYPE
+from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
 
 from .catalog_definition import CatalogDefinition
@@ -51,4 +51,4 @@ V1_0Capabilities = V10Capabilities
 
 
 class A2uiRendererCapabilities(StrictBaseModel):
-    v1_0: Optional[V10Capabilities] = Field(None, alias=SPEC_VERSION)
+    v1_0: Optional[V10Capabilities] = Field(None, alias=PROTOCOL_VERSION)

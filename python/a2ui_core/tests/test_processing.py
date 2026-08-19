@@ -29,7 +29,7 @@ from a2ui.core.catalog import (
     ComponentApi,
     ModelComponentApi,
 )
-from a2ui.core.schema.v0_9.constants import SPEC_VERSION
+from a2ui.core.schema.v0_9.constants import PROTOCOL_VERSION
 
 
 @pytest.fixture
@@ -37,7 +37,7 @@ def mock_catalog():
     class MockCatalog:
 
         def __init__(self):
-            self.version = SPEC_VERSION
+            self.version = PROTOCOL_VERSION
             self.catalog_id = "https://a2ui.org/mock.json"
             self.catalog_schema = {"components": {}}
             self.single_refs = set()
@@ -65,7 +65,7 @@ def test_message_processor_surface_lifecycle(mock_catalog):
 
     # 1. Create surface
     create_msg = {
-        "version": SPEC_VERSION,
+        "version": PROTOCOL_VERSION,
         "createSurface": {
             "surfaceId": "surface_1",
             "catalogId": mock_catalog.catalog_id,
@@ -82,7 +82,10 @@ def test_message_processor_surface_lifecycle(mock_catalog):
     assert surface.send_data_model is True
 
     # 2. Delete surface
-    delete_msg = {"version": SPEC_VERSION, "deleteSurface": {"surfaceId": "surface_1"}}
+    delete_msg = {
+        "version": PROTOCOL_VERSION,
+        "deleteSurface": {"surfaceId": "surface_1"},
+    }
     processor.process_messages([delete_msg])
     assert processor.model.get_surface("surface_1") is None
 
@@ -92,7 +95,7 @@ def test_message_processor_component_updates(mock_catalog):
 
     # Setup surface
     processor.process_messages([{
-        "version": SPEC_VERSION,
+        "version": PROTOCOL_VERSION,
         "createSurface": {
             "surfaceId": "s1",
             "catalogId": mock_catalog.catalog_id,
@@ -103,7 +106,7 @@ def test_message_processor_component_updates(mock_catalog):
 
     # 1. Add Component
     comp_msg = {
-        "version": SPEC_VERSION,
+        "version": PROTOCOL_VERSION,
         "updateComponents": {
             "surfaceId": "s1",
             "components": [{"id": "text_1", "component": "Text", "text": "Hello"}],
@@ -118,7 +121,7 @@ def test_message_processor_component_updates(mock_catalog):
 
     # 2. Update properties
     comp_update = {
-        "version": SPEC_VERSION,
+        "version": PROTOCOL_VERSION,
         "updateComponents": {
             "surfaceId": "s1",
             "components": [{"id": "text_1", "component": "Text", "text": "World"}],
@@ -129,7 +132,7 @@ def test_message_processor_component_updates(mock_catalog):
 
     # 3. Recreate if component type changes
     comp_recreate = {
-        "version": SPEC_VERSION,
+        "version": PROTOCOL_VERSION,
         "updateComponents": {
             "surfaceId": "s1",
             "components": [{"id": "text_1", "component": "Image", "url": "img.png"}],
@@ -147,7 +150,7 @@ def test_message_processor_data_model_updates(mock_catalog):
 
     # Setup surface
     processor.process_messages([{
-        "version": SPEC_VERSION,
+        "version": PROTOCOL_VERSION,
         "createSurface": {
             "surfaceId": "s1",
             "catalogId": mock_catalog.catalog_id,
@@ -158,7 +161,7 @@ def test_message_processor_data_model_updates(mock_catalog):
 
     # Set data model
     dm_msg = {
-        "version": SPEC_VERSION,
+        "version": PROTOCOL_VERSION,
         "updateDataModel": {
             "surfaceId": "s1",
             "path": "/user/name",
@@ -175,13 +178,13 @@ def test_message_processor_capabilities_and_sync(mock_catalog):
     # Check Capabilities
     caps = processor.get_client_capabilities()
     assert caps == {
-        SPEC_VERSION: {"supportedCatalogIds": ["https://a2ui.org/mock.json"]}
+        PROTOCOL_VERSION: {"supportedCatalogIds": ["https://a2ui.org/mock.json"]}
     }
 
     # Setup surface with sendDataModel=True
     processor.process_messages([
         {
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "createSurface": {
                 "surfaceId": "s1",
                 "catalogId": mock_catalog.catalog_id,
@@ -189,20 +192,20 @@ def test_message_processor_capabilities_and_sync(mock_catalog):
             },
         },
         {
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "updateDataModel": {"surfaceId": "s1", "path": "/val", "value": 100},
         },
     ])
 
     # Retrieve client data model sync payload
     client_dm = processor.get_client_data_model()
-    assert client_dm == {"version": SPEC_VERSION, "surfaces": {"s1": {"val": 100}}}
+    assert client_dm == {"version": PROTOCOL_VERSION, "surfaces": {"s1": {"val": 100}}}
 
 
 def test_message_processor_throws_on_duplicate_surface(mock_catalog):
     processor = MessageProcessor(catalogs=[mock_catalog])
     processor.process_messages([{
-        "version": SPEC_VERSION,
+        "version": PROTOCOL_VERSION,
         "createSurface": {
             "surfaceId": "s1",
             "catalogId": mock_catalog.catalog_id,
@@ -211,7 +214,7 @@ def test_message_processor_throws_on_duplicate_surface(mock_catalog):
 
     with pytest.raises(ValueError, match="Surface s1 already exists"):
         processor.process_messages([{
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "createSurface": {
                 "surfaceId": "s1",
                 "catalogId": mock_catalog.catalog_id,
@@ -225,7 +228,7 @@ def test_message_processor_throws_on_updating_non_existent_surface(mock_catalog)
         ValueError, match="Surface 'unknown-s' not found for components update"
     ):
         processor.process_messages([{
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "updateComponents": {"surfaceId": "unknown-s", "components": []},
         }])
 
@@ -236,7 +239,7 @@ def test_message_processor_throws_on_multiple_conflicting_update_types(mock_cata
         ValueError, match="Message contains multiple conflicting update actions"
     ):
         processor.process_messages([{
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "createSurface": {
                 "surfaceId": "s1",
                 "catalogId": mock_catalog.catalog_id,
@@ -248,7 +251,7 @@ def test_message_processor_throws_on_multiple_conflicting_update_types(mock_cata
 def test_message_processor_throws_on_component_missing_id(mock_catalog):
     processor = MessageProcessor(catalogs=[mock_catalog])
     processor.process_messages([{
-        "version": SPEC_VERSION,
+        "version": PROTOCOL_VERSION,
         "createSurface": {
             "surfaceId": "s1",
             "catalogId": mock_catalog.catalog_id,
@@ -257,7 +260,7 @@ def test_message_processor_throws_on_component_missing_id(mock_catalog):
 
     with pytest.raises(ValueError, match="missing required 'id' field"):
         processor.process_messages([{
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "updateComponents": {
                 "surfaceId": "s1",
                 "components": [{"component": "Text", "text": "Missing ID"}],
@@ -268,7 +271,7 @@ def test_message_processor_throws_on_component_missing_id(mock_catalog):
 def test_message_processor_throws_on_creating_component_without_type(mock_catalog):
     processor = MessageProcessor(catalogs=[mock_catalog])
     processor.process_messages([{
-        "version": SPEC_VERSION,
+        "version": PROTOCOL_VERSION,
         "createSurface": {
             "surfaceId": "s1",
             "catalogId": mock_catalog.catalog_id,
@@ -279,7 +282,7 @@ def test_message_processor_throws_on_creating_component_without_type(mock_catalo
         ValueError, match="Cannot create component 'comp_1' without a component type"
     ):
         processor.process_messages([{
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "updateComponents": {
                 "surfaceId": "s1",
                 "components": [{"id": "comp_1", "label": "Missing Component Name"}],
@@ -296,7 +299,7 @@ def test_message_processor_strict_mode_circular_reference(real_catalog_09):
     processor = MessageProcessor(catalogs=[real_catalog_09], strict_mode=True)
 
     processor.process_messages([{
-        "version": SPEC_VERSION,
+        "version": PROTOCOL_VERSION,
         "createSurface": {
             "surfaceId": "s1",
             "catalogId": real_catalog_09.catalog_id,
@@ -306,7 +309,7 @@ def test_message_processor_strict_mode_circular_reference(real_catalog_09):
     # Circular reference loop: root -> comp-A -> comp-B -> comp-A
     with pytest.raises(ValueError, match="Circular reference detected"):
         processor.process_messages([{
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "updateComponents": {
                 "surfaceId": "s1",
                 "components": [
@@ -329,14 +332,14 @@ def test_message_processor_strict_mode_orphans(real_catalog_09):
     # Orphan node: comp-C is unreachable from root
     with pytest.raises(ValueError, match="is not reachable from"):
         processor.process_messages([{
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "createSurface": {
                 "surfaceId": "s1",
                 "catalogId": real_catalog_09.catalog_id,
             },
         }])
         processor.process_messages([{
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "updateComponents": {
                 "surfaceId": "s1",
                 "components": [
@@ -363,14 +366,14 @@ def test_message_processor_strict_mode_component_strict_properties(
     lazy_processor = MessageProcessor(catalogs=[real_catalog_09])
     lazy_processor.process_messages([
         {
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "createSurface": {
                 "surfaceId": "s1",
                 "catalogId": real_catalog_09.catalog_id,
             },
         },
         {
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "updateComponents": {
                 "surfaceId": "s1",
                 "components": [{
@@ -395,14 +398,14 @@ def test_message_processor_strict_mode_missing_root(real_catalog_09):
     # Missing root component: components only has comp-A
     with pytest.raises(ValueError, match="Missing root component"):
         strict_processor.process_messages([{
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "createSurface": {
                 "surfaceId": "s1",
                 "catalogId": real_catalog_09.catalog_id,
             },
         }])
         strict_processor.process_messages([{
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "updateComponents": {
                 "surfaceId": "s1",
                 "components": [{
@@ -420,14 +423,14 @@ def test_message_processor_strict_mode_invalid_path_pointer(real_catalog_09):
     # Contains unescaped tilde ~ not followed by 0 or 1 in path pointer
     with pytest.raises(ValueError, match="Invalid path syntax"):
         strict_processor.process_messages([{
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "createSurface": {
                 "surfaceId": "s1",
                 "catalogId": real_catalog_09.catalog_id,
             },
         }])
         strict_processor.process_messages([{
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "updateComponents": {
                 "surfaceId": "s1",
                 "components": [{
@@ -446,14 +449,14 @@ def test_message_processor_strict_mode_unrecognized_component_type(
     lazy_processor = MessageProcessor(catalogs=[real_catalog_09])
     lazy_processor.process_messages([
         {
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "createSurface": {
                 "surfaceId": "s1",
                 "catalogId": real_catalog_09.catalog_id,
             },
         },
         {
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "updateComponents": {
                 "surfaceId": "s1",
                 "components": [
@@ -476,7 +479,7 @@ def test_message_processor_xor_conflict_coverage():
     processor = MessageProcessor(catalogs=[catalog])
 
     conflicting_payload = [{
-        "version": SPEC_VERSION,
+        "version": PROTOCOL_VERSION,
         "createSurface": {"surfaceId": "s1", "catalogId": catalog.catalog_id},
         "deleteSurface": {"surfaceId": "s1"},
     }]
@@ -491,14 +494,14 @@ def test_message_processor_missing_data_model_path_reactive_binding(mock_catalog
 
     processor.process_messages([
         {
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "createSurface": {
                 "surfaceId": "s1",
                 "catalogId": mock_catalog.catalog_id,
             },
         },
         {
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "updateComponents": {
                 "surfaceId": "s1",
                 "components": [{
@@ -524,7 +527,7 @@ def test_message_processor_missing_data_model_path_reactive_binding(mock_catalog
         assert text_val is None
 
     processor.process_messages([{
-        "version": SPEC_VERSION,
+        "version": PROTOCOL_VERSION,
         "updateDataModel": {
             "surfaceId": "s1",
             "path": "/missing/username",
@@ -548,7 +551,7 @@ def test_message_processor_custom_catalog_component_validation():
         def __init__(self):
             super().__init__(
                 catalog_id="https://rizzcharts.com/catalog.json",
-                spec_version=SPEC_VERSION,
+                protocol_version=PROTOCOL_VERSION,
                 components=[ModelComponentApi(ChartComponent, "Chart")],
                 functions=[],
             )
@@ -557,12 +560,12 @@ def test_message_processor_custom_catalog_component_validation():
     processor = MessageProcessor(catalogs=[catalog], strict_mode=True)
 
     processor.process_messages([{
-        "version": SPEC_VERSION,
+        "version": PROTOCOL_VERSION,
         "createSurface": {"surfaceId": "s1", "catalogId": catalog.catalog_id},
     }])
 
     processor.process_messages([{
-        "version": SPEC_VERSION,
+        "version": PROTOCOL_VERSION,
         "updateComponents": {
             "surfaceId": "s1",
             "components": [{
@@ -588,7 +591,7 @@ def test_message_processor_custom_catalog_component_validation():
         ),
     ):
         processor.process_messages([{
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "updateComponents": {
                 "surfaceId": "s1",
                 "components": [{"id": "root", "component": "Chart", "title": "Sales"}],
@@ -608,7 +611,7 @@ def test_message_processor_theme_validation(real_catalog_09):
         match="Validation failed for theme on surface 's1'|String should match pattern",
     ):
         processor.process_messages([{
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "createSurface": {
                 "surfaceId": "s1",
                 "catalogId": real_catalog_09.catalog_id,
@@ -634,18 +637,18 @@ def test_message_processor_json_catalog_validation():
         },
     }
 
-    catalog = Catalog.from_json(catalog_json, spec_version=SPEC_VERSION)
+    catalog = Catalog.from_json(catalog_json, protocol_version=PROTOCOL_VERSION)
     processor = MessageProcessor(catalogs=[catalog], strict_mode=True)
 
     # 2. Process surface creation
     processor.process_messages([{
-        "version": SPEC_VERSION,
+        "version": PROTOCOL_VERSION,
         "createSurface": {"surfaceId": "s1", "catalogId": catalog.catalog_id},
     }])
 
     # 3. Validate correct component ingestion
     processor.process_messages([{
-        "version": SPEC_VERSION,
+        "version": PROTOCOL_VERSION,
         "updateComponents": {
             "surfaceId": "s1",
             "components": [{
@@ -666,7 +669,7 @@ def test_message_processor_json_catalog_validation():
     # 4. Assert strict JSON Schema validation catches invalid types!
     with pytest.raises(ValueError, match="is not of type 'number'"):
         processor.process_messages([{
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "updateComponents": {
                 "surfaceId": "s1",
                 "components": [{
@@ -681,7 +684,7 @@ def test_message_processor_json_catalog_validation():
     # 5. Assert strict JSON Schema validation catches unrecognized component properties!
     with pytest.raises(ValueError, match="Additional properties are not allowed"):
         processor.process_messages([{
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "updateComponents": {
                 "surfaceId": "s1",
                 "components": [{
@@ -726,7 +729,7 @@ def test_message_processor_json_catalog_theme_validation():
         },
     }
 
-    catalog = Catalog.from_json(catalog_json, spec_version=SPEC_VERSION)
+    catalog = Catalog.from_json(catalog_json, protocol_version=PROTOCOL_VERSION)
     processor = MessageProcessor(catalogs=[catalog], strict_mode=True)
 
     # Dynamic JSON Theme validation fails on incorrect color hex code pattern
@@ -734,7 +737,7 @@ def test_message_processor_json_catalog_theme_validation():
         ValueError, match="Validation failed for theme on surface 's1'|does not match"
     ):
         processor.process_messages([{
-            "version": SPEC_VERSION,
+            "version": PROTOCOL_VERSION,
             "createSurface": {
                 "surfaceId": "s1",
                 "catalogId": catalog.catalog_id,
