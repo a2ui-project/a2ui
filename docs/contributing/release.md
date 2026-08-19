@@ -6,7 +6,7 @@ Release cadence: every 1-2 weeks.
 
 ### Pub.dev publishing steps
 
-**1. Identify packages to publish**
+**1. Identify publishable packages**
 
 Out of the package listed below, find those where the top version in the CHANGELOG.md:
 
@@ -14,20 +14,20 @@ Out of the package listed below, find those where the top version in the CHANGEL
 - and is not published yet (click link in the header of the CHANGELOG.md
   to verify)
 
-Changelogs of the packages:
+Changelogs:
 
-- [a2ui_core](../../dart/a2ui_core/CHANGELOG.md)
-- [a2ui_agent](../../dart/a2ui_agent/CHANGELOG.md)
-- [genui](https://github.com/flutter/genui/blob/main/packages/genui/CHANGELOG.md)
-- [genui_a2a](https://github.com/flutter/genui/blob/main/packages/genui_a2a/CHANGELOG.md)
-- [genai_primitives](https://github.com/flutter/genui/blob/main/packages/genai_primitives/CHANGELOG.md)
-- [json_schema_builder](https://github.com/flutter/genui/blob/main/packages/json_schema_builder/CHANGELOG.md)
+- [a2ui_core CHANGELOG.md](../../dart/a2ui_core/CHANGELOG.md)
+- [a2ui_agent CHANGELOG.md](../../dart/a2ui_agent/CHANGELOG.md)
+- [genui CHANGELOG.md](https://github.com/flutter/genui/blob/main/packages/genui/CHANGELOG.md)
+- [genui_a2a CHANGELOG.md](https://github.com/flutter/genui/blob/main/packages/genui_a2a/CHANGELOG.md)
+- [genai_primitives CHANGELOG.md](https://github.com/flutter/genui/blob/main/packages/genai_primitives/CHANGELOG.md)
+- [json_schema_builder CHANGELOG.md](https://github.com/flutter/genui/blob/main/packages/json_schema_builder/CHANGELOG.md)
 
 **2. Publish packages**
 
     For each publishable package:
 
-    - Make sure you're on the `main` branch.
+    - Make sure you're on the current version of the `main` branch.
     - Run `flutter pub publish`.
     - Make sure there are no warnings in console.
     - Verify that the correct version of the package has been successfully uploaded to pub.dev.
