@@ -55,7 +55,7 @@ def make_data_part(
         json_format.ParseDict(data, value)
         part = Part(data=value)
         if metadata:
-            part.metadata.update(metadata)
+            part.metadata.update({k: str(v) for k, v in metadata.items()})
             mime = metadata.get("mimeType")
             if isinstance(mime, str) and mime:
                 part.media_type = mime
