@@ -27,8 +27,7 @@ Changelogs:
 For each publishable package:
 
 - Check out the latest `main`.
-- Run `flutter pub publish`.
-- Check that the console shows no warnings.
+- Run `flutter pub publish`, making sure the console shows no warnings.
 - Verify that the correct version was uploaded to pub.dev.
 
 If any step fails, file a GitHub issue and inform the team.
