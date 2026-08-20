@@ -23,14 +23,13 @@ Depending on the package category, the process of publishing to pub.dev follows 
 
 ### The package is planned to be published as production-ready (but wasn't published as such before)
 
-The package should be published to pub.dev with a `-wip<three digit number>` suffix to reserve the name and maybe to try the package in dev purposes.
+The package should be published to pub.dev with a `-wip<three digit number>` suffix to reserve the name and maybe to try the package for development purposes.
 
 ### The package is published as production-ready
 
 1. The package's `version:` in `pubspec.yaml` doesn't contain any suffix.
 2. It is recommended to publish the changes after every pull requests.
-3. You can publish versions with `-wip<three digit number>` for debugging purposes, but do not merge them to `main` branch.
-4. If your feature is partially implemented, hide the feature's code behind a false-by-default flag, and make sure the version at `main` is still ready for production.
+3. If your feature is partially implemented, hide the feature's code behind a false-by-default flag, and make sure the version at `main` is still ready for production.
 
 ## CI
 
