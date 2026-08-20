@@ -3,7 +3,7 @@
 This page contains maintenance information for publishing to pub.dev.
 It is needed when main steps stop working or something needs to be changed.
 
-For main publishing steps, see [release.md](release.md#pubdev-release-steps).
+For main publishing steps, see [release.md](release.md#pubdev-publishing-steps).
 
 ## Versioning
 
