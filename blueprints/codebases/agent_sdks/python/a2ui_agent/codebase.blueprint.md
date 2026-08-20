@@ -9,7 +9,13 @@ local_development:
   format_command: 'uv run pyink .'
 ---
 
+
 # **Python Agent SDK Codebase Blueprint**
+
+The design should follow the [general A2UI Agent SDK specification](../../../../../blueprints/modules/a2ui_agent.blueprint.md).
+
+The Python SDK should be implemented in [`a2ui_agent`](../../../../../agent_sdks/python/a2ui_agent/README.md) package.
+
 
 ## **Architecture & Ecosystem Map**
 

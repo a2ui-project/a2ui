@@ -4,6 +4,7 @@ type: module
 description: Agent SDK specification for catalog management, prompt engineering, parsing, and payload validation.
 ---
 
+
 # Agent SDK Development Guide
 
 This document describes the architecture of an A2UI Agent SDK. The design separates concerns into distinct layers to follow a similar structure for consistency across languages, providing a streamlined developer experience for building AI agents that generate rich UI.
