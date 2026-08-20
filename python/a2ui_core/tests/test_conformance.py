@@ -172,14 +172,13 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
     catalogs_map["v0.9:basic"] = v09_catalog
     catalogs_map["v1.0:basic"] = v10_catalog
 
-    default_version = resolve_protocol_version(case)
+    version = resolve_protocol_version(case)
 
     def add_catalog_id(cat_id: str, ver: Optional[str] = None):
         if cat_id and cat_id not in catalogs_map:
-            version = ver or default_version
             catalogs_map[cat_id] = Catalog(
                 catalog_id=cat_id,
-                protocol_version=version,
+                protocol_version=ver or version,
                 components=list(basic_catalog.components.values()),
             )
 
