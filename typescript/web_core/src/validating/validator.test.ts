@@ -28,6 +28,8 @@ import {
 import {analyzeTopology} from './topology-analyzer.js';
 import {A2uiValidator, RELAXED_VALIDATION, STRICT_VALIDATION} from './validator.js';
 import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
+import {Catalog} from '../catalog/types.js';
+import {z} from 'zod';
 
 describe('A2uiValidator & Integrity Verification', () => {
   describe('getComponentReferences', () => {
@@ -340,6 +342,53 @@ describe('A2uiValidator & Integrity Verification', () => {
       ];
 
       assert.doesNotThrow(() => validator.validate(splitPayload, undefined, STRICT_VALIDATION));
+    });
+
+    it('builds dynamic ref map from custom Catalog schemas', () => {
+      const customDrawerApi = {
+        name: 'CustomDrawer',
+        schema: z.object({
+          header: z.string().describe('ChildComponentId'),
+          bodyItems: z.array(z.string()).describe('ChildList'),
+        }),
+      };
+      const customCat = new Catalog('custom-cat', [customDrawerApi]);
+      const components = [
+        {id: 'root', component: 'CustomDrawer', header: 'c1', bodyItems: ['c2', 'c3']},
+        {id: 'c1', component: 'Text', text: 'Header'},
+        {id: 'c2', component: 'Text', text: 'Item 1'},
+        {id: 'c3', component: 'Text', text: 'Item 2'},
+      ];
+
+      assert.doesNotThrow(() => validator.validateComponents(components, customCat));
+    });
+
+    it('validates v0.9 envelope messages with version adapter', () => {
+      const v09Payload = [
+        {
+          version: 'v0.9',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: 'basic',
+          },
+        },
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'root', component: 'Box', child: 'txt'}],
+          },
+        },
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'txt', component: 'Text', text: 'Hello v0.9'}],
+          },
+        },
+      ];
+
+      assert.doesNotThrow(() => validator.validate(v09Payload));
     });
   });
 });

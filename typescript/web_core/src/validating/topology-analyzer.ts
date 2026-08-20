@@ -15,7 +15,9 @@
  */
 
 import {A2uiIntegrityError, A2uiRecursionError} from '../errors.js';
+import {Catalog} from '../catalog/types.js';
 import {
+  buildComponentRefMap,
   ComponentRefMap,
   getComponentReferences,
   MAX_GLOBAL_DEPTH,
@@ -64,7 +66,7 @@ function dfsTopology(
  * Analyzes the graph topology of a component tree to detect cycles, self-references, and orphans.
  *
  * @param components List of component definition objects forming the graph.
- * @param refFieldsMap Mapping of reference property names per component type.
+ * @param catalogOrRefMap Mapping of reference property names per component type or Catalog instance.
  * @param options Topology evaluation options.
  * @returns Set of all component identifiers visited during graph traversal.
  * @throws {A2uiRecursionError} If a self-reference, circular dependency, or excessive depth is detected.
@@ -77,9 +79,11 @@ function dfsTopology(
  */
 export function analyzeTopology(
   components: Array<Record<string, any>>,
-  refFieldsMap: ComponentRefMap = STANDARD_REF_MAP,
+  catalogOrRefMap: Catalog<any> | ComponentRefMap = STANDARD_REF_MAP,
   options: TopologyOptions = {},
 ): Set<string> {
+  const refFieldsMap: ComponentRefMap =
+    catalogOrRefMap instanceof Catalog ? buildComponentRefMap(catalogOrRefMap) : catalogOrRefMap;
   const rootId = options.rootId ?? 'root';
   const allowOrphanComponents = options.allowOrphanComponents ?? false;
   const allowMissingRoot = options.allowMissingRoot ?? false;

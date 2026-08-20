@@ -15,8 +15,10 @@
  */
 
 import {A2uiValidationError} from '../errors.js';
-import {AgentToRendererMessageSchema} from '../v1_0/schema/agent-to-renderer.js';
+import {Catalog} from '../catalog/types.js';
+import {VersionAdapterFactory} from '../processing/adapters/factory.js';
 import {
+  buildComponentRefMap,
   ComponentRefMap,
   IntegrityOptions,
   STANDARD_REF_MAP,
@@ -75,7 +77,14 @@ export class A2uiValidator {
         throw new A2uiValidationError(`Message must be an object at index ${idx}`);
       }
 
-      const parseResult = AgentToRendererMessageSchema.safeParse(msg);
+      let adapter;
+      try {
+        adapter = VersionAdapterFactory.resolveFromPayload(msg);
+      } catch {
+        adapter = VersionAdapterFactory.getAdapter('v1.0');
+      }
+
+      const parseResult = (adapter as any).schema.safeParse(msg);
       if (!parseResult.success) {
         throw new A2uiValidationError(
           `Validation failed for message at index ${idx}: ${parseResult.error.message}`,
@@ -88,7 +97,7 @@ export class A2uiValidator {
    * Validates component list integrity and graph topology.
    *
    * @param components List of component definition objects.
-   * @param refFieldsMap Reference field definitions per component type.
+   * @param catalogOrRefMap Reference field definitions per component type or Catalog instance.
    * @param config Validation settings for integrity and topology.
    * @param options Additional component validation options.
    * @throws {A2uiIntegrityError} If integrity check or reachability check fails.
@@ -97,10 +106,13 @@ export class A2uiValidator {
    */
   public validateComponents(
     components: Array<Record<string, any>>,
-    refFieldsMap: ComponentRefMap = STANDARD_REF_MAP,
+    catalogOrRefMap: Catalog<any> | ComponentRefMap = STANDARD_REF_MAP,
     config: ValidationConfig = STRICT_VALIDATION,
     options: ValidateComponentsOptions = {},
   ): void {
+    const refFieldsMap: ComponentRefMap =
+      catalogOrRefMap instanceof Catalog ? buildComponentRefMap(catalogOrRefMap) : catalogOrRefMap;
+
     if (!options.skipRecursionCheck) {
       validateRecursionAndPaths(components);
     }
@@ -112,7 +124,7 @@ export class A2uiValidator {
    * Validates an entire A2UI payload (envelope, components, topology, and path syntax).
    *
    * @param messages Single message object or array of message objects to validate.
-   * @param refFieldsMap Component reference mapping.
+   * @param catalogOrRefMap Component reference mapping or Catalog instance.
    * @param config Validation configuration options.
    * @throws {A2uiValidationError} If envelope format or path syntax is invalid.
    * @throws {A2uiIntegrityError} If component references or graph integrity are violated.
@@ -125,9 +137,12 @@ export class A2uiValidator {
    */
   public validate(
     messages: Array<Record<string, any>> | Record<string, any>,
-    refFieldsMap: ComponentRefMap = STANDARD_REF_MAP,
+    catalogOrRefMap: Catalog<any> | ComponentRefMap = STANDARD_REF_MAP,
     config: ValidationConfig = STRICT_VALIDATION,
   ): void {
+    const refFieldsMap: ComponentRefMap =
+      catalogOrRefMap instanceof Catalog ? buildComponentRefMap(catalogOrRefMap) : catalogOrRefMap;
+
     const msgList = Array.isArray(messages) ? messages : [messages];
     this.validateProtocolEnvelope(msgList);
 

@@ -15,6 +15,7 @@
  */
 
 import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
+import {Catalog, ComponentApi} from '../catalog/types.js';
 
 /** Maximum permitted nesting depth for JSON objects and array structures. */
 export const MAX_GLOBAL_DEPTH = 50;
@@ -37,9 +38,120 @@ export const STANDARD_REF_MAP: ComponentRefMap = {
   'Box': [new Set(['child']), new Set()],
   'List': [new Set(), new Set(['children'])],
   'Tabs': [new Set(), new Set(['tabs'])],
+  'Modal': [new Set(['trigger', 'content']), new Set()],
+  'Button': [new Set(['child']), new Set()],
   'Container': [new Set(['singleChild', 'nestedObj']), new Set(['childrenList', 'tabs'])],
   'Node': [new Set(['next', 'child']), new Set(['children'])],
 };
+
+function isChildRefSchema(schema: any, keyName?: string): boolean {
+  if (!schema || typeof schema !== 'object') return false;
+  let current = schema;
+  while (current?._def) {
+    const typeName = current._def.typeName;
+    if (typeName === 'ZodOptional' || typeName === 'ZodNullable' || typeName === 'ZodDefault') {
+      current = current._def.innerType;
+    } else if (typeName === 'ZodEffects') {
+      current = current._def.schema;
+    } else {
+      break;
+    }
+  }
+
+  const desc: string = current?.description ?? current?._def?.description ?? '';
+  if (desc.includes('ChildList') || desc.includes('ComponentId') || desc.includes('Child')) {
+    return true;
+  }
+
+  if (
+    keyName &&
+    (keyName === 'child' ||
+      keyName === 'children' ||
+      keyName === 'trigger' ||
+      keyName === 'content' ||
+      keyName.endsWith('Child') ||
+      keyName === 'root')
+  ) {
+    return true;
+  }
+
+  if (current?._def?.typeName === 'ZodUnion') {
+    const options = (current._def.options as any[]) ?? [];
+    const hasTemplate = options.some(
+      o =>
+        o?._def?.typeName === 'ZodObject' &&
+        typeof o._def.shape === 'function' &&
+        o._def.shape().componentId &&
+        o._def.shape().path,
+    );
+    if (hasTemplate) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Builds a ComponentRefMap dynamically by inspecting component Zod schemas.
+ *
+ * @param catalogOrComponents Catalog instance, array of ComponentApi objects, or Map of ComponentApis.
+ * @returns ComponentRefMap containing single and list reference properties.
+ */
+export function buildComponentRefMap(
+  catalogOrComponents: Catalog<any> | ComponentApi[] | Map<string, ComponentApi>,
+): ComponentRefMap {
+  const refMap: ComponentRefMap = {};
+  const componentApis: ComponentApi[] =
+    catalogOrComponents instanceof Catalog
+      ? Array.from(catalogOrComponents.components.values())
+      : Array.isArray(catalogOrComponents)
+        ? catalogOrComponents
+        : Array.from(catalogOrComponents.values());
+
+  for (const compApi of componentApis) {
+    const singleRefs = new Set<string>();
+    const listRefs = new Set<string>();
+
+    if (compApi.schema) {
+      let current: any = compApi.schema;
+      while (current?._def) {
+        const typeName = current._def.typeName;
+        if (typeName === 'ZodOptional' || typeName === 'ZodNullable' || typeName === 'ZodDefault') {
+          current = current._def.innerType;
+        } else if (typeName === 'ZodEffects') {
+          current = current._def.schema;
+        } else {
+          break;
+        }
+      }
+
+      if (current?._def?.typeName === 'ZodObject' && typeof current._def.shape === 'function') {
+        const shape = current._def.shape();
+        for (const [key, fieldSchema] of Object.entries(shape)) {
+          let inner: any = fieldSchema;
+          while (inner?._def) {
+            const tn = inner._def.typeName;
+            if (tn === 'ZodOptional' || tn === 'ZodNullable' || tn === 'ZodDefault') {
+              inner = inner._def.innerType;
+            } else if (tn === 'ZodEffects') {
+              inner = inner._def.schema;
+            } else {
+              break;
+            }
+          }
+
+          if (inner?._def?.typeName === 'ZodArray') {
+            listRefs.add(key);
+          } else if (isChildRefSchema(fieldSchema, key)) {
+            singleRefs.add(key);
+          }
+        }
+      }
+    }
+
+    refMap[compApi.name] = [singleRefs, listRefs];
+  }
+  return refMap;
+}
 
 function* extractPointers(val: any, currentPath: string): Generator<[string, string]> {
   if (typeof val === 'string') {
@@ -67,7 +179,7 @@ function* extractPointers(val: any, currentPath: string): Generator<[string, str
  * Extracts child component IDs referenced by a component property definition.
  *
  * @param component Component definition object containing properties and metadata.
- * @param refFieldsMap Mapping defining single and list reference fields per component type.
+ * @param catalogOrRefMap Mapping defining single and list reference fields per component type or Catalog instance.
  * @yields Tuple of `[referencedId, propertyPath]` for each child reference found.
  *
  * @example
@@ -77,11 +189,14 @@ function* extractPointers(val: any, currentPath: string): Generator<[string, str
  */
 export function* getComponentReferences(
   component: Record<string, any>,
-  refFieldsMap: ComponentRefMap = STANDARD_REF_MAP,
+  catalogOrRefMap: Catalog<any> | ComponentRefMap = STANDARD_REF_MAP,
 ): Generator<[string, string]> {
   if (!component || typeof component !== 'object') {
     return;
   }
+  const refFieldsMap: ComponentRefMap =
+    catalogOrRefMap instanceof Catalog ? buildComponentRefMap(catalogOrRefMap) : catalogOrRefMap;
+
   const compVal = component.component;
   let compType = '';
   let props: Record<string, any> = component;
@@ -104,7 +219,19 @@ export function* getComponentReferences(
 
   for (const [key, value] of Object.entries(props)) {
     if (isGeneric) {
-      if (key === 'child' || key === 'children' || key === 'next') {
+      if (key === 'id' || key === 'component' || key === 'weight') continue;
+      if (
+        key === 'child' ||
+        key === 'children' ||
+        key === 'next' ||
+        key === 'trigger' ||
+        key === 'content' ||
+        key === 'tabs' ||
+        key === 'items' ||
+        key === 'components' ||
+        key.endsWith('Child') ||
+        key.endsWith('Children')
+      ) {
         yield* extractPointers(value, key);
       }
     } else if (singleRefs.has(key) || listRefs.has(key)) {
@@ -127,7 +254,7 @@ export interface IntegrityOptions {
  * Validates the structural integrity of a list of component definitions.
  *
  * @param components Array of component definition objects to audit.
- * @param refFieldsMap Component reference field mapping definitions.
+ * @param catalogOrRefMap Component reference field mapping definitions or Catalog instance.
  * @param options Integrity configuration options.
  * @throws {A2uiIntegrityError} If duplicate IDs, missing root, or dangling references are found.
  *
@@ -138,9 +265,11 @@ export interface IntegrityOptions {
  */
 export function validateComponentIntegrity(
   components: Array<Record<string, any>>,
-  refFieldsMap: ComponentRefMap = STANDARD_REF_MAP,
+  catalogOrRefMap: Catalog<any> | ComponentRefMap = STANDARD_REF_MAP,
   options: IntegrityOptions = {},
 ): void {
+  const refFieldsMap: ComponentRefMap =
+    catalogOrRefMap instanceof Catalog ? buildComponentRefMap(catalogOrRefMap) : catalogOrRefMap;
   const rootId = options.rootId ?? 'root';
   const allowDanglingReferences = options.allowDanglingReferences ?? false;
   const allowMissingRoot = options.allowMissingRoot ?? false;
