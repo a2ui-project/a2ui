@@ -67,6 +67,7 @@ def main() -> None:
     max_attempts = 120
     attempts = 0
     consecutive_failures = 0
+    max_consecutive_failures = 20
     while interaction.status in ["in_progress", "queued"]:
         if attempts >= max_attempts:
             raise TimeoutError("Audit interaction timed out after 60 minutes.")
@@ -80,11 +81,12 @@ def main() -> None:
             consecutive_failures += 1
             print(
                 "Transient error fetching interaction status"
-                f" ({consecutive_failures}/5): {err}"
+                f" ({consecutive_failures}/{max_consecutive_failures}): {err}"
             )
-            if consecutive_failures >= 5:
+            if consecutive_failures >= max_consecutive_failures:
                 raise RuntimeError(
-                    f"Failed to fetch interaction status 5 consecutive times: {err}"
+                    f"Failed to fetch interaction status {max_consecutive_failures}"
+                    f" consecutive times: {err}"
                 ) from err
 
     print("--- Audit Completed ---")
