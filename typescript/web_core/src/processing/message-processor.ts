@@ -52,6 +52,8 @@ export interface CapabilitiesOptions {
   includeInlineCatalogs?: boolean;
   /** The protocol version to generate capabilities for. Defaults to the processor's configured version. */
   version?: ProtocolVersion;
+  /** The base schema $ref to wrap component definitions in inline catalogs. Defaults to 'common_types.json#/$defs/ComponentCommon'. */
+  componentEnvelopeRef?: string;
 }
 
 /**
@@ -173,19 +175,28 @@ export class MessageProcessor<T extends ComponentApi> {
     };
 
     if (options?.includeInlineCatalogs) {
-      versionCaps.inlineCatalogs = this.catalogs.map(c => this.generateInlineCatalog(c));
+      versionCaps.inlineCatalogs = this.catalogs.map(c =>
+        this.generateInlineCatalog(c, options?.componentEnvelopeRef),
+      );
     }
 
     return {
       supportedCatalogIds: this.catalogs.map(c => c.id),
       ...(options?.includeInlineCatalogs
-        ? {inlineCatalogs: this.catalogs.map(c => this.generateInlineCatalog(c))}
+        ? {
+            inlineCatalogs: this.catalogs.map(c =>
+              this.generateInlineCatalog(c, options?.componentEnvelopeRef),
+            ),
+          }
         : {}),
       [version]: versionCaps,
     };
   }
 
-  private generateInlineCatalog(catalog: Catalog<T>): Record<string, unknown> {
+  private generateInlineCatalog(
+    catalog: Catalog<T>,
+    componentEnvelopeRef = 'common_types.json#/$defs/ComponentCommon',
+  ): Record<string, unknown> {
     const components: Record<string, unknown> = {};
 
     for (const [name, api] of catalog.components.entries()) {
@@ -199,7 +210,7 @@ export class MessageProcessor<T extends ComponentApi> {
       // Wrap in standard A2UI component envelope (ComponentCommon)
       components[name] = {
         allOf: [
-          {$ref: 'common_types.json#/$defs/ComponentCommon'},
+          {$ref: componentEnvelopeRef},
           {
             properties: {
               component: {const: name},

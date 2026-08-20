@@ -46,6 +46,23 @@ describe('MessageProcessor', () => {
       assert.ok(caps.inlineCatalogs);
       assert.strictEqual(caps.inlineCatalogs.length, 1);
     });
+
+    it('supports custom componentEnvelopeRef for inline catalogs', () => {
+      const strictComp: ComponentApi = {
+        name: 'CustomButton',
+        schema: z.object({label: z.string()}),
+      };
+      const proc = new MessageProcessor([new Catalog('cat-custom', [strictComp])]);
+      const caps = proc.getRendererCapabilities({
+        includeInlineCatalogs: true,
+        componentEnvelopeRef: 'https://example.com/schema.json#/$defs/Base',
+      });
+      const inlineCat = caps.inlineCatalogs?.[0] as any;
+      assert.strictEqual(
+        inlineCat.components.CustomButton.allOf[0].$ref,
+        'https://example.com/schema.json#/$defs/Base',
+      );
+    });
   });
 
   describe('getRendererDataModel', () => {
