@@ -25,14 +25,14 @@ Changelogs:
 
 **2. Publish packages**
 
-    For each publishable package:
+For each publishable package:
 
-    - Make sure you're on the current version of the `main` branch.
-    - Run `flutter pub publish`.
-    - Make sure there are no warnings in console.
-    - Verify that the correct version of the package has been successfully uploaded to pub.dev.
+- Make sure you're on the current version of the `main` branch.
+- Run `flutter pub publish`.
+- Make sure there are no warnings in console.
+- Verify that the correct version of the package has been successfully uploaded to pub.dev.
 
-    If any of these steps fail, file a GitHub issue and inform the team.
+If any of these steps fail, file a GitHub issue and inform the team.
 
 For troubleshooting and maintenance check [release-pub-dev.md](release-pub-dev.md).
 
