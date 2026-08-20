@@ -15,7 +15,7 @@
 import A2UICore
 import JSONSchema
 
-public struct NotFunction: FunctionImplementation, Sendable {
+public final class NotFunction: FunctionImplementation, Sendable {
   public let api = FunctionAPI(
     name: "not",
     returnType: .boolean,

@@ -127,7 +127,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
   }
 
   private func setUpSubscriptions() {
-    Publishers.CombineLatest(componentsModel.$components, dataModel.$data)
+    Publishers.CombineLatest(componentsModel.$components, dataModel.dataPublisher)
       .sink { [weak self] components, data in
         self?.rebuildTree(components: components, data: data)
       }
@@ -334,8 +334,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
   /// Resolves a dynamic value to its current literal `JSONValue`.
   private func evaluateDynamicValue(
     _ value: JSONValue,
-    basePath: String?,
-    data: JSONValue
+    basePath: String?
   ) -> JSONValue {
     let context = DataContext(dataModel: dataModel, path: basePath ?? "", functionHandler: self)
     return context.resolveDynamicValue(value)
@@ -359,7 +358,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
         }
       )
     }
-    let resolvedValue = evaluateDynamicValue(value, basePath: basePath, data: data).boolValue
+    let resolvedValue = evaluateDynamicValue(value, basePath: basePath).boolValue
     return DataBinding<Bool>(
       identity: .literal(value),
       value: resolvedValue,
@@ -383,7 +382,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
         }
       )
     }
-    let resolvedValue = evaluateDynamicValue(value, basePath: basePath, data: data).stringValue
+    let resolvedValue = evaluateDynamicValue(value, basePath: basePath).stringValue
     return DataBinding<String>(
       identity: .literal(value),
       value: resolvedValue,
@@ -407,7 +406,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
         }
       )
     }
-    let resolvedValue = evaluateDynamicValue(value, basePath: basePath, data: data).doubleValue
+    let resolvedValue = evaluateDynamicValue(value, basePath: basePath).doubleValue
     return DataBinding<Double>(
       identity: .literal(value),
       value: resolvedValue,
@@ -431,7 +430,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
         }
       )
     }
-    let resolvedValue = evaluateDynamicValue(value, basePath: basePath, data: data)
+    let resolvedValue = evaluateDynamicValue(value, basePath: basePath)
     return DataBinding<JSONValue>(
       identity: .literal(value),
       value: resolvedValue,
@@ -465,11 +464,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
           var resolvedContext: [String: JSONValue] = [:]
           if let contextDict {
             for (key, val) in contextDict {
-              resolvedContext[key] = self.evaluateDynamicValue(
-                val,
-                basePath: basePath,
-                data: self.dataModel.data
-              )
+              resolvedContext[key] = self.evaluateDynamicValue(val, basePath: basePath)
             }
           }
 
@@ -497,11 +492,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
           var resolvedArgs: [String: JSONValue] = [:]
           if let argsDict {
             for (argKey, argVal) in argsDict {
-              resolvedArgs[argKey] = self.evaluateDynamicValue(
-                argVal,
-                basePath: basePath,
-                data: self.dataModel.data
-              )
+              resolvedArgs[argKey] = self.evaluateDynamicValue(argVal, basePath: basePath)
             }
           }
 
