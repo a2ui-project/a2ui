@@ -13,7 +13,7 @@
 # limitations under the License.
 
 - name: test_rpc_call_renderer_function_success
-  description: Verifies agent-initiated callRendererFunction on a function with callableFrom=rendererOrAgent.
+  description: Verifies agent-initiated callRendererFunction on a function with allowedCallers=rendererOrAgent.
   catalog:
     protocolVersion: "v1.0"
   action: handle_rpc
@@ -30,7 +30,7 @@
             autoplay: true
     functionMetadata:
       playMedia:
-        callableFrom: "rendererOrAgent"
+        allowedCallers: "rendererOrAgent"
         requiresUserActivation: false
   expect:
     response:
@@ -42,7 +42,7 @@
           timestamp: 0
 
 - name: test_rpc_call_renderer_function_unauthorized_caller
-  description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when callableFrom is rendererOnly.
+  description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when allowedCallers is rendererOnly.
   catalog:
     protocolVersion: "v1.0"
   action: handle_rpc
@@ -57,7 +57,7 @@
           args: {}
     functionMetadata:
       internalStateReset:
-        callableFrom: "rendererOnly"
+        allowedCallers: "rendererOnly"
         requiresUserActivation: false
   expect:
     response:
@@ -66,7 +66,7 @@
         functionCallId: "call-102"
         error:
           code: "INVALID_FUNCTION_CALL"
-          message: "Function 'internalStateReset' cannot be called by agent (callableFrom is rendererOnly)."
+          message: "Function 'internalStateReset' cannot be called by agent (allowedCallers is rendererOnly)."
 
 - name: test_rpc_call_renderer_function_requires_user_activation
   description: Verifies callRendererFunction execution when requiresUserActivation is true and user gesture is present.
@@ -86,7 +86,7 @@
             url: "https://example.com/details"
     functionMetadata:
       openExternalUrl:
-        callableFrom: "rendererOrAgent"
+        allowedCallers: "rendererOrAgent"
         requiresUserActivation: true
   expect:
     response:
@@ -141,7 +141,7 @@
             url: "https://example.com/details"
     functionMetadata:
       openExternalUrl:
-        callableFrom: "rendererOrAgent"
+        allowedCallers: "rendererOrAgent"
         requiresUserActivation: true
   expect:
     response:
@@ -168,7 +168,7 @@
           args: {}
     functionMetadata:
       failingFunction:
-        callableFrom: "rendererOrAgent"
+        allowedCallers: "rendererOrAgent"
         requiresUserActivation: false
   expect:
     response:
@@ -180,7 +180,7 @@
           message: "An error occurred during function execution."
 
 - name: test_rpc_call_renderer_function_agent_only_boundary
-  description: Verifies agent-initiated callRendererFunction on a function with callableFrom=agentOnly.
+  description: Verifies agent-initiated callRendererFunction on a function with allowedCallers=agentOnly.
   catalog:
     protocolVersion: "v1.0"
   action: handle_rpc
@@ -195,7 +195,7 @@
           args: {}
     functionMetadata:
       syncState:
-        callableFrom: "agentOnly"
+        allowedCallers: "agentOnly"
         requiresUserActivation: false
   expect:
     response:

@@ -163,7 +163,7 @@ sequenceDiagram
 1. **Bidirectional RPC Functions**:
    - Agent-to-Renderer: `callRendererFunction` $\rightarrow$ returns `rendererFunctionResponse`.
    - Renderer-to-Agent: `callAgentFunction` $\rightarrow$ returns `agentFunctionResponse`.
-   - Runtime authorized caller checking (`callableFrom`: `rendererOnly`, `rendererOrAgent`).
+   - Runtime authorized caller checking (`allowedCallers`: `rendererOnly`, `rendererOrAgent`).
    - User activation requirement flag (`requiresUserActivation: true` for functions like `openUrl`).
 2. **Multi-Catalog Surface Mixing**:
    - `supportedCatalogIds` can be mixed within a single surface.
@@ -367,7 +367,7 @@ flowchart LR
   - `typescript/web_core/src/basic_catalog/v1_0/` (`catalog.ts`, `components.ts`, `functions.ts`)
 - **Key Requirements**:
   - Add `protocol_version: A2uiProtocolVersion` and `instructions: str` properties to `Catalog`.
-  - Add `callable_from` (`rendererOnly`, `rendererOrAgent`) and `requires_user_activation` to `FunctionApi`.
+  - Add `allowed_callers` (`rendererOnly`, `rendererOrAgent`) and `requires_user_activation` to `FunctionApi`.
   - Add optional `allowed_parents` and `allowed_children` to `ComponentApi`.
   - Implement UAX #31 identifier validation logic for component names, function names, and argument keys.
   - Load `specification/v1_0/catalogs/basic/catalog.json`: update `Video` (`posterUrl`), `TextField` (`placeholder`), `Slider` (`steps`), set `requiresUserActivation: true` on `openUrl`.
@@ -398,7 +398,7 @@ flowchart LR
   - `typescript/web_core/src/processing/message-processor.ts`
 - **Key Requirements**:
   - Intercept incoming `callRendererFunction` messages.
-  - Verify function metadata in catalog: check `callableFrom` permits `agent` invocation (`rendererOrAgent`). If violated or unregistered, return error code `INVALID_FUNCTION_CALL`.
+  - Verify function metadata in catalog: check `allowedCallers` permits `agent` invocation (`rendererOrAgent`). If violated or unregistered, return error code `INVALID_FUNCTION_CALL`.
   - Execute matching `FunctionImplementation` and emit `rendererFunctionResponse` containing `callId` and `value` or `error`.
 - **Verification**: Test execution of valid remote renderer functions and rejection of `rendererOnly` functions.
 

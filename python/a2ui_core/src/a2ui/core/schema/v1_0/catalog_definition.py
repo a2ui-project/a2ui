@@ -35,12 +35,12 @@ class FunctionDefinition(BaseModel):
     ] = Field(
         ..., alias="returnType", description="The type of value this function returns."
     )
-    callable_from: Optional[Literal["rendererOnly", "agentOnly", "rendererOrAgent"]] = (
-        Field(
-            alias="callableFrom",
-            description="Specifies where this function can be invoked from.",
-            default="rendererOnly",
-        )
+    allowed_callers: Optional[
+        Literal["rendererOnly", "agentOnly", "rendererOrAgent"]
+    ] = Field(
+        alias="allowedCallers",
+        description="Specifies where this function can be invoked from.",
+        default="rendererOnly",
     )
     requires_user_activation: Optional[bool] = Field(
         alias="requiresUserActivation",
