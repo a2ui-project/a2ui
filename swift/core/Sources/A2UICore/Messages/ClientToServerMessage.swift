@@ -36,23 +36,27 @@ public enum ClientToServerMessage: Equatable, Codable, Sendable {
       )
     }
 
-    if let action = try container.decodeIfPresent(
-      ClientAction.self,
-      forKey: .action
-    ) {
-      self = .action(action)
-    } else if let error = try container.decodeIfPresent(
-      ClientServerError.self,
-      forKey: .error
-    ) {
-      self = .error(error)
-    } else {
-      throw DecodingError.dataCorrupted(
-        DecodingError.Context(
-          codingPath: decoder.codingPath,
-          debugDescription: "Message must contain either 'action' or 'error'"
-        )
+    let payloadKeys = container.allKeys.filter { $0 != .version }
+    guard payloadKeys.count == 1, let payloadKey = payloadKeys.first else {
+      let context = DecodingError.Context(
+        codingPath: container.codingPath,
+        debugDescription:
+          "ClientToServerMessage must contain exactly one payload ('action' or 'error'), found \(payloadKeys.count)"
       )
+      throw DecodingError.dataCorrupted(context)
+    }
+
+    switch payloadKey {
+    case .action:
+      self = .action(try container.decode(ClientAction.self, forKey: .action))
+    case .error:
+      self = .error(try container.decode(ClientServerError.self, forKey: .error))
+    case .version:
+      let context = DecodingError.Context(
+        codingPath: container.codingPath,
+        debugDescription: "Internal error: version key was not filtered out"
+      )
+      throw DecodingError.dataCorrupted(context)
     }
   }
 

@@ -15,7 +15,7 @@
 import A2UICore
 import JSONSchema
 
-public struct AndFunction: FunctionImplementation, Sendable {
+public final class AndFunction: FunctionImplementation, Sendable {
   public let api = FunctionAPI(
     name: "and",
     returnType: .boolean,

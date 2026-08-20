@@ -13,10 +13,9 @@
 // limitations under the License.
 
 import A2UICore
+import BasicCatalog
 import OrderedJSON
 import Testing
-
-import BasicCatalog
 
 struct ExpressionParserTests {
   let parser = ExpressionParser()

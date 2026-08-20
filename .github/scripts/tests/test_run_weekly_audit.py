@@ -148,7 +148,7 @@ class TestRunWeeklyAudit(unittest.TestCase):
         clear=True,
     )
     def test_persistent_polling_failure_fails_fast(self, mock_sleep: MagicMock) -> None:
-        """Verifies that 5 consecutive status polling failures cause script to fail fast."""
+        """Verifies that 20 consecutive status polling failures cause script to fail fast."""
         mock_genai = MagicMock()
         mock_client = MagicMock()
         mock_genai.Client.return_value = mock_client
@@ -165,10 +165,10 @@ class TestRunWeeklyAudit(unittest.TestCase):
         with patch.dict(
             sys.modules, {"google": mock_google, "google.genai": mock_genai}
         ):
-            with self.assertRaisesRegex(RuntimeError, "5 consecutive times"):
+            with self.assertRaisesRegex(RuntimeError, "20 consecutive times"):
                 main()
 
-        self.assertEqual(mock_client.interactions.get.call_count, 5)
+        self.assertEqual(mock_client.interactions.get.call_count, 20)
 
     @patch("time.sleep", return_value=None)
     @patch.dict(
