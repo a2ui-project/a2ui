@@ -64,8 +64,7 @@ class Catalog(Generic[TComponent, TFunction]):
         if not catalog_id:
             raise ValueError("catalog_id must be provided.")
         self.catalog_id = catalog_id
-        if not protocol_version:
-            raise ValueError("protocol_version must be provided.")
+        protocol_version = protocol_version or "v0.9"
         self.protocol_version = protocol_version
         self.instructions = instructions
 
@@ -131,9 +130,7 @@ class Catalog(Generic[TComponent, TFunction]):
                 "catalog_id must be provided or exist in catalog_schema."
             )
 
-        p_ver = protocol_version or catalog_schema.get("protocolVersion")
-        if not p_ver:
-            raise A2uiCatalogError("protocol_version must be provided.")
+        p_ver = protocol_version or catalog_schema.get("protocolVersion") or "v0.9"
 
         components_map = catalog_schema.get("components", {})
         any_comp_refs = (

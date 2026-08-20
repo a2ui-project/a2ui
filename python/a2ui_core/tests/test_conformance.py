@@ -15,7 +15,7 @@
 import contextlib
 import os
 import re
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 import pytest
 import yaml
 
@@ -122,6 +122,16 @@ def find_yaml_files(dir_path: str) -> List[str]:
     return sorted(results)
 
 
+def resolve_protocol_version(case: Dict[str, Any]) -> Optional[str]:
+    cat_spec = case.get("catalog") if isinstance(case.get("catalog"), dict) else {}
+    return case.get("protocolVersion") or cat_spec.get("protocolVersion")
+
+
+def resolve_catalog_id(case: Dict[str, Any]) -> Optional[str]:
+    cat_spec = case.get("catalog") if isinstance(case.get("catalog"), dict) else {}
+    return case.get("catalogId") or cat_spec.get("catalogId")
+
+
 def load_conformance_cases() -> List[Tuple[str, str, Dict[str, Any]]]:
     cases = []
     yaml_files = find_yaml_files(CORE_DIR)
@@ -146,16 +156,6 @@ def load_conformance_cases() -> List[Tuple[str, str, Dict[str, Any]]]:
             if not name or name in SKIP_TEST_NAMES:
                 continue
 
-            cat_spec = case.get("catalog") or {}
-            ver = (
-                cat_spec.get("protocolVersion")
-                or case.get("protocolVersion")
-                or case.get("args", {}).get("version")
-                or "v0.9"
-            )
-            if ver not in SUPPORTED_PROTOCOL_VERSIONS:
-                continue
-
             test_id = f"{rel_path}::{name}"
             cases.append((test_id, rel_path, case))
     return cases
@@ -172,11 +172,13 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
     catalogs_map["v0.9:basic"] = v09_catalog
     catalogs_map["v1.0:basic"] = v10_catalog
 
-    def add_catalog_id(cat_id: str):
+    version = resolve_protocol_version(case)
+
+    def add_catalog_id(cat_id: str, ver: Optional[str] = None):
         if cat_id and cat_id not in catalogs_map:
             catalogs_map[cat_id] = Catalog(
                 catalog_id=cat_id,
-                protocol_version="v0.9",
+                protocol_version=version,
                 components=list(basic_catalog.components.values()),
             )
 
@@ -184,13 +186,12 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
         cat_spec = case["catalog"]
         if "catalogSchema" in cat_spec:
             c_schema = cat_spec["catalogSchema"]
-            c_id = (
-                c_schema.get("catalogId") or cat_spec.get("catalogId") or "test-catalog"
-            )
-            p_ver = cat_spec.get("protocolVersion") or "v1.0"
-            catalogs_map[c_id] = Catalog.from_json(
-                c_schema, catalog_id=c_id, protocol_version=p_ver
-            )
+            c_id = resolve_catalog_id(case) or f"catalog-{case.get('name')}"
+            p_ver = resolve_protocol_version(case)
+            if c_id:
+                catalogs_map[c_id] = Catalog.from_json(
+                    c_schema, catalog_id=c_id, protocol_version=p_ver
+                )
         elif "catalogId" in cat_spec:
             add_catalog_id(cat_spec["catalogId"])
 
@@ -199,15 +200,14 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
             if isinstance(item, dict):
                 if "catalogSchema" in item:
                     c_schema = item["catalogSchema"]
-                    c_id = (
-                        c_schema.get("catalogId")
-                        or item.get("catalogId")
-                        or "test-catalog"
+                    c_id = c_schema.get("catalogId") or item.get("catalogId")
+                    p_ver = item.get("protocolVersion") or c_schema.get(
+                        "protocolVersion"
                     )
-                    p_ver = item.get("protocolVersion") or "v1.0"
-                    catalogs_map[c_id] = Catalog.from_json(
-                        c_schema, catalog_id=c_id, protocol_version=p_ver
-                    )
+                    if c_id:
+                        catalogs_map[c_id] = Catalog.from_json(
+                            c_schema, catalog_id=c_id, protocol_version=p_ver
+                        )
                 elif "catalogId" in item:
                     add_catalog_id(item["catalogId"])
 
@@ -223,13 +223,18 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
                 elif isinstance(payload, dict):
                     messages.append(payload)
 
+    scan_version: Optional[str] = None
+
     def scan(item: Any):
+        nonlocal scan_version
         if not item:
             return
         if isinstance(item, list):
             for sub in item:
                 scan(sub)
         elif isinstance(item, dict):
+            if "version" in item and isinstance(item["version"], str):
+                scan_version = item["version"]
             if "messages" in item:
                 scan(item["messages"])
             if (
@@ -237,13 +242,13 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
                 and isinstance(item["createSurface"], dict)
                 and "catalogId" in item["createSurface"]
             ):
-                add_catalog_id(item["createSurface"]["catalogId"])
+                add_catalog_id(item["createSurface"]["catalogId"], scan_version)
             if (
                 "beginRendering" in item
                 and isinstance(item["beginRendering"], dict)
                 and "catalogId" in item["beginRendering"]
             ):
-                add_catalog_id(item["beginRendering"]["catalogId"])
+                add_catalog_id(item["beginRendering"]["catalogId"], scan_version)
 
     scan(messages)
     return list(catalogs_map.values())
@@ -275,6 +280,12 @@ CONFORMANCE_CASES = load_conformance_cases()
     ids=[c[0] for c in CONFORMANCE_CASES],
 )
 def test_conformance_suite(test_id: str, rel_path: str, case: Dict[str, Any]) -> None:
+    ver = resolve_protocol_version(case)
+    if ver and ver not in SUPPORTED_PROTOCOL_VERSIONS:
+        pytest.fail(
+            f"Test case '{test_id}' specifies unsupported protocol version '{ver}'."
+        )
+
     action = case.get("action")
     if not action:
         pytest.skip(f"Test case '{test_id}' missing required 'action' field.")
@@ -297,9 +308,7 @@ def test_conformance_suite(test_id: str, rel_path: str, case: Dict[str, Any]) ->
 def validate_from_json_case(case: Dict[str, Any]) -> None:
     catalog_data = case["catalog"]
     override_id = case.get("catalogId")
-    protocol_version = (
-        case.get("protocolVersion") or catalog_data.get("protocolVersion") or "v0.9"
-    )
+    protocol_version = resolve_protocol_version(case)
     expect_error = case.get("expectError")
 
     if expect_error:
@@ -345,12 +354,8 @@ def validate_from_json_case(case: Dict[str, Any]) -> None:
 
 def validate_catalog_schema_case(case: Dict[str, Any]) -> None:
     catalog_data = case["catalog"]
-    override_id = (
-        case.get("catalogId") or catalog_data.get("catalogId") or "test-catalog"
-    )
-    protocol_version = (
-        case.get("protocolVersion") or catalog_data.get("protocolVersion") or "v0.9"
-    )
+    override_id = resolve_catalog_id(case) or f"catalog-{case.get('name')}"
+    protocol_version = resolve_protocol_version(case)
     theme = case.get("theme")
     if theme and isinstance(catalog_data, dict):
         catalog_data = dict(catalog_data)
@@ -375,7 +380,7 @@ def validate_catalog_schema_case(case: Dict[str, Any]) -> None:
     for k, v in expected.items():
         act_v = schema.get(k)
         if act_v is None and k == "protocolVersion":
-            act_v = protocol_version
+            act_v = cat.protocol_version
         if act_v is None and k == "styles":
             act_v = schema.get("theme")
         assert act_v == v
