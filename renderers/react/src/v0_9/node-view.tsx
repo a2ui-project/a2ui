@@ -43,7 +43,7 @@ export type NodeViewProps = {
   buildChild: NodeBuildChild;
 };
 
-/** The surface a node view renders under, provided by `A2uiNodeSurface`. */
+/** The surface a node view renders under, provided by `A2uiSurface`. */
 export const NodeSurfaceContext = createContext<SurfaceModel<ReactComponentImplementation> | null>(
   null,
 );

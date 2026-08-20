@@ -31,7 +31,7 @@ import {
   createComponentImplementation,
   type ReactComponentImplementation,
 } from '../../src/v0_9/adapter';
-import {A2uiNodeSurface} from '../../src/v0_9/A2uiNodeSurface';
+import {A2uiSurface} from '../../src/v0_9/A2uiSurface';
 import {basicCatalog} from '../../src/v0_9/catalog/basic';
 
 /** View render counts, keyed per component instance. */
@@ -132,7 +132,7 @@ beforeEach(() => {
   renders.clear();
 });
 
-describe('A2uiNodeSurface', () => {
+describe('A2uiSurface', () => {
   it('renders a resolved tree end to end', () => {
     const surface = setup();
     add(surface, 'root', 'Column', {children: ['greeting', 'card1']});
@@ -140,7 +140,7 @@ describe('A2uiNodeSurface', () => {
     add(surface, 'card1', 'Card', {child: 'inner'});
     add(surface, 'inner', 'Text', {text: 'Inner'});
 
-    render(<A2uiNodeSurface surface={surface} />);
+    render(<A2uiSurface surface={surface} />);
 
     expect(screen.getByText('Hello')).toBeDefined();
     expect(screen.getByText('Inner')).toBeDefined();
@@ -153,7 +153,7 @@ describe('A2uiNodeSurface', () => {
     add(surface, 'static', 'Text', {text: 'Static'});
     add(surface, 'bound', 'Text', {text: {path: '/username'}});
 
-    render(<A2uiNodeSurface surface={surface} />);
+    render(<A2uiSurface surface={surface} />);
     expect(screen.getByText('Alice')).toBeDefined();
 
     const columnBefore = rendersOf('Column:root');
@@ -174,7 +174,7 @@ describe('A2uiNodeSurface', () => {
     const surface = setup();
     add(surface, 'root', 'Column', {children: ['late']});
 
-    render(<A2uiNodeSurface surface={surface} />);
+    render(<A2uiSurface surface={surface} />);
     expect(screen.getByText(/Loading late/)).toBeDefined();
 
     act(() => {
@@ -191,7 +191,7 @@ describe('A2uiNodeSurface', () => {
     add(surface, 'root', 'Column', {children: {componentId: 'item', path: '/items'}});
     add(surface, 'item', 'Text', {text: {path: 'name'}});
 
-    render(<A2uiNodeSurface surface={surface} />);
+    render(<A2uiSurface surface={surface} />);
     expect(screen.getByText('A')).toBeDefined();
     expect(screen.getByText('B')).toBeDefined();
 
@@ -218,7 +218,7 @@ describe('A2uiNodeSurface', () => {
       action: {event: {name: 'submit', context: {itemId: {path: '/current_id'}}}},
     });
 
-    render(<A2uiNodeSurface surface={surface} />);
+    render(<A2uiSurface surface={surface} />);
 
     act(() => {
       surface.dataModel.set('/current_id', 'fresh');
@@ -239,7 +239,7 @@ describe('A2uiNodeSurface', () => {
     add(surface, 'card1', 'Card', {child: 't2'});
     add(surface, 't2', 'Text', {text: 'inside the card'});
 
-    const {container} = render(<A2uiNodeSurface surface={surface} />);
+    const {container} = render(<A2uiSurface surface={surface} />);
 
     expect(container.textContent).toContain('hello from nodes');
     expect(container.textContent).toContain('inside the card');
@@ -251,7 +251,7 @@ describe('A2uiNodeSurface', () => {
     add(surface, 'root', 'Column', {children: {componentId: 'field', path: '/items'}});
     add(surface, 'field', 'TextField', {value: {path: 'value'}});
 
-    render(<A2uiNodeSurface surface={surface} />);
+    render(<A2uiSurface surface={surface} />);
     const second = screen.getByTestId('input-/items/1') as HTMLInputElement;
     expect(second.value).toBe('b');
 
@@ -268,7 +268,7 @@ describe('A2uiNodeSurface', () => {
 
     const {unmount} = render(
       <React.StrictMode>
-        <A2uiNodeSurface surface={surface} />
+        <A2uiSurface surface={surface} />
       </React.StrictMode>,
     );
     expect(screen.getByText('strict')).toBeDefined();
@@ -291,7 +291,7 @@ describe('A2uiNodeSurface', () => {
     surface.dataModel.set('/username', 'Alice');
     add(surface, 'root', 'Text', {text: {path: '/username'}});
 
-    const {unmount} = render(<A2uiNodeSurface surface={surface} />);
+    const {unmount} = render(<A2uiSurface surface={surface} />);
     expect(screen.getByText('Alice')).toBeDefined();
 
     unmount();

@@ -179,8 +179,9 @@ describe('adapter', () => {
     expect(queryByTestId('resolved')).not.toBeNull();
     expect(getByTestId('resolved').textContent).toBe('Loaded Data');
 
-    // Crucially, the parent should NOT have re-rendered because of the child addition.
-    // The DeferredChild wrapper localized the update.
-    expect(parentRenderCount).toBe(countBeforeChild);
+    // The node layer replaces the parent's child reference when the
+    // placeholder upgrades, so the parent re-renders exactly once; further
+    // child-internal changes stay on the child's own props signal.
+    expect(parentRenderCount).toBe(countBeforeChild + 1);
   });
 });
