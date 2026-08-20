@@ -16,7 +16,7 @@ import A2UICore
 import Foundation
 import JSONSchema
 
-public struct FormatNumberFunction: FunctionImplementation, Sendable {
+public final class FormatNumberFunction: FunctionImplementation, Sendable {
   public let api = FunctionAPI(
     name: "formatNumber",
     returnType: .string,
@@ -57,7 +57,9 @@ public struct FormatNumberFunction: FunctionImplementation, Sendable {
 
     // Force decimals if provided
     if let decimalsDouble = arguments["decimals"]?.doubleValue,
-       let decimals = Int(exactly: decimalsDouble) {
+      let decimals = Int(exactly: decimalsDouble),
+      decimals >= 0
+    {
       formatter.minimumFractionDigits = decimals
       formatter.maximumFractionDigits = decimals
     }

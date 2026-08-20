@@ -16,7 +16,7 @@ import A2UICore
 import Foundation
 import JSONSchema
 
-public struct RegexFunction: FunctionImplementation, Sendable {
+public final class RegexFunction: FunctionImplementation, Sendable {
   public let api = FunctionAPI(
     name: "regex",
     returnType: .boolean,
@@ -38,7 +38,7 @@ public struct RegexFunction: FunctionImplementation, Sendable {
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let value = arguments["value"]?.stringValue,
-          let pattern = arguments["pattern"]?.stringValue
+      let pattern = arguments["pattern"]?.stringValue
     else {
       return .boolean(false)
     }

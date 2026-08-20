@@ -16,7 +16,7 @@ import A2UICore
 import Foundation
 import JSONSchema
 
-public struct FormatDateFunction: FunctionImplementation, Sendable {
+public final class FormatDateFunction: FunctionImplementation, Sendable {
   public let api = FunctionAPI(
     name: "formatDate",
     returnType: .string,

@@ -15,7 +15,7 @@
 import A2UICore
 import JSONSchema
 
-public struct LengthFunction: FunctionImplementation, Sendable {
+public final class LengthFunction: FunctionImplementation, Sendable {
   public let api = FunctionAPI(
     name: "length",
     returnType: .boolean,

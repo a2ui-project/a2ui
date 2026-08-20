@@ -30,7 +30,7 @@ concurrency:
 jobs:
   run-remediation:
     name: Execute Automated Remediation Draft PR
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-extra-capacity
     timeout-minutes: 60
     if: >
       !github.event.issue.pull_request &&
