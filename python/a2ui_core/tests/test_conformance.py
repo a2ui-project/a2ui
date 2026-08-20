@@ -172,10 +172,11 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
     catalogs_map["v0.9:basic"] = v09_catalog
     catalogs_map["v1.0:basic"] = v10_catalog
 
-    version = resolve_protocol_version(case)
+    default_version = resolve_protocol_version(case)
 
     def add_catalog_id(cat_id: str, ver: Optional[str] = None):
         if cat_id and cat_id not in catalogs_map:
+            version = ver or default_version
             catalogs_map[cat_id] = Catalog(
                 catalog_id=cat_id,
                 protocol_version=version,
@@ -334,22 +335,21 @@ def validate_from_json_case(case: Dict[str, Any]) -> None:
         if "components" in expected:
             for comp_name, comp_expected in expected["components"].items():
                 comp = cat.get_component(comp_name)
-                assert comp is not None
-                if "allowedParents" in comp_expected:
-                    assert comp.allowed_parents == comp_expected["allowedParents"]
-                if "allowedChildren" in comp_expected:
-                    assert comp.allowed_children == comp_expected["allowedChildren"]
+                assert comp is not None, f"Component '{comp_name}' missing from catalog"
+                for k, v in comp_expected.items():
+                    if k == "allowedParents":
+                        assert comp.allowed_parents == v
+                    elif k == "allowedChildren":
+                        assert comp.allowed_children == v
         if "functions" in expected:
             for func_name, func_expected in expected["functions"].items():
                 func = cat.get_function(func_name)
-                assert func is not None
-                if "allowedCallers" in func_expected:
-                    assert func.allowed_callers == func_expected["allowedCallers"]
-                if "requiresUserActivation" in func_expected:
-                    assert (
-                        func.requires_user_activation
-                        == func_expected["requiresUserActivation"]
-                    )
+                assert func is not None, f"Function '{func_name}' missing from catalog"
+                for k, v in func_expected.items():
+                    if k == "allowedCallers":
+                        assert func.allowed_callers == v
+                    elif k == "requiresUserActivation":
+                        assert func.requires_user_activation == v
 
 
 def validate_catalog_schema_case(case: Dict[str, Any]) -> None:
