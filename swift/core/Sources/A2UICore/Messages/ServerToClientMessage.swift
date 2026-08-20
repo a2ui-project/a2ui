@@ -87,4 +87,18 @@ public enum ServerToClientMessage: Codable, Sendable, Equatable {
       try container.encode(message, forKey: .deleteSurface)
     }
   }
+
+  /// The surface ID targeted by this message.
+  public var surfaceID: String {
+    switch self {
+    case .createSurface(let message):
+      return message.surfaceID
+    case .updateComponents(let message):
+      return message.surfaceID
+    case .updateDataModel(let message):
+      return message.surfaceID
+    case .deleteSurface(let message):
+      return message.surfaceID
+    }
+  }
 }
