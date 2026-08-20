@@ -59,6 +59,7 @@ class Catalog(Generic[TComponent, TFunction]):
         components: Optional[List[TComponent]] = None,
         functions: Optional[List[TFunction]] = None,
         theme_schema: Dict[str, Any] = {},
+        instructions: Optional[str] = None,
     ):
         if not catalog_id:
             raise ValueError("catalog_id must be provided.")
@@ -66,6 +67,7 @@ class Catalog(Generic[TComponent, TFunction]):
         if not protocol_version:
             raise ValueError("protocol_version must be provided.")
         self.protocol_version = protocol_version
+        self.instructions = instructions
 
         validate_identifiers = _is_version_at_least_1_0(protocol_version)
 
@@ -125,11 +127,13 @@ class Catalog(Generic[TComponent, TFunction]):
         """Constructs a schema-only Catalog directly from raw JSON Schema."""
         catalog_id = catalog_id or catalog_schema.get("catalogId")
         if not catalog_id:
-            raise ValueError("catalog_id must be provided or exist in catalog_schema.")
+            raise A2uiCatalogError(
+                "catalog_id must be provided or exist in catalog_schema."
+            )
 
         p_ver = protocol_version or catalog_schema.get("protocolVersion")
         if not p_ver:
-            raise ValueError("protocol_version must be provided.")
+            raise A2uiCatalogError("protocol_version must be provided.")
 
         components_map = catalog_schema.get("components", {})
         any_comp_refs = (
@@ -193,6 +197,7 @@ class Catalog(Generic[TComponent, TFunction]):
             components=components,
             functions=functions,
             theme_schema=catalog_schema.get("theme") or {},
+            instructions=catalog_schema.get("instructions"),
         )
         cat._catalog_schema = catalog_schema
         return cat

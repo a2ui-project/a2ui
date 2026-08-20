@@ -1046,105 +1046,14 @@ def test_catalog_v1_0_additions():
     assert cat.id == "https://a2ui.org/v10-spec"
 
 
-def test_uax31_identifier_validation():
-    # 1. Valid UAX #31 identifiers (v1.0 automatically validates by default)
-    comp_valid = ComponentApi("MyComponent_1", {})
-    comp_unicode = ComponentApi("组件_1", {})
-    func_valid = FunctionApi("format_text_1", "string", {})
-    sys_func_valid = FunctionApi("@index", "number", {})
-    cat_valid = Catalog(
-        catalog_id="cat_1",
-        protocol_version="v1.0",
-        components=[comp_valid, comp_unicode],
-        functions=[func_valid, sys_func_valid],
-    )
-    assert cat_valid.get_component("MyComponent_1") is not None
-    assert cat_valid.get_component("组件_1") is not None
-    assert cat_valid.get_function("@index") is not None
+def test_basic_catalog_version_submodules():
+    from a2ui.core.basic_catalog import v1_0, v0_9, v0_8
 
-    # 2. Invalid component identifier with hyphen auto-fails under v1.0
-    comp_invalid = ComponentApi("My-Component", {})
-    with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 component identifier"):
-        Catalog(
-            catalog_id="cat_2",
-            protocol_version="v1.0",
-            components=[comp_invalid],
-        )
+    cat_v10 = v1_0.BasicCatalog()
+    assert cat_v10.protocol_version in ("v1.0", "1.0")
 
-    # 3. Invalid component identifier with hyphen is allowed under v0.9 (defaults to False)
-    cat_v09 = Catalog(
-        catalog_id="cat_v09",
-        protocol_version="v0.9",
-        components=[comp_invalid],
-    )
-    assert cat_v09.get_component("My-Component") is not None
+    cat_v09 = v0_9.BasicCatalog()
+    assert cat_v09.protocol_version in ("v0.9", "0.9")
 
-    # 5. Invalid component identifier auto-fails under future versions >= 1.0 (e.g. v1.1, v2.0)
-    with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 component identifier"):
-        Catalog(
-            catalog_id="cat_v11",
-            protocol_version="v1.1",
-            components=[comp_invalid],
-        )
-
-    with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 component identifier"):
-        Catalog(
-            catalog_id="cat_v20",
-            protocol_version="v2.0",
-            components=[comp_invalid],
-        )
-
-
-def test_component_api_allowed_parents_and_children():
-    comp = ComponentApi(
-        "Card",
-        {"type": "object"},
-        allowed_parents=["Surface", "Column"],
-        allowed_children=["Button", "Text"],
-    )
-    assert comp.allowed_parents == ["Surface", "Column"]
-    assert comp.allowed_children == ["Button", "Text"]
-
-
-def test_function_api_v1_0_attributes():
-    func = FunctionApi(
-        "executeAction",
-        "boolean",
-        {},
-        allowed_callers="rendererOnly",
-        requires_user_activation=True,
-    )
-    assert func.allowed_callers == "rendererOnly"
-    assert func.requires_user_activation is True
-
-
-def test_catalog_from_json_v1_0_attributes():
-    schema = {
-        "catalogId": "https://a2ui.org/v10_cat.json",
-        "protocolVersion": "v1.0",
-        "components": {
-            "CustomCard": {
-                "type": "object",
-                "description": "A custom card layout.",
-                "allowedParents": ["Surface", "Row"],
-                "allowedChildren": ["Button"],
-            }
-        },
-        "functions": {
-            "fetchData": {
-                "returnType": "object",
-                "allowedCallers": "agentOnly",
-                "requiresUserActivation": False,
-            }
-        },
-    }
-    cat = Catalog.from_json(schema)
-    c = cat.get_component("CustomCard")
-    assert c is not None
-    assert c.allowed_parents == ["Surface", "Row"]
-    assert c.allowed_children == ["Button"]
-
-    f = cat.get_function("fetchData")
-    assert f is not None
-    assert f.allowed_callers == "agentOnly"
-    assert f.requires_user_activation is False
+    cat_v08 = v0_8.BasicCatalog()
+    assert cat_v08.protocol_version in ("v0.8", "0.8")

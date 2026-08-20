@@ -399,6 +399,97 @@
       Text:
         type: object
 
+- name: test_v10_catalog_from_json_v1_0_attributes
+  description: Tests parsing allowedParents, allowedChildren, allowedCallers, and requiresUserActivation in a v1.0 catalog schema.
+  action: from_json
+  catalog:
+    protocolVersion: "v1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/attributes"
+    components:
+      CustomCard:
+        type: object
+        description: "A custom card layout."
+        allowedParents: ["Surface", "Row"]
+        allowedChildren: ["Button"]
+    functions:
+      fetchData:
+        returnType: object
+        allowedCallers: agentOnly
+        requiresUserActivation: false
+  expect:
+    catalogId: "https://a2ui.org/catalogs/v10/attributes"
+    protocolVersion: "v1.0"
+    components:
+      CustomCard:
+        type: object
+        description: "A custom card layout."
+        allowedParents: ["Surface", "Row"]
+        allowedChildren: ["Button"]
+    functions:
+      fetchData:
+        returnType: object
+        allowedCallers: agentOnly
+        requiresUserActivation: false
+
+- name: test_v10_catalog_from_json_uax31_validation
+  description: Tests parsing valid UAX #31 component and function identifiers in a v1.0 catalog.
+  action: from_json
+  catalog:
+    protocolVersion: "v1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/uax31"
+    components:
+      MyComponent_1:
+        type: object
+      组件_1:
+        type: object
+    functions:
+      format_text_1:
+        returnType: string
+      "@index":
+        returnType: number
+  expect:
+    catalogId: "https://a2ui.org/catalogs/v10/uax31"
+    protocolVersion: "v1.0"
+    components:
+      MyComponent_1:
+        type: object
+      组件_1:
+        type: object
+    functions:
+      format_text_1:
+        returnType: string
+      "@index":
+        returnType: number
+
+- name: test_v10_catalog_from_json_invalid_uax31_identifier_error
+  description: Tests that invalid UAX #31 component identifier with hyphen raises CatalogError under v1.0.
+  action: from_json
+  catalog:
+    protocolVersion: "v1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/invalid_uax31"
+    components:
+      My-Component:
+        type: object
+  expectError:
+    category: "CatalogError"
+    message: "Invalid UAX #31 component identifier"
+
+- name: test_v09_catalog_from_json_allows_hyphen_identifiers
+  description: Tests that v0.9 catalogs permit hyphenated component identifiers.
+  action: from_json
+  catalog:
+    protocolVersion: "v0.9"
+    catalogId: "https://a2ui.org/catalogs/v09/hyphen_allowed"
+    components:
+      My-Component:
+        type: object
+  expect:
+    catalogId: "https://a2ui.org/catalogs/v09/hyphen_allowed"
+    protocolVersion: "v0.9"
+    components:
+      My-Component:
+        type: object
+
 # ------------------------------------------------------------------------------
 # 2. Catalog Serialization (catalog_schema)
 # ------------------------------------------------------------------------------
