@@ -120,8 +120,8 @@ struct MessageProcessorTests {
 
   @Test func processCreateSurfaceCreatesSurface() throws {
     let (processor, _) = try makeProcessor()
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {
           "version": "v0.9.1",
@@ -134,7 +134,7 @@ struct MessageProcessorTests {
     #expect(processor.surfaceGroupModel.surfacesMap["s1"] != nil)
   }
 
-  @Test func processCreateSurfaceWithUnknownCatalogThrows() throws {
+  @Test func processCreateSurfaceWithUnknownCatalogDispatchesError() throws {
     let (processor, handler) = try makeProcessor()
     let message = try parse(
       """
@@ -146,9 +146,8 @@ struct MessageProcessorTests {
         }
       }
       """)
-    #expect(throws: GenericError.self) {
-      try processor.process(message: message)
-    }
+    processor.process(message: message)
+    #expect(processor.surfaceGroupModel.surfacesMap["s1"] == nil)
     #expect(handler.capturedErrors.count == 1)
   }
 
@@ -173,8 +172,8 @@ struct MessageProcessorTests {
     let handler = TestProcessorActionHandler()
     let processor = MessageProcessor(catalogs: [catalog], actionHandler: handler)
 
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {
           "version": "v0.9.1",
@@ -196,7 +195,7 @@ struct MessageProcessorTests {
     #expect(handler.capturedErrors.isEmpty)
   }
 
-  @Test func processCreateSurfaceWithInvalidThemeAgainstThemeSchemaThrows() throws {
+  @Test func processCreateSurfaceWithInvalidThemeAgainstThemeSchemaDispatchesError() throws {
     let themeSchema = try Schema(
       instance: """
         {
@@ -230,47 +229,7 @@ struct MessageProcessorTests {
       }
       """)
 
-    #expect(throws: ValidationFailedError.self) {
-      try processor.process(message: message)
-    }
-
-    #expect(processor.surfaceGroupModel.surfacesMap["s1"] == nil)
-    #expect(handler.capturedErrors.count == 1)
-    if case .validationFailed(let error) = handler.capturedErrors.first {
-      #expect(error.surfaceID == "s1")
-      #expect(error.path == "/theme/primaryColor")
-    } else {
-      Issue.record("Expected .validationFailed captured error")
-    }
-  }
-
-  @Test func processCreateSurfaceWithInvalidThemeDispatchesThroughActionHandler() throws {
-    let themeSchema = try Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "primaryColor": { "type": "string" }
-          }
-        }
-        """
-    )
-    let catalog = Catalog(
-      id: "themed-cat",
-      components: [],
-      themeSchema: themeSchema
-    )
-    let handler = TestProcessorActionHandler()
-    let processor = MessageProcessor(catalogs: [catalog], actionHandler: handler)
-
-    let message = ServerToClientMessage.createSurface(
-      CreateSurfaceMessage(
-        surfaceID: "s1",
-        catalogID: "themed-cat",
-        theme: ["primaryColor": .integer(123)]
-      )
-    )
-    processor.processMessage(message)
+    processor.process(message: message)
 
     #expect(processor.surfaceGroupModel.surfacesMap["s1"] == nil)
     #expect(handler.capturedErrors.count == 1)
@@ -284,8 +243,8 @@ struct MessageProcessorTests {
 
   @Test func processCreateSurfaceWithValidThemeWhenThemeSchemaIsNilPasses() throws {
     let (processor, handler) = try makeProcessor()
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {
           "version": "v0.9.1",
@@ -308,8 +267,8 @@ struct MessageProcessorTests {
 
   @Test func processUpdateComponents() throws {
     let (processor, _) = try makeProcessor()
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {
           "version": "v0.9.1",
@@ -319,8 +278,8 @@ struct MessageProcessorTests {
           }
         }
         """))
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {
           "version": "v0.9.1",
@@ -343,8 +302,9 @@ struct MessageProcessorTests {
 
   @Test func processUpdateComponentsValidBatch() throws {
     let (processor, handler) = try makeProcessor()
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {
           "version": "v0.9.1",
           "createSurface": {
@@ -352,9 +312,10 @@ struct MessageProcessorTests {
             "catalogId": "default"
           }
         }
-        """)
-    try processor.process(
-      line: """
+        """))
+    processor.process(
+      message: try parse(
+        """
         {
           "version": "v0.9.1",
           "updateComponents": {
@@ -373,7 +334,7 @@ struct MessageProcessorTests {
             ]
           }
         }
-        """)
+        """))
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     let components = vm?.componentsModel.components
     #expect(components?.count == 2)
@@ -384,8 +345,9 @@ struct MessageProcessorTests {
 
   @Test func processUpdateComponentsAtomicFailure() throws {
     let (processor, handler) = try makeProcessor()
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {
           "version": "v0.9.1",
           "createSurface": {
@@ -393,9 +355,10 @@ struct MessageProcessorTests {
             "catalogId": "default"
           }
         }
-        """)
-    try processor.process(
-      line: """
+        """))
+    processor.process(
+      message: try parse(
+        """
         {
           "version": "v0.9.1",
           "updateComponents": {
@@ -414,7 +377,7 @@ struct MessageProcessorTests {
             ]
           }
         }
-        """)
+        """))
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     let components = vm?.componentsModel.components
     #expect(components?.isEmpty == true)
@@ -422,7 +385,7 @@ struct MessageProcessorTests {
     #expect(handler.capturedErrors.count == 1)
   }
 
-  @Test func processUpdateComponentsForMissingSurfaceThrows() throws {
+  @Test func processUpdateComponentsForMissingSurfaceDispatchesError() throws {
     let (processor, handler) = try makeProcessor()
     let message = try parse(
       """
@@ -434,9 +397,7 @@ struct MessageProcessorTests {
         }
       }
       """)
-    #expect(throws: GenericError.self) {
-      try processor.process(message: message)
-    }
+    processor.process(message: message)
     #expect(handler.capturedErrors.count == 1)
   }
 
@@ -444,8 +405,8 @@ struct MessageProcessorTests {
 
   @Test func processUpdateDataModel() throws {
     let (processor, _) = try makeProcessor()
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {
           "version": "v0.9.1",
@@ -455,8 +416,8 @@ struct MessageProcessorTests {
           }
         }
         """))
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {
           "version": "v0.9.1",
@@ -475,8 +436,8 @@ struct MessageProcessorTests {
 
   @Test func processDeleteSurface() throws {
     let (processor, _) = try makeProcessor()
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {
           "version": "v0.9.1",
@@ -486,8 +447,8 @@ struct MessageProcessorTests {
           }
         }
         """))
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {
           "version": "v0.9.1",
@@ -499,7 +460,7 @@ struct MessageProcessorTests {
     #expect(processor.surfaceGroupModel.surfacesMap["s1"] == nil)
   }
 
-  @Test func processDeleteSurfaceForMissingSurfaceThrows() throws {
+  @Test func processDeleteSurfaceForMissingSurfaceDispatchesError() throws {
     let (processor, handler) = try makeProcessor()
     let message = try parse(
       """
@@ -510,15 +471,13 @@ struct MessageProcessorTests {
         }
       }
       """)
-    #expect(throws: GenericError.self) {
-      try processor.process(message: message)
-    }
+    processor.process(message: message)
     #expect(handler.capturedErrors.count == 1)
   }
 
   // MARK: - Error Handling & Multiple Messages
 
-  @Test func processDuplicateSurfaceThrowsAndDispatchesToHandler() throws {
+  @Test func processDuplicateSurfaceDispatchesErrorToHandler() throws {
     let (processor, handler) = try makeProcessor()
     let message = try parse(
       """
@@ -530,10 +489,8 @@ struct MessageProcessorTests {
         }
       }
       """)
-    try processor.process(message: message)
-    #expect(throws: GenericError.self) {
-      try processor.process(message: message)
-    }
+    processor.process(message: message)
+    processor.process(message: message)
     #expect(handler.capturedErrors.count == 1)
   }
 
@@ -559,7 +516,7 @@ struct MessageProcessorTests {
         }
       }
       """)
-    processor.processMessages([msg1, msg2])
+    processor.process(messages: [msg1, msg2])
     #expect(handler.capturedErrors.count == 1)
     #expect(processor.surfaceGroupModel.surfacesMap["s2"] != nil)
   }
@@ -568,8 +525,8 @@ struct MessageProcessorTests {
 
   @Test func groupAllSurfacesReturnsAllActiveSurfaces() throws {
     let (processor, _) = try makeProcessor()
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {
           "version": "v0.9.1",
@@ -579,8 +536,8 @@ struct MessageProcessorTests {
           }
         }
         """))
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {
           "version": "v0.9.1",
@@ -605,8 +562,8 @@ struct MessageProcessorTests {
 
   @Test func processCreateSurfaceWithSendDataModelSetsFlag() throws {
     let (processor, _) = try makeProcessor()
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {
           "version": "v0.9.1",
@@ -623,8 +580,8 @@ struct MessageProcessorTests {
 
   @Test func processCreateSurfaceWithoutSendDataModelDoesNotSetFlag() throws {
     let (processor, _) = try makeProcessor()
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {
           "version": "v0.9.1",

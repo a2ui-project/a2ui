@@ -255,34 +255,29 @@ public final class MessageProcessor: ObservableObject {
     }
   }
 
-  // MARK: - Message Processing (Strongly-Typed)
+  // MARK: - Message Processing
 
-  /// Processes a single server-to-client message, throwing validation or missing surface errors.
+  /// Processes a single server-to-client message.
   ///
-  /// Errors thrown during validation are reported to `ActionHandling` via `MessageErrorMapper`
-  /// before being rethrown.
-  public func process(message: ServerToClientMessage) throws {
+  /// Any validation or lifecycle errors are mapped via `MessageErrorMapper`
+  /// and reported to `ActionHandling`.
+  public func process(message: ServerToClientMessage) {
     do {
       try validateAndProcess(message)
     } catch {
       let surfaceID = extractSurfaceID(from: error, fallback: message.surfaceID)
       let clientError = errorMapper.map(error, surfaceID: surfaceID)
       actionHandler?.handle(error: clientError, from: surfaceID)
-      throw error
     }
   }
 
-  /// Processes a single server-to-client message without throwing.
-  ///
-  /// Errors are routed directly to `ActionHandling`.
-  public func processMessage(_ message: ServerToClientMessage) {
-    _ = try? process(message: message)
-  }
-
   /// Processes an array of server-to-client messages.
-  public func processMessages(_ messages: [ServerToClientMessage]) {
+  ///
+  /// Any validation or lifecycle errors are mapped via `MessageErrorMapper`
+  /// and reported to `ActionHandling`.
+  public func process(messages: [ServerToClientMessage]) {
     for message in messages {
-      processMessage(message)
+      process(message: message)
     }
   }
 
@@ -429,6 +424,7 @@ public final class MessageProcessor: ObservableObject {
           uniqueKeysWithValues: componentDict.map { ($0.key, $0.value) }
         )
       )
+      let result = schema.validate(instance)
       guard result.isValid else {
         let specificError = result.errors?.first.map(mostSpecificError(from:))
         let errorMessage = specificError?.message ?? "Validation failed"

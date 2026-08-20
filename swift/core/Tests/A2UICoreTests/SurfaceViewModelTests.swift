@@ -761,8 +761,8 @@ extension MessageProcessor {
     surfaceID: String,
     components: [[String: JSONValue]]
   ) {
-    processMessage(
-      .updateComponents(
+    process(
+      message: .updateComponents(
         UpdateComponentsMessage(surfaceID: surfaceID, components: components)
       )
     )
@@ -773,8 +773,8 @@ extension MessageProcessor {
     path: String,
     value: JSONValue?
   ) {
-    processMessage(
-      .updateDataModel(
+    process(
+      message: .updateDataModel(
         UpdateDataModelMessage(surfaceID: surfaceID, path: path, value: value)
       )
     )

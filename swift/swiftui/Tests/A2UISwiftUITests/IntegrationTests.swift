@@ -115,18 +115,18 @@ struct IntegrationTests {
       actionHandler: handler
     )
 
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
         """))
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "updateDataModel": {"surfaceId": "s1", "path": "/buttonLabel", "value": "Submit"}}
         """))
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
           {
@@ -151,13 +151,13 @@ struct IntegrationTests {
       actionHandler: handler
     )
 
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
         """))
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
           {
@@ -189,13 +189,13 @@ struct IntegrationTests {
       actionHandler: handler
     )
 
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
         """))
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
           {
@@ -221,15 +221,15 @@ struct IntegrationTests {
       actionHandler: handler
     )
 
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "form-surface", "catalogId": "default"}}
         """))
 
     // Step 1: Create form with text fields bound to data model
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "form-surface", "components": [
           {
@@ -256,18 +256,18 @@ struct IntegrationTests {
         """))
 
     // Step 2: Update data model with user input
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/name", "value": "Alice"}}
         """))
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/email", "value": "alice@example.com"}}
         """))
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/submitLabel", "value": "Submit Form"}}
         """))
@@ -282,8 +282,8 @@ struct IntegrationTests {
     #expect(vm.componentsModel.components.count == 3)
 
     // Step 3: Update name and verify
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/name", "value": "Bob"}}
         """))
@@ -300,14 +300,14 @@ struct IntegrationTests {
       actionHandler: handler
     )
 
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
         """))
 
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
           {"id": "root", "component": "text", "text": "Hello"}
@@ -327,22 +327,22 @@ struct IntegrationTests {
       actionHandler: handler
     )
 
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
         """))
 
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
           {"id": "lbl", "component": "text", "text": {"path": "/title"}}
         ]}}
         """))
 
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "updateDataModel": {"surfaceId": "s1", "path": "/title", "value": "Dynamic Title"}}
         """))

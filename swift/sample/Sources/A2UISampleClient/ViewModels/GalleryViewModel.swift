@@ -140,7 +140,7 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
     let rawMessage = sample.rawMessages[currentStepIndex]
     do {
       let message = try parser.parse(jsonString: rawMessage)
-      try processor.process(message: message)
+      processor.process(message: message)
     } catch {
       // Errors from processor are reported to GalleryActionHandler;
       // unhandled parse errors are logged here.

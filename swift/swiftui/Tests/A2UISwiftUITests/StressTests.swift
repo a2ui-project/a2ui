@@ -63,8 +63,8 @@ struct StressTests {
       actionHandler: handler
     )
 
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
         """))
@@ -93,7 +93,7 @@ struct StressTests {
     let updateMsg = ServerToClientMessage.updateComponents(
       UpdateComponentsMessage(surfaceID: "s1", components: components)
     )
-    try processor.process(message: updateMsg)
+    processor.process(message: updateMsg)
 
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     let stored = vm?.componentsModel.components ?? [:]
@@ -170,15 +170,15 @@ struct StressTests {
       actionHandler: handler
     )
 
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
         """))
 
     // Button with only required fields — no label, no onClick
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
           {"id": "root", "component": "button"}
@@ -197,15 +197,15 @@ struct StressTests {
       actionHandler: handler
     )
 
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
         """))
 
     // Component references a data path that doesn't exist
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
           {
@@ -228,13 +228,13 @@ struct StressTests {
       actionHandler: handler
     )
 
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
         """))
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": []}}
         """))
@@ -251,13 +251,13 @@ struct StressTests {
       actionHandler: handler
     )
 
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
         """))
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
           {
@@ -283,13 +283,13 @@ struct StressTests {
       actionHandler: handler
     )
 
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
         """))
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
           {
@@ -330,16 +330,16 @@ struct StressTests {
       actionHandler: handler
     )
 
-    try processor.process(
-      message: parse(
+    processor.process(
+      message: try parse(
         """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
         """))
 
     // Rapidly update the same component 500 times
     for i in 0..<500 {
-      try processor.process(
-        message: parse(
+      processor.process(
+        message: try parse(
           """
           {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
             {"id": "root", "component": "text", "text": "Update \(i)"}
