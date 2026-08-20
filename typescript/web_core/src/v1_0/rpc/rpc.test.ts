@@ -28,7 +28,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     name: 'customRpc',
     returnType: 'string' as const,
     schema: z.object({text: z.string()}),
-    callableFrom: 'rendererOrAgent' as const,
+    allowedCallers: 'rendererOrAgent' as const,
   };
   const customRpcImpl = createFunctionImplementation(
     customRpcApi,
@@ -39,7 +39,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     name: 'internalRenderer',
     returnType: 'void' as const,
     schema: z.object({}),
-    callableFrom: 'rendererOnly' as const,
+    allowedCallers: 'rendererOnly' as const,
   };
   const rendererOnlyImpl = createFunctionImplementation(rendererOnlyApi, () => {});
 
@@ -47,7 +47,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     name: 'userActionOnly',
     returnType: 'boolean' as const,
     schema: z.object({}),
-    callableFrom: 'rendererOrAgent' as const,
+    allowedCallers: 'rendererOrAgent' as const,
     requiresUserActivation: true,
   };
   const restrictedImpl = createFunctionImplementation(restrictedApi, () => true);
