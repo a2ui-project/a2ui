@@ -234,18 +234,70 @@ describe('A2uiValidator & Integrity Verification', () => {
       assert.doesNotThrow(() => validator.validate(payload));
     });
 
-    it('respects relaxed validation config for dangling references & orphans', () => {
-      const orphanPayload = {
+    it('validates inline components inside createSurface for v1.0', () => {
+      const payload = {
         version: 'v1.0',
-        updateComponents: {
-          surfaceId: 's1',
+        createSurface: {
+          surfaceId: 'main',
+          catalogId: 'https://a2ui.org/catalog',
           components: [
-            {id: 'root', component: 'Column', children: ['c1']},
-            {id: 'c1', component: 'Text', text: 'Child'},
-            {id: 'orphan', component: 'Text', text: 'Unused'},
+            {
+              id: 'root',
+              component: 'Column',
+              children: ['c1'],
+            },
+            {
+              id: 'c1',
+              component: 'Text',
+              text: 'Inline text',
+            },
           ],
         },
       };
+
+      assert.doesNotThrow(() => validator.validate(payload));
+    });
+
+    it('auto-enables allowMissingRoot for incremental updateComponents messages without createSurface', () => {
+      const incrementalPayload = {
+        version: 'v1.0',
+        updateComponents: {
+          surfaceId: 'main',
+          components: [
+            {
+              id: 'c1',
+              component: 'Text',
+              text: 'Updated child node only',
+            },
+          ],
+        },
+      };
+
+      // By default without createSurface, allowMissingRoot is automatically enabled
+      assert.doesNotThrow(() => validator.validate(incrementalPayload));
+    });
+
+    it('respects relaxed validation config for dangling references & orphans', () => {
+      const orphanPayload = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: 'https://a2ui.org/catalog',
+          },
+        },
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [
+              {id: 'root', component: 'Column', children: ['c1']},
+              {id: 'c1', component: 'Text', text: 'Child'},
+              {id: 'orphan', component: 'Text', text: 'Unused'},
+            ],
+          },
+        },
+      ];
 
       assert.throws(
         () => validator.validate(orphanPayload, undefined, STRICT_VALIDATION),

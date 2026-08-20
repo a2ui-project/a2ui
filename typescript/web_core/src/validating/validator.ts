@@ -131,6 +131,13 @@ export class A2uiValidator {
     const msgList = Array.isArray(messages) ? messages : [messages];
     this.validateProtocolEnvelope(msgList);
 
+    // Automatically enable allowMissingRoot if it's an incremental update (no createSurface)
+    const hasCreate = msgList.some(
+      m => typeof m === 'object' && m !== null && 'createSurface' in m,
+    );
+    const effectiveConfig: ValidationConfig =
+      !hasCreate && !config.allowMissingRoot ? {...config, allowMissingRoot: true} : config;
+
     const accumulatedComponents: Array<Record<string, any>> = [];
     for (const msg of msgList) {
       validateRecursionAndPaths(msg);
@@ -139,10 +146,14 @@ export class A2uiValidator {
       if (Array.isArray(updateComps)) {
         accumulatedComponents.push(...updateComps);
       }
+      const createComps = msg.createSurface?.components;
+      if (Array.isArray(createComps)) {
+        accumulatedComponents.push(...createComps);
+      }
     }
 
     if (accumulatedComponents.length > 0) {
-      this.validateComponents(accumulatedComponents, refFieldsMap, config, {
+      this.validateComponents(accumulatedComponents, refFieldsMap, effectiveConfig, {
         skipRecursionCheck: true,
       });
     }
