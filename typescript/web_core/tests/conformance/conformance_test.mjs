@@ -341,9 +341,14 @@ function jsonSchemaToZod(schemaDef) {
 
   if (schemaDef.type === 'string' || schemaDef.$ref) {
     let strSchema = z.string();
+    if (schemaDef.$ref) {
+      strSchema = strSchema.describe(`REF:${schemaDef.$ref}`);
+    } else if (schemaDef.description) {
+      strSchema = strSchema.describe(schemaDef.description);
+    }
     if (schemaDef.pattern) {
       try {
-        strSchema = strSchema.regex(new RegExp(schemaDef.pattern));
+        strSchema = strSchema.regex(new RegExp(schemaDef.pattern, 'u'));
       } catch {
         // ignore regex compilation errors if any
       }

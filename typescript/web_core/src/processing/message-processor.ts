@@ -505,41 +505,168 @@ export class MessageProcessor<T extends ComponentApi> {
     if (components.size === 0) return;
 
     // Root presence check
-    const rootId = components.get('root') ? 'root' : undefined;
-    if (!rootId || !components.get(rootId)) {
-      throw new A2uiValidationError(`Missing root component`);
+    if (!components.get('root')) {
+      throw new A2uiValidationError('Missing root component');
     }
+    const rootId = 'root';
 
     const visited = new Set<string>();
     const visiting = new Set<string>();
+
+    const isChildRefDef = (schema: any, keyName?: string): boolean => {
+      if (!schema || typeof schema !== 'object') return false;
+      let current = schema;
+      while (current?._def) {
+        const typeName = current._def.typeName;
+        if (typeName === 'ZodOptional' || typeName === 'ZodNullable' || typeName === 'ZodDefault') {
+          current = current._def.innerType;
+        } else if (typeName === 'ZodEffects') {
+          current = current._def.schema;
+        } else {
+          break;
+        }
+      }
+
+      const desc: string = current?.description ?? current?._def?.description ?? '';
+      if (desc.includes('ChildList') || desc.includes('ComponentId') || desc.includes('Child')) {
+        return true;
+      }
+
+      if (
+        keyName &&
+        (keyName === 'child' ||
+          keyName === 'children' ||
+          keyName.endsWith('Child') ||
+          keyName === 'root')
+      ) {
+        return true;
+      }
+
+      // Check structural definition of ChildList (Union containing array and { componentId, path } template)
+      if (current?._def?.typeName === 'ZodUnion') {
+        const options = (current._def.options as any[]) ?? [];
+        const hasTemplate = options.some(
+          o =>
+            o?._def?.typeName === 'ZodObject' &&
+            typeof o._def.shape === 'function' &&
+            o._def.shape().componentId &&
+            o._def.shape().path,
+        );
+        if (hasTemplate) return true;
+      }
+
+      return false;
+    };
+
+    const findChildProperties = (schema: any): Set<string> => {
+      const childKeys = new Set<string>();
+      if (!schema || typeof schema !== 'object') return childKeys;
+
+      let current = schema;
+      while (current?._def) {
+        const typeName = current._def.typeName;
+        if (typeName === 'ZodOptional' || typeName === 'ZodNullable' || typeName === 'ZodDefault') {
+          current = current._def.innerType;
+        } else if (typeName === 'ZodEffects') {
+          current = current._def.schema;
+        } else {
+          break;
+        }
+      }
+
+      if (current?._def?.typeName === 'ZodObject' && typeof current._def.shape === 'function') {
+        const shape = current._def.shape();
+        for (const [key, fieldSchema] of Object.entries(shape)) {
+          if (isChildRefDef(fieldSchema, key)) {
+            childKeys.add(key);
+          } else {
+            let inner = fieldSchema as any;
+            while (inner?._def) {
+              const tn = inner._def.typeName;
+              if (tn === 'ZodOptional' || tn === 'ZodNullable' || tn === 'ZodDefault') {
+                inner = inner._def.innerType;
+              } else if (tn === 'ZodEffects') {
+                inner = inner._def.schema;
+              } else {
+                break;
+              }
+            }
+            if (inner?._def?.typeName === 'ZodArray') {
+              if (isChildRefDef(inner._def.type, key)) {
+                childKeys.add(key);
+              } else if (inner._def.type?._def?.typeName === 'ZodObject') {
+                const nestedKeys = findChildProperties(inner._def.type);
+                if (nestedKeys.size > 0) {
+                  childKeys.add(key);
+                }
+              }
+            } else if (inner?._def?.typeName === 'ZodObject') {
+              const nestedKeys = findChildProperties(inner);
+              if (nestedKeys.size > 0) {
+                childKeys.add(key);
+              }
+            }
+          }
+        }
+      }
+
+      return childKeys;
+    };
 
     const getChildren = (compId: string): string[] => {
       const comp = components.get(compId);
       if (!comp) return [];
       const children: string[] = [];
+
       const addRef = (val: unknown) => {
         if (typeof val === 'string' && val.length > 0) {
           children.push(val);
         }
       };
 
-      for (const [k, v] of Object.entries(comp.properties)) {
-        if (k === 'child' || k.endsWith('Child') || k === 'root') {
-          addRef(v);
-        } else if (k === 'children' || k === 'items' || k === 'components') {
-          if (Array.isArray(v)) {
-            v.forEach(addRef);
-          } else {
-            addRef(v);
+      const extractChildRefs = (val: unknown) => {
+        if (!val) return;
+        if (typeof val === 'string') {
+          addRef(val);
+        } else if (Array.isArray(val)) {
+          for (const item of val) {
+            extractChildRefs(item);
           }
-        } else if (
-          typeof v === 'string' &&
-          k !== 'id' &&
-          (k.toLowerCase().includes('child') || k.toLowerCase().includes('component'))
-        ) {
-          addRef(v);
+        } else if (typeof val === 'object' && val !== null) {
+          if ('componentId' in val && typeof (val as any).componentId === 'string') {
+            addRef((val as any).componentId);
+          }
+          if ('child' in val && typeof (val as any).child === 'string') {
+            addRef((val as any).child);
+          }
+        }
+      };
+
+      const compApi = surface.catalog.components.get(comp.type);
+      if (compApi?.schema) {
+        const childPropKeys = findChildProperties(compApi.schema);
+        for (const key of childPropKeys) {
+          const val = comp.properties[key];
+          if (val !== undefined && val !== null) {
+            extractChildRefs(val);
+          }
+        }
+      } else {
+        // Fallback for catalog-less / dynamic components without schema
+        for (const [k, v] of Object.entries(comp.properties)) {
+          if (k === 'id') continue;
+          if (
+            k === 'child' ||
+            k === 'children' ||
+            k === 'items' ||
+            k === 'components' ||
+            k.endsWith('Child')
+          ) {
+            extractChildRefs(v);
+          }
         }
       }
+
       return children;
     };
 

@@ -39,7 +39,12 @@ function normalizeV08Component(comp: unknown): InternalComponentPayload {
     if (keys.length > 0) {
       componentName = keys[0];
       const compProps = obj[keys[0]];
-      if (compProps && typeof compProps === 'object' && compProps !== null) {
+      if (
+        compProps &&
+        typeof compProps === 'object' &&
+        compProps !== null &&
+        !Array.isArray(compProps)
+      ) {
         Object.assign(props, compProps);
       }
     }
