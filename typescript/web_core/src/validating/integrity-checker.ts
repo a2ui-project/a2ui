@@ -58,11 +58,7 @@ function unwrapZodType(type: any): any {
   let current = type;
   while (current?._def) {
     const typeName = current._def.typeName;
-    if (
-      typeName === 'ZodOptional' ||
-      typeName === 'ZodNullable' ||
-      typeName === 'ZodDefault'
-    ) {
+    if (typeName === 'ZodOptional' || typeName === 'ZodNullable' || typeName === 'ZodDefault') {
       current = current._def.innerType;
     } else if (typeName === 'ZodEffects') {
       current = current._def.schema;

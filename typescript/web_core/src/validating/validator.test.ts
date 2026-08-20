@@ -399,12 +399,26 @@ describe('A2uiValidator & Integrity Verification', () => {
 
   describe('analyzeChildRefSchema & Schema Ref Introspection', () => {
     it('identifies JSON Schema $ref pointers to ChildList and ComponentId', () => {
-      const childListRef = {$ref: 'https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList'};
-      const componentIdRef = {$ref: 'https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentId'};
-      const childRef = {$ref: 'https://a2ui.org/specification/v1_0/common_types.json#/$defs/Child'};
+      const childListRef = {
+        $ref: 'https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList',
+      };
+      const componentIdRef = {
+        $ref: 'https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentId',
+      };
+      const childRef = {
+        $ref: 'https://a2ui.org/specification/v1_0/common_types.json#/$defs/Child',
+      };
       const v09ChildListRef = {$ref: 'common_types.json#/definitions/ChildList'};
       const v09ComponentIdRef = {$ref: 'common_types.json#/definitions/ComponentId'};
       const nonChildRef = {$ref: 'common_types.json#/definitions/DynamicString'};
+
+      const childListAnalysis = analyzeChildRefSchema(childListRef);
+      assert.strictEqual(childListAnalysis.isChildList, true);
+      assert.strictEqual(childListAnalysis.isChild, false);
+
+      const componentIdAnalysis = analyzeChildRefSchema(componentIdRef);
+      assert.strictEqual(componentIdAnalysis.isChild, true);
+      assert.strictEqual(componentIdAnalysis.isChildList, false);
 
       assert.strictEqual(isChildListSchema(childListRef), true);
       assert.strictEqual(isChildSchema(childListRef), false);
@@ -422,7 +436,9 @@ describe('A2uiValidator & Integrity Verification', () => {
     });
 
     it('identifies Zod schemas for ComponentId and ChildList', () => {
-      const singleChildApi = z.string().describe('The unique identifier for a component, used for references.');
+      const singleChildApi = z
+        .string()
+        .describe('The unique identifier for a component, used for references.');
       const childListUnion = z.union([
         z.array(singleChildApi),
         z.object({componentId: z.string(), path: z.string()}),
@@ -450,7 +466,10 @@ describe('A2uiValidator & Integrity Verification', () => {
 
       const refMap = buildComponentRefMap([customSplitPaneApi]);
       assert.ok(refMap.CustomSplitPane);
-      assert.deepStrictEqual(Array.from(refMap.CustomSplitPane[0]).sort(), ['bottomSlot', 'topSlot']);
+      assert.deepStrictEqual(Array.from(refMap.CustomSplitPane[0]).sort(), [
+        'bottomSlot',
+        'topSlot',
+      ]);
       assert.deepStrictEqual(Array.from(refMap.CustomSplitPane[1]), ['sidePanels']);
     });
   });
