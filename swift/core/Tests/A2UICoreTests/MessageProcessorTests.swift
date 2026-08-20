@@ -199,6 +199,87 @@ struct MessageProcessorTests {
     #expect(components?["root"] != nil)
   }
 
+  @Test func processUpdateComponentsValidBatch() throws {
+    let (processor, handler) = try makeProcessor()
+    try processor.process(
+      line: """
+        {
+          "version": "v0.9.1",
+          "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "default"
+          }
+        }
+        """)
+    try processor.process(
+      line: """
+        {
+          "version": "v0.9.1",
+          "updateComponents": {
+            "surfaceId": "s1",
+            "components": [
+              {
+                "id": "c1",
+                "component": "text",
+                "text": "First"
+              },
+              {
+                "id": "c2",
+                "component": "text",
+                "text": "Second"
+              }
+            ]
+          }
+        }
+        """)
+    let vm = processor.surfaceGroupModel.surfacesMap["s1"]
+    let components = vm?.componentsModel.components
+    #expect(components?.count == 2)
+    #expect(components?["c1"]?.properties["text"]?.stringValue == "First")
+    #expect(components?["c2"]?.properties["text"]?.stringValue == "Second")
+    #expect(handler.capturedErrors.isEmpty)
+  }
+
+  @Test func processUpdateComponentsAtomicFailure() throws {
+    let (processor, handler) = try makeProcessor()
+    try processor.process(
+      line: """
+        {
+          "version": "v0.9.1",
+          "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "default"
+          }
+        }
+        """)
+    try processor.process(
+      line: """
+        {
+          "version": "v0.9.1",
+          "updateComponents": {
+            "surfaceId": "s1",
+            "components": [
+              {
+                "id": "c1",
+                "component": "text",
+                "text": "First"
+              },
+              {
+                "id": "c2",
+                "component": "text",
+                "text": 12345
+              }
+            ]
+          }
+        }
+        """)
+    let vm = processor.surfaceGroupModel.surfacesMap["s1"]
+    let components = vm?.componentsModel.components
+    #expect(components?.isEmpty == true)
+    #expect(components?["c1"] == nil)
+    #expect(handler.capturedErrors.count == 1)
+  }
+
   @Test func processUpdateComponentsForMissingSurfaceThrows() throws {
     let (processor, handler) = try makeProcessor()
     #expect(throws: GenericError.self) {

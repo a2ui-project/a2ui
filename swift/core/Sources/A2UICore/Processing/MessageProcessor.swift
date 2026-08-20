@@ -361,6 +361,7 @@ public final class MessageProcessor: ObservableObject {
       return
     }
 
+    // Pass 1: Validation Pass
     for componentDict in components {
       guard let type = componentDict["component"]?.stringValue else {
         let error = ClientServerError.validationFailed(
@@ -371,7 +372,7 @@ public final class MessageProcessor: ObservableObject {
           )
         )
         actionHandler?.handle(error: error, from: surfaceID)
-        continue
+        return
       }
 
       guard let id = componentDict["id"]?.stringValue else {
@@ -383,7 +384,7 @@ public final class MessageProcessor: ObservableObject {
           )
         )
         actionHandler?.handle(error: error, from: surfaceID)
-        continue
+        return
       }
 
       let componentCatalogID = componentDict["catalogId"]?.stringValue ?? surface.defaultCatalogID
@@ -397,7 +398,7 @@ public final class MessageProcessor: ObservableObject {
           )
         )
         actionHandler?.handle(error: error, from: surfaceID)
-        continue
+        return
       }
 
       let instance: JSONValue = .object(
@@ -406,22 +407,7 @@ public final class MessageProcessor: ObservableObject {
         )
       )
       let result = schema.validate(instance)
-
-      if result.isValid {
-        var props: [String: JSONValue] = [:]
-        for (key, val) in componentDict
-        where key != "id" && key != "component" && key != "catalogId" {
-          props[key] = val
-        }
-
-        let existing = surface.componentsModel.get(id)
-        if let existing, existing.type != type {
-          surface.componentsModel.removeComponent(id)
-        }
-        surface.componentsModel.addComponent(
-          ComponentModel(id: id, type: type, catalogID: componentCatalogID, properties: props)
-        )
-      } else {
+      guard result.isValid else {
         let errorMessage = result.errors?.first?.message ?? "Validation failed"
         let errorPath = result.errors?.first?.instanceLocation.jsonPointerString ?? "/"
         let error = ClientServerError.validationFailed(
@@ -432,7 +418,32 @@ public final class MessageProcessor: ObservableObject {
           )
         )
         actionHandler?.handle(error: error, from: surfaceID)
+        return
       }
+    }
+
+    // Pass 2: Mutation Pass
+    for componentDict in components {
+      guard let type = componentDict["component"]?.stringValue,
+        let id = componentDict["id"]?.stringValue
+      else {
+        continue
+      }
+      let componentCatalogID = componentDict["catalogId"]?.stringValue ?? surface.defaultCatalogID
+
+      var props: [String: JSONValue] = [:]
+      for (key, val) in componentDict
+      where key != "id" && key != "component" && key != "catalogId" {
+        props[key] = val
+      }
+
+      let existing = surface.componentsModel.get(id)
+      if let existing, existing.type != type {
+        surface.componentsModel.removeComponent(id)
+      }
+      surface.componentsModel.addComponent(
+        ComponentModel(id: id, type: type, catalogID: componentCatalogID, properties: props)
+      )
     }
   }
 
