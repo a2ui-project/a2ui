@@ -21,7 +21,7 @@ import OrderedJSON
 /// The central processor for A2UI server-to-client messages.
 ///
 /// Mirrors `MessageProcessor` in the core blueprint and `web_core`.
-/// Accepts strongly-typed ``ServerToClientMessage`` values or raw JSON lines,
+/// Accepts strongly-typed ``ServerToClientMessage`` values,
 /// validates component declarations against catalog schemas, and mutates
 /// the corresponding ``SurfaceViewModel`` state via ``SurfaceGroupModel``.
 @MainActor
@@ -31,7 +31,6 @@ public final class MessageProcessor: ObservableObject {
 
   private let catalogs: [String: Catalog]
   private weak var actionHandler: (any ActionHandling)?
-  private let parser = MessageParser()
   private let errorMapper = MessageErrorMapper()
 
   /// Creates a new message processor with an array of catalogs.
@@ -256,57 +255,28 @@ public final class MessageProcessor: ObservableObject {
     }
   }
 
-  // MARK: - Message Processing (JSONL Line)
+  // MARK: - Message Processing (Strongly-Typed)
 
-  /// Processes a single JSONL line containing an incoming message envelope.
+  /// Processes a single server-to-client message, throwing validation or missing surface errors.
   ///
-  /// Throws on any failure (decoding error, missing surface, missing catalog).
-  /// Thrown parsing errors are also routed to `ActionHandling` via `MessageErrorMapper`.
-  public func process(line: String) throws {
+  /// Errors thrown during validation are reported to `ActionHandling` via `MessageErrorMapper`
+  /// before being rethrown.
+  public func process(message: ServerToClientMessage) throws {
     do {
-      let message = try parser.parse(jsonString: line)
       try validateAndProcess(message)
     } catch {
-      let surfaceID: String
-      switch error {
-      case let validationError as ValidationFailedError:
-        surfaceID = validationError.surfaceID
-      case let genericError as GenericError:
-        surfaceID = genericError.surfaceID
-      case let parseError as MessageParseError:
-        surfaceID = parseError.surfaceID ?? "unknown"
-      default:
-        surfaceID = "unknown"
-      }
-
+      let surfaceID = extractSurfaceID(from: error, fallback: message.surfaceID)
       let clientError = errorMapper.map(error, surfaceID: surfaceID)
       actionHandler?.handle(error: clientError, from: surfaceID)
       throw error
     }
   }
 
-  // MARK: - Message Processing (Strongly-Typed)
-
-  /// Processes a single server-to-client message, throwing validation or missing surface errors.
-  public func process(message: ServerToClientMessage) throws {
-    try validateAndProcess(message)
-  }
-
   /// Processes a single server-to-client message without throwing.
+  ///
+  /// Errors are routed directly to `ActionHandling`.
   public func processMessage(_ message: ServerToClientMessage) {
-    do {
-      try validateAndProcess(message)
-    } catch {
-      let surfaceID: String
-      switch message {
-      case .createSurface(let msg): surfaceID = msg.surfaceID
-      case .updateComponents(let msg): surfaceID = msg.surfaceID
-      case .updateDataModel(let msg): surfaceID = msg.surfaceID
-      case .deleteSurface(let msg): surfaceID = msg.surfaceID
-      }
-      let clientError = errorMapper.map(error, surfaceID: surfaceID)
-      actionHandler?.handle(error: clientError, from: surfaceID)
-    }
+    _ = try? process(message: message)
   }
 
   /// Processes an array of server-to-client messages.
@@ -314,6 +284,16 @@ public final class MessageProcessor: ObservableObject {
     for message in messages {
       processMessage(message)
     }
+  }
+
+  private func extractSurfaceID(from error: Error, fallback: String) -> String {
+    if let validationError = error as? ValidationFailedError {
+      return validationError.surfaceID
+    }
+    if let genericError = error as? GenericError {
+      return genericError.surfaceID
+    }
+    return fallback
   }
 
   // MARK: - Private Surface Mutations & Validation
