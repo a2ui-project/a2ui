@@ -17,6 +17,7 @@
 import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
 import {SurfaceModel} from './surface-model.js';
+import {DataModel} from './data-model.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {ComponentModel} from './component-model.js';
 import {ComponentContext} from '../rendering/component-context.js';
@@ -45,7 +46,7 @@ describe('SurfaceModel', () => {
   });
 
   it('accepts custom data model in constructor', () => {
-    const customData = new (surface.dataModel.constructor as any)({custom: 'data'});
+    const customData = new DataModel({custom: 'data'});
     const customSurface = new SurfaceModel('surface-2', catalog, {}, false, customData);
     assert.strictEqual(customSurface.dataModel, customData);
     assert.strictEqual(customSurface.dataModel.get('/custom'), 'data');

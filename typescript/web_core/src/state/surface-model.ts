@@ -74,10 +74,12 @@ export class SurfaceModel<
   /**
    * Initializes a new `SurfaceModel` instance.
    *
-   * @param id Unique identifier for this surface.
-   * @param catalog Component catalog used by this surface.
-   * @param theme Theme configuration to apply to this surface.
-   * @param sendDataModel Whether the renderer should stream data model updates back to the agent.
+   * @param id The unique identifier for this surface.
+   * @param catalog The component catalog used by this surface.
+   * @param theme The theme to apply to this surface.
+   * @param sendDataModel If true, the renderer will send the full data model.
+   * @param dataModel Optional custom DataModel instance. If provided, the SurfaceModel assumes
+   *   full ownership of its lifecycle and will dispose it when dispose() is called.
    */
   constructor(
     readonly id: string,
@@ -120,12 +122,18 @@ export class SurfaceModel<
         return;
       }
 
+      const rawContext = eventPayload.context ?? eventPayload.args;
+      const context =
+        rawContext && typeof rawContext === 'object' && !Array.isArray(rawContext)
+          ? (rawContext as Record<string, unknown>)
+          : {};
+
       const actionToDispatch: ActionPayload = {
         name,
         surfaceId: this.id,
         sourceComponentId,
         timestamp: new Date().toISOString(),
-        context: eventPayload.context || eventPayload.args || {},
+        context,
       };
 
       await this._onAction.emit(actionToDispatch);
