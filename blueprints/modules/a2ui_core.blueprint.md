@@ -377,7 +377,7 @@ For a detailed walkthrough on how to visually and functionally implement each ba
 
 To ensure all components are properly implemented and match the exact API signature, platforms with strong type systems should utilize their advanced typing features. This ensures that a provided renderer not only exists, but its `name` and `schema` strictly match the official Catalog Definition, catching mismatches at compile time rather than runtime.
 
-###### Statically Typed Languages (e.g. Kotlin/Swift)
+###### Statically Typed Languages (e.g. Kotlin/Swift/Dart)
 
 In languages like Kotlin, you can define a strict interface or class that demands concrete instances of the specific component APIs defined by the Core Library.
 
