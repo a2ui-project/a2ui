@@ -15,7 +15,14 @@
  */
 
 import type React from 'react';
-import {createContext, useCallback, useContext, useMemo, useSyncExternalStore} from 'react';
+import {
+  createContext,
+  Fragment,
+  useCallback,
+  useContext,
+  useMemo,
+  useSyncExternalStore,
+} from 'react';
 import {
   type BehaviorNode,
   ComponentContext,
@@ -66,14 +73,27 @@ export function useSignalValue<T>(signal: Signal<T>): T {
 /** Child nodes of one view, keyed by componentId and by componentId@dataPath. */
 type ChildIndex = Map<string, ComponentNode<ReactComponentImplementation>>;
 
+/**
+ * Registers a child and returns the token views should hand back to
+ * `buildChild`. The same component referenced twice at the same scope gets
+ * a suffixed token per position, so both positions resolve to their own
+ * node instead of collapsing onto the first.
+ */
 function registerChild(
   index: ChildIndex,
   child: ComponentNode<ReactComponentImplementation>,
-): void {
-  index.set(`${child.componentId}@${child.dataPath}`, child);
-  if (!index.has(child.componentId)) {
-    index.set(child.componentId, child);
+): string {
+  let token = child.componentId;
+  let n = 1;
+  while (index.has(`${token}@${child.dataPath}`)) {
+    n++;
+    token = `${child.componentId}#${n}`;
   }
+  index.set(`${token}@${child.dataPath}`, child);
+  if (!index.has(token)) {
+    index.set(token, child);
+  }
+  return token;
 }
 
 /**
@@ -87,11 +107,11 @@ function toViewValue(parent: ComponentNode, value: unknown, index: ChildIndex): 
   if (isComponentNode(value)) {
     // Every node in this surface's props came from its own resolver, whose
     // catalog carries ReactComponentImplementation entries.
-    registerChild(index, value as ComponentNode<ReactComponentImplementation>);
+    const token = registerChild(index, value as ComponentNode<ReactComponentImplementation>);
     if (value.dataPath !== parent.dataPath) {
-      return {id: value.componentId, basePath: value.dataPath};
+      return {id: token, basePath: value.dataPath};
     }
-    return value.componentId;
+    return token;
   }
   if (value instanceof ResolvedBinding) {
     return toViewValue(parent, value.value, index);
@@ -216,7 +236,14 @@ export function useNodeView(
       const childNode =
         childIndex.get(basePath ? `${id}@${basePath}` : id) ??
         childIndex.get(`${id}@${node.dataPath}`);
-      return buildChild(childNode ?? id, basePath);
+      // Duplicate-position tokens carry a #n suffix; the raw component id is
+      // what the fallback recursion and React keys need to stay distinct.
+      const rawId = id.replace(/#\d+$/, '');
+      return (
+        <Fragment key={`${id}@${basePath ?? node.dataPath}`}>
+          {buildChild(childNode ?? rawId, basePath)}
+        </Fragment>
+      );
     },
     [childIndex, buildChild, node],
   );

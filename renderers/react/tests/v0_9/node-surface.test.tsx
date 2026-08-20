@@ -114,6 +114,14 @@ const ButtonImpl = createComponentImplementation(
   },
 );
 
+/** Renders its own node's instanceId, making node identity visible in the DOM. */
+const ProbeImpl: ReactComponentImplementation = {
+  name: 'Probe',
+  schema: z.object({}),
+  render: () => <span>probe</span>,
+  view: ({node}) => <span>{`id:${node.instanceId}`}</span>,
+};
+
 function setup() {
   const catalog = new Catalog<ReactComponentImplementation>('node-react-test', [
     TextImpl,
@@ -121,6 +129,7 @@ function setup() {
     CardImpl,
     ButtonImpl,
     TextFieldImpl,
+    ProbeImpl,
   ]);
   const surface = new SurfaceModel<ReactComponentImplementation>('surf-1', catalog);
   return surface;
@@ -263,6 +272,19 @@ describe('A2uiSurface', () => {
     expect((screen.getByTestId('input-/items/1') as HTMLInputElement).value).toBe('edited');
     expect(surface.dataModel.get('/items/0/value')).toBe('a');
   });
+
+  it('renders duplicate child references as distinct subtrees', () => {
+    const surface = setup();
+    add(surface, 'root', 'Column', {children: ['a', 'a']});
+    add(surface, 'a', 'Probe', {});
+
+    render(<A2uiSurface surface={surface} />);
+    // Each position resolves to its own node; a collapse would render the
+    // first node's id at both positions.
+    expect(screen.getByText('id:a')).toBeDefined();
+    expect(screen.getByText('id:a#2')).toBeDefined();
+  });
+
 
   it('typing into an input whose value prop was omitted is a no-op, not a crash', () => {
     const surface = setup();
