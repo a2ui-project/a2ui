@@ -276,7 +276,7 @@ export class NodeResolver<
         new MutableComponentNode(
           instanceIdFor(componentId, dataPath),
           componentId,
-          PLACEHOLDER_TYPE,
+          model.type,
           dataPath,
           {},
           undefined,

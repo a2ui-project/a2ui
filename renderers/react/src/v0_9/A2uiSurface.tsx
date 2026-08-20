@@ -191,7 +191,7 @@ const NodeView = memo(
     );
 
     if (node.state === 'unknown-type') {
-      return <div style={{color: 'red'}}>Unknown component type: {node.componentId}</div>;
+      return <div style={{color: 'red'}}>Unknown component type: {node.type}</div>;
     }
     if (node.isPlaceholder) {
       return <div style={{color: 'gray', padding: '4px'}}>[Loading {node.componentId}...]</div>;

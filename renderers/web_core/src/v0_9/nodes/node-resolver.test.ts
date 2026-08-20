@@ -648,8 +648,13 @@ describe('NodeResolver malformed and unusual payloads', () => {
     const root = getValue(resolver.rootNode);
     assert.ok(root);
     const placeholder = child(root, 'child');
-    assert.strictEqual(placeholder.type, PLACEHOLDER_TYPE);
+    assert.strictEqual(placeholder.type, 'Bogus');
     assert.strictEqual(placeholder.state, 'unknown-type');
+    assert.deepStrictEqual(placeholder.toJSON(), {
+      id: 'weird',
+      type: 'Bogus',
+      state: 'unknown-type',
+    });
     const reportsBefore = errors.filter(e => e.code === 'UNKNOWN_COMPONENT_TYPE').length;
 
     const rootModel = surface.componentsModel.get('root');

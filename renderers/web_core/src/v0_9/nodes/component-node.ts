@@ -70,7 +70,10 @@ export interface ComponentNode<
   readonly instanceId: string;
   /** The component id from the payload. */
   readonly componentId: string;
-  /** The catalog component type, or `'Placeholder'`. */
+  /**
+   * The catalog component type. `'Placeholder'` for pending and cyclic
+   * stand-ins; an unknown-type node keeps its declared type.
+   */
   readonly type: string;
   /** The data model scope this node resolves against, e.g. `/items/0`. */
   readonly dataPath: string;
@@ -160,7 +163,7 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
 
   toJSON(): Record<string, unknown> {
     if (this.isPlaceholder) {
-      return {id: this.componentId, type: PLACEHOLDER_TYPE, state: this.state};
+      return {id: this.componentId, type: this.type, state: this.state};
     }
     const serialized: Record<string, unknown> = {
       id: this.componentId,
