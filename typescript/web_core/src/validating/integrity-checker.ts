@@ -44,50 +44,211 @@ export const STANDARD_REF_MAP: ComponentRefMap = {
   'Node': [new Set(['next', 'child']), new Set(['children'])],
 };
 
-function isChildRefSchema(schema: any, keyName?: string): boolean {
-  if (!schema || typeof schema !== 'object') return false;
-  let current = schema;
+/**
+ * Result of checking whether a schema represents a component child reference or child list.
+ */
+export interface ChildRefAnalysis {
+  /** Whether the schema represents a single child ComponentId reference. */
+  isChild: boolean;
+  /** Whether the schema represents a list of child references or a dynamic child template (ChildList). */
+  isChildList: boolean;
+}
+
+function unwrapZodType(type: any): any {
+  let current = type;
   while (current?._def) {
     const typeName = current._def.typeName;
-    if (typeName === 'ZodOptional' || typeName === 'ZodNullable' || typeName === 'ZodDefault') {
+    if (
+      typeName === 'ZodOptional' ||
+      typeName === 'ZodNullable' ||
+      typeName === 'ZodDefault'
+    ) {
       current = current._def.innerType;
     } else if (typeName === 'ZodEffects') {
       current = current._def.schema;
+    } else if (typeName === 'ZodLazy') {
+      current = current._def.getter();
     } else {
       break;
     }
   }
+  return current;
+}
 
-  const desc: string = current?.description ?? current?._def?.description ?? '';
-  if (desc.includes('ChildList') || desc.includes('ComponentId') || desc.includes('Child')) {
-    return true;
+function checkJsonSchemaRef(schema: Record<string, any>): ChildRefAnalysis {
+  const ref = typeof schema.$ref === 'string' ? schema.$ref : '';
+  if (ref) {
+    if (/(#|\/|\.)(ChildList)$/i.test(ref) || /common_types.*ChildList/i.test(ref)) {
+      return {isChild: false, isChildList: true};
+    }
+    if (
+      /(#|\/|\.)(ComponentId|Child)$/i.test(ref) ||
+      /common_types.*(ComponentId|Child)$/i.test(ref)
+    ) {
+      return {isChild: true, isChildList: false};
+    }
+  }
+
+  if (schema.type === 'array' && schema.items) {
+    const itemsRes = checkJsonSchemaRef(schema.items);
+    if (itemsRes.isChild || itemsRes.isChildList) {
+      return {isChild: false, isChildList: true};
+    }
+  }
+
+  for (const combiner of ['oneOf', 'anyOf', 'allOf'] as const) {
+    if (Array.isArray(schema[combiner])) {
+      for (const sub of schema[combiner]) {
+        if (typeof sub === 'object' && sub !== null) {
+          const subRes = checkJsonSchemaRef(sub);
+          if (subRes.isChildList) return {isChild: false, isChildList: true};
+          if (subRes.isChild) return {isChild: true, isChildList: false};
+        }
+      }
+    }
   }
 
   if (
-    keyName &&
-    (keyName === 'child' ||
-      keyName === 'children' ||
-      keyName === 'trigger' ||
-      keyName === 'content' ||
-      keyName.endsWith('Child') ||
-      keyName === 'root')
+    schema.type === 'object' &&
+    schema.properties &&
+    'componentId' in schema.properties &&
+    'path' in schema.properties
   ) {
-    return true;
+    return {isChild: false, isChildList: true};
   }
 
-  if (current?._def?.typeName === 'ZodUnion') {
+  return {isChild: false, isChildList: false};
+}
+
+/**
+ * Analyzes a property schema (Zod schema or JSON Schema definition) to determine
+ * if it represents a single component child reference (ComponentId) or child list (ChildList).
+ *
+ * Inspects $ref pointer targets (e.g. `common_types.json#/$defs/ChildList`,
+ * `common_types.json#/$defs/ComponentId`, `common_types.json#/$defs/Child`),
+ * schema descriptions, structural unions (`{ componentId, path }` templates),
+ * and arrays of component IDs.
+ *
+ * @param schema Zod schema, JSON Schema object, or property schema definition.
+ * @returns ChildRefAnalysis containing `isChild` and `isChildList` booleans.
+ */
+export function analyzeChildRefSchema(schema: unknown): ChildRefAnalysis {
+  if (!schema || typeof schema !== 'object') {
+    return {isChild: false, isChildList: false};
+  }
+
+  const current = unwrapZodType(schema);
+  if (!current?._def) {
+    return checkJsonSchemaRef(schema as Record<string, any>);
+  }
+
+  const desc: string = current.description ?? current._def.description ?? '';
+  if (
+    /ChildList/i.test(desc) ||
+    /common_types.*ChildList/i.test(desc) ||
+    /Static child IDs or dynamic child template/i.test(desc)
+  ) {
+    return {isChild: false, isChildList: true};
+  }
+  if (
+    /ComponentId/i.test(desc) ||
+    /Child/i.test(desc) ||
+    /The unique identifier for a component/i.test(desc) ||
+    /common_types.*(ComponentId|Child)/i.test(desc)
+  ) {
+    return {isChild: true, isChildList: false};
+  }
+
+  const typeName = current._def.typeName;
+
+  if (typeName === 'ZodArray') {
+    const elem = unwrapZodType(current._def.type);
+    const elemRes = analyzeChildRefSchema(elem);
+    if (elemRes.isChild || elemRes.isChildList) {
+      return {isChild: false, isChildList: true};
+    }
+    const elemDesc: string = elem?.description ?? elem?._def?.description ?? '';
+    if (
+      elemDesc.includes('ComponentId') ||
+      elemDesc.includes('unique identifier for a component') ||
+      elemDesc.includes('child component')
+    ) {
+      return {isChild: false, isChildList: true};
+    }
+  }
+
+  if (typeName === 'ZodUnion') {
     const options = (current._def.options as any[]) ?? [];
-    const hasTemplate = options.some(
-      o =>
-        o?._def?.typeName === 'ZodObject' &&
-        typeof o._def.shape === 'function' &&
-        o._def.shape().componentId &&
-        o._def.shape().path,
-    );
-    if (hasTemplate) return true;
+    let hasTemplate = false;
+    let hasArrayOfChild = false;
+    let hasChildRef = false;
+
+    for (const opt of options) {
+      const unwrappedOpt = unwrapZodType(opt);
+      const optTypeName = unwrappedOpt?._def?.typeName;
+
+      if (optTypeName === 'ZodObject' && typeof unwrappedOpt._def.shape === 'function') {
+        const shape = unwrappedOpt._def.shape();
+        if (shape.componentId && shape.path) {
+          hasTemplate = true;
+        }
+      }
+
+      if (optTypeName === 'ZodArray') {
+        const elem = unwrapZodType(unwrappedOpt._def.type);
+        const elemRes = analyzeChildRefSchema(elem);
+        if (elemRes.isChild) {
+          hasArrayOfChild = true;
+        }
+      }
+
+      const optRes = analyzeChildRefSchema(unwrappedOpt);
+      if (optRes.isChildList) {
+        return {isChild: false, isChildList: true};
+      }
+      if (optRes.isChild) {
+        hasChildRef = true;
+      }
+    }
+
+    if (hasTemplate || hasArrayOfChild) {
+      return {isChild: false, isChildList: true};
+    }
+    if (hasChildRef) {
+      return {isChild: true, isChildList: false};
+    }
   }
 
-  return false;
+  if (typeName === 'ZodObject' && typeof current._def.shape === 'function') {
+    const shape = current._def.shape();
+    if (shape.componentId && shape.path) {
+      return {isChild: false, isChildList: true};
+    }
+  }
+
+  return {isChild: false, isChildList: false};
+}
+
+/**
+ * Returns true if the schema represents a single child ComponentId reference.
+ */
+export function isChildSchema(schema: unknown): boolean {
+  return analyzeChildRefSchema(schema).isChild;
+}
+
+/**
+ * Returns true if the schema represents a child list or dynamic child template (ChildList).
+ */
+export function isChildListSchema(schema: unknown): boolean {
+  return analyzeChildRefSchema(schema).isChildList;
+}
+
+/**
+ * Returns true if the schema represents either a single child or a child list.
+ */
+export function isChildOrChildListSchema(schema: unknown): boolean {
+  const res = analyzeChildRefSchema(schema);
+  return res.isChild || res.isChildList;
 }
 
 /**
@@ -112,37 +273,29 @@ export function buildComponentRefMap(
     const listRefs = new Set<string>();
 
     if (compApi.schema) {
-      let current: any = compApi.schema;
-      while (current?._def) {
-        const typeName = current._def.typeName;
-        if (typeName === 'ZodOptional' || typeName === 'ZodNullable' || typeName === 'ZodDefault') {
-          current = current._def.innerType;
-        } else if (typeName === 'ZodEffects') {
-          current = current._def.schema;
-        } else {
-          break;
-        }
-      }
-
+      const current = unwrapZodType(compApi.schema);
       if (current?._def?.typeName === 'ZodObject' && typeof current._def.shape === 'function') {
         const shape = current._def.shape();
         for (const [key, fieldSchema] of Object.entries(shape)) {
-          let inner: any = fieldSchema;
-          while (inner?._def) {
-            const tn = inner._def.typeName;
-            if (tn === 'ZodOptional' || tn === 'ZodNullable' || tn === 'ZodDefault') {
-              inner = inner._def.innerType;
-            } else if (tn === 'ZodEffects') {
-              inner = inner._def.schema;
-            } else {
-              break;
-            }
-          }
-
-          if (inner?._def?.typeName === 'ZodArray') {
+          const res = analyzeChildRefSchema(fieldSchema);
+          if (res.isChildList) {
             listRefs.add(key);
-          } else if (isChildRefSchema(fieldSchema, key)) {
+          } else if (res.isChild) {
             singleRefs.add(key);
+          } else {
+            const inner = unwrapZodType(fieldSchema);
+            if (inner?._def?.typeName === 'ZodArray') {
+              const elem = unwrapZodType(inner._def.type);
+              if (elem?._def?.typeName === 'ZodObject' && typeof elem._def.shape === 'function') {
+                const elemShape = elem._def.shape();
+                for (const [, subSchema] of Object.entries(elemShape)) {
+                  const subRes = analyzeChildRefSchema(subSchema);
+                  if (subRes.isChild || subRes.isChildList) {
+                    listRefs.add(key);
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -163,7 +316,7 @@ function* extractPointers(val: any, currentPath: string): Generator<[string, str
       yield* extractPointers(item, subPath);
     }
   } else if (typeof val === 'object' && val !== null) {
-    if ('componentId' in val && typeof val.componentId === 'string') {
+    if ('componentId' in val && typeof val.componentId === 'string' && 'path' in val) {
       yield [val.componentId, `${currentPath}.componentId`];
     } else if ('child' in val && typeof val.child === 'string') {
       yield [val.child, `${currentPath}.child`];
@@ -220,19 +373,12 @@ export function* getComponentReferences(
   for (const [key, value] of Object.entries(props)) {
     if (isGeneric) {
       if (key === 'id' || key === 'component' || key === 'weight') continue;
-      if (
-        key === 'child' ||
-        key === 'children' ||
-        key === 'next' ||
-        key === 'trigger' ||
-        key === 'content' ||
-        key === 'tabs' ||
-        key === 'items' ||
-        key === 'components' ||
-        key.endsWith('Child') ||
-        key.endsWith('Children')
-      ) {
-        yield* extractPointers(value, key);
+      if (typeof value === 'object' && value !== null) {
+        if ('componentId' in value && typeof value.componentId === 'string' && 'path' in value) {
+          yield* extractPointers(value, key);
+        } else if ('child' in value && typeof value.child === 'string') {
+          yield* extractPointers(value, key);
+        }
       }
     } else if (singleRefs.has(key) || listRefs.has(key)) {
       yield* extractPointers(value, key);

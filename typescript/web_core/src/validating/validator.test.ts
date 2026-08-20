@@ -21,7 +21,12 @@
 import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  analyzeChildRefSchema,
+  buildComponentRefMap,
   getComponentReferences,
+  isChildListSchema,
+  isChildOrChildListSchema,
+  isChildSchema,
   validateComponentIntegrity,
   validateRecursionAndPaths,
 } from './integrity-checker.js';
@@ -389,6 +394,64 @@ describe('A2uiValidator & Integrity Verification', () => {
       ];
 
       assert.doesNotThrow(() => validator.validate(v09Payload));
+    });
+  });
+
+  describe('analyzeChildRefSchema & Schema Ref Introspection', () => {
+    it('identifies JSON Schema $ref pointers to ChildList and ComponentId', () => {
+      const childListRef = {$ref: 'https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList'};
+      const componentIdRef = {$ref: 'https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentId'};
+      const childRef = {$ref: 'https://a2ui.org/specification/v1_0/common_types.json#/$defs/Child'};
+      const v09ChildListRef = {$ref: 'common_types.json#/definitions/ChildList'};
+      const v09ComponentIdRef = {$ref: 'common_types.json#/definitions/ComponentId'};
+      const nonChildRef = {$ref: 'common_types.json#/definitions/DynamicString'};
+
+      assert.strictEqual(isChildListSchema(childListRef), true);
+      assert.strictEqual(isChildSchema(childListRef), false);
+
+      assert.strictEqual(isChildSchema(componentIdRef), true);
+      assert.strictEqual(isChildListSchema(componentIdRef), false);
+
+      assert.strictEqual(isChildSchema(childRef), true);
+      assert.strictEqual(isChildListSchema(childRef), false);
+
+      assert.strictEqual(isChildListSchema(v09ChildListRef), true);
+      assert.strictEqual(isChildSchema(v09ComponentIdRef), true);
+
+      assert.strictEqual(isChildOrChildListSchema(nonChildRef), false);
+    });
+
+    it('identifies Zod schemas for ComponentId and ChildList', () => {
+      const singleChildApi = z.string().describe('The unique identifier for a component, used for references.');
+      const childListUnion = z.union([
+        z.array(singleChildApi),
+        z.object({componentId: z.string(), path: z.string()}),
+      ]);
+      const normalString = z.string().describe('A normal text field');
+
+      assert.strictEqual(isChildSchema(singleChildApi), true);
+      assert.strictEqual(isChildListSchema(singleChildApi), false);
+
+      assert.strictEqual(isChildListSchema(childListUnion), true);
+      assert.strictEqual(isChildSchema(childListUnion), false);
+
+      assert.strictEqual(isChildOrChildListSchema(normalString), false);
+    });
+
+    it('builds dynamic ref map for custom components with non-standard property names', () => {
+      const customSplitPaneApi = {
+        name: 'CustomSplitPane',
+        schema: z.object({
+          topSlot: z.string().describe('ComponentId'),
+          bottomSlot: z.string().describe('ComponentId'),
+          sidePanels: z.array(z.string().describe('ComponentId')),
+        }),
+      };
+
+      const refMap = buildComponentRefMap([customSplitPaneApi]);
+      assert.ok(refMap.CustomSplitPane);
+      assert.deepStrictEqual(Array.from(refMap.CustomSplitPane[0]).sort(), ['bottomSlot', 'topSlot']);
+      assert.deepStrictEqual(Array.from(refMap.CustomSplitPane[1]), ['sidePanels']);
     });
   });
 });
