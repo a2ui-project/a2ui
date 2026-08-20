@@ -15,7 +15,7 @@
  */
 
 import markdownit from 'markdown-it';
-import * as Types from '@a2ui/web_core';
+import * as Types from '@a2ui/web_core/v0_8';
 
 /**
  * A pre-configured instance of markdown-it to render markdown in A2UI web.

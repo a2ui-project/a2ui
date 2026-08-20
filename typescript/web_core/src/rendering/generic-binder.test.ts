@@ -446,4 +446,71 @@ describe('GenericBinder Checkable Trait', () => {
       });
     });
   });
+
+  it('should support v1.0 ValidationResult objects and dynamic messages', async () => {
+    const surface = new SurfaceModel('s1', mockCatalog);
+    (surface.catalog as any).functions = new Map([
+      [
+        'validate_email',
+        {
+          execute: (args: any) => {
+            const ok = typeof args.val === 'string' && args.val.includes('@');
+            return {
+              valid: ok,
+              message: ok ? undefined : 'Must contain @ symbol',
+            };
+          },
+          schema: z.object({val: z.any()}),
+        },
+      ],
+    ]);
+    (surface.catalog as any).invoker = (name: string, args: any) => {
+      const fn = (surface.catalog as any).functions.get(name);
+      return fn.execute(args);
+    };
+
+    const schema = z.object({
+      email: CommonSchemas.DynamicString,
+      validationRules: z
+        .array(
+          z.object({
+            condition: z.any(),
+            message: z.string().optional(),
+          }),
+        )
+        .describe('Validation rules'),
+    });
+
+    surface.dataModel.set('/email', 'invalid');
+    const compModel = new ComponentModel(
+      'c_val',
+      'EmailInput',
+      {
+        email: {path: '/email'},
+        validationRules: [
+          {
+            condition: {
+              call: 'validate_email',
+              args: {val: {path: '/email'}},
+            },
+          },
+        ],
+      },
+      surface.catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c_val');
+    const binder = new GenericBinder<any>(context, schema);
+    binder.subscribe(() => {});
+
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Must contain @ symbol']);
+
+    surface.dataModel.set('/email', 'user@domain.com');
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.strictEqual(binder.snapshot.isValid, true);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, []);
+  });
 });
