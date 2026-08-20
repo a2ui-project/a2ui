@@ -48,7 +48,7 @@ In genui repo:
 
 For these workflows to function, the GitHub org needs to be configured.
 
-This section instructs how to do that, in case some future reorg will require re-enabling them 
+This section instructs how to do that, in case some future reorg will require re-enabling them
 (The permissions cover more than needed, because we may want to do more automation in future).
 
 In https://github.com/organizations/a2ui-project/settings/actions:
