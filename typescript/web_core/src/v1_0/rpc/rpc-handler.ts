@@ -184,13 +184,12 @@ export class RpcHandler {
     }
 
     // 3. Validate boundary execution constraint (allowedCallers / callableFrom)
-    const boundary =
-      funcImpl.allowedCallers ?? (funcImpl as any).callableFrom ?? 'rendererOnly';
+    const boundary = funcImpl.allowedCallers ?? (funcImpl as any).callableFrom ?? 'rendererOnly';
     if (boundary !== 'rendererOrAgent' && boundary !== 'agentOnly') {
       return this.createResponseError(
         functionCallId,
         RpcErrorCode.INVALID_FUNCTION_CALL,
-        `Function '${call}' cannot be called by agent (callableFrom is ${boundary}).`,
+        `Function '${call}' cannot be called by agent (allowedCallers is ${boundary}).`,
       );
     }
 
@@ -305,7 +304,7 @@ export class RpcHandler {
         opts.functionCallId ??
         (typeof globalThis.crypto?.randomUUID === 'function'
           ? globalThis.crypto.randomUUID()
-          : `call-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
+          : `call-${Date.now()}-${Math.random().toString(36).substring(2, 15).padEnd(13, '0')}`);
       effectiveTimeoutMs = opts.timeoutMs ?? this.defaultTimeoutMs;
     }
 
