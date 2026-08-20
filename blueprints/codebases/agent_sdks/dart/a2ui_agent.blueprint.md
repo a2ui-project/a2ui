@@ -9,4 +9,3 @@ description: Dart specific agent SDK specification for catalog management, promp
 The Dart SDK should be implemented in [`a2ui_agent`](../../../../dart/a2ui_agent/README.md) package.
 
 The design should follow the [general A2UI Agent SDK specification](../../../../blueprints/modules/a2ui_agent.blueprint.md).
-

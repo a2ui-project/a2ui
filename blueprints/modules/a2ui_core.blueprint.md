@@ -318,15 +318,15 @@ Both directions of this conversion belong to `a2ui_core`, on `Catalog` itself, s
         {
           "properties": {
             "component": {"const": "Button"},
-            "label": {"$ref": "common_types.json#/$defs/DynamicString"}
+            "label": {"$ref": "common_types.json#/$defs/DynamicString"},
           },
-          "required": ["component", "label"]
-        }
-      ]
-    }
+          "required": ["component", "label"],
+        },
+      ],
+    },
   },
   "functions": [{"name": "now", "returnType": "string", "parameters": {"type": "object"}}],
-  "theme": {"primaryColor": {"type": "string"}}
+  "theme": {"primaryColor": {"type": "string"}},
 }
 ```
 
@@ -514,7 +514,9 @@ export interface A2uiVersionCapabilities {
  * Keyed by protocol version ('v0.8' | 'v0.9' | 'v0.9.1' | 'v1.0'). At least one
  * version entry MUST be present.
  */
-export type A2uiRendererCapabilities = Partial<Record<A2uiProtocolVersion, A2uiVersionCapabilities>>;
+export type A2uiRendererCapabilities = Partial<
+  Record<A2uiProtocolVersion, A2uiVersionCapabilities>
+>;
 ```
 
 **Both directions are core responsibilities:**
@@ -607,10 +609,7 @@ export interface ValidationConfig {
 
 /** Stateless validator executing envelope structure, component property schema, theme schema, and path syntax checks. */
 export class A2uiValidator {
-  constructor(
-    catalogs: Catalog<ComponentApi, FunctionApi>[],
-    validationConfig?: ValidationConfig,
-  );
+  constructor(catalogs: Catalog<ComponentApi, FunctionApi>[], validationConfig?: ValidationConfig);
 
   /** Single public entry point: performs catalog property schema validation. */
   validate(messages: AgentToRendererMessage[]): void;
@@ -633,28 +632,28 @@ export class A2uiValidator {
 
 The matrix below details the specific validation checks, their responsible component/method in `a2ui_core`, and the specific error class raised upon failure:
 
-| Validation Category      | Specific Validation Check                                                                         | Responsible Component / Implementation                                    | Raised Error Type     |
-| :----------------------- | :------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------ | :-------------------- |
-| **Protocol Envelope**    | Single update type per message (`createSurface`, `updateComponents`, etc.)                        | `A2uiValidator` (Zod envelope schema)                                     | `A2uiValidationError` |
-| **Protocol Envelope**    | Valid `version` tag (`v0.8`, `v0.9`, `v1.0`) & required envelope keys                             | `A2uiValidator` (Zod envelope schema)                                     | `A2uiValidationError` |
-| **Surface Lifecycle**    | Surface non-existence on `createSurface` (no duplicates)                                          | `MessageProcessor.processCreateSurface()` (`SurfaceGroupModel`)           | `A2uiIntegrityError`  |
-| **Surface Lifecycle**    | Surface existence on `updateComponents`, `updateDataModel`, `deleteSurface`                       | `MessageProcessor.processUpdateComponents()` / `processUpdateDataModel()` | `A2uiIntegrityError`  |
-| **Catalog Negotiation**  | `createSurface.catalogId` and component/function `catalogId` match negotiated renderer capability | `new MessageProcessor({ catalogs: [negotiatedCatalog] })`                 | `A2uiCatalogError`    |
-| **Catalog Resolution**   | `createSurface.catalogId` and component/function `catalogId` exist in supported catalogs list     | `MessageProcessor.processCreateSurface()`                                 | `A2uiCatalogError`    |
-| **Component Keys**       | Required `id` and `component` (type name) on creation                                             | `A2uiValidator` (Zod envelope schema)                                     | `A2uiValidationError` |
-| **Component Properties** | Property schema validation against catalog definition                                             | `A2uiValidator(CatalogSchemaValidator.validateComponents())`              | `A2uiValidationError` |
-| **Theme / Properties**   | `Theme` / `surfaceProperties` validation against catalog schema                                   | `A2uiValidator(CatalogSchemaValidator.validateSurfaceProperties())`       | `A2uiValidationError` |
-| **Graph Integrity**      | Duplicate component IDs within surface                                                            | `SurfaceComponentsModel.upsertComponent()`                                | `A2uiIntegrityError`  |
-| **Graph Integrity**      | Missing root component (`id="root"`)                                                              | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`  |
-| **Graph Integrity**      | Dangling component references (pointers to missing IDs)                                           | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`  |
-| **Graph Topology**       | Self-reference detection (`comp_id == ref_id`)                                                    | `SurfaceComponentsModel.upsertComponent()`                                | `A2uiIntegrityError`  |
-| **Graph Topology**       | Circular reference / cycle detection (DFS stack)                                                  | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiIntegrityError`  |
-| **Graph Topology**       | Unreachable / orphan component detection                                                          | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`  |
-| **Depth & Syntax**       | Global recursion depth limit (>50) & function nesting (>5)                                        | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiRecursionError`  |
-| **Depth & Syntax**       | JSON Pointer path syntax validation                                                               | `A2uiValidator.validatePathSyntax()`                                      | `A2uiValidationError` |
-| **Catalog Document**     | Declared `catalogId` / `protocolVersion` conflict with the expected values                        | `Catalog.fromJson()`                                                      | `A2uiCatalogError`    |
-| **Catalog Document**     | Missing `catalogId` (neither declared nor supplied); malformed document field types                | `Catalog.fromJson()`                                                      | `A2uiValidationError` |
-| **Renderer Capabilities**| No recognized protocol version key, or malformed `inlineCatalogs` entry                            | `A2uiRendererCapabilities` parsing (`a2ui.core.capabilities`)             | `A2uiValidationError` |
+| Validation Category       | Specific Validation Check                                                                         | Responsible Component / Implementation                                    | Raised Error Type     |
+| :------------------------ | :------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------ | :-------------------- |
+| **Protocol Envelope**     | Single update type per message (`createSurface`, `updateComponents`, etc.)                        | `A2uiValidator` (Zod envelope schema)                                     | `A2uiValidationError` |
+| **Protocol Envelope**     | Valid `version` tag (`v0.8`, `v0.9`, `v1.0`) & required envelope keys                             | `A2uiValidator` (Zod envelope schema)                                     | `A2uiValidationError` |
+| **Surface Lifecycle**     | Surface non-existence on `createSurface` (no duplicates)                                          | `MessageProcessor.processCreateSurface()` (`SurfaceGroupModel`)           | `A2uiIntegrityError`  |
+| **Surface Lifecycle**     | Surface existence on `updateComponents`, `updateDataModel`, `deleteSurface`                       | `MessageProcessor.processUpdateComponents()` / `processUpdateDataModel()` | `A2uiIntegrityError`  |
+| **Catalog Negotiation**   | `createSurface.catalogId` and component/function `catalogId` match negotiated renderer capability | `new MessageProcessor({ catalogs: [negotiatedCatalog] })`                 | `A2uiCatalogError`    |
+| **Catalog Resolution**    | `createSurface.catalogId` and component/function `catalogId` exist in supported catalogs list     | `MessageProcessor.processCreateSurface()`                                 | `A2uiCatalogError`    |
+| **Component Keys**        | Required `id` and `component` (type name) on creation                                             | `A2uiValidator` (Zod envelope schema)                                     | `A2uiValidationError` |
+| **Component Properties**  | Property schema validation against catalog definition                                             | `A2uiValidator(CatalogSchemaValidator.validateComponents())`              | `A2uiValidationError` |
+| **Theme / Properties**    | `Theme` / `surfaceProperties` validation against catalog schema                                   | `A2uiValidator(CatalogSchemaValidator.validateSurfaceProperties())`       | `A2uiValidationError` |
+| **Graph Integrity**       | Duplicate component IDs within surface                                                            | `SurfaceComponentsModel.upsertComponent()`                                | `A2uiIntegrityError`  |
+| **Graph Integrity**       | Missing root component (`id="root"`)                                                              | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`  |
+| **Graph Integrity**       | Dangling component references (pointers to missing IDs)                                           | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`  |
+| **Graph Topology**        | Self-reference detection (`comp_id == ref_id`)                                                    | `SurfaceComponentsModel.upsertComponent()`                                | `A2uiIntegrityError`  |
+| **Graph Topology**        | Circular reference / cycle detection (DFS stack)                                                  | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiIntegrityError`  |
+| **Graph Topology**        | Unreachable / orphan component detection                                                          | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`  |
+| **Depth & Syntax**        | Global recursion depth limit (>50) & function nesting (>5)                                        | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiRecursionError`  |
+| **Depth & Syntax**        | JSON Pointer path syntax validation                                                               | `A2uiValidator.validatePathSyntax()`                                      | `A2uiValidationError` |
+| **Catalog Document**      | Declared `catalogId` / `protocolVersion` conflict with the expected values                        | `Catalog.fromJson()`                                                      | `A2uiCatalogError`    |
+| **Catalog Document**      | Missing `catalogId` (neither declared nor supplied); malformed document field types               | `Catalog.fromJson()`                                                      | `A2uiValidationError` |
+| **Renderer Capabilities** | No recognized protocol version key, or malformed `inlineCatalogs` entry                           | `A2uiRendererCapabilities` parsing (`a2ui.core.capabilities`)             | `A2uiValidationError` |
 
 ---
 
