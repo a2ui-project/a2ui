@@ -1,6 +1,7 @@
 ## Unreleased
 
-- (v0_9) Add `A2uiNodeSurface`, a surface renderer driven by `NodeResolver` from `@a2ui/web_core`; component implementations gain an optional node-driven `view` (see `NodeViewProps` and `useSignalValue`) ([#2077](https://github.com/a2ui-project/a2ui/pull/2077)).
+- (v0_9) `A2uiSurface` renders through the web_core node layer: one `NodeResolver` per surface resolves components and data, and each component re-renders only when its own resolved props change. Component implementations gain an optional node-driven `view` (see `NodeViewProps` and `useSignalValue`); implementations without one render through their self-binding `render`, and child references the schema does not classify fall back to raw-definition recursion ([#2077](https://github.com/a2ui-project/a2ui/pull/2077)).
+- (v0_9) A placeholder upgrade re-renders the parent once when a late child arrives; the previous renderer localized that update to the child.
 
 ## 0.10.2
 
