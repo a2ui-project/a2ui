@@ -1050,10 +1050,10 @@ def test_basic_catalog_version_submodules():
     from a2ui.core.basic_catalog import v1_0, v0_9, v0_8
 
     cat_v10 = v1_0.BasicCatalog()
-    assert cat_v10.protocol_version in ("v1.0", "1.0")
+    assert cat_v10.protocol_version == "v1.0"
 
     cat_v09 = v0_9.BasicCatalog()
-    assert cat_v09.protocol_version in ("v0.9", "0.9")
+    assert cat_v09.protocol_version == "v0.9"
 
     cat_v08 = v0_8.BasicCatalog()
-    assert cat_v08.protocol_version in ("v0.8", "0.8")
+    assert cat_v08.protocol_version == "v0.8"
