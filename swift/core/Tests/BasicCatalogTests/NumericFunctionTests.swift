@@ -43,7 +43,7 @@ struct NumericFunctionTests {
       arguments: ["value": .number(5), "min": .number(3), "max": .number(10)], context: context)
     #expect(result == .boolean(true))
   }
-  
+
   @Test func evaluatesToTrueWhenStringParsedAsNumberIsWithinMinAndMax() throws {
     let result = try function.evaluate(
       arguments: ["value": .string("5.5"), "min": .number(3), "max": .number(10)], context: context)
@@ -84,7 +84,7 @@ struct NumericFunctionTests {
       arguments: ["value": .string("not_a_number"), "min": .number(1)], context: context)
     #expect(result == .boolean(false))
   }
-  
+
   @Test func evaluatesToFalseWhenValueIsBoolean() throws {
     let result = try function.evaluate(
       arguments: ["value": .boolean(true), "min": .number(1)], context: context)

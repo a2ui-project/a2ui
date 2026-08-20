@@ -40,7 +40,7 @@ on:
       - ".github/actions/setup-python/**"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -48,7 +48,7 @@ permissions:
 
 jobs:
   python-ci:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-extra-capacity
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:

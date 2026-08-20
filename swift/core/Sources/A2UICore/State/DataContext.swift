@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import Foundation
-import OrderedCollections
 import OrderedJSON
 
 /// Transient object created on-demand during rendering to solve "scope"
@@ -46,6 +45,10 @@ public final class DataContext: @unchecked Sendable {
   }
 
   /// Resolves a dynamic value to its current literal `JSONValue`.
+  ///
+  /// Only a top-level `path` or `call` object is a binding; any other value,
+  /// including containers with nested `path`/`call` keys, passes through
+  /// unchanged.
   public func resolveDynamicValue(_ value: JSONValue) -> JSONValue {
     switch value {
     case .object(let dict):
@@ -72,14 +75,7 @@ public final class DataContext: @unchecked Sendable {
         }
       }
 
-      var resolvedDict = OrderedDictionary<String, JSONValue>()
-      for (k, v) in dict {
-        resolvedDict[k] = resolveDynamicValue(v)
-      }
-
-      return .object(resolvedDict)
-    case .array(let arr):
-      return .array(arr.map { resolveDynamicValue($0) })
+      return value
     default:
       return value
     }

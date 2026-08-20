@@ -68,7 +68,7 @@ struct FormatDateFunctionTests {
       arguments: ["value": .number(msSince1970), "format": .string(format)], context: context)
     #expect(result == .string(expected))
   }
-  
+
   @Test func formatsSecondsNumber() throws {
     let secondsSince1970: Double = 1_768_573_800  // Jan 16 2026
     let date = Date(timeIntervalSince1970: secondsSince1970)
@@ -90,13 +90,13 @@ struct FormatDateFunctionTests {
       arguments: ["value": .string(msString), "format": .string(format)], context: context)
     #expect(result == .string(expected))
   }
-  
+
   @Test func formatsFallbackYYYYMMDDString() throws {
     let dateString = "2026-01-16"
     let fallbackFormatter = DateFormatter()
     fallbackFormatter.dateFormat = "yyyy-MM-dd"
     let date = fallbackFormatter.date(from: dateString)!
-    
+
     let format = "MMMM d"
     let expected = expectedFormat(date: date, format: format)
 
@@ -107,7 +107,7 @@ struct FormatDateFunctionTests {
 
   @Test func returnsEmptyStringWhenFormatIsMissing() throws {
     let result = try function.evaluate(
-      arguments: ["value": .number(1234567890)], context: context)
+      arguments: ["value": .number(1_234_567_890)], context: context)
     #expect(result == .string(""))
   }
 
