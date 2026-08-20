@@ -76,7 +76,7 @@ export interface FunctionApi {
 }
 
 /**
- * Executable function implementation registered with an evaluator or catalog.
+ * A function implementation that can be registered with a catalog or evaluator.
  */
 export interface FunctionImplementation extends FunctionApi {
   /**
