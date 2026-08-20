@@ -699,6 +699,27 @@ describe('NodeResolver resolved bindings (write path)', () => {
     resolver.dispose();
   });
 
+  it('rebinding a prop to a new path replaces the binding even when values are equal', () => {
+    const {surface, resolver} = setup();
+    surface.dataModel.set('/a', 'same');
+    surface.dataModel.set('/b', 'same');
+    add(surface, 'root', 'Text', {text: {path: '/a'}});
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+
+    surface.componentsModel.get('root')!.properties = {text: {path: '/b'}};
+
+    const binding = props(root).text as ResolvedBinding<unknown>;
+    if (!isWritable(binding)) {
+      assert.fail('expected a writable binding');
+    }
+    assert.strictEqual(binding.path, '/b');
+    binding.set('written');
+    assert.strictEqual(surface.dataModel.get('/b'), 'written');
+    assert.strictEqual(surface.dataModel.get('/a'), 'same');
+    resolver.dispose();
+  });
+
   it("writes through a template item binding to that item's scoped path", () => {
     const {surface, resolver} = setup();
     surface.dataModel.set('/items', [{name: 'A'}, {name: 'B'}]);

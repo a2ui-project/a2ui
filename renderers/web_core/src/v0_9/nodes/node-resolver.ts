@@ -635,7 +635,7 @@ function wrapDynamicValues(
       if (path === undefined) {
         return new ResolvedBinding(value);
       }
-      return new WritableBinding(value, newValue => dataContext.set(path, newValue));
+      return new WritableBinding(value, newValue => dataContext.set(path, newValue), path);
     }
     case 'ARRAY': {
       if (!Array.isArray(value)) {
