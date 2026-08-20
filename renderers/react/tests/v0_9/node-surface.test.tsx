@@ -86,12 +86,14 @@ const TextFieldImpl = createComponentImplementation(
   {name: 'TextField', schema: z.object({value: CommonSchemas.DynamicString.optional()})},
   ({props, context}) => {
     bump(`TextField:${context.componentModel.id}@${context.dataContext.path}`);
-    const setValue = (props as {setValue?: (value: string) => void}).setValue;
+    // Unguarded like the shipped input views, so the absent-setter contract
+    // stays tested.
+    const setValue = (props as {setValue: (value: string) => void}).setValue;
     return (
       <input
         data-testid={`input-${context.dataContext.path}`}
         value={String(props.value ?? '')}
-        onChange={event => setValue?.(event.target.value)}
+        onChange={event => setValue(event.target.value)}
       />
     );
   },
@@ -260,6 +262,20 @@ describe('A2uiSurface', () => {
     expect(surface.dataModel.get('/items/1/value')).toBe('edited');
     expect((screen.getByTestId('input-/items/1') as HTMLInputElement).value).toBe('edited');
     expect(surface.dataModel.get('/items/0/value')).toBe('a');
+  });
+
+  it('typing into an input whose value prop was omitted is a no-op, not a crash', () => {
+    const surface = setup();
+    add(surface, 'root', 'TextField', {label: 'Name'});
+
+    render(<A2uiSurface surface={surface} />);
+    const input = screen.getByTestId('input-/') as HTMLInputElement;
+
+    // The binder synthesized a setter for every schema-dynamic prop even
+    // when the payload omitted it; the node path must keep that contract.
+    fireEvent.change(input, {target: {value: 'typed'}});
+
+    expect(surface.dataModel.get('/value')).toBeUndefined();
   });
 
   it('works under StrictMode: renders, updates, and unmounts cleanly', () => {

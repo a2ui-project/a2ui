@@ -17,6 +17,7 @@
 import type React from 'react';
 import {createContext, useCallback, useContext, useMemo, useSyncExternalStore} from 'react';
 import {
+  type BehaviorNode,
   ComponentContext,
   type ComponentNode,
   isComponentNode,
@@ -26,6 +27,7 @@ import {
   getValue,
   peekValue,
   type NodeProps,
+  scrapeSchemaBehavior,
   type Signal,
   type SurfaceModel,
 } from '@a2ui/web_core/v0_9';
@@ -145,6 +147,38 @@ function toViewProps(
  * resolves through the conversion's child index before falling back to the
  * surface-provided `buildChild`.
  */
+const behaviorCache = new WeakMap<object, BehaviorNode>();
+
+/**
+ * The binder synthesized a `set<Prop>` no-op for every schema-dynamic
+ * property even when the payload omitted it, and shipped views call those
+ * setters unguarded; reproduce that contract for absent props.
+ */
+function addAbsentSetters(node: ComponentNode, viewProps: NodeProps): NodeProps {
+  const schema = node.impl?.schema;
+  if (!schema) {
+    return viewProps;
+  }
+  let behavior = behaviorCache.get(schema);
+  if (!behavior) {
+    behavior = scrapeSchemaBehavior(schema);
+    behaviorCache.set(schema, behavior);
+  }
+  if (behavior.type !== 'OBJECT') {
+    return viewProps;
+  }
+  for (const [key, child] of Object.entries(behavior.shape)) {
+    if (child.type !== 'DYNAMIC') {
+      continue;
+    }
+    const setterName = `set${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+    if (!(setterName in viewProps)) {
+      viewProps[setterName] = () => {};
+    }
+  }
+  return viewProps;
+}
+
 export function useNodeView(
   node: ComponentNode,
   buildChild: NodeBuildChild,
@@ -158,7 +192,10 @@ export function useNodeView(
 
   const {viewProps, childIndex} = useMemo(() => {
     const index: ChildIndex = new Map();
-    return {viewProps: toViewProps(node, resolved, index) as NodeProps, childIndex: index};
+    return {
+      viewProps: addAbsentSetters(node, toViewProps(node, resolved, index) as NodeProps),
+      childIndex: index,
+    };
   }, [node, resolved]);
 
   const context = useMemo(
