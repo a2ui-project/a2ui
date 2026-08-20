@@ -19,17 +19,20 @@
  * value, pinned at emission. A new binding arrives through the node's props
  * whenever the underlying value changes.
  *
- * Literal and function-call values resolve to a read-only `Binding`, so a
- * write without narrowing to {@link WritableBinding} is a type error rather
- * than a silent no-op. `DataBinding` is the wire model of the
- * `{"path": ...}` payload; this is its resolved counterpart.
+ * Literal and function-call values resolve to a read-only `ResolvedBinding`,
+ * so a write without narrowing to {@link WritableBinding} is a type error
+ * rather than a silent no-op.
+ *
+ * Named `ResolvedBinding` because `DataBinding` is the exported wire model
+ * of the `{"path": ...}` payload this resolves from; the two names stay
+ * visibly distinct.
  */
-export class Binding<T> {
+export class ResolvedBinding<T> {
   constructor(readonly value: T) {}
 }
 
 /** A binding whose payload bound a data path, so writes have a destination. */
-export class WritableBinding<T> extends Binding<T> {
+export class WritableBinding<T> extends ResolvedBinding<T> {
   constructor(
     value: T,
     readonly set: (value: T) => void,
@@ -39,7 +42,7 @@ export class WritableBinding<T> extends Binding<T> {
 }
 
 /** Narrows a binding to {@link WritableBinding}. */
-export function isWritable<T>(binding: Binding<T>): binding is WritableBinding<T> {
+export function isWritable<T>(binding: ResolvedBinding<T>): binding is WritableBinding<T> {
   return binding instanceof WritableBinding;
 }
 
@@ -49,7 +52,7 @@ export function isWritable<T>(binding: Binding<T>): binding is WritableBinding<T
  * structurally; non-plain objects compare by identity only, mirroring the
  * resolver's change detection for props.
  */
-export function sameBinding(a: Binding<unknown>, b: Binding<unknown>): boolean {
+export function sameBinding(a: ResolvedBinding<unknown>, b: ResolvedBinding<unknown>): boolean {
   return isWritable(a) === isWritable(b) && valueEquals(a.value, b.value);
 }
 

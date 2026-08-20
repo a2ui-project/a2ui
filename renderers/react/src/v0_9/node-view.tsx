@@ -20,7 +20,7 @@ import {
   ComponentContext,
   ComponentNode,
   isComponentNode,
-  Binding,
+  ResolvedBinding,
   isWritable,
   effect,
   getValue,
@@ -91,7 +91,7 @@ function toViewValue(parent: ComponentNode, value: unknown, index: ChildIndex): 
     }
     return value.componentId;
   }
-  if (value instanceof Binding) {
+  if (value instanceof ResolvedBinding) {
     return toViewValue(parent, value.value, index);
   }
   if (Array.isArray(value)) {
@@ -114,7 +114,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Converts one object level of node props, unwrapping each `Binding`
+ * Converts one object level of node props, unwrapping each `ResolvedBinding`
  * into the value + `set<Prop>` pair the views were written against. A
  * read-only binding gets a no-op setter, matching what `GenericBinder`
  * synthesizes for literal-valued properties.
@@ -126,7 +126,7 @@ function toViewProps(
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, inner] of Object.entries(props)) {
-    if (inner instanceof Binding) {
+    if (inner instanceof ResolvedBinding) {
       result[key] = toViewValue(parent, inner.value, index);
       result[`set${key.charAt(0).toUpperCase()}${key.slice(1)}`] = isWritable(inner)
         ? inner.set

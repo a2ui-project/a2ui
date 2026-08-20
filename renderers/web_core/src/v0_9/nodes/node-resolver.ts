@@ -28,7 +28,7 @@ import {
   PLACEHOLDER_TYPE,
 } from './component-node.js';
 import {extractRefFields, RefFields} from './ref-fields.js';
-import {Binding, WritableBinding, sameBinding} from './binding.js';
+import {ResolvedBinding, WritableBinding, sameBinding} from './resolved-binding.js';
 import {Signal, signal, setValue, peekValue} from '../reactivity/signals.js';
 import {Subscription} from '../common/events.js';
 import {A2uiStateError} from '../errors.js';
@@ -46,7 +46,7 @@ interface NodeRecord {
   readonly parent?: MutableComponentNode;
   readonly refFields: RefFields;
   /** The scraped behavior tree for the component's schema; positions it
-   *  classifies as DYNAMIC resolve to {@link Binding}s in node
+   *  classifies as DYNAMIC resolve to {@link ResolvedBinding}s in node
    *  props. Absent on placeholders. */
   readonly behavior?: BehaviorNode;
   /** Writes constructed for path-bound values go through this context's
@@ -588,11 +588,11 @@ function instanceIdFor(componentId: string, dataPath: string): string {
 
 /**
  * Converts every position the schema classifies as DYNAMIC into a
- * `Binding`: the binder's resolved value as the snapshot, plus a
+ * `ResolvedBinding`: the binder's resolved value as the snapshot, plus a
  * write capability iff the payload gave the value as a `{"path": ...}`
  * binding, writing through the component's scoped data context. The binder's
  * synthesized `set<Prop>` siblings are dropped: they silently swallow writes
- * to literal-valued properties, whereas a read-only `Binding` has no `set`,
+ * to literal-valued properties, whereas a read-only `ResolvedBinding` has no `set`,
  * making such writes a type error.
  */
 function wrapDynamicValues(
@@ -611,7 +611,7 @@ function wrapDynamicValues(
           ? (raw as {path: string}).path
           : undefined;
       if (path === undefined) {
-        return new Binding(value);
+        return new ResolvedBinding(value);
       }
       return new WritableBinding(value, newValue => dataContext.set(path, newValue));
     }
@@ -661,13 +661,13 @@ function wrapDynamicValues(
  * Returns `prev` whenever `next` is structurally identical to it, so
  * unchanged props keep reference identity across rebuilds. Child
  * `ComponentNode`s and action closures compare by identity, and
- * `Binding`s by snapshot value and writability.
+ * `ResolvedBinding`s by snapshot value and writability.
  */
 function stabilize(prev: unknown, next: unknown): unknown {
   if (Object.is(prev, next)) {
     return next;
   }
-  if (prev instanceof Binding && next instanceof Binding) {
+  if (prev instanceof ResolvedBinding && next instanceof ResolvedBinding) {
     return sameBinding(prev, next) ? prev : next;
   }
   if (isComponentNode(prev) || isComponentNode(next)) {
