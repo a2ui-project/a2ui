@@ -102,9 +102,12 @@ export function createComponentImplementation<Api extends ComponentApi>(
   };
 
   const NodeView: React.FC<NodeViewProps> = ({node, buildChild}) => {
-    const {viewProps, context, viewBuildChild} = useNodeView(node, buildChild);
-    if (!context) {
+    const {viewProps, context, hasSurface, viewBuildChild} = useNodeView(node, buildChild);
+    if (!hasSurface) {
       throw new Error('A2UI component views render only inside A2uiSurface.');
+    }
+    if (!context) {
+      return <div style={{color: 'gray', padding: '4px'}}>[Loading {node.componentId}...]</div>;
     }
     return (
       <MemoizedRender props={viewProps as Props} buildChild={viewBuildChild} context={context} />
@@ -133,9 +136,12 @@ export function createBinderlessComponentImplementation(
   const NodeView: React.FC<NodeViewProps> = ({node, buildChild}) => {
     // The conversion's only role here is filling the child index; the
     // component binds its own values from the context.
-    const {context, viewBuildChild} = useNodeView(node, buildChild);
-    if (!context) {
+    const {context, hasSurface, viewBuildChild} = useNodeView(node, buildChild);
+    if (!hasSurface) {
       throw new Error('A2UI component views render only inside A2uiSurface.');
+    }
+    if (!context) {
+      return <div style={{color: 'gray', padding: '4px'}}>[Loading {node.componentId}...]</div>;
     }
     return <RenderComponent context={context} buildChild={viewBuildChild} />;
   };

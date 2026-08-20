@@ -185,6 +185,7 @@ export function useNodeView(
 ): {
   viewProps: NodeProps;
   context: ComponentContext | undefined;
+  hasSurface: boolean;
   viewBuildChild: (id: string, basePath?: string) => React.ReactNode;
 } {
   const surface = useContext(NodeSurfaceContext);
@@ -198,10 +199,17 @@ export function useNodeView(
     };
   }, [node, resolved]);
 
+  // The component can be removed between the resolver's update and this
+  // render committing; ComponentContext's constructor throws on a missing
+  // model, so treat that window as not-ready rather than crashing.
   const context = useMemo(
-    () => (surface ? new ComponentContext(surface, node.componentId, node.dataPath) : undefined),
+    () =>
+      surface && surface.componentsModel.get(node.componentId)
+        ? new ComponentContext(surface, node.componentId, node.dataPath)
+        : undefined,
     [surface, node],
   );
+  const hasSurface = surface !== null;
 
   const viewBuildChild = useCallback(
     (id: string, basePath?: string): React.ReactNode => {
@@ -213,5 +221,5 @@ export function useNodeView(
     [childIndex, buildChild, node],
   );
 
-  return {viewProps, context, viewBuildChild};
+  return {viewProps, context, hasSurface, viewBuildChild};
 }

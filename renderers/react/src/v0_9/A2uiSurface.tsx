@@ -156,11 +156,18 @@ const RenderFallback: React.FC<{
   impl: ReactComponentImplementation;
   buildChild: (id: string, basePath?: string) => React.ReactNode;
 }> = ({surface, node, impl, buildChild}) => {
+  // See useNodeView: the component can vanish before this render commits.
   const context = useMemo(
-    () => new ComponentContext(surface, node.componentId, node.dataPath),
+    () =>
+      surface.componentsModel.get(node.componentId)
+        ? new ComponentContext(surface, node.componentId, node.dataPath)
+        : undefined,
     [surface, node],
   );
   const Render = impl.render;
+  if (!context) {
+    return <div style={{color: 'gray', padding: '4px'}}>[Loading {node.componentId}...]</div>;
+  }
   return <Render context={context} buildChild={buildChild} />;
 };
 
