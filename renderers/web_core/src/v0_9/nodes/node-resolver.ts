@@ -95,6 +95,8 @@ export class NodeResolver<
   private readonly nodesByComponentId = new Map<string, Set<MutableComponentNode>>();
   /** Parents holding a placeholder for a component id, awaiting its arrival. */
   private readonly pendingParents = new Map<string, Set<MutableComponentNode>>();
+  /** Errors already dispatched, keyed by component id, then data path. */
+  private readonly dispatchedErrors = new Map<string, Map<string, Set<string>>>();
   private readonly modelSubs: Subscription[] = [];
   private rootRecord?: NodeRecord;
   private _disposed = false;
@@ -121,6 +123,37 @@ export class NodeResolver<
     }
   }
 
+  /**
+   * Dispatches once per (code, component, path) for as long as the condition
+   * persists: the record is cleared when the component is deleted, when a
+   * node for the pair resolves, or when a cyclic stand-in's edge goes away,
+   * so a condition that is fixed and later reintroduced reports again.
+   */
+  private dispatchOnce(code: string, componentId: string, dataPath: string, message: string): void {
+    let byPath = this.dispatchedErrors.get(componentId);
+    if (!byPath) {
+      byPath = new Map();
+      this.dispatchedErrors.set(componentId, byPath);
+    }
+    let codes = byPath.get(dataPath);
+    if (!codes) {
+      codes = new Set();
+      byPath.set(dataPath, codes);
+    }
+    if (codes.has(code)) {
+      return;
+    }
+    codes.add(code);
+    this.surface.dispatchError({code, message});
+  }
+
+  private clearDispatched(componentId: string, dataPath: string): void {
+    const byPath = this.dispatchedErrors.get(componentId);
+    if (byPath?.delete(dataPath) && byPath.size === 0) {
+      this.dispatchedErrors.delete(componentId);
+    }
+  }
+
   /** Number of live nodes (including placeholders). Exposed for tests and devtools. */
   get activeNodeCount(): number {
     return this.records.size;
@@ -144,6 +177,7 @@ export class NodeResolver<
       this.disposeNode(node);
     }
     this.pendingParents.clear();
+    this.dispatchedErrors.clear();
     this.rootRecord = undefined;
     setValue(this.rootNode, undefined);
   }
@@ -193,6 +227,7 @@ export class NodeResolver<
     // state: when the component exists (again), refresh rather than dispose,
     // and let materialize/childNode rebind nodes whose model instance is
     // stale.
+    this.dispatchedErrors.delete(id);
     const model = this.surface.componentsModel.get(id);
     const affected = this.nodesByComponentId.get(id);
     if (!affected) {
@@ -268,10 +303,12 @@ export class NodeResolver<
 
     const api = this.catalog.components.get(model.type);
     if (!api) {
-      this.surface.dispatchError({
-        code: 'UNKNOWN_COMPONENT_TYPE',
-        message: `Component '${componentId}' has type '${model.type}', which is not in catalog '${this.catalog.id}'.`,
-      });
+      this.dispatchOnce(
+        'UNKNOWN_COMPONENT_TYPE',
+        componentId,
+        dataPath,
+        `Component '${componentId}' has type '${model.type}', which is not in catalog '${this.catalog.id}'.`,
+      );
       return this.registerNode(
         new MutableComponentNode(
           instanceIdFor(componentId, dataPath),
@@ -286,6 +323,7 @@ export class NodeResolver<
       ).node;
     }
 
+    this.clearDispatched(componentId, dataPath);
     const context = new ComponentContext(this.surface, componentId, dataPath);
     const binder = new GenericBinder<NodeProps>(context, api.schema);
     const record = this.registerNode(
@@ -374,10 +412,12 @@ export class NodeResolver<
       if (existing && !existing.disposed) {
         this.disposeNode(existing);
       }
-      this.surface.dispatchError({
-        code: 'CYCLIC_REFERENCE',
-        message: `Component '${componentId}' at '${dataPath}' is referenced by one of its own descendants; rendering a placeholder instead.`,
-      });
+      this.dispatchOnce(
+        'CYCLIC_REFERENCE',
+        componentId,
+        dataPath,
+        `Component '${componentId}' at '${dataPath}' is referenced by one of its own descendants; rendering a placeholder instead.`,
+      );
       return this.registerNode(
         new MutableComponentNode(
           instanceIdFor(componentId, dataPath),
@@ -595,6 +635,10 @@ export class NodeResolver<
       if (waiting.size === 0) {
         this.pendingParents.delete(componentId);
       }
+    }
+    if (node.state === 'cyclic') {
+      // The cyclic edge is gone; a payload that reintroduces it should report.
+      this.clearDispatched(node.componentId, node.dataPath);
     }
     node.dispose();
   }

@@ -636,6 +636,61 @@ describe('NodeResolver malformed and unusual payloads', () => {
     resolver.dispose();
   });
 
+  it('dispatches UNKNOWN_COMPONENT_TYPE once per component, not per referencing edge', () => {
+    const {surface, resolver} = setup();
+    const errors: Array<Record<string, unknown>> = [];
+    surface.onError.subscribe(e => {
+      errors.push(e as Record<string, unknown>);
+    });
+    add(surface, 'weird', 'Bogus', {});
+    add(surface, 'root', 'Column', {children: ['weird', 'weird']});
+    assert.ok(getValue(resolver.rootNode));
+    assert.strictEqual(errors.filter(e => e.code === 'UNKNOWN_COMPONENT_TYPE').length, 1);
+
+    // Deleting and re-adding the component reports again.
+    surface.componentsModel.removeComponent('weird');
+    add(surface, 'weird', 'Bogus', {});
+    assert.strictEqual(errors.filter(e => e.code === 'UNKNOWN_COMPONENT_TYPE').length, 2);
+    resolver.dispose();
+  });
+
+  it('resets the dispatch record on deletion for ids containing colons', () => {
+    const {surface, resolver} = setup();
+    const errors: Array<Record<string, unknown>> = [];
+    surface.onError.subscribe(e => {
+      errors.push(e as Record<string, unknown>);
+    });
+    add(surface, 'root', 'Column', {children: ['weird:x']});
+    add(surface, 'weird:x', 'Bogus', {});
+    assert.strictEqual(errors.filter(e => e.code === 'UNKNOWN_COMPONENT_TYPE').length, 1);
+
+    surface.componentsModel.removeComponent('weird:x');
+    add(surface, 'weird:x', 'Bogus', {});
+    assert.strictEqual(errors.filter(e => e.code === 'UNKNOWN_COMPONENT_TYPE').length, 2);
+    resolver.dispose();
+  });
+
+  it('reports a cycle again after it is fixed and reintroduced by a property update', () => {
+    const {surface, resolver} = setup();
+    const errors: Array<Record<string, unknown>> = [];
+    surface.onError.subscribe(e => {
+      errors.push(e as Record<string, unknown>);
+    });
+    add(surface, 'root', 'Card', {child: 'card'});
+    add(surface, 'card', 'Card', {child: 'card'});
+    add(surface, 'leaf', 'Text', {text: 'ok'});
+    assert.strictEqual(errors.filter(e => e.code === 'CYCLIC_REFERENCE').length, 1);
+
+    const cardModel = surface.componentsModel.get('card');
+    assert.ok(cardModel);
+    cardModel.properties = {child: 'leaf'};
+    assert.strictEqual(errors.filter(e => e.code === 'CYCLIC_REFERENCE').length, 1);
+
+    cardModel.properties = {child: 'card'};
+    assert.strictEqual(errors.filter(e => e.code === 'CYCLIC_REFERENCE').length, 2);
+    resolver.dispose();
+  });
+
   it('keeps a stable placeholder for a component whose type is not in the catalog', () => {
     const {surface, resolver} = setup();
     const errors: Array<Record<string, unknown>> = [];
