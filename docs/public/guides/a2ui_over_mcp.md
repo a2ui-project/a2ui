@@ -292,7 +292,7 @@ In your A2UI JSON, add an `action` to a component:
 
 ### 2. Client Sends the Action as a Tool Call
 
-When the user clicks the button, the client resolves data bindings (like `/dates/start`) against the surface state and sends a tool call:
+When the user clicks the button, the client resolves data bindings (like `/dates/start`) against the surface state and sends a tool call with the required action fields:
 
 ```json
 {
@@ -303,6 +303,9 @@ When the user clicks the button, the client resolves data bindings (like `/dates
     "name": "a2ui_action",
     "arguments": {
       "name": "confirm_booking",
+      "surfaceId": "booking-surface",
+      "sourceComponentId": "confirm-button",
+      "timestamp": "2026-03-20T12:00:00Z",
       "context": {
         "start": "2026-03-20",
         "end": "2026-03-25"
@@ -315,23 +318,32 @@ When the user clicks the button, the client resolves data bindings (like `/dates
 ### 3. Handle the Action on the Server
 
 ```python
-@self.tool()
-async def a2ui_action(name: str, context: dict) -> types.CallToolResult:
+@app.tool()
+async def a2ui_action(
+    name: str,
+    surfaceId: str,
+    sourceComponentId: str,
+    timestamp: str,
+    context: dict[str, Any],
+) -> types.CallToolResult:
     """Handle A2UI user actions."""
     if name == "confirm_booking":
         # Process the booking, then return confirmation UI
         return types.CallToolResult(content=[
             types.TextContent(
                 type="text",
-                text=f"Booking confirmed: {context['start']} to {context['end']}"
+                text=f"Booking confirmed for {surfaceId}: {context['start']} to {context['end']}"
             )
         ])
     raise ValueError(f"Unknown action: {name}")
 ```
 
+> [!NOTE]
+> All five action fields (`name`, `surfaceId`, `sourceComponentId`, `timestamp`, and `context`) are required by the A2UI specification. Declaring all fields in the tool parameters prevents MCP SDKs from stripping `surfaceId` or other fields, losing the originating surface context.
+
 ## Error Handling
 
-Clients can report A2UI rendering errors back to the server via a tool call:
+Clients can report A2UI rendering and validation errors back to the server via a tool call:
 
 ```json
 {
@@ -341,9 +353,10 @@ Clients can report A2UI rendering errors back to the server via a tool call:
   "params": {
     "name": "a2ui_error",
     "arguments": {
-      "code": "INVALID_JSON",
-      "message": "Failed to parse A2UI payload.",
-      "surfaceId": "default"
+      "code": "VALIDATION_FAILED",
+      "surfaceId": "booking-surface",
+      "path": "/components/0/text",
+      "message": "Failed to parse A2UI payload."
     }
   }
 }
@@ -352,14 +365,19 @@ Clients can report A2UI rendering errors back to the server via a tool call:
 Handle it on the server:
 
 ```python
-@self.tool()
-async def a2ui_error(code: str, message: str, surfaceId: str = "") -> types.CallToolResult:
+@app.tool()
+async def a2ui_error(
+    code: str,
+    surfaceId: str,
+    message: str,
+    path: str | None = None,
+) -> types.CallToolResult:
     """Handle A2UI client errors."""
     # Log the error, retry, or send a fallback UI
     return types.CallToolResult(content=[
         types.TextContent(
             type="text",
-            text=f"Acknowledged error {code}: {message}"
+            text=f"Acknowledged error {code} on surface {surfaceId}: {message}"
         )
     ])
 ```
