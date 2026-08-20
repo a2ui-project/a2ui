@@ -25,7 +25,7 @@
     
     
       
-        <title>Macro Syntax Error - A2UI</title>
+        <title>Implementation plan: A2UI Elemental - A2UI</title>
       
     
     
@@ -153,7 +153,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#macro-syntax-error" class="md-skip">
+        <a href="#implementation-plan-a2ui-elemental" class="md-skip">
           Skip to content
         </a>
       
@@ -188,7 +188,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Macro Syntax Error
+              Implementation plan: A2UI Elemental
             
           </span>
         </div>
@@ -2387,6 +2387,158 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#proposed-directory-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proposed directory structure
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-1-compiler-and-decompiler-core" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1: Compiler and decompiler core
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 1: Compiler and decompiler core">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-parser-parserpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Parser (parser.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-expression-parser-expression_parserpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Expression parser (expression_parser.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-compiler-compilerpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Compiler (compiler.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-decompiler-decompilerpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Decompiler (decompiler.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-prompt-generator-prompt_generatorpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Prompt generator (prompt_generator.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-2-agent-sdk-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2: Agent SDK integration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-3-evaluation-framework-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3: Evaluation framework integration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 3: Evaluation framework integration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-create-the-strategy-evala2ui_evalstrategieselementalpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Create the strategy (eval/a2ui_eval/strategies/elemental.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-register-the-strategy-evalmainpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Register the strategy (eval/main.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-4-verification-and-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4: Verification and testing
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -2421,11 +2573,111 @@
   
 
 
-<h1 id="macro-syntax-error"><em>Macro Syntax Error</em><a class="headerlink" href="#macro-syntax-error" title="Permanent link">&para;</a></h1>
-<p><em>File</em>: <code>specification/proposals/elemental/implementation_plan.md</code></p>
-<p><em>Line 43 in Markdown file:</em> <strong>unexpected '.'</strong>
-<div class="language-markdown highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span><span class="gs">**Object literals**</span>: Parse <span class="sb">`{key: value}`</span> containing key-value pairs. Handle JSX-style double-curly braces <span class="sb">`{{...}}`</span> at the attribute level.
-</span></code></pre></div></p>
+<h1 id="implementation-plan-a2ui-elemental">Implementation plan: A2UI Elemental<a class="headerlink" href="#implementation-plan-a2ui-elemental" title="Permanent link">&para;</a></h1>
+<p>This document outlines the plan to implement A2UI Elemental as an experimental feature in the Python Agent SDK and integrate it into the evaluation framework.</p>
+<hr />
+<h2 id="proposed-directory-structure">Proposed directory structure<a class="headerlink" href="#proposed-directory-structure" title="Permanent link">&para;</a></h2>
+<p>We will mirror the structure used by A2UI Express.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>main/
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>├── agent_sdks/python/a2ui_agent/src/a2ui/experimental/elemental/
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>│   ├── __init__.py
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>│   ├── compiler.py          # Compiles HTML5 to standard A2UI v1.0 JSON
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>│   ├── decompiler.py        # Decompiles A2UI JSON back to HTML5
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>│   ├── expression_parser.py # Subclasses core ExpressionParser for JSX-style expressions
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>│   ├── prompt_generator.py  # Translates catalog schemas to TSX prompt contracts
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>│   └── parser.py            # Extracts &lt;body&gt; blocks from model completions
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>│
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>└── eval/a2ui_eval/strategies/
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    └── elemental.py         # Inspect AI solver and evaluation strategy
+</span></code></pre></div>
+<hr />
+<h2 id="phase-1-compiler-and-decompiler-core">Phase 1: Compiler and decompiler core<a class="headerlink" href="#phase-1-compiler-and-decompiler-core" title="Permanent link">&para;</a></h2>
+<p>We will implement the core translation engines in the Python Agent SDK.</p>
+<h3 id="1-parser-parserpy">1. Parser (<code>parser.py</code>)<a class="headerlink" href="#1-parser-parserpy" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Extract the text block between <code>&lt;body&gt;</code> and <code>&lt;/body&gt;</code> (inclusive).</li>
+<li>Strip markdown code block indicators (e.g., <code>```html</code> and <code>```</code>) if present.</li>
+<li>Raise a clear compilation error if no <code>&lt;body&gt;</code> block is found.</li>
+</ul>
+<h3 id="2-expression-parser-expression_parserpy">2. Expression parser (<code>expression_parser.py</code>)<a class="headerlink" href="#2-expression-parser-expression_parserpy" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Subclass the core <code>a2ui.core.basic_catalog.expression_parser.ExpressionParser</code>.</li>
+<li>Extend it to support:</li>
+<li><code>{...}</code> expression delimiters instead of <code>${...}</code>.</li>
+<li><strong>Array literals</strong>: Parse <code>[...]</code> containing comma-separated expressions or literals.</li>
+<li><strong>Object literals</strong>: Parse <code>{key: value}</code> containing key-value pairs. Handle JSX-style double-curly braces <code>{{...}}</code> at the attribute level.</li>
+</ul>
+<h3 id="3-compiler-compilerpy">3. Compiler (<code>compiler.py</code>)<a class="headerlink" href="#3-compiler-compilerpy" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>HTML Parsing</strong>: Use a forgiving HTML parser (like Python's built-in <code>html.parser.HTMLParser</code> or <code>beautifulsoup4</code>) rather than a strict XML parser. This prevents crashes on unescaped characters (like <code>&lt;</code> or <code>&amp;</code> inside JSX expressions) and handles unclosed tags.</li>
+<li><strong>Streaming Scope</strong>: Streaming compilation is out-of-scope for the initial experimental version. The compiler will operate on the complete LLM response. However, using <code>html.parser.HTMLParser</code> allows us to leverage its <code>.feed()</code> method for incremental parsing in the future.</li>
+<li><strong>Metadata extraction</strong>: Parse the <code>id</code> on <code>&lt;body&gt;</code> as <code>surfaceId</code>, and the <code>href</code> of <code>&lt;link rel="catalog"&gt;</code> as <code>catalogId</code>.</li>
+<li><strong>Component parsing</strong>: Traverse the DOM tree. Map custom elements (<code>&lt;a2ui-...&gt;</code>) to catalog components.</li>
+<li><strong>ID preservation</strong>: Use the element's <code>id</code> attribute if present; otherwise, auto-generate a unique ID.</li>
+<li><strong>Expression resolution</strong>: Delegate attribute values and text nodes containing <code>{...}</code> to <code>ElementalExpressionParser</code>.</li>
+<li>Implement <strong>implicit value injection</strong>: If a validation function's first parameter is <code>value</code> (e.g., <code>required(value)</code>) and it is omitted in the call, inject the parent component's <code>value</code> path.</li>
+<li><strong>Option auto-expansion</strong>: If the schema expects a list of <code>{label, value}</code> objects but the input is an array of strings, automatically expand them.</li>
+<li><strong>Data model &amp; slot scripts</strong>: Parse <code>&lt;script type="application/json"&gt;</code> tags:</li>
+<li><strong>No <code>slot</code> attribute</strong>: Parse as a single JSON object to initialize the <code>dataModel</code>.</li>
+<li><strong>Has <code>slot</code> attribute</strong>: Parse as JSON and assign to the named component property (e.g., <code>slot="columns"</code>).</li>
+<li>Raise a compilation error if the script content is invalid JSON.</li>
+<li><strong>Adjacency list flattening</strong>: Flatten the parsed DOM tree into the standard A2UI flat components list.</li>
+</ul>
+<h3 id="4-decompiler-decompilerpy">4. Decompiler (<code>decompiler.py</code>)<a class="headerlink" href="#4-decompiler-decompilerpy" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Translate standard A2UI JSON payloads back into A2UI Elemental HTML.</li>
+<li>Decompile components recursively into nested tags, preserving their <code>id</code> attributes.</li>
+<li>Represent complex properties and data model initialization using <code>&lt;script type="application/json"&gt;</code>.</li>
+<li>Format expressions using curly braces (e.g., <code>{formatCurrency(value: $amount, currency: 'USD')}</code>).</li>
+</ul>
+<h3 id="5-prompt-generator-prompt_generatorpy">5. Prompt generator (<code>prompt_generator.py</code>)<a class="headerlink" href="#5-prompt-generator-prompt_generatorpy" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Read the catalog JSON schema.</li>
+<li>Translate each component definition into a TypeScript/TSX interface (e.g., <code>interface CardProps</code>).</li>
+<li>Output these TSX signatures as the prompt contract to be injected into the system prompt.</li>
+</ul>
+<hr />
+<h2 id="phase-2-agent-sdk-integration">Phase 2: Agent SDK integration<a class="headerlink" href="#phase-2-agent-sdk-integration" title="Permanent link">&para;</a></h2>
+<p>We will expose the new format under an experimental feature flag.</p>
+<ul>
+<li>Define the environment variable flag: <code>A2UI_ELEMENTAL_ENABLED = "true"</code>.</li>
+<li>Expose <code>ElementalCompiler</code> and <code>ElementalDecompiler</code> in the <code>a2ui.experimental.elemental</code> namespace.</li>
+</ul>
+<hr />
+<h2 id="phase-3-evaluation-framework-integration">Phase 3: Evaluation framework integration<a class="headerlink" href="#phase-3-evaluation-framework-integration" title="Permanent link">&para;</a></h2>
+<p>We will integrate the new format into the evaluation pipeline to measure its token efficiency and generation accuracy.</p>
+<h3 id="1-create-the-strategy-evala2ui_evalstrategieselementalpy">1. Create the strategy (<code>eval/a2ui_eval/strategies/elemental.py</code>)<a class="headerlink" href="#1-create-the-strategy-evala2ui_evalstrategieselementalpy" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Implement the <code>a2ui_elemental_prompt()</code> solver to inject the TSX prompt contract into the system prompt.</li>
+<li>Implement the <code>compile_elemental_html()</code> solver to:</li>
+<li>Extract and compile the model's HTML completion using <code>parse_elemental_response</code>.</li>
+<li>Validate the resulting JSON payload against the catalog schema.</li>
+<li>Wrap the validated JSON back in <code>&lt;a2ui-json&gt;</code> for scoring.</li>
+<li><strong>Error Recovery</strong>: The micro-refinement loop is an agent/solver-level feature. If compilation fails, the solver can optionally catch the error and trigger a micro-refinement prompt to correct the syntax. This keeps the core compiler deterministic.</li>
+<li>Define the <code>elemental_solver()</code> chain:
+  <div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">elemental_solver</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Solver</span><span class="p">]:</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="k">return</span> <span class="p">[</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>        <span class="n">a2ui_elemental_prompt</span><span class="p">(),</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>        <span class="n">measured_generate</span><span class="p">(),</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>        <span class="n">compile_elemental_html</span><span class="p">()</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="p">]</span>
+</span></code></pre></div></li>
+</ul>
+<h3 id="2-register-the-strategy-evalmainpy">2. Register the strategy (<code>eval/main.py</code>)<a class="headerlink" href="#2-register-the-strategy-evalmainpy" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Add <code>"elemental"</code> as a valid strategy choice in the command-line argument parser.</li>
+<li>Import and register the <code>elemental</code> solver when selected.</li>
+</ul>
+<hr />
+<h2 id="phase-4-verification-and-testing">Phase 4: Verification and testing<a class="headerlink" href="#phase-4-verification-and-testing" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Write unit tests for the compiler and decompiler covering:</li>
+<li>Nested function parsing and type casting.</li>
+<li>Implicit value injection.</li>
+<li>Option object auto-expansion.</li>
+<li><code>&lt;script type="application/json"&gt;</code> parsing (data model vs. slots).</li>
+<li>Run the evaluation suite locally using <code>--strategies elemental</code> to verify the end-to-end generation and compilation pipeline.</li>
+</ul>
 
 
 
