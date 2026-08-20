@@ -498,6 +498,7 @@ export interface FunctionDefinition {
 /** A catalog declared inline in the capability payload. Same shape as a catalog document. */
 export interface InlineCatalog {
   catalogId: string;
+  protocolVersion?: A2uiProtocolVersion;
   components?: Record<string, JsonSchema>;
   functions?: FunctionDefinition[];
   theme?: Record<string, JsonSchema>;
