@@ -16,6 +16,7 @@
 
 import {useState, useEffect, useCallback, useMemo, useRef, FormEvent} from 'react';
 import {
+  A2uiNodeSurface,
   A2uiSurface,
   basicCatalog,
   MarkdownContext,
@@ -96,6 +97,10 @@ interface ShellContentProps {
 }
 
 function ShellContent({config, client, sendAndProcessRef, processor}: ShellContentProps) {
+  const useNodeSurface = useMemo(
+    () => new URLSearchParams(window.location.search).has('nodes'),
+    [],
+  );
   const [requesting, setRequesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<A2uiMessage[]>([]);
@@ -316,12 +321,17 @@ function ShellContent({config, client, sendAndProcessRef, processor}: ShellConte
       {/* Error display */}
       {error && <div className="error">{error}</div>}
 
-      {/* Render all surfaces */}
+      {/* Render all surfaces. Add ?nodes to the URL to render through the
+          experimental node layer (A2uiNodeSurface) instead. */}
       {hasSurfaces && (
         <section className="surfaces">
-          {surfaces.map(surface => (
-            <A2uiSurface key={surface.id} surface={surface} />
-          ))}
+          {surfaces.map(surface =>
+            useNodeSurface ? (
+              <A2uiNodeSurface key={surface.id} surface={surface} />
+            ) : (
+              <A2uiSurface key={surface.id} surface={surface} />
+            ),
+          )}
         </section>
       )}
     </div>
