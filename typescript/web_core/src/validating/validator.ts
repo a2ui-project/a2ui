@@ -101,11 +101,11 @@ export class A2uiValidator {
     config: ValidationConfig = STRICT_VALIDATION,
     options: ValidateComponentsOptions = {},
   ): void {
-    validateComponentIntegrity(components, refFieldsMap, config);
-    analyzeTopology(components, refFieldsMap, config);
     if (!options.skipRecursionCheck) {
       validateRecursionAndPaths(components);
     }
+    validateComponentIntegrity(components, refFieldsMap, config);
+    analyzeTopology(components, refFieldsMap, config);
   }
 
   /**

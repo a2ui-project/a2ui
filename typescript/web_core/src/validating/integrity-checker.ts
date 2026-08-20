@@ -170,6 +170,7 @@ export function validateComponentIntegrity(
 
   // 3. Check for dangling references
   for (const comp of components) {
+    if (!comp || typeof comp !== 'object') continue;
     const compId = comp.id !== undefined && comp.id !== null ? String(comp.id) : 'Unknown';
     for (const [refId, fieldName] of getComponentReferences(comp, refFieldsMap)) {
       if (!ids.has(refId)) {
@@ -201,7 +202,8 @@ function traverseRecursionAndPaths(item: any, globalDepth: number, funcDepth: nu
       }
     }
 
-    const isFuncV08 = 'functionCall' in item && typeof item.functionCall === 'object';
+    const isFuncV08 =
+      'functionCall' in item && typeof item.functionCall === 'object' && item.functionCall !== null;
     const isFuncV09 = 'call' in item && 'args' in item;
 
     if (isFuncV08) {
