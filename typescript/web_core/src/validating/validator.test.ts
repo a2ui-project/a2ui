@@ -34,6 +34,7 @@ import {analyzeTopology} from './topology-analyzer.js';
 import {A2uiValidator, RELAXED_VALIDATION, STRICT_VALIDATION} from './validator.js';
 import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
 import {Catalog} from '../catalog/types.js';
+import {BASIC_COMPONENTS} from '../v1_0/basic_catalog/components/basic_components.js';
 import {z} from 'zod';
 
 describe('A2uiValidator & Integrity Verification', () => {
@@ -208,6 +209,7 @@ describe('A2uiValidator & Integrity Verification', () => {
 
   describe('A2uiValidator Full Pipeline', () => {
     const validator = new A2uiValidator();
+    const basicCatalog = new Catalog('basic', BASIC_COMPONENTS);
 
     it('validates a valid message envelope stream', () => {
       const payload = [
@@ -238,7 +240,7 @@ describe('A2uiValidator & Integrity Verification', () => {
         },
       ];
 
-      assert.doesNotThrow(() => validator.validate(payload));
+      assert.doesNotThrow(() => validator.validate(payload, basicCatalog));
     });
 
     it('validates inline components inside createSurface for v1.0', () => {
@@ -262,7 +264,7 @@ describe('A2uiValidator & Integrity Verification', () => {
         },
       };
 
-      assert.doesNotThrow(() => validator.validate(payload));
+      assert.doesNotThrow(() => validator.validate(payload, basicCatalog));
     });
 
     it('auto-enables allowMissingRoot for incremental updateComponents messages without createSurface', () => {
@@ -281,7 +283,7 @@ describe('A2uiValidator & Integrity Verification', () => {
       };
 
       // By default without createSurface, allowMissingRoot is automatically enabled
-      assert.doesNotThrow(() => validator.validate(incrementalPayload));
+      assert.doesNotThrow(() => validator.validate(incrementalPayload, basicCatalog));
     });
 
     it('respects relaxed validation config for dangling references & orphans', () => {
@@ -307,22 +309,23 @@ describe('A2uiValidator & Integrity Verification', () => {
       ];
 
       assert.throws(
-        () => validator.validate(orphanPayload, undefined, STRICT_VALIDATION),
+        () => validator.validate(orphanPayload, basicCatalog, STRICT_VALIDATION),
         (err: any) => err instanceof A2uiIntegrityError && err.message.includes('not reachable'),
       );
 
-      assert.doesNotThrow(() => validator.validate(orphanPayload, undefined, RELAXED_VALIDATION));
+      assert.doesNotThrow(() =>
+        validator.validate(orphanPayload, basicCatalog, RELAXED_VALIDATION),
+      );
     });
 
     it('enforces missing root even when allowDanglingReferences is true', () => {
       const components = [{id: 'c1', component: 'Text', text: 'No root'}];
       assert.throws(
         () =>
-          validateComponentIntegrity(
-            components,
-            {},
-            {allowDanglingReferences: true, allowMissingRoot: false},
-          ),
+          validateComponentIntegrity(components, basicCatalog, {
+            allowDanglingReferences: true,
+            allowMissingRoot: false,
+          }),
         (err: any) =>
           err instanceof A2uiIntegrityError && err.message.includes("No component has id='root'"),
       );
@@ -346,7 +349,7 @@ describe('A2uiValidator & Integrity Verification', () => {
         },
       ];
 
-      assert.doesNotThrow(() => validator.validate(splitPayload, undefined, STRICT_VALIDATION));
+      assert.doesNotThrow(() => validator.validate(splitPayload, basicCatalog, STRICT_VALIDATION));
     });
 
     it('builds dynamic ref map from custom Catalog schemas', () => {
@@ -381,7 +384,7 @@ describe('A2uiValidator & Integrity Verification', () => {
           version: 'v0.9',
           updateComponents: {
             surfaceId: 's1',
-            components: [{id: 'root', component: 'Box', child: 'txt'}],
+            components: [{id: 'root', component: 'Card', child: 'txt'}],
           },
         },
         {
@@ -393,7 +396,7 @@ describe('A2uiValidator & Integrity Verification', () => {
         },
       ];
 
-      assert.doesNotThrow(() => validator.validate(v09Payload));
+      assert.doesNotThrow(() => validator.validate(v09Payload, basicCatalog));
     });
   });
 

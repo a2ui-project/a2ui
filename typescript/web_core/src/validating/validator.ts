@@ -21,7 +21,6 @@ import {
   buildComponentRefMap,
   ComponentRefMap,
   IntegrityOptions,
-  STANDARD_REF_MAP,
   validateComponentIntegrity,
   validateRecursionAndPaths,
 } from './integrity-checker.js';
@@ -56,7 +55,7 @@ export interface ValidateComponentsOptions {
  * @example
  * ```ts
  * const validator = new A2uiValidator();
- * validator.validate(messages, STANDARD_REF_MAP, STRICT_VALIDATION);
+ * validator.validate(messages, catalog, STRICT_VALIDATION);
  * ```
  */
 export class A2uiValidator {
@@ -106,7 +105,7 @@ export class A2uiValidator {
    */
   public validateComponents(
     components: Array<Record<string, any>>,
-    catalogOrRefMap: Catalog<any> | ComponentRefMap = STANDARD_REF_MAP,
+    catalogOrRefMap: Catalog<any> | ComponentRefMap,
     config: ValidationConfig = STRICT_VALIDATION,
     options: ValidateComponentsOptions = {},
   ): void {
@@ -132,12 +131,12 @@ export class A2uiValidator {
    *
    * @example
    * ```ts
-   * validator.validate(payloadMessage);
+   * validator.validate(payloadMessage, catalog);
    * ```
    */
   public validate(
     messages: Array<Record<string, any>> | Record<string, any>,
-    catalogOrRefMap: Catalog<any> | ComponentRefMap = STANDARD_REF_MAP,
+    catalogOrRefMap: Catalog<any> | ComponentRefMap,
     config: ValidationConfig = STRICT_VALIDATION,
   ): void {
     const refFieldsMap: ComponentRefMap =

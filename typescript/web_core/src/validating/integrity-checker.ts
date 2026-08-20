@@ -30,20 +30,6 @@ export const RELAXED_PATH_PATTERN =
 /** Map of component type names to sets of single and list child reference property names. */
 export type ComponentRefMap = Record<string, [Set<string>, Set<string>]>;
 
-/** Default component reference map for standard basic catalog component types. */
-export const STANDARD_REF_MAP: ComponentRefMap = {
-  'Column': [new Set(), new Set(['children'])],
-  'Row': [new Set(), new Set(['children'])],
-  'Card': [new Set(['child']), new Set()],
-  'Box': [new Set(['child']), new Set()],
-  'List': [new Set(), new Set(['children'])],
-  'Tabs': [new Set(), new Set(['tabs'])],
-  'Modal': [new Set(['trigger', 'content']), new Set()],
-  'Button': [new Set(['child']), new Set()],
-  'Container': [new Set(['singleChild', 'nestedObj']), new Set(['childrenList', 'tabs'])],
-  'Node': [new Set(['next', 'child']), new Set(['children'])],
-};
-
 /**
  * Result of checking whether a schema represents a component child reference or child list.
  */
@@ -254,7 +240,7 @@ export function isChildOrChildListSchema(schema: unknown): boolean {
  * @returns ComponentRefMap containing single and list reference properties.
  */
 export function buildComponentRefMap(
-  catalogOrComponents: Catalog<any> | ComponentApi[] | Map<string, ComponentApi>,
+  catalogOrComponents: Catalog<any, any> | ComponentApi[] | Map<string, ComponentApi>,
 ): ComponentRefMap {
   const refMap: ComponentRefMap = {};
   const componentApis: ComponentApi[] =
@@ -333,12 +319,12 @@ function* extractPointers(val: any, currentPath: string): Generator<[string, str
  *
  * @example
  * ```ts
- * const refs = Array.from(getComponentReferences(boxComponent, STANDARD_REF_MAP));
+ * const refs = Array.from(getComponentReferences(boxComponent, catalog));
  * ```
  */
 export function* getComponentReferences(
   component: Record<string, any>,
-  catalogOrRefMap: Catalog<any> | ComponentRefMap = STANDARD_REF_MAP,
+  catalogOrRefMap: Catalog<any> | ComponentRefMap,
 ): Generator<[string, string]> {
   if (!component || typeof component !== 'object') {
     return;
@@ -364,19 +350,9 @@ export function* getComponentReferences(
   const refTuple = refFieldsMap[compType];
   const singleRefs = refTuple ? refTuple[0] : new Set<string>();
   const listRefs = refTuple ? refTuple[1] : new Set<string>();
-  const isGeneric = !refTuple;
 
   for (const [key, value] of Object.entries(props)) {
-    if (isGeneric) {
-      if (key === 'id' || key === 'component' || key === 'weight') continue;
-      if (typeof value === 'object' && value !== null) {
-        if ('componentId' in value && typeof value.componentId === 'string' && 'path' in value) {
-          yield* extractPointers(value, key);
-        } else if ('child' in value && typeof value.child === 'string') {
-          yield* extractPointers(value, key);
-        }
-      }
-    } else if (singleRefs.has(key) || listRefs.has(key)) {
+    if (singleRefs.has(key) || listRefs.has(key)) {
       yield* extractPointers(value, key);
     }
   }
@@ -402,12 +378,12 @@ export interface IntegrityOptions {
  *
  * @example
  * ```ts
- * validateComponentIntegrity(components, STANDARD_REF_MAP, { rootId: 'root' });
+ * validateComponentIntegrity(components, catalog, { rootId: 'root' });
  * ```
  */
 export function validateComponentIntegrity(
   components: Array<Record<string, any>>,
-  catalogOrRefMap: Catalog<any> | ComponentRefMap = STANDARD_REF_MAP,
+  catalogOrRefMap: Catalog<any> | ComponentRefMap,
   options: IntegrityOptions = {},
 ): void {
   const refFieldsMap: ComponentRefMap =

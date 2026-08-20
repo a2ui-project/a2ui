@@ -14,15 +14,11 @@
  * limitations under the License.
  */
 
-import {A2uiIntegrityError, A2uiRecursionError} from '../errors.js';
+import {A2uiIntegrityError} from '../errors.js';
 import {Catalog} from '../catalog/types.js';
-import {
-  buildComponentRefMap,
-  ComponentRefMap,
-  getComponentReferences,
-  MAX_GLOBAL_DEPTH,
-  STANDARD_REF_MAP,
-} from './integrity-checker.js';
+import {ComponentRefMap} from './integrity-checker.js';
+import {SurfaceComponentsModel} from '../state/surface-components-model.js';
+import {ComponentModel} from '../state/component-model.js';
 
 /** Configuration options for component topology analysis. */
 export interface TopologyOptions {
@@ -34,36 +30,9 @@ export interface TopologyOptions {
   allowMissingRoot?: boolean;
 }
 
-function dfsTopology(
-  nodeId: string,
-  depth: number,
-  adjList: Record<string, string[]>,
-  visited: Set<string>,
-  recursionStack: Set<string>,
-): void {
-  if (depth > MAX_GLOBAL_DEPTH) {
-    throw new A2uiRecursionError(
-      `Global recursion limit exceeded: logical depth > ${MAX_GLOBAL_DEPTH}`,
-    );
-  }
-
-  visited.add(nodeId);
-  recursionStack.add(nodeId);
-
-  const neighbors = adjList[nodeId] ?? [];
-  for (const neighbor of neighbors) {
-    if (!visited.has(neighbor)) {
-      dfsTopology(neighbor, depth + 1, adjList, visited, recursionStack);
-    } else if (recursionStack.has(neighbor)) {
-      throw new A2uiRecursionError(`Circular reference detected involving component '${neighbor}'`);
-    }
-  }
-
-  recursionStack.delete(nodeId);
-}
-
 /**
  * Analyzes the graph topology of a component tree to detect cycles, self-references, and orphans.
+ * Delegates directly to SurfaceComponentsModel for graph and topology evaluation.
  *
  * @param components List of component definition objects forming the graph.
  * @param catalogOrRefMap Mapping of reference property names per component type or Catalog instance.
@@ -74,65 +43,44 @@ function dfsTopology(
  *
  * @example
  * ```ts
- * const visitedIds = analyzeTopology(components, STANDARD_REF_MAP, { allowOrphanComponents: false });
+ * const visitedIds = analyzeTopology(components, catalog, { allowOrphanComponents: false });
  * ```
  */
 export function analyzeTopology(
   components: Array<Record<string, any>>,
-  catalogOrRefMap: Catalog<any> | ComponentRefMap = STANDARD_REF_MAP,
+  catalogOrRefMap: Catalog<any> | ComponentRefMap,
   options: TopologyOptions = {},
 ): Set<string> {
-  const refFieldsMap: ComponentRefMap =
-    catalogOrRefMap instanceof Catalog ? buildComponentRefMap(catalogOrRefMap) : catalogOrRefMap;
-  const rootId = options.rootId ?? 'root';
-  const allowOrphanComponents = options.allowOrphanComponents ?? false;
-  const allowMissingRoot = options.allowMissingRoot ?? false;
-
-  const adjList: Record<string, string[]> = {};
-  const allIds = new Set<string>();
-
-  // 1. Build Adjacency List
+  const model = new SurfaceComponentsModel(catalogOrRefMap);
   for (const comp of components) {
     if (!comp || typeof comp !== 'object') continue;
-    const compId = comp.id;
-    if (compId === undefined || compId === null) continue;
+    const compId = comp.id !== undefined && comp.id !== null ? String(comp.id) : undefined;
+    if (!compId) continue;
 
-    const compIdStr = String(compId);
-    allIds.add(compIdStr);
-    if (!adjList[compIdStr]) {
-      adjList[compIdStr] = [];
+    let compType = '';
+    let props: Record<string, any> = comp;
+    if (typeof comp.component === 'string') {
+      compType = comp.component;
+    } else if (typeof comp.component === 'object' && comp.component !== null) {
+      compType = Object.keys(comp.component)[0] ?? '';
+      props = comp.component[compType] ?? {};
     }
 
-    for (const [refId, fieldName] of getComponentReferences(comp, refFieldsMap)) {
-      if (refId === compIdStr) {
-        throw new A2uiRecursionError(
-          `Self-reference detected: Component '${compIdStr}' references itself in field '${fieldName}'`,
-        );
-      }
-      adjList[compIdStr].push(refId);
-    }
+    model.addComponent(new ComponentModel(compId, compType, props));
   }
 
-  // 2. Detect Cycles and Depth via DFS
-  const visited = new Set<string>();
-  const recursionStack = new Set<string>();
+  const visited = model.detectCycles({
+    rootId: options.rootId,
+    allowMissingRoot: options.allowMissingRoot,
+  });
 
-  if (allowMissingRoot) {
-    const sortedIds = Array.from(allIds).sort();
-    for (const nodeId of sortedIds) {
-      if (!visited.has(nodeId)) {
-        dfsTopology(nodeId, 0, adjList, visited, recursionStack);
-      }
-    }
-  } else {
-    if (allIds.has(rootId)) {
-      dfsTopology(rootId, 0, adjList, visited, recursionStack);
-    }
-
-    if (!allowOrphanComponents) {
-      const orphans = Array.from(allIds).filter(id => !visited.has(id));
+  if (!options.allowOrphanComponents && !options.allowMissingRoot) {
+    const rootId = options.rootId ?? 'root';
+    if (visited.size < model.size) {
+      const orphans = Array.from(model.keys)
+        .filter(id => !visited.has(id))
+        .sort();
       if (orphans.length > 0) {
-        orphans.sort();
         throw new A2uiIntegrityError(`Component '${orphans[0]}' is not reachable from '${rootId}'`);
       }
     }

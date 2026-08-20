@@ -16,6 +16,8 @@
 
 import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
+import {z} from 'zod';
+import {Catalog} from '../catalog/types.js';
 import {SurfaceComponentsModel} from './surface-components-model.js';
 import {ComponentModel} from './component-model.js';
 
@@ -105,5 +107,139 @@ describe('SurfaceComponentsModel', () => {
   it('safely attempts to remove non-existent component', () => {
     // Should not throw
     model.removeComponent('does-not-exist');
+  });
+
+  describe('inlined topology & cycle detection', () => {
+    beforeEach(() => {
+      const boxApi = {
+        name: 'Box',
+        schema: z.object({
+          child: z.string().describe('ChildComponentId').optional(),
+        }),
+      };
+      const containerApi = {
+        name: 'Container',
+        schema: z.object({
+          singleChild: z.string().describe('ChildComponentId'),
+          childrenList: z.array(z.string()).describe('ChildList'),
+          dynamicChild: z
+            .union([z.array(z.string()), z.object({componentId: z.string(), path: z.string()})])
+            .describe('ChildList'),
+        }),
+      };
+      const textApi = {
+        name: 'Text',
+        schema: z.object({text: z.string()}),
+      };
+      const testCatalog = new Catalog('test-cat', [boxApi, containerApi, textApi]);
+      model.setCatalog(testCatalog);
+    });
+
+    it('extracts child references using schema-driven inspection', () => {
+      const root = new ComponentModel('root', 'Container', {
+        singleChild: 'c1',
+        childrenList: ['c2', 'c3'],
+        dynamicChild: {componentId: 'c4', path: '/items'},
+      });
+      model.addComponent(root);
+
+      const childIds = model.getChildIds('root');
+      assert.ok(childIds.includes('c1'));
+      assert.ok(childIds.includes('c2'));
+      assert.ok(childIds.includes('c3'));
+      assert.ok(childIds.includes('c4'));
+    });
+
+    it('detects immediate self-reference', () => {
+      const root = new ComponentModel('root', 'Box', {child: 'root'});
+      model.addComponent(root);
+
+      assert.throws(
+        () => model.detectCycles(),
+        (err: any) =>
+          err.name === 'A2uiRecursionError' &&
+          err.message.includes("Component 'root' references itself"),
+      );
+    });
+
+    it('detects circular reference in component hierarchy', () => {
+      const root = new ComponentModel('root', 'Box', {child: 'c1'});
+      const c1 = new ComponentModel('c1', 'Box', {child: 'c2'});
+      const c2 = new ComponentModel('c2', 'Box', {child: 'root'});
+      model.addComponent(root);
+      model.addComponent(c1);
+      model.addComponent(c2);
+
+      assert.throws(
+        () => model.detectCycles(),
+        (err: any) =>
+          err.name === 'A2uiRecursionError' && err.message.includes('Circular reference detected'),
+      );
+    });
+
+    it('detects recursion depth limit exceeded', () => {
+      // Build a chain of 52 components
+      model.addComponent(new ComponentModel('root', 'Box', {child: 'node_1'}));
+      for (let i = 1; i <= 52; i++) {
+        const nextId = i === 52 ? undefined : `node_${i + 1}`;
+        model.addComponent(new ComponentModel(`node_${i}`, 'Box', {child: nextId}));
+      }
+
+      assert.throws(
+        () => model.detectCycles(),
+        (err: any) =>
+          err.name === 'A2uiRecursionError' &&
+          err.message.includes('Global recursion limit exceeded'),
+      );
+    });
+
+    it('validates surface topology and detects missing root', () => {
+      model.addComponent(new ComponentModel('leaf', 'Text', {text: 'hi'}));
+
+      assert.throws(
+        () => model.validateTopology({allowMissingRoot: false}),
+        (err: any) =>
+          err.name === 'A2uiIntegrityError' && err.message.includes('Missing root component'),
+      );
+
+      assert.doesNotThrow(() => model.validateTopology({allowMissingRoot: true}));
+    });
+
+    it('validates surface topology and detects dangling references', () => {
+      model.addComponent(new ComponentModel('root', 'Box', {child: 'missing_child'}));
+
+      assert.throws(
+        () => model.validateTopology({allowDanglingReferences: false}),
+        (err: any) =>
+          err.name === 'A2uiIntegrityError' &&
+          err.message.includes("Dangling reference 'missing_child'"),
+      );
+
+      assert.doesNotThrow(() =>
+        model.validateTopology({allowDanglingReferences: true, allowOrphanComponents: true}),
+      );
+    });
+
+    it('validates surface topology and detects orphan components', () => {
+      model.addComponent(new ComponentModel('root', 'Box', {child: 'c1'}));
+      model.addComponent(new ComponentModel('c1', 'Text', {text: 'hi'}));
+      model.addComponent(new ComponentModel('orphan', 'Text', {text: 'unused'}));
+
+      assert.throws(
+        () => model.validateTopology({allowOrphanComponents: false}),
+        (err: any) =>
+          err.name === 'A2uiIntegrityError' && err.message.includes("is not reachable from 'root'"),
+      );
+
+      assert.doesNotThrow(() => model.validateTopology({allowOrphanComponents: true}));
+    });
+
+    it('returns validation errors list via validateReferences without throwing', () => {
+      model.addComponent(new ComponentModel('orphan', 'Text', {text: 'unused'}));
+
+      const errors = model.validateReferences({allowMissingRoot: false});
+      assert.strictEqual(errors.length, 1);
+      assert.ok(errors[0].message.includes('Missing root component'));
+    });
   });
 });

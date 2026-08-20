@@ -126,27 +126,31 @@ export class A2uiStateError extends A2uiError {
 /**
  * Error thrown when component tree integrity checks fail (duplicate IDs, dangling references, missing root).
  */
-export class A2uiIntegrityError extends A2uiError {
+export class A2uiIntegrityError extends A2uiValidationError {
   /**
    * Creates an instance of `A2uiIntegrityError`.
    *
    * @param message Error description.
+   * @param details Additional error details.
    */
-  constructor(message: string) {
-    super(message, 'INTEGRITY_ERROR');
+  constructor(message: string, details?: any) {
+    super(message, details);
+    this.name = 'A2uiIntegrityError';
   }
 }
 
 /**
  * Error thrown when global or function call recursion depth limits are exceeded.
  */
-export class A2uiRecursionError extends A2uiError {
+export class A2uiRecursionError extends A2uiValidationError {
   /**
    * Creates an instance of `A2uiRecursionError`.
    *
    * @param message Error description.
+   * @param details Additional error details.
    */
-  constructor(message: string) {
-    super(message, 'RECURSION_ERROR');
+  constructor(message: string, details?: any) {
+    super(message, details);
+    this.name = 'A2uiRecursionError';
   }
 }
