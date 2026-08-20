@@ -114,7 +114,10 @@ fi
 
 echo "Running ktfmt for Kotlin files..."
 cd "$REPO_ROOT"
-if command -v java >/dev/null 2>&1; then
+# Probe the runtime rather than the binary: macOS ships a /usr/bin/java stub
+# that exists on PATH but exits non-zero when no JDK is installed, so
+# `command -v java` alone would send us into Gradle and fail there.
+if java -version >/dev/null 2>&1; then
   while IFS= read -r -d '' build_file; do
     dir="$(dirname "$build_file")"
     if grep -q "ktfmt" "$build_file" 2>/dev/null; then
@@ -138,7 +141,7 @@ if command -v java >/dev/null 2>&1; then
     fi
   done < <(find "$REPO_ROOT" \( -name build -o -name .gradle -o -name node_modules -o -name .git -o -name .yarn -o -name .dart_tool \) -prune -o -name "build.gradle.kts" -print0)
 else
-  echo "Warning: java command not found. Skipping Kotlin formatting."
+  echo "Warning: no Java runtime found. Skipping Kotlin formatting."
 fi
 
 echo "Done."
