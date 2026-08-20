@@ -15,3 +15,5 @@
  */
 
 export * from './components/basic_components.js';
+export * from './functions/validation_functions_api.js';
+export * from './functions/validation_functions.js';
