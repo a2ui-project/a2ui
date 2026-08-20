@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import yaml from 'js-yaml';
-import {MessageProcessor} from '../../dist/src/processing/message-processor.js';
+import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
 import {Catalog} from '../../dist/src/catalog/types.js';
 import {BASIC_COMPONENTS as V0_8_BASIC_COMPONENTS} from '../../dist/src/v0_8/basic_catalog/index.js';
 import {BASIC_COMPONENTS as V0_9_BASIC_COMPONENTS} from '../../dist/src/v0_9/basic_catalog/index.js';
@@ -458,7 +458,7 @@ function validateProcessMessagesTestCase(testCase) {
   const testCatalogs = getCatalogsForTestCase(testCase);
   const processorOptions = {
     ...(protocolVersion ? {version: protocolVersion} : {}),
-    strictMode: Boolean(testCase.strictMode),
+    ...(testCase.strictMode ? {validationConfig: STRICT_VALIDATION} : {}),
   };
   const processor = new MessageProcessor(testCatalogs, undefined, processorOptions);
 

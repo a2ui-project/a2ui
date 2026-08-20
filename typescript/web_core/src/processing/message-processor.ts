@@ -57,6 +57,45 @@ export interface CapabilitiesOptions {
 }
 
 /**
+ * Configuration options for payload, schema, and topology validation.
+ */
+export interface ValidationConfig {
+  /** Target protocol version expected for incoming messages (e.g. 'v0.8', 'v0.9', 'v1.0'). */
+  targetVersion?: ProtocolVersion | string;
+
+  /** When false, verifies all components in a surface are reachable from the root component. Default: false. */
+  allowOrphanComponents?: boolean;
+
+  /** When false, verifies all component child references point to existing components. Default: false. */
+  allowDanglingReferences?: boolean;
+
+  /** When false, verifies that a component with id 'root' exists in the surface. Default: false. */
+  allowMissingRoot?: boolean;
+
+  /** When false, verifies that all component types exist in the surface catalog. Default: false. */
+  allowUnknownElements?: boolean;
+
+  /** Allowed top-level message operation types (e.g. ['createSurface', 'updateComponents']). */
+  allowedMessages?: string[];
+}
+
+/** Strict validation preset enforcing root presence, valid references, reachability, and catalog compliance. */
+export const STRICT_VALIDATION: ValidationConfig = Object.freeze({
+  allowOrphanComponents: false,
+  allowDanglingReferences: false,
+  allowMissingRoot: false,
+  allowUnknownElements: false,
+});
+
+/** Relaxed validation preset permitting partial topologies and unknown component types. */
+export const RELAXED_VALIDATION: ValidationConfig = Object.freeze({
+  allowOrphanComponents: true,
+  allowDanglingReferences: true,
+  allowMissingRoot: true,
+  allowUnknownElements: true,
+});
+
+/**
  * Options for configuring a MessageProcessor instance.
  */
 export interface MessageProcessorOptions {
@@ -64,8 +103,8 @@ export interface MessageProcessorOptions {
   version?: ProtocolVersion;
   /** Custom version adapter resolver or registry. Defaults to VersionAdapterFactory. */
   adapterRegistry?: VersionAdapterResolver;
-  /** Enable strict mode schema and topology validation. */
-  strictMode?: boolean;
+  /** Validation configuration rules. */
+  validationConfig?: ValidationConfig;
 }
 
 /**
@@ -138,7 +177,7 @@ export class MessageProcessor<T extends ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
   readonly version: ProtocolVersion;
   private readonly adapterRegistry: VersionAdapterResolver;
-  private readonly strictMode: boolean;
+  private readonly validationConfig?: ValidationConfig;
 
   /**
    * Creates a new message processor.
@@ -155,7 +194,17 @@ export class MessageProcessor<T extends ComponentApi> {
     this.model = new SurfaceGroupModel<T>();
     this.version = options?.version ?? 'v0.9';
     this.adapterRegistry = options?.adapterRegistry ?? defaultVersionAdapterFactory;
-    this.strictMode = Boolean(options?.strictMode);
+    if (options?.validationConfig) {
+      this.validationConfig = {
+        allowOrphanComponents: false,
+        allowDanglingReferences: false,
+        allowMissingRoot: false,
+        allowUnknownElements: false,
+        ...options.validationConfig,
+      };
+    } else {
+      this.validationConfig = undefined;
+    }
     if (this.actionHandler) {
       this.model.onAction.subscribe(this.actionHandler);
     }
@@ -350,6 +399,10 @@ export class MessageProcessor<T extends ComponentApi> {
   processMessages(messages: unknown): void {
     if (!messages) return;
 
+    if (this.validationConfig?.targetVersion) {
+      this.validateTargetVersion(messages);
+    }
+
     if (
       typeof messages === 'object' &&
       'type' in (messages as Record<string, unknown>) &&
@@ -375,7 +428,40 @@ export class MessageProcessor<T extends ComponentApi> {
     }
   }
 
+  private validateTargetVersion(messages: unknown): void {
+    const expected = this.validationConfig?.targetVersion;
+    if (!expected) return;
+
+    const checkMsg = (msg: unknown) => {
+      if (typeof msg === 'object' && msg !== null && 'version' in msg) {
+        const msgVer = (msg as {version?: string}).version;
+        if (msgVer && msgVer !== expected) {
+          throw new A2uiValidationError(
+            `Message version '${msgVer}' does not match expected target version '${expected}'`,
+          );
+        }
+      }
+    };
+
+    if (Array.isArray(messages)) {
+      for (const m of messages) {
+        checkMsg(m);
+      }
+    } else {
+      checkMsg(messages);
+    }
+  }
+
   processOperation(op: InternalOperation): void {
+    if (
+      this.validationConfig?.allowedMessages &&
+      !this.validationConfig.allowedMessages.includes(op.type)
+    ) {
+      throw new A2uiValidationError(
+        `Operation '${op.type}' is not permitted by ValidationConfig.allowedMessages`,
+      );
+    }
+
     switch (op.type) {
       case 'createSurface':
         this.processCreateSurfaceOp(op);
@@ -405,7 +491,7 @@ export class MessageProcessor<T extends ComponentApi> {
       throw new A2uiStateError(`Surface ${surfaceId} already exists.`);
     }
 
-    if (this.strictMode) {
+    if (this.validationConfig) {
       if (catalog.themeSchema) {
         const themeResult = catalog.themeSchema.safeParse(theme);
         if (!themeResult.success) {
@@ -460,7 +546,13 @@ export class MessageProcessor<T extends ComponentApi> {
       const mergedProperties = properties;
       if (componentType) {
         const componentApi = surface.catalog.components.get(componentType);
-        if (componentApi) {
+        if (!componentApi) {
+          if (this.validationConfig && !this.validationConfig.allowUnknownElements) {
+            throw new A2uiValidationError(
+              `Unknown component type '${componentType}' not found in catalog '${surface.catalog.id}'.`,
+            );
+          }
+        } else {
           const validationResult = componentApi.schema.safeParse(mergedProperties);
           if (!validationResult.success) {
             const formattedErrors = validationResult.error.errors.map(formatZodIssue).join(', ');
@@ -506,7 +598,7 @@ export class MessageProcessor<T extends ComponentApi> {
       }
     }
 
-    if (this.strictMode) {
+    if (this.validationConfig) {
       this.validateTopology(surface);
     }
   }
@@ -515,9 +607,17 @@ export class MessageProcessor<T extends ComponentApi> {
     const components = surface.componentsModel;
     if (components.size === 0) return;
 
+    const allowMissingRoot = this.validationConfig?.allowMissingRoot ?? false;
+    const allowDanglingReferences = this.validationConfig?.allowDanglingReferences ?? false;
+    const allowOrphanComponents = this.validationConfig?.allowOrphanComponents ?? false;
+
     // Root presence check
-    if (!components.get('root')) {
-      throw new A2uiValidationError('Missing root component');
+    const rootComponent = components.get('root');
+    if (!rootComponent) {
+      if (!allowMissingRoot) {
+        throw new A2uiValidationError('Missing root component');
+      }
+      return;
     }
     const rootId = 'root';
 
@@ -688,7 +788,12 @@ export class MessageProcessor<T extends ComponentApi> {
       const children = getChildren(currId);
       for (const childId of children) {
         if (!components.get(childId)) {
-          throw new A2uiValidationError(`Dangling reference '${childId}' in component '${currId}'`);
+          if (!allowDanglingReferences) {
+            throw new A2uiValidationError(
+              `Dangling reference '${childId}' in component '${currId}'`,
+            );
+          }
+          continue;
         }
         if (visiting.has(childId)) {
           throw new A2uiValidationError(`Circular reference detected in component hierarchy`);
@@ -704,11 +809,13 @@ export class MessageProcessor<T extends ComponentApi> {
     dfs(rootId);
 
     if (visited.size < components.size) {
-      for (const comp of components.values) {
-        if (!visited.has(comp.id)) {
-          throw new A2uiValidationError(
-            `Orphaned component '${comp.id}' is not reachable from root`,
-          );
+      if (!allowOrphanComponents) {
+        for (const comp of components.values) {
+          if (!visited.has(comp.id)) {
+            throw new A2uiValidationError(
+              `Orphaned component '${comp.id}' is not reachable from root`,
+            );
+          }
         }
       }
     }
