@@ -920,10 +920,10 @@ def generate_catalog_definition(
                 validator_code = (
                     '    @model_validator(mode="after")\n    def'
                     " _validate_user_activation(self) -> FunctionDefinition:\n       "
-                    " if self.requires_user_activation and self.allowed_callers =="
-                    " 'agentOnly':\n            raise ValueError(\"Functions with"
-                    " requiresUserActivation=True cannot have"
-                    " allowedCallers='agentOnly'.\")\n        return self\n"
+                    " if self.requires_user_activation and self.allowed_callers !="
+                    " 'rendererOnly':\n            raise ValueError(\"Functions with"
+                    " requiresUserActivation=True can only have allowedCallers equal to"
+                    " 'rendererOnly'.\")\n        return self\n"
                 )
                 comp_block = comp_block.rstrip() + "\n" + validator_code
             blocks.append(comp_block)

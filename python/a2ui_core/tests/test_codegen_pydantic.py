@@ -702,18 +702,27 @@ def test_function_definition_conditional_validation():
     assert fd_valid.requires_user_activation is True
     assert fd_valid.allowed_callers == "rendererOnly"
 
-    # Valid: requiresUserActivation=True with allowedCallers='rendererOrAgent'
-    fd_valid2 = FunctionDefinition.model_validate({
-        "returnType": "boolean",
-        "allowedCallers": "rendererOrAgent",
-        "requiresUserActivation": True,
-    })
-    assert fd_valid2.allowed_callers == "rendererOrAgent"
+    # Invalid: requiresUserActivation=True with allowedCallers='rendererOrAgent'
+    with pytest.raises(
+        ValidationError,
+        match=(
+            "requiresUserActivation=True can only have allowedCallers equal to"
+            " 'rendererOnly'"
+        ),
+    ):
+        FunctionDefinition.model_validate({
+            "returnType": "boolean",
+            "allowedCallers": "rendererOrAgent",
+            "requiresUserActivation": True,
+        })
 
     # Invalid: requiresUserActivation=True with allowedCallers='agentOnly'
     with pytest.raises(
         ValidationError,
-        match="requiresUserActivation=True cannot have allowedCallers='agentOnly'",
+        match=(
+            "requiresUserActivation=True can only have allowedCallers equal to"
+            " 'rendererOnly'"
+        ),
     ):
         FunctionDefinition.model_validate({
             "returnType": "boolean",

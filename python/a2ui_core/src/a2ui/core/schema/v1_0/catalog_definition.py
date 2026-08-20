@@ -53,10 +53,10 @@ class FunctionDefinition(BaseModel):
 
     @model_validator(mode="after")
     def _validate_user_activation(self) -> FunctionDefinition:
-        if self.requires_user_activation and self.allowed_callers == "agentOnly":
+        if self.requires_user_activation and self.allowed_callers != "rendererOnly":
             raise ValueError(
-                "Functions with requiresUserActivation=True cannot have"
-                " allowedCallers='agentOnly'."
+                "Functions with requiresUserActivation=True can only have"
+                " allowedCallers equal to 'rendererOnly'."
             )
         return self
 
