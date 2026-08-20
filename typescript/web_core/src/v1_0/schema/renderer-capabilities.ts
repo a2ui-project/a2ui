@@ -19,27 +19,16 @@
 import {z} from 'zod';
 
 /** Zod schema validating the strict v1.0 protocol renderer capabilities payload. */
-export const V10RendererCapabilitiesSchema = z
-  .object({
-    supportedCatalogIds: z
-      .array(z.string())
-      .describe(
-        'An array of string identifiers for each of the component and function catalogs supported by the renderer.',
-      ),
-    inlineCatalogs: z
-      .array(z.record(z.string(), z.any()))
-      .describe('An array of inline catalog definitions.')
-      .optional(),
-  })
-  .strict();
+export const V10RendererCapabilitiesSchema = z.object({
+  supportedCatalogIds: z.array(z.string()).describe("An array of string identifiers for each of the component and function catalogs supported by the renderer."),
+  inlineCatalogs: z.array(z.record(z.string(), z.any())).describe("An array of inline catalog definitions.").optional(),
+}).strict();
 export type V10RendererCapabilities = z.infer<typeof V10RendererCapabilitiesSchema>;
 
 /** Zod schema validating multi-version renderer capabilities maps across protocol versions. */
-export const RendererCapabilitiesSchema = z
-  .object({
-    'v1.0': V10RendererCapabilitiesSchema.optional(),
-    supportedCatalogIds: z.array(z.string()).optional(),
-    inlineCatalogs: z.array(z.record(z.string(), z.any())).optional(),
-  })
-  .catchall(z.any());
+export const RendererCapabilitiesSchema = z.object({
+  "v1.0": V10RendererCapabilitiesSchema.optional(),
+  supportedCatalogIds: z.array(z.string()).optional(),
+  inlineCatalogs: z.array(z.record(z.string(), z.any())).optional(),
+}).catchall(z.any());
 export type RendererCapabilities = z.infer<typeof RendererCapabilitiesSchema>;

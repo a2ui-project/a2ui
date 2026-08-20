@@ -74,6 +74,22 @@ function transformGeneratedZodCode(code, options = {}) {
     );
   }
 
+  // 6. Special-case handling for FunctionDefinition user activation constraint
+  if (options.name === 'FunctionDefinition') {
+    clean = clean.replace(
+      '.describe("Describes a function\'s validation schema and interface metadata.")',
+      `.superRefine((val, ctx) => {
+        if (val && val.requiresUserActivation && val.allowedCallers !== 'rendererOnly') {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "requiresUserActivation=true must have allowedCallers='rendererOnly'.",
+            path: ['allowedCallers'],
+          });
+        }
+      }).describe("Describes a function's validation schema and interface metadata.")`,
+    );
+  }
+
   return clean;
 }
 
