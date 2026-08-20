@@ -29,8 +29,9 @@ private final class MockFunctionHandler: FunctionHandler, @unchecked Sendable {
 }
 
 private struct UpperFunction: FunctionImplementation, Sendable {
-  let api = FunctionAPI(name: "upper", returnType: .string, schema: try! JSONSchema.Schema(instance: "{}"))
-  
+  let api = FunctionAPI(
+    name: "upper", returnType: .string, schema: try! JSONSchema.Schema(instance: "{}"))
+
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     return .string(arguments["text"]?.stringValue?.uppercased() ?? "")
   }

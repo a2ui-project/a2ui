@@ -57,7 +57,7 @@ struct PluralizeFunctionTests {
       arguments: [
         "value": .number(1),
         "one": .string("1 item"),
-        "other": .string("many items")
+        "other": .string("many items"),
       ], context: context)
     #expect(result == .string("1 item"))
   }
@@ -66,7 +66,7 @@ struct PluralizeFunctionTests {
     let result = try function.evaluate(
       arguments: [
         "value": .number(1),
-        "other": .string("fallback")
+        "other": .string("fallback"),
       ], context: context)
     #expect(result == .string("fallback"))
   }
@@ -76,7 +76,7 @@ struct PluralizeFunctionTests {
       arguments: [
         "value": .number(0),
         "zero": .string("No items"),
-        "other": .string("many items")
+        "other": .string("many items"),
       ], context: context)
     #expect(result == .string("No items"))
   }
@@ -85,7 +85,7 @@ struct PluralizeFunctionTests {
     let result = try function.evaluate(
       arguments: [
         "value": .number(0),
-        "other": .string("0 items")
+        "other": .string("0 items"),
       ], context: context)
     #expect(result == .string("0 items"))
   }
@@ -95,7 +95,7 @@ struct PluralizeFunctionTests {
       arguments: [
         "value": .number(2),
         "two": .string("a pair of items"),
-        "other": .string("many items")
+        "other": .string("many items"),
       ], context: context)
     #expect(result == .string("a pair of items"))
   }
@@ -105,7 +105,7 @@ struct PluralizeFunctionTests {
       arguments: [
         "value": .number(100),
         "one": .string("1 item"),
-        "other": .string("100 items")
+        "other": .string("100 items"),
       ], context: context)
     #expect(result == .string("100 items"))
   }
@@ -115,7 +115,7 @@ struct PluralizeFunctionTests {
       arguments: [
         "value": .string("1"),
         "one": .string("1 item"),
-        "other": .string("many items")
+        "other": .string("many items"),
       ], context: context)
     #expect(result == .string("1 item"))
   }
@@ -124,7 +124,7 @@ struct PluralizeFunctionTests {
     let result = try function.evaluate(
       arguments: [
         "value": .string("invalid"),
-        "other": .string("fallback")
+        "other": .string("fallback"),
       ], context: context)
     #expect(result == .string("fallback"))
   }
@@ -144,7 +144,7 @@ struct PluralizeFunctionTests {
       arguments: [
         "value": .number(5),
         "few": .string("a few items"),
-        "other": .string("many items")
+        "other": .string("many items"),
       ], context: context)
     #expect(result == .string("a few items"))
   }
@@ -156,7 +156,7 @@ struct PluralizeFunctionTests {
       arguments: [
         "value": .number(15),
         "many": .string("a lot of items"),
-        "other": .string("other items")
+        "other": .string("other items"),
       ], context: context)
     #expect(result == .string("a lot of items"))
   }
@@ -166,9 +166,9 @@ struct PluralizeFunctionTests {
     let funcWithResolver = PluralizeFunction(resolver: resolver)
     let result = try funcWithResolver.evaluate(
       arguments: [
-        "value": .number(5), // Resolver returns .few
+        "value": .number(5),  // Resolver returns .few
         "many": .string("a lot of items"),
-        "other": .string("fallback items")
+        "other": .string("fallback items"),
       ], context: context)
     #expect(result == .string("fallback items"))
   }
