@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Support both the v0.8 and v0.9 `MarkdownRenderer` interfaces.
+
 ## 0.1.1
 
 - Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.

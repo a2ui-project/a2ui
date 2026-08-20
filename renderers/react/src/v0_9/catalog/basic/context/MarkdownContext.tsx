@@ -15,7 +15,7 @@
  */
 
 import {createContext, useContext} from 'react';
-import type {MarkdownRenderer} from '@a2ui/web_core/types/types';
+import type {MarkdownRenderer} from '@a2ui/web_core/v0_9';
 
 export const MarkdownContext = createContext<MarkdownRenderer | undefined>(undefined);
 

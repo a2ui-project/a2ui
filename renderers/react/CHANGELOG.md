@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Use the version-specific markdown renderer types from `web_core`.
+
 ## 0.10.2
 
 - (v0_9) Normalize Safari placeholder text color for `DateTimeInput` by injecting WebKit-specific styles via a global stylesheet and adding the `.a2ui-date-time-input` class.
