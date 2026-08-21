@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) Add `A2uiNodeSurface`, a surface renderer driven by `NodeResolver` from `@a2ui/web_core`; component implementations gain an optional node-driven `view` (see `NodeViewProps` and `useSignalValue`) ([#2077](https://github.com/a2ui-project/a2ui/pull/2077)).
+
 ## 0.10.2
 
 - (v0_9) Normalize Safari placeholder text color for `DateTimeInput` by injecting WebKit-specific styles via a global stylesheet and adding the `.a2ui-date-time-input` class.

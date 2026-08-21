@@ -87,7 +87,7 @@ struct DataContextTests {
     #expect(mockHandler.lastRequestedName == "concat")
     #expect(result.stringValue == "Hello, World!")
   }
-  
+
   @Test func resolveDynamicValuePassesThroughNonBindingContainers() {
     let mockHandler = MockFunctionHandler()
     let dataModel = DataModel()
