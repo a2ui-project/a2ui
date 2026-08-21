@@ -1,0 +1,120 @@
+// Copyright 2026 The A2UI Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+edition = "2023";
+
+package a2ui.v1_0;
+
+import "common_types.proto";
+import "google/protobuf/struct.proto";
+
+option go_package = "a2ui.org/specification/v1_0/proto/a2uiproto";
+option java_multiple_files = true;
+option java_package = "org.a2ui.v1_0";
+
+// SurfaceMetadata contains optional surface-level metadata.
+message SurfaceMetadata {
+  // Vendor extensions attached to the surface.
+  Extensions extensions = 1;
+}
+
+// Component represents a UI component instance on a surface.
+message Component {
+  // The unique identifier for this component within the surface.
+  string id = 1;
+  // The component type name from the catalog (e.g. "Text", "Button", "Row").
+  string component = 2;
+  // Optional catalog ID overriding any surface-level default catalogId.
+  string catalog_id = 3;
+  // Accessibility attributes for assistive technologies.
+  AccessibilityAttributes accessibility = 4;
+  // Optional component metadata.
+  ComponentMetadata metadata = 5;
+  // Catalog-specific properties of the component.
+  google.protobuf.Struct properties = 6;
+}
+
+// CreateSurfaceMessage signals the renderer to create a new surface and initialize its component tree and data.
+message CreateSurfaceMessage {
+  // The unique identifier for the UI surface to be rendered.
+  string surface_id = 1;
+  // The default catalog ID for components and functions in this surface.
+  string catalog_id = 2;
+  // Whether the renderer should send the full data model in every client event.
+  bool send_data_model = 3;
+  // Initial list of UI components for the surface.
+  repeated Component components = 4;
+  // Initial root data model for the surface.
+  google.protobuf.Struct data_model = 5;
+  // Optional surface-level metadata.
+  SurfaceMetadata metadata = 6;
+}
+
+// UpdateComponentsMessage updates an existing surface with a new set of component definitions.
+message UpdateComponentsMessage {
+  // The unique identifier for the UI surface to be updated.
+  string surface_id = 1;
+  // The list of UI components to add or update.
+  repeated Component components = 2;
+}
+
+// UpdateDataModelMessage updates data within the data model of an existing surface.
+message UpdateDataModelMessage {
+  // The unique identifier for the UI surface this data model update applies to.
+  string surface_id = 1;
+  // An optional JSON Pointer path within the data model. If empty or "/", updates the root.
+  string path = 2;
+  // The data to update in the data model. If set to null, deletes the value at path.
+  google.protobuf.Value value = 3;
+}
+
+// DeleteSurfaceMessage signals the renderer to remove a surface and its contents.
+message DeleteSurfaceMessage {
+  // The unique identifier for the UI surface to be deleted.
+  string surface_id = 1;
+}
+
+// CallRendererFunctionMessage signals the renderer to execute a function locally on behalf of the agent.
+message CallRendererFunctionMessage {
+  // Unique ID for this function call instance.
+  string function_call_id = 1;
+  // The function invocation specification.
+  FunctionCall call_function = 2;
+}
+
+// AgentFunctionResponseMessage returns the result of a callAgentFunction invocation.
+message AgentFunctionResponseMessage {
+  // The response matching the initiating function call.
+  FunctionResponse agent_function_response = 1;
+}
+
+// AgentToRendererMessage represents a message envelope sent from the agent to the renderer.
+message AgentToRendererMessage {
+  // The protocol version (e.g. "v1.0").
+  string version = 1;
+  oneof message {
+    // Signals the renderer to create a new surface.
+    CreateSurfaceMessage create_surface = 2;
+    // Updates components for an existing surface.
+    UpdateComponentsMessage update_components = 3;
+    // Updates data model values for an existing surface.
+    UpdateDataModelMessage update_data_model = 4;
+    // Signals the renderer to delete an existing surface.
+    DeleteSurfaceMessage delete_surface = 5;
+    // Requests local execution of a renderer function.
+    CallRendererFunctionMessage call_renderer_function = 6;
+    // Delivers a response for an agent function previously requested by the renderer.
+    AgentFunctionResponseMessage agent_function_response = 7;
+  }
+}

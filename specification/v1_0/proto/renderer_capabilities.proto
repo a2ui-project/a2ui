@@ -1,0 +1,37 @@
+// Copyright 2026 The A2UI Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+edition = "2023";
+
+package a2ui.v1_0;
+
+import "catalog_definition.proto";
+
+option go_package = "a2ui.org/specification/v1_0/proto/a2uiproto";
+option java_multiple_files = true;
+option java_package = "org.a2ui.v1_0";
+
+// RendererCapabilitiesV1 defines UI rendering capabilities for A2UI protocol v1.0.
+message RendererCapabilitiesV1 {
+  // Catalog identifiers supported natively by the renderer.
+  repeated string supported_catalog_ids = 1;
+  // Inline catalog definitions provided by the renderer when agent accepts inline catalogs.
+  repeated CatalogDefinition inline_catalogs = 2;
+}
+
+// RendererCapabilities advertises a renderer's UI features to agents in transport handshakes.
+message RendererCapabilities {
+  // Protocol v1.0 capabilities.
+  RendererCapabilitiesV1 v1_0 = 1 [json_name = "v1.0"];
+}

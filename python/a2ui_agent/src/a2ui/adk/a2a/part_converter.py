@@ -38,6 +38,7 @@ from typing import Optional
 
 from a2a import types as a2a_types
 from a2ui.a2a.parts import create_a2ui_part, parse_content_to_parts
+from a2ui.core.serialization import OutputFormat
 from a2ui.parser.parser import Parser
 from a2ui.inference_formats.direct_json import DirectJsonParser
 from a2ui.schema import constants
@@ -71,11 +72,13 @@ class A2uiPartConverter:
         fallback_text: Optional[str] = None,
         version: str = constants.VERSION_0_8,
         parser: Optional[Parser] = None,
+        output_format: OutputFormat = OutputFormat.JSON_DICT,
     ):
         self._catalog = a2ui_catalog
         self._bypass_tool_check = bypass_tool_check
         self._fallback_text = fallback_text
         self._version = version
+        self._output_format = output_format
         self._parser = parser or DirectJsonParser(a2ui_catalog)
 
     def convert(self, part: genai_types.Part) -> list[a2a_types.Part]:
@@ -110,7 +113,11 @@ class A2uiPartConverter:
                     json_data = response_dict.get(constants.A2UI_VALIDATED_JSON_KEY)
                     if json_data:
                         return [
-                            create_a2ui_part(message, version=self._version)
+                            create_a2ui_part(
+                                message,
+                                version=self._version,
+                                output_format=self._output_format,
+                            )
                             for message in json_data
                         ]
 
@@ -126,6 +133,7 @@ class A2uiPartConverter:
                         parser=self._parser,
                         fallback_text=self._fallback_text,
                         version=self._version,
+                        output_format=self._output_format,
                     )
 
         # 2. Handle Tool Calls (FunctionCall) - Skip sending to client
@@ -142,6 +150,7 @@ class A2uiPartConverter:
                     parser=self._parser,
                     fallback_text=self._fallback_text,
                     version=self._version,
+                    output_format=self._output_format,
                 )
 
         # 4. Default conversion for other parts

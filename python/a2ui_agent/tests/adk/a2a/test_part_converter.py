@@ -303,3 +303,74 @@ def test_converter_class_convert_tool_response_with_result_containing_invalid_a2
     a2a_parts = converter.convert(part)
     assert len(a2a_parts) == 1
     assert a2a_parts[0].root.text == custom_fallback
+
+
+def test_converter_class_convert_protobuf_message_output_format():
+    from a2ui.core.serialization import OutputFormat, MIME_TYPE_A2UI_PROTO
+
+    catalog_mock = MagicMock(spec=A2uiCatalog)
+    converter = A2uiPartConverter(
+        catalog_mock, output_format=OutputFormat.PROTO_MESSAGE
+    )
+
+    valid_a2ui = {
+        "createSurface": {
+            "surfaceId": "s_proto",
+            "catalogId": "basic",
+        }
+    }
+    function_response = genai_types.FunctionResponse(
+        name=SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_NAME,
+        response={
+            SendA2uiToClientToolset._SendA2uiJsonToClientTool.VALIDATED_A2UI_JSON_KEY: [
+                valid_a2ui
+            ]
+        },
+    )
+    part = genai_types.Part(function_response=function_response)
+
+    a2a_parts = converter.convert(part)
+    assert len(a2a_parts) == 1
+    assert a2a_parts[0].root.metadata["mimeType"] == MIME_TYPE_A2UI_PROTO
+    assert isinstance(a2a_parts[0].root, a2a_types.DataPart)
+    assert a2a_parts[0].root.data["createSurface"]["surfaceId"] == "s_proto"
+
+
+def test_converter_class_convert_protobuf_bytes_output_format():
+    import base64
+    from a2ui.core.serialization import OutputFormat, MIME_TYPE_PROTO_BYTES
+    from a2ui.core.proto.v1_0 import agent_to_renderer_pb2
+
+    catalog_mock = MagicMock(spec=A2uiCatalog)
+    converter = A2uiPartConverter(
+        catalog_mock, output_format=OutputFormat.PROTO_BYTES
+    )
+
+    valid_a2ui = {
+        "createSurface": {
+            "surfaceId": "s_bytes",
+            "catalogId": "basic",
+        }
+    }
+    function_response = genai_types.FunctionResponse(
+        name=SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_NAME,
+        response={
+            SendA2uiToClientToolset._SendA2uiJsonToClientTool.VALIDATED_A2UI_JSON_KEY: [
+                valid_a2ui
+            ]
+        },
+    )
+    part = genai_types.Part(function_response=function_response)
+
+    a2a_parts = converter.convert(part)
+    assert len(a2a_parts) == 1
+    assert a2a_parts[0].root.metadata["mimeType"] == MIME_TYPE_PROTO_BYTES
+    assert isinstance(a2a_parts[0].root, a2a_types.FilePart)
+    assert isinstance(a2a_parts[0].root.file.bytes, str)
+
+    # Decode base64 bytes to verify protobuf validity
+    raw_bytes = base64.b64decode(a2a_parts[0].root.file.bytes)
+    msg = agent_to_renderer_pb2.AgentToRendererMessage()
+    msg.ParseFromString(raw_bytes)
+    assert msg.create_surface.surface_id == "s_bytes"
+

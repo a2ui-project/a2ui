@@ -1,0 +1,119 @@
+// Copyright 2026 The A2UI Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+edition = "2023";
+
+package a2ui.v1_0;
+
+import "common_types.proto";
+import "google/protobuf/struct.proto";
+
+option go_package = "a2ui.org/specification/v1_0/proto/a2uiproto";
+option java_multiple_files = true;
+option java_package = "org.a2ui.v1_0";
+
+// ReturnType defines the return type of a catalog function.
+enum ReturnType {
+  RETURN_TYPE_UNSPECIFIED = 0;
+  RETURN_TYPE_STRING = 1;
+  RETURN_TYPE_NUMBER = 2;
+  RETURN_TYPE_BOOLEAN = 3;
+  RETURN_TYPE_ARRAY = 4;
+  RETURN_TYPE_OBJECT = 5;
+  RETURN_TYPE_VALIDATION_RESULT = 6;
+  RETURN_TYPE_ANY = 7;
+  RETURN_TYPE_VOID = 8;
+}
+
+// AllowedCallers specifies which roles are authorized to invoke a function.
+enum AllowedCallers {
+  ALLOWED_CALLERS_UNSPECIFIED = 0;
+  ALLOWED_CALLERS_RENDERER_ONLY = 1;
+  ALLOWED_CALLERS_AGENT_ONLY = 2;
+  ALLOWED_CALLERS_RENDERER_OR_AGENT = 3;
+}
+
+// ValidationSeverity indicates the severity level of a validation outcome.
+enum ValidationSeverity {
+  VALIDATION_SEVERITY_UNSPECIFIED = 0;
+  VALIDATION_SEVERITY_ERROR = 1;
+  VALIDATION_SEVERITY_WARNING = 2;
+  VALIDATION_SEVERITY_INFO = 3;
+}
+
+// ComponentDefinitionMetadata contains static metadata for a component definition.
+message ComponentDefinitionMetadata {
+  // Vendor extensions attached to the component definition.
+  Extensions extensions = 1;
+}
+
+// ComponentDefinition describes a component's schema and composition rules.
+message ComponentDefinition {
+  // List of parent component type names that can contain this component.
+  repeated string allowed_parents = 1;
+  // List of child component type names allowed inside this component.
+  repeated string allowed_children = 2;
+  // Static component metadata.
+  ComponentDefinitionMetadata metadata = 3;
+  // JSON Schema describing properties accepted by this component.
+  google.protobuf.Struct schema = 4;
+}
+
+// FunctionDefinition describes a function's schema, return type, and invocation rules.
+message FunctionDefinition {
+  // Human-readable description of the function.
+  string description = 1;
+  // The data type returned by the function.
+  ReturnType return_type = 2;
+  // Roles authorized to invoke the function.
+  AllowedCallers allowed_callers = 3;
+  // Whether the function requires user interaction context to execute.
+  bool requires_user_activation = 4;
+  // JSON Schema describing the expected arguments for the function.
+  google.protobuf.Struct args_schema = 5;
+}
+
+// ValidationResult represents the evaluation result of a validation rule or check.
+message ValidationResult {
+  // Whether the validation check passed.
+  bool valid = 1;
+  // Machine-readable error code.
+  string code = 2;
+  // Human-readable error or warning message.
+  string message = 3;
+  // Severity level of the validation result.
+  ValidationSeverity severity = 4;
+}
+
+// CatalogDefinition defines a collection of component and function definitions.
+message CatalogDefinition {
+  // The JSON Schema URI for this catalog definition.
+  string schema = 1 [json_name = "$schema"];
+  // The unique identifier URI for this schema instance.
+  string id = 2 [json_name = "$id"];
+  // The A2UI protocol version of this catalog (e.g. "1.0").
+  string protocol_version = 3;
+  // Human-readable title of the catalog.
+  string title = 4;
+  // Human-readable description of the catalog.
+  string description = 5;
+  // Unique identifier for the catalog.
+  string catalog_id = 6;
+  // Markdown-formatted design instructions or guidelines for this catalog.
+  string instructions = 7;
+  // Component definitions provided by this catalog.
+  map<string, ComponentDefinition> components = 8;
+  // Function definitions provided by this catalog.
+  map<string, FunctionDefinition> functions = 9;
+}

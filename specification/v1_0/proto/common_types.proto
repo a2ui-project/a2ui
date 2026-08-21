@@ -1,0 +1,242 @@
+// Copyright 2026 The A2UI Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+edition = "2023";
+
+package a2ui.v1_0;
+
+import "google/protobuf/struct.proto";
+
+option go_package = "a2ui.org/specification/v1_0/proto/a2uiproto";
+option java_multiple_files = true;
+option java_package = "org.a2ui.v1_0";
+
+// LiveMode controls screen reader announcements for dynamic updates (WAI-ARIA aria-live).
+enum LiveMode {
+  LIVE_MODE_UNSPECIFIED = 0;
+  // Dynamic updates are not announced automatically.
+  LIVE_MODE_OFF = 1;
+  // Screen reader waits for a user pause before announcing updates.
+  LIVE_MODE_POLITE = 2;
+  // Screen reader interrupts immediately to announce updates.
+  LIVE_MODE_ASSERTIVE = 3;
+}
+
+// AccessibilityAttributes provides attributes to enhance accessibility for assistive technologies.
+message AccessibilityAttributes {
+  // A short string conveying the purpose or intent of an element.
+  DynamicString label = 1;
+  // Additional descriptive information such as instructions or result of an action.
+  DynamicString description = 2;
+  // Controls screen reader announcement priority for dynamic updates.
+  LiveMode live = 3;
+  // Whether the element and its children are hidden from assistive technologies.
+  DynamicBoolean hidden = 4;
+}
+
+// Extensions contains optional vendor-specific metadata. Keys MUST be Unicode identifiers (UAX #31).
+message Extensions {
+  // Key-value pairs of extension properties.
+  map<string, google.protobuf.Value> fields = 1;
+}
+
+// ComponentMetadata contains optional component-level metadata.
+message ComponentMetadata {
+  // Vendor extensions attached to the component.
+  Extensions extensions = 1;
+}
+
+// ComponentCommon defines envelope properties shared across all UI components.
+message ComponentCommon {
+  // The unique identifier for this component within the surface.
+  string id = 1;
+  // The catalog ID overriding any surface-level default catalogId.
+  string catalog_id = 2;
+  // Accessibility attributes for assistive technologies.
+  AccessibilityAttributes accessibility = 3;
+  // Optional component metadata.
+  ComponentMetadata metadata = 4;
+}
+
+// StaticChildList defines a static array of child component identifiers.
+message StaticChildList {
+  // The ordered list of child component IDs.
+  repeated string component_ids = 1;
+}
+
+// ChildListTemplate defines a dynamic template for generating children from a data model list.
+message ChildListTemplate {
+  // The ID of the component to use as a template.
+  string component_id = 1;
+  // The JSON Pointer path to the list of items in the data model.
+  string path = 2;
+}
+
+// ChildList represents either a static list of child component IDs or a dynamic child template.
+message ChildList {
+  oneof children_type {
+    // A static list of child component IDs.
+    StaticChildList static_list = 1;
+    // A template for generating children dynamically from data.
+    ChildListTemplate template = 2;
+  }
+}
+
+// DataBinding points to a location within the data model using a JSON Pointer path.
+message DataBinding {
+  // A JSON Pointer path to a value in the data model.
+  string path = 1;
+}
+
+// DynamicValue represents a value that can be a literal, a data binding path, or a function call.
+message DynamicValue {
+  oneof value {
+    string literal_string = 1;
+    double literal_number = 2;
+    bool literal_boolean = 3;
+    google.protobuf.ListValue literal_list = 4;
+    google.protobuf.Struct literal_object = 5;
+    DataBinding data_binding = 6;
+    FunctionCall function_call = 7;
+  }
+}
+
+// DynamicString represents a string that can be a literal, a data binding path, or a function call.
+message DynamicString {
+  oneof value {
+    string literal_string = 1;
+    DataBinding data_binding = 2;
+    FunctionCall function_call = 3;
+  }
+}
+
+// DynamicNumber represents a number that can be a literal, a data binding path, or a function call.
+message DynamicNumber {
+  oneof value {
+    double literal_number = 1;
+    DataBinding data_binding = 2;
+    FunctionCall function_call = 3;
+  }
+}
+
+// DynamicBoolean represents a boolean that can be a literal, a data binding path, or a function call.
+message DynamicBoolean {
+  oneof value {
+    bool literal_boolean = 1;
+    DataBinding data_binding = 2;
+    FunctionCall function_call = 3;
+  }
+}
+
+// StringList represents a list of string values.
+message StringList {
+  repeated string values = 1;
+}
+
+// DynamicStringList represents a list of strings that can be literal, a data binding path, or a function call.
+message DynamicStringList {
+  oneof value {
+    StringList literal_string_list = 1;
+    DataBinding data_binding = 2;
+    FunctionCall function_call = 3;
+  }
+}
+
+// FunctionCommon defines base properties for function invocations.
+message FunctionCommon {
+  // The catalog ID for this function, overriding surface-level default catalogId.
+  string catalog_id = 1;
+}
+
+// FunctionCall invokes a named catalog function or system function.
+message FunctionCall {
+  // The name of the function to call (e.g. "formatString", "@index").
+  string call = 1;
+  // The catalog ID overriding any surface-level default catalogId.
+  string catalog_id = 2;
+  // Arguments passed to the function.
+  map<string, DynamicValue> args = 3;
+}
+
+// IndexSystemFunctionArguments represents arguments for the @index system function.
+message IndexSystemFunctionArguments {
+  // Optional offset to add to the 0-based index (e.g. 1 for 1-based indexing).
+  DynamicNumber offset = 1;
+}
+
+// CheckRule defines a single validation check applied to an input component.
+message CheckRule {
+  oneof condition {
+    // A path in the data model evaluating to a ValidationResult.
+    DataBinding data_binding = 1;
+    // A function call evaluating to a ValidationResult.
+    FunctionCall function_call = 2;
+  }
+  // Optional fallback error message.
+  string message = 3;
+}
+
+// Checkable defines renderer-side validation checks for components.
+message Checkable {
+  // The validation check rules to execute on the component.
+  repeated CheckRule checks = 1;
+}
+
+// EventAction defines an interaction handler that dispatches an event to the agent.
+message EventAction {
+  // The name of the action dispatched to the agent.
+  string name = 1;
+  // An optional human-readable message describing the action performed.
+  DynamicString user_message = 2;
+  // Context key-value pairs associated with the event.
+  map<string, DynamicValue> context = 3;
+}
+
+// Action defines an interaction handler that dispatches an agent event or executes a function.
+message Action {
+  oneof action_type {
+    // Triggers an agent-side event.
+    EventAction event = 1;
+    // Executes a renderer or agent-side function.
+    FunctionCall function_call = 2;
+  }
+}
+
+// SurfaceContainer represents the canonical container component for an A2UI surface.
+message SurfaceContainer {
+  // The component identifier, always "Surface".
+  string component = 1;
+  // The root child ID, always "root".
+  string child = 2;
+}
+
+// FunctionError describes an error resulting from function execution.
+message FunctionError {
+  // A machine-readable error code.
+  string code = 1;
+  // A human-readable description of why the function failed.
+  string message = 2;
+}
+
+// FunctionResponse represents the result of a function invocation.
+message FunctionResponse {
+  // The unique ID matching the initiating function call.
+  string function_call_id = 1;
+  oneof response {
+    // The successful return value of the function.
+    google.protobuf.Value value = 2;
+    // An error object indicating failure of function execution.
+    FunctionError error = 3;
+  }
+}

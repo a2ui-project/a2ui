@@ -41,6 +41,14 @@ from .operations import (
 )
 
 
+from a2ui.core.proto.v1_0 import (
+    agent_to_renderer_pb2,
+    agent_to_renderer_list_pb2,
+    agent_to_renderer_list_wrapper_pb2,
+)
+from a2ui.core.serialization.converter import agent_message_to_dict
+
+
 class MessageProcessor:
     """Core state engine that validates payloads, manages surfaces, and applies mutation ops."""
 
@@ -58,12 +66,61 @@ class MessageProcessor:
         if action_handler:
             self.model.on_action.subscribe(action_handler)
 
-    def process_messages(self, messages: AgentToRendererMessagePayload) -> None:
-        """Accepts a list of parsed JSON messages and executes them in order."""
-        adapter = VersionAdapterFactory.resolve_from_payload(messages)
-        operations = adapter.extract_operations(messages)
+    def process_messages(
+        self,
+        messages: Union[
+            AgentToRendererMessagePayload,
+            bytes,
+            bytearray,
+            agent_to_renderer_pb2.AgentToRendererMessage,
+            agent_to_renderer_list_wrapper_pb2.AgentToRendererListWrapper,
+            agent_to_renderer_list_pb2.AgentToRendererMessageList,
+        ],
+    ) -> None:
+        """Accepts a list of parsed JSON messages, Protobuf instances, or binary bytes and executes them in order."""
+        if isinstance(messages, (bytes, bytearray)):
+            message_payload = self._decode_protobuf_bytes(bytes(messages))
+        elif isinstance(messages, agent_to_renderer_pb2.AgentToRendererMessage):
+            message_payload = [agent_message_to_dict(messages)]
+        elif isinstance(messages, agent_to_renderer_list_wrapper_pb2.AgentToRendererListWrapper):
+            message_payload = [agent_message_to_dict(m) for m in messages.messages.messages]
+        elif isinstance(messages, agent_to_renderer_list_pb2.AgentToRendererMessageList):
+            message_payload = [agent_message_to_dict(m) for m in messages.messages]
+        else:
+            message_payload = messages
+
+        adapter = VersionAdapterFactory.resolve_from_payload(message_payload)
+        operations = adapter.extract_operations(message_payload)
         for op in operations:
             self._process_operation(op)
+
+    def _decode_protobuf_bytes(self, data: bytes) -> List[Dict[str, Any]]:
+        """Decodes binary Protobuf bytes into message dictionary representations."""
+        try:
+            msg = agent_to_renderer_pb2.AgentToRendererMessage()
+            msg.ParseFromString(data)
+            if msg.WhichOneof("message") is not None:
+                return [agent_message_to_dict(msg)]
+        except Exception:
+            pass
+
+        try:
+            wrapper = agent_to_renderer_list_wrapper_pb2.AgentToRendererListWrapper()
+            wrapper.ParseFromString(data)
+            if len(wrapper.messages.messages) > 0:
+                return [agent_message_to_dict(m) for m in wrapper.messages.messages]
+        except Exception:
+            pass
+
+        try:
+            msg_list = agent_to_renderer_list_pb2.AgentToRendererMessageList()
+            msg_list.ParseFromString(data)
+            if len(msg_list.messages) > 0:
+                return [agent_message_to_dict(m) for m in msg_list.messages]
+        except Exception:
+            pass
+
+        return []
 
     def get_renderer_capabilities(
         self,

@@ -82,6 +82,14 @@
       "types": "./dist/src/v1_0/basic_catalog/index.d.ts",
       "default": "./dist/src/v1_0/basic_catalog/index.js"
     },
+    "./proto": {
+      "types": "./dist/src/v1_0/proto/index.d.ts",
+      "default": "./dist/src/v1_0/proto/index.js"
+    },
+    "./serialization": {
+      "types": "./dist/src/serialization/index.d.ts",
+      "default": "./dist/src/serialization/index.js"
+    },
     "./data/*": {
       "types": "./dist/src/v0_8/data/*.d.ts",
       "default": "./dist/src/v0_8/data/*.js"
@@ -110,6 +118,7 @@
     "test": "wireit",
     "test:coverage": "c8 node --test \"dist/**/*.test.js\"",
     "generate-zod-schemas": "wireit",
+    "generate-protos": "wireit",
     "compile": "tsc",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -119,6 +128,18 @@
     "clean": "wireit"
   },
   "wireit": {
+    "generate-protos": {
+      "command": "node scripts/generate-protos.mjs",
+      "files": [
+        "../../specification/v1_0/proto/*.proto",
+        "../../specification/v1_0/catalogs/**/*.proto",
+        "scripts/generate-protos.mjs"
+      ],
+      "output": [
+        "src/v1_0/proto/a2ui-proto.json",
+        "src/v1_0/proto/index.ts"
+      ]
+    },
     "generate-zod-schemas": {
       "command": "node scripts/generate-zod-schemas.mjs && prettier --write src/v1_0/schema/*.ts",
       "files": [
@@ -156,6 +177,7 @@
       "command": "tsc -b --pretty",
       "dependencies": [
         "copy-spec",
+        "generate-protos",
         "generate-zod-schemas"
       ],
       "files": [
@@ -217,6 +239,7 @@
   "dependencies": {
     "@preact/signals-core": "^1.14.2",
     "date-fns": "^4.4.0",
+    "protobufjs": "^7.4.0",
     "zod": "^3.25.76",
     "zod-to-json-schema": "^3.25.2"
   }

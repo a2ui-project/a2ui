@@ -122,6 +122,9 @@ A2uiExamplesProvider: TypeAlias = Callable[
 ]
 
 
+from a2ui.core.serialization import OutputFormat
+
+
 @experimental
 class SendA2uiToClientToolset(base_toolset.BaseToolset):
     """A toolset that provides A2UI Tools and can be enabled/disabled."""
@@ -131,9 +134,11 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
         a2ui_enabled: Union[bool, A2uiEnabledProvider],
         a2ui_catalog: Union[catalog.A2uiCatalog, A2uiCatalogProvider],
         a2ui_examples: Union[str, A2uiExamplesProvider],
+        output_format: OutputFormat = OutputFormat.JSON_DICT,
     ):
         super().__init__()
         self._a2ui_enabled = a2ui_enabled
+        self._output_format = output_format
         self._ui_tool = self._SendA2uiJsonToClientTool(a2ui_catalog, a2ui_examples)
         self._ui_tools: list[base_tool.BaseTool] = [self._ui_tool]
 
@@ -190,7 +195,7 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
             A configured A2uiPartConverter.
         """
         catalog = await self._ui_tool._resolve_a2ui_catalog(ctx)
-        return A2uiPartConverter(catalog)
+        return A2uiPartConverter(catalog, output_format=self._output_format)
 
     class _SendA2uiJsonToClientTool(base_tool.BaseTool):
         TOOL_NAME = A2UI_TOOL_NAME

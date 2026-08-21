@@ -28,5 +28,6 @@ export * from './rendering/index.js';
 export * from './validating/index.js';
 export * from './reactivity/index.js';
 export * from './expressions/index.js';
+export * from './serialization/index.js';
 export * from './errors.js';
 export * from './common/events.js';

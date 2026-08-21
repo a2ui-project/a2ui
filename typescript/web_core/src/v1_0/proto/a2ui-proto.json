@@ -1,0 +1,2522 @@
+{
+  "nested": {
+    "a2ui": {
+      "nested": {
+        "v1_0": {
+          "options": {
+            "go_package": "a2ui.org/specification/v1_0/proto/a2uiproto",
+            "java_multiple_files": true,
+            "java_package": "org.a2ui.v1_0"
+          },
+          "nested": {
+            "LiveMode": {
+              "edition": "2023",
+              "values": {
+                "LIVE_MODE_UNSPECIFIED": 0,
+                "LIVE_MODE_OFF": 1,
+                "LIVE_MODE_POLITE": 2,
+                "LIVE_MODE_ASSERTIVE": 3
+              },
+              "comment": null,
+              "comments": {
+                "LIVE_MODE_UNSPECIFIED": null,
+                "LIVE_MODE_OFF": null,
+                "LIVE_MODE_POLITE": null,
+                "LIVE_MODE_ASSERTIVE": null
+              }
+            },
+            "AccessibilityAttributes": {
+              "edition": "2023",
+              "fields": {
+                "label": {
+                  "type": "DynamicString",
+                  "id": 1,
+                  "comment": null
+                },
+                "description": {
+                  "type": "DynamicString",
+                  "id": 2,
+                  "comment": null
+                },
+                "live": {
+                  "type": "LiveMode",
+                  "id": 3,
+                  "comment": null
+                },
+                "hidden": {
+                  "type": "DynamicBoolean",
+                  "id": 4,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "Extensions": {
+              "edition": "2023",
+              "fields": {
+                "fields": {
+                  "keyType": "string",
+                  "type": "google.protobuf.Value",
+                  "id": 1,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "ComponentMetadata": {
+              "edition": "2023",
+              "fields": {
+                "extensions": {
+                  "type": "Extensions",
+                  "id": 1,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "ComponentCommon": {
+              "edition": "2023",
+              "fields": {
+                "id": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                },
+                "catalogId": {
+                  "type": "string",
+                  "id": 2,
+                  "comment": null
+                },
+                "accessibility": {
+                  "type": "AccessibilityAttributes",
+                  "id": 3,
+                  "comment": null
+                },
+                "metadata": {
+                  "type": "ComponentMetadata",
+                  "id": 4,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "StaticChildList": {
+              "edition": "2023",
+              "fields": {
+                "componentIds": {
+                  "rule": "repeated",
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "ChildListTemplate": {
+              "edition": "2023",
+              "fields": {
+                "componentId": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                },
+                "path": {
+                  "type": "string",
+                  "id": 2,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "ChildList": {
+              "edition": "2023",
+              "oneofs": {
+                "childrenType": {
+                  "oneof": [
+                    "staticList",
+                    "template"
+                  ],
+                  "comment": null
+                }
+              },
+              "fields": {
+                "staticList": {
+                  "type": "StaticChildList",
+                  "id": 1,
+                  "comment": null
+                },
+                "template": {
+                  "type": "ChildListTemplate",
+                  "id": 2,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "DataBinding": {
+              "edition": "2023",
+              "fields": {
+                "path": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "DynamicValue": {
+              "edition": "2023",
+              "oneofs": {
+                "value": {
+                  "oneof": [
+                    "literalString",
+                    "literalNumber",
+                    "literalBoolean",
+                    "literalList",
+                    "literalObject",
+                    "dataBinding",
+                    "functionCall"
+                  ],
+                  "comment": null
+                }
+              },
+              "fields": {
+                "literalString": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                },
+                "literalNumber": {
+                  "type": "double",
+                  "id": 2,
+                  "comment": null
+                },
+                "literalBoolean": {
+                  "type": "bool",
+                  "id": 3,
+                  "comment": null
+                },
+                "literalList": {
+                  "type": "google.protobuf.ListValue",
+                  "id": 4,
+                  "comment": null
+                },
+                "literalObject": {
+                  "type": "google.protobuf.Struct",
+                  "id": 5,
+                  "comment": null
+                },
+                "dataBinding": {
+                  "type": "DataBinding",
+                  "id": 6,
+                  "comment": null
+                },
+                "functionCall": {
+                  "type": "FunctionCall",
+                  "id": 7,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "DynamicString": {
+              "edition": "2023",
+              "oneofs": {
+                "value": {
+                  "oneof": [
+                    "literalString",
+                    "dataBinding",
+                    "functionCall"
+                  ],
+                  "comment": null
+                }
+              },
+              "fields": {
+                "literalString": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                },
+                "dataBinding": {
+                  "type": "DataBinding",
+                  "id": 2,
+                  "comment": null
+                },
+                "functionCall": {
+                  "type": "FunctionCall",
+                  "id": 3,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "DynamicNumber": {
+              "edition": "2023",
+              "oneofs": {
+                "value": {
+                  "oneof": [
+                    "literalNumber",
+                    "dataBinding",
+                    "functionCall"
+                  ],
+                  "comment": null
+                }
+              },
+              "fields": {
+                "literalNumber": {
+                  "type": "double",
+                  "id": 1,
+                  "comment": null
+                },
+                "dataBinding": {
+                  "type": "DataBinding",
+                  "id": 2,
+                  "comment": null
+                },
+                "functionCall": {
+                  "type": "FunctionCall",
+                  "id": 3,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "DynamicBoolean": {
+              "edition": "2023",
+              "oneofs": {
+                "value": {
+                  "oneof": [
+                    "literalBoolean",
+                    "dataBinding",
+                    "functionCall"
+                  ],
+                  "comment": null
+                }
+              },
+              "fields": {
+                "literalBoolean": {
+                  "type": "bool",
+                  "id": 1,
+                  "comment": null
+                },
+                "dataBinding": {
+                  "type": "DataBinding",
+                  "id": 2,
+                  "comment": null
+                },
+                "functionCall": {
+                  "type": "FunctionCall",
+                  "id": 3,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "StringList": {
+              "edition": "2023",
+              "fields": {
+                "values": {
+                  "rule": "repeated",
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "DynamicStringList": {
+              "edition": "2023",
+              "oneofs": {
+                "value": {
+                  "oneof": [
+                    "literalStringList",
+                    "dataBinding",
+                    "functionCall"
+                  ],
+                  "comment": null
+                }
+              },
+              "fields": {
+                "literalStringList": {
+                  "type": "StringList",
+                  "id": 1,
+                  "comment": null
+                },
+                "dataBinding": {
+                  "type": "DataBinding",
+                  "id": 2,
+                  "comment": null
+                },
+                "functionCall": {
+                  "type": "FunctionCall",
+                  "id": 3,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "FunctionCommon": {
+              "edition": "2023",
+              "fields": {
+                "catalogId": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "FunctionCall": {
+              "edition": "2023",
+              "fields": {
+                "call": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                },
+                "catalogId": {
+                  "type": "string",
+                  "id": 2,
+                  "comment": null
+                },
+                "args": {
+                  "keyType": "string",
+                  "type": "DynamicValue",
+                  "id": 3,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "IndexSystemFunctionArguments": {
+              "edition": "2023",
+              "fields": {
+                "offset": {
+                  "type": "DynamicNumber",
+                  "id": 1,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "CheckRule": {
+              "edition": "2023",
+              "oneofs": {
+                "condition": {
+                  "oneof": [
+                    "dataBinding",
+                    "functionCall"
+                  ],
+                  "comment": null
+                }
+              },
+              "fields": {
+                "dataBinding": {
+                  "type": "DataBinding",
+                  "id": 1,
+                  "comment": null
+                },
+                "functionCall": {
+                  "type": "FunctionCall",
+                  "id": 2,
+                  "comment": null
+                },
+                "message": {
+                  "type": "string",
+                  "id": 3,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "Checkable": {
+              "edition": "2023",
+              "fields": {
+                "checks": {
+                  "rule": "repeated",
+                  "type": "CheckRule",
+                  "id": 1,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "EventAction": {
+              "edition": "2023",
+              "fields": {
+                "name": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                },
+                "userMessage": {
+                  "type": "DynamicString",
+                  "id": 2,
+                  "comment": null
+                },
+                "context": {
+                  "keyType": "string",
+                  "type": "DynamicValue",
+                  "id": 3,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "Action": {
+              "edition": "2023",
+              "oneofs": {
+                "actionType": {
+                  "oneof": [
+                    "event",
+                    "functionCall"
+                  ],
+                  "comment": null
+                }
+              },
+              "fields": {
+                "event": {
+                  "type": "EventAction",
+                  "id": 1,
+                  "comment": null
+                },
+                "functionCall": {
+                  "type": "FunctionCall",
+                  "id": 2,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "SurfaceContainer": {
+              "edition": "2023",
+              "fields": {
+                "component": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                },
+                "child": {
+                  "type": "string",
+                  "id": 2,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "FunctionError": {
+              "edition": "2023",
+              "fields": {
+                "code": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                },
+                "message": {
+                  "type": "string",
+                  "id": 2,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "FunctionResponse": {
+              "edition": "2023",
+              "oneofs": {
+                "response": {
+                  "oneof": [
+                    "value",
+                    "error"
+                  ],
+                  "comment": null
+                }
+              },
+              "fields": {
+                "functionCallId": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                },
+                "value": {
+                  "type": "google.protobuf.Value",
+                  "id": 2,
+                  "comment": null
+                },
+                "error": {
+                  "type": "FunctionError",
+                  "id": 3,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "SurfaceMetadata": {
+              "edition": "2023",
+              "fields": {
+                "extensions": {
+                  "type": "Extensions",
+                  "id": 1,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "Component": {
+              "edition": "2023",
+              "fields": {
+                "id": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                },
+                "component": {
+                  "type": "string",
+                  "id": 2,
+                  "comment": null
+                },
+                "catalogId": {
+                  "type": "string",
+                  "id": 3,
+                  "comment": null
+                },
+                "accessibility": {
+                  "type": "AccessibilityAttributes",
+                  "id": 4,
+                  "comment": null
+                },
+                "metadata": {
+                  "type": "ComponentMetadata",
+                  "id": 5,
+                  "comment": null
+                },
+                "properties": {
+                  "type": "google.protobuf.Struct",
+                  "id": 6,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "CreateSurfaceMessage": {
+              "edition": "2023",
+              "fields": {
+                "surfaceId": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                },
+                "catalogId": {
+                  "type": "string",
+                  "id": 2,
+                  "comment": null
+                },
+                "sendDataModel": {
+                  "type": "bool",
+                  "id": 3,
+                  "comment": null
+                },
+                "components": {
+                  "rule": "repeated",
+                  "type": "Component",
+                  "id": 4,
+                  "comment": null
+                },
+                "dataModel": {
+                  "type": "google.protobuf.Struct",
+                  "id": 5,
+                  "comment": null
+                },
+                "metadata": {
+                  "type": "SurfaceMetadata",
+                  "id": 6,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "UpdateComponentsMessage": {
+              "edition": "2023",
+              "fields": {
+                "surfaceId": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                },
+                "components": {
+                  "rule": "repeated",
+                  "type": "Component",
+                  "id": 2,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "UpdateDataModelMessage": {
+              "edition": "2023",
+              "fields": {
+                "surfaceId": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                },
+                "path": {
+                  "type": "string",
+                  "id": 2,
+                  "comment": null
+                },
+                "value": {
+                  "type": "google.protobuf.Value",
+                  "id": 3,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "DeleteSurfaceMessage": {
+              "edition": "2023",
+              "fields": {
+                "surfaceId": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "CallRendererFunctionMessage": {
+              "edition": "2023",
+              "fields": {
+                "functionCallId": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                },
+                "callFunction": {
+                  "type": "FunctionCall",
+                  "id": 2,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "AgentFunctionResponseMessage": {
+              "edition": "2023",
+              "fields": {
+                "agentFunctionResponse": {
+                  "type": "FunctionResponse",
+                  "id": 1,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "AgentToRendererMessage": {
+              "edition": "2023",
+              "oneofs": {
+                "message": {
+                  "oneof": [
+                    "createSurface",
+                    "updateComponents",
+                    "updateDataModel",
+                    "deleteSurface",
+                    "callRendererFunction",
+                    "agentFunctionResponse"
+                  ],
+                  "comment": null
+                }
+              },
+              "fields": {
+                "version": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                },
+                "createSurface": {
+                  "type": "CreateSurfaceMessage",
+                  "id": 2,
+                  "comment": null
+                },
+                "updateComponents": {
+                  "type": "UpdateComponentsMessage",
+                  "id": 3,
+                  "comment": null
+                },
+                "updateDataModel": {
+                  "type": "UpdateDataModelMessage",
+                  "id": 4,
+                  "comment": null
+                },
+                "deleteSurface": {
+                  "type": "DeleteSurfaceMessage",
+                  "id": 5,
+                  "comment": null
+                },
+                "callRendererFunction": {
+                  "type": "CallRendererFunctionMessage",
+                  "id": 6,
+                  "comment": null
+                },
+                "agentFunctionResponse": {
+                  "type": "AgentFunctionResponseMessage",
+                  "id": 7,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "ActionMetadata": {
+              "edition": "2023",
+              "fields": {
+                "extensions": {
+                  "type": "Extensions",
+                  "id": 1,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "ActionEventMessage": {
+              "edition": "2023",
+              "fields": {
+                "name": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                },
+                "userMessage": {
+                  "type": "string",
+                  "id": 2,
+                  "comment": null
+                },
+                "surfaceId": {
+                  "type": "string",
+                  "id": 3,
+                  "comment": null
+                },
+                "sourceComponentId": {
+                  "type": "string",
+                  "id": 4,
+                  "comment": null
+                },
+                "timestamp": {
+                  "type": "google.protobuf.Timestamp",
+                  "id": 5,
+                  "comment": null
+                },
+                "context": {
+                  "type": "google.protobuf.Struct",
+                  "id": 6,
+                  "comment": null
+                },
+                "metadata": {
+                  "type": "ActionMetadata",
+                  "id": 7,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "CallAgentFunctionMessage": {
+              "edition": "2023",
+              "fields": {
+                "surfaceId": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                },
+                "functionCallId": {
+                  "type": "string",
+                  "id": 2,
+                  "comment": null
+                },
+                "callFunction": {
+                  "type": "FunctionCall",
+                  "id": 3,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "RendererFunctionResponseMessage": {
+              "edition": "2023",
+              "fields": {
+                "rendererFunctionResponse": {
+                  "type": "FunctionResponse",
+                  "id": 1,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "ValidationFailedError": {
+              "edition": "2023",
+              "fields": {
+                "code": {
+                  "type": "Code",
+                  "id": 1,
+                  "comment": null
+                },
+                "surfaceId": {
+                  "type": "string",
+                  "id": 2,
+                  "comment": null
+                },
+                "path": {
+                  "type": "string",
+                  "id": 3,
+                  "comment": null
+                },
+                "message": {
+                  "type": "string",
+                  "id": 4,
+                  "comment": null
+                }
+              },
+              "nested": {
+                "Code": {
+                  "values": {
+                    "CODE_UNSPECIFIED": 0,
+                    "VALIDATION_FAILED": 1,
+                    "UNALLOWED_PARENT": 2,
+                    "UNALLOWED_CHILD": 3
+                  },
+                  "comment": null,
+                  "comments": {
+                    "CODE_UNSPECIFIED": null,
+                    "VALIDATION_FAILED": null,
+                    "UNALLOWED_PARENT": null,
+                    "UNALLOWED_CHILD": null
+                  }
+                }
+              },
+              "comment": null
+            },
+            "GenericError": {
+              "edition": "2023",
+              "oneofs": {
+                "target": {
+                  "oneof": [
+                    "surfaceId",
+                    "functionCallId"
+                  ],
+                  "comment": null
+                }
+              },
+              "fields": {
+                "code": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                },
+                "message": {
+                  "type": "string",
+                  "id": 2,
+                  "comment": null
+                },
+                "surfaceId": {
+                  "type": "string",
+                  "id": 3,
+                  "comment": null
+                },
+                "functionCallId": {
+                  "type": "string",
+                  "id": 4,
+                  "comment": null
+                },
+                "details": {
+                  "type": "google.protobuf.Struct",
+                  "id": 5,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "RendererErrorMessage": {
+              "edition": "2023",
+              "oneofs": {
+                "errorType": {
+                  "oneof": [
+                    "validationError",
+                    "genericError"
+                  ],
+                  "comment": null
+                }
+              },
+              "fields": {
+                "validationError": {
+                  "type": "ValidationFailedError",
+                  "id": 1,
+                  "comment": null
+                },
+                "genericError": {
+                  "type": "GenericError",
+                  "id": 2,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "RendererToAgentMessage": {
+              "edition": "2023",
+              "oneofs": {
+                "message": {
+                  "oneof": [
+                    "action",
+                    "callAgentFunction",
+                    "rendererFunctionResponse",
+                    "error"
+                  ],
+                  "comment": null
+                }
+              },
+              "fields": {
+                "version": {
+                  "type": "string",
+                  "id": 1,
+                  "comment": null
+                },
+                "action": {
+                  "type": "ActionEventMessage",
+                  "id": 2,
+                  "comment": null
+                },
+                "callAgentFunction": {
+                  "type": "CallAgentFunctionMessage",
+                  "id": 3,
+                  "comment": null
+                },
+                "rendererFunctionResponse": {
+                  "type": "RendererFunctionResponseMessage",
+                  "id": 4,
+                  "comment": null
+                },
+                "error": {
+                  "type": "RendererErrorMessage",
+                  "id": 5,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "AgentToRendererMessageList": {
+              "edition": "2023",
+              "fields": {
+                "messages": {
+                  "rule": "repeated",
+                  "type": "AgentToRendererMessage",
+                  "id": 1,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "AgentToRendererListWrapper": {
+              "edition": "2023",
+              "fields": {
+                "messages": {
+                  "type": "AgentToRendererMessageList",
+                  "id": 1,
+                  "comment": null
+                }
+              },
+              "comment": null
+            },
+            "catalogs": {
+              "nested": {
+                "basic": {
+                  "options": {
+                    "go_package": "a2ui.org/specification/v1_0/catalogs/basic/basicproto",
+                    "java_multiple_files": true,
+                    "java_package": "org.a2ui.v1_0.catalogs.basic"
+                  },
+                  "nested": {
+                    "TextVariant": {
+                      "edition": "2023",
+                      "values": {
+                        "TEXT_VARIANT_UNSPECIFIED": 0,
+                        "TEXT_VARIANT_BODY": 1,
+                        "TEXT_VARIANT_CAPTION": 2
+                      },
+                      "comment": null,
+                      "comments": {
+                        "TEXT_VARIANT_UNSPECIFIED": null,
+                        "TEXT_VARIANT_BODY": null,
+                        "TEXT_VARIANT_CAPTION": null
+                      }
+                    },
+                    "Text": {
+                      "edition": "2023",
+                      "fields": {
+                        "text": {
+                          "type": "DynamicString",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "variant": {
+                          "type": "TextVariant",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "weight": {
+                          "type": "double",
+                          "id": 3,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "ImageFit": {
+                      "edition": "2023",
+                      "values": {
+                        "IMAGE_FIT_UNSPECIFIED": 0,
+                        "IMAGE_FIT_FILL": 1,
+                        "IMAGE_FIT_CONTAIN": 2,
+                        "IMAGE_FIT_COVER": 3,
+                        "IMAGE_FIT_NONE": 4,
+                        "IMAGE_FIT_SCALE_DOWN": 5
+                      },
+                      "comment": null,
+                      "comments": {
+                        "IMAGE_FIT_UNSPECIFIED": null,
+                        "IMAGE_FIT_FILL": null,
+                        "IMAGE_FIT_CONTAIN": null,
+                        "IMAGE_FIT_COVER": null,
+                        "IMAGE_FIT_NONE": null,
+                        "IMAGE_FIT_SCALE_DOWN": null
+                      }
+                    },
+                    "ImageVariant": {
+                      "edition": "2023",
+                      "values": {
+                        "IMAGE_VARIANT_UNSPECIFIED": 0,
+                        "IMAGE_VARIANT_MEDIUM_FEATURE": 1,
+                        "IMAGE_VARIANT_ICON": 2,
+                        "IMAGE_VARIANT_AVATAR": 3,
+                        "IMAGE_VARIANT_SMALL_FEATURE": 4,
+                        "IMAGE_VARIANT_LARGE_FEATURE": 5,
+                        "IMAGE_VARIANT_HEADER": 6
+                      },
+                      "comment": null,
+                      "comments": {
+                        "IMAGE_VARIANT_UNSPECIFIED": null,
+                        "IMAGE_VARIANT_MEDIUM_FEATURE": null,
+                        "IMAGE_VARIANT_ICON": null,
+                        "IMAGE_VARIANT_AVATAR": null,
+                        "IMAGE_VARIANT_SMALL_FEATURE": null,
+                        "IMAGE_VARIANT_LARGE_FEATURE": null,
+                        "IMAGE_VARIANT_HEADER": null
+                      }
+                    },
+                    "Image": {
+                      "edition": "2023",
+                      "fields": {
+                        "url": {
+                          "type": "DynamicString",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "description": {
+                          "type": "DynamicString",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "fit": {
+                          "type": "ImageFit",
+                          "id": 3,
+                          "comment": null
+                        },
+                        "variant": {
+                          "type": "ImageVariant",
+                          "id": 4,
+                          "comment": null
+                        },
+                        "weight": {
+                          "type": "double",
+                          "id": 5,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "StandardIcon": {
+                      "edition": "2023",
+                      "values": {
+                        "STANDARD_ICON_UNSPECIFIED": 0,
+                        "ICON_ACCOUNT_CIRCLE": 1,
+                        "ICON_ADD": 2,
+                        "ICON_ARROW_BACK": 3,
+                        "ICON_ARROW_FORWARD": 4,
+                        "ICON_ATTACH_FILE": 5,
+                        "ICON_CALENDAR_TODAY": 6,
+                        "ICON_CALL": 7,
+                        "ICON_CAMERA": 8,
+                        "ICON_CHECK": 9,
+                        "ICON_CLOSE": 10,
+                        "ICON_DELETE": 11,
+                        "ICON_DOWNLOAD": 12,
+                        "ICON_EDIT": 13,
+                        "ICON_EVENT": 14,
+                        "ICON_ERROR": 15,
+                        "ICON_FAST_FORWARD": 16,
+                        "ICON_FAVORITE": 17,
+                        "ICON_FAVORITE_OFF": 18,
+                        "ICON_FOLDER": 19,
+                        "ICON_HELP": 20,
+                        "ICON_HOME": 21,
+                        "ICON_INFO": 22,
+                        "ICON_LOCATION_ON": 23,
+                        "ICON_LOCK": 24,
+                        "ICON_LOCK_OPEN": 25,
+                        "ICON_MAIL": 26,
+                        "ICON_MENU": 27,
+                        "ICON_MORE_VERT": 28,
+                        "ICON_MORE_HORIZ": 29,
+                        "ICON_NOTIFICATIONS_OFF": 30,
+                        "ICON_NOTIFICATIONS": 31,
+                        "ICON_PAUSE": 32,
+                        "ICON_PAYMENT": 33,
+                        "ICON_PERSON": 34,
+                        "ICON_PHONE": 35,
+                        "ICON_PHOTO": 36,
+                        "ICON_PLAY": 37,
+                        "ICON_PRINT": 38,
+                        "ICON_REFRESH": 39,
+                        "ICON_REWIND": 40,
+                        "ICON_SEARCH": 41,
+                        "ICON_SEND": 42,
+                        "ICON_SETTINGS": 43,
+                        "ICON_SHARE": 44,
+                        "ICON_SHOPPING_CART": 45,
+                        "ICON_SKIP_NEXT": 46,
+                        "ICON_SKIP_PREVIOUS": 47,
+                        "ICON_STAR": 48,
+                        "ICON_STAR_HALF": 49,
+                        "ICON_STAR_OFF": 50,
+                        "ICON_STOP": 51,
+                        "ICON_UPLOAD": 52,
+                        "ICON_VISIBILITY": 53,
+                        "ICON_VISIBILITY_OFF": 54,
+                        "ICON_VOLUME_DOWN": 55,
+                        "ICON_VOLUME_MUTE": 56,
+                        "ICON_VOLUME_OFF": 57,
+                        "ICON_VOLUME_UP": 58,
+                        "ICON_WARNING": 59
+                      },
+                      "comment": null,
+                      "comments": {
+                        "STANDARD_ICON_UNSPECIFIED": null,
+                        "ICON_ACCOUNT_CIRCLE": null,
+                        "ICON_ADD": null,
+                        "ICON_ARROW_BACK": null,
+                        "ICON_ARROW_FORWARD": null,
+                        "ICON_ATTACH_FILE": null,
+                        "ICON_CALENDAR_TODAY": null,
+                        "ICON_CALL": null,
+                        "ICON_CAMERA": null,
+                        "ICON_CHECK": null,
+                        "ICON_CLOSE": null,
+                        "ICON_DELETE": null,
+                        "ICON_DOWNLOAD": null,
+                        "ICON_EDIT": null,
+                        "ICON_EVENT": null,
+                        "ICON_ERROR": null,
+                        "ICON_FAST_FORWARD": null,
+                        "ICON_FAVORITE": null,
+                        "ICON_FAVORITE_OFF": null,
+                        "ICON_FOLDER": null,
+                        "ICON_HELP": null,
+                        "ICON_HOME": null,
+                        "ICON_INFO": null,
+                        "ICON_LOCATION_ON": null,
+                        "ICON_LOCK": null,
+                        "ICON_LOCK_OPEN": null,
+                        "ICON_MAIL": null,
+                        "ICON_MENU": null,
+                        "ICON_MORE_VERT": null,
+                        "ICON_MORE_HORIZ": null,
+                        "ICON_NOTIFICATIONS_OFF": null,
+                        "ICON_NOTIFICATIONS": null,
+                        "ICON_PAUSE": null,
+                        "ICON_PAYMENT": null,
+                        "ICON_PERSON": null,
+                        "ICON_PHONE": null,
+                        "ICON_PHOTO": null,
+                        "ICON_PLAY": null,
+                        "ICON_PRINT": null,
+                        "ICON_REFRESH": null,
+                        "ICON_REWIND": null,
+                        "ICON_SEARCH": null,
+                        "ICON_SEND": null,
+                        "ICON_SETTINGS": null,
+                        "ICON_SHARE": null,
+                        "ICON_SHOPPING_CART": null,
+                        "ICON_SKIP_NEXT": null,
+                        "ICON_SKIP_PREVIOUS": null,
+                        "ICON_STAR": null,
+                        "ICON_STAR_HALF": null,
+                        "ICON_STAR_OFF": null,
+                        "ICON_STOP": null,
+                        "ICON_UPLOAD": null,
+                        "ICON_VISIBILITY": null,
+                        "ICON_VISIBILITY_OFF": null,
+                        "ICON_VOLUME_DOWN": null,
+                        "ICON_VOLUME_MUTE": null,
+                        "ICON_VOLUME_OFF": null,
+                        "ICON_VOLUME_UP": null,
+                        "ICON_WARNING": null
+                      }
+                    },
+                    "IconName": {
+                      "edition": "2023",
+                      "oneofs": {
+                        "name": {
+                          "oneof": [
+                            "standard",
+                            "svgPath",
+                            "dataBinding"
+                          ],
+                          "comment": null
+                        }
+                      },
+                      "fields": {
+                        "standard": {
+                          "type": "StandardIcon",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "svgPath": {
+                          "type": "DynamicString",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "dataBinding": {
+                          "type": "DataBinding",
+                          "id": 3,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "Icon": {
+                      "edition": "2023",
+                      "fields": {
+                        "name": {
+                          "type": "IconName",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "weight": {
+                          "type": "double",
+                          "id": 2,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "Video": {
+                      "edition": "2023",
+                      "fields": {
+                        "url": {
+                          "type": "DynamicString",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "posterUrl": {
+                          "type": "DynamicString",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "weight": {
+                          "type": "double",
+                          "id": 3,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "AudioPlayer": {
+                      "edition": "2023",
+                      "fields": {
+                        "url": {
+                          "type": "DynamicString",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "description": {
+                          "type": "DynamicString",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "weight": {
+                          "type": "double",
+                          "id": 3,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "MainAxisAlignment": {
+                      "edition": "2023",
+                      "values": {
+                        "MAIN_AXIS_ALIGNMENT_UNSPECIFIED": 0,
+                        "MAIN_AXIS_ALIGNMENT_START": 1,
+                        "MAIN_AXIS_ALIGNMENT_CENTER": 2,
+                        "MAIN_AXIS_ALIGNMENT_END": 3,
+                        "MAIN_AXIS_ALIGNMENT_SPACE_BETWEEN": 4,
+                        "MAIN_AXIS_ALIGNMENT_SPACE_AROUND": 5,
+                        "MAIN_AXIS_ALIGNMENT_SPACE_EVENLY": 6,
+                        "MAIN_AXIS_ALIGNMENT_STRETCH": 7
+                      },
+                      "comment": null,
+                      "comments": {
+                        "MAIN_AXIS_ALIGNMENT_UNSPECIFIED": null,
+                        "MAIN_AXIS_ALIGNMENT_START": null,
+                        "MAIN_AXIS_ALIGNMENT_CENTER": null,
+                        "MAIN_AXIS_ALIGNMENT_END": null,
+                        "MAIN_AXIS_ALIGNMENT_SPACE_BETWEEN": null,
+                        "MAIN_AXIS_ALIGNMENT_SPACE_AROUND": null,
+                        "MAIN_AXIS_ALIGNMENT_SPACE_EVENLY": null,
+                        "MAIN_AXIS_ALIGNMENT_STRETCH": null
+                      }
+                    },
+                    "CrossAxisAlignment": {
+                      "edition": "2023",
+                      "values": {
+                        "CROSS_AXIS_ALIGNMENT_UNSPECIFIED": 0,
+                        "CROSS_AXIS_ALIGNMENT_STRETCH": 1,
+                        "CROSS_AXIS_ALIGNMENT_START": 2,
+                        "CROSS_AXIS_ALIGNMENT_CENTER": 3,
+                        "CROSS_AXIS_ALIGNMENT_END": 4
+                      },
+                      "comment": null,
+                      "comments": {
+                        "CROSS_AXIS_ALIGNMENT_UNSPECIFIED": null,
+                        "CROSS_AXIS_ALIGNMENT_STRETCH": null,
+                        "CROSS_AXIS_ALIGNMENT_START": null,
+                        "CROSS_AXIS_ALIGNMENT_CENTER": null,
+                        "CROSS_AXIS_ALIGNMENT_END": null
+                      }
+                    },
+                    "Row": {
+                      "edition": "2023",
+                      "fields": {
+                        "children": {
+                          "type": "ChildList",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "justify": {
+                          "type": "MainAxisAlignment",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "align": {
+                          "type": "CrossAxisAlignment",
+                          "id": 3,
+                          "comment": null
+                        },
+                        "weight": {
+                          "type": "double",
+                          "id": 4,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "Column": {
+                      "edition": "2023",
+                      "fields": {
+                        "children": {
+                          "type": "ChildList",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "justify": {
+                          "type": "MainAxisAlignment",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "align": {
+                          "type": "CrossAxisAlignment",
+                          "id": 3,
+                          "comment": null
+                        },
+                        "weight": {
+                          "type": "double",
+                          "id": 4,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "ListDirection": {
+                      "edition": "2023",
+                      "values": {
+                        "LIST_DIRECTION_UNSPECIFIED": 0,
+                        "LIST_DIRECTION_VERTICAL": 1,
+                        "LIST_DIRECTION_HORIZONTAL": 2
+                      },
+                      "comment": null,
+                      "comments": {
+                        "LIST_DIRECTION_UNSPECIFIED": null,
+                        "LIST_DIRECTION_VERTICAL": null,
+                        "LIST_DIRECTION_HORIZONTAL": null
+                      }
+                    },
+                    "List": {
+                      "edition": "2023",
+                      "fields": {
+                        "children": {
+                          "type": "ChildList",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "direction": {
+                          "type": "ListDirection",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "align": {
+                          "type": "CrossAxisAlignment",
+                          "id": 3,
+                          "comment": null
+                        },
+                        "weight": {
+                          "type": "double",
+                          "id": 4,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "Card": {
+                      "edition": "2023",
+                      "fields": {
+                        "child": {
+                          "type": "string",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "weight": {
+                          "type": "double",
+                          "id": 2,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "Tab": {
+                      "edition": "2023",
+                      "fields": {
+                        "title": {
+                          "type": "DynamicString",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "child": {
+                          "type": "string",
+                          "id": 2,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "Tabs": {
+                      "edition": "2023",
+                      "fields": {
+                        "tabs": {
+                          "rule": "repeated",
+                          "type": "Tab",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "weight": {
+                          "type": "double",
+                          "id": 2,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "Modal": {
+                      "edition": "2023",
+                      "fields": {
+                        "trigger": {
+                          "type": "string",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "content": {
+                          "type": "string",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "weight": {
+                          "type": "double",
+                          "id": 3,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "DividerAxis": {
+                      "edition": "2023",
+                      "values": {
+                        "DIVIDER_AXIS_UNSPECIFIED": 0,
+                        "DIVIDER_AXIS_HORIZONTAL": 1,
+                        "DIVIDER_AXIS_VERTICAL": 2
+                      },
+                      "comment": null,
+                      "comments": {
+                        "DIVIDER_AXIS_UNSPECIFIED": null,
+                        "DIVIDER_AXIS_HORIZONTAL": null,
+                        "DIVIDER_AXIS_VERTICAL": null
+                      }
+                    },
+                    "Divider": {
+                      "edition": "2023",
+                      "fields": {
+                        "axis": {
+                          "type": "DividerAxis",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "weight": {
+                          "type": "double",
+                          "id": 2,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "ButtonVariant": {
+                      "edition": "2023",
+                      "values": {
+                        "BUTTON_VARIANT_UNSPECIFIED": 0,
+                        "BUTTON_VARIANT_DEFAULT": 1,
+                        "BUTTON_VARIANT_PRIMARY": 2,
+                        "BUTTON_VARIANT_BORDERLESS": 3
+                      },
+                      "comment": null,
+                      "comments": {
+                        "BUTTON_VARIANT_UNSPECIFIED": null,
+                        "BUTTON_VARIANT_DEFAULT": null,
+                        "BUTTON_VARIANT_PRIMARY": null,
+                        "BUTTON_VARIANT_BORDERLESS": null
+                      }
+                    },
+                    "Button": {
+                      "edition": "2023",
+                      "fields": {
+                        "child": {
+                          "type": "string",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "variant": {
+                          "type": "ButtonVariant",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "action": {
+                          "type": "Action",
+                          "id": 3,
+                          "comment": null
+                        },
+                        "checks": {
+                          "rule": "repeated",
+                          "type": "CheckRule",
+                          "id": 4,
+                          "comment": null
+                        },
+                        "weight": {
+                          "type": "double",
+                          "id": 5,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "TextFieldVariant": {
+                      "edition": "2023",
+                      "values": {
+                        "TEXT_FIELD_VARIANT_UNSPECIFIED": 0,
+                        "TEXT_FIELD_VARIANT_SHORT_TEXT": 1,
+                        "TEXT_FIELD_VARIANT_LONG_TEXT": 2,
+                        "TEXT_FIELD_VARIANT_NUMBER": 3,
+                        "TEXT_FIELD_VARIANT_OBSCURED": 4
+                      },
+                      "comment": null,
+                      "comments": {
+                        "TEXT_FIELD_VARIANT_UNSPECIFIED": null,
+                        "TEXT_FIELD_VARIANT_SHORT_TEXT": null,
+                        "TEXT_FIELD_VARIANT_LONG_TEXT": null,
+                        "TEXT_FIELD_VARIANT_NUMBER": null,
+                        "TEXT_FIELD_VARIANT_OBSCURED": null
+                      }
+                    },
+                    "TextField": {
+                      "edition": "2023",
+                      "fields": {
+                        "label": {
+                          "type": "DynamicString",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "value": {
+                          "type": "DynamicString",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "placeholder": {
+                          "type": "DynamicString",
+                          "id": 3,
+                          "comment": null
+                        },
+                        "variant": {
+                          "type": "TextFieldVariant",
+                          "id": 4,
+                          "comment": null
+                        },
+                        "checks": {
+                          "rule": "repeated",
+                          "type": "CheckRule",
+                          "id": 5,
+                          "comment": null
+                        },
+                        "weight": {
+                          "type": "double",
+                          "id": 6,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "CheckBox": {
+                      "edition": "2023",
+                      "fields": {
+                        "label": {
+                          "type": "DynamicString",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "value": {
+                          "type": "DynamicBoolean",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "checks": {
+                          "rule": "repeated",
+                          "type": "CheckRule",
+                          "id": 3,
+                          "comment": null
+                        },
+                        "weight": {
+                          "type": "double",
+                          "id": 4,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "ChoicePickerVariant": {
+                      "edition": "2023",
+                      "values": {
+                        "CHOICE_PICKER_VARIANT_UNSPECIFIED": 0,
+                        "CHOICE_PICKER_VARIANT_MUTUALLY_EXCLUSIVE": 1,
+                        "CHOICE_PICKER_VARIANT_MULTIPLE_SELECTION": 2
+                      },
+                      "comment": null,
+                      "comments": {
+                        "CHOICE_PICKER_VARIANT_UNSPECIFIED": null,
+                        "CHOICE_PICKER_VARIANT_MUTUALLY_EXCLUSIVE": null,
+                        "CHOICE_PICKER_VARIANT_MULTIPLE_SELECTION": null
+                      }
+                    },
+                    "ChoicePickerDisplayStyle": {
+                      "edition": "2023",
+                      "values": {
+                        "CHOICE_PICKER_DISPLAY_STYLE_UNSPECIFIED": 0,
+                        "CHOICE_PICKER_DISPLAY_STYLE_CHECKBOX": 1,
+                        "CHOICE_PICKER_DISPLAY_STYLE_CHIPS": 2
+                      },
+                      "comment": null,
+                      "comments": {
+                        "CHOICE_PICKER_DISPLAY_STYLE_UNSPECIFIED": null,
+                        "CHOICE_PICKER_DISPLAY_STYLE_CHECKBOX": null,
+                        "CHOICE_PICKER_DISPLAY_STYLE_CHIPS": null
+                      }
+                    },
+                    "ChoicePickerOption": {
+                      "edition": "2023",
+                      "fields": {
+                        "label": {
+                          "type": "DynamicString",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "value": {
+                          "type": "string",
+                          "id": 2,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "ChoicePicker": {
+                      "edition": "2023",
+                      "fields": {
+                        "label": {
+                          "type": "DynamicString",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "variant": {
+                          "type": "ChoicePickerVariant",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "options": {
+                          "rule": "repeated",
+                          "type": "ChoicePickerOption",
+                          "id": 3,
+                          "comment": null
+                        },
+                        "value": {
+                          "type": "DynamicStringList",
+                          "id": 4,
+                          "comment": null
+                        },
+                        "displayStyle": {
+                          "type": "ChoicePickerDisplayStyle",
+                          "id": 5,
+                          "comment": null
+                        },
+                        "filterable": {
+                          "type": "bool",
+                          "id": 6,
+                          "comment": null
+                        },
+                        "checks": {
+                          "rule": "repeated",
+                          "type": "CheckRule",
+                          "id": 7,
+                          "comment": null
+                        },
+                        "weight": {
+                          "type": "double",
+                          "id": 8,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "Slider": {
+                      "edition": "2023",
+                      "fields": {
+                        "label": {
+                          "type": "DynamicString",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "min": {
+                          "type": "double",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "max": {
+                          "type": "double",
+                          "id": 3,
+                          "comment": null
+                        },
+                        "value": {
+                          "type": "DynamicNumber",
+                          "id": 4,
+                          "comment": null
+                        },
+                        "steps": {
+                          "type": "int32",
+                          "id": 5,
+                          "comment": null
+                        },
+                        "checks": {
+                          "rule": "repeated",
+                          "type": "CheckRule",
+                          "id": 6,
+                          "comment": null
+                        },
+                        "weight": {
+                          "type": "double",
+                          "id": 7,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "DateTimeInput": {
+                      "edition": "2023",
+                      "fields": {
+                        "value": {
+                          "type": "DynamicString",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "enableDate": {
+                          "type": "bool",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "enableTime": {
+                          "type": "bool",
+                          "id": 3,
+                          "comment": null
+                        },
+                        "min": {
+                          "type": "DynamicString",
+                          "id": 4,
+                          "comment": null
+                        },
+                        "max": {
+                          "type": "DynamicString",
+                          "id": 5,
+                          "comment": null
+                        },
+                        "label": {
+                          "type": "DynamicString",
+                          "id": 6,
+                          "comment": null
+                        },
+                        "checks": {
+                          "rule": "repeated",
+                          "type": "CheckRule",
+                          "id": 7,
+                          "comment": null
+                        },
+                        "weight": {
+                          "type": "double",
+                          "id": 8,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "BasicComponent": {
+                      "edition": "2023",
+                      "oneofs": {
+                        "component": {
+                          "oneof": [
+                            "text",
+                            "image",
+                            "icon",
+                            "video",
+                            "audioPlayer",
+                            "row",
+                            "column",
+                            "list",
+                            "card",
+                            "tabs",
+                            "modal",
+                            "divider",
+                            "button",
+                            "textField",
+                            "checkBox",
+                            "choicePicker",
+                            "slider",
+                            "dateTimeInput"
+                          ],
+                          "comment": null
+                        }
+                      },
+                      "fields": {
+                        "id": {
+                          "type": "string",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "catalogId": {
+                          "type": "string",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "accessibility": {
+                          "type": "AccessibilityAttributes",
+                          "id": 3,
+                          "comment": null
+                        },
+                        "metadata": {
+                          "type": "ComponentMetadata",
+                          "id": 4,
+                          "comment": null
+                        },
+                        "text": {
+                          "type": "Text",
+                          "id": 10,
+                          "comment": null
+                        },
+                        "image": {
+                          "type": "Image",
+                          "id": 11,
+                          "comment": null
+                        },
+                        "icon": {
+                          "type": "Icon",
+                          "id": 12,
+                          "comment": null
+                        },
+                        "video": {
+                          "type": "Video",
+                          "id": 13,
+                          "comment": null
+                        },
+                        "audioPlayer": {
+                          "type": "AudioPlayer",
+                          "id": 14,
+                          "comment": null
+                        },
+                        "row": {
+                          "type": "Row",
+                          "id": 15,
+                          "comment": null
+                        },
+                        "column": {
+                          "type": "Column",
+                          "id": 16,
+                          "comment": null
+                        },
+                        "list": {
+                          "type": "List",
+                          "id": 17,
+                          "comment": null
+                        },
+                        "card": {
+                          "type": "Card",
+                          "id": 18,
+                          "comment": null
+                        },
+                        "tabs": {
+                          "type": "Tabs",
+                          "id": 19,
+                          "comment": null
+                        },
+                        "modal": {
+                          "type": "Modal",
+                          "id": 20,
+                          "comment": null
+                        },
+                        "divider": {
+                          "type": "Divider",
+                          "id": 21,
+                          "comment": null
+                        },
+                        "button": {
+                          "type": "Button",
+                          "id": 22,
+                          "comment": null
+                        },
+                        "textField": {
+                          "type": "TextField",
+                          "id": 23,
+                          "comment": null
+                        },
+                        "checkBox": {
+                          "type": "CheckBox",
+                          "id": 24,
+                          "comment": null
+                        },
+                        "choicePicker": {
+                          "type": "ChoicePicker",
+                          "id": 25,
+                          "comment": null
+                        },
+                        "slider": {
+                          "type": "Slider",
+                          "id": 26,
+                          "comment": null
+                        },
+                        "dateTimeInput": {
+                          "type": "DateTimeInput",
+                          "id": 27,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "RequiredArgs": {
+                      "edition": "2023",
+                      "fields": {
+                        "value": {
+                          "type": "DynamicValue",
+                          "id": 1,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "RegexArgs": {
+                      "edition": "2023",
+                      "fields": {
+                        "value": {
+                          "type": "DynamicString",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "pattern": {
+                          "type": "string",
+                          "id": 2,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "LengthArgs": {
+                      "edition": "2023",
+                      "fields": {
+                        "value": {
+                          "type": "DynamicString",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "min": {
+                          "type": "int32",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "max": {
+                          "type": "int32",
+                          "id": 3,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "NumericArgs": {
+                      "edition": "2023",
+                      "fields": {
+                        "value": {
+                          "type": "DynamicNumber",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "min": {
+                          "type": "double",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "max": {
+                          "type": "double",
+                          "id": 3,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "EmailArgs": {
+                      "edition": "2023",
+                      "fields": {
+                        "value": {
+                          "type": "DynamicString",
+                          "id": 1,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "FormatStringArgs": {
+                      "edition": "2023",
+                      "fields": {
+                        "value": {
+                          "type": "DynamicString",
+                          "id": 1,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "FormatNumberArgs": {
+                      "edition": "2023",
+                      "fields": {
+                        "value": {
+                          "type": "DynamicNumber",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "decimals": {
+                          "type": "DynamicNumber",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "grouping": {
+                          "type": "DynamicBoolean",
+                          "id": 3,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "FormatCurrencyArgs": {
+                      "edition": "2023",
+                      "fields": {
+                        "value": {
+                          "type": "DynamicNumber",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "currency": {
+                          "type": "DynamicString",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "decimals": {
+                          "type": "DynamicNumber",
+                          "id": 3,
+                          "comment": null
+                        },
+                        "grouping": {
+                          "type": "DynamicBoolean",
+                          "id": 4,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "FormatDateArgs": {
+                      "edition": "2023",
+                      "fields": {
+                        "value": {
+                          "type": "DynamicValue",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "format": {
+                          "type": "DynamicString",
+                          "id": 2,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "PluralizeArgs": {
+                      "edition": "2023",
+                      "fields": {
+                        "value": {
+                          "type": "DynamicNumber",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "other": {
+                          "type": "DynamicString",
+                          "id": 2,
+                          "comment": null
+                        },
+                        "zero": {
+                          "type": "DynamicString",
+                          "id": 3,
+                          "comment": null
+                        },
+                        "one": {
+                          "type": "DynamicString",
+                          "id": 4,
+                          "comment": null
+                        },
+                        "two": {
+                          "type": "DynamicString",
+                          "id": 5,
+                          "comment": null
+                        },
+                        "few": {
+                          "type": "DynamicString",
+                          "id": 6,
+                          "comment": null
+                        },
+                        "many": {
+                          "type": "DynamicString",
+                          "id": 7,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "OpenUrlArgs": {
+                      "edition": "2023",
+                      "fields": {
+                        "url": {
+                          "type": "DynamicString",
+                          "id": 1,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "AndArgs": {
+                      "edition": "2023",
+                      "fields": {
+                        "values": {
+                          "rule": "repeated",
+                          "type": "DynamicBoolean",
+                          "id": 1,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "OrArgs": {
+                      "edition": "2023",
+                      "fields": {
+                        "values": {
+                          "rule": "repeated",
+                          "type": "DynamicBoolean",
+                          "id": 1,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "NotArgs": {
+                      "edition": "2023",
+                      "fields": {
+                        "value": {
+                          "type": "DynamicBoolean",
+                          "id": 1,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    },
+                    "BasicFunctionName": {
+                      "edition": "2023",
+                      "values": {
+                        "BASIC_FUNCTION_NAME_UNSPECIFIED": 0,
+                        "FUNCTION_REQUIRED": 1,
+                        "FUNCTION_REGEX": 2,
+                        "FUNCTION_LENGTH": 3,
+                        "FUNCTION_NUMERIC": 4,
+                        "FUNCTION_EMAIL": 5,
+                        "FUNCTION_FORMAT_STRING": 6,
+                        "FUNCTION_FORMAT_NUMBER": 7,
+                        "FUNCTION_FORMAT_CURRENCY": 8,
+                        "FUNCTION_FORMAT_DATE": 9,
+                        "FUNCTION_PLURALIZE": 10,
+                        "FUNCTION_OPEN_URL": 11,
+                        "FUNCTION_AND": 12,
+                        "FUNCTION_OR": 13,
+                        "FUNCTION_NOT": 14
+                      },
+                      "comment": null,
+                      "comments": {
+                        "BASIC_FUNCTION_NAME_UNSPECIFIED": null,
+                        "FUNCTION_REQUIRED": null,
+                        "FUNCTION_REGEX": null,
+                        "FUNCTION_LENGTH": null,
+                        "FUNCTION_NUMERIC": null,
+                        "FUNCTION_EMAIL": null,
+                        "FUNCTION_FORMAT_STRING": null,
+                        "FUNCTION_FORMAT_NUMBER": null,
+                        "FUNCTION_FORMAT_CURRENCY": null,
+                        "FUNCTION_FORMAT_DATE": null,
+                        "FUNCTION_PLURALIZE": null,
+                        "FUNCTION_OPEN_URL": null,
+                        "FUNCTION_AND": null,
+                        "FUNCTION_OR": null,
+                        "FUNCTION_NOT": null
+                      }
+                    },
+                    "BasicFunctionCall": {
+                      "edition": "2023",
+                      "oneofs": {
+                        "function": {
+                          "oneof": [
+                            "required",
+                            "regex",
+                            "length",
+                            "numeric",
+                            "email",
+                            "formatString",
+                            "formatNumber",
+                            "formatCurrency",
+                            "formatDate",
+                            "pluralize",
+                            "openUrl",
+                            "and",
+                            "or",
+                            "not"
+                          ],
+                          "comment": null
+                        }
+                      },
+                      "fields": {
+                        "catalogId": {
+                          "type": "string",
+                          "id": 1,
+                          "comment": null
+                        },
+                        "required": {
+                          "type": "RequiredArgs",
+                          "id": 10,
+                          "comment": null
+                        },
+                        "regex": {
+                          "type": "RegexArgs",
+                          "id": 11,
+                          "comment": null
+                        },
+                        "length": {
+                          "type": "LengthArgs",
+                          "id": 12,
+                          "comment": null
+                        },
+                        "numeric": {
+                          "type": "NumericArgs",
+                          "id": 13,
+                          "comment": null
+                        },
+                        "email": {
+                          "type": "EmailArgs",
+                          "id": 14,
+                          "comment": null
+                        },
+                        "formatString": {
+                          "type": "FormatStringArgs",
+                          "id": 15,
+                          "comment": null
+                        },
+                        "formatNumber": {
+                          "type": "FormatNumberArgs",
+                          "id": 16,
+                          "comment": null
+                        },
+                        "formatCurrency": {
+                          "type": "FormatCurrencyArgs",
+                          "id": 17,
+                          "comment": null
+                        },
+                        "formatDate": {
+                          "type": "FormatDateArgs",
+                          "id": 18,
+                          "comment": null
+                        },
+                        "pluralize": {
+                          "type": "PluralizeArgs",
+                          "id": 19,
+                          "comment": null
+                        },
+                        "openUrl": {
+                          "type": "OpenUrlArgs",
+                          "id": 20,
+                          "comment": null
+                        },
+                        "and": {
+                          "type": "AndArgs",
+                          "id": 21,
+                          "comment": null
+                        },
+                        "or": {
+                          "type": "OrArgs",
+                          "id": 22,
+                          "comment": null
+                        },
+                        "not": {
+                          "type": "NotArgs",
+                          "id": 23,
+                          "comment": null
+                        }
+                      },
+                      "comment": null
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "google": {
+      "nested": {
+        "protobuf": {
+          "nested": {
+            "Struct": {
+              "fields": {
+                "fields": {
+                  "keyType": "string",
+                  "type": "Value",
+                  "id": 1
+                }
+              },
+              "comment": null
+            },
+            "Value": {
+              "oneofs": {
+                "kind": {
+                  "oneof": [
+                    "nullValue",
+                    "numberValue",
+                    "stringValue",
+                    "boolValue",
+                    "structValue",
+                    "listValue"
+                  ]
+                }
+              },
+              "fields": {
+                "nullValue": {
+                  "type": "NullValue",
+                  "id": 1
+                },
+                "numberValue": {
+                  "type": "double",
+                  "id": 2
+                },
+                "stringValue": {
+                  "type": "string",
+                  "id": 3
+                },
+                "boolValue": {
+                  "type": "bool",
+                  "id": 4
+                },
+                "structValue": {
+                  "type": "Struct",
+                  "id": 5
+                },
+                "listValue": {
+                  "type": "ListValue",
+                  "id": 6
+                }
+              },
+              "comment": null
+            },
+            "NullValue": {
+              "values": {
+                "NULL_VALUE": 0
+              },
+              "comments": {}
+            },
+            "ListValue": {
+              "fields": {
+                "values": {
+                  "rule": "repeated",
+                  "type": "Value",
+                  "id": 1
+                }
+              },
+              "comment": null
+            },
+            "Timestamp": {
+              "fields": {
+                "seconds": {
+                  "type": "int64",
+                  "id": 1
+                },
+                "nanos": {
+                  "type": "int32",
+                  "id": 2
+                }
+              },
+              "comment": null
+            }
+          }
+        }
+      }
+    }
+  }
+}

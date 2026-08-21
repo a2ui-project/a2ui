@@ -1,0 +1,617 @@
+// Copyright 2026 The A2UI Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+edition = "2023";
+
+package a2ui.v1_0.catalogs.basic;
+
+import "common_types.proto";
+
+option go_package = "a2ui.org/specification/v1_0/catalogs/basic/basicproto";
+option java_multiple_files = true;
+option java_package = "org.a2ui.v1_0.catalogs.basic";
+
+// TextVariant defines visual style hints for Text components.
+enum TextVariant {
+  TEXT_VARIANT_UNSPECIFIED = 0;
+  // Standard body text.
+  TEXT_VARIANT_BODY = 1;
+  // Caption or subtext styling.
+  TEXT_VARIANT_CAPTION = 2;
+}
+
+// Text renders textual content with optional simple Markdown formatting.
+message Text {
+  // The text content to display.
+  DynamicString text = 1;
+  // Style hint for the text.
+  TextVariant variant = 2;
+  // Relative flex weight within a Row or Column.
+  double weight = 3;
+}
+
+// ImageFit defines how an image resizes to fit its container.
+enum ImageFit {
+  IMAGE_FIT_UNSPECIFIED = 0;
+  // Stretches to fill container.
+  IMAGE_FIT_FILL = 1;
+  // Scales to fit within bounds preserving aspect ratio.
+  IMAGE_FIT_CONTAIN = 2;
+  // Crops to cover bounds preserving aspect ratio.
+  IMAGE_FIT_COVER = 3;
+  // Retains original dimensions without resizing.
+  IMAGE_FIT_NONE = 4;
+  // Scales down if larger than container, otherwise retains original size.
+  IMAGE_FIT_SCALE_DOWN = 5;
+}
+
+// ImageVariant defines visual sizing and shape hints for images.
+enum ImageVariant {
+  IMAGE_VARIANT_UNSPECIFIED = 0;
+  // Standard medium feature image.
+  IMAGE_VARIANT_MEDIUM_FEATURE = 1;
+  // Small icon-sized image.
+  IMAGE_VARIANT_ICON = 2;
+  // Circular avatar image.
+  IMAGE_VARIANT_AVATAR = 3;
+  // Small feature thumbnail.
+  IMAGE_VARIANT_SMALL_FEATURE = 4;
+  // Large prominent feature image.
+  IMAGE_VARIANT_LARGE_FEATURE = 5;
+  // Full-width header banner image.
+  IMAGE_VARIANT_HEADER = 6;
+}
+
+// Image renders an image from a URL with configurable fit and styling.
+message Image {
+  // The URL of the image to display.
+  DynamicString url = 1;
+  // Accessibility description for assistive technologies.
+  DynamicString description = 2;
+  // Sizing mode within container.
+  ImageFit fit = 3;
+  // Visual style and size hint.
+  ImageVariant variant = 4;
+  // Relative flex weight within a Row or Column.
+  double weight = 5;
+}
+
+// StandardIcon defines the standard named icons supported across A2UI renderers.
+enum StandardIcon {
+  STANDARD_ICON_UNSPECIFIED = 0;
+  ICON_ACCOUNT_CIRCLE = 1;
+  ICON_ADD = 2;
+  ICON_ARROW_BACK = 3;
+  ICON_ARROW_FORWARD = 4;
+  ICON_ATTACH_FILE = 5;
+  ICON_CALENDAR_TODAY = 6;
+  ICON_CALL = 7;
+  ICON_CAMERA = 8;
+  ICON_CHECK = 9;
+  ICON_CLOSE = 10;
+  ICON_DELETE = 11;
+  ICON_DOWNLOAD = 12;
+  ICON_EDIT = 13;
+  ICON_EVENT = 14;
+  ICON_ERROR = 15;
+  ICON_FAST_FORWARD = 16;
+  ICON_FAVORITE = 17;
+  ICON_FAVORITE_OFF = 18;
+  ICON_FOLDER = 19;
+  ICON_HELP = 20;
+  ICON_HOME = 21;
+  ICON_INFO = 22;
+  ICON_LOCATION_ON = 23;
+  ICON_LOCK = 24;
+  ICON_LOCK_OPEN = 25;
+  ICON_MAIL = 26;
+  ICON_MENU = 27;
+  ICON_MORE_VERT = 28;
+  ICON_MORE_HORIZ = 29;
+  ICON_NOTIFICATIONS_OFF = 30;
+  ICON_NOTIFICATIONS = 31;
+  ICON_PAUSE = 32;
+  ICON_PAYMENT = 33;
+  ICON_PERSON = 34;
+  ICON_PHONE = 35;
+  ICON_PHOTO = 36;
+  ICON_PLAY = 37;
+  ICON_PRINT = 38;
+  ICON_REFRESH = 39;
+  ICON_REWIND = 40;
+  ICON_SEARCH = 41;
+  ICON_SEND = 42;
+  ICON_SETTINGS = 43;
+  ICON_SHARE = 44;
+  ICON_SHOPPING_CART = 45;
+  ICON_SKIP_NEXT = 46;
+  ICON_SKIP_PREVIOUS = 47;
+  ICON_STAR = 48;
+  ICON_STAR_HALF = 49;
+  ICON_STAR_OFF = 50;
+  ICON_STOP = 51;
+  ICON_UPLOAD = 52;
+  ICON_VISIBILITY = 53;
+  ICON_VISIBILITY_OFF = 54;
+  ICON_VOLUME_DOWN = 55;
+  ICON_VOLUME_MUTE = 56;
+  ICON_VOLUME_OFF = 57;
+  ICON_VOLUME_UP = 58;
+  ICON_WARNING = 59;
+}
+
+// IconName specifies an icon using a standard name, custom SVG path, or dynamic binding.
+message IconName {
+  oneof name {
+    // Standard icon identifier.
+    StandardIcon standard = 1;
+    // Custom SVG path string.
+    DynamicString svg_path = 2;
+    // Data model binding resolving to an icon name.
+    DataBinding data_binding = 3;
+  }
+}
+
+// Icon renders a graphical symbol.
+message Icon {
+  // The icon identifier or SVG path.
+  IconName name = 1;
+  // Relative flex weight within a Row or Column.
+  double weight = 2;
+}
+
+// Video renders a video player.
+message Video {
+  // The URL of the video to display.
+  DynamicString url = 1;
+  // Optional poster image URL to display before playback.
+  DynamicString poster_url = 2;
+  // Relative flex weight within a Row or Column.
+  double weight = 3;
+}
+
+// AudioPlayer renders an audio player.
+message AudioPlayer {
+  // The URL of the audio stream.
+  DynamicString url = 1;
+  // Description or title of the audio.
+  DynamicString description = 2;
+  // Relative flex weight within a Row or Column.
+  double weight = 3;
+}
+
+// MainAxisAlignment defines alignment along the primary layout axis.
+enum MainAxisAlignment {
+  MAIN_AXIS_ALIGNMENT_UNSPECIFIED = 0;
+  MAIN_AXIS_ALIGNMENT_START = 1;
+  MAIN_AXIS_ALIGNMENT_CENTER = 2;
+  MAIN_AXIS_ALIGNMENT_END = 3;
+  MAIN_AXIS_ALIGNMENT_SPACE_BETWEEN = 4;
+  MAIN_AXIS_ALIGNMENT_SPACE_AROUND = 5;
+  MAIN_AXIS_ALIGNMENT_SPACE_EVENLY = 6;
+  MAIN_AXIS_ALIGNMENT_STRETCH = 7;
+}
+
+// CrossAxisAlignment defines alignment along the perpendicular cross axis.
+enum CrossAxisAlignment {
+  CROSS_AXIS_ALIGNMENT_UNSPECIFIED = 0;
+  CROSS_AXIS_ALIGNMENT_STRETCH = 1;
+  CROSS_AXIS_ALIGNMENT_START = 2;
+  CROSS_AXIS_ALIGNMENT_CENTER = 3;
+  CROSS_AXIS_ALIGNMENT_END = 4;
+}
+
+// Row arranges children horizontally.
+message Row {
+  // Child component IDs or template.
+  ChildList children = 1;
+  // Horizontal main-axis distribution.
+  MainAxisAlignment justify = 2;
+  // Vertical cross-axis alignment.
+  CrossAxisAlignment align = 3;
+  // Relative flex weight within a Row or Column.
+  double weight = 4;
+}
+
+// Column arranges children vertically.
+message Column {
+  // Child component IDs or template.
+  ChildList children = 1;
+  // Vertical main-axis distribution.
+  MainAxisAlignment justify = 2;
+  // Horizontal cross-axis alignment.
+  CrossAxisAlignment align = 3;
+  // Relative flex weight within a Row or Column.
+  double weight = 4;
+}
+
+// ListDirection defines the scroll and layout direction for a List.
+enum ListDirection {
+  LIST_DIRECTION_UNSPECIFIED = 0;
+  LIST_DIRECTION_VERTICAL = 1;
+  LIST_DIRECTION_HORIZONTAL = 2;
+}
+
+// List renders a scrolling sequence of child components.
+message List {
+  // Child component IDs or template.
+  ChildList children = 1;
+  // Layout direction.
+  ListDirection direction = 2;
+  // Cross-axis alignment.
+  CrossAxisAlignment align = 3;
+  // Relative flex weight within a Row or Column.
+  double weight = 4;
+}
+
+// Card wraps a single child component inside a visual container card.
+message Card {
+  // The ID of the single child component inside the card.
+  string child = 1;
+  // Relative flex weight within a Row or Column.
+  double weight = 2;
+}
+
+// Tab defines a single tab entry inside a Tabs component.
+message Tab {
+  // The tab display title.
+  DynamicString title = 1;
+  // The ID of the child component displayed when this tab is active.
+  string child = 2;
+}
+
+// Tabs renders a multi-tab interface.
+message Tabs {
+  // The ordered list of tabs.
+  repeated Tab tabs = 1;
+  // Relative flex weight within a Row or Column.
+  double weight = 2;
+}
+
+// Modal renders a popover modal dialog triggered by an interaction.
+message Modal {
+  // The ID of the component that triggers the modal.
+  string trigger = 1;
+  // The ID of the component displayed inside the modal dialog.
+  string content = 2;
+  // Relative flex weight within a Row or Column.
+  double weight = 3;
+}
+
+// DividerAxis defines the orientation of a divider line.
+enum DividerAxis {
+  DIVIDER_AXIS_UNSPECIFIED = 0;
+  DIVIDER_AXIS_HORIZONTAL = 1;
+  DIVIDER_AXIS_VERTICAL = 2;
+}
+
+// Divider renders a visual separator line.
+message Divider {
+  // Orientation of the divider.
+  DividerAxis axis = 1;
+  // Relative flex weight within a Row or Column.
+  double weight = 2;
+}
+
+// ButtonVariant defines visual style hints for buttons.
+enum ButtonVariant {
+  BUTTON_VARIANT_UNSPECIFIED = 0;
+  // Standard button styling.
+  BUTTON_VARIANT_DEFAULT = 1;
+  // Primary call-to-action button.
+  BUTTON_VARIANT_PRIMARY = 2;
+  // Borderless link-style button.
+  BUTTON_VARIANT_BORDERLESS = 3;
+}
+
+// Button renders an interactive button with an associated action.
+message Button {
+  // The ID of the child component (e.g. Text or Icon).
+  string child = 1;
+  // Visual button variant hint.
+  ButtonVariant variant = 2;
+  // Interaction action triggered on click or tap.
+  Action action = 3;
+  // Validation checks evaluated before executing the action.
+  repeated CheckRule checks = 4;
+  // Relative flex weight within a Row or Column.
+  double weight = 5;
+}
+
+// TextFieldVariant defines the input type for a TextField.
+enum TextFieldVariant {
+  TEXT_FIELD_VARIANT_UNSPECIFIED = 0;
+  // Single-line text input.
+  TEXT_FIELD_VARIANT_SHORT_TEXT = 1;
+  // Multi-line text input.
+  TEXT_FIELD_VARIANT_LONG_TEXT = 2;
+  // Numeric input.
+  TEXT_FIELD_VARIANT_NUMBER = 3;
+  // Obscured / password input.
+  TEXT_FIELD_VARIANT_OBSCURED = 4;
+}
+
+// TextField renders a text input field.
+message TextField {
+  // Label for the input field.
+  DynamicString label = 1;
+  // Current text value.
+  DynamicString value = 2;
+  // Placeholder text displayed when value is empty.
+  DynamicString placeholder = 3;
+  // Input field variant.
+  TextFieldVariant variant = 4;
+  // Validation checks evaluated on input.
+  repeated CheckRule checks = 5;
+  // Relative flex weight within a Row or Column.
+  double weight = 6;
+}
+
+// CheckBox renders a toggleable checkbox.
+message CheckBox {
+  // Label displayed next to the checkbox.
+  DynamicString label = 1;
+  // Checked state of the checkbox.
+  DynamicBoolean value = 2;
+  // Validation checks evaluated on change.
+  repeated CheckRule checks = 3;
+  // Relative flex weight within a Row or Column.
+  double weight = 4;
+}
+
+// ChoicePickerVariant defines selection behavior for a ChoicePicker.
+enum ChoicePickerVariant {
+  CHOICE_PICKER_VARIANT_UNSPECIFIED = 0;
+  // Single selection (radio/select behavior).
+  CHOICE_PICKER_VARIANT_MUTUALLY_EXCLUSIVE = 1;
+  // Multiple selection behavior.
+  CHOICE_PICKER_VARIANT_MULTIPLE_SELECTION = 2;
+}
+
+// ChoicePickerDisplayStyle defines visual rendering style for options.
+enum ChoicePickerDisplayStyle {
+  CHOICE_PICKER_DISPLAY_STYLE_UNSPECIFIED = 0;
+  // Rendered as checkboxes or radio buttons.
+  CHOICE_PICKER_DISPLAY_STYLE_CHECKBOX = 1;
+  // Rendered as selectable chips.
+  CHOICE_PICKER_DISPLAY_STYLE_CHIPS = 2;
+}
+
+// ChoicePickerOption defines a single selectable option.
+message ChoicePickerOption {
+  // Display label for the option.
+  DynamicString label = 1;
+  // Stable value for the option.
+  string value = 2;
+}
+
+// ChoicePicker renders a single or multi-choice option selector.
+message ChoicePicker {
+  // Group label for the options.
+  DynamicString label = 1;
+  // Selection mode (mutually exclusive or multiple).
+  ChoicePickerVariant variant = 2;
+  // List of available options.
+  repeated ChoicePickerOption options = 3;
+  // List of currently selected option values.
+  DynamicStringList value = 4;
+  // Visual display style (checkboxes vs chips).
+  ChoicePickerDisplayStyle display_style = 5;
+  // Whether to show a search filter input.
+  bool filterable = 6;
+  // Validation checks evaluated on change.
+  repeated CheckRule checks = 7;
+  // Relative flex weight within a Row or Column.
+  double weight = 8;
+}
+
+// Slider renders a numeric range slider input.
+message Slider {
+  // Label for the slider.
+  DynamicString label = 1;
+  // Minimum allowable value.
+  double min = 2;
+  // Maximum allowable value.
+  double max = 3;
+  // Current slider value.
+  DynamicNumber value = 4;
+  // Number of discrete snap steps.
+  int32 steps = 5;
+  // Validation checks evaluated on change.
+  repeated CheckRule checks = 6;
+  // Relative flex weight within a Row or Column.
+  double weight = 7;
+}
+
+// DateTimeInput renders a date and/or time input selector.
+message DateTimeInput {
+  // Selected ISO 8601 date/time value.
+  DynamicString value = 1;
+  // Whether date selection is enabled.
+  bool enable_date = 2;
+  // Whether time selection is enabled.
+  bool enable_time = 3;
+  // Minimum allowable ISO 8601 date/time.
+  DynamicString min = 4;
+  // Maximum allowable ISO 8601 date/time.
+  DynamicString max = 5;
+  // Label for the input.
+  DynamicString label = 6;
+  // Validation checks evaluated on change.
+  repeated CheckRule checks = 7;
+  // Relative flex weight within a Row or Column.
+  double weight = 8;
+}
+
+// BasicComponent represents any component from the A2UI Basic Catalog.
+message BasicComponent {
+  // The unique identifier for this component within the surface.
+  string id = 1;
+  // The catalog ID overriding any surface-level default catalogId.
+  string catalog_id = 2;
+  // Accessibility attributes for assistive technologies.
+  AccessibilityAttributes accessibility = 3;
+  // Optional component metadata.
+  ComponentMetadata metadata = 4;
+
+  oneof component {
+    Text text = 10;
+    Image image = 11;
+    Icon icon = 12;
+    Video video = 13;
+    AudioPlayer audio_player = 14;
+    Row row = 15;
+    Column column = 16;
+    List list = 17;
+    Card card = 18;
+    Tabs tabs = 19;
+    Modal modal = 20;
+    Divider divider = 21;
+    Button button = 22;
+    TextField text_field = 23;
+    CheckBox check_box = 24;
+    ChoicePicker choice_picker = 25;
+    Slider slider = 26;
+    DateTimeInput date_time_input = 27;
+  }
+}
+
+// RequiredArgs defines arguments for the required() validation function.
+message RequiredArgs {
+  DynamicValue value = 1;
+}
+
+// RegexArgs defines arguments for the regex() validation function.
+message RegexArgs {
+  DynamicString value = 1;
+  string pattern = 2;
+}
+
+// LengthArgs defines arguments for the length() validation function.
+message LengthArgs {
+  DynamicString value = 1;
+  int32 min = 2;
+  int32 max = 3;
+}
+
+// NumericArgs defines arguments for the numeric() validation function.
+message NumericArgs {
+  DynamicNumber value = 1;
+  double min = 2;
+  double max = 3;
+}
+
+// EmailArgs defines arguments for the email() validation function.
+message EmailArgs {
+  DynamicString value = 1;
+}
+
+// FormatStringArgs defines arguments for the formatString() function.
+message FormatStringArgs {
+  DynamicString value = 1;
+}
+
+// FormatNumberArgs defines arguments for the formatNumber() function.
+message FormatNumberArgs {
+  DynamicNumber value = 1;
+  DynamicNumber decimals = 2;
+  DynamicBoolean grouping = 3;
+}
+
+// FormatCurrencyArgs defines arguments for the formatCurrency() function.
+message FormatCurrencyArgs {
+  DynamicNumber value = 1;
+  DynamicString currency = 2;
+  DynamicNumber decimals = 3;
+  DynamicBoolean grouping = 4;
+}
+
+// FormatDateArgs defines arguments for the formatDate() function.
+message FormatDateArgs {
+  DynamicValue value = 1;
+  DynamicString format = 2;
+}
+
+// PluralizeArgs defines arguments for the pluralize() function.
+message PluralizeArgs {
+  DynamicNumber value = 1;
+  DynamicString other = 2;
+  DynamicString zero = 3;
+  DynamicString one = 4;
+  DynamicString two = 5;
+  DynamicString few = 6;
+  DynamicString many = 7;
+}
+
+// OpenUrlArgs defines arguments for the openUrl() function.
+message OpenUrlArgs {
+  DynamicString url = 1;
+}
+
+// AndArgs defines arguments for the and() logical function.
+message AndArgs {
+  repeated DynamicBoolean values = 1;
+}
+
+// OrArgs defines arguments for the or() logical function.
+message OrArgs {
+  repeated DynamicBoolean values = 1;
+}
+
+// NotArgs defines arguments for the not() logical function.
+message NotArgs {
+  DynamicBoolean value = 1;
+}
+
+// BasicFunctionName enumerates all function names defined in the A2UI Basic Catalog.
+enum BasicFunctionName {
+  BASIC_FUNCTION_NAME_UNSPECIFIED = 0;
+  FUNCTION_REQUIRED = 1;
+  FUNCTION_REGEX = 2;
+  FUNCTION_LENGTH = 3;
+  FUNCTION_NUMERIC = 4;
+  FUNCTION_EMAIL = 5;
+  FUNCTION_FORMAT_STRING = 6;
+  FUNCTION_FORMAT_NUMBER = 7;
+  FUNCTION_FORMAT_CURRENCY = 8;
+  FUNCTION_FORMAT_DATE = 9;
+  FUNCTION_PLURALIZE = 10;
+  FUNCTION_OPEN_URL = 11;
+  FUNCTION_AND = 12;
+  FUNCTION_OR = 13;
+  FUNCTION_NOT = 14;
+}
+
+// BasicFunctionCall represents a strongly-typed invocation of any function in the Basic Catalog.
+message BasicFunctionCall {
+  // Optional catalog ID overriding surface-level default catalogId.
+  string catalog_id = 1;
+
+  oneof function {
+    RequiredArgs required = 10;
+    RegexArgs regex = 11;
+    LengthArgs length = 12;
+    NumericArgs numeric = 13;
+    EmailArgs email = 14;
+    FormatStringArgs format_string = 15;
+    FormatNumberArgs format_number = 16;
+    FormatCurrencyArgs format_currency = 17;
+    FormatDateArgs format_date = 18;
+    PluralizeArgs pluralize = 19;
+    OpenUrlArgs open_url = 20;
+    AndArgs and = 21;
+    OrArgs or = 22;
+    NotArgs not = 23;
+  }
+}

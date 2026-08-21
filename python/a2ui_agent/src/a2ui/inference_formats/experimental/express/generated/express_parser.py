@@ -1,4 +1,4 @@
-# Generated from /Users/gspencer/code/a2ui/v1_0/specification/inference_formats/express/Express.g4 by ANTLR 4.13.2
+# Generated from /Users/gspencer/code/a2ui/v1_0_protobuf/specification/inference_formats/express/Express.g4 by ANTLR 4.13.2
 # encoding: utf-8
 from antlr4 import *
 from io import StringIO

@@ -1,0 +1,129 @@
+// Copyright 2026 The A2UI Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+edition = "2023";
+
+package a2ui.v1_0;
+
+import "common_types.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "a2ui.org/specification/v1_0/proto/a2uiproto";
+option java_multiple_files = true;
+option java_package = "org.a2ui.v1_0";
+
+// ActionMetadata contains optional client-side metadata sent with an action.
+message ActionMetadata {
+  // Vendor extensions attached to the action event.
+  Extensions extensions = 1;
+}
+
+// ActionEventMessage reports a user-initiated action from a UI component to the agent.
+message ActionEventMessage {
+  // The name of the action dispatched to the agent.
+  string name = 1;
+  // An optional human-readable description of the user action after resolving bindings.
+  string user_message = 2;
+  // The identifier of the surface where the action originated.
+  string surface_id = 3;
+  // The identifier of the component that triggered the action.
+  string source_component_id = 4;
+  // Timestamp when the event occurred.
+  google.protobuf.Timestamp timestamp = 5;
+  // Resolved context data for the action.
+  google.protobuf.Struct context = 6;
+  // Optional metadata sent with the action.
+  ActionMetadata metadata = 7;
+}
+
+// CallAgentFunctionMessage signals the agent to execute a function on behalf of the renderer.
+message CallAgentFunctionMessage {
+  // The surface ID where the function call originated.
+  string surface_id = 1;
+  // Unique ID for this function call instance.
+  string function_call_id = 2;
+  // The function invocation specification.
+  FunctionCall call_function = 3;
+}
+
+// RendererFunctionResponseMessage returns the result of a callRendererFunction invocation.
+message RendererFunctionResponseMessage {
+  // The response matching the initiating function call.
+  FunctionResponse renderer_function_response = 1;
+}
+
+// ValidationFailedError reports a schema or topology validation failure from the renderer.
+message ValidationFailedError {
+  // Error codes for validation failures.
+  enum Code {
+    CODE_UNSPECIFIED = 0;
+    // Component or message failed schema validation.
+    VALIDATION_FAILED = 1;
+    // Component is placed under an unallowed parent component.
+    UNALLOWED_PARENT = 2;
+    // Container component contains an unallowed child component.
+    UNALLOWED_CHILD = 3;
+  }
+  // The validation error code.
+  Code code = 1;
+  // The surface ID where the validation error occurred.
+  string surface_id = 2;
+  // JSON pointer path to the field that failed validation (e.g. "/components/0/text").
+  string path = 3;
+  // Description of why validation failed.
+  string message = 4;
+}
+
+// GenericError reports a non-validation error from the renderer.
+message GenericError {
+  // Machine-readable error code.
+  string code = 1;
+  // Description of why the error occurred.
+  string message = 2;
+  oneof target {
+    // Surface ID if error is associated with a surface.
+    string surface_id = 3;
+    // Function call ID if error is associated with a function invocation.
+    string function_call_id = 4;
+  }
+  // Optional additional error details.
+  google.protobuf.Struct details = 5;
+}
+
+// RendererErrorMessage reports errors encountered during UI rendering or execution.
+message RendererErrorMessage {
+  oneof error_type {
+    // Validation or topology error.
+    ValidationFailedError validation_error = 1;
+    // Generic or runtime error.
+    GenericError generic_error = 2;
+  }
+}
+
+// RendererToAgentMessage represents a message envelope sent from the renderer to the agent.
+message RendererToAgentMessage {
+  // The protocol version (e.g. "v1.0").
+  string version = 1;
+  oneof message {
+    // Reports a user interaction event.
+    ActionEventMessage action = 2;
+    // Requests execution of an agent-side function.
+    CallAgentFunctionMessage call_agent_function = 3;
+    // Delivers a response for a renderer function previously requested by the agent.
+    RendererFunctionResponseMessage renderer_function_response = 4;
+    // Reports a renderer-side error.
+    RendererErrorMessage error = 5;
+  }
+}
