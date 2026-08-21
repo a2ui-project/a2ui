@@ -168,3 +168,37 @@ jobs:
         run: uv sync --all-packages
       - name: Run Performance Tests
         run: uv run pytest -m performance python/a2ui_core/tests python/a2ui_agent/tests
+
+  # Default python-ci stays on a2a-sdk 0.3: workspace members (samples) still
+  # pin <0.4, so `uv sync --all-packages` cannot resolve 1.x. This sibling job
+  # installs a2ui-a2a with a2a-sdk 1.x in an isolated venv.
+  python-ci-a2a-sdk-1x:
+    name: Python CI (a2a-sdk 1.x)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-python
+      - name: Install a2ui-a2a with a2a-sdk 1.x
+        run: |
+          uv venv .venv-a2a-sdk-1x
+          venv="$PWD/.venv-a2a-sdk-1x"
+          core="$PWD/python/a2ui_core"
+          agent="$PWD/python/a2ui_agent"
+          a2a_ext="$PWD/python/a2ui_a2a"
+          # uv pip install from the workspace root applies constraint-dependencies
+          # (a2a-sdk<0.4). Run from /tmp so only a2ui-a2a's pin (<2) applies.
+          cd /tmp
+          uv pip install --python "$venv" \
+            -e "$core" \
+            -e "$agent" \
+            -e "$a2a_ext" \
+            "a2a-sdk>=1.0.0,<2" \
+            pytest
+      - name: Show a2a-sdk version
+        run: |
+          .venv-a2a-sdk-1x/bin/python -c "import importlib.metadata as m; print('a2a-sdk', m.version('a2a-sdk'))"
+      - name: Run a2ui-a2a tests on a2a-sdk 1.x
+        run: |
+          .venv-a2a-sdk-1x/bin/pytest python/a2ui_a2a/tests -q
