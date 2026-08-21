@@ -1,8 +1,6 @@
 # Triage for PRs and issues
 
-go/a2ui-triage
-
-See go/a2ui-triage for internal information.
+See go/a2ui-triage-internal for internal information.
 
 ## Goals
 
@@ -48,37 +46,46 @@ Two of these are automated by [scripts/triage.mjs](../../scripts/triage.mjs): `s
 
 ## Triage responsibilities
 
-### First line triage
+### First line triage (daily)
 
 For each issue that is [not first-line-handled](https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3A%22status%3A%20first-line-handled%22):
 
 - If it is P0, add label `P0` and notify team chat
 - Add label `status: first-line-handled`
 
-### Second line triage
+### Second line triage (weekly)
 
-Push forward items [with label `status: needs-triage`][needs-triage], temporarily adding `status: in-discussion` for items that are [actively discussed by the team][in-discussion].
+Update [items with label `status: needs-triage`][needs-triage], so that the label, managed by [triage.mjs](../../scripts/triage.mjs), disappears:
 
-Push forward means to address each item until it no longer matches a [flagging rule](../../scripts/triage.mjs): set a priority, assign P0/P1, answer the external comment, or add `status: waiting-for-author-response` when you need more information. The label is owned by the automation and disappears on its next run. Removing it by hand just speeds that up — if the item still matches a rule, it comes back within a minute.
+- Set priority (P0-P4)
+- Assign P0/P1
+- Answer external comment
+- Add `status: waiting-for-author-response` when you need more information
+
+You can remove the label manually to speed up the process, but if the item still matches a rule, the label will come back within a minute.
+
+For items where you need input from the team:
+
+- add `status: in-discussion`
+- post a message to the team chat, suggesting options and/or asking for input
+- drive the discussion to resolution
+- remove the label `status: in-discussion`
 
 Use [standard replies](triage-templates.md) that are provided for standard cases.
 
 [needs-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20label%3A%22status%3A%20needs-triage%22%20repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui%20-label%3A%22status%3A%20in-discussion%22%20sort%3Aupdated-asc%20-label%3A%22status%3A%20waiting-for-user-response%22
-[in-discussion]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20label%3A%22status%3A%20in-discussion%22
-
-See internal steps in: go/a2ui-oncall-notes-template.
 
 ## AI assistance
 
-Use this skill to get agent's help with triage process: [.agents/skills/a2ui-issue-triage](../../.agents/skills/a2ui-issue-triage/SKILL.md).
+Point of contact: [gspencergoogle](https://github.com/gspencergoog).
+
+Use [.agents/skills/a2ui-issue-triage](../../.agents/skills/a2ui-issue-triage/SKILL.md) to get agent help with triage.
 
 It forks multiple subagents (one for each issue) to try and tries to reproduce the issue if it is something that can be easily reproduced. It won't attempt to repro something that takes a lot of setup.
 
-## Q\&A
+## Frequently asked questions
 
-This tab contains explanations behind decisions made for the triage process.
-
-### Why do we allow branches on the repo and thus create work for on-call?
+### Why do we allow branches on the repo and thus create work for maintainers?
 
 Eval and e2e tests cannot be executed on pre-submit for PRs from forks, because they require an API key that is visible only on the original repo.
 
