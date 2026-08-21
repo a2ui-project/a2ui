@@ -19,13 +19,12 @@ from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.server.tasks import TaskUpdater
 from a2a.types import (
-    DataPart,
-    Part,
     Task,
     TaskState,
-    TextPart,
     UnsupportedOperationError,
 )
+from a2ui.a2a import _compat
+from a2ui.a2a.parts import part_data_as_dict
 from a2a.utils import (
     new_agent_parts_message,
     new_agent_text_message,
@@ -77,33 +76,36 @@ class ContactAgentExecutor(AgentExecutor):
                 " parts ---"
             )
             for i, part in enumerate(context.message.parts):
-                if isinstance(part.root, DataPart):
+                data = part_data_as_dict(part)
+                if data is not None:
                     # Extract client UI capabilities from any DataPart that has them
                     if (
                         inference_format
                         and inference_format.accepts_inline_catalogs
-                        and "metadata" in part.root.data
-                        and "a2uiClientCapabilities" in part.root.data["metadata"]
+                        and "metadata" in data
+                        and "a2uiClientCapabilities" in data["metadata"]
                     ):
                         logger.info(
                             f"  Part {i}: Found 'a2uiClientCapabilities' in DataPart."
                         )
-                        client_ui_capabilities = part.root.data["metadata"][
+                        client_ui_capabilities = data["metadata"][
                             "a2uiClientCapabilities"
                         ]
 
-                    if "userAction" in part.root.data:
+                    if "userAction" in data:
                         logger.info(f"  Part {i}: Found a2ui UI ClientEvent payload.")
-                        ui_event_part = part.root.data["userAction"]
-                    elif "request" in part.root.data:
+                        ui_event_part = data["userAction"]
+                    elif "request" in data:
                         logger.info(f"  Part {i}: Found 'request' in DataPart.")
-                        query = part.root.data["request"]
+                        query = data["request"]
                     else:
-                        logger.info(f"  Part {i}: DataPart (data: {part.root.data})")
-                elif isinstance(part.root, TextPart):
-                    logger.info(f"  Part {i}: TextPart (text: {part.root.text})")
+                        logger.info(f"  Part {i}: DataPart (data: {data})")
+                elif _compat.is_text_part(part):
+                    logger.info(
+                        f"  Part {i}: TextPart (text: {_compat.part_text(part)})"
+                    )
                 else:
-                    logger.info(f"  Part {i}: Unknown part type ({type(part.root)})")
+                    logger.info(f"  Part {i}: Unknown part type ({type(part)})")
 
         if ui_event_part:
             logger.info(f"Received a2ui ClientEvent: {ui_event_part}")
@@ -207,11 +209,16 @@ class ContactAgentExecutor(AgentExecutor):
 
             logger.info("--- FINAL PARTS TO BE SENT ---")
             for i, part in enumerate(final_parts):
-                logger.info(f"  - Part {i}: Type = {type(part.root)}")
-                if isinstance(part.root, TextPart):
-                    logger.info(f"    - Text: {part.root.text[:200]}...")
-                elif isinstance(part.root, DataPart):
-                    logger.info(f"    - Data: {str(part.root.data)[:200]}...")
+                if _compat.is_text_part(part):
+                    logger.info(
+                        f"  - Part {i}: Text = {_compat.part_text(part)[:200]}..."
+                    )
+                elif _compat.is_data_part(part):
+                    logger.info(
+                        f"  - Part {i}: Data = {str(part_data_as_dict(part))[:200]}..."
+                    )
+                else:
+                    logger.info(f"  - Part {i}: Type = {type(part)}")
             logger.info("-----------------------------")
 
             await updater.update_status(

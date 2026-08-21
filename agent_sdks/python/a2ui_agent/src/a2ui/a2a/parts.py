@@ -21,6 +21,11 @@ if TYPE_CHECKING:
     from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2a.types import Part
 
+
+def make_text_part(text: str) -> Part:
+    """Builds a text Part for the installed a2a-sdk generation."""
+    return _compat.make_text_part(text)
+
 logger = logging.getLogger(__name__)
 
 MIME_TYPE_KEY = "mimeType"

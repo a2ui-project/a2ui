@@ -32,7 +32,7 @@ The following directories contain the base protocol logic, parsing, and schema o
 
 - **`extension.py`**: Utilities for managing the A2UI extension URI and activation logic.
 - **`parts.py`**: Utilities for creating A2A Parts with A2UI data and helpers for response parsing.
-- **`_compat.py`**: Version-agnostic Part / AgentExtension adapters for a2a-sdk **0.3.x** (pydantic `Part.root`) and **1.x** (protobuf `Part`). Prefer `create_a2ui_part`, `is_a2ui_part`, `get_a2ui_data`, `extract_user_action`, and `try_activate_a2ui_extension` over reaching into `Part.root` or `RequestContext.add_activated_extension`.
+- **`_compat.py`**: Version-agnostic Part / AgentExtension adapters for a2a-sdk **0.3.x** (pydantic `Part.root`) and **1.x** (protobuf `Part`). Prefer `create_a2ui_part`, `make_text_part`, `is_a2ui_part`, `get_a2ui_data`, `extract_user_action`, `part_data_as_dict`, and `try_activate_a2ui_extension` over reaching into `Part.root` or `RequestContext.add_activated_extension`.
 
 ## ADK Extensions (`src/a2ui/adk`)
 

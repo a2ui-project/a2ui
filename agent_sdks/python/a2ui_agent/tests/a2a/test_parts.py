@@ -23,6 +23,7 @@ from a2ui.a2a.parts import (
     get_a2ui_data,
     get_a2ui_datapart,
     is_a2ui_part,
+    make_text_part,
     part_data_as_dict,
 )
 
@@ -44,7 +45,7 @@ def test_create_a2ui_part_v09_1_uses_primary_mime():
 
 
 def test_text_part_is_not_a2ui():
-    part = _compat.make_text_part("hello")
+    part = make_text_part("hello")
     assert not is_a2ui_part(part)
     assert get_a2ui_data(part) is None
     assert part_data_as_dict(part) is None

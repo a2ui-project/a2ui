@@ -18,13 +18,12 @@ from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.server.tasks import TaskUpdater
 from a2a.types import (
-    DataPart,
-    Part,
     Task,
     TaskState,
-    TextPart,
     UnsupportedOperationError,
 )
+from a2ui.a2a import _compat
+from a2ui.a2a.parts import part_data_as_dict
 from a2a.utils import (
     new_agent_parts_message,
     new_agent_text_message,
@@ -75,28 +74,28 @@ class RestaurantAgentExecutor(AgentExecutor):
                 " parts ---"
             )
             for i, part in enumerate(context.message.parts):
-                if isinstance(part.root, DataPart):
-                    if "useStreaming" in part.root.data:
-                        use_streaming = part.root.data["useStreaming"]
+                data = part_data_as_dict(part)
+                if data is not None:
+                    if "useStreaming" in data:
+                        use_streaming = data["useStreaming"]
                         logger.info(f"  Part {i}: Found useStreaming={use_streaming}")
 
-                    if (
-                        part.root.data.get("version") == "v0.9"
-                        and "action" in part.root.data
-                    ):
+                    if data.get("version") == "v0.9" and "action" in data:
                         logger.info(f"  Part {i}: Found a2ui v0.9 action payload.")
-                        ui_event_part = part.root.data["action"]
-                    elif "userAction" in part.root.data:
+                        ui_event_part = data["action"]
+                    elif "userAction" in data:
                         logger.info(
                             f"  Part {i}: Found a2ui v0.8 UI ClientEvent payload."
                         )
-                        ui_event_part = part.root.data["userAction"]
+                        ui_event_part = data["userAction"]
                     else:
-                        logger.info(f"  Part {i}: DataPart (data: {part.root.data})")
-                elif isinstance(part.root, TextPart):
-                    logger.info(f"  Part {i}: TextPart (text: {part.root.text})")
+                        logger.info(f"  Part {i}: DataPart (data: {data})")
+                elif _compat.is_text_part(part):
+                    logger.info(
+                        f"  Part {i}: TextPart (text: {_compat.part_text(part)})"
+                    )
                 else:
-                    logger.info(f"  Part {i}: Unknown part type ({type(part.root)})")
+                    logger.info(f"  Part {i}: Unknown part type ({type(part)})")
 
         if ui_event_part:
             logger.info(f"Received a2ui ClientEvent: {ui_event_part}")
@@ -168,11 +167,16 @@ class RestaurantAgentExecutor(AgentExecutor):
 
             logger.info("--- FINAL PARTS TO BE SENT ---")
             for i, part in enumerate(final_parts):
-                logger.info(f"  - Part {i}: Type = {type(part.root)}")
-                if isinstance(part.root, TextPart):
-                    logger.info(f"    - Text: {part.root.text[:200]}...")
-                elif isinstance(part.root, DataPart):
-                    logger.info(f"    - Data: {str(part.root.data)[:200]}...")
+                if _compat.is_text_part(part):
+                    logger.info(
+                        f"  - Part {i}: Text = {_compat.part_text(part)[:200]}..."
+                    )
+                elif _compat.is_data_part(part):
+                    logger.info(
+                        f"  - Part {i}: Data = {str(part_data_as_dict(part))[:200]}..."
+                    )
+                else:
+                    logger.info(f"  - Part {i}: Type = {type(part)}")
             logger.info("-----------------------------")
 
             await updater.update_status(
