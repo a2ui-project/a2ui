@@ -72,3 +72,35 @@ jobs:
         run: uv run python3 scripts/run_skills_tests.py
       - name: Run Workflow Script Unit Tests
         run: python3 -m unittest discover -s .github/scripts/tests
+
+  # Default python-ci stays on a2a-sdk 0.3: workspace members (samples) still
+  # pin <0.4, so `uv sync --all-packages` cannot resolve 1.x. This sibling job
+  # installs only a2ui-agent-sdk + a2a-sdk 1.x in an isolated venv.
+  python-ci-a2a-sdk-1x:
+    name: Python CI (a2a-sdk 1.x)
+    runs-on: ubuntu-latest-extra-capacity
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-python
+      - name: Install a2ui-agent-sdk with a2a-sdk 1.x
+        run: |
+          uv venv .venv-a2a-sdk-1x
+          venv="$PWD/.venv-a2a-sdk-1x"
+          core="$PWD/agent_sdks/python/a2ui_core"
+          agent="$PWD/agent_sdks/python/a2ui_agent"
+          # uv pip install from the workspace root applies constraint-dependencies
+          # (a2a-sdk<0.4). Run from /tmp so only a2ui-agent-sdk's pin (<2) applies.
+          cd /tmp
+          uv pip install --python "$venv" \
+            -e "$core" \
+            -e "$agent" \
+            "a2a-sdk>=1.0.0,<2" \
+            pytest
+      - name: Show a2a-sdk version
+        run: |
+          .venv-a2a-sdk-1x/bin/python -c "import importlib.metadata as m; print('a2a-sdk', m.version('a2a-sdk'))"
+      - name: Run a2ui-agent-sdk 1.x Part tests
+        run: |
+          .venv-a2a-sdk-1x/bin/pytest agent_sdks/python/a2ui_agent/tests/a2a -q
