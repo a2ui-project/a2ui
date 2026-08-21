@@ -22,9 +22,9 @@
 // each run.
 //
 // 'status: waiting-for-author-response' is applied by hand; the automation only
-// clears it, once the author has contributed at least once after the label went
-// on. While it is set the item is never flagged, so parking an item on its
-// author also parks it out of triage.
+// clears it, once an external contributor has commented on the item at least once
+// after the label went on. While it is set the item is never flagged, so parking an
+// item on its author also parks it out of triage.
 //
 // An item is flagged with 'status: needs-triage' when it does not have the label
 // 'status: waiting-for-author-response' and:
@@ -32,8 +32,7 @@
 //      a. without a priority label, or
 //      b. P0/P1 without an assignee, or
 //      c. P0 and stale for more than 1 day, or
-//      d. P1 and stale for more than 30 days, or
-//      e. P2 and stale for more than 90 days.
+//      d. P1 and stale for more than 30 days.
 //   2. It is a stale PR opened by an external contributor (PRs from
 //      maintainers are managed by their authors).
 //   3. It is an issue whose latest human comment is from an external author
@@ -51,6 +50,10 @@
 // The job prints to console what items are flagged/unflagged and why. To see the
 // history of runs see:
 // https://github.com/a2ui-project/a2ui/actions/workflows/triage.yml
+//
+// The script selects items using queries, but does not solely rely on them,
+// because GitHub is sometimes late with indexing. So, the script double checks
+// each item, that it satisfies the query before acting on it.
 
 export const WAITING_LABEL = 'status: waiting-for-author-response';
 export const FLAG_LABEL = 'status: needs-triage';
