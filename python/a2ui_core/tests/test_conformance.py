@@ -172,7 +172,7 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
     catalogs_map["v0.9:basic"] = v09_catalog
     catalogs_map["v1.0:basic"] = v10_catalog
 
-    version = resolve_protocol_version(case)
+    version = resolve_protocol_version(case) or "v0.9"
 
     def add_catalog_id(cat_id: str, ver: Optional[str] = None):
         if cat_id and cat_id not in catalogs_map:
@@ -187,7 +187,7 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
         if "catalogSchema" in cat_spec:
             c_schema = cat_spec["catalogSchema"]
             c_id = resolve_catalog_id(case) or f"catalog-{case.get('name')}"
-            p_ver = resolve_protocol_version(case)
+            p_ver = resolve_protocol_version(case) or "v0.9"
             if c_id:
                 catalogs_map[c_id] = Catalog.from_json(
                     c_schema, catalog_id=c_id, protocol_version=p_ver
@@ -201,8 +201,10 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
                 if "catalogSchema" in item:
                     c_schema = item["catalogSchema"]
                     c_id = c_schema.get("catalogId") or item.get("catalogId")
-                    p_ver = item.get("protocolVersion") or c_schema.get(
-                        "protocolVersion"
+                    p_ver = (
+                        item.get("protocolVersion")
+                        or c_schema.get("protocolVersion")
+                        or "v0.9"
                     )
                     if c_id:
                         catalogs_map[c_id] = Catalog.from_json(
@@ -308,7 +310,7 @@ def test_conformance_suite(test_id: str, rel_path: str, case: Dict[str, Any]) ->
 def validate_from_json_case(case: Dict[str, Any]) -> None:
     catalog_data = case["catalog"]
     override_id = case.get("catalogId")
-    protocol_version = resolve_protocol_version(case)
+    protocol_version = resolve_protocol_version(case) or "v0.9"
     expect_error = case.get("expectError")
 
     if expect_error:
@@ -354,7 +356,7 @@ def validate_from_json_case(case: Dict[str, Any]) -> None:
 def validate_catalog_schema_case(case: Dict[str, Any]) -> None:
     catalog_data = case["catalog"]
     override_id = resolve_catalog_id(case) or f"catalog-{case.get('name')}"
-    protocol_version = resolve_protocol_version(case)
+    protocol_version = resolve_protocol_version(case) or "v0.9"
     theme = case.get("theme")
     if theme and isinstance(catalog_data, dict):
         catalog_data = dict(catalog_data)
