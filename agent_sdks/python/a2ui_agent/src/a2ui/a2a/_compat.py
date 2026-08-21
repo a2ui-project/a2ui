@@ -99,9 +99,7 @@ def part_metadata(part: Part) -> dict[str, Any]:
     if IS_A2A_V1:
         from google.protobuf.json_format import MessageToDict
 
-        if part.HasField("metadata"):
-            return MessageToDict(part.metadata)
-        return {}
+        return MessageToDict(part.metadata)
     return getattr(getattr(part, "root", None), "metadata", None) or {}
 
 
