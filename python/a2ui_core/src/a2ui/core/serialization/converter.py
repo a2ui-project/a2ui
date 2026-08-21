@@ -46,9 +46,7 @@ def _normalize_payload_for_proto(payload: dict[str, Any]) -> dict[str, Any]:
             return comp_norm
         return comp
 
-    if "createSurface" in normalized and isinstance(
-        normalized["createSurface"], dict
-    ):
+    if "createSurface" in normalized and isinstance(normalized["createSurface"], dict):
         cs = dict(normalized["createSurface"])
         if "components" in cs and isinstance(cs["components"], list):
             cs["components"] = [_normalize_comp(c) for c in cs["components"]]

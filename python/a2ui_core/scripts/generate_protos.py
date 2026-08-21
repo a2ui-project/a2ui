@@ -72,7 +72,10 @@ def generate_protos() -> None:
             ]
             exit_code = protoc.main(grpc_args)
             if exit_code != 0:
-                print(f"grpc_tools.protoc failed with exit code {exit_code}", file=sys.stderr)
+                print(
+                    f"grpc_tools.protoc failed with exit code {exit_code}",
+                    file=sys.stderr,
+                )
                 sys.exit(exit_code)
         except ImportError:
             print(
@@ -87,6 +90,7 @@ def generate_protos() -> None:
         # Replace top-level imports of other _pb2 modules
         # e.g., "import common_types_pb2 as" -> "from . import common_types_pb2 as"
         import re
+
         content = re.sub(
             r"^import (\w+_pb2) as",
             r"from . import \1 as",
@@ -105,7 +109,10 @@ def generate_protos() -> None:
     (output_dir.parent / "__init__.py").touch()
     (output_dir / "__init__.py").touch()
 
-    print(f"Protobuf code generation completed successfully ({len(all_proto_files)} files processed).")
+    print(
+        f"Protobuf code generation completed successfully ({len(all_proto_files)} files"
+        " processed)."
+    )
 
 
 if __name__ == "__main__":

@@ -23,14 +23,12 @@ MIME_TYPE_PROTO_BYTES = "application/x-protobuf"
 LEGACY_MIME_TYPE_JSON = "application/json+a2ui"
 
 # All recognized A2UI MIME types
-ALL_A2UI_MIME_TYPES = frozenset(
-    [
-        MIME_TYPE_A2UI_JSON,
-        MIME_TYPE_A2UI_PROTO,
-        MIME_TYPE_PROTO_BYTES,
-        LEGACY_MIME_TYPE_JSON,
-    ]
-)
+ALL_A2UI_MIME_TYPES = frozenset([
+    MIME_TYPE_A2UI_JSON,
+    MIME_TYPE_A2UI_PROTO,
+    MIME_TYPE_PROTO_BYTES,
+    LEGACY_MIME_TYPE_JSON,
+])
 
 
 class OutputFormat(str, Enum):

@@ -14,5 +14,14 @@ class CatalogSample(_message.Message):
     MESSAGES_FIELD_NUMBER: _ClassVar[int]
     name: str
     description: str
-    messages: _containers.RepeatedCompositeFieldContainer[_agent_to_renderer_pb2.AgentToRendererMessage]
-    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., messages: _Optional[_Iterable[_Union[_agent_to_renderer_pb2.AgentToRendererMessage, _Mapping]]] = ...) -> None: ...
+    messages: _containers.RepeatedCompositeFieldContainer[
+        _agent_to_renderer_pb2.AgentToRendererMessage
+    ]
+    def __init__(
+        self,
+        name: _Optional[str] = ...,
+        description: _Optional[str] = ...,
+        messages: _Optional[
+            _Iterable[_Union[_agent_to_renderer_pb2.AgentToRendererMessage, _Mapping]]
+        ] = ...,
+    ) -> None: ...

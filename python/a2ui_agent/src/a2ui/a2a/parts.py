@@ -133,7 +133,9 @@ def is_a2ui_part(part: Part) -> bool:
         )
     if isinstance(part.root, FilePart):
         file_mime = getattr(part.root.file, "mime_type", None)
-        meta_mime = part.root.metadata.get(MIME_TYPE_KEY) if part.root.metadata else None
+        meta_mime = (
+            part.root.metadata.get(MIME_TYPE_KEY) if part.root.metadata else None
+        )
         return file_mime in ALL_A2UI_MIME_TYPES or meta_mime in ALL_A2UI_MIME_TYPES
     return False
 

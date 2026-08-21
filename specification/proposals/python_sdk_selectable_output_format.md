@@ -49,19 +49,19 @@ The architecture decouples the intermediate representation of parsed UI messages
 flowchart TD
     LLM["LLM Token Stream / Tool Call"] --> Parser["Inference Parser / Compiler<br/>(Direct JSON, Express, Elemental)"]
     Parser --> Intermediate["Intermediate UI Structure<br/>(dict / AST)"]
-    
+
     Intermediate --> SerializerRouter{"MessageSerializer Strategy"}
-    
+
     SerializerRouter -->|OutputFormat.JSON_DICT| JsonDict["JsonDictSerializer<br/>• returns dict<br/>• mime: application/a2ui+json"]
     SerializerRouter -->|OutputFormat.JSON_STRING| JsonStr["JsonStringSerializer<br/>• returns str<br/>• mime: application/a2ui+json"]
     SerializerRouter -->|OutputFormat.PROTO_MESSAGE| ProtoMsg["ProtobufMessageSerializer<br/>• returns AgentToRendererMessage<br/>• mime: application/a2ui+proto"]
     SerializerRouter -->|OutputFormat.PROTO_BYTES| ProtoBytes["ProtobufBinarySerializer<br/>• returns bytes<br/>• mime: application/x-protobuf"]
-    
+
     JsonDict --> PartConverter["A2A / AG-UI Part Converter<br/>(creates DataPart with metadata)"]
     JsonStr --> PartConverter
     ProtoMsg --> PartConverter
     ProtoBytes --> PartConverter
-    
+
     PartConverter --> Transport["Transport Emitter<br/>(A2A Message, SSE, WebSocket, gRPC)"]
 ```
 
@@ -106,7 +106,7 @@ class OutputFormat(Enum):
 
 class MessageSerializer(ABC):
     """Abstract strategy for serializing A2UI message payloads."""
-    
+
     @property
     @abstractmethod
     def mime_type(self) -> str:
@@ -186,12 +186,12 @@ def create_a2ui_part(
                 metadata={MIME_TYPE_KEY: "application/x-protobuf"},
             )
         )
-    
+
     # Default JSON dict
     mime_type = "application/a2ui+json"
     if version in ("0.8", "0.9", "v0.8", "v0.9"):
         mime_type = "application/json+a2ui"
-        
+
     return Part(
         root=DataPart(
             data=a2ui_data,
@@ -248,22 +248,22 @@ proto_agent = LlmAgent(
 ## Alternatives considered
 
 1. **Unconditional Global Protobuf Migration**:
-   - *Description*: Replace all JSON dictionary representations with Protobuf across the entire SDK.
-   - *Why rejected*: Breaks compatibility with web renderers, debugging inspection tools, and standard JSON-based transport layers.
+   - _Description_: Replace all JSON dictionary representations with Protobuf across the entire SDK.
+   - _Why rejected_: Breaks compatibility with web renderers, debugging inspection tools, and standard JSON-based transport layers.
 
 2. **Separate Parallel Toolsets (`SendA2uiJsonToolset` vs `SendA2uiProtoToolset`)**:
-   - *Description*: Provide distinct tool classes for each serialization format.
-   - *Why rejected*: Duplicates validation, prompt injection, and catalog management logic across multiple classes.
+   - _Description_: Provide distinct tool classes for each serialization format.
+   - _Why rejected_: Duplicates validation, prompt injection, and catalog management logic across multiple classes.
 
 3. **Dynamic Reflection Without Precompiled Protos**:
-   - *Description*: Use dynamic proto reflection to construct messages at runtime without building `*_pb2.py` files.
-   - *Why rejected*: Prevents static type analysis, IDE autocompletion, and increases runtime overhead.
+   - _Description_: Use dynamic proto reflection to construct messages at runtime without building `*_pb2.py` files.
+   - _Why rejected_: Prevents static type analysis, IDE autocompletion, and increases runtime overhead.
 
 ## Risks and mitigations
 
 - **Dependency Management**:
-  - *Risk*: Introducing `protobuf` library dependency to lightweight environments.
-  - *Mitigation*: The `protobuf` package is a lightweight standard dependency already present in most GenAI and ADK runtime environments.
+  - _Risk_: Introducing `protobuf` library dependency to lightweight environments.
+  - _Mitigation_: The `protobuf` package is a lightweight standard dependency already present in most GenAI and ADK runtime environments.
 - **Handling Unknown Extension Fields**:
-  - *Risk*: `json_format.ParseDict` could fail on custom vendor metadata if strict checking is enabled.
-  - *Mitigation*: The `.proto` schemas explicitly include `google.protobuf.Struct extensions = 1;` in metadata containers, and custom fields map into the `properties` struct.
+  - _Risk_: `json_format.ParseDict` could fail on custom vendor metadata if strict checking is enabled.
+  - _Mitigation_: The `.proto` schemas explicitly include `google.protobuf.Struct extensions = 1;` in metadata containers, and custom fields map into the `properties` struct.

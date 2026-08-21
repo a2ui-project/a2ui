@@ -12,10 +12,16 @@ class AgentCapabilitiesV1(_message.Message):
     ACCEPTS_INLINE_CATALOGS_FIELD_NUMBER: _ClassVar[int]
     supported_catalog_ids: _containers.RepeatedScalarFieldContainer[str]
     accepts_inline_catalogs: bool
-    def __init__(self, supported_catalog_ids: _Optional[_Iterable[str]] = ..., accepts_inline_catalogs: _Optional[bool] = ...) -> None: ...
+    def __init__(
+        self,
+        supported_catalog_ids: _Optional[_Iterable[str]] = ...,
+        accepts_inline_catalogs: _Optional[bool] = ...,
+    ) -> None: ...
 
 class AgentCapabilities(_message.Message):
     __slots__ = ("v1_0",)
     V1_0_FIELD_NUMBER: _ClassVar[int]
     v1_0: AgentCapabilitiesV1
-    def __init__(self, v1_0: _Optional[_Union[AgentCapabilitiesV1, _Mapping]] = ...) -> None: ...
+    def __init__(
+        self, v1_0: _Optional[_Union[AgentCapabilitiesV1, _Mapping]] = ...
+    ) -> None: ...

@@ -171,6 +171,7 @@ class BasicFunctionName(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     FUNCTION_AND: _ClassVar[BasicFunctionName]
     FUNCTION_OR: _ClassVar[BasicFunctionName]
     FUNCTION_NOT: _ClassVar[BasicFunctionName]
+
 TEXT_VARIANT_UNSPECIFIED: TextVariant
 TEXT_VARIANT_BODY: TextVariant
 TEXT_VARIANT_CAPTION: TextVariant
@@ -305,7 +306,12 @@ class Text(_message.Message):
     text: _common_types_pb2.DynamicString
     variant: TextVariant
     weight: float
-    def __init__(self, text: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., variant: _Optional[_Union[TextVariant, str]] = ..., weight: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self,
+        text: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        variant: _Optional[_Union[TextVariant, str]] = ...,
+        weight: _Optional[float] = ...,
+    ) -> None: ...
 
 class Image(_message.Message):
     __slots__ = ("url", "description", "fit", "variant", "weight")
@@ -319,7 +325,14 @@ class Image(_message.Message):
     fit: ImageFit
     variant: ImageVariant
     weight: float
-    def __init__(self, url: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., description: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., fit: _Optional[_Union[ImageFit, str]] = ..., variant: _Optional[_Union[ImageVariant, str]] = ..., weight: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self,
+        url: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        description: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        fit: _Optional[_Union[ImageFit, str]] = ...,
+        variant: _Optional[_Union[ImageVariant, str]] = ...,
+        weight: _Optional[float] = ...,
+    ) -> None: ...
 
 class IconName(_message.Message):
     __slots__ = ("standard", "svg_path", "data_binding")
@@ -329,7 +342,12 @@ class IconName(_message.Message):
     standard: StandardIcon
     svg_path: _common_types_pb2.DynamicString
     data_binding: _common_types_pb2.DataBinding
-    def __init__(self, standard: _Optional[_Union[StandardIcon, str]] = ..., svg_path: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., data_binding: _Optional[_Union[_common_types_pb2.DataBinding, _Mapping]] = ...) -> None: ...
+    def __init__(
+        self,
+        standard: _Optional[_Union[StandardIcon, str]] = ...,
+        svg_path: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        data_binding: _Optional[_Union[_common_types_pb2.DataBinding, _Mapping]] = ...,
+    ) -> None: ...
 
 class Icon(_message.Message):
     __slots__ = ("name", "weight")
@@ -337,7 +355,11 @@ class Icon(_message.Message):
     WEIGHT_FIELD_NUMBER: _ClassVar[int]
     name: IconName
     weight: float
-    def __init__(self, name: _Optional[_Union[IconName, _Mapping]] = ..., weight: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self,
+        name: _Optional[_Union[IconName, _Mapping]] = ...,
+        weight: _Optional[float] = ...,
+    ) -> None: ...
 
 class Video(_message.Message):
     __slots__ = ("url", "poster_url", "weight")
@@ -347,7 +369,12 @@ class Video(_message.Message):
     url: _common_types_pb2.DynamicString
     poster_url: _common_types_pb2.DynamicString
     weight: float
-    def __init__(self, url: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., poster_url: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., weight: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self,
+        url: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        poster_url: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        weight: _Optional[float] = ...,
+    ) -> None: ...
 
 class AudioPlayer(_message.Message):
     __slots__ = ("url", "description", "weight")
@@ -357,7 +384,12 @@ class AudioPlayer(_message.Message):
     url: _common_types_pb2.DynamicString
     description: _common_types_pb2.DynamicString
     weight: float
-    def __init__(self, url: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., description: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., weight: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self,
+        url: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        description: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        weight: _Optional[float] = ...,
+    ) -> None: ...
 
 class Row(_message.Message):
     __slots__ = ("children", "justify", "align", "weight")
@@ -369,7 +401,13 @@ class Row(_message.Message):
     justify: MainAxisAlignment
     align: CrossAxisAlignment
     weight: float
-    def __init__(self, children: _Optional[_Union[_common_types_pb2.ChildList, _Mapping]] = ..., justify: _Optional[_Union[MainAxisAlignment, str]] = ..., align: _Optional[_Union[CrossAxisAlignment, str]] = ..., weight: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self,
+        children: _Optional[_Union[_common_types_pb2.ChildList, _Mapping]] = ...,
+        justify: _Optional[_Union[MainAxisAlignment, str]] = ...,
+        align: _Optional[_Union[CrossAxisAlignment, str]] = ...,
+        weight: _Optional[float] = ...,
+    ) -> None: ...
 
 class Column(_message.Message):
     __slots__ = ("children", "justify", "align", "weight")
@@ -381,7 +419,13 @@ class Column(_message.Message):
     justify: MainAxisAlignment
     align: CrossAxisAlignment
     weight: float
-    def __init__(self, children: _Optional[_Union[_common_types_pb2.ChildList, _Mapping]] = ..., justify: _Optional[_Union[MainAxisAlignment, str]] = ..., align: _Optional[_Union[CrossAxisAlignment, str]] = ..., weight: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self,
+        children: _Optional[_Union[_common_types_pb2.ChildList, _Mapping]] = ...,
+        justify: _Optional[_Union[MainAxisAlignment, str]] = ...,
+        align: _Optional[_Union[CrossAxisAlignment, str]] = ...,
+        weight: _Optional[float] = ...,
+    ) -> None: ...
 
 class List(_message.Message):
     __slots__ = ("children", "direction", "align", "weight")
@@ -393,7 +437,13 @@ class List(_message.Message):
     direction: ListDirection
     align: CrossAxisAlignment
     weight: float
-    def __init__(self, children: _Optional[_Union[_common_types_pb2.ChildList, _Mapping]] = ..., direction: _Optional[_Union[ListDirection, str]] = ..., align: _Optional[_Union[CrossAxisAlignment, str]] = ..., weight: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self,
+        children: _Optional[_Union[_common_types_pb2.ChildList, _Mapping]] = ...,
+        direction: _Optional[_Union[ListDirection, str]] = ...,
+        align: _Optional[_Union[CrossAxisAlignment, str]] = ...,
+        weight: _Optional[float] = ...,
+    ) -> None: ...
 
 class Card(_message.Message):
     __slots__ = ("child", "weight")
@@ -401,7 +451,9 @@ class Card(_message.Message):
     WEIGHT_FIELD_NUMBER: _ClassVar[int]
     child: str
     weight: float
-    def __init__(self, child: _Optional[str] = ..., weight: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self, child: _Optional[str] = ..., weight: _Optional[float] = ...
+    ) -> None: ...
 
 class Tab(_message.Message):
     __slots__ = ("title", "child")
@@ -409,7 +461,11 @@ class Tab(_message.Message):
     CHILD_FIELD_NUMBER: _ClassVar[int]
     title: _common_types_pb2.DynamicString
     child: str
-    def __init__(self, title: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., child: _Optional[str] = ...) -> None: ...
+    def __init__(
+        self,
+        title: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        child: _Optional[str] = ...,
+    ) -> None: ...
 
 class Tabs(_message.Message):
     __slots__ = ("tabs", "weight")
@@ -417,7 +473,11 @@ class Tabs(_message.Message):
     WEIGHT_FIELD_NUMBER: _ClassVar[int]
     tabs: _containers.RepeatedCompositeFieldContainer[Tab]
     weight: float
-    def __init__(self, tabs: _Optional[_Iterable[_Union[Tab, _Mapping]]] = ..., weight: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self,
+        tabs: _Optional[_Iterable[_Union[Tab, _Mapping]]] = ...,
+        weight: _Optional[float] = ...,
+    ) -> None: ...
 
 class Modal(_message.Message):
     __slots__ = ("trigger", "content", "weight")
@@ -427,7 +487,12 @@ class Modal(_message.Message):
     trigger: str
     content: str
     weight: float
-    def __init__(self, trigger: _Optional[str] = ..., content: _Optional[str] = ..., weight: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self,
+        trigger: _Optional[str] = ...,
+        content: _Optional[str] = ...,
+        weight: _Optional[float] = ...,
+    ) -> None: ...
 
 class Divider(_message.Message):
     __slots__ = ("axis", "weight")
@@ -435,7 +500,11 @@ class Divider(_message.Message):
     WEIGHT_FIELD_NUMBER: _ClassVar[int]
     axis: DividerAxis
     weight: float
-    def __init__(self, axis: _Optional[_Union[DividerAxis, str]] = ..., weight: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self,
+        axis: _Optional[_Union[DividerAxis, str]] = ...,
+        weight: _Optional[float] = ...,
+    ) -> None: ...
 
 class Button(_message.Message):
     __slots__ = ("child", "variant", "action", "checks", "weight")
@@ -449,7 +518,16 @@ class Button(_message.Message):
     action: _common_types_pb2.Action
     checks: _containers.RepeatedCompositeFieldContainer[_common_types_pb2.CheckRule]
     weight: float
-    def __init__(self, child: _Optional[str] = ..., variant: _Optional[_Union[ButtonVariant, str]] = ..., action: _Optional[_Union[_common_types_pb2.Action, _Mapping]] = ..., checks: _Optional[_Iterable[_Union[_common_types_pb2.CheckRule, _Mapping]]] = ..., weight: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self,
+        child: _Optional[str] = ...,
+        variant: _Optional[_Union[ButtonVariant, str]] = ...,
+        action: _Optional[_Union[_common_types_pb2.Action, _Mapping]] = ...,
+        checks: _Optional[
+            _Iterable[_Union[_common_types_pb2.CheckRule, _Mapping]]
+        ] = ...,
+        weight: _Optional[float] = ...,
+    ) -> None: ...
 
 class TextField(_message.Message):
     __slots__ = ("label", "value", "placeholder", "variant", "checks", "weight")
@@ -465,7 +543,17 @@ class TextField(_message.Message):
     variant: TextFieldVariant
     checks: _containers.RepeatedCompositeFieldContainer[_common_types_pb2.CheckRule]
     weight: float
-    def __init__(self, label: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., value: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., placeholder: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., variant: _Optional[_Union[TextFieldVariant, str]] = ..., checks: _Optional[_Iterable[_Union[_common_types_pb2.CheckRule, _Mapping]]] = ..., weight: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self,
+        label: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        value: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        placeholder: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        variant: _Optional[_Union[TextFieldVariant, str]] = ...,
+        checks: _Optional[
+            _Iterable[_Union[_common_types_pb2.CheckRule, _Mapping]]
+        ] = ...,
+        weight: _Optional[float] = ...,
+    ) -> None: ...
 
 class CheckBox(_message.Message):
     __slots__ = ("label", "value", "checks", "weight")
@@ -477,7 +565,15 @@ class CheckBox(_message.Message):
     value: _common_types_pb2.DynamicBoolean
     checks: _containers.RepeatedCompositeFieldContainer[_common_types_pb2.CheckRule]
     weight: float
-    def __init__(self, label: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., value: _Optional[_Union[_common_types_pb2.DynamicBoolean, _Mapping]] = ..., checks: _Optional[_Iterable[_Union[_common_types_pb2.CheckRule, _Mapping]]] = ..., weight: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self,
+        label: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        value: _Optional[_Union[_common_types_pb2.DynamicBoolean, _Mapping]] = ...,
+        checks: _Optional[
+            _Iterable[_Union[_common_types_pb2.CheckRule, _Mapping]]
+        ] = ...,
+        weight: _Optional[float] = ...,
+    ) -> None: ...
 
 class ChoicePickerOption(_message.Message):
     __slots__ = ("label", "value")
@@ -485,10 +581,23 @@ class ChoicePickerOption(_message.Message):
     VALUE_FIELD_NUMBER: _ClassVar[int]
     label: _common_types_pb2.DynamicString
     value: str
-    def __init__(self, label: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., value: _Optional[str] = ...) -> None: ...
+    def __init__(
+        self,
+        label: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        value: _Optional[str] = ...,
+    ) -> None: ...
 
 class ChoicePicker(_message.Message):
-    __slots__ = ("label", "variant", "options", "value", "display_style", "filterable", "checks", "weight")
+    __slots__ = (
+        "label",
+        "variant",
+        "options",
+        "value",
+        "display_style",
+        "filterable",
+        "checks",
+        "weight",
+    )
     LABEL_FIELD_NUMBER: _ClassVar[int]
     VARIANT_FIELD_NUMBER: _ClassVar[int]
     OPTIONS_FIELD_NUMBER: _ClassVar[int]
@@ -505,7 +614,19 @@ class ChoicePicker(_message.Message):
     filterable: bool
     checks: _containers.RepeatedCompositeFieldContainer[_common_types_pb2.CheckRule]
     weight: float
-    def __init__(self, label: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., variant: _Optional[_Union[ChoicePickerVariant, str]] = ..., options: _Optional[_Iterable[_Union[ChoicePickerOption, _Mapping]]] = ..., value: _Optional[_Union[_common_types_pb2.DynamicStringList, _Mapping]] = ..., display_style: _Optional[_Union[ChoicePickerDisplayStyle, str]] = ..., filterable: _Optional[bool] = ..., checks: _Optional[_Iterable[_Union[_common_types_pb2.CheckRule, _Mapping]]] = ..., weight: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self,
+        label: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        variant: _Optional[_Union[ChoicePickerVariant, str]] = ...,
+        options: _Optional[_Iterable[_Union[ChoicePickerOption, _Mapping]]] = ...,
+        value: _Optional[_Union[_common_types_pb2.DynamicStringList, _Mapping]] = ...,
+        display_style: _Optional[_Union[ChoicePickerDisplayStyle, str]] = ...,
+        filterable: _Optional[bool] = ...,
+        checks: _Optional[
+            _Iterable[_Union[_common_types_pb2.CheckRule, _Mapping]]
+        ] = ...,
+        weight: _Optional[float] = ...,
+    ) -> None: ...
 
 class Slider(_message.Message):
     __slots__ = ("label", "min", "max", "value", "steps", "checks", "weight")
@@ -523,10 +644,30 @@ class Slider(_message.Message):
     steps: int
     checks: _containers.RepeatedCompositeFieldContainer[_common_types_pb2.CheckRule]
     weight: float
-    def __init__(self, label: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., min: _Optional[float] = ..., max: _Optional[float] = ..., value: _Optional[_Union[_common_types_pb2.DynamicNumber, _Mapping]] = ..., steps: _Optional[int] = ..., checks: _Optional[_Iterable[_Union[_common_types_pb2.CheckRule, _Mapping]]] = ..., weight: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self,
+        label: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        min: _Optional[float] = ...,
+        max: _Optional[float] = ...,
+        value: _Optional[_Union[_common_types_pb2.DynamicNumber, _Mapping]] = ...,
+        steps: _Optional[int] = ...,
+        checks: _Optional[
+            _Iterable[_Union[_common_types_pb2.CheckRule, _Mapping]]
+        ] = ...,
+        weight: _Optional[float] = ...,
+    ) -> None: ...
 
 class DateTimeInput(_message.Message):
-    __slots__ = ("value", "enable_date", "enable_time", "min", "max", "label", "checks", "weight")
+    __slots__ = (
+        "value",
+        "enable_date",
+        "enable_time",
+        "min",
+        "max",
+        "label",
+        "checks",
+        "weight",
+    )
     VALUE_FIELD_NUMBER: _ClassVar[int]
     ENABLE_DATE_FIELD_NUMBER: _ClassVar[int]
     ENABLE_TIME_FIELD_NUMBER: _ClassVar[int]
@@ -543,10 +684,45 @@ class DateTimeInput(_message.Message):
     label: _common_types_pb2.DynamicString
     checks: _containers.RepeatedCompositeFieldContainer[_common_types_pb2.CheckRule]
     weight: float
-    def __init__(self, value: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., enable_date: _Optional[bool] = ..., enable_time: _Optional[bool] = ..., min: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., max: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., label: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., checks: _Optional[_Iterable[_Union[_common_types_pb2.CheckRule, _Mapping]]] = ..., weight: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self,
+        value: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        enable_date: _Optional[bool] = ...,
+        enable_time: _Optional[bool] = ...,
+        min: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        max: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        label: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        checks: _Optional[
+            _Iterable[_Union[_common_types_pb2.CheckRule, _Mapping]]
+        ] = ...,
+        weight: _Optional[float] = ...,
+    ) -> None: ...
 
 class BasicComponent(_message.Message):
-    __slots__ = ("id", "catalog_id", "accessibility", "metadata", "text", "image", "icon", "video", "audio_player", "row", "column", "list", "card", "tabs", "modal", "divider", "button", "text_field", "check_box", "choice_picker", "slider", "date_time_input")
+    __slots__ = (
+        "id",
+        "catalog_id",
+        "accessibility",
+        "metadata",
+        "text",
+        "image",
+        "icon",
+        "video",
+        "audio_player",
+        "row",
+        "column",
+        "list",
+        "card",
+        "tabs",
+        "modal",
+        "divider",
+        "button",
+        "text_field",
+        "check_box",
+        "choice_picker",
+        "slider",
+        "date_time_input",
+    )
     ID_FIELD_NUMBER: _ClassVar[int]
     CATALOG_ID_FIELD_NUMBER: _ClassVar[int]
     ACCESSIBILITY_FIELD_NUMBER: _ClassVar[int]
@@ -591,13 +767,43 @@ class BasicComponent(_message.Message):
     choice_picker: ChoicePicker
     slider: Slider
     date_time_input: DateTimeInput
-    def __init__(self, id: _Optional[str] = ..., catalog_id: _Optional[str] = ..., accessibility: _Optional[_Union[_common_types_pb2.AccessibilityAttributes, _Mapping]] = ..., metadata: _Optional[_Union[_common_types_pb2.ComponentMetadata, _Mapping]] = ..., text: _Optional[_Union[Text, _Mapping]] = ..., image: _Optional[_Union[Image, _Mapping]] = ..., icon: _Optional[_Union[Icon, _Mapping]] = ..., video: _Optional[_Union[Video, _Mapping]] = ..., audio_player: _Optional[_Union[AudioPlayer, _Mapping]] = ..., row: _Optional[_Union[Row, _Mapping]] = ..., column: _Optional[_Union[Column, _Mapping]] = ..., list: _Optional[_Union[List, _Mapping]] = ..., card: _Optional[_Union[Card, _Mapping]] = ..., tabs: _Optional[_Union[Tabs, _Mapping]] = ..., modal: _Optional[_Union[Modal, _Mapping]] = ..., divider: _Optional[_Union[Divider, _Mapping]] = ..., button: _Optional[_Union[Button, _Mapping]] = ..., text_field: _Optional[_Union[TextField, _Mapping]] = ..., check_box: _Optional[_Union[CheckBox, _Mapping]] = ..., choice_picker: _Optional[_Union[ChoicePicker, _Mapping]] = ..., slider: _Optional[_Union[Slider, _Mapping]] = ..., date_time_input: _Optional[_Union[DateTimeInput, _Mapping]] = ...) -> None: ...
+    def __init__(
+        self,
+        id: _Optional[str] = ...,
+        catalog_id: _Optional[str] = ...,
+        accessibility: _Optional[
+            _Union[_common_types_pb2.AccessibilityAttributes, _Mapping]
+        ] = ...,
+        metadata: _Optional[
+            _Union[_common_types_pb2.ComponentMetadata, _Mapping]
+        ] = ...,
+        text: _Optional[_Union[Text, _Mapping]] = ...,
+        image: _Optional[_Union[Image, _Mapping]] = ...,
+        icon: _Optional[_Union[Icon, _Mapping]] = ...,
+        video: _Optional[_Union[Video, _Mapping]] = ...,
+        audio_player: _Optional[_Union[AudioPlayer, _Mapping]] = ...,
+        row: _Optional[_Union[Row, _Mapping]] = ...,
+        column: _Optional[_Union[Column, _Mapping]] = ...,
+        list: _Optional[_Union[List, _Mapping]] = ...,
+        card: _Optional[_Union[Card, _Mapping]] = ...,
+        tabs: _Optional[_Union[Tabs, _Mapping]] = ...,
+        modal: _Optional[_Union[Modal, _Mapping]] = ...,
+        divider: _Optional[_Union[Divider, _Mapping]] = ...,
+        button: _Optional[_Union[Button, _Mapping]] = ...,
+        text_field: _Optional[_Union[TextField, _Mapping]] = ...,
+        check_box: _Optional[_Union[CheckBox, _Mapping]] = ...,
+        choice_picker: _Optional[_Union[ChoicePicker, _Mapping]] = ...,
+        slider: _Optional[_Union[Slider, _Mapping]] = ...,
+        date_time_input: _Optional[_Union[DateTimeInput, _Mapping]] = ...,
+    ) -> None: ...
 
 class RequiredArgs(_message.Message):
     __slots__ = ("value",)
     VALUE_FIELD_NUMBER: _ClassVar[int]
     value: _common_types_pb2.DynamicValue
-    def __init__(self, value: _Optional[_Union[_common_types_pb2.DynamicValue, _Mapping]] = ...) -> None: ...
+    def __init__(
+        self, value: _Optional[_Union[_common_types_pb2.DynamicValue, _Mapping]] = ...
+    ) -> None: ...
 
 class RegexArgs(_message.Message):
     __slots__ = ("value", "pattern")
@@ -605,7 +811,11 @@ class RegexArgs(_message.Message):
     PATTERN_FIELD_NUMBER: _ClassVar[int]
     value: _common_types_pb2.DynamicString
     pattern: str
-    def __init__(self, value: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., pattern: _Optional[str] = ...) -> None: ...
+    def __init__(
+        self,
+        value: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        pattern: _Optional[str] = ...,
+    ) -> None: ...
 
 class LengthArgs(_message.Message):
     __slots__ = ("value", "min", "max")
@@ -615,7 +825,12 @@ class LengthArgs(_message.Message):
     value: _common_types_pb2.DynamicString
     min: int
     max: int
-    def __init__(self, value: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., min: _Optional[int] = ..., max: _Optional[int] = ...) -> None: ...
+    def __init__(
+        self,
+        value: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        min: _Optional[int] = ...,
+        max: _Optional[int] = ...,
+    ) -> None: ...
 
 class NumericArgs(_message.Message):
     __slots__ = ("value", "min", "max")
@@ -625,19 +840,28 @@ class NumericArgs(_message.Message):
     value: _common_types_pb2.DynamicNumber
     min: float
     max: float
-    def __init__(self, value: _Optional[_Union[_common_types_pb2.DynamicNumber, _Mapping]] = ..., min: _Optional[float] = ..., max: _Optional[float] = ...) -> None: ...
+    def __init__(
+        self,
+        value: _Optional[_Union[_common_types_pb2.DynamicNumber, _Mapping]] = ...,
+        min: _Optional[float] = ...,
+        max: _Optional[float] = ...,
+    ) -> None: ...
 
 class EmailArgs(_message.Message):
     __slots__ = ("value",)
     VALUE_FIELD_NUMBER: _ClassVar[int]
     value: _common_types_pb2.DynamicString
-    def __init__(self, value: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...) -> None: ...
+    def __init__(
+        self, value: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...
+    ) -> None: ...
 
 class FormatStringArgs(_message.Message):
     __slots__ = ("value",)
     VALUE_FIELD_NUMBER: _ClassVar[int]
     value: _common_types_pb2.DynamicString
-    def __init__(self, value: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...) -> None: ...
+    def __init__(
+        self, value: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...
+    ) -> None: ...
 
 class FormatNumberArgs(_message.Message):
     __slots__ = ("value", "decimals", "grouping")
@@ -647,7 +871,12 @@ class FormatNumberArgs(_message.Message):
     value: _common_types_pb2.DynamicNumber
     decimals: _common_types_pb2.DynamicNumber
     grouping: _common_types_pb2.DynamicBoolean
-    def __init__(self, value: _Optional[_Union[_common_types_pb2.DynamicNumber, _Mapping]] = ..., decimals: _Optional[_Union[_common_types_pb2.DynamicNumber, _Mapping]] = ..., grouping: _Optional[_Union[_common_types_pb2.DynamicBoolean, _Mapping]] = ...) -> None: ...
+    def __init__(
+        self,
+        value: _Optional[_Union[_common_types_pb2.DynamicNumber, _Mapping]] = ...,
+        decimals: _Optional[_Union[_common_types_pb2.DynamicNumber, _Mapping]] = ...,
+        grouping: _Optional[_Union[_common_types_pb2.DynamicBoolean, _Mapping]] = ...,
+    ) -> None: ...
 
 class FormatCurrencyArgs(_message.Message):
     __slots__ = ("value", "currency", "decimals", "grouping")
@@ -659,7 +888,13 @@ class FormatCurrencyArgs(_message.Message):
     currency: _common_types_pb2.DynamicString
     decimals: _common_types_pb2.DynamicNumber
     grouping: _common_types_pb2.DynamicBoolean
-    def __init__(self, value: _Optional[_Union[_common_types_pb2.DynamicNumber, _Mapping]] = ..., currency: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., decimals: _Optional[_Union[_common_types_pb2.DynamicNumber, _Mapping]] = ..., grouping: _Optional[_Union[_common_types_pb2.DynamicBoolean, _Mapping]] = ...) -> None: ...
+    def __init__(
+        self,
+        value: _Optional[_Union[_common_types_pb2.DynamicNumber, _Mapping]] = ...,
+        currency: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        decimals: _Optional[_Union[_common_types_pb2.DynamicNumber, _Mapping]] = ...,
+        grouping: _Optional[_Union[_common_types_pb2.DynamicBoolean, _Mapping]] = ...,
+    ) -> None: ...
 
 class FormatDateArgs(_message.Message):
     __slots__ = ("value", "format")
@@ -667,7 +902,11 @@ class FormatDateArgs(_message.Message):
     FORMAT_FIELD_NUMBER: _ClassVar[int]
     value: _common_types_pb2.DynamicValue
     format: _common_types_pb2.DynamicString
-    def __init__(self, value: _Optional[_Union[_common_types_pb2.DynamicValue, _Mapping]] = ..., format: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...) -> None: ...
+    def __init__(
+        self,
+        value: _Optional[_Union[_common_types_pb2.DynamicValue, _Mapping]] = ...,
+        format: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+    ) -> None: ...
 
 class PluralizeArgs(_message.Message):
     __slots__ = ("value", "other", "zero", "one", "two", "few", "many")
@@ -685,34 +924,74 @@ class PluralizeArgs(_message.Message):
     two: _common_types_pb2.DynamicString
     few: _common_types_pb2.DynamicString
     many: _common_types_pb2.DynamicString
-    def __init__(self, value: _Optional[_Union[_common_types_pb2.DynamicNumber, _Mapping]] = ..., other: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., zero: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., one: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., two: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., few: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ..., many: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...) -> None: ...
+    def __init__(
+        self,
+        value: _Optional[_Union[_common_types_pb2.DynamicNumber, _Mapping]] = ...,
+        other: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        zero: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        one: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        two: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        few: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+        many: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...,
+    ) -> None: ...
 
 class OpenUrlArgs(_message.Message):
     __slots__ = ("url",)
     URL_FIELD_NUMBER: _ClassVar[int]
     url: _common_types_pb2.DynamicString
-    def __init__(self, url: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...) -> None: ...
+    def __init__(
+        self, url: _Optional[_Union[_common_types_pb2.DynamicString, _Mapping]] = ...
+    ) -> None: ...
 
 class AndArgs(_message.Message):
     __slots__ = ("values",)
     VALUES_FIELD_NUMBER: _ClassVar[int]
-    values: _containers.RepeatedCompositeFieldContainer[_common_types_pb2.DynamicBoolean]
-    def __init__(self, values: _Optional[_Iterable[_Union[_common_types_pb2.DynamicBoolean, _Mapping]]] = ...) -> None: ...
+    values: _containers.RepeatedCompositeFieldContainer[
+        _common_types_pb2.DynamicBoolean
+    ]
+    def __init__(
+        self,
+        values: _Optional[
+            _Iterable[_Union[_common_types_pb2.DynamicBoolean, _Mapping]]
+        ] = ...,
+    ) -> None: ...
 
 class OrArgs(_message.Message):
     __slots__ = ("values",)
     VALUES_FIELD_NUMBER: _ClassVar[int]
-    values: _containers.RepeatedCompositeFieldContainer[_common_types_pb2.DynamicBoolean]
-    def __init__(self, values: _Optional[_Iterable[_Union[_common_types_pb2.DynamicBoolean, _Mapping]]] = ...) -> None: ...
+    values: _containers.RepeatedCompositeFieldContainer[
+        _common_types_pb2.DynamicBoolean
+    ]
+    def __init__(
+        self,
+        values: _Optional[
+            _Iterable[_Union[_common_types_pb2.DynamicBoolean, _Mapping]]
+        ] = ...,
+    ) -> None: ...
 
 class NotArgs(_message.Message):
     __slots__ = ("value",)
     VALUE_FIELD_NUMBER: _ClassVar[int]
     value: _common_types_pb2.DynamicBoolean
-    def __init__(self, value: _Optional[_Union[_common_types_pb2.DynamicBoolean, _Mapping]] = ...) -> None: ...
+    def __init__(
+        self, value: _Optional[_Union[_common_types_pb2.DynamicBoolean, _Mapping]] = ...
+    ) -> None: ...
 
 class BasicFunctionCall(_message.Message):
-    __slots__ = ("catalog_id", "required", "regex", "length", "numeric", "email", "format_string", "format_number", "format_currency", "format_date", "pluralize", "open_url")
+    __slots__ = (
+        "catalog_id",
+        "required",
+        "regex",
+        "length",
+        "numeric",
+        "email",
+        "format_string",
+        "format_number",
+        "format_currency",
+        "format_date",
+        "pluralize",
+        "open_url",
+    )
     CATALOG_ID_FIELD_NUMBER: _ClassVar[int]
     REQUIRED_FIELD_NUMBER: _ClassVar[int]
     REGEX_FIELD_NUMBER: _ClassVar[int]
@@ -740,4 +1019,19 @@ class BasicFunctionCall(_message.Message):
     format_date: FormatDateArgs
     pluralize: PluralizeArgs
     open_url: OpenUrlArgs
-    def __init__(self, catalog_id: _Optional[str] = ..., required: _Optional[_Union[RequiredArgs, _Mapping]] = ..., regex: _Optional[_Union[RegexArgs, _Mapping]] = ..., length: _Optional[_Union[LengthArgs, _Mapping]] = ..., numeric: _Optional[_Union[NumericArgs, _Mapping]] = ..., email: _Optional[_Union[EmailArgs, _Mapping]] = ..., format_string: _Optional[_Union[FormatStringArgs, _Mapping]] = ..., format_number: _Optional[_Union[FormatNumberArgs, _Mapping]] = ..., format_currency: _Optional[_Union[FormatCurrencyArgs, _Mapping]] = ..., format_date: _Optional[_Union[FormatDateArgs, _Mapping]] = ..., pluralize: _Optional[_Union[PluralizeArgs, _Mapping]] = ..., open_url: _Optional[_Union[OpenUrlArgs, _Mapping]] = ..., **kwargs) -> None: ...
+    def __init__(
+        self,
+        catalog_id: _Optional[str] = ...,
+        required: _Optional[_Union[RequiredArgs, _Mapping]] = ...,
+        regex: _Optional[_Union[RegexArgs, _Mapping]] = ...,
+        length: _Optional[_Union[LengthArgs, _Mapping]] = ...,
+        numeric: _Optional[_Union[NumericArgs, _Mapping]] = ...,
+        email: _Optional[_Union[EmailArgs, _Mapping]] = ...,
+        format_string: _Optional[_Union[FormatStringArgs, _Mapping]] = ...,
+        format_number: _Optional[_Union[FormatNumberArgs, _Mapping]] = ...,
+        format_currency: _Optional[_Union[FormatCurrencyArgs, _Mapping]] = ...,
+        format_date: _Optional[_Union[FormatDateArgs, _Mapping]] = ...,
+        pluralize: _Optional[_Union[PluralizeArgs, _Mapping]] = ...,
+        open_url: _Optional[_Union[OpenUrlArgs, _Mapping]] = ...,
+        **kwargs
+    ) -> None: ...

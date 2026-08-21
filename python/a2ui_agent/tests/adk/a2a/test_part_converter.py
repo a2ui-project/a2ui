@@ -342,9 +342,7 @@ def test_converter_class_convert_protobuf_bytes_output_format():
     from a2ui.core.proto.v1_0 import agent_to_renderer_pb2
 
     catalog_mock = MagicMock(spec=A2uiCatalog)
-    converter = A2uiPartConverter(
-        catalog_mock, output_format=OutputFormat.PROTO_BYTES
-    )
+    converter = A2uiPartConverter(catalog_mock, output_format=OutputFormat.PROTO_BYTES)
 
     valid_a2ui = {
         "createSurface": {
@@ -373,4 +371,3 @@ def test_converter_class_convert_protobuf_bytes_output_format():
     msg = agent_to_renderer_pb2.AgentToRendererMessage()
     msg.ParseFromString(raw_bytes)
     assert msg.create_surface.surface_id == "s_bytes"
-

@@ -10,5 +10,12 @@ DESCRIPTOR: _descriptor.FileDescriptor
 class AgentToRendererMessageList(_message.Message):
     __slots__ = ("messages",)
     MESSAGES_FIELD_NUMBER: _ClassVar[int]
-    messages: _containers.RepeatedCompositeFieldContainer[_agent_to_renderer_pb2.AgentToRendererMessage]
-    def __init__(self, messages: _Optional[_Iterable[_Union[_agent_to_renderer_pb2.AgentToRendererMessage, _Mapping]]] = ...) -> None: ...
+    messages: _containers.RepeatedCompositeFieldContainer[
+        _agent_to_renderer_pb2.AgentToRendererMessage
+    ]
+    def __init__(
+        self,
+        messages: _Optional[
+            _Iterable[_Union[_agent_to_renderer_pb2.AgentToRendererMessage, _Mapping]]
+        ] = ...,
+    ) -> None: ...

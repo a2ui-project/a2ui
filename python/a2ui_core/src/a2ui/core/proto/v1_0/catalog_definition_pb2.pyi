@@ -34,6 +34,7 @@ class ValidationSeverity(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     VALIDATION_SEVERITY_ERROR: _ClassVar[ValidationSeverity]
     VALIDATION_SEVERITY_WARNING: _ClassVar[ValidationSeverity]
     VALIDATION_SEVERITY_INFO: _ClassVar[ValidationSeverity]
+
 RETURN_TYPE_UNSPECIFIED: ReturnType
 RETURN_TYPE_STRING: ReturnType
 RETURN_TYPE_NUMBER: ReturnType
@@ -56,7 +57,10 @@ class ComponentDefinitionMetadata(_message.Message):
     __slots__ = ("extensions",)
     EXTENSIONS_FIELD_NUMBER: _ClassVar[int]
     extensions: _common_types_pb2.Extensions
-    def __init__(self, extensions: _Optional[_Union[_common_types_pb2.Extensions, _Mapping]] = ...) -> None: ...
+    def __init__(
+        self,
+        extensions: _Optional[_Union[_common_types_pb2.Extensions, _Mapping]] = ...,
+    ) -> None: ...
 
 class ComponentDefinition(_message.Message):
     __slots__ = ("allowed_parents", "allowed_children", "metadata", "schema")
@@ -68,10 +72,22 @@ class ComponentDefinition(_message.Message):
     allowed_children: _containers.RepeatedScalarFieldContainer[str]
     metadata: ComponentDefinitionMetadata
     schema: _struct_pb2.Struct
-    def __init__(self, allowed_parents: _Optional[_Iterable[str]] = ..., allowed_children: _Optional[_Iterable[str]] = ..., metadata: _Optional[_Union[ComponentDefinitionMetadata, _Mapping]] = ..., schema: _Optional[_Union[_struct_pb2.Struct, _Mapping]] = ...) -> None: ...
+    def __init__(
+        self,
+        allowed_parents: _Optional[_Iterable[str]] = ...,
+        allowed_children: _Optional[_Iterable[str]] = ...,
+        metadata: _Optional[_Union[ComponentDefinitionMetadata, _Mapping]] = ...,
+        schema: _Optional[_Union[_struct_pb2.Struct, _Mapping]] = ...,
+    ) -> None: ...
 
 class FunctionDefinition(_message.Message):
-    __slots__ = ("description", "return_type", "allowed_callers", "requires_user_activation", "args_schema")
+    __slots__ = (
+        "description",
+        "return_type",
+        "allowed_callers",
+        "requires_user_activation",
+        "args_schema",
+    )
     DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
     RETURN_TYPE_FIELD_NUMBER: _ClassVar[int]
     ALLOWED_CALLERS_FIELD_NUMBER: _ClassVar[int]
@@ -82,7 +98,14 @@ class FunctionDefinition(_message.Message):
     allowed_callers: AllowedCallers
     requires_user_activation: bool
     args_schema: _struct_pb2.Struct
-    def __init__(self, description: _Optional[str] = ..., return_type: _Optional[_Union[ReturnType, str]] = ..., allowed_callers: _Optional[_Union[AllowedCallers, str]] = ..., requires_user_activation: _Optional[bool] = ..., args_schema: _Optional[_Union[_struct_pb2.Struct, _Mapping]] = ...) -> None: ...
+    def __init__(
+        self,
+        description: _Optional[str] = ...,
+        return_type: _Optional[_Union[ReturnType, str]] = ...,
+        allowed_callers: _Optional[_Union[AllowedCallers, str]] = ...,
+        requires_user_activation: _Optional[bool] = ...,
+        args_schema: _Optional[_Union[_struct_pb2.Struct, _Mapping]] = ...,
+    ) -> None: ...
 
 class ValidationResult(_message.Message):
     __slots__ = ("valid", "code", "message", "severity")
@@ -94,24 +117,51 @@ class ValidationResult(_message.Message):
     code: str
     message: str
     severity: ValidationSeverity
-    def __init__(self, valid: _Optional[bool] = ..., code: _Optional[str] = ..., message: _Optional[str] = ..., severity: _Optional[_Union[ValidationSeverity, str]] = ...) -> None: ...
+    def __init__(
+        self,
+        valid: _Optional[bool] = ...,
+        code: _Optional[str] = ...,
+        message: _Optional[str] = ...,
+        severity: _Optional[_Union[ValidationSeverity, str]] = ...,
+    ) -> None: ...
 
 class CatalogDefinition(_message.Message):
-    __slots__ = ("schema", "id", "protocol_version", "title", "description", "catalog_id", "instructions", "components", "functions")
+    __slots__ = (
+        "schema",
+        "id",
+        "protocol_version",
+        "title",
+        "description",
+        "catalog_id",
+        "instructions",
+        "components",
+        "functions",
+    )
+
     class ComponentsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
         value: ComponentDefinition
-        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[ComponentDefinition, _Mapping]] = ...) -> None: ...
+        def __init__(
+            self,
+            key: _Optional[str] = ...,
+            value: _Optional[_Union[ComponentDefinition, _Mapping]] = ...,
+        ) -> None: ...
+
     class FunctionsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
         value: FunctionDefinition
-        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[FunctionDefinition, _Mapping]] = ...) -> None: ...
+        def __init__(
+            self,
+            key: _Optional[str] = ...,
+            value: _Optional[_Union[FunctionDefinition, _Mapping]] = ...,
+        ) -> None: ...
+
     SCHEMA_FIELD_NUMBER: _ClassVar[int]
     ID_FIELD_NUMBER: _ClassVar[int]
     PROTOCOL_VERSION_FIELD_NUMBER: _ClassVar[int]
@@ -130,4 +180,15 @@ class CatalogDefinition(_message.Message):
     instructions: str
     components: _containers.MessageMap[str, ComponentDefinition]
     functions: _containers.MessageMap[str, FunctionDefinition]
-    def __init__(self, schema: _Optional[str] = ..., id: _Optional[str] = ..., protocol_version: _Optional[str] = ..., title: _Optional[str] = ..., description: _Optional[str] = ..., catalog_id: _Optional[str] = ..., instructions: _Optional[str] = ..., components: _Optional[_Mapping[str, ComponentDefinition]] = ..., functions: _Optional[_Mapping[str, FunctionDefinition]] = ...) -> None: ...
+    def __init__(
+        self,
+        schema: _Optional[str] = ...,
+        id: _Optional[str] = ...,
+        protocol_version: _Optional[str] = ...,
+        title: _Optional[str] = ...,
+        description: _Optional[str] = ...,
+        catalog_id: _Optional[str] = ...,
+        instructions: _Optional[str] = ...,
+        components: _Optional[_Mapping[str, ComponentDefinition]] = ...,
+        functions: _Optional[_Mapping[str, FunctionDefinition]] = ...,
+    ) -> None: ...

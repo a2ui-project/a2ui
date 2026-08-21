@@ -123,12 +123,15 @@ src/v1_0/proto/generated/
 The `V1_0ProtobufAdapter` decodes binary inputs and extracts `InternalOperation` arrays:
 
 ```typescript
-import { fromBinary } from '@bufbuild/protobuf';
-import { AgentToRendererMessageSchema, AgentToRendererMessage } from '../proto/generated/agent_to_renderer_pb.js';
-import { AgentToRendererListWrapperSchema } from '../proto/generated/agent_to_renderer_list_wrapper_pb.js';
-import { AgentToRendererMessageListSchema } from '../proto/generated/agent_to_renderer_list_pb.js';
-import { InternalOperation, InternalComponentPayload } from '../operations.js';
-import { A2uiValidationError } from '../../errors.js';
+import {fromBinary} from '@bufbuild/protobuf';
+import {
+  AgentToRendererMessageSchema,
+  AgentToRendererMessage,
+} from '../proto/generated/agent_to_renderer_pb.js';
+import {AgentToRendererListWrapperSchema} from '../proto/generated/agent_to_renderer_list_wrapper_pb.js';
+import {AgentToRendererMessageListSchema} from '../proto/generated/agent_to_renderer_list_pb.js';
+import {InternalOperation, InternalComponentPayload} from '../operations.js';
+import {A2uiValidationError} from '../../errors.js';
 
 export class V1_0ProtobufAdapter {
   readonly version = 'v1.0';
@@ -299,7 +302,7 @@ export class LengthDelimitedStreamReader {
     const messages: Uint8Array[] = [];
 
     while (this.buffer.length > 0) {
-      const { value: length, bytesRead } = this.readVarint(this.buffer);
+      const {value: length, bytesRead} = this.readVarint(this.buffer);
       if (bytesRead === 0 || this.buffer.length < bytesRead + length) {
         // Incomplete message frame; wait for next chunk
         break;
@@ -313,7 +316,7 @@ export class LengthDelimitedStreamReader {
     return messages;
   }
 
-  private readVarint(bytes: Uint8Array): { value: number; bytesRead: number } {
+  private readVarint(bytes: Uint8Array): {value: number; bytesRead: number} {
     let result = 0;
     let shift = 0;
     let bytesRead = 0;
@@ -323,12 +326,12 @@ export class LengthDelimitedStreamReader {
       bytesRead++;
       result |= (byte & 0x7f) << shift;
       if ((byte & 0x80) === 0) {
-        return { value: result, bytesRead };
+        return {value: result, bytesRead};
       }
       shift += 7;
     }
 
-    return { value: 0, bytesRead: 0 };
+    return {value: 0, bytesRead: 0};
   }
 }
 ```
@@ -338,8 +341,8 @@ export class LengthDelimitedStreamReader {
 Provides typed builders for encoding outbound client events into binary Protobuf:
 
 ```typescript
-import { create, toBinary } from '@bufbuild/protobuf';
-import { RendererToAgentMessageSchema } from '../proto/generated/renderer_to_agent_pb.js';
+import {create, toBinary} from '@bufbuild/protobuf';
+import {RendererToAgentMessageSchema} from '../proto/generated/renderer_to_agent_pb.js';
 
 export class RendererToAgentBuilder {
   static createActionEventBinary(params: {
@@ -371,25 +374,25 @@ export class RendererToAgentBuilder {
 ## Alternatives considered
 
 1. **Transcoding to JSON Strings Before Ingestion**:
-   - *Description*: Decode binary Protobuf into JSON strings (`toJsonString()`), then feed them to the existing `V1_0VersionAdapter`.
-   - *Why rejected*: Incurs redundant serialization and deserialization cycles (binary -> JSON string -> JSON object -> operations), degrading runtime performance.
+   - _Description_: Decode binary Protobuf into JSON strings (`toJsonString()`), then feed them to the existing `V1_0VersionAdapter`.
+   - _Why rejected_: Incurs redundant serialization and deserialization cycles (binary -> JSON string -> JSON object -> operations), degrading runtime performance.
 
 2. **Refactoring Internal State Models to Protobuf Instances**:
-   - *Description*: Replace `ComponentModel`, `DataModel`, and `SurfaceModel` with Protobuf message classes.
-   - *Why rejected*: Protobuf message instances lack fine-grained signal reactivity, and mutating nested properties is significantly more complex than standard reactive JavaScript models.
+   - _Description_: Replace `ComponentModel`, `DataModel`, and `SurfaceModel` with Protobuf message classes.
+   - _Why rejected_: Protobuf message instances lack fine-grained signal reactivity, and mutating nested properties is significantly more complex than standard reactive JavaScript models.
 
 3. **Separate `ProtobufMessageProcessor` Subclass**:
-   - *Description*: Create a separate processor class dedicated to Protobuf.
-   - *Why rejected*: Forces applications supporting multi-format environments (JSON and Protobuf) to manage duplicate state instances and event subscription listeners.
+   - _Description_: Create a separate processor class dedicated to Protobuf.
+   - _Why rejected_: Forces applications supporting multi-format environments (JSON and Protobuf) to manage duplicate state instances and event subscription listeners.
 
 ## Risks and mitigations
 
 - **Bundle Size Growth**:
-  - *Risk*: Adding Protobuf parsing dependencies could increase client JavaScript bundle size.
-  - *Mitigation*: `@bufbuild/protobuf` v2 compiles to modular, tree-shakeable ES modules with zero external dependencies, adding less than 15 KB gzipped.
+  - _Risk_: Adding Protobuf parsing dependencies could increase client JavaScript bundle size.
+  - _Mitigation_: `@bufbuild/protobuf` v2 compiles to modular, tree-shakeable ES modules with zero external dependencies, adding less than 15 KB gzipped.
 - **Dynamic Property Structural Conversion**:
-  - *Risk*: Converting `google.protobuf.Struct` properties into JavaScript objects could introduce object instantiation overhead.
-  - *Mitigation*: `Struct.toJson()` provides high-speed native object conversion directly compatible with Zod schema validation.
+  - _Risk_: Converting `google.protobuf.Struct` properties into JavaScript objects could introduce object instantiation overhead.
+  - _Mitigation_: `Struct.toJson()` provides high-speed native object conversion directly compatible with Zod schema validation.
 - **Stream Incompleteness and Memory Leaks**:
-  - *Risk*: Unbounded stream buffering in `LengthDelimitedStreamReader` if a stream connection drops or sends malformed varints.
-  - *Mitigation*: Enforce a configurable maximum frame size limit (e.g., 10 MB) and throw an error if an unparseable frame exceeds the threshold.
+  - _Risk_: Unbounded stream buffering in `LengthDelimitedStreamReader` if a stream connection drops or sends malformed varints.
+  - _Mitigation_: Enforce a configurable maximum frame size limit (e.g., 10 MB) and throw an error if an unparseable frame exceeds the threshold.

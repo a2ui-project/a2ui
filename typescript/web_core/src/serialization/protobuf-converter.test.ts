@@ -28,7 +28,10 @@ import {
   MIME_TYPE_PROTO_BYTES,
   LEGACY_MIME_TYPE_JSON,
 } from './index.js';
-import {AgentToRendererListWrapperType} from '../v1_0/proto/index.js';
+import {
+  AgentToRendererListWrapperType,
+  AgentToRendererMessageListType,
+} from '../v1_0/proto/index.js';
 
 describe('Protobuf Converter & Serialization', () => {
   describe('jsValueToProtoValue and protoValueToJsValue', () => {
@@ -180,6 +183,65 @@ describe('Protobuf Converter & Serialization', () => {
       assert.strictEqual(msg0.createSurface?.surfaceId, 's_list');
       assert.strictEqual(msg1.deleteSurface?.surfaceId, 's_list');
     });
+
+    it('encodes and decodes createSurface with initial dataModel', () => {
+      const payload = {
+        createSurface: {
+          surfaceId: 'surface-data',
+          catalogId: 'basic',
+          dataModel: {
+            user: {name: 'Bob', age: 25},
+          },
+        },
+      };
+
+      const bytes = encodeAgentToRendererMessage(payload);
+      const decoded = decodeAgentToRendererMessages(bytes);
+      assert.strictEqual(decoded.length, 1);
+      const msg = decoded[0] as {
+        createSurface?: {dataModel?: {user?: {name?: string; age?: number}}};
+      };
+      assert.deepStrictEqual(msg.createSurface?.dataModel?.user, {name: 'Bob', age: 25});
+    });
+
+    it('decodes AgentToRendererMessageListType multi-message binary payload', () => {
+      const listMsg = AgentToRendererMessageListType.create({
+        messages: [
+          {
+            createSurface: {
+              surfaceId: 's_list_direct',
+              catalogId: 'basic',
+            },
+          },
+        ],
+      });
+
+      const binaryBytes = AgentToRendererMessageListType.encode(listMsg).finish();
+      const decoded = decodeAgentToRendererMessages(binaryBytes);
+      assert.strictEqual(decoded.length, 1);
+      const msg0 = decoded[0] as {createSurface?: {surfaceId?: string}};
+      assert.strictEqual(msg0.createSurface?.surfaceId, 's_list_direct');
+    });
+
+    it('handles pre-parsed object input and empty/null inputs', () => {
+      assert.deepStrictEqual(decodeAgentToRendererMessages(null as any), []);
+      assert.deepStrictEqual(decodeAgentToRendererMessages(undefined as any), []);
+      assert.deepStrictEqual(decodeAgentToRendererMessages(new Uint8Array(0)), []);
+
+      const plainObj = {createSurface: {surfaceId: 's1', catalogId: 'basic'}};
+      const decoded = decodeAgentToRendererMessages(plainObj);
+      assert.strictEqual(decoded.length, 1);
+      const msg = decoded[0] as {createSurface?: {surfaceId?: string}};
+      assert.strictEqual(msg.createSurface?.surfaceId, 's1');
+    });
+
+    it('throws error when encoding invalid agent payload', () => {
+      assert.throws(() => {
+        encodeAgentToRendererMessage({
+          createSurface: 12345 as any,
+        });
+      });
+    });
   });
 
   describe('RendererToAgentMessage encoding and decoding', () => {
@@ -203,6 +265,18 @@ describe('Protobuf Converter & Serialization', () => {
       assert.strictEqual(decoded.action?.name, 'button_click');
       assert.strictEqual(decoded.action?.surfaceId, 'surface-main');
       assert.strictEqual(decoded.action?.sourceComponentId, 'btn_1');
+    });
+
+    it('handles pre-parsed object and throws on unsupported inputs for renderer message', () => {
+      const plainAction = {version: 'v1.0', action: {name: 'test'}};
+      assert.deepStrictEqual(decodeRendererToAgentMessage(plainAction), plainAction);
+
+      assert.throws(() => {
+        decodeRendererToAgentMessage(12345 as any);
+      });
+      assert.throws(() => {
+        encodeRendererToAgentMessage({action: 12345 as any});
+      });
     });
   });
 

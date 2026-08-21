@@ -107,7 +107,9 @@ def test_dict_to_agent_message_update_data_model():
     assert msg.HasField("update_data_model")
     assert msg.update_data_model.surface_id == "main-surface"
     assert msg.update_data_model.path == "/user/profile"
-    assert msg.update_data_model.value.struct_value.fields["name"].string_value == "Alice"
+    assert (
+        msg.update_data_model.value.struct_value.fields["name"].string_value == "Alice"
+    )
 
     roundtrip = agent_message_to_dict(msg)
     assert roundtrip["updateDataModel"]["value"]["name"] == "Alice"
@@ -181,9 +183,62 @@ def test_protobuf_binary_serializer():
 def test_get_serializer_factory():
     assert isinstance(get_serializer(OutputFormat.JSON_DICT), JsonDictSerializer)
     assert isinstance(get_serializer(OutputFormat.JSON_STRING), JsonStringSerializer)
-    assert isinstance(get_serializer(OutputFormat.PROTO_MESSAGE), ProtobufMessageSerializer)
-    assert isinstance(get_serializer(OutputFormat.PROTO_BYTES), ProtobufBinarySerializer)
+    assert isinstance(
+        get_serializer(OutputFormat.PROTO_MESSAGE), ProtobufMessageSerializer
+    )
+    assert isinstance(
+        get_serializer(OutputFormat.PROTO_BYTES), ProtobufBinarySerializer
+    )
     assert isinstance(get_serializer("proto_bytes"), ProtobufBinarySerializer)
 
     with pytest.raises(ValueError):
         get_serializer("unsupported_format")
+
+
+def test_dict_to_renderer_message_and_back():
+    action_dict = {
+        "version": "v1.0",
+        "action": {
+            "name": "button_click",
+            "surfaceId": "main-surface",
+            "sourceComponentId": "btn_1",
+            "context": {"key": "val"},
+        },
+    }
+    msg = dict_to_renderer_message(action_dict)
+    assert msg.action.name == "button_click"
+    recovered = renderer_message_to_dict(msg)
+    assert recovered["action"]["name"] == "button_click"
+    assert recovered["action"]["surfaceId"] == "main-surface"
+
+    error_dict = {
+        "version": "v1.0",
+        "error": {
+            "genericError": {
+                "message": "Field required",
+                "surfaceId": "main-surface",
+            }
+        },
+    }
+    err_msg = dict_to_renderer_message(error_dict)
+    assert err_msg.error.generic_error.message == "Field required"
+    recovered_err = renderer_message_to_dict(err_msg)
+    assert recovered_err["error"]["genericError"]["message"] == "Field required"
+    assert recovered_err["error"]["genericError"]["surfaceId"] == "main-surface"
+
+    with pytest.raises(A2uiValidationError):
+        dict_to_renderer_message({"unknown": 123})
+
+
+def test_agent_message_create_surface_with_data_model():
+    payload = {
+        "createSurface": {
+            "surfaceId": "s_data",
+            "catalogId": "basic",
+            "dataModel": {"user": {"name": "Alice"}},
+        }
+    }
+    msg = dict_to_agent_message(payload)
+    recovered = agent_message_to_dict(msg)
+    assert recovered["createSurface"]["surfaceId"] == "s_data"
+    assert recovered["createSurface"]["dataModel"]["user"]["name"] == "Alice"

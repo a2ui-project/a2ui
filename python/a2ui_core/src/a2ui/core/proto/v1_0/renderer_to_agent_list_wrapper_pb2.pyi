@@ -10,4 +10,9 @@ class RendererToAgentListWrapper(_message.Message):
     __slots__ = ("messages",)
     MESSAGES_FIELD_NUMBER: _ClassVar[int]
     messages: _renderer_to_agent_list_pb2.RendererToAgentMessageList
-    def __init__(self, messages: _Optional[_Union[_renderer_to_agent_list_pb2.RendererToAgentMessageList, _Mapping]] = ...) -> None: ...
+    def __init__(
+        self,
+        messages: _Optional[
+            _Union[_renderer_to_agent_list_pb2.RendererToAgentMessageList, _Mapping]
+        ] = ...,
+    ) -> None: ...

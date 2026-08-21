@@ -36,15 +36,13 @@ def processor(test_catalog):
 
 
 def test_process_protobuf_message_instance(processor, test_catalog):
-    msg = dict_to_agent_message(
-        {
-            "createSurface": {
-                "surfaceId": "surface_1",
-                "catalogId": test_catalog.catalog_id,
-                "sendDataModel": True,
-            }
+    msg = dict_to_agent_message({
+        "createSurface": {
+            "surfaceId": "surface_1",
+            "catalogId": test_catalog.catalog_id,
+            "sendDataModel": True,
         }
-    )
+    })
 
     processor.process_messages(msg)
 
@@ -58,28 +56,24 @@ def test_process_protobuf_binary_bytes(processor, test_catalog):
     serializer = ProtobufBinarySerializer()
 
     # 1. Create surface via binary bytes
-    create_bytes = serializer.serialize(
-        {
-            "createSurface": {
-                "surfaceId": "surface_1",
-                "catalogId": test_catalog.catalog_id,
-            }
+    create_bytes = serializer.serialize({
+        "createSurface": {
+            "surfaceId": "surface_1",
+            "catalogId": test_catalog.catalog_id,
         }
-    )
+    })
     processor.process_messages(create_bytes)
     assert processor.model.get_surface("surface_1") is not None
 
     # 2. Update components via binary bytes
-    components_bytes = serializer.serialize(
-        {
-            "updateComponents": {
-                "surfaceId": "surface_1",
-                "components": [
-                    {"id": "t1", "component": "Text", "text": "Hello Proto"},
-                ],
-            }
+    components_bytes = serializer.serialize({
+        "updateComponents": {
+            "surfaceId": "surface_1",
+            "components": [
+                {"id": "t1", "component": "Text", "text": "Hello Proto"},
+            ],
         }
-    )
+    })
     processor.process_messages(components_bytes)
 
     surface = processor.model.get_surface("surface_1")
@@ -87,15 +81,13 @@ def test_process_protobuf_binary_bytes(processor, test_catalog):
     assert surface.components_model.get("t1").properties.get("text") == "Hello Proto"
 
     # 3. Update data model via binary bytes
-    data_bytes = serializer.serialize(
-        {
-            "updateDataModel": {
-                "surfaceId": "surface_1",
-                "path": "/user/status",
-                "value": "online",
-            }
+    data_bytes = serializer.serialize({
+        "updateDataModel": {
+            "surfaceId": "surface_1",
+            "path": "/user/status",
+            "value": "online",
         }
-    )
+    })
     processor.process_messages(data_bytes)
     assert surface.data_model.get("/user/status") == "online"
 
