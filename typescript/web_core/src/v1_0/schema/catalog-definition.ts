@@ -127,6 +127,15 @@ export const FunctionDefinitionSchema = z
       ),
     ),
   )
+  .superRefine((val, ctx) => {
+    if (val && val.requiresUserActivation && val.allowedCallers !== 'rendererOnly') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "requiresUserActivation=true must have allowedCallers='rendererOnly'.",
+        path: ['allowedCallers'],
+      });
+    }
+  })
   .describe("Describes a function's validation schema and interface metadata.");
 export type FunctionDefinition = z.infer<typeof FunctionDefinitionSchema>;
 

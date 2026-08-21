@@ -50,6 +50,18 @@ export class SurfaceComponentsModel {
     return this.components.entries();
   }
 
+  get keys(): IterableIterator<string> {
+    return this.components.keys();
+  }
+
+  get values(): IterableIterator<ComponentModel> {
+    return this.components.values();
+  }
+
+  get size(): number {
+    return this.components.size;
+  }
+
   /**
    * Adds a component to the model.
    * Throws an error if a component with the same ID already exists.

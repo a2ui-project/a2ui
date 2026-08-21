@@ -52,7 +52,48 @@ export interface CapabilitiesOptions {
   includeInlineCatalogs?: boolean;
   /** The protocol version to generate capabilities for. Defaults to the processor's configured version. */
   version?: ProtocolVersion;
+  /** The base schema $ref to wrap component definitions in inline catalogs. Defaults to 'common_types.json#/$defs/ComponentCommon'. */
+  componentEnvelopeRef?: string;
 }
+
+/**
+ * Configuration options for payload, schema, and topology validation.
+ */
+export interface ValidationConfig {
+  /** Target protocol version expected for incoming messages (e.g. 'v0.8', 'v0.9', 'v1.0'). */
+  targetVersion?: ProtocolVersion | string;
+
+  /** When false, verifies all components in a surface are reachable from the root component. Default: false. */
+  allowOrphanComponents?: boolean;
+
+  /** When false, verifies all component child references point to existing components. Default: false. */
+  allowDanglingReferences?: boolean;
+
+  /** When false, verifies that a component with id 'root' exists in the surface. Default: false. */
+  allowMissingRoot?: boolean;
+
+  /** When false, verifies that all component types exist in the surface catalog. Default: false. */
+  allowUnknownElements?: boolean;
+
+  /** Allowed top-level message operation types (e.g. ['createSurface', 'updateComponents']). */
+  allowedMessages?: string[];
+}
+
+/** Strict validation preset enforcing root presence, valid references, reachability, and catalog compliance. */
+export const STRICT_VALIDATION: ValidationConfig = Object.freeze({
+  allowOrphanComponents: false,
+  allowDanglingReferences: false,
+  allowMissingRoot: false,
+  allowUnknownElements: false,
+});
+
+/** Relaxed validation preset permitting partial topologies and unknown component types. */
+export const RELAXED_VALIDATION: ValidationConfig = Object.freeze({
+  allowOrphanComponents: true,
+  allowDanglingReferences: true,
+  allowMissingRoot: true,
+  allowUnknownElements: true,
+});
 
 /**
  * Options for configuring a MessageProcessor instance.
@@ -62,6 +103,8 @@ export interface MessageProcessorOptions {
   version?: ProtocolVersion;
   /** Custom version adapter resolver or registry. Defaults to VersionAdapterFactory. */
   adapterRegistry?: VersionAdapterResolver;
+  /** Validation configuration rules. */
+  validationConfig?: ValidationConfig;
 }
 
 /**
@@ -134,6 +177,7 @@ export class MessageProcessor<T extends ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
   readonly version: ProtocolVersion;
   private readonly adapterRegistry: VersionAdapterResolver;
+  private readonly validationConfig?: ValidationConfig;
 
   /**
    * Creates a new message processor.
@@ -150,6 +194,17 @@ export class MessageProcessor<T extends ComponentApi> {
     this.model = new SurfaceGroupModel<T>();
     this.version = options?.version ?? 'v0.9';
     this.adapterRegistry = options?.adapterRegistry ?? defaultVersionAdapterFactory;
+    if (options?.validationConfig) {
+      this.validationConfig = {
+        allowOrphanComponents: false,
+        allowDanglingReferences: false,
+        allowMissingRoot: false,
+        allowUnknownElements: false,
+        ...options.validationConfig,
+      };
+    } else {
+      this.validationConfig = undefined;
+    }
     if (this.actionHandler) {
       this.model.onAction.subscribe(this.actionHandler);
     }
@@ -169,19 +224,28 @@ export class MessageProcessor<T extends ComponentApi> {
     };
 
     if (options?.includeInlineCatalogs) {
-      versionCaps.inlineCatalogs = this.catalogs.map(c => this.generateInlineCatalog(c));
+      versionCaps.inlineCatalogs = this.catalogs.map(c =>
+        this.generateInlineCatalog(c, options?.componentEnvelopeRef),
+      );
     }
 
     return {
       supportedCatalogIds: this.catalogs.map(c => c.id),
       ...(options?.includeInlineCatalogs
-        ? {inlineCatalogs: this.catalogs.map(c => this.generateInlineCatalog(c))}
+        ? {
+            inlineCatalogs: this.catalogs.map(c =>
+              this.generateInlineCatalog(c, options?.componentEnvelopeRef),
+            ),
+          }
         : {}),
       [version]: versionCaps,
     };
   }
 
-  private generateInlineCatalog(catalog: Catalog<T>): Record<string, unknown> {
+  private generateInlineCatalog(
+    catalog: Catalog<T>,
+    componentEnvelopeRef = 'common_types.json#/$defs/ComponentCommon',
+  ): Record<string, unknown> {
     const components: Record<string, unknown> = {};
 
     for (const [name, api] of catalog.components.entries()) {
@@ -195,7 +259,7 @@ export class MessageProcessor<T extends ComponentApi> {
       // Wrap in standard A2UI component envelope (ComponentCommon)
       components[name] = {
         allOf: [
-          {$ref: 'common_types.json#/$defs/ComponentCommon'},
+          {$ref: componentEnvelopeRef},
           {
             properties: {
               component: {const: name},
@@ -335,6 +399,10 @@ export class MessageProcessor<T extends ComponentApi> {
   processMessages(messages: unknown): void {
     if (!messages) return;
 
+    if (this.validationConfig?.targetVersion) {
+      this.validateTargetVersion(messages);
+    }
+
     if (
       typeof messages === 'object' &&
       'type' in (messages as Record<string, unknown>) &&
@@ -360,7 +428,40 @@ export class MessageProcessor<T extends ComponentApi> {
     }
   }
 
+  private validateTargetVersion(messages: unknown): void {
+    const expected = this.validationConfig?.targetVersion;
+    if (!expected) return;
+
+    const checkMsg = (msg: unknown) => {
+      if (typeof msg === 'object' && msg !== null && 'version' in msg) {
+        const msgVer = (msg as {version?: string}).version;
+        if (msgVer && msgVer !== expected) {
+          throw new A2uiValidationError(
+            `Message version '${msgVer}' does not match expected target version '${expected}'`,
+          );
+        }
+      }
+    };
+
+    if (Array.isArray(messages)) {
+      for (const m of messages) {
+        checkMsg(m);
+      }
+    } else {
+      checkMsg(messages);
+    }
+  }
+
   processOperation(op: InternalOperation): void {
+    if (
+      this.validationConfig?.allowedMessages &&
+      !this.validationConfig.allowedMessages.includes(op.type)
+    ) {
+      throw new A2uiValidationError(
+        `Operation '${op.type}' is not permitted by ValidationConfig.allowedMessages`,
+      );
+    }
+
     switch (op.type) {
       case 'createSurface':
         this.processCreateSurfaceOp(op);
@@ -380,13 +481,25 @@ export class MessageProcessor<T extends ComponentApi> {
   private processCreateSurfaceOp(op: InternalCreateSurfaceOp): void {
     const {surfaceId, catalogId, theme, sendDataModel, components, dataModel} = op;
 
-    const catalog = this.catalogs.find(c => c.id === catalogId);
+    const catalog =
+      catalogId !== undefined ? this.catalogs.find(c => c.id === catalogId) : this.catalogs[0];
     if (!catalog) {
       throw new A2uiStateError(`Catalog not found: ${catalogId}`);
     }
 
     if (this.model.getSurface(surfaceId)) {
       throw new A2uiStateError(`Surface ${surfaceId} already exists.`);
+    }
+
+    if (this.validationConfig) {
+      if (catalog.themeSchema) {
+        const themeResult = catalog.themeSchema.safeParse(theme);
+        if (!themeResult.success) {
+          throw new A2uiValidationError(
+            `Validation failed for theme on surface '${surfaceId}': ${themeResult.error.message}`,
+          );
+        }
+      }
     }
 
     const surface = new SurfaceModel<T>(surfaceId, catalog, theme, sendDataModel ?? false);
@@ -433,7 +546,13 @@ export class MessageProcessor<T extends ComponentApi> {
       const mergedProperties = properties;
       if (componentType) {
         const componentApi = surface.catalog.components.get(componentType);
-        if (componentApi) {
+        if (!componentApi) {
+          if (this.validationConfig && !this.validationConfig.allowUnknownElements) {
+            throw new A2uiValidationError(
+              `Unknown component type '${componentType}' not found in catalog '${surface.catalog.id}'.`,
+            );
+          }
+        } else {
           const validationResult = componentApi.schema.safeParse(mergedProperties);
           if (!validationResult.success) {
             const formattedErrors = validationResult.error.errors.map(formatZodIssue).join(', ');
@@ -476,6 +595,228 @@ export class MessageProcessor<T extends ComponentApi> {
         }
         const newComponent = new ComponentModel(id, component, properties);
         surface.componentsModel.addComponent(newComponent);
+      }
+    }
+
+    if (this.validationConfig) {
+      this.validateTopology(surface);
+    }
+  }
+
+  private validateTopology(surface: SurfaceModel<T>): void {
+    const components = surface.componentsModel;
+    if (components.size === 0) return;
+
+    const allowMissingRoot = this.validationConfig?.allowMissingRoot ?? false;
+    const allowDanglingReferences = this.validationConfig?.allowDanglingReferences ?? false;
+    const allowOrphanComponents = this.validationConfig?.allowOrphanComponents ?? false;
+
+    // Root presence check
+    const rootComponent = components.get('root');
+    if (!rootComponent) {
+      if (!allowMissingRoot) {
+        throw new A2uiValidationError('Missing root component');
+      }
+      return;
+    }
+    const rootId = 'root';
+
+    const visited = new Set<string>();
+    const visiting = new Set<string>();
+
+    const isChildRefDef = (schema: any, keyName?: string): boolean => {
+      if (!schema || typeof schema !== 'object') return false;
+      let current = schema;
+      while (current?._def) {
+        const typeName = current._def.typeName;
+        if (typeName === 'ZodOptional' || typeName === 'ZodNullable' || typeName === 'ZodDefault') {
+          current = current._def.innerType;
+        } else if (typeName === 'ZodEffects') {
+          current = current._def.schema;
+        } else {
+          break;
+        }
+      }
+
+      const desc: string = current?.description ?? current?._def?.description ?? '';
+      if (desc.includes('ChildList') || desc.includes('ComponentId') || desc.includes('Child')) {
+        return true;
+      }
+
+      if (
+        keyName &&
+        (keyName === 'child' ||
+          keyName === 'children' ||
+          keyName.endsWith('Child') ||
+          keyName === 'root')
+      ) {
+        return true;
+      }
+
+      // Check structural definition of ChildList (Union containing array and { componentId, path } template)
+      if (current?._def?.typeName === 'ZodUnion') {
+        const options = (current._def.options as any[]) ?? [];
+        const hasTemplate = options.some(
+          o =>
+            o?._def?.typeName === 'ZodObject' &&
+            typeof o._def.shape === 'function' &&
+            o._def.shape().componentId &&
+            o._def.shape().path,
+        );
+        if (hasTemplate) return true;
+      }
+
+      return false;
+    };
+
+    const findChildProperties = (schema: any): Set<string> => {
+      const childKeys = new Set<string>();
+      if (!schema || typeof schema !== 'object') return childKeys;
+
+      let current = schema;
+      while (current?._def) {
+        const typeName = current._def.typeName;
+        if (typeName === 'ZodOptional' || typeName === 'ZodNullable' || typeName === 'ZodDefault') {
+          current = current._def.innerType;
+        } else if (typeName === 'ZodEffects') {
+          current = current._def.schema;
+        } else {
+          break;
+        }
+      }
+
+      if (current?._def?.typeName === 'ZodObject' && typeof current._def.shape === 'function') {
+        const shape = current._def.shape();
+        for (const [key, fieldSchema] of Object.entries(shape)) {
+          if (isChildRefDef(fieldSchema, key)) {
+            childKeys.add(key);
+          } else {
+            let inner = fieldSchema as any;
+            while (inner?._def) {
+              const tn = inner._def.typeName;
+              if (tn === 'ZodOptional' || tn === 'ZodNullable' || tn === 'ZodDefault') {
+                inner = inner._def.innerType;
+              } else if (tn === 'ZodEffects') {
+                inner = inner._def.schema;
+              } else {
+                break;
+              }
+            }
+            if (inner?._def?.typeName === 'ZodArray') {
+              if (isChildRefDef(inner._def.type, key)) {
+                childKeys.add(key);
+              } else if (inner._def.type?._def?.typeName === 'ZodObject') {
+                const nestedKeys = findChildProperties(inner._def.type);
+                if (nestedKeys.size > 0) {
+                  childKeys.add(key);
+                }
+              }
+            } else if (inner?._def?.typeName === 'ZodObject') {
+              const nestedKeys = findChildProperties(inner);
+              if (nestedKeys.size > 0) {
+                childKeys.add(key);
+              }
+            }
+          }
+        }
+      }
+
+      return childKeys;
+    };
+
+    const getChildren = (compId: string): string[] => {
+      const comp = components.get(compId);
+      if (!comp) return [];
+      const children: string[] = [];
+
+      const addRef = (val: unknown) => {
+        if (typeof val === 'string' && val.length > 0) {
+          children.push(val);
+        }
+      };
+
+      const extractChildRefs = (val: unknown) => {
+        if (!val) return;
+        if (typeof val === 'string') {
+          addRef(val);
+        } else if (Array.isArray(val)) {
+          for (const item of val) {
+            extractChildRefs(item);
+          }
+        } else if (typeof val === 'object' && val !== null) {
+          if ('componentId' in val && typeof (val as any).componentId === 'string') {
+            addRef((val as any).componentId);
+          }
+          if ('child' in val && typeof (val as any).child === 'string') {
+            addRef((val as any).child);
+          }
+        }
+      };
+
+      const compApi = surface.catalog.components.get(comp.type);
+      if (compApi?.schema) {
+        const childPropKeys = findChildProperties(compApi.schema);
+        for (const key of childPropKeys) {
+          const val = comp.properties[key];
+          if (val !== undefined && val !== null) {
+            extractChildRefs(val);
+          }
+        }
+      } else {
+        // Fallback for catalog-less / dynamic components without schema
+        for (const [k, v] of Object.entries(comp.properties)) {
+          if (k === 'id') continue;
+          if (
+            k === 'child' ||
+            k === 'children' ||
+            k === 'items' ||
+            k === 'components' ||
+            k.endsWith('Child')
+          ) {
+            extractChildRefs(v);
+          }
+        }
+      }
+
+      return children;
+    };
+
+    const dfs = (currId: string) => {
+      visiting.add(currId);
+      visited.add(currId);
+
+      const children = getChildren(currId);
+      for (const childId of children) {
+        if (!components.get(childId)) {
+          if (!allowDanglingReferences) {
+            throw new A2uiValidationError(
+              `Dangling reference '${childId}' in component '${currId}'`,
+            );
+          }
+          continue;
+        }
+        if (visiting.has(childId)) {
+          throw new A2uiValidationError(`Circular reference detected in component hierarchy`);
+        }
+        if (!visited.has(childId)) {
+          dfs(childId);
+        }
+      }
+
+      visiting.delete(currId);
+    };
+
+    dfs(rootId);
+
+    if (visited.size < components.size) {
+      if (!allowOrphanComponents) {
+        for (const comp of components.values) {
+          if (!visited.has(comp.id)) {
+            throw new A2uiValidationError(
+              `Orphaned component '${comp.id}' is not reachable from root`,
+            );
+          }
+        }
       }
     }
   }

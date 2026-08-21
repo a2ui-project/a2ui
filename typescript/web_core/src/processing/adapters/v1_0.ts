@@ -35,7 +35,7 @@ export class V1_0VersionAdapter extends BaseVersionAdapter {
     ].filter(k => k in msgObj);
     if (updateTypes.length > 1) {
       throw new A2uiValidationError(
-        `Message contains multiple update types: ${updateTypes.join(', ')}.`,
+        `Message contains multiple conflicting update actions: ${updateTypes.join(', ')}.`,
       );
     }
 

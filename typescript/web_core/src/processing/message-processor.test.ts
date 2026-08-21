@@ -16,7 +16,12 @@
 
 import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
-import {MessageProcessor, formatZodIssue} from './message-processor.js';
+import {
+  MessageProcessor,
+  formatZodIssue,
+  STRICT_VALIDATION,
+  RELAXED_VALIDATION,
+} from './message-processor.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {A2uiValidationError} from '../errors.js';
 import {z} from 'zod';
@@ -45,6 +50,23 @@ describe('MessageProcessor', () => {
       const caps = processor.getRendererCapabilities({includeInlineCatalogs: true});
       assert.ok(caps.inlineCatalogs);
       assert.strictEqual(caps.inlineCatalogs.length, 1);
+    });
+
+    it('supports custom componentEnvelopeRef for inline catalogs', () => {
+      const strictComp: ComponentApi = {
+        name: 'CustomButton',
+        schema: z.object({label: z.string()}),
+      };
+      const proc = new MessageProcessor([new Catalog('cat-custom', [strictComp])]);
+      const caps = proc.getRendererCapabilities({
+        includeInlineCatalogs: true,
+        componentEnvelopeRef: 'https://example.com/schema.json#/$defs/Base',
+      });
+      const inlineCat = caps.inlineCatalogs?.[0] as any;
+      assert.strictEqual(
+        inlineCat.components.CustomButton.allOf[0].$ref,
+        'https://example.com/schema.json#/$defs/Base',
+      );
     });
   });
 
@@ -366,6 +388,369 @@ describe('MessageProcessor', () => {
           return true;
         },
       );
+    });
+  });
+
+  describe('ValidationConfig', () => {
+    it('enforces targetVersion matching when configured', () => {
+      const proc = new MessageProcessor([new Catalog('cat-test', [])], undefined, {
+        validationConfig: {targetVersion: 'v1.0'},
+      });
+
+      // Matching version passes
+      assert.doesNotThrow(() => {
+        proc.processMessages({
+          version: 'v1.0',
+          createSurface: {surfaceId: 's1', catalogId: 'cat-test'},
+        });
+      });
+
+      // Non-matching version throws
+      assert.throws(
+        () => {
+          proc.processMessages({
+            version: 'v0.9',
+            deleteSurface: {surfaceId: 's1'},
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.ok(
+            err.message.includes(
+              "Message version 'v0.9' does not match expected target version 'v1.0'",
+            ),
+          );
+          return true;
+        },
+      );
+    });
+
+    it('enforces allowedMessages filter when configured', () => {
+      const proc = new MessageProcessor([new Catalog('cat-test', [])], undefined, {
+        validationConfig: {allowedMessages: ['createSurface', 'updateComponents']},
+      });
+
+      assert.doesNotThrow(() => {
+        proc.processMessages({
+          version: 'v1.0',
+          createSurface: {surfaceId: 's1', catalogId: 'cat-test'},
+        });
+      });
+
+      // Disallowed operation throws
+      assert.throws(
+        () => {
+          proc.processMessages({
+            version: 'v1.0',
+            deleteSurface: {surfaceId: 's1'},
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.ok(err.message.includes("Operation 'deleteSurface' is not permitted"));
+          return true;
+        },
+      );
+    });
+
+    it('validates themeSchema when validationConfig is active', () => {
+      const themeCatalog = new Catalog(
+        'cat-theme',
+        [],
+        undefined,
+        z.object({primaryColor: z.string()}),
+      );
+      const proc = new MessageProcessor([themeCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      assert.throws(
+        () => {
+          proc.processMessages({
+            version: 'v0.9',
+            createSurface: {
+              surfaceId: 's1',
+              catalogId: 'cat-theme',
+              theme: {primaryColor: 123},
+            },
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.ok(err.message.includes("Validation failed for theme on surface 's1'"));
+          return true;
+        },
+      );
+    });
+
+    it('enforces allowUnknownElements: false by rejecting unregistered components', () => {
+      const proc = new MessageProcessor([new Catalog('cat-strict', [])], undefined, {
+        validationConfig: {allowUnknownElements: false, allowMissingRoot: true},
+      });
+
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'cat-strict'},
+      });
+
+      assert.throws(
+        () => {
+          proc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [{id: 'c1', component: 'UnregisteredWidget'}],
+            },
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.ok(
+            err.message.includes(
+              "Unknown component type 'UnregisteredWidget' not found in catalog 'cat-strict'",
+            ),
+          );
+          return true;
+        },
+      );
+    });
+
+    it('permits unregistered components when allowUnknownElements is true', () => {
+      const proc = new MessageProcessor([new Catalog('cat-loose', [])], undefined, {
+        validationConfig: {allowUnknownElements: true, allowMissingRoot: true},
+      });
+
+      assert.doesNotThrow(() => {
+        proc.processMessages([
+          {
+            version: 'v1.0',
+            createSurface: {surfaceId: 's1', catalogId: 'cat-loose'},
+          },
+          {
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [{id: 'c1', component: 'UnregisteredWidget'}],
+            },
+          },
+        ]);
+      });
+    });
+
+    it('enforces allowMissingRoot constraint', () => {
+      const compApi: ComponentApi = {
+        name: 'Card',
+        schema: z.object({}),
+      };
+      const cat = new Catalog('cat-root', [compApi]);
+
+      // allowMissingRoot: false throws when no root component exists
+      const strictProc = new MessageProcessor([cat], undefined, {
+        validationConfig: {allowMissingRoot: false},
+      });
+      strictProc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'cat-root'},
+      });
+
+      assert.throws(
+        () => {
+          strictProc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [{id: 'leaf1', component: 'Card'}],
+            },
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.strictEqual(err.message, 'Missing root component');
+          return true;
+        },
+      );
+
+      // allowMissingRoot: true passes when no root component exists
+      const relaxedProc = new MessageProcessor([cat], undefined, {
+        validationConfig: {allowMissingRoot: true},
+      });
+      relaxedProc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's2', catalogId: 'cat-root'},
+      });
+
+      assert.doesNotThrow(() => {
+        relaxedProc.processMessages({
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's2',
+            components: [{id: 'leaf1', component: 'Card'}],
+          },
+        });
+      });
+    });
+
+    it('enforces allowDanglingReferences constraint', () => {
+      const containerApi: ComponentApi = {
+        name: 'Container',
+        schema: z.object({child: z.string().describe('Child component ID')}),
+      };
+      const cat = new Catalog('cat-refs', [containerApi]);
+
+      const strictProc = new MessageProcessor([cat], undefined, {
+        validationConfig: {allowDanglingReferences: false},
+      });
+      strictProc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'cat-refs'},
+      });
+
+      assert.throws(
+        () => {
+          strictProc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [{id: 'root', component: 'Container', child: 'nonexistent-child'}],
+            },
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.ok(
+            err.message.includes("Dangling reference 'nonexistent-child' in component 'root'"),
+          );
+          return true;
+        },
+      );
+
+      const relaxedProc = new MessageProcessor([cat], undefined, {
+        validationConfig: {allowDanglingReferences: true, allowOrphanComponents: true},
+      });
+      relaxedProc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's2', catalogId: 'cat-refs'},
+      });
+
+      assert.doesNotThrow(() => {
+        relaxedProc.processMessages({
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's2',
+            components: [{id: 'root', component: 'Container', child: 'nonexistent-child'}],
+          },
+        });
+      });
+    });
+
+    it('enforces allowOrphanComponents constraint', () => {
+      const compApi: ComponentApi = {
+        name: 'Card',
+        schema: z.object({}),
+      };
+      const cat = new Catalog('cat-orphans', [compApi]);
+
+      const strictProc = new MessageProcessor([cat], undefined, {
+        validationConfig: {allowOrphanComponents: false},
+      });
+      strictProc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'cat-orphans'},
+      });
+
+      assert.throws(
+        () => {
+          strictProc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [
+                {id: 'root', component: 'Card'},
+                {id: 'orphan1', component: 'Card'},
+              ],
+            },
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.strictEqual(
+            err.message,
+            "Orphaned component 'orphan1' is not reachable from root",
+          );
+          return true;
+        },
+      );
+
+      const relaxedProc = new MessageProcessor([cat], undefined, {
+        validationConfig: {allowOrphanComponents: true},
+      });
+      relaxedProc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's2', catalogId: 'cat-orphans'},
+      });
+
+      assert.doesNotThrow(() => {
+        relaxedProc.processMessages({
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's2',
+            components: [
+              {id: 'root', component: 'Card'},
+              {id: 'orphan1', component: 'Card'},
+            ],
+          },
+        });
+      });
+    });
+
+    it('uses STRICT_VALIDATION and RELAXED_VALIDATION presets', () => {
+      const compApi: ComponentApi = {
+        name: 'Card',
+        schema: z.object({}),
+      };
+      const cat = new Catalog('cat-preset', [compApi]);
+
+      const strictProc = new MessageProcessor([cat], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+      strictProc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'cat-preset'},
+      });
+
+      assert.throws(
+        () => {
+          strictProc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [{id: 'orphan', component: 'Card'}],
+            },
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          return true;
+        },
+      );
+
+      const relaxedProc = new MessageProcessor([cat], undefined, {
+        validationConfig: RELAXED_VALIDATION,
+      });
+      relaxedProc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's2', catalogId: 'cat-preset'},
+      });
+
+      assert.doesNotThrow(() => {
+        relaxedProc.processMessages({
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's2',
+            components: [{id: 'orphan', component: 'Card'}],
+          },
+        });
+      });
     });
   });
 });
