@@ -1,12 +1,40 @@
 # Release process
 
-## How to release packages
+## How to publish packages
 
-Release cadance: every 1-2 weeks.
+Release cadence: every 1-2 weeks.
 
-### Pub.dev
+### Pub.dev publishing steps
 
-See https://github.com/flutter/genui/blob/main/docs/contributing/release.md.
+**1. Identify publishable packages**
+
+Out of the package listed below, find those where the top version in the CHANGELOG.md:
+
+- is not `-wip...`
+- and is not published yet (click link in the header of the CHANGELOG.md
+  to verify)
+
+Changelogs:
+
+- [a2ui_core CHANGELOG.md](../../dart/a2ui_core/CHANGELOG.md)
+- [a2ui_agent CHANGELOG.md](../../dart/a2ui_agent/CHANGELOG.md)
+- [genui CHANGELOG.md](https://github.com/flutter/genui/blob/main/packages/genui/CHANGELOG.md)
+- [genui_a2a CHANGELOG.md](https://github.com/flutter/genui/blob/main/packages/genui_a2a/CHANGELOG.md)
+- [genai_primitives CHANGELOG.md](https://github.com/flutter/genui/blob/main/packages/genai_primitives/CHANGELOG.md)
+- [json_schema_builder CHANGELOG.md](https://github.com/flutter/genui/blob/main/packages/json_schema_builder/CHANGELOG.md)
+
+**2. Publish packages**
+
+For each publishable package:
+
+- Make sure you're on the current version of the `main` branch.
+- Run `flutter pub publish`.
+- Make sure there are no warnings in console.
+- Verify that the correct version of the package has been successfully uploaded to pub.dev.
+
+If any of these steps fail, file a GitHub issue and inform the team.
+
+For troubleshooting and maintenance check [release-pub-dev.md](release-pub-dev.md).
 
 ### NPM
 
@@ -16,7 +44,7 @@ See [renderers/docs/web_publishing.md](../../renderers/docs/web_publishing.md).
 
 To release a new version of the SDK, follow these steps:
 
-1. Check if there are entries in the Unreleased sections of the CHANGELOG files. If not, you are done.
+1. Check if there are entries in the unreleased sections of the CHANGELOG files. If not, you are done.
     - a2ui_core [CHANGELOG](../../agent_sdks/python/a2ui_core/CHANGELOG.md)
     - a2ui_agent [CHANGELOG](../../agent_sdks/python/a2ui_agent/CHANGELOG.md)
 

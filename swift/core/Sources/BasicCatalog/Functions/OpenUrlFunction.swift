@@ -23,7 +23,7 @@ public protocol OpenURLHandler: AnyObject, Sendable {
 }
 
 /// Opens a URL using a registered handler, ensuring it has an `http` or `https` scheme.
-public struct OpenUrlFunction: FunctionImplementation, @unchecked Sendable {
+public final class OpenURLFunction: FunctionImplementation, @unchecked Sendable {
   public let api = FunctionAPI(
     name: "openUrl",
     returnType: .void,
@@ -69,7 +69,8 @@ public struct OpenUrlFunction: FunctionImplementation, @unchecked Sendable {
     }
 
     guard let url = URL(string: urlString, relativeTo: baseURL) else {
-      throw FunctionError.invalidArgumentType(expected: "valid URL string", actual: "invalid format")
+      throw FunctionError.invalidArgumentType(
+        expected: "valid URL string", actual: "invalid format")
     }
 
     // Resolve relative paths

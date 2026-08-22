@@ -43,33 +43,31 @@ public enum ServerToClientMessage: Codable, Sendable, Equatable {
       )
     }
 
-    if let createSurface = try container.decodeIfPresent(
-      CreateSurfaceMessage.self,
-      forKey: .createSurface
-    ) {
-      self = .createSurface(createSurface)
-    } else if let updateComponents = try container.decodeIfPresent(
-      UpdateComponentsMessage.self,
-      forKey: .updateComponents
-    ) {
-      self = .updateComponents(updateComponents)
-    } else if let updateDataModel = try container.decodeIfPresent(
-      UpdateDataModelMessage.self,
-      forKey: .updateDataModel
-    ) {
-      self = .updateDataModel(updateDataModel)
-    } else if let deleteSurface = try container.decodeIfPresent(
-      DeleteSurfaceMessage.self,
-      forKey: .deleteSurface
-    ) {
-      self = .deleteSurface(deleteSurface)
-    } else {
+    let actionKeys = container.allKeys.filter { $0 != .version }
+    guard actionKeys.count == 1, let actionKey = actionKeys.first else {
       let context = DecodingError.Context(
         codingPath: container.codingPath,
-        debugDescription: """
-          ServerToClientMessage must contain one of: 'createSurface', \
-          'updateComponents', 'updateDataModel', or 'deleteSurface'
-          """
+        debugDescription:
+          "ServerToClientMessage must contain exactly one action, found \(actionKeys.count)"
+      )
+      throw DecodingError.dataCorrupted(context)
+    }
+
+    switch actionKey {
+    case .createSurface:
+      self = .createSurface(try container.decode(CreateSurfaceMessage.self, forKey: .createSurface))
+    case .updateComponents:
+      self = .updateComponents(
+        try container.decode(UpdateComponentsMessage.self, forKey: .updateComponents))
+    case .updateDataModel:
+      self = .updateDataModel(
+        try container.decode(UpdateDataModelMessage.self, forKey: .updateDataModel))
+    case .deleteSurface:
+      self = .deleteSurface(try container.decode(DeleteSurfaceMessage.self, forKey: .deleteSurface))
+    case .version:
+      let context = DecodingError.Context(
+        codingPath: container.codingPath,
+        debugDescription: "Internal error: version key was not filtered out"
       )
       throw DecodingError.dataCorrupted(context)
     }
@@ -87,6 +85,20 @@ public enum ServerToClientMessage: Codable, Sendable, Equatable {
       try container.encode(message, forKey: .updateDataModel)
     case .deleteSurface(let message):
       try container.encode(message, forKey: .deleteSurface)
+    }
+  }
+
+  /// The surface ID targeted by this message.
+  public var surfaceID: String {
+    switch self {
+    case .createSurface(let message):
+      return message.surfaceID
+    case .updateComponents(let message):
+      return message.surfaceID
+    case .updateDataModel(let message):
+      return message.surfaceID
+    case .deleteSurface(let message):
+      return message.surfaceID
     }
   }
 }

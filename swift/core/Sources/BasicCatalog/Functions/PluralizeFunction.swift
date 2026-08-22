@@ -32,7 +32,7 @@ public protocol PluralResolver: AnyObject, Sendable {
   func pluralCategory(for value: Double) -> PluralCategory
 }
 
-public struct PluralizeFunction: FunctionImplementation, @unchecked Sendable {
+public final class PluralizeFunction: FunctionImplementation, @unchecked Sendable {
   public let api = FunctionAPI(
     name: "pluralize",
     returnType: .string,

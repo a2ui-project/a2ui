@@ -15,7 +15,7 @@
 import A2UICore
 import JSONSchema
 
-public struct NumericFunction: FunctionImplementation, Sendable {
+public final class NumericFunction: FunctionImplementation, Sendable {
   public let api = FunctionAPI(
     name: "numeric",
     returnType: .boolean,
