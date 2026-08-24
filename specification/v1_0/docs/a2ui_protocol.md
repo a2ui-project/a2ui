@@ -179,7 +179,7 @@ It is an error to try to create a surface with a `surfaceId` that already exists
 
 The `createSurface` message implicitly instantiates the canonical `Surface` container component (`common_types.json#/$defs/Surface`). The `Surface` component always has `"child": "root"` and cannot be modified using `updateComponents`. To render the component tree, one of the components sent to the surface MUST have `"id": "root"`, which mounts as the child of `Surface`.
 
-The initial `createSurface` message and subsequent `updateComponents` or `updateDataModel` message(s) for the surface do not need to use the same protocol version. A renderer that supports multiple protocol versions must allow a surface to be created or modified with messages of any of its supported protocol versions.
+The initial `createSurface` message and subsequent `updateComponents`, `updateDataModel` or `deleteSurface` message for the surface do not need to use the same protocol version. A renderer that supports multiple protocol versions must allow a surface to be created or modified with messages of any of its supported protocol versions.
 
 **Properties:**
 
