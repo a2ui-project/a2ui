@@ -451,14 +451,6 @@ public final class MessageProcessor: ObservableObject {
           }
         }
       }
-
-      let existing = surface.componentsModel.get(id)
-      if let existing, existing.type != type {
-        surface.componentsModel.removeComponent(id)
-      }
-      surface.componentsModel.addComponent(
-        ComponentModel(id: id, type: type, catalogID: componentCatalogID, properties: props)
-      )
     }
 
     // Pass 2: Mutation Pass
