@@ -16,7 +16,7 @@
 
 import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
-import {MessageProcessor, formatZodIssue} from './message-processor.js';
+import {MessageProcessor, formatZodIssue, extractUnrecognizedKeys} from './message-processor.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {CardApi, RowApi, TabsApi} from '../basic_catalog/components/basic_components.js';
 import {ButtonApi} from '../basic_catalog/index.js';
@@ -805,7 +805,49 @@ describe('MessageProcessor', () => {
       assert.strictEqual(formatZodIssue(issue), 'label: Expected string, received number');
     });
 
-    it('surfaces unrecognized property validation error and details when processing component updates', () => {
+    it('accepts and ignores unrecognized properties on components during processing (additionalProperties: true)', () => {
+      const strictButtonApi: ComponentApi = {
+        name: 'MaterialButton',
+        schema: z
+          .object({
+            label: z.string(),
+          })
+          .strict(),
+      };
+      const proc = new MessageProcessor([new Catalog('cat-m3', [strictButtonApi])]);
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1', catalogId: 'cat-m3'},
+        },
+      ]);
+
+      // Should succeed and not throw despite 'color' being an unrecognized property
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [
+              {
+                id: 'btn1',
+                component: 'MaterialButton',
+                label: 'Submit',
+                color: 'primary',
+              } as any,
+            ],
+          },
+        },
+      ]);
+
+      const surface = proc.model.getSurface('s1');
+      const comp = surface?.componentsModel.get('btn1');
+      assert.ok(comp);
+      assert.strictEqual(comp.properties.label, 'Submit');
+      assert.strictEqual((comp.properties as any).color, 'primary');
+    });
+
+    it('still rejects invalid property types on components during processing', () => {
       const strictButtonApi: ComponentApi = {
         name: 'MaterialButton',
         schema: z
@@ -833,8 +875,8 @@ describe('MessageProcessor', () => {
                   {
                     id: 'btn1',
                     component: 'MaterialButton',
-                    label: 'Submit',
-                    color: 'primary',
+                    label: 123, // Invalid type
+                    color: 'primary', // Unrecognized property
                   } as any,
                 ],
               },
@@ -843,15 +885,209 @@ describe('MessageProcessor', () => {
         },
         (err: any) => {
           assert.ok(err instanceof A2uiValidationError);
-          assert.strictEqual(
-            err.message,
-            "Validation failed for component 'MaterialButton' (btn1): root: Unrecognized key(s) in object: 'color'",
-          );
-          assert.ok(Array.isArray(err.details));
-          assert.strictEqual(err.details[0].code, 'unrecognized_keys');
+          assert.ok(err.message.includes('Expected string, received number'));
+          assert.strictEqual(err.details.length, 1);
+          assert.strictEqual(err.details[0].code, 'invalid_type');
           return true;
         },
       );
+    });
+
+    it('accepts unrecognized properties on component schemas with z.union of strict objects', () => {
+      const unionComponentApi: ComponentApi = {
+        name: 'VariantCard',
+        schema: z.union([
+          z
+            .object({
+              type: z.literal('simple'),
+              title: z.string(),
+            })
+            .strict(),
+          z
+            .object({
+              type: z.literal('advanced'),
+              title: z.string(),
+              rating: z.number(),
+            })
+            .strict(),
+        ]),
+      };
+
+      const proc = new MessageProcessor([new Catalog('cat-union', [unionComponentApi])]);
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1', catalogId: 'cat-union'},
+        },
+      ]);
+
+      // Simple variant with extra unrecognized properties
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [
+              {
+                id: 'card1',
+                component: 'VariantCard',
+                type: 'simple',
+                title: 'Card 1',
+                extraProperty: 'should-be-ignored',
+                nestedInfo: {foo: 'bar'},
+              } as any,
+            ],
+          },
+        },
+      ]);
+
+      const surface = proc.model.getSurface('s1');
+      const comp = surface?.componentsModel.get('card1');
+      assert.ok(comp);
+      assert.strictEqual(comp.properties.type, 'simple');
+      assert.strictEqual(comp.properties.title, 'Card 1');
+      assert.strictEqual((comp.properties as any).extraProperty, 'should-be-ignored');
+    });
+
+    it('still rejects invalid union types when neither branch matches on valid properties', () => {
+      const unionComponentApi: ComponentApi = {
+        name: 'VariantCard',
+        schema: z.union([
+          z
+            .object({
+              type: z.literal('simple'),
+              title: z.string(),
+            })
+            .strict(),
+          z
+            .object({
+              type: z.literal('advanced'),
+              title: z.string(),
+              rating: z.number(),
+            })
+            .strict(),
+        ]),
+      };
+
+      const proc = new MessageProcessor([new Catalog('cat-union', [unionComponentApi])]);
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1', catalogId: 'cat-union'},
+        },
+      ]);
+
+      assert.throws(
+        () => {
+          proc.processMessages([
+            {
+              version: 'v0.9',
+              updateComponents: {
+                surfaceId: 's1',
+                components: [
+                  {
+                    id: 'card1',
+                    component: 'VariantCard',
+                    type: 'advanced',
+                    title: 12345, // Invalid type
+                    rating: 'not-a-number', // Invalid type
+                    extraProp: 'ignored',
+                  } as any,
+                ],
+              },
+            },
+          ]);
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.ok(err.message.includes("Validation failed for component 'VariantCard'"));
+          return true;
+        },
+      );
+    });
+
+    it('accepts unrecognized component types without throwing validation errors', () => {
+      const knownButtonApi: ComponentApi = {
+        name: 'KnownButton',
+        schema: z.object({
+          label: z.string(),
+        }),
+      };
+
+      const proc = new MessageProcessor([new Catalog('cat-partial', [knownButtonApi])]);
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1', catalogId: 'cat-partial'},
+        },
+      ]);
+
+      // Process message containing both known and unknown component types
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [
+              {
+                id: 'btn1',
+                component: 'KnownButton',
+                label: 'Save',
+              },
+              {
+                id: 'custom1',
+                component: 'UnknownGizmo',
+                arbitraryProp: 'someValue',
+                nested: {foo: 123},
+              } as any,
+            ],
+          },
+        },
+      ]);
+
+      const surface = proc.model.getSurface('s1');
+      assert.ok(surface);
+
+      const knownComp = surface.componentsModel.get('btn1');
+      assert.ok(knownComp);
+      assert.strictEqual(knownComp.type, 'KnownButton');
+      assert.strictEqual(knownComp.properties.label, 'Save');
+
+      const unknownComp = surface.componentsModel.get('custom1');
+      assert.ok(unknownComp);
+      assert.strictEqual(unknownComp.type, 'UnknownGizmo');
+      assert.strictEqual((unknownComp.properties as any).arbitraryProp, 'someValue');
+    });
+
+    it('extracts unrecognized keys recursively from direct schemas and invalid_union branches', () => {
+      // 1. Direct strict schema
+      const directStrict = z
+        .object({
+          name: z.string(),
+        })
+        .strict();
+      const directResult = directStrict.safeParse({name: 'Alice', extraA: 1, extraB: 2});
+      assert.strictEqual(directResult.success, false);
+      if (!directResult.success) {
+        const keys = extractUnrecognizedKeys(directResult.error.issues);
+        assert.deepStrictEqual(keys.sort(), ['extraA', 'extraB']);
+      }
+
+      // 2. Union with strict schema branch
+      const unionSchema = z.union([
+        z.string(),
+        z
+          .object({
+            path: z.string(),
+          })
+          .strict(),
+      ]);
+      const unionResult = unionSchema.safeParse({path: '/user/name', unexpectedProp: 'foo'});
+      assert.strictEqual(unionResult.success, false);
+      if (!unionResult.success) {
+        const keys = extractUnrecognizedKeys(unionResult.error.issues);
+        assert.deepStrictEqual(keys, ['unexpectedProp']);
+      }
     });
   });
 });

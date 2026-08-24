@@ -85,6 +85,24 @@ describe('ComponentBinder', () => {
       expect(bound['text'].raw).toBe('Hello World');
     });
 
+    it('should bind unknown/unrecognized properties without failing', () => {
+      const {context} = createComponentContext({
+        properties: {
+          label: 'Submit',
+          unknownColor: 'primary',
+          extraConfig: {custom: true},
+          legacyNumber: 99,
+        },
+      });
+
+      const bound = binder.bind(context);
+
+      expect(bound['label'].value()).toBe('Submit');
+      expect(bound['unknownColor'].value()).toBe('primary');
+      expect(bound['extraConfig'].value()).toEqual({custom: true});
+      expect(bound['legacyNumber'].value()).toBe(99);
+    });
+
     it('should bind path-based properties and setup onUpdate (two-way binding)', () => {
       const {context, surface} = createComponentContext({
         properties: {value: {path: '/data/text'}},

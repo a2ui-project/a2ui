@@ -167,4 +167,17 @@ describe('ButtonComponent', () => {
 
     expect(computedStyle.backgroundColor).toBe('rgb(255, 0, 0)'); // 'red' is evaluated to rgb in computed style
   });
+
+  it('should render smoothly and ignore unrecognized properties', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      unknownColor: createBoundProperty('primary'),
+      extraData: createBoundProperty({custom: true}),
+    } as any);
+
+    fixture.detectChanges();
+    const button = fixture.debugElement.query(By.css('button'));
+    expect(button).toBeTruthy();
+    expect(button.nativeElement.classList).toContain('primary');
+  });
 });

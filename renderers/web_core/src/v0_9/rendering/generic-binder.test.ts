@@ -317,4 +317,27 @@ describe('GenericBinder Checkable Trait', () => {
     };
     assert.strictEqual(notificationCount, 1);
   });
+
+  it('should pass through unrecognized properties as static values into snapshot', () => {
+    const {surface} = setupSurfaceAndMocks();
+    const schema = z.object({
+      label: CommonSchemas.DynamicString,
+    });
+
+    const compModel = new ComponentModel('c9', 'Test', {
+      label: 'Submit',
+      unrecognizedString: 'foo',
+      unrecognizedObject: {nested: 'bar'},
+      unrecognizedNumber: 42,
+    });
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c9');
+    const binder = new GenericBinder<any>(context, schema);
+
+    assert.strictEqual(binder.snapshot.label, 'Submit');
+    assert.strictEqual(binder.snapshot.unrecognizedString, 'foo');
+    assert.deepStrictEqual(binder.snapshot.unrecognizedObject, {nested: 'bar'});
+    assert.strictEqual(binder.snapshot.unrecognizedNumber, 42);
+  });
 });

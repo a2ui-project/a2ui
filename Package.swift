@@ -92,12 +92,24 @@ let package = Package(
     ),
     .testTarget(
       name: "A2UISwiftUITests",
-      dependencies: ["A2UISwiftUI", "A2UICore"],
+      dependencies: [
+        "A2UISwiftUI",
+        "A2UICore",
+        "A2UIJSON",
+        .product(name: "JSONSchema", package: "swift-json-schema"),
+        .product(name: "OrderedJSON", package: "swift-json-schema"),
+      ],
       path: "swift/swiftui/Tests/A2UISwiftUITests"
     ),
     .testTarget(
       name: "BasicCatalogTests",
-      dependencies: ["BasicCatalog"],
+      dependencies: [
+        "BasicCatalog",
+        "A2UICore",
+        "A2UIJSON",
+        .product(name: "JSONSchema", package: "swift-json-schema"),
+        .product(name: "OrderedJSON", package: "swift-json-schema"),
+      ],
       path: "swift/core/Tests/BasicCatalogTests"
     ),
   ]

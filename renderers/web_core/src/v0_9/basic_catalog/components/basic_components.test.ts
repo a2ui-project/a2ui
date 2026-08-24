@@ -48,7 +48,7 @@ describe('Basic Components Schema', () => {
   });
 
   describe('SliderApi', () => {
-    it('should reject non-spec step property', () => {
+    it('should allow non-spec additional properties', () => {
       const validSlider = {
         max: 100,
         value: 50,
@@ -60,12 +60,7 @@ describe('Basic Components Schema', () => {
         step: 5,
       });
 
-      assert.strictEqual(result.success, false);
-      assert.ok(
-        result.error.issues.some(
-          issue => issue.code === 'unrecognized_keys' && issue.keys.includes('step'),
-        ),
-      );
+      assert.strictEqual(result.success, true);
     });
   });
 });

@@ -155,15 +155,16 @@ struct SurfaceViewModelTests {
     }
   }
 
-  @Test func updateComponentsRejectsUnknownType() throws {
-    let (processor, _, handler) = try makeProcessor()
+  @Test func updateComponentsToleratesUnknownType() throws {
+    let (processor, surface, handler) = try makeProcessor()
     processor.updateComponents(
       surfaceID: "test-surface",
       components: [
         ["id": "root", "component": "unknown_type"]
       ]
     )
-    #expect(handler.capturedErrors.count == 1)
+    #expect(handler.capturedErrors.isEmpty)
+    #expect(surface.componentsModel.get("root")?.type == "unknown_type")
   }
 
   @Test func updateComponentsRecreatesOnTypeChange() throws {
@@ -183,9 +184,7 @@ struct SurfaceViewModelTests {
         ["id": "root", "component": "text"]
       ]
     )
-    // The component should not be stored since "text" isn't in the catalog
-    // but the key point is that the old "button" component should be removed
-    // before attempting to store the new one (matching web_core behavior).
+    #expect(surface.componentsModel.get("root")?.type == "text")
   }
 
   // MARK: - Data Model Updates
@@ -444,6 +443,27 @@ struct SurfaceViewModelTests {
     #expect(funcCallJSON["call"]?.stringValue == "submit")
   }
 
+  @Test func resolvePropertyWithUnrecognizedFunctionDoesNotCrash() async throws {
+    let (processor, surface, _) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "label": [
+            "call": "unrecognizedFunction",
+            "args": ["param": "val"],
+          ],
+        ]
+      ]
+    )
+    await Task.yield()
+    let node = surface.rootNode
+    #expect(node != nil)
+    #expect(node?.type == "button")
+  }
+
   // MARK: - Child List Resolution (Static)
 
   @Test func childListResolvesStaticArray() throws {
@@ -569,7 +589,7 @@ struct SurfaceViewModelTests {
     // by updateComponents would have infinite-looped without the guard.
     // rootNode resolves from "root" — but we only have "a" and "b", so
     // it will be nil. The key assertion is that we didn't hang.
-    #expect(true)
+    #expect(Bool(true))
   }
 
   @Test func legitimateDataDrivenRecursionResolves() throws {
@@ -608,7 +628,7 @@ struct SurfaceViewModelTests {
     // If we get here without hanging, the guard correctly allowed
     // legitimate recursion. Each nested "card" gets a unique
     // instanceID (card_0, card_0_0, etc.) so the guard never triggers.
-    #expect(true)
+    #expect(Bool(true))
   }
 }
 

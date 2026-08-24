@@ -541,5 +541,31 @@ describe('DataContext', () => {
       assert.strictEqual((dispatchedError as any).code, 'EXPRESSION_ERROR');
       assert.strictEqual((dispatchedError as any).message, 'Generic inner failure');
     });
+
+    it('gracefully handles unrecognized function call by dispatching EXPRESSION_ERROR and returning undefined', () => {
+      let dispatchedError: any = null;
+      const catalogId = 'test-catalog';
+      const invoker = (name: string) => {
+        throw new A2uiExpressionError(
+          `Function not found in catalog '${catalogId}': ${name}`,
+          name,
+        );
+      };
+      const ctx = createTestDataContext(model, '/', invoker, err => {
+        dispatchedError = err;
+      });
+
+      const result = ctx.resolveDynamicValue({
+        call: 'nonExistentHelper',
+        args: {a: 1},
+        returnType: 'string',
+      });
+
+      assert.strictEqual(result, undefined);
+      assert.ok(dispatchedError);
+      assert.strictEqual(dispatchedError.code, 'EXPRESSION_ERROR');
+      assert.strictEqual(dispatchedError.expression, 'nonExistentHelper');
+      assert.ok(dispatchedError.message.includes("Function not found in catalog 'test-catalog'"));
+    });
   });
 });

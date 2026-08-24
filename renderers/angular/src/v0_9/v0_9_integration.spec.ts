@@ -353,4 +353,156 @@ describe('v0.9.1 Angular Renderer Integration', () => {
     expect(textEl).toBeTruthy();
     expect(textEl.textContent).toContain('Hello from v0.9.1!');
   });
+
+  it('should process and render surfaces containing components with unrecognized properties', async () => {
+    const messagesWithExtraProps: A2uiMessage[] = [
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'extra-props-surface',
+          catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+        },
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'extra-props-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'Button',
+              variant: 'primary',
+              child: 'btn-text',
+              unknownColor: 'primary',
+              legacyExtraField: {custom: true},
+            } as any,
+            {
+              id: 'btn-text',
+              component: 'Text',
+              text: 'Click Me',
+              unknownAttribute: 12345,
+            } as any,
+          ],
+        },
+      },
+    ];
+
+    rendererService.processMessages(messagesWithExtraProps);
+    fixture.componentInstance.surfaceId = 'extra-props-surface';
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const buttonEl = fixture.nativeElement.querySelector('a2ui-v09-button');
+    expect(buttonEl).toBeTruthy();
+    const btnNative = buttonEl.querySelector('button');
+    expect(btnNative.classList).toContain('primary');
+
+    const textEl = fixture.nativeElement.querySelector('a2ui-v09-text');
+    expect(textEl).toBeTruthy();
+    expect(textEl.textContent).toContain('Click Me');
+  });
+
+  it('safely renders surfaces with unrecognized component types without throwing', async () => {
+    const consoleErrorSpy = spyOn(console, 'error');
+    const catalogId = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
+    const messagesWithUnknownComponent: A2uiMessage[] = [
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'unknown-comp-surface',
+          catalogId,
+        },
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'unknown-comp-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'Column',
+              children: ['known-txt', 'unknown-gizmo'],
+            },
+            {
+              id: 'known-txt',
+              component: 'Text',
+              text: 'Known Visible Text',
+            },
+            {
+              id: 'unknown-gizmo',
+              component: 'FutureGizmo',
+              someData: 'test',
+            } as any,
+          ],
+        },
+      },
+    ];
+
+    rendererService.processMessages(messagesWithUnknownComponent);
+    fixture.componentInstance.surfaceId = 'unknown-comp-surface';
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Verify known text component rendered
+    const textEl = fixture.nativeElement.querySelector('a2ui-v09-text');
+    expect(textEl).toBeTruthy();
+    expect(textEl.textContent).toContain('Known Visible Text');
+
+    // Verify console.error was logged for the unknown component type
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      `Component type "FutureGizmo" not found in catalog "${catalogId}"`,
+    );
+  });
+
+  it('safely renders surfaces with unrecognized function calls in dynamic values without throwing', async () => {
+    const catalogId = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
+    const messagesWithUnknownFunc: A2uiMessage[] = [
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'unknown-func-surface',
+          catalogId,
+        },
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'unknown-func-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'Column',
+              children: ['known-txt', 'func-txt'],
+            },
+            {
+              id: 'known-txt',
+              component: 'Text',
+              text: 'Known Visible Text',
+            },
+            {
+              id: 'func-txt',
+              component: 'Text',
+              text: {
+                call: 'nonExistentFunction',
+                args: {x: 1},
+              },
+            },
+          ],
+        },
+      },
+    ];
+
+    rendererService.processMessages(messagesWithUnknownFunc);
+    fixture.componentInstance.surfaceId = 'unknown-func-surface';
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Verify known text component rendered
+    const textEls = fixture.nativeElement.querySelectorAll('a2ui-v09-text');
+    expect(textEls.length).toBe(2);
+    expect(textEls[0].textContent).toContain('Known Visible Text');
+  });
 });

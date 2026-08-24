@@ -127,4 +127,121 @@ describe('A2uiSurface', () => {
 
     document.body.removeChild(el);
   });
+
+  it('should tolerate unrecognized component types in surface without throwing', async () => {
+    const el = document.createElement('a2ui-surface') as unknown as A2uiSurface;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.surface = surfaceModel;
+    });
+
+    // Add root Column containing a valid Text and an unrecognized component
+    await asyncUpdate(el, () => {
+      processor.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'test-surface',
+            components: [
+              {
+                id: 'root',
+                component: 'Column',
+                children: ['txt1', 'unknown1'],
+              },
+              {
+                id: 'txt1',
+                component: 'Text',
+                text: 'Known Text Component',
+              },
+              {
+                id: 'unknown1',
+                component: 'UnregisteredFutureComponent',
+                customProperty: 42,
+              } as any,
+            ],
+          },
+        },
+      ]);
+    });
+
+    await el.updateComplete;
+
+    const columnEl = el.shadowRoot?.querySelector('a2ui-basic-column') as any;
+    if (columnEl && columnEl.updateComplete) {
+      await columnEl.updateComplete;
+    }
+
+    const textEl = columnEl?.shadowRoot?.querySelector('a2ui-basic-text') as any;
+    if (textEl && textEl.updateComplete) {
+      await textEl.updateComplete;
+    }
+
+    const textHtml = textEl?.shadowRoot?.innerHTML;
+    assert.ok(textHtml?.includes('Known Text Component'), 'Valid text component should render');
+
+    // Verify unregistered component does not crash or create invalid elements
+    const unknownEl = columnEl?.shadowRoot?.querySelector('unregistered-future-component');
+    assert.strictEqual(unknownEl, null);
+
+    document.body.removeChild(el);
+  });
+
+  it('should tolerate unrecognized function calls in dynamic values without crashing', async () => {
+    const el = document.createElement('a2ui-surface') as unknown as A2uiSurface;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.surface = surfaceModel;
+    });
+
+    await asyncUpdate(el, () => {
+      processor.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'test-surface',
+            components: [
+              {
+                id: 'root',
+                component: 'Column',
+                children: ['txtValid', 'txtFunc'],
+              },
+              {
+                id: 'txtValid',
+                component: 'Text',
+                text: 'Known Visible Text',
+              },
+              {
+                id: 'txtFunc',
+                component: 'Text',
+                text: {
+                  call: 'unrecognizedFunction',
+                  args: {foo: 'bar'},
+                },
+              },
+            ],
+          },
+        },
+      ]);
+    });
+
+    await el.updateComplete;
+
+    const columnEl = el.shadowRoot?.querySelector('a2ui-basic-column') as any;
+    if (columnEl && columnEl.updateComplete) {
+      await columnEl.updateComplete;
+    }
+
+    const textEls = columnEl?.shadowRoot?.querySelectorAll('a2ui-basic-text');
+    assert.ok(textEls && textEls.length === 2, 'Both text elements should be present in DOM');
+
+    const validTextEl = textEls[0] as any;
+    if (validTextEl && validTextEl.updateComplete) {
+      await validTextEl.updateComplete;
+    }
+    assert.ok(validTextEl?.shadowRoot?.innerHTML?.includes('Known Visible Text'));
+
+    document.body.removeChild(el);
+  });
 });
