@@ -22,15 +22,18 @@ import {
   Catalog,
   CommonSchemas,
   ComponentModel,
+  NodeResolver,
   SurfaceModel,
   ChildListSchema,
   ComponentIdSchema,
+  getValue,
   type A2uiClientAction,
 } from '@a2ui/web_core/v0_9';
 import {
   createComponentImplementation,
   type ReactComponentImplementation,
 } from '../../src/v0_9/adapter';
+import {NodeSurfaceContext} from '../../src/v0_9/node-view';
 import {A2uiSurface} from '../../src/v0_9/A2uiSurface';
 import {basicCatalog} from '../../src/v0_9/catalog/basic';
 
@@ -283,6 +286,29 @@ describe('A2uiSurface', () => {
     // first node's id at both positions.
     expect(screen.getByText('id:a')).toBeDefined();
     expect(screen.getByText('id:a#2')).toBeDefined();
+  });
+
+  it('renders the loading state for a component removed before its render commits', () => {
+    const surface = setup();
+    // Delay the resolver's deletion delivery past the removal, as any
+    // subscriber registered ahead of it does in production.
+    surface.componentsModel.onDeleted.subscribe(async () => {
+      await Promise.resolve();
+    });
+    const resolver = new NodeResolver(surface, surface.catalog);
+    add(surface, 'root', 'Text', {text: 'hi'});
+    const root = getValue(resolver.rootNode);
+    expect(root).toBeDefined();
+    surface.componentsModel.removeComponent('root');
+
+    const View = root!.impl!.view!;
+    render(
+      <NodeSurfaceContext.Provider value={surface}>
+        <View node={root!} buildChild={() => null} />
+      </NodeSurfaceContext.Provider>,
+    );
+    expect(screen.getByText('[Loading root...]')).toBeDefined();
+    resolver.dispose();
   });
 
 
