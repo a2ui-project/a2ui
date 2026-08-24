@@ -443,7 +443,7 @@ struct SurfaceViewModelTests {
     #expect(funcCallJSON["call"]?.stringValue == "submit")
   }
 
-  @Test func resolvePropertyWithUnrecognizedFunctionDoesNotCrash() throws {
+  @Test func resolvePropertyWithUnrecognizedFunctionDoesNotCrash() async throws {
     let (processor, surface, _) = try makeProcessor()
     processor.updateComponents(
       surfaceID: surface.surfaceID,
@@ -458,7 +458,8 @@ struct SurfaceViewModelTests {
         ]
       ]
     )
-    let node = surface.resolveNode(instanceID: "root")
+    await Task.yield()
+    let node = surface.rootNode
     #expect(node != nil)
     #expect(node?.type == "button")
   }
