@@ -19,7 +19,7 @@ import type {ComponentApi} from '../catalog/types.js';
 import {Signal, signal, peekValue, setValue} from '../reactivity/signals.js';
 import {ResolvedBinding} from './resolved-binding.js';
 
-/** The `type` of a node standing in for a component it cannot resolve. */
+/** The `type` of pending and cyclic stand-in nodes. */
 export const PLACEHOLDER_TYPE = 'Placeholder';
 
 /**
@@ -29,9 +29,10 @@ export const PLACEHOLDER_TYPE = 'Placeholder';
  * - `pending`: the component definition has not arrived; upgraded in place
  *   when it does.
  * - `unknown-type`: the definition arrived but its type has no catalog
- *   entry; an `UNKNOWN_COMPONENT_TYPE` error was dispatched.
- * - `cyclic`: the reference repeats one of the node's own ancestors; a
- *   `CYCLIC_REFERENCE` error was dispatched.
+ *   entry; `UNKNOWN_COMPONENT_TYPE` is reported once per component and
+ *   data path.
+ * - `cyclic`: the reference repeats one of the node's own ancestors;
+ *   `CYCLIC_REFERENCE` is reported once per component and data path.
  */
 export type NodeState = 'resolved' | 'pending' | 'unknown-type' | 'cyclic';
 

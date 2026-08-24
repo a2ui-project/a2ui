@@ -89,8 +89,8 @@ const TextFieldImpl = createComponentImplementation(
   {name: 'TextField', schema: z.object({value: CommonSchemas.DynamicString.optional()})},
   ({props, context}) => {
     bump(`TextField:${context.componentModel.id}@${context.dataContext.path}`);
-    // Unguarded like the shipped input views, so the absent-setter contract
-    // stays tested.
+    // The missing optional chaining is deliberate: shipped input views call
+    // their setters unguarded.
     const setValue = (props as {setValue: (value: string) => void}).setValue;
     return (
       <input
@@ -319,8 +319,8 @@ describe('A2uiSurface', () => {
     render(<A2uiSurface surface={surface} />);
     const input = screen.getByTestId('input-/') as HTMLInputElement;
 
-    // The binder synthesized a setter for every schema-dynamic prop even
-    // when the payload omitted it; the node path must keep that contract.
+    // A setter must exist even though the payload omitted `value`; shipped
+    // views call it unguarded.
     fireEvent.change(input, {target: {value: 'typed'}});
 
     expect(surface.dataModel.get('/value')).toBeUndefined();

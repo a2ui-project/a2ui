@@ -224,12 +224,8 @@ export class NodeResolver<
     if (this._disposed) {
       return;
     }
-    // Model events are delivered asynchronously, so this handler may run
-    // after further mutations, including on a resolver constructed between
-    // the removal and its delivery. Reconcile against the current model
-    // state: when the component exists (again), refresh rather than dispose,
-    // and let materialize/childNode rebind nodes whose model instance is
-    // stale.
+    // Model events deliver asynchronously, so a removal can arrive after the
+    // component is already back; reconcile against current model state.
     this.dispatchedErrors.delete(id);
     const model = this.surface.componentsModel.get(id);
     const affected = this.nodesByComponentId.get(id);
@@ -750,7 +746,7 @@ function wrapDynamicValues(
  * Returns `prev` whenever `next` is structurally identical to it, so
  * unchanged props keep reference identity across rebuilds. Child
  * `ComponentNode`s and action closures compare by identity, and
- * `ResolvedBinding`s by snapshot value and writability.
+ * `ResolvedBinding`s by `sameBinding`.
  */
 function stabilize(prev: unknown, next: unknown): unknown {
   if (Object.is(prev, next)) {

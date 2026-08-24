@@ -36,7 +36,7 @@ export class WritableBinding<T> extends ResolvedBinding<T> {
   constructor(
     value: T,
     readonly set: (value: T) => void,
-    /** The data path the payload bound, as the payload wrote it. */
+    /** The authored data path, not resolved against the node's data scope. */
     readonly path: string,
   ) {
     super(value);

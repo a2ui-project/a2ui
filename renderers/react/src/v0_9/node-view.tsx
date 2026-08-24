@@ -63,13 +63,13 @@ export function useSignalValue<T>(signal: Signal<T>): T {
   return useSyncExternalStore(subscribe, getSnapshot);
 }
 
-/** Child nodes of one view, keyed by the view-facing token plus the child's data path. */
+/** Child nodes of one view, keyed by the id a view passes back to `buildChild`, plus the child's data path. */
 type ChildIndex = Map<string, ComponentNode<ReactComponentImplementation>>;
 
 /**
  * Registers a child and returns the token views should hand back to
- * `buildChild`: the component id, or the node's position-distinct
- * `instanceId` when the same component is referenced twice at one scope.
+ * `buildChild`: the component id, or the node's `instanceId` (distinct per
+ * position) when the same component is referenced twice at one scope.
  */
 function registerChild(
   index: ChildIndex,
@@ -149,9 +149,11 @@ function toViewProps(
 const behaviorCache = new WeakMap<object, BehaviorNode>();
 
 /**
- * The binder synthesized a `set<Prop>` no-op for every schema-dynamic
- * property even when the payload omitted it, and shipped views call those
- * setters unguarded; reproduce that contract for absent props.
+ * `GenericBinder` synthesizes a no-op `set<Prop>` for every dynamic schema
+ * property, `wrapDynamicValues` drops each of them, and `toViewProps`
+ * rebuilds setters only where a `ResolvedBinding` is present, so a property
+ * the payload omits would reach the view with no setter at all. Shipped
+ * views call setters unguarded, so restore the no-op here.
  */
 function addAbsentSetters(node: ComponentNode, viewProps: NodeProps): NodeProps {
   const schema = node.impl?.schema;

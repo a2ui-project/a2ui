@@ -673,14 +673,13 @@ describe('NodeResolver malformed and unusual payloads', () => {
     assert.ok(getValue(resolver.rootNode));
     assert.strictEqual(errors.filter(e => e.code === 'UNKNOWN_COMPONENT_TYPE').length, 1);
 
-    // Deleting and re-adding the component reports again.
     surface.componentsModel.removeComponent('weird');
     add(surface, 'weird', 'Bogus', {});
     assert.strictEqual(errors.filter(e => e.code === 'UNKNOWN_COMPONENT_TYPE').length, 2);
     resolver.dispose();
   });
 
-  it('resets the dispatch record on deletion for ids containing colons', () => {
+  it('reports again after delete and re-add when the component id contains colons', () => {
     const {surface, resolver} = setup();
     const errors: Array<Record<string, unknown>> = [];
     surface.onError.subscribe(e => {

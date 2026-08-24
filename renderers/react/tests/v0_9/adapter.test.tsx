@@ -180,8 +180,7 @@ describe('adapter', () => {
     expect(getByTestId('resolved').textContent).toBe('Loaded Data');
 
     // The node layer replaces the parent's child reference when the
-    // placeholder upgrades, so the parent re-renders exactly once; further
-    // child-internal changes stay on the child's own props signal.
+    // placeholder upgrades, so the parent re-renders exactly once.
     expect(parentRenderCount).toBe(countBeforeChild + 1);
   });
 });
