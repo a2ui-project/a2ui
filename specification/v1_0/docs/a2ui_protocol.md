@@ -179,6 +179,8 @@ It is an error to try to create a surface with a `surfaceId` that already exists
 
 The `createSurface` message implicitly instantiates the canonical `Surface` container component (`common_types.json#/$defs/Surface`). The `Surface` component always has `"child": "root"` and cannot be modified using `updateComponents`. To render the component tree, one of the components sent to the surface MUST have `"id": "root"`, which mounts as the child of `Surface`.
 
+The initial `createSurface` message and subsequent `updateComponents` or `updateDataModel` message(s) for the surface do not need to use the same protocol version. A renderer that supports multiple protocol versions must allow a surface to be created or modified with messages of any of its supported protocol versions.
+
 **Properties:**
 
 - `surfaceId` (string, required): The unique identifier for the UI surface to be rendered. This must be globally unique for the renderer's lifetime.
@@ -217,7 +219,7 @@ The `createSurface` message implicitly instantiates the canonical `Surface` cont
 
 ### `updateComponents`
 
-This message provides a flat list of UI components to add or update within a specific surface. Relationships between components are defined by ID references in an adjacency list. The component with `"id": "root"` mounts as the child of the surface's canonical `Surface` container. You cannot modify the `Surface` container itself using `updateComponents`. This message may only be sent to a surface that has already been created. The initial `createSurface` message and `updateComponents` message(s) do not need to use the same protocol version. A renderer that supports multiple protocol versions must allow a surface to be created or modified with messages of any of its supported protocol versions. Because components may reference children or data bindings that do not yet exist, renderers should handle missing references gracefully by rendering placeholders (progressive rendering).
+This message provides a flat list of UI components to add or update within a specific surface. Relationships between components are defined by ID references in an adjacency list. The component with `"id": "root"` mounts as the child of the surface's canonical `Surface` container. You cannot modify the `Surface` container itself using `updateComponents`. This message may only be sent to a surface that has already been created. Because components may reference children or data bindings that do not yet exist, renderers should handle missing references gracefully by rendering placeholders (progressive rendering).
 
 **Properties:**
 
