@@ -1,7 +1,11 @@
 ## Unreleased
 
-- (v0_9) `A2uiSurface` renders through the web_core node layer: one `NodeResolver` per surface resolves components and data, and each component re-renders only when its own resolved props change. Component implementations gain an optional node-driven `view` (see `NodeViewProps` and `useSignalValue`); implementations without one render through their self-binding `render`, and child references the schema does not classify fall back to raw-definition recursion ([#2077](https://github.com/a2ui-project/a2ui/pull/2077)).
-- (v0_9) A placeholder upgrade re-renders the parent once when a late child arrives; the previous renderer localized that update to the child.
+- (v0_9) Component implementations may supply a `view` that renders from a resolved `ComponentNode` (see `NodeViewProps` and `useSignalValue`) ([#2077](https://github.com/a2ui-project/a2ui/pull/2077)).
+- (v0_9) `A2uiSurface` renders through the node layer: each component re-renders only when its own data changes. Implementations without a `view` keep rendering through `render`, and custom catalogs whose schemas do not mark child-reference properties keep working.
+- (v0_9) When a late child arrives, its parent re-renders once as the placeholder is replaced.
+- (v0_9) The first render shows the loading state even for an already populated surface; content appears immediately after. Tests that assert on the very first render must wait for the next one.
+- (v0_9) Subtrees `A2uiSurface` previously resolved at reveal time (a closed `Modal`'s content, inactive `Tabs` children) resolve with the rest of the tree, so their function calls run and their errors are reported at message-processing time.
+- (v0_9) Unknown component types and cyclic references are reported through the surface's `onError`, once per component and data path while the condition persists; previously nothing was reported for them. The message for an unresolvable type now reads `Unknown component type: <type>`.
 
 ## 0.10.2
 
