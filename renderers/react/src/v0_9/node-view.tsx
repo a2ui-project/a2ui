@@ -15,14 +15,7 @@
  */
 
 import type React from 'react';
-import {
-  createContext,
-  Fragment,
-  useCallback,
-  useContext,
-  useMemo,
-  useSyncExternalStore,
-} from 'react';
+import {createContext, useCallback, useContext, useMemo, useSyncExternalStore} from 'react';
 import {
   type BehaviorNode,
   ComponentContext,
@@ -70,29 +63,22 @@ export function useSignalValue<T>(signal: Signal<T>): T {
   return useSyncExternalStore(subscribe, getSnapshot);
 }
 
-/** Child nodes of one view, keyed by componentId and by componentId@dataPath. */
+/** Child nodes of one view, keyed by the view-facing token plus the child's data path. */
 type ChildIndex = Map<string, ComponentNode<ReactComponentImplementation>>;
 
 /**
  * Registers a child and returns the token views should hand back to
- * `buildChild`. The same component referenced twice at the same scope gets
- * a suffixed token per position, so both positions resolve to their own
- * node instead of collapsing onto the first.
+ * `buildChild`: the component id, or the node's position-distinct
+ * `instanceId` when the same component is referenced twice at one scope.
  */
 function registerChild(
   index: ChildIndex,
   child: ComponentNode<ReactComponentImplementation>,
 ): string {
-  let token = child.componentId;
-  let n = 1;
-  while (index.has(`${token}@${child.dataPath}`)) {
-    n++;
-    token = `${child.componentId}#${n}`;
-  }
+  const token = index.has(`${child.componentId}@${child.dataPath}`)
+    ? child.instanceId
+    : child.componentId;
   index.set(`${token}@${child.dataPath}`, child);
-  if (!index.has(token)) {
-    index.set(token, child);
-  }
   return token;
 }
 
@@ -160,13 +146,6 @@ function toViewProps(
   return result;
 }
 
-/**
- * Subscribes to a node's props and adapts them to the `ReactA2uiComponentProps`
- * shape existing views implement:
- * converted props, a `ComponentContext`, and a string-id `buildChild` that
- * resolves through the conversion's child index before falling back to the
- * surface-provided `buildChild`.
- */
 const behaviorCache = new WeakMap<object, BehaviorNode>();
 
 /**
@@ -199,6 +178,13 @@ function addAbsentSetters(node: ComponentNode, viewProps: NodeProps): NodeProps 
   return viewProps;
 }
 
+/**
+ * Subscribes to a node's props and adapts them to the `ReactA2uiComponentProps`
+ * shape existing views implement:
+ * converted props, a `ComponentContext`, and a string-id `buildChild` that
+ * resolves through the conversion's child index before falling back to the
+ * surface-provided `buildChild`.
+ */
 export function useNodeView(
   node: ComponentNode,
   buildChild: NodeBuildChild,
@@ -233,17 +219,8 @@ export function useNodeView(
 
   const viewBuildChild = useCallback(
     (id: string, basePath?: string): React.ReactNode => {
-      const childNode =
-        childIndex.get(basePath ? `${id}@${basePath}` : id) ??
-        childIndex.get(`${id}@${node.dataPath}`);
-      // Duplicate-position tokens carry a #n suffix; the raw component id is
-      // what the fallback recursion and React keys need to stay distinct.
-      const rawId = id.replace(/#\d+$/, '');
-      return (
-        <Fragment key={`${id}@${basePath ?? node.dataPath}`}>
-          {buildChild(childNode ?? rawId, basePath)}
-        </Fragment>
-      );
+      const childNode = childIndex.get(`${id}@${basePath ?? node.dataPath}`);
+      return buildChild(childNode ?? id, basePath);
     },
     [childIndex, buildChild, node],
   );
