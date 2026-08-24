@@ -443,6 +443,26 @@ struct SurfaceViewModelTests {
     #expect(funcCallJSON["call"]?.stringValue == "submit")
   }
 
+  @Test func resolvePropertyWithUnrecognizedFunctionDoesNotCrash() throws {
+    let (processor, surface, _) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "label": [
+            "call": "unrecognizedFunction",
+            "args": ["param": "val"],
+          ],
+        ]
+      ]
+    )
+    let node = surface.resolveNode(instanceID: "root")
+    #expect(node != nil)
+    #expect(node?.type == "button")
+  }
+
   // MARK: - Child List Resolution (Static)
 
   @Test func childListResolvesStaticArray() throws {

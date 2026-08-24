@@ -455,4 +455,54 @@ describe('v0.9.1 Angular Renderer Integration', () => {
       `Component type "FutureGizmo" not found in catalog "${catalogId}"`,
     );
   });
+
+  it('safely renders surfaces with unrecognized function calls in dynamic values without throwing', async () => {
+    const catalogId = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
+    const messagesWithUnknownFunc: A2uiMessage[] = [
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'unknown-func-surface',
+          catalogId,
+        },
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'unknown-func-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'Column',
+              children: ['known-txt', 'func-txt'],
+            },
+            {
+              id: 'known-txt',
+              component: 'Text',
+              text: 'Known Visible Text',
+            },
+            {
+              id: 'func-txt',
+              component: 'Text',
+              text: {
+                call: 'nonExistentFunction',
+                args: {x: 1},
+              },
+            },
+          ],
+        },
+      },
+    ];
+
+    rendererService.processMessages(messagesWithUnknownFunc);
+    fixture.componentInstance.surfaceId = 'unknown-func-surface';
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Verify known text component rendered
+    const textEls = fixture.nativeElement.querySelectorAll('a2ui-v09-text');
+    expect(textEls.length).toBe(2);
+    expect(textEls[0].textContent).toContain('Known Visible Text');
+  });
 });

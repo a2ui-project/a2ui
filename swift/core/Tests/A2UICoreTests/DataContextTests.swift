@@ -106,6 +106,24 @@ struct DataContextTests {
     #expect(context.resolveDynamicValue(literalWithCall) == literalWithCall)
     #expect(mockHandler.lastRequestedName == nil)
   }
+
+  @Test func resolveDynamicValueToleratesUnrecognizedFunctionReturnsNull() {
+    let mockHandler = MockFunctionHandler()
+    mockHandler.functionToReturn = nil
+    let dataModel = DataModel()
+    let context = DataContext(dataModel: dataModel, path: "/", functionHandler: mockHandler)
+
+    let functionBinding: JSONValue = [
+      "call": "unrecognizedFunction",
+      "args": [
+        "a": "Hello"
+      ]
+    ]
+
+    let result = context.resolveDynamicValue(functionBinding)
+    #expect(mockHandler.lastRequestedName == "unrecognizedFunction")
+    #expect(result == .null)
+  }
 }
 
 private final class MockFunctionHandler: FunctionHandler, @unchecked Sendable {
