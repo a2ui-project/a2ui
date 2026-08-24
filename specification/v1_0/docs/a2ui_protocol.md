@@ -215,15 +215,9 @@ The `createSurface` message implicitly instantiates the canonical `Surface` cont
 }
 ```
 
-### Multi-version surface updates
-
-A single UI surface can be updated by messages expressed in different protocol versions over its lifetime. For example, a surface created with a `v0.9` `createSurface` message can be updated by subsequent `updateComponents` or `updateDataModel` messages using protocol `v1.0`.
-
-When an A2UI SDK processes incoming messages across different protocol versions for the same `surfaceId`, it normalizes the payloads into its universal internal surface state model (`SurfaceModel`). This allows long-lived or single-surface applications (such as dynamic dashboards) to be continuously updated even as backend agent servers and protocol specifications evolve.
-
 ### `updateComponents`
 
-This message provides a flat list of UI components to add or update within a specific surface. Relationships between components are defined by ID references in an adjacency list. The component with `"id": "root"` mounts as the child of the surface's canonical `Surface` container. You cannot modify the `Surface` container itself using `updateComponents`. This message may only be sent to a surface that has already been created. Because components may reference children or data bindings that do not yet exist, renderers should handle missing references gracefully by rendering placeholders (progressive rendering).
+This message provides a flat list of UI components to add or update within a specific surface. Relationships between components are defined by ID references in an adjacency list. The component with `"id": "root"` mounts as the child of the surface's canonical `Surface` container. You cannot modify the `Surface` container itself using `updateComponents`. This message may only be sent to a surface that has already been created. The initial `createSurface` message and `updateComponents` message(s) do not need to use the same protocol version. A renderer that supports multiple protocol versions must allow a surface to be created or modified with messages of any of its supported protocol versions. Because components may reference children or data bindings that do not yet exist, renderers should handle missing references gracefully by rendering placeholders (progressive rendering).
 
 **Properties:**
 
@@ -500,12 +494,6 @@ This structure is designed to be both flexible and strictly validated.
 
 Renderers can support components and functions from multiple catalogs simultaneously within a single surface (mixable catalogs). When a renderer advertises `supportedCatalogIds` in its capabilities, components from any of those catalogs can be combined in the same UI tree. The set of available catalogs for a surface includes both `supportedCatalogIds` and the `catalogId` of any inline catalog declared in `inlineCatalogs` (when supported by the agent).
 
-#### Catalog protocol independence
-
-Component catalogs are expressed as JSON catalog definition documents formatted according to a specific catalog description version (specified by `protocolVersion` in `catalog_definition.json`). However, once loaded into an A2UI SDK, catalog definitions are converted into a universal in-memory representation.
-
-As a result, catalog definitions are decoupled from the wire protocol version of incoming messages. A catalog written for one protocol version (e.g., `v0.9`) can be targeted by wire messages expressed in a different protocol version (e.g., `v1.0`) without needing to redefine or duplicate the catalog for each protocol version upgrade.
-
 When resolving a component (or function call), the renderer evaluates catalog identity using the following strict resolution order:
 
 1. **Explicit Component/Function-Level `catalogId`**: The renderer checks if the component or function call explicitly specifies a `catalogId`. If provided, the component or function is resolved against that catalog.
@@ -514,6 +502,10 @@ When resolving a component (or function call), the renderer evaluates catalog id
 
 > [!IMPORTANT]
 > There is **no fallback** to the list of catalogs declared in `rendererCapabilities` (even if the renderer only advertises a single supported catalog). Every component and function call must resolve through either its explicit `catalogId` or the surface default `catalogId`.
+
+#### Catalog protocol independence
+
+Component catalogs are expressed as JSON catalog definition documents formatted according to a specific catalog description version (specified by `protocolVersion` in `catalog_definition.json`). However, the content of a catalog definition is not considered to be tied to a specific protocol version. A catalog originally configured for one protocol version (e.g., `v0.9`) can be targeted by wire messages expressed in a different protocol version (e.g., `v1.0`) without needing to redefine or duplicate the catalog for each protocol version upgrade.
 
 ### Catalog-Agnostic Accessibility Requirements
 
