@@ -15,7 +15,7 @@
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
 from enum import Enum
-from typing import Any, Union
+from typing import Any, Dict, List, Union
 
 # Versioned schema namespaces
 from . import v0_8
@@ -27,7 +27,11 @@ from . import v1_0
 class A2uiProtocolVersion(str, Enum):
     V0_8 = "v0.8"
     V0_9 = "v0.9"
+    V0_9_1 = "v0.9.1"
     V1_0 = "v1.0"
+
+
+ProtocolVersion = A2uiProtocolVersion
 
 
 # Multi-version envelope unions (v1.0+ primary terminology)
@@ -35,6 +39,17 @@ AgentToRendererMessage = Union[
     v0_8.ServerToClientMessage,
     v0_9.ServerToClientMessage,
     v1_0.AgentToRendererMessage,
+]
+
+AgentToRendererMessageListWrapper = Union[
+    v0_8.A2uiMessageListWrapper,
+    v0_9.A2uiMessageListWrapper,
+    v1_0.AgentToRendererMessageListWrapper,
+]
+
+AgentToRendererMessagePayload = Union[
+    AgentToRendererMessageListWrapper,
+    List[AgentToRendererMessage],
 ]
 
 RendererToAgentMessage = Union[
@@ -48,6 +63,7 @@ ServerToClientMessage = AgentToRendererMessage
 ClientToServerMessage = RendererToAgentMessage
 A2uiMessage = AgentToRendererMessage
 A2uiClientMessage = RendererToAgentMessage
+A2uiMessageListWrapper = AgentToRendererMessageListWrapper
 A2uiRendererAction = v0_9.A2uiRendererAction
 A2uiClientAction = A2uiRendererAction
 A2uiClientUserAction = A2uiRendererAction

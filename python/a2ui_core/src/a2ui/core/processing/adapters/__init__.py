@@ -12,23 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .message_processor import MessageProcessor
-from .operations import (
-    InternalCreateSurfaceOp,
-    InternalDeleteSurfaceOp,
-    InternalOperation,
-    InternalUpdateComponentsOp,
-    InternalUpdateDataModelOp,
-)
-from .adapters import VersionAdapter, VersionAdapterFactory
+from .base import VersionAdapter
+from .v0_8 import V0_8VersionAdapter
+from .v0_9 import V0_9VersionAdapter
+from .v1_0 import V1_0VersionAdapter
+from .factory import DEFAULT_PROTOCOL_VERSION, VersionAdapterFactory
 
 __all__ = [
-    "MessageProcessor",
-    "InternalOperation",
-    "InternalCreateSurfaceOp",
-    "InternalUpdateComponentsOp",
-    "InternalUpdateDataModelOp",
-    "InternalDeleteSurfaceOp",
+    "DEFAULT_PROTOCOL_VERSION",
     "VersionAdapter",
+    "V0_8VersionAdapter",
+    "V0_9VersionAdapter",
+    "V1_0VersionAdapter",
     "VersionAdapterFactory",
 ]

@@ -21,6 +21,7 @@ import yaml
 
 from a2ui.core.catalog import Catalog
 from a2ui.core.basic_catalog import v0_8, v0_9, v1_0
+from a2ui.core.schema import ProtocolVersion
 from a2ui.core.processing import MessageProcessor
 from a2ui.core.exceptions import (
     A2uiError,
@@ -41,28 +42,12 @@ SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "v1.0", "0.8", "0.9", "1.0"}
 
 # Transition skip list for core test cases pending feature implementation or version adapters
 SKIP_TEST_NAMES: Set[str] = {
-    "test_create_surface_unknown_catalog_error",
-    "test_create_surface_duplicate_error",
-    "test_update_components_unknown_surface_error",
-    "test_update_components_missing_id_error",
-    "test_update_components_create_without_type_error",
-    "test_update_components_atomic_validation_rollback",
-    "test_update_data_model_unknown_surface_error",
-    "test_update_components_add_and_query",
-    "test_update_components_modify_existing_properties",
-    "test_update_components_recreate_on_type_change",
     "test_topology_missing_root_error",
     "test_topology_direct_circular_reference_error",
     "test_topology_indirect_circular_reference_error",
     "test_topology_self_reference_error",
     "test_topology_dangling_child_reference_error",
     "test_topology_orphaned_component_error",
-    "test_update_components_strict_schema_validation_failure",
-    "test_create_surface_strict_theme_validation_failure",
-    "test_message_multiple_conflicting_update_types_error",
-    "test_process_messages_wrapper_object",
-    "test_v10_create_surface_inline_initialization",
-    "test_v10_create_surface_optional_catalog_id",
     "test_composition_surface_implicit_parent_container",
     "test_composition_allowed_parent_success",
     "test_composition_unallowed_parent_error",
@@ -74,17 +59,6 @@ SKIP_TEST_NAMES: Set[str] = {
     "test_index_function_outside_loop_error",
     "test_validation_result_dynamic_object_return",
     "test_validation_result_boolean_fallback",
-    "test_v08_begin_rendering_styles_mapping",
-    "test_v08_surface_update_components",
-    "test_v08_data_model_update",
-    "test_v08_get_renderer_capabilities",
-    "test_v08_rejects_v09_create_surface_action",
-    "test_v10_create_surface_with_metadata_extensions",
-    "test_v10_component_catalog_override",
-    "test_v10_update_data_model_deletion",
-    "test_v10_get_renderer_capabilities",
-    "test_multiple_update_types_error",
-    "test_batch_message_array_and_wrapper",
     "test_pointer_escape_characters",
     "test_pointer_array_indexing",
     "test_pointer_auto_vivification",
@@ -123,8 +97,16 @@ def find_yaml_files(dir_path: str) -> List[str]:
 
 
 def resolve_protocol_version(case: Dict[str, Any]) -> Optional[str]:
+    if "protocolVersion" in case and case["protocolVersion"]:
+        return case["protocolVersion"]
     cat_spec = case.get("catalog") if isinstance(case.get("catalog"), dict) else {}
-    return case.get("protocolVersion") or cat_spec.get("protocolVersion")
+    if "protocolVersion" in cat_spec and cat_spec["protocolVersion"]:
+        return cat_spec["protocolVersion"]
+    if "catalogs" in case and isinstance(case["catalogs"], list):
+        for cat in case["catalogs"]:
+            if isinstance(cat, dict) and cat.get("protocolVersion"):
+                return cat["protocolVersion"]
+    return None
 
 
 def resolve_catalog_id(case: Dict[str, Any]) -> Optional[str]:
@@ -182,6 +164,8 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
                 components=list(basic_catalog.components.values()),
             )
 
+    specified_catalogs: List[Any] = []
+
     if "catalog" in case and isinstance(case["catalog"], dict):
         cat_spec = case["catalog"]
         if "catalogSchema" in cat_spec:
@@ -189,11 +173,21 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
             c_id = resolve_catalog_id(case) or f"catalog-{case.get('name')}"
             p_ver = resolve_protocol_version(case) or "v0.9"
             if c_id:
-                catalogs_map[c_id] = Catalog.from_json(
+                cat = Catalog.from_json(
                     c_schema, catalog_id=c_id, protocol_version=p_ver
                 )
+                catalogs_map[c_id] = cat
+                specified_catalogs.append(cat)
         elif "catalogId" in cat_spec:
-            add_catalog_id(cat_spec["catalogId"])
+            c_id = cat_spec["catalogId"]
+            p_ver = resolve_protocol_version(case) or "v0.9"
+            cat = Catalog(
+                catalog_id=c_id,
+                protocol_version=p_ver,
+                components=list(basic_catalog.components.values()),
+            )
+            catalogs_map[c_id] = cat
+            specified_catalogs.append(cat)
 
     if "catalogs" in case and isinstance(case["catalogs"], list):
         for item in case["catalogs"]:
@@ -207,11 +201,33 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
                         or "v0.9"
                     )
                     if c_id:
-                        catalogs_map[c_id] = Catalog.from_json(
+                        cat = Catalog.from_json(
                             c_schema, catalog_id=c_id, protocol_version=p_ver
                         )
+                        catalogs_map[c_id] = cat
+                        specified_catalogs.append(cat)
                 elif "catalogId" in item:
-                    add_catalog_id(item["catalogId"])
+                    c_id = item["catalogId"]
+                    p_ver = item.get("protocolVersion") or version
+                    c_comps = item.get("components")
+                    c_theme = item.get("theme")
+                    if c_comps or c_theme:
+                        c_schema = {"catalogId": c_id}
+                        if c_comps:
+                            c_schema["components"] = c_comps
+                        if c_theme:
+                            c_schema["theme"] = c_theme
+                        cat = Catalog.from_json(
+                            c_schema, catalog_id=c_id, protocol_version=p_ver
+                        )
+                    else:
+                        cat = Catalog(
+                            catalog_id=c_id,
+                            protocol_version=p_ver,
+                            components=list(basic_catalog.components.values()),
+                        )
+                    catalogs_map[c_id] = cat
+                    specified_catalogs.append(cat)
 
     messages: List[Any] = case.get("messages") or (
         [case["payload"]] if "payload" in case else []
@@ -224,6 +240,11 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
                     messages.extend(payload)
                 elif isinstance(payload, dict):
                     messages.append(payload)
+
+    expect_err = case.get("expectError")
+    is_catalog_error_case = isinstance(expect_err, dict) and expect_err.get(
+        "category"
+    ) in ("CatalogError", "A2uiCatalogError")
 
     scan_version: Optional[str] = None
 
@@ -239,21 +260,24 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
                 scan_version = item["version"]
             if "messages" in item:
                 scan(item["messages"])
-            if (
-                "createSurface" in item
-                and isinstance(item["createSurface"], dict)
-                and "catalogId" in item["createSurface"]
-            ):
-                add_catalog_id(item["createSurface"]["catalogId"], scan_version)
-            if (
-                "beginRendering" in item
-                and isinstance(item["beginRendering"], dict)
-                and "catalogId" in item["beginRendering"]
-            ):
-                add_catalog_id(item["beginRendering"]["catalogId"], scan_version)
+            if not is_catalog_error_case:
+                if (
+                    "createSurface" in item
+                    and isinstance(item["createSurface"], dict)
+                    and "catalogId" in item["createSurface"]
+                ):
+                    add_catalog_id(item["createSurface"]["catalogId"], scan_version)
+                if (
+                    "beginRendering" in item
+                    and isinstance(item["beginRendering"], dict)
+                    and "catalogId" in item["beginRendering"]
+                ):
+                    add_catalog_id(item["beginRendering"]["catalogId"], scan_version)
 
     scan(messages)
-    return list(catalogs_map.values())
+    return specified_catalogs + [
+        c for c in catalogs_map.values() if c not in specified_catalogs
+    ]
 
 
 @contextlib.contextmanager
@@ -270,7 +294,11 @@ def assert_raises(expect_error: Any):
         yield
 
     if message:
-        assert re.search(re.escape(message), str(excinfo.value))
+        assert (
+            message in str(excinfo.value)
+            or re.search(re.escape(message), str(excinfo.value))
+            or re.search(message, str(excinfo.value))
+        )
 
 
 CONFORMANCE_CASES = load_conformance_cases()
@@ -402,7 +430,12 @@ def validate_process_messages_case(case: Dict[str, Any]) -> None:
 
     expect_error = case.get("expectError")
     catalogs = get_catalogs_for_test_case(case)
-    processor = MessageProcessor(catalogs)
+    strict_mode = bool(
+        case.get("strictMode")
+        or case.get("strict_mode")
+        or case.get("options", {}).get("strict_mode")
+    )
+    processor = MessageProcessor(catalogs, strict_mode=strict_mode)
 
     if expect_error:
         with assert_raises(expect_error):
@@ -418,9 +451,22 @@ def validate_process_messages_case(case: Dict[str, Any]) -> None:
                     continue
                 assert surface is not None
                 if "components" in s_exp:
-                    for c_id, c_exp in s_exp["components"].items():
+                    comps_expected = s_exp["components"]
+                    if isinstance(comps_expected, dict):
+                        comp_items = list(comps_expected.items())
+                    elif isinstance(comps_expected, list):
+                        comp_items = [
+                            (c.get("id"), c)
+                            for c in comps_expected
+                            if isinstance(c, dict)
+                        ]
+                    else:
+                        comp_items = []
+                    for c_id, c_exp in comp_items:
                         comp = surface.components_model.get(c_id)
-                        assert comp is not None
+                        assert (
+                            comp is not None
+                        ), f"Component '{c_id}' missing from surface '{s_id}'"
                         if "component" in c_exp:
                             assert comp.type == c_exp["component"]
 
@@ -428,7 +474,9 @@ def validate_process_messages_case(case: Dict[str, Any]) -> None:
 def validate_capabilities_case(case: Dict[str, Any]) -> None:
     catalogs = get_catalogs_for_test_case(case)
     processor = MessageProcessor(catalogs)
-    caps = processor.get_client_capabilities()
+    ver = resolve_protocol_version(case) or "v0.9"
+    p_ver = ProtocolVersion(ver)
+    caps = processor.get_renderer_capabilities(versions=[p_ver])
     expected = case.get("expect", {})
     for k, v in expected.items():
         assert k in caps
