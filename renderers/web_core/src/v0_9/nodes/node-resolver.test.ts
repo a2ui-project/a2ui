@@ -835,6 +835,64 @@ describe('NodeResolver stale event delivery', () => {
     assert.strictEqual(bound(root, 'text'), 'fresh');
     resolver.dispose();
   });
+
+  it('replaces an unknown-type node whose component was replaced before a delayed deletion delivery', async () => {
+    const catalog = makeCatalog();
+    const surface = new SurfaceModel('surf-1', catalog);
+    surface.componentsModel.onDeleted.subscribe(async () => {
+      await flush();
+    });
+    const resolver = new NodeResolver(surface, catalog);
+    const errors: Array<Record<string, unknown>> = [];
+    surface.onError.subscribe(e => {
+      errors.push(e as Record<string, unknown>);
+    });
+    add(surface, 'root', 'Card', {child: 'weird'});
+    add(surface, 'weird', 'Bogus', {});
+    assert.strictEqual(errors.filter(e => e.code === 'UNKNOWN_COMPONENT_TYPE').length, 1);
+
+    surface.componentsModel.removeComponent('weird');
+    add(surface, 'weird', 'Bogus2', {});
+    await flush();
+    await flush();
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const node = child(root, 'child');
+    assert.strictEqual(node.type, 'Bogus2');
+    assert.strictEqual(node.state, 'unknown-type');
+    assert.strictEqual(errors.filter(e => e.code === 'UNKNOWN_COMPONENT_TYPE').length, 2);
+    resolver.dispose();
+  });
+
+  it('rebinds a child node whose component model was replaced before a delayed deletion delivery', async () => {
+    const catalog = makeCatalog();
+    const surface = new SurfaceModel('surf-1', catalog);
+    surface.componentsModel.onDeleted.subscribe(async () => {
+      await flush();
+    });
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'Card', {child: 'leaf'});
+    add(surface, 'leaf', 'Text', {text: 'old'});
+
+    surface.componentsModel.removeComponent('leaf');
+    add(surface, 'leaf', 'Text', {text: 'new'});
+    await flush();
+    await flush();
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const leaf = child(root, 'child');
+    assert.strictEqual(leaf.disposed, false);
+    assert.strictEqual(bound(leaf, 'text'), 'new');
+
+    // The node must be bound to the current model, not the replaced one.
+    const leafModel = surface.componentsModel.get('leaf');
+    assert.ok(leafModel);
+    leafModel.properties = {text: 'updated'};
+    assert.strictEqual(bound(child(root, 'child'), 'text'), 'updated');
+    resolver.dispose();
+  });
 });
 
 describe('NodeResolver constructor checks and disposal', () => {

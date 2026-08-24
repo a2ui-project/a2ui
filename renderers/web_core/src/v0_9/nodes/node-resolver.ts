@@ -319,7 +319,7 @@ export class NodeResolver<
           undefined,
           'unknown-type',
         ),
-        {edgeKey, parent, refFields: EMPTY_REF_FIELDS},
+        {edgeKey, parent, refFields: EMPTY_REF_FIELDS, componentModel: model},
       ).node;
     }
 
@@ -437,15 +437,19 @@ export class NodeResolver<
       // A placeholder stays up to date only while its own state's
       // preconditions hold, so a pending node whose definition arrives with
       // an unknown type is replaced (once) by an unknown-type node, and
-      // either kind resolves when the type gains a catalog entry. A resolved
-      // node must also still be bound to the current model instance.
+      // either kind resolves when the type gains a catalog entry. Resolved
+      // and unknown-type nodes must also still be bound to the current model
+      // instance.
       const existingRecord = this.records.get(existing);
       const upToDate =
         existing.componentId === componentId &&
         existing.dataPath === dataPath &&
         (existing.isPlaceholder
           ? (model === undefined && existing.state === 'pending') ||
-            (model !== undefined && api === undefined && existing.state === 'unknown-type')
+            (model !== undefined &&
+              api === undefined &&
+              existing.state === 'unknown-type' &&
+              existingRecord?.componentModel === model)
           : model !== undefined &&
             existing.type === model.type &&
             existingRecord?.componentModel === model);
