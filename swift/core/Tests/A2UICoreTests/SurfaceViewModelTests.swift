@@ -212,7 +212,7 @@ struct SurfaceViewModelTests {
     }
   }
 
-  @Test func updateComponentsRejectsMissingIdKey() throws {
+  @Test func updateComponentsRejectsMissingIDKey() throws {
     let (processor, _, handler) = try makeProcessor()
     processor.updateComponents(
       surfaceID: "test-surface",
@@ -999,7 +999,7 @@ struct SurfaceViewModelTests {
 
 struct ComponentModelTests {
 
-  @Test func componentModelStoresIdTypeAndProperties() {
+  @Test func componentModelStoresIDTypeAndProperties() {
     let model = ComponentModel(
       id: "btn1",
       type: "button",
@@ -1079,7 +1079,7 @@ struct SurfaceComponentsModelTests {
     #expect(model.components.isEmpty)
   }
 
-  @Test func replaceComponentWithSameId() {
+  @Test func replaceComponentWithSameID() {
     let model = SurfaceComponentsModel()
     model.addComponent(ComponentModel(id: "btn1", type: "button", properties: ["label": "Old"]))
     model.addComponent(ComponentModel(id: "btn1", type: "button", properties: ["label": "New"]))
