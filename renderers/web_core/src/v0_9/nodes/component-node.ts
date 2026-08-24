@@ -59,9 +59,11 @@ export interface ComponentNode<
   TProps extends NodeProps = NodeProps,
 > {
   /**
-   * Identifier for this node in the rendered tree. The bare component id at
-   * the root data scope; for template-spawned items the scoped data path is
-   * appended (e.g. `item-card-[/items/0]`) so sibling keys are distinct.
+   * Identifier for this node in the rendered tree, distinct among siblings.
+   * The bare component id at the root data scope; for template-spawned items
+   * the scoped data path is appended (e.g. `item-card-[/items/0]`); when one
+   * parent references the same component at the same scope more than once,
+   * each further occurrence gains a `#n` suffix (e.g. `item-card#2`).
    *
    * Until the spec provides data-derived child keys (a2ui#1745), this id
    * names a list position, not a data item: it is not stable across array

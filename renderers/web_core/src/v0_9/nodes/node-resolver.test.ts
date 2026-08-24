@@ -219,6 +219,32 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     resolver.dispose();
   });
 
+  it('gives repeated references to one component distinct sibling nodes and instance ids', () => {
+    const {surface, resolver} = setup();
+    add(surface, 'root', 'Column', {children: ['a', 'a']});
+    add(surface, 'a', 'Text', {text: 'dup'});
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const children = props(root).children as ComponentNode[];
+    assert.strictEqual(children.length, 2);
+    assert.notStrictEqual(children[0], children[1]);
+    assert.strictEqual(children[0].instanceId, 'a');
+    assert.strictEqual(children[1].instanceId, 'a#2');
+    assert.strictEqual(bound(children[1], 'text'), 'dup');
+
+    // Instance ids stay distinct when a list edit shifts the ordinals.
+    add(surface, 'x', 'Text', {text: 'x'});
+    const rootModel = surface.componentsModel.get('root');
+    assert.ok(rootModel);
+    rootModel.properties = {children: ['x', 'a', 'a']};
+    const after = props(root).children as ComponentNode[];
+    assert.deepStrictEqual(
+      after.map(n => n.instanceId),
+      ['x', 'a', 'a#2'],
+    );
+    resolver.dispose();
+  });
+
   it('spawns one node per array item for a template child list', () => {
     const {surface, resolver} = setup();
     surface.dataModel.set('/items', [{name: 'A'}, {name: 'B'}]);

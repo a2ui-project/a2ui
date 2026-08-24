@@ -42,6 +42,9 @@ const EMPTY_REF_FIELDS: RefFields = new Map();
 interface NodeRecord {
   readonly node: MutableComponentNode;
   readonly edgeKey: string;
+  /** The node's ordinal among same-(componentId, dataPath) siblings, baked
+   *  into its instanceId; reuse requires it to still match. */
+  readonly occurrence: number;
   /** The node whose props reference this one; undefined for the root. */
   readonly parent?: MutableComponentNode;
   readonly refFields: RefFields;
@@ -275,12 +278,13 @@ export class NodeResolver<
     dataPath: string,
     edgeKey: string,
     parent: MutableComponentNode | undefined,
+    occurrence = 1,
   ): MutableComponentNode {
     const model = this.surface.componentsModel.get(componentId);
     if (!model) {
       const record = this.registerNode(
         new MutableComponentNode(
-          instanceIdFor(componentId, dataPath),
+          instanceIdFor(componentId, dataPath, occurrence),
           componentId,
           PLACEHOLDER_TYPE,
           dataPath,
@@ -288,7 +292,7 @@ export class NodeResolver<
           undefined,
           'pending',
         ),
-        {edgeKey, parent, refFields: EMPTY_REF_FIELDS},
+        {edgeKey, parent, occurrence, refFields: EMPTY_REF_FIELDS},
       );
       if (parent) {
         let waiting = this.pendingParents.get(componentId);
@@ -311,7 +315,7 @@ export class NodeResolver<
       );
       return this.registerNode(
         new MutableComponentNode(
-          instanceIdFor(componentId, dataPath),
+          instanceIdFor(componentId, dataPath, occurrence),
           componentId,
           model.type,
           dataPath,
@@ -319,7 +323,7 @@ export class NodeResolver<
           undefined,
           'unknown-type',
         ),
-        {edgeKey, parent, refFields: EMPTY_REF_FIELDS, componentModel: model},
+        {edgeKey, parent, occurrence, refFields: EMPTY_REF_FIELDS, componentModel: model},
       ).node;
     }
 
@@ -328,7 +332,7 @@ export class NodeResolver<
     const binder = new GenericBinder<NodeProps>(context, api.schema);
     const record = this.registerNode(
       new MutableComponentNode(
-        instanceIdFor(componentId, dataPath),
+        instanceIdFor(componentId, dataPath, occurrence),
         componentId,
         model.type,
         dataPath,
@@ -338,6 +342,7 @@ export class NodeResolver<
       {
         edgeKey,
         parent,
+        occurrence,
         refFields: extractRefFields(api.schema),
         behavior: scrapeSchemaBehavior(api.schema),
         context,
@@ -362,6 +367,7 @@ export class NodeResolver<
     partial: {
       edgeKey: string;
       parent?: MutableComponentNode;
+      occurrence: number;
       refFields: RefFields;
       behavior?: BehaviorNode;
       context?: ComponentContext;
@@ -373,6 +379,7 @@ export class NodeResolver<
       node,
       edgeKey: partial.edgeKey,
       parent: partial.parent,
+      occurrence: partial.occurrence,
       refFields: partial.refFields,
       behavior: partial.behavior,
       context: partial.context,
@@ -401,12 +408,18 @@ export class NodeResolver<
     dataPath: string,
     edgeKey: string,
     parent: MutableComponentNode,
+    occurrence = 1,
   ): MutableComponentNode {
     const existing = this.nodesByEdge.get(edgeKey);
     if (this.isCyclic(componentId, dataPath, parent)) {
       // Node identity is parent-scoped, so a cyclic payload would otherwise
       // recurse forever; render the repeated reference as a placeholder.
-      if (existing && !existing.disposed && existing.isPlaceholder) {
+      if (
+        existing &&
+        !existing.disposed &&
+        existing.isPlaceholder &&
+        this.records.get(existing)?.occurrence === occurrence
+      ) {
         return existing;
       }
       if (existing && !existing.disposed) {
@@ -420,7 +433,7 @@ export class NodeResolver<
       );
       return this.registerNode(
         new MutableComponentNode(
-          instanceIdFor(componentId, dataPath),
+          instanceIdFor(componentId, dataPath, occurrence),
           componentId,
           PLACEHOLDER_TYPE,
           dataPath,
@@ -428,7 +441,7 @@ export class NodeResolver<
           undefined,
           'cyclic',
         ),
-        {edgeKey, parent, refFields: EMPTY_REF_FIELDS},
+        {edgeKey, parent, occurrence, refFields: EMPTY_REF_FIELDS},
       ).node;
     }
     if (existing && !existing.disposed) {
@@ -439,11 +452,13 @@ export class NodeResolver<
       // an unknown type is replaced (once) by an unknown-type node, and
       // either kind resolves when the type gains a catalog entry. Resolved
       // and unknown-type nodes must also still be bound to the current model
-      // instance.
+      // instance. A node whose sibling ordinal changed is rebuilt so
+      // instance ids stay distinct after list edits.
       const existingRecord = this.records.get(existing);
       const upToDate =
         existing.componentId === componentId &&
         existing.dataPath === dataPath &&
+        existingRecord?.occurrence === occurrence &&
         (existing.isPlaceholder
           ? (model === undefined && existing.state === 'pending') ||
             (model !== undefined &&
@@ -458,7 +473,7 @@ export class NodeResolver<
       }
       this.disposeNode(existing);
     }
-    return this.createNode(componentId, dataPath, edgeKey, parent);
+    return this.createNode(componentId, dataPath, edgeKey, parent, occurrence);
   }
 
   /** True when (componentId, dataPath) already appears in the parent chain. */
@@ -501,9 +516,15 @@ export class NodeResolver<
       }
     }
 
+    // Ordinal per (componentId, dataPath) within this rebuild, so repeated
+    // references to one component get distinct instance ids.
+    const occurrences = new Map<string, number>();
     const resolveChild = (slot: string, componentId: string, dataPath: string): ComponentNode => {
+      const occurrenceKey = `${componentId}@${dataPath}`;
+      const occurrence = (occurrences.get(occurrenceKey) ?? 0) + 1;
+      occurrences.set(occurrenceKey, occurrence);
       const edgeKey = `${record.edgeKey}>${slot}>${componentId}@${dataPath}`;
-      const child = this.childNode(componentId, dataPath, edgeKey, record.node);
+      const child = this.childNode(componentId, dataPath, edgeKey, record.node, occurrence);
       newEdges.set(edgeKey, child);
       return child;
     };
@@ -648,12 +669,10 @@ export class NodeResolver<
   }
 }
 
-function instanceIdFor(componentId: string, dataPath: string): string {
-  if (dataPath === ROOT_DATA_PATH) {
-    return componentId;
-  }
+function instanceIdFor(componentId: string, dataPath: string, occurrence: number): string {
   const trimmed = dataPath.replace(/\/+$/, '') || ROOT_DATA_PATH;
-  return `${componentId}-[${trimmed}]`;
+  const base = dataPath === ROOT_DATA_PATH ? componentId : `${componentId}-[${trimmed}]`;
+  return occurrence > 1 ? `${base}#${occurrence}` : base;
 }
 
 /**
