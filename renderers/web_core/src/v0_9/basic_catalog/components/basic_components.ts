@@ -260,59 +260,26 @@ export const ListApi = {
 
 export const CardApi = {
   name: 'Card',
-<<<<<<< HEAD
-  schema: z
-    .object({
-      ...CommonProps,
-      'child': componentId({
-        description:
-          "The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID. Do NOT define the child component inline.",
-      }),
-    })
-    .strict(),
-=======
   schema: z.object({
     ...CommonProps,
-    'child': ComponentIdSchema.describe(
-      "The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID. Do NOT define the child component inline.",
-    ),
+    'child': componentId({
+      description:
+        "The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID. Do NOT define the child component inline.",
+    }),
   }),
->>>>>>> fb475a77 (fix(renderers): loosen client-side component validation to allow unknown properties)
 } satisfies ComponentApi;
 
 export const TabsApi = {
   name: 'Tabs',
-<<<<<<< HEAD
-  schema: z
-    .object({
-      ...CommonProps,
-      'tabs': z
-        .array(
-          z
-            .object({
-              'title': DynamicStringSchema.describe('The tab title.'),
-              'child': componentId({
-                description: 'The ID of the child component. Do NOT define the component inline.',
-              }),
-            })
-            .strict(),
-        )
-        .min(1)
-        .describe(
-          'An array of objects, where each object defines a tab with a title and a child component.',
-        ),
-    })
-    .strict(),
-=======
   schema: z.object({
     ...CommonProps,
     'tabs': z
       .array(
         z.object({
           'title': DynamicStringSchema.describe('The tab title.'),
-          'child': ComponentIdSchema.describe(
-            'The ID of the child component. Do NOT define the component inline.',
-          ),
+          'child': componentId({
+            description: 'The ID of the child component. Do NOT define the component inline.',
+          }),
         }),
       )
       .min(1)
@@ -320,36 +287,21 @@ export const TabsApi = {
         'An array of objects, where each object defines a tab with a title and a child component.',
       ),
   }),
->>>>>>> fb475a77 (fix(renderers): loosen client-side component validation to allow unknown properties)
 } satisfies ComponentApi;
 
 export const ModalApi = {
   name: 'Modal',
-<<<<<<< HEAD
-  schema: z
-    .object({
-      ...CommonProps,
-      'trigger': componentId({
-        description:
-          'The ID of the component that opens the modal when interacted with (e.g., a button). Do NOT define the component inline.',
-      }),
-      'content': componentId({
-        description:
-          'The ID of the component to be displayed inside the modal. Do NOT define the component inline.',
-      }),
-    })
-    .strict(),
-=======
   schema: z.object({
     ...CommonProps,
-    'trigger': ComponentIdSchema.describe(
-      'The ID of the component that opens the modal when interacted with (e.g., a button). Do NOT define the component inline.',
-    ),
-    'content': ComponentIdSchema.describe(
-      'The ID of the component to be displayed inside the modal. Do NOT define the component inline.',
-    ),
+    'trigger': componentId({
+      description:
+        'The ID of the component that opens the modal when interacted with (e.g., a button). Do NOT define the component inline.',
+    }),
+    'content': componentId({
+      description:
+        'The ID of the component to be displayed inside the modal. Do NOT define the component inline.',
+    }),
   }),
->>>>>>> fb475a77 (fix(renderers): loosen client-side component validation to allow unknown properties)
 } satisfies ComponentApi;
 
 export const DividerApi = {
@@ -366,31 +318,12 @@ export const DividerApi = {
 
 export const ButtonApi = {
   name: 'Button',
-<<<<<<< HEAD
-  schema: z
-    .object({
-      ...CommonProps,
-      'child': componentId({
-        description:
-          "The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button. Do NOT define the child component inline.",
-      }),
-      'variant': z
-        .enum(['default', 'primary', 'borderless'])
-        .default('default')
-        .describe(
-          "A hint for the button style. If omitted, a default button style is used. 'primary' indicates this is the main call-to-action button. 'borderless' means the button has no visual border or background, making its child content appear like a clickable link.",
-        )
-        .optional(),
-      'action': ActionSchema.optional(),
-      ...CheckableSchema.shape,
-    })
-    .strict(),
-=======
   schema: z.object({
     ...CommonProps,
-    'child': ComponentIdSchema.describe(
-      "The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button. Do NOT define the child component inline.",
-    ),
+    'child': componentId({
+      description:
+        "The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button. Do NOT define the child component inline.",
+    }),
     'variant': z
       .enum(['default', 'primary', 'borderless'])
       .default('default')
@@ -401,7 +334,6 @@ export const ButtonApi = {
     'action': ActionSchema.optional(),
     ...CheckableSchema.shape,
   }),
->>>>>>> fb475a77 (fix(renderers): loosen client-side component validation to allow unknown properties)
 } satisfies ComponentApi;
 
 export const TextFieldApi = {
