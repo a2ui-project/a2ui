@@ -15,12 +15,34 @@
 from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union, cast
 from pydantic import BaseModel
 
+from ..exceptions import A2uiCatalogError
 from .functions import (
+    AllowedCallers,
     FunctionApi,
     FunctionImplementation,
+    FunctionReturnType,
     create_function_implementation,
 )
 from .components import ComponentApi, ComponentImplementation, ModelComponentApi
+
+
+def is_valid_uax31_identifier(name: str) -> bool:
+    """Validates whether a string conforms to UAX #31 / system identifier syntax."""
+    if not name:
+        return False
+    test_name = name[1:] if name.startswith("@") else name
+    return test_name.isidentifier()
+
+
+def _is_version_at_least_1_0(protocol_version: Union[str, Any]) -> bool:
+    """Returns True if the protocol version is 1.0 or higher (e.g. v1.0, v1.1, v2.0)."""
+    ver_str = str(protocol_version).strip().lstrip("vV").replace("_", ".")
+    parts = ver_str.split(".")
+    try:
+        major = int(parts[0])
+        return major >= 1
+    except (ValueError, IndexError):
+        return False
 
 
 TComponent = TypeVar("TComponent", bound=ComponentApi)
@@ -37,20 +59,41 @@ class Catalog(Generic[TComponent, TFunction]):
         components: Optional[List[TComponent]] = None,
         functions: Optional[List[TFunction]] = None,
         theme_schema: Dict[str, Any] = {},
+        instructions: Optional[str] = None,
     ):
+        if not catalog_id:
+            raise ValueError("catalog_id must be provided.")
         self.catalog_id = catalog_id
         if not protocol_version:
             raise ValueError("protocol_version must be provided.")
         self.protocol_version = protocol_version
+        self.instructions = instructions
 
-        # Symmetrical map to Catalog.components in TypeScript
-        self.components: Dict[str, TComponent] = {c.name: c for c in components or []}
+        validate_identifiers = _is_version_at_least_1_0(protocol_version)
 
-        # Symmetrical map to Catalog.functions in TypeScript
-        self.functions: Dict[str, TFunction] = {fn.name: fn for fn in functions or []}
+        self.components: Dict[str, TComponent] = {}
+        for c in components or []:
+            if validate_identifiers and not is_valid_uax31_identifier(c.name):
+                raise A2uiCatalogError(
+                    f"Invalid UAX #31 component identifier: '{c.name}'"
+                )
+            self.components[c.name] = c
+
+        self.functions: Dict[str, TFunction] = {}
+        for fn in functions or []:
+            if validate_identifiers and not is_valid_uax31_identifier(fn.name):
+                raise A2uiCatalogError(
+                    f"Invalid UAX #31 function identifier: '{fn.name}'"
+                )
+            self.functions[fn.name] = fn
 
         self.theme_schema = theme_schema
         self._catalog_schema: Optional[Dict[str, Any]] = None
+
+    @property
+    def id(self) -> str:
+        """Symmetrical alias for catalog_id."""
+        return self.catalog_id
 
     @property
     def catalog_schema(self) -> Optional[Dict[str, Any]]:
@@ -84,7 +127,9 @@ class Catalog(Generic[TComponent, TFunction]):
         """Constructs a schema-only Catalog directly from raw JSON Schema."""
         catalog_id = catalog_id or catalog_schema.get("catalogId")
         if not catalog_id:
-            raise ValueError("catalog_id must be provided or exist in catalog_schema.")
+            raise A2uiCatalogError(
+                "catalog_id must be provided or exist in catalog_schema."
+            )
 
         p_ver = protocol_version or catalog_schema.get("protocolVersion")
         if not p_ver:
@@ -100,16 +145,24 @@ class Catalog(Generic[TComponent, TFunction]):
                 ref = item.get("$ref", "")
                 if isinstance(ref, str) and ref.startswith("#/components/"):
                     permitted_names.add(ref.split("/")[-1])
-        if permitted_names:
-            components = [
-                ComponentApi(name, schema)
-                for name, schema in components_map.items()
-                if name in permitted_names
-            ]
-        else:
-            components = [
-                ComponentApi(name, schema) for name, schema in components_map.items()
-            ]
+
+        components = []
+        for name, schema in components_map.items():
+            if not permitted_names or name in permitted_names:
+                allowed_parents = (
+                    schema.get("allowedParents") if isinstance(schema, dict) else None
+                )
+                allowed_children = (
+                    schema.get("allowedChildren") if isinstance(schema, dict) else None
+                )
+                components.append(
+                    ComponentApi(
+                        name,
+                        schema,
+                        allowed_parents=allowed_parents,
+                        allowed_children=allowed_children,
+                    )
+                )
 
         functions = []
         raw_functions = catalog_schema.get("functions", {})
@@ -125,16 +178,16 @@ class Catalog(Generic[TComponent, TFunction]):
         if isinstance(raw_functions, dict):
             for name, spec in raw_functions.items():
                 if not permitted_func_names or name in permitted_func_names:
-                    return_type = (
-                        spec.get("returnType", "any")
-                        if isinstance(spec, dict)
-                        else "any"
-                    )
+                    spec_dict = spec if isinstance(spec, dict) else {}
                     functions.append(
                         FunctionApi(
-                            name,
-                            return_type,
-                            spec,
+                            name=name,
+                            return_type=spec_dict.get("returnType"),
+                            schema=spec,
+                            allowed_callers=spec_dict.get("allowedCallers"),
+                            requires_user_activation=spec_dict.get(
+                                "requiresUserActivation"
+                            ),
                         )
                     )
 
@@ -144,6 +197,7 @@ class Catalog(Generic[TComponent, TFunction]):
             components=components,
             functions=functions,
             theme_schema=catalog_schema.get("theme") or {},
+            instructions=catalog_schema.get("instructions"),
         )
         cat._catalog_schema = catalog_schema
         return cat

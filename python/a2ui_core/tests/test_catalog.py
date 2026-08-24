@@ -18,9 +18,11 @@ import pytest
 from a2ui.core.catalog import (
     Catalog,
     ComponentApi,
+    FunctionApi,
     ModelComponentApi,
     FunctionImplementation,
 )
+from a2ui.core.exceptions import A2uiCatalogError
 from a2ui.core.catalog.catalog import TComponent, TFunction
 from a2ui.core.validating import CatalogSchemaValidator
 from a2ui.core.basic_catalog import BasicCatalog
@@ -1029,3 +1031,29 @@ def test_basic_catalog_tabs_ref():
     assert "Tabs" in ref_map
     single_refs, list_refs = ref_map["Tabs"]
     assert "tabs" in list_refs
+
+
+# ==============================================================================
+# 6. Phase 2 v1.0 Spec Additions Tests
+# ==============================================================================
+
+
+def test_catalog_v1_0_additions():
+    cat = Catalog(
+        catalog_id="https://a2ui.org/v10-spec",
+        protocol_version="v1.0",
+    )
+    assert cat.id == "https://a2ui.org/v10-spec"
+
+
+def test_basic_catalog_version_submodules():
+    from a2ui.core.basic_catalog import v1_0, v0_9, v0_8
+
+    cat_v10 = v1_0.BasicCatalog()
+    assert cat_v10.protocol_version == "v1.0"
+
+    cat_v09 = v0_9.BasicCatalog()
+    assert cat_v09.protocol_version == "v0.9"
+
+    cat_v08 = v0_8.BasicCatalog()
+    assert cat_v08.protocol_version == "v0.8"

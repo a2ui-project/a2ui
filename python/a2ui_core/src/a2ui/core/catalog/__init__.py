@@ -12,26 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .catalog import Catalog
+from .catalog import Catalog, is_valid_uax31_identifier
 from .components import (
     ComponentApi,
     ComponentImplementation,
     ModelComponentApi,
 )
 from .functions import (
+    AllowedCallers,
     FunctionApi,
     FunctionImplementation,
     FunctionInvoker,
+    FunctionReturnType,
+    InferA2uiReturnType,
     create_function_implementation,
 )
 
 __all__ = [
     "Catalog",
+    "AllowedCallers",
     "ComponentApi",
     "ComponentImplementation",
     "ModelComponentApi",
     "FunctionApi",
     "FunctionImplementation",
     "FunctionInvoker",
+    "FunctionReturnType",
+    "InferA2uiReturnType",
     "create_function_implementation",
+    "is_valid_uax31_identifier",
 ]
