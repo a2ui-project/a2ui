@@ -68,7 +68,9 @@ class V0_8VersionAdapter(BaseVersionAdapter):
             )
         elif action == MSG_TYPE_SURFACE_UPDATE:
             su = message[MSG_TYPE_SURFACE_UPDATE]
-            raw_comps = su.get("components", [])
+            raw_comps = su.get("components")
+            if not isinstance(raw_comps, list):
+                raw_comps = []
             norm_comps: List[Dict[str, Any]] = []
             for c in raw_comps:
                 if isinstance(c, dict):
@@ -99,13 +101,31 @@ class V0_8VersionAdapter(BaseVersionAdapter):
             )
         elif action == MSG_TYPE_DATA_MODEL_UPDATE:
             du = message[MSG_TYPE_DATA_MODEL_UPDATE]
-            res.append(
-                InternalUpdateDataModelOp(
-                    surface_id=self._get_surface_id(du),
-                    path=du.get("path", "/"),
-                    value=du.get("value"),
+            surface_id = self._get_surface_id(du)
+            if "contents" in du and isinstance(du["contents"], list):
+                for item in du["contents"]:
+                    if isinstance(item, dict) and "key" in item:
+                        key = item["key"]
+                        val = None
+                        for k, v in item.items():
+                            if k.startswith("value"):
+                                val = v
+                                break
+                        res.append(
+                            InternalUpdateDataModelOp(
+                                surface_id=surface_id,
+                                path=f"/{key}",
+                                value=val,
+                            )
+                        )
+            else:
+                res.append(
+                    InternalUpdateDataModelOp(
+                        surface_id=surface_id,
+                        path=du.get("path", "/"),
+                        value=du.get("value"),
+                    )
                 )
-            )
         elif action == MSG_TYPE_DELETE_SURFACE:
             ds = message[MSG_TYPE_DELETE_SURFACE]
             res.append(

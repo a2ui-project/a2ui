@@ -188,6 +188,8 @@ class MessageProcessor:
             )
 
         components = op.components
+        if not isinstance(components, list):
+            raise A2uiValidationError("Components payload must be a list.")
 
         if self.strict_mode:
             try:

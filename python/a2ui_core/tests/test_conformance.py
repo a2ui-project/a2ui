@@ -450,6 +450,12 @@ def validate_process_messages_case(case: Dict[str, Any]) -> None:
                     assert surface is None
                     continue
                 assert surface is not None
+                if "theme" in s_exp:
+                    assert surface.theme == s_exp["theme"]
+                if "sendDataModel" in s_exp:
+                    assert surface.send_data_model == s_exp["sendDataModel"]
+                if "dataModel" in s_exp:
+                    assert surface.data_model.get("/") == s_exp["dataModel"]
                 if "components" in s_exp:
                     comps_expected = s_exp["components"]
                     if isinstance(comps_expected, dict):

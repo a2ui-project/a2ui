@@ -100,6 +100,11 @@ class BaseVersionAdapter(VersionAdapter, ABC):
             if not action:
                 return []
 
+            if not isinstance(payload[action], dict):
+                raise A2uiValidationError(
+                    f"Payload for action '{action}' must be an object"
+                )
+
             return self._extract_operations_for_action(action, payload)
 
         return []
