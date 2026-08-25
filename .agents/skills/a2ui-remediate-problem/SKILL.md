@@ -44,10 +44,11 @@ Follow these steps to remediate an issue recommendation:
 
 ### Step 3: Choose Destination & Create Workspace / Branch
 
-1. Check with the user on where they would like the changes created:
+1. Check with the user on where they would like the changes created and what branch name to use:
    - **Default recommendation**: Create a new git worktree with a clean branch based on `upstream/main` (e.g., `git worktree add ../remediation_issue_${ISSUE_NUMBER}_${RECOMMENDATION_INDEX} -b remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX} upstream/main`).
    - Alternatively, create a branch in the current worktree or apply changes in place if requested.
-2. Ensure the working tree is clean and up to date with `upstream/main`.
+2. Note the chosen branch name in `BRANCH_NAME` (e.g. `remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}` or a custom descriptive topic name).
+3. Ensure the working tree is clean and up to date with `upstream/main`.
 
 ---
 
@@ -66,25 +67,26 @@ Follow these steps to remediate an issue recommendation:
 
 ### Step 5: Create Draft PR & Notify Issue (Optional / Upon Request)
 
-1. Check if the user wants to submit a Draft PR:
+1. Check if the user wants to submit a Draft PR.
 2. Generate a clear, descriptive PR title following Conventional Commits that concisely explains the specific fix being made (e.g. `fix(swift): create missing top-level README in swift/core`). **Do NOT include generic issue or recommendation numbers in the PR title.**
 3. Draft the PR description into a temporary file `pr_description.md` following [pr-description-template.md](references/pr-description-template.md).
 4. Push the branch to `origin` (or user's fork) and create a Draft Pull Request against `main`:
    ```bash
-   git push -u origin "remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}"
+   git push -u origin "${BRANCH_NAME}"
    PR_URL=$(gh pr create --draft \
      --repo a2ui-project/a2ui \
-     --head "remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}" \
+     --head "${BRANCH_NAME}" \
      --base main \
      --title "${PR_TITLE}" \
      --body-file pr_description.md)
    ```
+   *(Note: If pushing from a fork, `gh pr create` automatically resolves the fork's head branch or accepts `--head <username>:${BRANCH_NAME}`.)*
 5. Clean up the temporary file `pr_description.md`.
 6. Comment on the original issue to notify maintainers of the new Draft PR:
    ```bash
    gh issue comment "${ISSUE_NUMBER}" \
      --repo a2ui-project/a2ui \
-     --body "🤖 Automated remediation triggered! Created draft PR (${PR_URL}) on branch \`remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}\` to address recommendation #${RECOMMENDATION_INDEX}."
+     --body "🤖 Automated remediation triggered! Created draft PR (${PR_URL}) on branch \`${BRANCH_NAME}\` to address recommendation #${RECOMMENDATION_INDEX}."
    ```
 
 ---

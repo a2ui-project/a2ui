@@ -49,15 +49,14 @@ When creating the PR description file (e.g. `pr_description.md`), follow this ex
 
 ### How to Inspect or Modify This Branch Locally
 
-To check out and make additional changes to this remediation branch:
+To check out and make additional changes to this PR branch:
 
 ```bash
-# Fetch and check out the remediation branch
-git fetch upstream remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}
-git checkout remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}
+# Check out the PR branch locally using GitHub CLI
+gh pr checkout <PR_NUMBER>
 
-# Make your edits, then commit and push back to upstream
+# Make your edits, then commit and push back
 git commit -am "fix: additional adjustments for recommendation #${RECOMMENDATION_INDEX}"
-git push upstream remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}
+git push
 ```
 ````
