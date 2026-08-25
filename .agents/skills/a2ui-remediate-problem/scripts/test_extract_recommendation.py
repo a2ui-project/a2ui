@@ -159,6 +159,38 @@ class TestExtractRecommendation(unittest.TestCase):
             ],
         )
 
+    @patch("subprocess.run")
+    def test_fetch_issue_body_missing_gh_cli(self, mock_run: MagicMock) -> None:
+        mock_run.side_effect = FileNotFoundError("No such file or directory: 'gh'")
+        with self.assertRaisesRegex(
+            RuntimeError, "The GitHub CLI 'gh' is not installed"
+        ):
+            extract_recommendation("2391", 1, repo="a2ui-project/a2ui")
+
+    def test_parse_recommendations_with_nested_code_blocks(self) -> None:
+        report_with_nested_fences = """# Report
+## Recommendations
+
+1. **P0**: **Recommendation with nested fences**
+   Details:
+   ````markdown
+   Here is some inner markdown:
+   ---
+   2. This is NOT recommendation 2!
+   ## Not a header
+   ````
+   Continued details for recommendation 1.
+
+2. **P1**: **Real Recommendation 2**
+   Details for recommendation 2.
+"""
+        recs = parse_recommendations(report_with_nested_fences)
+        self.assertEqual(len(recs), 2)
+        self.assertIn(1, recs)
+        self.assertIn(2, recs)
+        self.assertIn("Continued details for recommendation 1", recs[1]["raw_text"])
+        self.assertIn("Details for recommendation 2", recs[2]["raw_text"])
+
 
 if __name__ == "__main__":
     unittest.main()

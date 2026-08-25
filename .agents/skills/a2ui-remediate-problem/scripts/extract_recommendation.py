@@ -39,7 +39,15 @@ def fetch_issue_body(issue_ref: str, repo: str | None = None) -> str:
     env = os.environ.copy()
     if env.get("GITHUB_TOKEN") in ("", "dummy", "empty"):
         env.pop("GITHUB_TOKEN", None)
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False, env=env)
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, check=False, env=env
+        )
+    except FileNotFoundError as err:
+        raise RuntimeError(
+            "The GitHub CLI 'gh' is not installed or not found in the system PATH. "
+            "Please install it to fetch issues dynamically."
+        ) from err
     if result.returncode != 0:
         raise RuntimeError(
             f"Failed to fetch issue {issue_ref} via gh CLI: {result.stderr.strip()}"
@@ -54,11 +62,30 @@ def parse_recommendations(report_text: str) -> dict[int, dict[str, str]]:
     in_recommendations = False
     current_index: int | None = None
     current_lines: list[str] = []
+    in_code_block = False
+    code_block_fence = ""
 
     item_header_pattern = re.compile(r"^(\d+)\.\s+(.*)")
 
     for line in lines:
         stripped = line.strip()
+
+        # Track markdown code blocks to avoid false positives inside them
+        if in_code_block:
+            if stripped.startswith(code_block_fence):
+                in_code_block = False
+            if current_index is not None:
+                current_lines.append(line)
+            continue
+        else:
+            fence_match = re.match(r"^(~{3,}|\x60{3,})", stripped)
+            if fence_match:
+                in_code_block = True
+                code_block_fence = fence_match.group(1)
+                if current_index is not None:
+                    current_lines.append(line)
+                continue
+
         if stripped.startswith("## Recommendations"):
             in_recommendations = True
             continue

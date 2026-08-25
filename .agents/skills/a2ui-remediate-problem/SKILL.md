@@ -17,8 +17,8 @@ Follow these steps to remediate an issue:
 
 1. **Determine the Target Issue**:
    - If the user provided an issue number or URL in their request, extract `ISSUE_NUMBER`.
-   - If no issue was specified, ask the user (prefer using the `ask_question` tool or interactive prompt):
-     *"Which GitHub issue would you like to remediate? (Please provide the issue number or URL, e.g. 2391)"*
+   - If no issue was specified, ask the user (prefer using the `ask_question` tool):
+     _"Which GitHub issue would you like to remediate? (Please provide the issue number or URL, e.g. 2391)"_
 
 2. **Retrieve Context & Determine Issue Type**:
    - Run the helper script to inspect the issue:
@@ -93,7 +93,7 @@ Follow these steps to remediate an issue:
      --title "${PR_TITLE}" \
      --body-file pr_description.md)
    ```
-   *(Note: Omit `--draft` if the user prefers an immediate ready-for-review PR. If pushing from a fork, `gh pr create` automatically resolves the fork's head branch or accepts `--head <username>:${BRANCH_NAME}`.)*
+   _(Note: Omit `--draft` if the user prefers an immediate ready-for-review PR. If pushing from a fork, `gh pr create` automatically resolves the fork's head branch or accepts `--head <username>:${BRANCH_NAME}`.)_
 5. Clean up the temporary file `pr_description.md`.
 6. Comment on the original issue to notify maintainers of the new PR:
    ```bash
