@@ -21,7 +21,7 @@ import OrderedJSON
 /// The central processor for A2UI server-to-client messages.
 ///
 /// Mirrors `MessageProcessor` in the core blueprint and `web_core`.
-/// Accepts strongly-typed ``ServerToClientMessage`` values or raw JSON lines,
+/// Accepts strongly-typed ``ServerToClientMessage`` values,
 /// validates component declarations against catalog schemas, and mutates
 /// the corresponding ``SurfaceViewModel`` state via ``SurfaceGroupModel``.
 @MainActor
@@ -31,7 +31,6 @@ public final class MessageProcessor: ObservableObject {
 
   private let catalogs: [String: Catalog]
   private weak var actionHandler: (any ActionHandling)?
-  private let parser = MessageParser()
   private let errorMapper = MessageErrorMapper()
 
   /// Creates a new message processor with an array of catalogs.
@@ -246,53 +245,40 @@ public final class MessageProcessor: ObservableObject {
     }
   }
 
-  // MARK: - Message Processing (JSONL Line)
+  // MARK: - Message Processing
 
-  /// Processes a single JSONL line containing an incoming message envelope.
+  /// Processes a single server-to-client message.
   ///
-  /// Throws on any failure (decoding error, missing surface, missing catalog).
-  /// Thrown parsing errors are also routed to `ActionHandling` via `MessageErrorMapper`.
-  public func process(line: String) throws {
-    do {
-      let message = try parser.parse(jsonString: line)
-      try validateAndProcess(message)
-    } catch {
-      let surfaceID = (error as? MessageParseError)?.surfaceID ?? "unknown"
-      let clientError = errorMapper.map(error, surfaceID: surfaceID)
-      actionHandler?.handle(error: clientError, from: surfaceID)
-      throw error
-    }
-  }
-
-  // MARK: - Message Processing (Strongly-Typed)
-
-  /// Processes a single server-to-client message, throwing validation or missing surface errors.
-  public func process(message: ServerToClientMessage) throws {
-    try validateAndProcess(message)
-  }
-
-  /// Processes a single server-to-client message without throwing.
-  public func processMessage(_ message: ServerToClientMessage) {
+  /// Any validation or lifecycle errors are mapped via `MessageErrorMapper`
+  /// and reported to `ActionHandling`.
+  public func process(message: ServerToClientMessage) {
     do {
       try validateAndProcess(message)
     } catch {
-      let surfaceID: String
-      switch message {
-      case .createSurface(let msg): surfaceID = msg.surfaceID
-      case .updateComponents(let msg): surfaceID = msg.surfaceID
-      case .updateDataModel(let msg): surfaceID = msg.surfaceID
-      case .deleteSurface(let msg): surfaceID = msg.surfaceID
-      }
+      let surfaceID = extractSurfaceID(from: error, fallback: message.surfaceID)
       let clientError = errorMapper.map(error, surfaceID: surfaceID)
       actionHandler?.handle(error: clientError, from: surfaceID)
     }
   }
 
   /// Processes an array of server-to-client messages.
-  public func processMessages(_ messages: [ServerToClientMessage]) {
+  ///
+  /// Any validation or lifecycle errors are mapped via `MessageErrorMapper`
+  /// and reported to `ActionHandling`.
+  public func process(messages: [ServerToClientMessage]) {
     for message in messages {
-      processMessage(message)
+      process(message: message)
     }
+  }
+
+  private func extractSurfaceID(from error: Error, fallback: String) -> String {
+    if let validationError = error as? ValidationFailedError {
+      return validationError.surfaceID
+    }
+    if let genericError = error as? GenericError {
+      return genericError.surfaceID
+    }
+    return fallback
   }
 
   // MARK: - Private Surface Mutations & Validation
@@ -302,14 +288,21 @@ public final class MessageProcessor: ObservableObject {
     catalogID: String,
     theme: [String: JSONValue]? = nil,
     sendDataModel: Bool = false
-  ) -> SurfaceViewModel? {
+  ) throws -> SurfaceViewModel? {
     guard let catalog = catalogs[catalogID] else { return nil }
-    return createSurface(
+    return try createSurface(
       surfaceID: surfaceID,
       catalog: catalog,
       theme: theme,
       sendDataModel: sendDataModel
     )
+  }
+
+  private func mostSpecificError(from error: ValidationError) -> ValidationError {
+    if let nestedErrors = error.errors, let firstNested = nestedErrors.first {
+      return mostSpecificError(from: firstNested)
+    }
+    return error
   }
 
   @discardableResult
@@ -318,7 +311,32 @@ public final class MessageProcessor: ObservableObject {
     catalog: Catalog,
     theme: [String: JSONValue]? = nil,
     sendDataModel: Bool = false
-  ) -> SurfaceViewModel {
+  ) throws -> SurfaceViewModel {
+    if let theme, let themeSchema = catalog.themeSchema {
+      let themeInstance: JSONValue = .object(
+        OrderedDictionary(uniqueKeysWithValues: theme)
+      )
+      let result = themeSchema.validate(themeInstance)
+      if !result.isValid {
+        let specificError = result.errors?.first.map(mostSpecificError(from:))
+        let errorMessage = specificError?.message ?? "Theme validation failed"
+        let subpath = specificError?.instanceLocation.jsonPointerString ?? ""
+        let errorPath: String
+        if subpath.isEmpty || subpath == "/" {
+          errorPath = "/theme"
+        } else if subpath.hasPrefix("/") {
+          errorPath = "/theme\(subpath)"
+        } else {
+          errorPath = "/theme/\(subpath)"
+        }
+        let error = ValidationFailedError(
+          surfaceID: surfaceID,
+          path: errorPath,
+          message: errorMessage
+        )
+        throw error
+      }
+    }
     let vm = SurfaceViewModel(
       surfaceID: surfaceID,
       catalogs: catalogs.isEmpty ? [catalog.id: catalog] : catalogs,
@@ -351,6 +369,7 @@ public final class MessageProcessor: ObservableObject {
       return
     }
 
+    // Pass 1: Validation Pass
     for componentDict in components {
       guard let type = componentDict["component"]?.stringValue else {
         let error = ClientServerError.validationFailed(
@@ -361,7 +380,7 @@ public final class MessageProcessor: ObservableObject {
           )
         )
         actionHandler?.handle(error: error, from: surfaceID)
-        continue
+        return
       }
 
       guard let id = componentDict["id"]?.stringValue else {
@@ -373,7 +392,7 @@ public final class MessageProcessor: ObservableObject {
           )
         )
         actionHandler?.handle(error: error, from: surfaceID)
-        continue
+        return
       }
 
       let componentCatalogID = componentDict["catalogId"]?.stringValue ?? surface.defaultCatalogID
@@ -387,7 +406,7 @@ public final class MessageProcessor: ObservableObject {
           )
         )
         actionHandler?.handle(error: error, from: surfaceID)
-        continue
+        return
       }
 
       let instance: JSONValue = .object(
@@ -396,33 +415,44 @@ public final class MessageProcessor: ObservableObject {
         )
       )
       let result = schema.validate(instance)
-
-      if result.isValid {
-        var props: [String: JSONValue] = [:]
-        for (key, val) in componentDict
-        where key != "id" && key != "component" && key != "catalogId" {
-          props[key] = val
-        }
-
-        let existing = surface.componentsModel.get(id)
-        if let existing, existing.type != type {
-          surface.componentsModel.removeComponent(id)
-        }
-        surface.componentsModel.addComponent(
-          ComponentModel(id: id, type: type, catalogID: componentCatalogID, properties: props)
-        )
-      } else {
-        let errorMessage = result.errors?.first?.message ?? "Validation failed"
-        let errorPath = result.errors?.first?.instanceLocation.jsonPointerString ?? "/"
+      guard result.isValid else {
+        let specificError = result.errors?.first.map(mostSpecificError(from:))
+        let errorMessage = specificError?.message ?? "Validation failed"
+        let errorPath = specificError?.instanceLocation.jsonPointerString ?? "/"
         let error = ClientServerError.validationFailed(
           ValidationFailedError(
             surfaceID: surfaceID,
-            path: errorPath,
+            path: errorPath.isEmpty ? "/" : errorPath,
             message: errorMessage
           )
         )
         actionHandler?.handle(error: error, from: surfaceID)
+        return
       }
+    }
+
+    // Pass 2: Mutation Pass
+    for componentDict in components {
+      guard let type = componentDict["component"]?.stringValue,
+        let id = componentDict["id"]?.stringValue
+      else {
+        continue
+      }
+      let componentCatalogID = componentDict["catalogId"]?.stringValue ?? surface.defaultCatalogID
+
+      var props: [String: JSONValue] = [:]
+      for (key, val) in componentDict
+      where key != "id" && key != "component" && key != "catalogId" {
+        props[key] = val
+      }
+
+      let existing = surface.componentsModel.get(id)
+      if let existing, existing.type != type {
+        surface.componentsModel.removeComponent(id)
+      }
+      surface.componentsModel.addComponent(
+        ComponentModel(id: id, type: type, catalogID: componentCatalogID, properties: props)
+      )
     }
   }
 
@@ -466,15 +496,12 @@ public final class MessageProcessor: ObservableObject {
         )
         throw error
       }
-      let vm = SurfaceViewModel(
+      try createSurface(
         surfaceID: msg.surfaceID,
-        catalogs: catalogs,
-        defaultCatalogID: catalog.id,
+        catalog: catalog,
         theme: msg.theme,
-        actionHandler: actionHandler,
         sendDataModel: msg.shouldSendDataModel
       )
-      surfaceGroupModel.addSurface(vm)
 
     case .updateComponents(let msg):
       guard surfaceGroupModel.surfacesMap[msg.surfaceID] != nil else {

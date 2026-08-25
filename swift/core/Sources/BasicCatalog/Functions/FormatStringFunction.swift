@@ -16,7 +16,7 @@ import A2UICore
 import JSONSchema
 
 /// Performs string interpolation of data model values and other functions.
-public struct FormatStringFunction: FunctionImplementation, Sendable {
+public final class FormatStringFunction: FunctionImplementation, Sendable {
   public let api = FunctionAPI(
     name: "formatString",
     returnType: .string,
@@ -47,7 +47,7 @@ public struct FormatStringFunction: FunctionImplementation, Sendable {
 
     for part in parts {
       let resolved = context.resolveDynamicValue(part)
-      
+
       switch resolved {
       case .string(let s):
         result += s
@@ -57,9 +57,9 @@ public struct FormatStringFunction: FunctionImplementation, Sendable {
         // Format to avoid .0 if integer-like, or let Swift default formatting apply.
         // Swift Double to String formatting is usually reasonable.
         if let exactInt = Int(exactly: n) {
-           result += String(exactInt)
+          result += String(exactInt)
         } else {
-           result += String(n)
+          result += String(n)
         }
       case .boolean(let b):
         result += b ? "true" : "false"

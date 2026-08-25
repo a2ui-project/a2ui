@@ -18,6 +18,7 @@ import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
 import {MessageProcessor, formatZodIssue} from './message-processor.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
+import {CardApi, RowApi, TabsApi} from '../basic_catalog/components/basic_components.js';
 import {ButtonApi} from '../basic_catalog/index.js';
 import {A2uiValidationError} from '../errors.js';
 import {z} from 'zod';
@@ -67,6 +68,25 @@ describe('MessageProcessor', () => {
       assert.strictEqual(buttonSchema.allOf[1].properties.component.const, 'Button');
       assert.strictEqual(buttonSchema.allOf[1].properties.label.description, 'The button label');
       assert.deepStrictEqual(buttonSchema.allOf[1].required, ['component', 'label']);
+    });
+
+    it('keeps $ref on basic catalog child references despite per-usage descriptions', () => {
+      const cat = new Catalog('cat-basic', [CardApi, RowApi, TabsApi]);
+      const proc = new MessageProcessor([cat]);
+
+      const caps = proc.getClientCapabilities({includeInlineCatalogs: true});
+      const components = caps['v0.9']?.inlineCatalogs?.[0]?.components;
+      assert.ok(components);
+
+      const cardChild = components.Card.allOf[1].properties.child;
+      assert.strictEqual(cardChild.$ref, 'common_types.json#/$defs/ComponentId');
+      assert.strictEqual(cardChild.type, undefined);
+
+      const rowChildren = components.Row.allOf[1].properties.children;
+      assert.strictEqual(rowChildren.$ref, 'common_types.json#/$defs/ChildList');
+
+      const tabChild = components.Tabs.allOf[1].properties.tabs.items.properties.child;
+      assert.strictEqual(tabChild.$ref, 'common_types.json#/$defs/ComponentId');
     });
 
     it('transforms REF: descriptions into valid $ref nodes', () => {

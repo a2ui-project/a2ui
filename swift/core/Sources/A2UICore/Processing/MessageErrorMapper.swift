@@ -47,6 +47,10 @@ public struct MessageErrorMapper: Sendable {
       return .generic(genericError)
     }
 
+    if let validationError = error as? ValidationFailedError {
+      return .validationFailed(validationError)
+    }
+
     if let decodingError = error as? DecodingError {
       return mapDecodingError(decodingError, surfaceID: surfaceID)
     }

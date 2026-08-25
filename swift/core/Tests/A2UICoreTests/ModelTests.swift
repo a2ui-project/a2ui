@@ -164,7 +164,6 @@ struct NodeTests {
     #expect(!node.isValid)
     #expect(node.validationErrors == ["Single rule fail"])
   }
-
   // MARK: - Equality
 
   @Test func nodesEqualByIDTypeAndProperties() {
