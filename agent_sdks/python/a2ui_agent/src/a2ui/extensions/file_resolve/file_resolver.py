@@ -158,6 +158,12 @@ class FileResolver:
 
         return final_mime
 
+    def _check_file_size(self, current_size: int) -> None:
+        if current_size > self.max_file_bytes:
+            raise FileResolverSecurityError(
+                f"File exceeded max size of {self.max_file_bytes} bytes"
+            )
+
     async def resolve_bytes(
         self, file_info: Dict[str, Any], session: Optional[Any] = None
     ) -> tuple[bytes, str]:
@@ -295,10 +301,7 @@ class FileResolver:
                 response.raise_for_status()
                 async for chunk in response.aiter_bytes():
                     buffer.extend(chunk)
-                    if len(buffer) > self.max_file_bytes:
-                        raise FileResolverSecurityError(
-                            f"File exceeded max size of {self.max_file_bytes} bytes"
-                        )
+                    self._check_file_size(len(buffer))
             break
         
         if redirects_followed > max_redirects:
@@ -331,10 +334,7 @@ class FileResolver:
         else:
             raise ValueError(f"Unsupported file pointer scheme: {file_id}")
 
-        if len(raw_bytes) > self.max_file_bytes:
-            raise FileResolverSecurityError(
-                f"File exceeded max size of {self.max_file_bytes} bytes"
-            )
+        self._check_file_size(len(raw_bytes))
 
         verified_mime = self._verify_magic_bytes(raw_bytes, claimed_mime)
         return raw_bytes, verified_mime
