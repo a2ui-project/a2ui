@@ -290,6 +290,7 @@ async def test_security_max_file_size_custom_scheme():
 @pytest.mark.asyncio
 async def test_security_max_file_size_http_streaming():
     class MockStreamContext:
+
         def __init__(self):
             self.status_code = 200
             self.headers = {}
@@ -329,6 +330,7 @@ async def test_security_allowed_hosts_policy():
     pdf_bytes = b"%PDF-1.4 Allowed Host Content"
 
     class MockStreamContext:
+
         def __init__(self):
             self.status_code = 200
             self.headers = {}
@@ -391,6 +393,7 @@ async def test_security_allowed_hosts_policy():
 @pytest.mark.asyncio
 async def test_security_allowed_hosts_redirect_blocked():
     class MockRedirectResponse:
+
         def __init__(self, is_redirect):
             if is_redirect:
                 self.status_code = 302
@@ -412,6 +415,7 @@ async def test_security_allowed_hosts_redirect_blocked():
             yield b"%PDF-1.4 secret"
 
     class MockHttpClient:
+
         def stream(self, method: str, url: str, **kwargs):
             host_header = kwargs.get("headers", {}).get("Host", "")
             if host_header == "trusted.org" and "redirect-me" in url:
@@ -531,27 +535,34 @@ async def test_as_tool_decorator():
     res = await my_tool(my_files=invalid_files)
     assert "error" in res
 
+
 @pytest.mark.asyncio
 async def test_http_host_header_with_port():
     pdf_bytes = b"%PDF-1.4"
-    
+
     class MockStreamContext:
+
         def __init__(self):
             self.status_code = 200
             self.headers = {}
+
         async def __aenter__(self):
             return self
+
         async def __aexit__(self, exc_type, exc_val, exc_tb):
             pass
+
         def raise_for_status(self):
             pass
+
         async def aiter_bytes(self) -> AsyncIterator[bytes]:
             yield pdf_bytes
 
     class MockHttpClient:
+
         def __init__(self):
             self.host_header_received = None
-            
+
         def stream(self, method: str, url: str, **kwargs):
             self.host_header_received = kwargs.get("headers", {}).get("Host")
             return MockStreamContext()
@@ -566,6 +577,5 @@ async def test_http_host_header_with_port():
         "fileId": "https://example.com:8443/doc.pdf",
         "mimeType": "application/pdf",
     })
-    
-    assert mock_client.host_header_received == "example.com:8443"
 
+    assert mock_client.host_header_received == "example.com:8443"

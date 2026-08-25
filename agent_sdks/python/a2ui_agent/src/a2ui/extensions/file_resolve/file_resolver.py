@@ -171,7 +171,9 @@ class FileResolver:
         async with self._semaphore:
             return await self._resolve_bytes_internal(file_info, session)
 
-    def _resolve_inline(self, file_id: str, session: Optional[Any]) -> tuple[bytes, str]:
+    def _resolve_inline(
+        self, file_id: str, session: Optional[Any]
+    ) -> tuple[bytes, str]:
         if not session:
             raise ValueError(f"Cannot resolve {file_id}: No session provided.")
 
@@ -192,9 +194,7 @@ class FileResolver:
                         if part_file_id == file_id:
                             return part.inline_data.data, part.inline_data.mime_type
 
-        raise ValueError(
-            f"Inline data pointer {file_id} not found in session history."
-        )
+        raise ValueError(f"Inline data pointer {file_id} not found in session history.")
 
     async def _resolve_custom(self, file_id: str, file_info: Dict[str, Any]) -> bytes:
         prefix = next(p for p in self._custom_schemes if file_id.startswith(p))
@@ -258,43 +258,60 @@ class FileResolver:
                     ip = res[4][0]
                     try:
                         ip_obj = ipaddress.ip_address(ip)
-                        if (ip_obj.is_private or ip_obj.is_loopback or 
-                            ip_obj.is_link_local or ip_obj.is_multicast or 
-                            ip_obj.is_unspecified):
+                        if (
+                            ip_obj.is_private
+                            or ip_obj.is_loopback
+                            or ip_obj.is_link_local
+                            or ip_obj.is_multicast
+                            or ip_obj.is_unspecified
+                        ):
                             raise FileResolverSecurityError(
-                                f"Host '{current_hostname}' resolves to a private/local IP '{ip}', which is not permitted."
+                                f"Host '{current_hostname}' resolves to a private/local"
+                                f" IP '{ip}', which is not permitted."
                             )
                         if not resolved_ip:
                             resolved_ip = ip
                     except ValueError:
                         pass
             except socket.gaierror as e:
-                raise FileResolverSecurityError(f"Failed to resolve host '{current_hostname}': {e}")
+                raise FileResolverSecurityError(
+                    f"Failed to resolve host '{current_hostname}': {e}"
+                )
 
             if not resolved_ip:
-                raise FileResolverSecurityError(f"Could not find a valid public IP for host '{current_hostname}'")
+                raise FileResolverSecurityError(
+                    f"Could not find a valid public IP for host '{current_hostname}'"
+                )
 
             netloc = f"[{resolved_ip}]" if ":" in resolved_ip else resolved_ip
             if parsed_current.port:
                 netloc = f"{netloc}:{parsed_current.port}"
             ip_url = parsed_current._replace(netloc=netloc).geturl()
 
-            host_header = f"{current_hostname}:{parsed_current.port}" if parsed_current.port else current_hostname
+            host_header = (
+                f"{current_hostname}:{parsed_current.port}"
+                if parsed_current.port
+                else current_hostname
+            )
             async with self._http_client.stream(
-                "GET", 
-                ip_url, 
+                "GET",
+                ip_url,
                 headers={"Host": host_header},
                 extensions={"sni_hostname": current_hostname},
-                follow_redirects=False
+                follow_redirects=False,
             ) as response:
                 if response.status_code in (301, 302, 303, 307, 308):
                     redirect_location = response.headers.get("Location")
                     if not redirect_location:
-                        raise FileResolverSecurityError("Redirect missing Location header")
+                        raise FileResolverSecurityError(
+                            "Redirect missing Location header"
+                        )
                     current_url = urllib.parse.urljoin(current_url, redirect_location)
                     redirect_scheme = urllib.parse.urlparse(current_url).scheme.lower()
                     if redirect_scheme not in ("http", "https"):
-                        raise FileResolverSecurityError(f"Unsupported redirect scheme: {redirect_scheme}")
+                        raise FileResolverSecurityError(
+                            f"Unsupported redirect scheme: {redirect_scheme}"
+                        )
                     redirects_followed += 1
                     continue
 
@@ -303,10 +320,10 @@ class FileResolver:
                     buffer.extend(chunk)
                     self._check_file_size(len(buffer))
             break
-        
+
         if redirects_followed > max_redirects:
             raise FileResolverSecurityError("Too many redirects")
-            
+
         return bytes(buffer)
 
     async def _resolve_bytes_internal(
