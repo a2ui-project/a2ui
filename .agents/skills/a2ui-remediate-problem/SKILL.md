@@ -45,9 +45,9 @@ Follow these steps to remediate an issue recommendation:
 ### Step 3: Choose Destination & Create Workspace / Branch
 
 1. Check with the user on where they would like the changes created and what branch name to use:
-   - **Default recommendation**: Create a new git worktree with a clean branch based on `upstream/main` (e.g., `git worktree add ../remediation_issue_${ISSUE_NUMBER}_${RECOMMENDATION_INDEX} -b remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX} upstream/main`).
-   - Alternatively, create a branch in the current worktree or apply changes in place if requested.
-2. Note the chosen branch name in `BRANCH_NAME` (e.g. `remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}` or a custom descriptive topic name).
+   - **Recommended branch name**: `remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}` (or a concise descriptive topic name).
+   - Let the user decide whether to create a separate git worktree (using their preferred local worktree conventions), checkout a new branch in the current directory, or apply changes in place.
+2. Note the chosen branch name in `BRANCH_NAME`.
 3. Ensure the working tree is clean and up to date with `upstream/main`.
 
 ---
