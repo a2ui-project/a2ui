@@ -260,6 +260,8 @@ class FileResolver:
             while redirects_followed <= max_redirects:
                 parsed_current = urllib.parse.urlparse(current_url)
                 current_hostname = (parsed_current.hostname or "").lower()
+                if not current_hostname:
+                    raise FileResolverSecurityError("URL is missing a valid hostname")
 
                 if not any(
                     fnmatch.fnmatch(current_hostname, pattern.lower())
@@ -269,6 +271,7 @@ class FileResolver:
                         f"Host '{current_hostname}' is not permitted by security policy"
                     )
 
+                resolved_ip = None
                 try:
                     loop = asyncio.get_running_loop()
                     addr_info = await loop.getaddrinfo(current_hostname, None)
@@ -282,19 +285,36 @@ class FileResolver:
                                 raise FileResolverSecurityError(
                                     f"Host '{current_hostname}' resolves to a private/local IP '{ip}', which is not permitted."
                                 )
+                            if not resolved_ip:
+                                resolved_ip = ip
                         except ValueError:
                             pass
                 except socket.gaierror as e:
                     raise FileResolverSecurityError(f"Failed to resolve host '{current_hostname}': {e}")
 
+                if not resolved_ip:
+                    raise FileResolverSecurityError(f"Could not find a valid public IP for host '{current_hostname}'")
+
+                netloc = f"[{resolved_ip}]" if ":" in resolved_ip else resolved_ip
+                if parsed_current.port:
+                    netloc = f"{netloc}:{parsed_current.port}"
+                ip_url = parsed_current._replace(netloc=netloc).geturl()
+
                 async with self._http_client.stream(
-                    "GET", current_url, follow_redirects=False
+                    "GET", 
+                    ip_url, 
+                    headers={"Host": current_hostname},
+                    extensions={"sni_hostname": current_hostname},
+                    follow_redirects=False
                 ) as response:
                     if response.status_code in (301, 302, 303, 307, 308):
                         redirect_location = response.headers.get("Location")
                         if not redirect_location:
                             raise FileResolverSecurityError("Redirect missing Location header")
                         current_url = urllib.parse.urljoin(current_url, redirect_location)
+                        redirect_scheme = urllib.parse.urlparse(current_url).scheme.lower()
+                        if redirect_scheme not in ("http", "https"):
+                            raise FileResolverSecurityError(f"Unsupported redirect scheme: {redirect_scheme}")
                         redirects_followed += 1
                         continue
 

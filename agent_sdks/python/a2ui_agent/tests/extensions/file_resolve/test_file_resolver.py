@@ -128,9 +128,10 @@ async def test_resolve_http_streaming():
 
     class MockHttpClient:
 
-        def stream(self, method: str, url: str, follow_redirects: bool = False):
+        def stream(self, method: str, url: str, **kwargs):
             assert method == "GET"
-            assert url == "https://example.com/test.pdf"
+            assert "test.pdf" in url
+            assert kwargs.get("headers", {}).get("Host") == "example.com"
             return MockStreamContext([test_bytes[:10], test_bytes[10:]])
 
     resolver = FileResolver(allowed_hosts=["*"], http_client=MockHttpClient())  # type: ignore[arg-type]
@@ -308,7 +309,7 @@ async def test_security_max_file_size_http_streaming():
 
     class MockHttpClient:
 
-        def stream(self, method: str, url: str, follow_redirects: bool = False):
+        def stream(self, method: str, url: str, **kwargs):
             return MockStreamContext()
 
     resolver = FileResolver(
@@ -346,7 +347,7 @@ async def test_security_allowed_hosts_policy():
 
     class MockHttpClient:
 
-        def stream(self, method: str, url: str, follow_redirects: bool = False):
+        def stream(self, method: str, url: str, **kwargs):
             return MockStreamContext()
 
     resolver = FileResolver(
@@ -411,8 +412,9 @@ async def test_security_allowed_hosts_redirect_blocked():
             yield b"%PDF-1.4 secret"
 
     class MockHttpClient:
-        def stream(self, method: str, url: str, follow_redirects: bool = False):
-            if url == "https://trusted.org/redirect-me":
+        def stream(self, method: str, url: str, **kwargs):
+            host_header = kwargs.get("headers", {}).get("Host", "")
+            if host_header == "trusted.org" and "redirect-me" in url:
                 return MockRedirectResponse(is_redirect=True)
             return MockRedirectResponse(is_redirect=False)
 
