@@ -269,7 +269,10 @@ describe('A2uiSurface', () => {
         return <div>{childId ? buildChild(childId) : null}</div>;
       },
     };
-    const catalog = new Catalog<ReactComponentImplementation>('render-only', [RenderOnly, TextImpl]);
+    const catalog = new Catalog<ReactComponentImplementation>('render-only', [
+      RenderOnly,
+      TextImpl,
+    ]);
     const surface = new SurfaceModel<ReactComponentImplementation>('surf-render-only', catalog);
     add(surface, 'root', 'RenderOnly', {child: 'kid'});
     add(surface, 'kid', 'Text', {text: 'child of a render-only parent'});
