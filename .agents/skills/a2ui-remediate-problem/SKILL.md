@@ -40,9 +40,9 @@ Follow these steps to remediate an issue:
 2. Carefully inspect the current source code, documentation, or blueprint files.
 3. Implement the minimal necessary change to remediate the reported problem.
    - **CRITICAL RULE**: Do not make unrelated changes, refactorings, or formatting edits outside the scope of the target issue or recommendation.
-4. If modifying Python code or scripts, format the modified files:
+4. Format modified files and ensure code style compliance:
    ```bash
-   uv run pyink .
+   ./scripts/fix_format.sh
    ```
 5. If modifying tests or scripts, execute local tests across the affected packages to ensure no regressions were introduced.
 
