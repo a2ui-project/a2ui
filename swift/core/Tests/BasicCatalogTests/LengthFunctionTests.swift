@@ -25,9 +25,13 @@ private final class MockFunctionHandler: FunctionHandler, @unchecked Sendable {
 
 struct LengthFunctionTests {
 
-  let function = LengthFunction()
+  let function: LengthFunction
   let context = DataContext(
     dataModel: DataModel(), path: "", functionHandler: MockFunctionHandler())
+
+  init() throws {
+    self.function = try #require(LengthFunction())
+  }
 
   // MARK: - Initialization
 

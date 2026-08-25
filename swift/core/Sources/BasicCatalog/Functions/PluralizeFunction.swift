@@ -33,27 +33,7 @@ public protocol PluralResolver: AnyObject, Sendable {
 }
 
 public final class PluralizeFunction: FunctionImplementation, @unchecked Sendable {
-  public let api = FunctionAPI(
-    name: "pluralize",
-    returnType: .string,
-    schema: try! Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "value": { "type": ["number", "string"] },
-            "zero": { "type": "string" },
-            "one": { "type": "string" },
-            "two": { "type": "string" },
-            "few": { "type": "string" },
-            "many": { "type": "string" },
-            "other": { "type": "string" }
-          },
-          "required": ["value", "other"]
-        }
-        """
-    )
-  )
+  public let api: FunctionAPI
 
   public weak var resolver: (any PluralResolver)?
 
@@ -62,8 +42,31 @@ public final class PluralizeFunction: FunctionImplementation, @unchecked Sendabl
   /// - Parameter resolver: An optional weak reference to a `PluralResolver`. If `nil`,
   ///   the function falls back to a simplified English-centric heuristic matching
   ///   exact cases for `0`, `1`, and `2`, and falling back to `other`.
-  public init(resolver: (any PluralResolver)? = nil) {
-    self.resolver = resolver
+  public init?(resolver: (any PluralResolver)? = nil) {
+    do {
+      let schema = try Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "value": { "type": ["number", "string"] },
+              "zero": { "type": "string" },
+              "one": { "type": "string" },
+              "two": { "type": "string" },
+              "few": { "type": "string" },
+              "many": { "type": "string" },
+              "other": { "type": "string" }
+            },
+            "required": ["value", "other"]
+          }
+          """
+      )
+      self.api = FunctionAPI(name: "pluralize", returnType: .string, schema: schema)
+      self.resolver = resolver
+    } catch {
+      assertionFailure("Failed to compile schema for PluralizeFunction: \(error)")
+      return nil
+    }
   }
 
   private func defaultCategory(for numberValue: Double) -> PluralCategory {

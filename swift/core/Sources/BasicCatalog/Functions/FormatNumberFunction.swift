@@ -17,25 +17,29 @@ import Foundation
 import JSONSchema
 
 public final class FormatNumberFunction: FunctionImplementation, Sendable {
-  public let api = FunctionAPI(
-    name: "formatNumber",
-    returnType: .string,
-    schema: try! Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "value": { "type": ["number", "string"] },
-            "decimals": { "type": "number" },
-            "grouping": { "type": "boolean" }
-          },
-          "required": ["value"]
-        }
-        """
-    )
-  )
+  public let api: FunctionAPI
 
-  public init() {}
+  public init?() {
+    do {
+      let schema = try Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "value": { "type": ["number", "string"] },
+              "decimals": { "type": "number" },
+              "grouping": { "type": "boolean" }
+            },
+            "required": ["value"]
+          }
+          """
+      )
+      self.api = FunctionAPI(name: "formatNumber", returnType: .string, schema: schema)
+    } catch {
+      assertionFailure("Failed to compile schema for FormatNumberFunction: \(error)")
+      return nil
+    }
+  }
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     let numberValue: Double

@@ -25,9 +25,13 @@ private final class MockFunctionHandler: FunctionHandler, @unchecked Sendable {
 
 struct EmailFunctionTests {
 
-  let function = EmailFunction()
+  let function: EmailFunction
   let context = DataContext(
     dataModel: DataModel(), path: "", functionHandler: MockFunctionHandler())
+
+  init() throws {
+    self.function = try #require(EmailFunction())
+  }
 
   // MARK: - Initialization
 

@@ -16,29 +16,33 @@ import A2UICore
 import JSONSchema
 
 public final class LengthFunction: FunctionImplementation, Sendable {
-  public let api = FunctionAPI(
-    name: "length",
-    returnType: .boolean,
-    schema: try! Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "value": { "type": "string" },
-            "min": { "type": "integer", "minimum": 0 },
-            "max": { "type": "integer", "minimum": 0 }
-          },
-          "required": ["value"],
-          "anyOf": [
-            { "required": ["min"] },
-            { "required": ["max"] }
-          ]
-        }
-        """
-    )
-  )
+  public let api: FunctionAPI
 
-  public init() {}
+  public init?() {
+    do {
+      let schema = try Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "value": { "type": "string" },
+              "min": { "type": "integer", "minimum": 0 },
+              "max": { "type": "integer", "minimum": 0 }
+            },
+            "required": ["value"],
+            "anyOf": [
+              { "required": ["min"] },
+              { "required": ["max"] }
+            ]
+          }
+          """
+      )
+      self.api = FunctionAPI(name: "length", returnType: .boolean, schema: schema)
+    } catch {
+      assertionFailure("Failed to compile schema for LengthFunction: \(error)")
+      return nil
+    }
+  }
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let valueStr = arguments["value"]?.stringValue else { return .boolean(false) }

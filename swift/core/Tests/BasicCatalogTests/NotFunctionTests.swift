@@ -25,9 +25,13 @@ private final class MockFunctionHandler: FunctionHandler, @unchecked Sendable {
 
 struct NotFunctionTests {
 
-  let function = NotFunction()
+  let function: NotFunction
   let context = DataContext(
     dataModel: DataModel(), path: "", functionHandler: MockFunctionHandler())
+
+  init() throws {
+    self.function = try #require(NotFunction())
+  }
 
   // MARK: - Initialization
 

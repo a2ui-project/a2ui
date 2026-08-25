@@ -17,23 +17,27 @@ import Foundation
 import JSONSchema
 
 public final class EmailFunction: FunctionImplementation, Sendable {
-  public let api = FunctionAPI(
-    name: "email",
-    returnType: .boolean,
-    schema: try! Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "value": { "type": "string" }
-          },
-          "required": ["value"]
-        }
-        """
-    )
-  )
+  public let api: FunctionAPI
 
-  public init() {}
+  public init?() {
+    do {
+      let schema = try Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "value": { "type": "string" }
+            },
+            "required": ["value"]
+          }
+          """
+      )
+      self.api = FunctionAPI(name: "email", returnType: .boolean, schema: schema)
+    } catch {
+      assertionFailure("Failed to compile schema for EmailFunction: \(error)")
+      return nil
+    }
+  }
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let value = arguments["value"]?.stringValue else {

@@ -39,9 +39,13 @@ private final class MockPluralResolver: PluralResolver, @unchecked Sendable {
 
 struct PluralizeFunctionTests {
 
-  let function = PluralizeFunction()
+  let function: PluralizeFunction
   let context = DataContext(
     dataModel: DataModel(), path: "", functionHandler: MockFunctionHandler())
+
+  init() throws {
+    self.function = try #require(PluralizeFunction())
+  }
 
   // MARK: - Initialization
 
@@ -139,7 +143,7 @@ struct PluralizeFunctionTests {
 
   @Test func customResolverReturnsFew() throws {
     let resolver = MockPluralResolver()
-    let funcWithResolver = PluralizeFunction(resolver: resolver)
+    let funcWithResolver = try #require(PluralizeFunction(resolver: resolver))
     let result = try funcWithResolver.evaluate(
       arguments: [
         "value": .number(5),
@@ -151,7 +155,7 @@ struct PluralizeFunctionTests {
 
   @Test func customResolverReturnsMany() throws {
     let resolver = MockPluralResolver()
-    let funcWithResolver = PluralizeFunction(resolver: resolver)
+    let funcWithResolver = try #require(PluralizeFunction(resolver: resolver))
     let result = try funcWithResolver.evaluate(
       arguments: [
         "value": .number(15),
@@ -163,7 +167,7 @@ struct PluralizeFunctionTests {
 
   @Test func customResolverFallsBackToOtherIfCategoryMissing() throws {
     let resolver = MockPluralResolver()
-    let funcWithResolver = PluralizeFunction(resolver: resolver)
+    let funcWithResolver = try #require(PluralizeFunction(resolver: resolver))
     let result = try funcWithResolver.evaluate(
       arguments: [
         "value": .number(5),  // Resolver returns .few

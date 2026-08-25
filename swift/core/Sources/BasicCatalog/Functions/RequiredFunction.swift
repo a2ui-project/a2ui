@@ -16,23 +16,27 @@ import A2UICore
 import JSONSchema
 
 public final class RequiredFunction: FunctionImplementation, Sendable {
-  public let api = FunctionAPI(
-    name: "required",
-    returnType: .boolean,
-    schema: try! Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "value": {}
-          },
-          "required": ["value"]
-        }
-        """
-    )
-  )
+  public let api: FunctionAPI
 
-  public init() {}
+  public init?() {
+    do {
+      let schema = try Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "value": {}
+            },
+            "required": ["value"]
+          }
+          """
+      )
+      self.api = FunctionAPI(name: "required", returnType: .boolean, schema: schema)
+    } catch {
+      assertionFailure("Failed to compile schema for RequiredFunction: \(error)")
+      return nil
+    }
+  }
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let value = arguments["value"] else { return .boolean(false) }

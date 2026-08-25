@@ -17,24 +17,28 @@ import Foundation
 import JSONSchema
 
 public final class RegexFunction: FunctionImplementation, Sendable {
-  public let api = FunctionAPI(
-    name: "regex",
-    returnType: .boolean,
-    schema: try! Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "value": { "type": "string" },
-            "pattern": { "type": "string" }
-          },
-          "required": ["value", "pattern"]
-        }
-        """
-    )
-  )
+  public let api: FunctionAPI
 
-  public init() {}
+  public init?() {
+    do {
+      let schema = try Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "value": { "type": "string" },
+              "pattern": { "type": "string" }
+            },
+            "required": ["value", "pattern"]
+          }
+          """
+      )
+      self.api = FunctionAPI(name: "regex", returnType: .boolean, schema: schema)
+    } catch {
+      assertionFailure("Failed to compile schema for RegexFunction: \(error)")
+      return nil
+    }
+  }
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let value = arguments["value"]?.stringValue,

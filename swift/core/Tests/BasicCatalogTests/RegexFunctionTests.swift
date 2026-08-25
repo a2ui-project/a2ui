@@ -25,9 +25,13 @@ private final class MockFunctionHandler: FunctionHandler, @unchecked Sendable {
 
 struct RegexFunctionTests {
 
-  let function = RegexFunction()
+  let function: RegexFunction
   let context = DataContext(
     dataModel: DataModel(), path: "", functionHandler: MockFunctionHandler())
+
+  init() throws {
+    self.function = try #require(RegexFunction())
+  }
 
   // MARK: - Initialization
 

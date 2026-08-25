@@ -26,9 +26,13 @@ private final class MockFunctionHandler: FunctionHandler, @unchecked Sendable {
 
 struct FormatCurrencyFunctionTests {
 
-  let function = FormatCurrencyFunction()
+  let function: FormatCurrencyFunction
   let context = DataContext(
     dataModel: DataModel(), path: "", functionHandler: MockFunctionHandler())
+
+  init() throws {
+    self.function = try #require(FormatCurrencyFunction())
+  }
 
   // Helper to generate expected strings based on current locale
   func expectedFormat(value: Double, currency: String, grouping: Bool = true, decimals: Int? = nil)

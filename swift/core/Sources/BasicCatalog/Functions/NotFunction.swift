@@ -16,23 +16,27 @@ import A2UICore
 import JSONSchema
 
 public final class NotFunction: FunctionImplementation, Sendable {
-  public let api = FunctionAPI(
-    name: "not",
-    returnType: .boolean,
-    schema: try! Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "value": { "type": "boolean" }
-          },
-          "required": ["value"]
-        }
-        """
-    )
-  )
+  public let api: FunctionAPI
 
-  public init() {}
+  public init?() {
+    do {
+      let schema = try Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "value": { "type": "boolean" }
+            },
+            "required": ["value"]
+          }
+          """
+      )
+      self.api = FunctionAPI(name: "not", returnType: .boolean, schema: schema)
+    } catch {
+      assertionFailure("Failed to compile schema for NotFunction: \(error)")
+      return nil
+    }
+  }
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let value = arguments["value"]?.boolValue else { return .boolean(false) }

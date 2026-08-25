@@ -25,9 +25,13 @@ private final class MockFunctionHandler: FunctionHandler, @unchecked Sendable {
 
 struct AndFunctionTests {
 
-  let function = AndFunction()
+  let function: AndFunction
   let context = DataContext(
     dataModel: DataModel(), path: "", functionHandler: MockFunctionHandler())
+
+  init() throws {
+    self.function = try #require(AndFunction())
+  }
 
   // MARK: - Initialization
 

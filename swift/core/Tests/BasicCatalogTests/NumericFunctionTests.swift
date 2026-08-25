@@ -25,9 +25,13 @@ private final class MockFunctionHandler: FunctionHandler, @unchecked Sendable {
 
 struct NumericFunctionTests {
 
-  let function = NumericFunction()
+  let function: NumericFunction
   let context = DataContext(
     dataModel: DataModel(), path: "", functionHandler: MockFunctionHandler())
+
+  init() throws {
+    self.function = try #require(NumericFunction())
+  }
 
   // MARK: - Initialization
 

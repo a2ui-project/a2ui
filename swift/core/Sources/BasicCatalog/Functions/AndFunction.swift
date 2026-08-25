@@ -16,27 +16,31 @@ import A2UICore
 import JSONSchema
 
 public final class AndFunction: FunctionImplementation, Sendable {
-  public let api = FunctionAPI(
-    name: "and",
-    returnType: .boolean,
-    schema: try! Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "values": {
-              "type": "array",
-              "items": { "type": "boolean" },
-              "minItems": 2
-            }
-          },
-          "required": ["values"]
-        }
-        """
-    )
-  )
+  public let api: FunctionAPI
 
-  public init() {}
+  public init?() {
+    do {
+      let schema = try Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "values": {
+                "type": "array",
+                "items": { "type": "boolean" },
+                "minItems": 2
+              }
+            },
+            "required": ["values"]
+          }
+          """
+      )
+      self.api = FunctionAPI(name: "and", returnType: .boolean, schema: schema)
+    } catch {
+      assertionFailure("Failed to compile schema for AndFunction: \(error)")
+      return nil
+    }
+  }
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let values = arguments["values"]?.arrayValue else { return .boolean(false) }

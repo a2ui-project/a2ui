@@ -29,8 +29,12 @@ private final class MockFunctionHandler: FunctionHandler, @unchecked Sendable {
 }
 
 private struct UpperFunction: FunctionImplementation, Sendable {
-  let api = FunctionAPI(
-    name: "upper", returnType: .string, schema: try! JSONSchema.Schema(instance: "{}"))
+  let api: FunctionAPI
+
+  init?() {
+    guard let schema = try? JSONSchema.Schema(instance: "{}") else { return nil }
+    self.api = FunctionAPI(name: "upper", returnType: .string, schema: schema)
+  }
 
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     return .string(arguments["text"]?.stringValue?.uppercased() ?? "")
@@ -39,12 +43,13 @@ private struct UpperFunction: FunctionImplementation, Sendable {
 
 struct FormatStringFunctionTests {
 
-  let function = FormatStringFunction()
+  let function: FormatStringFunction
   let dataModel: DataModel
   let context: DataContext
   private let handler: MockFunctionHandler
 
-  init() {
+  init() throws {
+    self.function = try #require(FormatStringFunction())
     let dm = DataModel()
     dm.set(JSONValue.absolutePath(for: "/user/name", in: ""), value: .string("Alice"))
     dm.set(JSONValue.absolutePath(for: "/count", in: ""), value: .integer(5))

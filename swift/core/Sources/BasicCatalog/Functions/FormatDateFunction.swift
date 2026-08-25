@@ -17,24 +17,28 @@ import Foundation
 import JSONSchema
 
 public final class FormatDateFunction: FunctionImplementation, Sendable {
-  public let api = FunctionAPI(
-    name: "formatDate",
-    returnType: .string,
-    schema: try! Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "value": {},
-            "format": { "type": "string" }
-          },
-          "required": ["format", "value"]
-        }
-        """
-    )
-  )
+  public let api: FunctionAPI
 
-  public init() {}
+  public init?() {
+    do {
+      let schema = try Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "value": {},
+              "format": { "type": "string" }
+            },
+            "required": ["format", "value"]
+          }
+          """
+      )
+      self.api = FunctionAPI(name: "formatDate", returnType: .string, schema: schema)
+    } catch {
+      assertionFailure("Failed to compile schema for FormatDateFunction: \(error)")
+      return nil
+    }
+  }
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let format = arguments["format"]?.stringValue else {

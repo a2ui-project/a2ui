@@ -25,9 +25,13 @@ private final class MockFunctionHandler: FunctionHandler, @unchecked Sendable {
 
 struct OrFunctionTests {
 
-  let function = OrFunction()
+  let function: OrFunction
   let context = DataContext(
     dataModel: DataModel(), path: "", functionHandler: MockFunctionHandler())
+
+  init() throws {
+    self.function = try #require(OrFunction())
+  }
 
   // MARK: - Initialization
 

@@ -25,9 +25,13 @@ private final class MockFunctionHandler: FunctionHandler, @unchecked Sendable {
 
 struct RequiredFunctionTests {
 
-  let function = RequiredFunction()
+  let function: RequiredFunction
   let context = DataContext(
     dataModel: DataModel(), path: "", functionHandler: MockFunctionHandler())
+
+  init() throws {
+    self.function = try #require(RequiredFunction())
+  }
 
   // MARK: - Initialization
 

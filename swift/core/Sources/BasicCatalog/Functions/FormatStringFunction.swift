@@ -17,25 +17,29 @@ import JSONSchema
 
 /// Performs string interpolation of data model values and other functions.
 public final class FormatStringFunction: FunctionImplementation, Sendable {
-  public let api = FunctionAPI(
-    name: "formatString",
-    returnType: .string,
-    schema: try! Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "value": { "type": "string" }
-          },
-          "required": ["value"]
-        }
-        """
-    )
-  )
+  public let api: FunctionAPI
 
   private let parser = ExpressionParser()
 
-  public init() {}
+  public init?() {
+    do {
+      let schema = try Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "value": { "type": "string" }
+            },
+            "required": ["value"]
+          }
+          """
+      )
+      self.api = FunctionAPI(name: "formatString", returnType: .string, schema: schema)
+    } catch {
+      assertionFailure("Failed to compile schema for FormatStringFunction: \(error)")
+      return nil
+    }
+  }
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let valueString = arguments["value"]?.stringValue else {

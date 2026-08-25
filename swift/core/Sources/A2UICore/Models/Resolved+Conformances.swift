@@ -81,4 +81,3 @@ public struct ResolvedArray: Resolved, Equatable, Sendable {
     return true
   }
 }
-

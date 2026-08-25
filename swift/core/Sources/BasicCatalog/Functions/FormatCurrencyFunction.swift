@@ -17,26 +17,30 @@ import Foundation
 import JSONSchema
 
 public final class FormatCurrencyFunction: FunctionImplementation, Sendable {
-  public let api = FunctionAPI(
-    name: "formatCurrency",
-    returnType: .string,
-    schema: try! Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "value": { "type": ["number", "string"] },
-            "currency": { "type": "string" },
-            "decimals": { "type": "number" },
-            "grouping": { "type": "boolean" }
-          },
-          "required": ["currency", "value"]
-        }
-        """
-    )
-  )
+  public let api: FunctionAPI
 
-  public init() {}
+  public init?() {
+    do {
+      let schema = try Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "value": { "type": ["number", "string"] },
+              "currency": { "type": "string" },
+              "decimals": { "type": "number" },
+              "grouping": { "type": "boolean" }
+            },
+            "required": ["currency", "value"]
+          }
+          """
+      )
+      self.api = FunctionAPI(name: "formatCurrency", returnType: .string, schema: schema)
+    } catch {
+      assertionFailure("Failed to compile schema for FormatCurrencyFunction: \(error)")
+      return nil
+    }
+  }
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let currency = arguments["currency"]?.stringValue else {

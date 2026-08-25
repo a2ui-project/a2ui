@@ -16,29 +16,33 @@ import A2UICore
 import JSONSchema
 
 public final class NumericFunction: FunctionImplementation, Sendable {
-  public let api = FunctionAPI(
-    name: "numeric",
-    returnType: .boolean,
-    schema: try! Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "value": { "type": "number" },
-            "min": { "type": "number" },
-            "max": { "type": "number" }
-          },
-          "required": ["value"],
-          "anyOf": [
-            { "required": ["min"] },
-            { "required": ["max"] }
-          ]
-        }
-        """
-    )
-  )
+  public let api: FunctionAPI
 
-  public init() {}
+  public init?() {
+    do {
+      let schema = try Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "value": { "type": "number" },
+              "min": { "type": "number" },
+              "max": { "type": "number" }
+            },
+            "required": ["value"],
+            "anyOf": [
+              { "required": ["min"] },
+              { "required": ["max"] }
+            ]
+          }
+          """
+      )
+      self.api = FunctionAPI(name: "numeric", returnType: .boolean, schema: schema)
+    } catch {
+      assertionFailure("Failed to compile schema for NumericFunction: \(error)")
+      return nil
+    }
+  }
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     let numberValue: Double
