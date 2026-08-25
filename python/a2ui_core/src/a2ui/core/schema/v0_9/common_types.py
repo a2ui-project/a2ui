@@ -27,6 +27,8 @@ from ..common_types import (
     DynamicString,
     DynamicStringList,
     FunctionCall,
+    ListReference,
+    SingleReference,
     StrictBaseModel,
     TemplateChildList,
 )
@@ -134,6 +136,8 @@ __all__ = [
     "DynamicStringList",
     "DynamicValue",
     "FunctionCall",
+    "ListReference",
+    "SingleReference",
     "StrictBaseModel",
     "TemplateChildList",
 ]

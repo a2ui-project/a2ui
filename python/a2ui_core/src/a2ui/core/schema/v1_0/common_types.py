@@ -27,6 +27,8 @@ from ..common_types import (
     DynamicString,
     DynamicStringList,
     FunctionCall,
+    ListReference,
+    SingleReference,
     StrictBaseModel,
     TemplateChildList,
 )
@@ -262,7 +264,9 @@ __all__ = [
     "FunctionResponseError",
     "IndexSystemFunction",
     "IndexSystemFunctionArgs",
+    "ListReference",
     "LiteralObject",
+    "SingleReference",
     "StrictBaseModel",
     "Surface",
     "TemplateChildList",

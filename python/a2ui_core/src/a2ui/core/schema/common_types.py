@@ -24,7 +24,6 @@ class ComponentReference:
 
 
 class SingleReference(str, ComponentReference):
-    """Marker class indicating a field holds a single component reference."""
 
     @classmethod
     def __get_pydantic_core_schema__(
@@ -41,10 +40,6 @@ class SingleReference(str, ComponentReference):
 
 class ListReference(ComponentReference):
     """Marker class indicating a field holds a list of component references."""
-
-
-ComponentId = SingleReference
-Child = ComponentId
 
 
 class StrictBaseModel(BaseModel):
@@ -73,6 +68,10 @@ class StrictBaseModel(BaseModel):
         if target_version is not None and v != target_version:
             raise ValueError(f"Input should be '{target_version}'")
         return v
+
+
+ComponentId = SingleReference
+Child = SingleReference
 
 
 class ComponentCommon(StrictBaseModel):
