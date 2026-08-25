@@ -28,6 +28,13 @@ The following directories contain the base protocol logic, parsing, and schema o
 - **`provider.py`**: Implementation of `BasicCatalog` for handling the basic
   A2UI components.
 
+## Experimental Templates (`src/a2ui/inference_formats/experimental/template`)
+
+- **`models.py`**: Typed models (`StaticTemplate`, `DynamicTemplate`, `Param`, `ParamType`, AST expressions) and signature-based parameter inference.
+- **`processor.py`**: `TemplateProcessor` for generating synthetic inference catalogs and expanding template invocations into A2UI primitives.
+- **`format.py`**: `TemplateInferenceFormat` integrating template-aware prompt generation and synchronous parsing.
+- **`schema/template_definition.json`**: Formal JSON Schema for template structure and parameter types.
+
 ## A2A (`src/a2ui/a2a`)
 
 - **`extension.py`**: Utilities for managing the A2UI extension URI and activation logic.
