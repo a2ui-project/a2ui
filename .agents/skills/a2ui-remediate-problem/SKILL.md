@@ -44,9 +44,9 @@ Follow these steps to remediate an issue recommendation:
 
 ### Step 3: Choose Destination & Create Workspace / Branch
 
-1. Check with the user on where they would like the changes created and what branch name to use:
+1. Check with the user on where they would like the changes created and what branch name to use (prefer using the `ask_question` tool or equivalent interactive tool if available):
    - **Recommended branch name**: `remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}` (or a concise descriptive topic name).
-   - Let the user decide whether to create a separate git worktree (using their preferred local worktree conventions), checkout a new branch in the current directory, or apply changes in place.
+   - Let the user choose whether to create a separate git worktree (using their preferred local worktree conventions), checkout a new branch in the current directory, or apply changes in place.
 2. Note the chosen branch name in `BRANCH_NAME`.
 3. Ensure the working tree is clean and up to date with `upstream/main`.
 
@@ -67,7 +67,7 @@ Follow these steps to remediate an issue recommendation:
 
 ### Step 5: Create Pull Request & Notify Issue (Optional / Upon Request)
 
-1. Check with the user whether they would like to submit a Pull Request:
+1. Check with the user whether they would like to submit a Pull Request (prefer using the `ask_question` tool or equivalent interactive tool if available):
    - **Recommended default**: Submit as a Draft PR (`--draft`) so CI checks run while allowing final review before requesting maintainer approvals.
    - Alternatively, submit directly as ready for review, or skip PR creation if the user wants to inspect changes locally first.
 2. If submitting a PR, generate a clear, descriptive PR title following Conventional Commits that concisely explains the specific fix being made (e.g. `fix(swift): create missing top-level README in swift/core`). **Do NOT include generic issue or recommendation numbers in the PR title.**
