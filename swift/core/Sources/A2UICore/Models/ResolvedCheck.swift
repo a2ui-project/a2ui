@@ -38,9 +38,26 @@ public struct ResolvedCheck: Resolved, Equatable, Sendable {
 }
 
 extension Node {
-  /// All resolved validation checks for this node.
+  /// All resolved validation checks for this node found by scanning the node's properties.
+  ///
+  /// The A2UI specification identifies validation rules by type (`CheckRule` / `Checkable`),
+  /// not by property name. This property scans all resolved property values, collecting
+  /// `ResolvedCheck` instances from direct properties, arrays, and nested structures.
   public var checks: [ResolvedCheck] {
-    (properties["checks"] as? [ResolvedCheck]) ?? []
+    properties.values.flatMap(collectChecks)
+  }
+
+  private func collectChecks(from value: any Resolved) -> [ResolvedCheck] {
+    if let check = value as? ResolvedCheck {
+      return [check]
+    } else if let checks = value as? [ResolvedCheck] {
+      return checks
+    } else if let dict = value as? ResolvedDictionary {
+      return dict.values.flatMap(collectChecks)
+    } else if let arr = value as? ResolvedArray {
+      return arr.elements.flatMap(collectChecks)
+    }
+    return []
   }
 
   /// List of active validation error messages (checks that currently fail).

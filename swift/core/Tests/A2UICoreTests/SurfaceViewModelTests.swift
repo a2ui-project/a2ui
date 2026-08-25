@@ -84,6 +84,7 @@ func makeTestCatalog() throws -> Catalog {
       {
         "allOf": [
           { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ComponentCommon" },
+          { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/Checkable" },
           {
             "type": "object",
             "properties": {
@@ -683,6 +684,96 @@ struct SurfaceViewModelTests {
       surfaceID: surface.surfaceID, path: "/email", value: "hello@world.com")
     await Task.yield()
     let validNode = try #require(surface.rootNode)
+    let validAction = try #require(validNode.properties["onClick"] as? ResolvedAction)
+    validAction()
+    #expect(handler.capturedActions.count == 1)
+  }
+
+  @Test func customNamedCheckPropertyResolvesAndBlocksAction() async throws {
+    let customSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "component": { "type": "string" },
+            "rules": {
+              "type": "array",
+              "items": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/CheckRule" }
+            },
+            "singleCheck": {
+              "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/CheckRule"
+            },
+            "onClick": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/Action" }
+          },
+          "required": ["id", "component"]
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let handler = TestActionHandler()
+    let catalog = Catalog(
+      id: "custom-catalog",
+      components: [ComponentAPI(name: "customInput", schema: customSchema)],
+      functions: [TestRequiredFunction(), TestEmailFunction()]
+    )
+    let processor = MessageProcessor(
+      catalogs: [catalog],
+      actionHandler: handler
+    )
+    let surface = SurfaceViewModel(
+      surfaceID: "s1",
+      catalog: catalog,
+      actionHandler: handler
+    )
+    processor.surfaceGroupModel.addSurface(surface)
+
+    processor.updateDataModel(surfaceID: "s1", path: "/email", value: "invalid")
+    processor.updateComponents(
+      surfaceID: "s1",
+      components: [
+        [
+          "id": "root",
+          "component": "customInput",
+          "rules": [
+            [
+              "condition": [
+                "call": "email",
+                "args": ["value": ["path": "/email"]],
+              ],
+              "message": "Invalid email in custom rule",
+            ]
+          ],
+          "singleCheck": [
+            "condition": [
+              "call": "required",
+              "args": ["value": ["path": "/email"]],
+            ],
+            "message": "Email is required",
+          ],
+          "onClick": [
+            "event": ["name": "submit", "context": [:]]
+          ],
+        ]
+      ]
+    )
+    await Task.yield()
+    let node = try #require(surface.rootNode)
+    #expect(!node.isValid)
+    #expect(node.checks.count == 2)
+    #expect(node.validationErrors == ["Invalid email in custom rule"])
+
+    let action = try #require(node.properties["onClick"] as? ResolvedAction)
+    action()
+    #expect(handler.capturedActions.isEmpty)
+
+    // Update data model to valid value
+    processor.updateDataModel(surfaceID: "s1", path: "/email", value: "test@example.com")
+    await Task.yield()
+    let validNode = try #require(surface.rootNode)
+    #expect(validNode.isValid)
+    #expect(validNode.validationErrors.isEmpty)
+
     let validAction = try #require(validNode.properties["onClick"] as? ResolvedAction)
     validAction()
     #expect(handler.capturedActions.count == 1)

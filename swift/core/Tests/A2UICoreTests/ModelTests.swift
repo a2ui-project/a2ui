@@ -122,6 +122,49 @@ struct NodeTests {
     #expect(ids == ["tab1-col", "tab2-col"])
   }
 
+  // MARK: - Validation Checks
+
+  @Test func checksCollectsFromStandardChecksProperty() {
+    let check1 = ResolvedCheck(
+      condition: DataBinding<Bool>(identity: .literal(.boolean(true)), value: true),
+      message: "Pass"
+    )
+    let check2 = ResolvedCheck(
+      condition: DataBinding<Bool>(identity: .literal(.boolean(false)), value: false),
+      message: "Fail"
+    )
+    let node = Node(
+      id: "input1",
+      type: "textField",
+      properties: ["checks": [check1, check2]]
+    )
+    #expect(node.checks.count == 2)
+    #expect(!node.isValid)
+    #expect(node.validationErrors == ["Fail"])
+  }
+
+  @Test func checksCollectsFromCustomNamedAndSingleCheckProperties() {
+    let check1 = ResolvedCheck(
+      condition: DataBinding<Bool>(identity: .literal(.boolean(true)), value: true),
+      message: "Custom check pass"
+    )
+    let check2 = ResolvedCheck(
+      condition: DataBinding<Bool>(identity: .literal(.boolean(false)), value: false),
+      message: "Single rule fail"
+    )
+    let node = Node(
+      id: "input2",
+      type: "customInput",
+      properties: [
+        "rules": [check1],
+        "validation": check2,
+      ]
+    )
+    #expect(node.checks.count == 2)
+    #expect(!node.isValid)
+    #expect(node.validationErrors == ["Single rule fail"])
+  }
+
   // MARK: - Equality
 
   @Test func nodesEqualByIDTypeAndProperties() {

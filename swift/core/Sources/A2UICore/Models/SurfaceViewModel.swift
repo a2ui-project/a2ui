@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import A2UIJSON
 import Combine
 import Foundation
 import OrderedJSON
@@ -244,6 +245,15 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
         result[k] = v
       }
     }
+    if let ref = schemaJSON["$ref"]?.stringValue {
+      let typeName = ref.split(separator: "/").last.map(String.init) ?? ""
+      if let def = A2UICommonSchema.document["$defs"]?.objectValue?[typeName] {
+        let defProps = extractPropertiesSchema(from: def)
+        for (k, v) in defProps {
+          result[k] = v
+        }
+      }
+    }
     if let allOf = schemaJSON["allOf"]?.arrayValue {
       for subSchema in allOf {
         let subProps = extractPropertiesSchema(from: subSchema)
@@ -329,15 +339,19 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
 
     // Pre-resolve checks if present so action handlers and views have validation context
     var componentChecks: [ResolvedCheck] = []
-    if let checksVal = component.properties["checks"] {
-      componentChecks = resolveChecks(checksVal, basePath: basePath, data: data)
+    for (key, val) in component.properties {
+      let propSchema = propertiesSchema[key] ?? .boolean(true)
+      let propType = classifySchema(propSchema)
+      if propType == .checks {
+        componentChecks.append(contentsOf: resolveChecks(val, basePath: basePath, data: data))
+      }
     }
 
     var resolvedProperties: [String: any Resolved] = [:]
 
     for (key, val) in component.properties {
       let propSchema = propertiesSchema[key] ?? .boolean(true)
-      let propType: PropertyType = (key == "checks") ? .checks : classifySchema(propSchema)
+      let propType = classifySchema(propSchema)
 
       if let resolvedVal = resolveProperty(
         value: val,
@@ -375,44 +389,6 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
     data: JSONValue,
     checks: [ResolvedCheck] = []
   ) -> (any Resolved)? {
-    // Check if the value is a dictionary (and not a DataBinding/FunctionCall itself)
-    // with sub-properties defined in the schema (or oneOf/allOf variants)
-    if let obj = value.objectValue, obj["path"] == nil, obj["call"] == nil {
-      let objProps = extractPropertiesSchema(from: schema)
-      if !objProps.isEmpty {
-        var resolvedObj: [String: any Resolved] = [:]
-        for (k, v) in obj {
-          let nestedPropSchema = objProps[k] ?? .boolean(true)
-          let nestedPropType: PropertyType
-          if k == "checks" {
-            nestedPropType = .checks
-          } else {
-            let classified = classifySchema(nestedPropSchema)
-            if classified == .standard, v.objectValue?["path"] != nil {
-              nestedPropType = .dynamicValue
-            } else {
-              nestedPropType = classified
-            }
-          }
-          if let resVal = resolveProperty(
-            value: v,
-            schema: nestedPropSchema,
-            type: nestedPropType,
-            basePath: basePath,
-            componentID: componentID,
-            propertyKey: "\(propertyKey).\(k)",
-            visited: visited,
-            components: components,
-            data: data,
-            checks: checks
-          ) {
-            resolvedObj[k] = resVal
-          }
-        }
-        return ResolvedDictionary(resolvedObj)
-      }
-    }
-
     switch type {
     case .dynamicBoolean:
       return resolveDynamicBoolean(value, basePath: basePath, data: data)
@@ -469,7 +445,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
               var resolvedObj: [String: any Resolved] = [:]
               for (itemKey, itemVal) in obj {
                 let itemPropSchema = itemsProps[itemKey] ?? .boolean(true)
-                let itemPropType = (itemKey == "checks") ? .checks : classifySchema(itemPropSchema)
+                let itemPropType = classifySchema(itemPropSchema)
                 if let resVal = resolveProperty(
                   value: itemVal,
                   schema: itemPropSchema,
@@ -523,7 +499,13 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
           var resolvedObj: [String: any Resolved] = [:]
           for (k, v) in obj {
             let nestedPropSchema = objProps[k] ?? .boolean(true)
-            let nestedPropType = (k == "checks") ? .checks : classifySchema(nestedPropSchema)
+            let classified = classifySchema(nestedPropSchema)
+            let nestedPropType: PropertyType
+            if classified == .standard, v.objectValue?["path"] != nil {
+              nestedPropType = .dynamicValue
+            } else {
+              nestedPropType = classified
+            }
             if let resVal = resolveProperty(
               value: v,
               schema: nestedPropSchema,
@@ -732,14 +714,21 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
     basePath: String?,
     data: JSONValue
   ) -> [ResolvedCheck] {
-    guard let array = value.arrayValue else { return [] }
-    return array.compactMap { ruleJSON in
-      guard let ruleDict = ruleJSON.dictionaryValue else { return nil }
-      let conditionJSON = ruleDict["condition"] ?? ruleJSON
+    if let array = value.arrayValue {
+      return array.compactMap { ruleJSON in
+        guard let ruleDict = ruleJSON.dictionaryValue else { return nil }
+        let conditionJSON = ruleDict["condition"] ?? ruleJSON
+        let message = ruleDict["message"]?.stringValue ?? "Validation failed"
+        let condition = resolveDynamicBoolean(conditionJSON, basePath: basePath, data: data)
+        return ResolvedCheck(condition: condition, message: message)
+      }
+    } else if let ruleDict = value.dictionaryValue {
+      let conditionJSON = ruleDict["condition"] ?? value
       let message = ruleDict["message"]?.stringValue ?? "Validation failed"
       let condition = resolveDynamicBoolean(conditionJSON, basePath: basePath, data: data)
-      return ResolvedCheck(condition: condition, message: message)
+      return [ResolvedCheck(condition: condition, message: message)]
     }
+    return []
   }
 
   // MARK: - Action Resolution
