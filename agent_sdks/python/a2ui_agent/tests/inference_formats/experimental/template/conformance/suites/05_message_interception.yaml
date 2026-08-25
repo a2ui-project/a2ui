@@ -1,0 +1,144 @@
+- name: test_create_surface_envelope_unwrapping
+  description: Verifies that createSurface message wraps template instance and unwraps
+    into primitive components.
+  action: process_message
+  template:
+    version: '0.1'
+    templateId: SimpleCard
+    parameters:
+      title:
+        type: string
+    layout:
+      component: Card
+      child:
+        component: Text
+        text: ${title}
+  message:
+    createSurface:
+      surfaceId: main
+      catalogId: https://a2ui.org/custom.json
+      components:
+      - id: root
+        component: SimpleCard
+        title: Unwrapped
+  expect:
+    createSurface:
+      surfaceId: main
+      catalogId: https://a2ui.org/custom.json
+      components:
+      - id: root
+        component: Card
+        child: root_child_text
+      - id: root_child_text
+        component: Text
+        text: Unwrapped
+- name: test_update_components_envelope_unwrapping
+  description: Verifies that updateComponents message with template instance expands
+    correctly.
+  action: process_message
+  template:
+    version: '0.1'
+    templateId: SimpleCard
+    parameters:
+      title:
+        type: string
+    layout:
+      component: Card
+      child:
+        component: Text
+        text: ${title}
+  message:
+    updateComponents:
+      surfaceId: main
+      components:
+      - id: card_2
+        component: SimpleCard
+        title: Updated
+  expect:
+    updateComponents:
+      surfaceId: main
+      components:
+      - id: card_2
+        component: Card
+        child: card_2_child_text
+      - id: card_2_child_text
+        component: Text
+        text: Updated
+- name: test_mixed_primitives_and_templates_in_message
+  description: Verifies that non-template primitive components pass through untouched
+    alongside expanded templates.
+  action: process_message
+  template:
+    version: '0.1'
+    templateId: SimpleCard
+    parameters:
+      title:
+        type: string
+    layout:
+      component: Card
+      child:
+        component: Text
+        text: ${title}
+  message:
+    updateComponents:
+      surfaceId: main
+      components:
+      - id: div_1
+        component: Divider
+        axis: horizontal
+      - id: card_mixed
+        component: SimpleCard
+        title: Mixed Content
+  expect:
+    updateComponents:
+      surfaceId: main
+      components:
+      - id: div_1
+        component: Divider
+        axis: horizontal
+      - id: card_mixed
+        component: Card
+        child: card_mixed_child_text
+      - id: card_mixed_child_text
+        component: Text
+        text: Mixed Content
+- name: test_batch_messages_stream_passthrough
+  description: Verifies processing a list of messages passing dataModel updates through
+    unaltered.
+  action: process_message
+  template:
+    version: '0.1'
+    templateId: SimpleCard
+    parameters:
+      title:
+        type: string
+    layout:
+      component: Card
+      child:
+        component: Text
+        text: ${title}
+  message:
+  - updateDataModel:
+      path: /session/user
+      value:
+        name: Alice
+  - updateComponents:
+      surfaceId: main
+      components:
+      - id: batch_c
+        component: SimpleCard
+        title: Batch
+  expect:
+  - updateDataModel:
+      path: /session/user
+      value:
+        name: Alice
+  - updateComponents:
+      surfaceId: main
+      components:
+      - id: batch_c
+        component: Card
+        child: batch_c_child_text
+      - id: batch_c_child_text
+        component: Text
+        text: Batch

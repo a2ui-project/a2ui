@@ -305,6 +305,7 @@ def test_template_inference_format_end_to_end():
 
 def test_multi_document_yaml_loading_and_forward_references():
     yaml_suite = """
+version: "0.1"
 templateId: RosterView
 description: Top-level roster view.
 parameters:
@@ -324,6 +325,7 @@ layout:
 
 ---
 
+version: "0.1"
 templateId: MemberCard
 description: Member identity card.
 parameters:
@@ -341,7 +343,6 @@ layout:
         text: ${title}
         variant: caption
 """
-
     templates = StaticTemplate.from_yaml_string(yaml_suite)
     assert len(templates) == 2
     assert templates[0].template_id == "RosterView"
@@ -368,6 +369,7 @@ layout:
 
 def test_inline_loop_expansion():
     yaml_tmpl = """
+version: "0.1"
 templateId: InlineListCard
 description: Card with inline unrolled loop items.
 parameters:
@@ -418,6 +420,7 @@ layout:
 
 def test_missing_template_reference_raises_clear_error():
     yaml_tmpl = """
+version: "0.1"
 templateId: BadReference
 parameters:
   items: {type: array}
@@ -440,6 +443,7 @@ layout:
 def test_recursion_cycle_guard():
     # Template A references Template B, and Template B references Template A
     yaml_suite = """
+version: "0.1"
 templateId: NodeA
 parameters:
   dummy: {type: string, default: "x"}
@@ -450,6 +454,7 @@ layout:
 
 ---
 
+version: "0.1"
 templateId: NodeB
 parameters:
   dummy: {type: string, default: "y"}
@@ -467,6 +472,7 @@ layout:
 
 def test_non_text_parameter_type_preservation():
     yaml_tmpl = """
+version: "0.1"
 templateId: TypedControls
 description: Card showing numbers, booleans, and objects.
 parameters:

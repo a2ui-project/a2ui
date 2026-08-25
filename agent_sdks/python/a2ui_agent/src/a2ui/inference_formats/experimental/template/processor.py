@@ -150,7 +150,7 @@ def _substitute_params(val: Any, params: TemplateParams) -> Any:
         return [_substitute_params(x, params) for x in val]
 
     elif isinstance(val, str):
-        # Exact parameter match preserving type: e.g. "${user}" or "${score}"
+        # 1. Exact parameter match preserving type: e.g. "${user}" or "${score}"
         match = re.match(r"^\$\{([\w\.]+)\}$", val)
         if match:
             param_path = match.group(1)
@@ -158,9 +158,13 @@ def _substitute_params(val: Any, params: TemplateParams) -> Any:
             if found:
                 return res
 
-        # In-string placeholder replacement: replace all occurrences of ${path}
-        pattern = re.compile(r"\$\{([\w\.]+)\}")
+        # 2. Check for exact escaped token match: e.g. r"\${user}" -> "${user}"
+        escaped_match = re.match(r"^\\(\$\{[\w\.]+\})$", val)
+        if escaped_match:
+            return escaped_match.group(1)
 
+        # 3. In-string replacement with escape handling:
+        # Negative lookbehind (?<!\\)\$\{([\w\.]+)\} for unescaped tokens
         def replacer(m: re.Match[str]) -> str:
             path = m.group(1)
             found, res = _resolve_param_path(path, params)
@@ -168,7 +172,11 @@ def _substitute_params(val: Any, params: TemplateParams) -> Any:
                 return str(res)
             return str(m.group(0))
 
-        return str(pattern.sub(replacer, val))
+        # Replace unescaped tokens
+        substituted = re.sub(r"(?<!\\)\$\{([\w\.]+)\}", replacer, val)
+        # Unescape escaped tokens: r"\${path}" -> "${path}"
+        final_str = re.sub(r"\\(\$\{[\w\.]+\})", r"\1", substituted)
+        return final_str
 
     return val
 
@@ -481,6 +489,8 @@ class TemplateProcessor:
     def _map_id(internal_id: str, instance_id: InstanceId) -> ComponentId:
         if internal_id == "root":
             return instance_id
+        if internal_id.startswith("root_"):
+            return f"{instance_id}_{internal_id[5:]}"
         return f"{instance_id}_{internal_id}"
 
     @staticmethod
@@ -505,11 +515,13 @@ class TemplateProcessor:
                 found, res = _resolve_param_path(p_path, params)
                 if found:
                     return True, res
+                return True, None
             elif val.startswith("__PARAM__"):
                 p_name = val[9:]
                 found, res = _resolve_param_path(p_name, params)
                 if found:
                     return True, res
+                return True, None
         return False, val
 
     @classmethod
@@ -568,10 +580,10 @@ class TemplateProcessor:
 
             if p_name in passed_params:
                 val = passed_params[p_name]
-                if p_type in ["array", "children"]:
+                if p_type == "children":
                     if isinstance(val, list):
                         params[p_name] = val
-                    elif isinstance(val, dict):
+                    elif isinstance(val, (dict, str)):
                         params[p_name] = [val]
                     elif val == p_name or val is None:
                         params[p_name] = p_meta_dict.get("default", [])
@@ -670,73 +682,66 @@ class TemplateProcessor:
                     param_name = children_meta["param"]
                     array_data = params.get(param_name, [])
 
-                    if (
-                        isinstance(array_data, list)
-                        and array_data
-                        and all(isinstance(x, str) for x in array_data)
+                    if not isinstance(array_data, list):
+                        raise ValueError(
+                            f"Template '{template_id}': Parameter '{param_name}'"
+                            " must be an array/list for loop unrolling."
+                        )
+
+                    unrolled_child_ids = []
+
+                    # Case A: Inline item layout loop
+                    if "item" in children_meta and isinstance(
+                        children_meta["item"], list
                     ):
-                        comp_copy["children"] = array_data
-                    else:
-                        if not isinstance(array_data, list):
-                            raise ValueError(
-                                f"Template '{template_id}': Parameter '{param_name}'"
-                                " must be an array/list for loop unrolling."
+                        item_comps = children_meta["item"]
+                        as_var = children_meta.get("as")
+                        for idx, item in enumerate(array_data):
+                            sub_instance_id = f"{comp_copy['id']}_item_{idx}"
+                            unrolled_child_ids.append(sub_instance_id)
+
+                            item_dict = (
+                                dict(item)
+                                if isinstance(item, dict)
+                                else {"value": item}
                             )
+                            sub_params = {**params, **item_dict}
+                            if as_var:
+                                sub_params[as_var] = item_dict
 
-                        unrolled_child_ids = []
+                            inline_template = StaticTemplate(
+                                template_id=f"{template_id}_inline_{idx}",
+                                parameters={},
+                                components=item_comps,
+                            )
+                            sub_expanded = self._expand_static_layout(
+                                sub_instance_id,
+                                inline_template,
+                                sub_params,
+                                _depth=_depth + 1,
+                                _call_stack=_call_stack,
+                            )
+                            expanded_components.extend(sub_expanded)
 
-                        # Case A: Inline item layout loop
-                        if "item" in children_meta and isinstance(
-                            children_meta["item"], list
-                        ):
-                            item_comps = children_meta["item"]
-                            as_var = children_meta.get("as")
-                            for idx, item in enumerate(array_data):
-                                sub_instance_id = f"{comp_copy['id']}_item_{idx}"
-                                unrolled_child_ids.append(sub_instance_id)
+                    # Case B: Named template loop
+                    elif "template" in children_meta:
+                        item_template_id = children_meta["template"]
+                        for idx, item in enumerate(array_data):
+                            sub_instance_id = f"{comp_copy['id']}_item_{idx}"
+                            unrolled_child_ids.append(sub_instance_id)
+                            sub_params = (
+                                item if isinstance(item, dict) else {"value": item}
+                            )
+                            sub_expanded = self.expand_template(
+                                sub_instance_id,
+                                item_template_id,
+                                sub_params,
+                                _depth=_depth + 1,
+                                _call_stack=_call_stack,
+                            )
+                            expanded_components.extend(sub_expanded)
 
-                                item_dict = (
-                                    dict(item)
-                                    if isinstance(item, dict)
-                                    else {"value": item}
-                                )
-                                sub_params = {**params, **item_dict}
-                                if as_var:
-                                    sub_params[as_var] = item_dict
-
-                                inline_template = StaticTemplate(
-                                    template_id=f"{template_id}_inline_{idx}",
-                                    parameters={},
-                                    components=item_comps,
-                                )
-                                sub_expanded = self._expand_static_layout(
-                                    sub_instance_id,
-                                    inline_template,
-                                    sub_params,
-                                    _depth=_depth + 1,
-                                    _call_stack=_call_stack,
-                                )
-                                expanded_components.extend(sub_expanded)
-
-                        # Case B: Named template loop
-                        elif "template" in children_meta:
-                            item_template_id = children_meta["template"]
-                            for idx, item in enumerate(array_data):
-                                sub_instance_id = f"{comp_copy['id']}_item_{idx}"
-                                unrolled_child_ids.append(sub_instance_id)
-                                sub_params = (
-                                    item if isinstance(item, dict) else {"value": item}
-                                )
-                                sub_expanded = self.expand_template(
-                                    sub_instance_id,
-                                    item_template_id,
-                                    sub_params,
-                                    _depth=_depth + 1,
-                                    _call_stack=_call_stack,
-                                )
-                                expanded_components.extend(sub_expanded)
-
-                        comp_copy["children"] = unrolled_child_ids
+                    comp_copy["children"] = unrolled_child_ids
                 else:
                     comp_copy["children"] = self._map_child_list(
                         comp_copy["children"], instance_id, params
@@ -792,8 +797,8 @@ class TemplateProcessor:
                 if "components" in payload:
                     components = payload["components"]
 
-                    # Normalize single top-level template instances to root ID
-                    if len(components) == 1:
+                    # Normalize single top-level template instances to root ID in createSurface
+                    if envelope_key == "createSurface" and len(components) == 1:
                         single_comp = components[0]
                         if (
                             isinstance(single_comp, dict)

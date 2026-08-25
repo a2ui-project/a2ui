@@ -1,0 +1,192 @@
+- name: test_single_child_card_expansion
+  description: Verifies expanding card container with single child and deterministic
+    ID prefixing.
+  action: expand_template
+  template:
+    version: '0.1'
+    templateId: SimpleCard
+    parameters:
+      title:
+        type: string
+    layout:
+      component: Card
+      child:
+        component: Text
+        text: ${title}
+  instance_id: card_inst
+  template_id: SimpleCard
+  args:
+    title: Welcome
+  expect:
+  - id: card_inst
+    component: Card
+    child: card_inst_child_text
+  - id: card_inst_child_text
+    component: Text
+    text: Welcome
+- name: test_default_param_values
+  description: Verifies default value is assigned when argument is omitted.
+  action: expand_template
+  template:
+    version: '0.1'
+    templateId: ProfileHeader
+    parameters:
+      name:
+        type: string
+      role:
+        type: string
+        default: Team Member
+    layout:
+      component: Column
+      children:
+      - component: Text
+        text: ${name}
+      - component: Text
+        text: ${role}
+  instance_id: prof_1
+  template_id: ProfileHeader
+  args:
+    name: Bob
+  expect:
+  - id: prof_1
+    component: Column
+    children:
+    - prof_1_child_0_text
+    - prof_1_child_1_text
+  - id: prof_1_child_0_text
+    component: Text
+    text: Bob
+  - id: prof_1_child_1_text
+    component: Text
+    text: Team Member
+- name: test_higher_order_child_slot
+  description: Verifies passing a component ID into a child slot parameter.
+  action: expand_template
+  template:
+    version: '0.1'
+    templateId: ContainerSlot
+    parameters:
+      content:
+        type: child
+    layout:
+      component: Card
+      child: ${content}
+  instance_id: slot_inst
+  template_id: ContainerSlot
+  args:
+    content: custom_chart_comp_id
+  expect:
+  - id: slot_inst
+    component: Card
+    child: custom_chart_comp_id
+- name: test_unfilled_optional_child_slot_omitted
+  description: Verifies that when an optional child slot parameter is omitted, the
+    child property is omitted from output.
+  action: expand_template
+  template:
+    version: '0.1'
+    templateId: OptionalChildCard
+    parameters:
+      optionalChild:
+        type: child
+        required: false
+    layout:
+      component: Card
+      child: ${optionalChild}
+  instance_id: opt_card
+  template_id: OptionalChildCard
+  args: {}
+  expect:
+  - id: opt_card
+    component: Card
+- name: test_higher_order_action_slot
+  description: Verifies binding an Action object to a button action slot via parameter.
+  action: expand_template
+  template:
+    version: '0.1'
+    templateId: ActionButton
+    parameters:
+      label:
+        type: string
+      onPress:
+        type: action
+    layout:
+      component: Button
+      text: ${label}
+      action: ${onPress}
+  instance_id: btn_inst
+  template_id: ActionButton
+  args:
+    label: Deploy
+    onPress:
+      name: triggerDeployment
+      parameters:
+        env: production
+  expect:
+  - id: btn_inst
+    component: Button
+    text: Deploy
+    action:
+      name: triggerDeployment
+      parameters:
+        env: production
+- name: test_data_binding_passthrough
+  description: Verifies passing a client DataBinding dictionary through a parameter
+    preserving dictionary structure.
+  action: expand_template
+  template:
+    version: '0.1'
+    templateId: BoundMetric
+    parameters:
+      label:
+        type: string
+      valueBinding:
+        type: object
+    layout:
+      component: Text
+      text: ${valueBinding}
+  instance_id: bound_txt
+  template_id: BoundMetric
+  args:
+    label: CPU
+    valueBinding:
+      path: /system/cpu/usage
+  expect:
+  - id: bound_txt
+    component: Text
+    text:
+      path: /system/cpu/usage
+- name: test_nested_template_invocation
+  description: Verifies a parent template layout referencing a child template expanding
+    recursively.
+  action: expand_template
+  templates:
+  - version: '0.1'
+    templateId: Badge
+    parameters:
+      text:
+        type: string
+    layout:
+      component: Text
+      text: '[${text}]'
+  - version: '0.1'
+    templateId: BadgeCard
+    parameters:
+      tag:
+        type: string
+    layout:
+      component: Card
+      child:
+        component: Badge
+        text: ${tag}
+  instance_id: parent_inst
+  template_id: BadgeCard
+  args:
+    tag: PRO
+  expect:
+  - id: parent_inst
+    component: Card
+    child: parent_inst_child_badge
+  - id: parent_inst_child_badge
+    component: Text
+    text: '[PRO]'

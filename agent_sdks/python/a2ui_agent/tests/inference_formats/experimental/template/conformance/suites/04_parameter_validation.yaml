@@ -1,0 +1,89 @@
+- name: test_parameter_type_validation_string_to_integer_fails
+  description: Verifies that passing a string to an integer parameter raises a validation
+    error.
+  action: expand_template
+  template:
+    version: '0.1'
+    templateId: IntegerParamCheck
+    parameters:
+      count:
+        type: integer
+    layout:
+      component: Text
+      text: 'Count: ${count}'
+  instance_id: int_fail
+  template_id: IntegerParamCheck
+  args:
+    count: non_integer_string
+  expect_error:
+    category: ValidationError
+    message: failed validation
+- name: test_parameter_enum_validation_invalid_value_fails
+  description: Verifies that passing an unexpected value to an enum parameter raises
+    validation error.
+  action: expand_template
+  template:
+    version: '0.1'
+    templateId: EnumParamCheck
+    parameters:
+      status:
+        type: enum
+        values:
+        - ACTIVE
+        - SUSPENDED
+        - PENDING
+    layout:
+      component: Text
+      text: 'Status: ${status}'
+  instance_id: enum_fail
+  template_id: EnumParamCheck
+  args:
+    status: DELETED
+  expect_error:
+    category: ValidationError
+    message: failed validation
+- name: test_missing_required_parameter_raises_error
+  description: Verifies that omitting a required parameter with no default raises
+    an error.
+  action: expand_template
+  template:
+    version: '0.1'
+    templateId: RequiredParamCheck
+    parameters:
+      mandatory:
+        type: string
+    layout:
+      component: Text
+      text: ${mandatory}
+  instance_id: req_fail
+  template_id: RequiredParamCheck
+  args: {}
+  expect_error:
+    category: ValidationError
+    message: Missing required parameter 'mandatory'
+- name: test_unsupported_template_version_raises_error
+  description: Verifies that loading a template with unsupported version format raises
+    error.
+  action: validate_template
+  template:
+    version: '0.2'
+    templateId: FutureVersionTemplate
+    parameters: {}
+    layout:
+      component: Text
+      text: Future
+  expect_error:
+    category: ValidationError
+    message: Unsupported template version '0.2'
+- name: test_missing_template_version_raises_error
+  description: Verifies that omitting version attribute completely raises error.
+  action: validate_template
+  template:
+    templateId: MissingVersionTemplate
+    parameters: {}
+    layout:
+      component: Text
+      text: No Version
+  expect_error:
+    category: ValidationError
+    message: missing required 'version' attribute

@@ -1,0 +1,47 @@
+- name: test_unregistered_template_raises_error
+  description: Verifies expanding an unregistered template ID raises a clear ValueError.
+  action: expand_template
+  templates: []
+  instance_id: inst_1
+  template_id: UnknownTemplate
+  args: {}
+  expect_error:
+    category: ValidationError
+    message: Template 'UnknownTemplate' is not registered
+- name: test_circular_reference_a_b_a
+  description: Verifies immediate detection of circular template references A -> B
+    -> A.
+  action: expand_template
+  templates:
+  - version: '0.1'
+    templateId: NodeA
+    parameters: {}
+    layout:
+      component: NodeB
+  - version: '0.1'
+    templateId: NodeB
+    parameters: {}
+    layout:
+      component: NodeA
+  instance_id: root_circ
+  template_id: NodeA
+  args: {}
+  expect_error:
+    category: ValidationError
+    message: Circular template reference detected
+- name: test_circular_reference_self
+  description: Verifies that a template referencing itself is immediately caught by
+    the cycle guard.
+  action: expand_template
+  templates:
+  - version: '0.1'
+    templateId: SelfLoop
+    parameters: {}
+    layout:
+      component: SelfLoop
+  instance_id: root_self
+  template_id: SelfLoop
+  args: {}
+  expect_error:
+    category: ValidationError
+    message: Circular template reference detected

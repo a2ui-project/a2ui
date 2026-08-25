@@ -1,0 +1,151 @@
+- name: test_exact_integer_preservation
+  description: Verifies that exact token match preserves integer type without string
+    coercion.
+  action: substitute_params
+  args:
+    value: ${count}
+    params:
+      count: 42
+  expect: 42
+- name: test_exact_boolean_preservation
+  description: Verifies that exact token match preserves boolean type.
+  action: substitute_params
+  args:
+    value: ${isEnabled}
+    params:
+      isEnabled: true
+  expect: true
+- name: test_exact_array_preservation
+  description: Verifies that exact token match preserves array data structure.
+  action: substitute_params
+  args:
+    value: ${tags}
+    params:
+      tags:
+      - admin
+      - developer
+      - tester
+  expect:
+  - admin
+  - developer
+  - tester
+- name: test_exact_object_preservation
+  description: Verifies that exact token match preserves nested dictionary structure.
+  action: substitute_params
+  args:
+    value: ${binding}
+    params:
+      binding:
+        path: /session/user/name
+  expect:
+    path: /session/user/name
+- name: test_in_string_interpolation
+  description: Verifies string interpolation when token appears with surrounding text.
+  action: substitute_params
+  args:
+    value: Hello, ${name}!
+    params:
+      name: Alice
+  expect: Hello, Alice!
+- name: test_multiple_in_string_interpolations
+  description: Verifies multiple tokens interpolated in a single string.
+  action: substitute_params
+  args:
+    value: ${dept} - Grade ${grade} (${active})
+    params:
+      dept: Engineering
+      grade: 7
+      active: true
+  expect: Engineering - Grade 7 (True)
+- name: test_token_escaping_exact
+  description: Verifies that leading backslash prevents substitution of exact token.
+  action: substitute_params
+  args:
+    value: \${keep_literal}
+    params:
+      keep_literal: not_used
+  expect: ${keep_literal}
+- name: test_token_escaping_in_string
+  description: Verifies escaping in mixed string preserves literal token while substituting
+    unescaped token.
+  action: substitute_params
+  args:
+    value: Literal \${keep} and dynamic ${replace}
+    params:
+      keep: ignored
+      replace: substituted
+  expect: Literal ${keep} and dynamic substituted
+- name: test_deep_dot_notation_nested_dict
+  description: Verifies resolving multi-level dot-separated path in nested dictionary.
+  action: substitute_params
+  args:
+    value: ${user.profile.details.tier}
+    params:
+      user:
+        profile:
+          details:
+            tier: Enterprise
+  expect: Enterprise
+- name: test_deep_dot_notation_array_index
+  description: Verifies resolving dot-separated path with numeric array indices.
+  action: substitute_params
+  args:
+    value: ${teams.0.members.1.name}
+    params:
+      teams:
+      - members:
+        - name: First
+        - name: Second
+  expect: Second
+- name: test_format_expression_ast
+  description: Verifies evaluating format expression dictionary with arguments.
+  action: substitute_params
+  args:
+    value:
+      format: 'Progress: {current} of {total} ({pct}%)'
+      args:
+        current: ${metrics.completed}
+        total: ${metrics.total}
+        pct: 75
+    params:
+      metrics:
+        completed: 15
+        total: 20
+  expect: 'Progress: 15 of 20 (75%)'
+- name: test_concat_expression_ast
+  description: Verifies evaluating concat expression combining string literals and
+    param references.
+  action: substitute_params
+  args:
+    value:
+      concat:
+      - 'Status: '
+      - param: state
+      - ' ('
+      - param: code
+      - )
+    params:
+      state: OK
+      code: 200
+  expect: 'Status: OK (200)'
+- name: test_concat_with_none_omits_part
+  description: Verifies that None or unresolved parts in concat do not insert 'None'
+    strings.
+  action: substitute_params
+  args:
+    value:
+      concat:
+      - Prefix-
+      - param: missing
+      - -Suffix
+    params: {}
+  expect: Prefix--Suffix
+- name: test_param_ref_with_default
+  description: Verifies that direct param ref uses explicit default when param missing.
+  action: substitute_params
+  args:
+    value:
+      param: role
+      default: Contributor
+    params: {}
+  expect: Contributor

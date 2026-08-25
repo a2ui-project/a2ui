@@ -384,10 +384,14 @@ def flatten_nested_layout(
         node_id = str(node_copy["id"])
     elif parent_id is None:
         node_id = "root"
-    elif index is not None:
+    elif slot_name and index is not None:
         node_id = f"{parent_id}_{slot_name}_{index}_{comp_type}"
-    else:
+    elif slot_name:
         node_id = f"{parent_id}_{slot_name}_{comp_type}"
+    elif index is not None:
+        node_id = f"{parent_id}_{index}_{comp_type}"
+    else:
+        node_id = f"{parent_id}_{comp_type}"
 
     node_copy["id"] = node_id
     flat_components: List[Dict[str, Any]] = []
@@ -424,9 +428,7 @@ def flatten_nested_layout(
                     if "as" in loop_cfg:
                         loop_dict["as"] = loop_cfg["as"]
                     if "item" in loop_cfg and isinstance(loop_cfg["item"], dict):
-                        _, item_sub_comps = flatten_nested_layout(
-                            loop_cfg["item"], parent_id=f"{node_id}_item"
-                        )
+                        _, item_sub_comps = flatten_nested_layout(loop_cfg["item"])
                         loop_dict["item"] = item_sub_comps
                     elif "template" in loop_cfg:
                         loop_dict["template"] = loop_cfg["template"]
@@ -440,9 +442,7 @@ def flatten_nested_layout(
             if "as" in loop_cfg:
                 loop_dict["as"] = loop_cfg["as"]
             if "item" in loop_cfg and isinstance(loop_cfg["item"], dict):
-                _, item_sub_comps = flatten_nested_layout(
-                    loop_cfg["item"], parent_id=f"{node_id}_item"
-                )
+                _, item_sub_comps = flatten_nested_layout(loop_cfg["item"])
                 loop_dict["item"] = item_sub_comps
             elif "template" in loop_cfg:
                 loop_dict["template"] = loop_cfg["template"]
@@ -512,7 +512,11 @@ class StaticTemplate(BaseTemplate):
         if not template_id:
             raise ValueError("Template dictionary must contain 'templateId'.")
 
-        version = data.get("version", "0.1")
+        version = data.get("version")
+        if not version:
+            raise ValueError(
+                f"Template '{template_id}' missing required 'version' attribute."
+            )
         if version != "0.1":
             raise ValueError(
                 f"Unsupported template version '{version}'. Currently only '0.1' is"

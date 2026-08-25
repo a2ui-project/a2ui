@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/template_conformance_schema.json",
+  "title": "A2UI Template Conformance Test Suite Schema",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "name",
+      "action"
+    ],
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "Unique name of the test case."
+      },
+      "description": {
+        "type": "string",
+        "description": "Human-readable description of what this test case asserts."
+      },
+      "action": {
+        "type": "string",
+        "enum": [
+          "substitute_params",
+          "expand_template",
+          "process_message",
+          "validate_template",
+          "generate_catalog"
+        ],
+        "description": "The template engine action being tested."
+      },
+      "templates": {
+        "type": "array",
+        "description": "List of template definitions registered with the processor."
+      },
+      "template": {
+        "type": "object",
+        "description": "Single template definition registered with the processor."
+      },
+      "instance_id": {
+        "type": "string",
+        "description": "Target component instance ID for expansion."
+      },
+      "template_id": {
+        "type": "string",
+        "description": "Identifier of the template being expanded."
+      },
+      "base_catalog": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "description": "Optional base catalog schema provided to processor."
+      },
+      "args": {
+        "description": "Arguments/parameters passed to the action."
+      },
+      "message": {
+        "description": "Message payload passed to process_message."
+      },
+      "expect": {
+        "description": "Expected result matching the action return value."
+      },
+      "expect_error": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "description": "Expected error category and error substring."
+      }
+    }
+  }
+}
