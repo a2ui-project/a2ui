@@ -1,0 +1,65 @@
+version: "0.1"
+templateId: TeamGoalList
+description: List of team goals with header banner.
+
+parameters:
+  teamName:
+    type: string
+    title: Team Name
+    description: The display name of the team whose goals are being listed.
+  goals:
+    type: array
+    title: Goals List
+    description: Array of goal objects with title, priority, and targetDate.
+    items:
+      type: object
+      title: Goal Definition
+      properties:
+        title:
+          type: string
+          title: Goal Title
+          description: Summary title of the objective
+        priority:
+          type: enum
+          title: Priority Level
+          values:
+            - High
+            - Medium
+            - Low
+          default: Medium
+        targetDate:
+          type: string
+          title: Target Date
+          description: Target completion date (YYYY-MM-DD)
+      required:
+        - title
+
+layout:
+  component: Column
+  children:
+    - component: Card
+      child:
+        component: Row
+        align: center
+        children:
+          - component: Icon
+            name: star
+          - component: Text
+            text: "Strategic Objectives: ${teamName}"
+            variant: h2
+    - component: Column
+      id: goals_container
+      children:
+        loop:
+          param: goals
+          template: GoalItem
+
+sampleData:
+  teamName: A2UI Core Team
+  goals:
+    - title: Implement bidirectional child/children container resolution
+      priority: High
+      targetDate: "2026-07-15"
+    - title: Upgrade all templates to standard Basic Catalog components
+      priority: High
+      targetDate: "2026-07-10"

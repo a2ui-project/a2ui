@@ -1,0 +1,80 @@
+version: "0.1"
+templateId: CompositeSectionCard
+description: Collapsible or styled content section card with title, custom header action slot, and children slot.
+parameters:
+  title:
+    type: string
+    description: Section header title.
+  headerAction:
+    type: child
+    description: Single child component placed in the right side of the header.
+  children:
+    type: children
+    description: Content components contained within the section body.
+    default: []
+
+layout:
+  component: Card
+  child:
+    component: Column
+    children:
+      - component: Row
+        justify: spaceBetween
+        align: center
+        children:
+          - component: Text
+            text: ${title}
+            variant: h2
+          - component: Column
+            children: ${headerAction}
+      - component: Divider
+        axis: horizontal
+      - component: Column
+        children: ${children}
+
+sampleData:
+  title: Project Milestones
+  headerAction:
+    component: Button
+    text: Refresh
+  children: []
+
+---
+
+version: "0.1"
+templateId: TwoColumnLayoutWithHeader
+description: Responsive two-column dashboard grid with a hero header, left column, and right column.
+parameters:
+  headerChild:
+    type: child
+    description: Component rendered in the full-width header slot.
+  leftChildren:
+    type: children
+    description: Components rendered in the left column.
+  rightChildren:
+    type: children
+    description: Components rendered in the right column.
+
+layout:
+  component: Column
+  children:
+    - component: Column
+      children: ${headerChild}
+    - component: Divider
+      axis: horizontal
+    - component: Row
+      justify: spaceBetween
+      align: start
+      children:
+        - component: Column
+          children: ${leftChildren}
+        - component: Column
+          children: ${rightChildren}
+
+sampleData:
+  headerChild:
+    component: Text
+    text: Executive Operations Dashboard
+    variant: h1
+  leftChildren: []
+  rightChildren: []

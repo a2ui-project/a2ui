@@ -1,0 +1,40 @@
+version: "0.1"
+templateId: TwoColumnLayout
+description: Responsive two-column dashboard layout with banner header and split content regions.
+
+parameters:
+  headerChild:
+    type: child
+    title: Header Component Slot
+    description: Single child component ID mounted at the top banner.
+  leftChildren:
+    type: children
+    title: Left Column Children
+    description: Child components placed in the left primary region.
+    default: []
+  rightChildren:
+    type: children
+    title: Right Column Children
+    description: Child components placed in the right secondary region.
+    default: []
+
+layout:
+  component: Column
+  children:
+    - component: Column
+      children: ${headerChild}
+    - component: Divider
+      axis: horizontal
+    - component: Row
+      children:
+        - component: Column
+          children: ${leftChildren}
+        - component: Column
+          children: ${rightChildren}
+
+sampleData:
+  headerChild:
+    component: Text
+    text: Header Title
+  leftChildren: []
+  rightChildren: []

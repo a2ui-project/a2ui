@@ -1,0 +1,69 @@
+version: "0.1"
+templateId: BasicUserProfile
+description: Standard identity card for team members.
+parameters:
+  userId:
+    type: string
+    description: Unique user identifier.
+  userName:
+    type: string
+    description: Full name of the user.
+  role:
+    type: string
+    description: Position or title within the team.
+    default: Team Member
+
+layout:
+  component: Card
+  child:
+    component: Column
+    align: center
+    children:
+      - component: Icon
+        name: person
+      - component: Text
+        text: ${userName}
+        variant: h3
+      - component: Text
+        text: ${role}
+        variant: caption
+
+sampleData:
+  userId: usr_101
+  userName: Alice Smith
+  role: Lead Architect
+
+---
+
+version: "0.1"
+templateId: BasicMetricCard
+description: Metric display card supporting both literal values and dynamic data model bindings.
+parameters:
+  title:
+    type: string
+    description: Metric title.
+  metricValue:
+    type: object
+    description: "Literal value or reactive DataBinding object (e.g. {path: '/telemetry/cpu'})."
+  status:
+    type: enum
+    values: ["normal", "warning", "critical"]
+    default: "normal"
+
+layout:
+  component: Card
+  child:
+    component: Column
+    children:
+      - component: Text
+        text: ${title}
+        variant: caption
+      - component: Text
+        text: ${metricValue}
+        variant: h1
+
+sampleData:
+  title: CPU Load
+  metricValue:
+    path: /system/metrics/cpuLoad
+  status: normal

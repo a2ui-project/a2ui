@@ -1,0 +1,86 @@
+version: "0.1"
+templateId: NestedTeamRoster
+description: Team directory roster with styled header banner and nested team lists.
+parameters:
+  directoryTitle:
+    type: string
+    description: Title text for the team directory.
+  teams:
+    type: array
+    description: List of team objects or TeamCard children.
+    default: []
+
+layout:
+  component: Column
+  children:
+    - component: Text
+      text: ${directoryTitle}
+      variant: h1
+    - component: Divider
+      axis: horizontal
+    - component: Column
+      children:
+        loop:
+          param: teams
+          template: NestedTeamCard
+
+sampleData:
+  directoryTitle: Global Engineering Directory
+  teams:
+    - teamName: Core Architecture
+      members:
+        - userId: u1
+          userName: Dr. Elena Vance
+          role: Principal Architect
+        - userId: u2
+          userName: Marcus Vance
+          role: Streaming Lead
+
+---
+
+version: "0.1"
+templateId: NestedTeamCard
+description: Team container card displaying member cards.
+parameters:
+  teamName:
+    type: string
+    description: Name of the engineering team.
+  members:
+    type: array
+    description: List of team members.
+    default: []
+
+layout:
+  component: Card
+  child:
+    component: Column
+    children:
+      - component: Text
+        text: ${teamName}
+        variant: h2
+      - component: Divider
+        axis: horizontal
+      - component: Column
+        children:
+          loop:
+            param: members
+            as: member
+            item:
+              component: Row
+              justify: spaceBetween
+              children:
+                - component: Text
+                  text: ${member.userName}
+                - component: Text
+                  text: ${member.role}
+                  variant: caption
+
+sampleData:
+  teamName: Core Architecture
+  members:
+    - userId: u1
+      userName: Dr. Elena Vance
+      role: Principal Architect
+    - userId: u2
+      userName: Marcus Vance
+      role: Streaming Lead

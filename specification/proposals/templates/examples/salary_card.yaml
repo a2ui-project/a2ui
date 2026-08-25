@@ -1,0 +1,116 @@
+version: "0.1"
+templateId: SalaryCard
+description: Layout card for employee compensation package with security verification badge.
+
+parameters:
+  employeeName:
+    type: string
+    title: Employee Full Name
+    description: Full name of the verified employee.
+  role:
+    type: string
+    title: Job Title
+    description: Official company role.
+  baseSalary:
+    type: string
+    title: Base Salary
+    description: Annual base compensation.
+  annualBonus:
+    type: string
+    title: Annual Bonus
+    description: Target annual incentive bonus.
+  equity:
+    type: string
+    title: Equity Grants
+    description: Stock units or RSU package.
+  clearanceLevel:
+    type: string
+    title: Security Clearance
+    description: Confidentiality level.
+    default: "Level 4 - Confidential"
+  verifiedAt:
+    type: string
+    title: Verification Date
+    description: Timestamp of record retrieval.
+    default: "2026-08-13"
+
+layout:
+  component: Card
+  child:
+    component: Column
+    children:
+      - component: Row
+        justify: spaceBetween
+        align: center
+        children:
+          - component: Row
+            align: center
+            children:
+              - component: Icon
+                name: lock
+              - component: Text
+                text: "Verified Compensation"
+                variant: caption
+          - component: Text
+            text: ${clearanceLevel}
+            variant: caption
+      - component: Column
+        children:
+          - component: Text
+            text: ${employeeName}
+            variant: h3
+            id: name_txt
+          - component: Text
+            text: ${role}
+            variant: body
+      - component: Divider
+        axis: horizontal
+      - component: Row
+        justify: spaceBetween
+        children:
+          - component: Column
+            children:
+              - component: Text
+                text: "Base Salary"
+                variant: caption
+              - component: Text
+                text: ${baseSalary}
+                variant: h4
+                id: sal_val
+          - component: Column
+            children:
+              - component: Text
+                text: "Annual Bonus"
+                variant: caption
+              - component: Text
+                text: ${annualBonus}
+                variant: h4
+          - component: Column
+            children:
+              - component: Text
+                text: "Equity Grants"
+                variant: caption
+              - component: Text
+                text: ${equity}
+                variant: h4
+      - component: Divider
+        axis: horizontal
+      - component: Row
+        justify: spaceBetween
+        align: center
+        children:
+          - component: Text
+            text: "🔒 Fetched live from secure HR database"
+            variant: caption
+          - component: Text
+            text: "Verified: ${verifiedAt}"
+            variant: caption
+
+sampleData:
+  employeeName: Dr. Elena Vance
+  role: Principal Systems Architect
+  baseSalary: "$215,000"
+  annualBonus: "$45,000"
+  equity: "3,500 RSUs"
+  clearanceLevel: "Level 5 - Confidential"
+  verifiedAt: "2026-08-13"

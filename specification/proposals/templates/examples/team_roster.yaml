@@ -1,0 +1,29 @@
+version: "0.1"
+templateId: TeamRoster
+description: Team directory roster with styled header banner and nested team lists.
+
+parameters:
+  directoryTitle:
+    type: string
+    title: Directory Title
+    description: Title text for the team directory.
+  children:
+    type: children
+    title: Team Cards List
+    description: List of child TeamCard components.
+    default: []
+
+layout:
+  component: Column
+  children:
+    - component: Text
+      text: ${directoryTitle}
+      variant: h1
+    - component: Divider
+      axis: horizontal
+    - component: Column
+      children: ${children}
+
+sampleData:
+  directoryTitle: Global Engineering Directory
+  children: []
