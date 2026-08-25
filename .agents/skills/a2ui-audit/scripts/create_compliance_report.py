@@ -71,7 +71,10 @@ def inject_recommendation_prompts(report_content: str, issue_url: str) -> str:
                         or next_stripped == "---"
                     ):
                         break
-                    # If an existing prompt block is found, skip it
+                    # If an existing prompt block or label is found, skip it
+                    if next_stripped.startswith("Copy this prompt"):
+                        i += 1
+                        continue
                     if next_stripped.startswith("````") or next_stripped.startswith(
                         "```"
                     ):
@@ -95,9 +98,10 @@ def inject_recommendation_prompts(report_content: str, issue_url: str) -> str:
                 new_lines.extend(rec_lines)
 
                 prompt_block = (
-                    f"   ````markdown\n   Read the A2UI issue at {issue_url} and use"
-                    " the `a2ui-remediate-problem` skill to implement recommendation"
-                    f" {idx} described in the issue's Recommendation section.\n   ````"
+                    "   Copy this prompt to implement this recommendation:\n  "
+                    f" ````markdown\n   Read the A2UI issue at {issue_url} and use the"
+                    f" `a2ui-remediate-problem` skill to implement recommendation {idx}"
+                    " described in the issue's Recommendation section.\n   ````"
                 )
                 new_lines.append(prompt_block)
                 new_lines.append("")

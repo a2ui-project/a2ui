@@ -68,6 +68,7 @@ class TestCreateComplianceReport(unittest.TestCase):
         issue_url = "https://github.com/a2ui-project/a2ui/issues/2391"
         enhanced = inject_recommendation_prompts(SAMPLE_REPORT, issue_url)
 
+        self.assertIn("Copy this prompt to implement this recommendation:", enhanced)
         self.assertIn("````markdown", enhanced)
         self.assertIn(
             "Read the A2UI issue at https://github.com/a2ui-project/a2ui/issues/2391"
