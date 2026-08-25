@@ -46,16 +46,6 @@ public final class MessageProcessor: ObservableObject {
     self.surfaceGroupModel = SurfaceGroupModel()
   }
 
-  /// Creates a new message processor with a dictionary of catalogs.
-  public init(
-    catalogs: [String: Catalog],
-    actionHandler: (any ActionHandling)? = nil
-  ) {
-    self.catalogs = catalogs
-    self.actionHandler = actionHandler
-    self.surfaceGroupModel = SurfaceGroupModel()
-  }
-
   /// Returns the aggregated data model for surfaces with `sendDataModel` enabled.
   public func getRendererDataModel() -> JSONValue? {
     var result: OrderedDictionary<String, JSONValue> = [:]
