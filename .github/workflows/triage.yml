@@ -54,7 +54,9 @@ on:
 # result on its own, and the daily cron is a backstop either way.
 concurrency:
   group: triage
-  cancel-in-progress: true
+  # Not cancelling in-progress runs because otherwise some issues go unlabled
+  # when multiple issues arrive concurrently.
+  cancel-in-progress: false
 
 permissions:
   contents: read
