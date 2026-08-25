@@ -1,0 +1,68 @@
+version: "0.1"
+templateId: TeamCard
+description: Card showing team header and unrolled member cards.
+
+parameters:
+  teamName:
+    type: string
+    title: Team Name
+    description: The display name of the team.
+  members:
+    type: array
+    title: Team Members List
+    description: Array of team member objects.
+    items:
+      type: object
+      title: Team Member
+      properties:
+        userId:
+          type: string
+          title: User ID
+          description: Unique identifier of the user.
+        userName:
+          type: string
+          title: User Name
+          description: Full name of the user.
+        role:
+          type: string
+          title: Role Name
+          description: Role or title of the user.
+          default: Member
+      required:
+        - userId
+        - userName
+
+layout:
+  component: Card
+  child:
+    component: Column
+    children:
+      - component: Row
+        justify: spaceBetween
+        align: center
+        children:
+          - component: Text
+            text: ${teamName}
+            variant: h3
+          - component: Icon
+            name: person
+      - component: Divider
+        axis: horizontal
+      - component: Column
+        children:
+          loop:
+            param: members
+            template: UserProfile
+
+sampleData:
+  teamName: Antigravity Devs
+  members:
+    - userId: usr_101
+      userName: Alice Smith
+      role: Lead Architect
+    - userId: usr_102
+      userName: Bob Jones
+      role: Senior Engineer
+    - userId: usr_103
+      userName: Charlie Brown
+      role: Product Manager

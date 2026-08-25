@@ -1,0 +1,38 @@
+version: "0.1"
+templateId: UserProfile
+description: User profile card displaying avatar, full name, and role.
+
+parameters:
+  userId:
+    type: string
+    title: User ID
+    description: Unique user account ID.
+  userName:
+    type: string
+    title: User Name
+    description: Full name of the user.
+  role:
+    type: string
+    title: Role
+    description: Job title or role.
+    default: Member
+
+layout:
+  component: Card
+  child:
+    component: Column
+    align: center
+    children:
+      - component: Icon
+        name: person
+      - component: Text
+        text: ${userName}
+        variant: h3
+      - component: Text
+        text: ${role}
+        variant: caption
+
+sampleData:
+  userId: usr_101
+  userName: Alice Smith
+  role: Lead Architect
