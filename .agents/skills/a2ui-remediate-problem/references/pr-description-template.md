@@ -30,7 +30,7 @@ When creating the PR description file (e.g. `pr_description.md`), follow this ex
 ````markdown
 ## Summary
 
-[Provide a 1-2 sentence overview of the remediation fix, referencing the original compliance report issue and recommendation index, e.g., "Addresses recommendation #3 from compliance report issue #2178 by creating `swift/core/README.md`."]
+[Provide a 1-2 sentence overview of the remediation fix, referencing the original compliance report issue and recommendation index, e.g., "Addresses recommendation 3 from compliance report issue #2178 by creating `swift/core/README.md`."]
 
 ## Changes
 
@@ -56,7 +56,7 @@ To check out and make additional changes to this PR branch:
 gh pr checkout <PR_NUMBER>
 
 # Make your edits, then commit and push back
-git commit -am "fix: additional adjustments for recommendation #${RECOMMENDATION_INDEX}"
+git commit -am "fix: additional adjustments for recommendation ${RECOMMENDATION_INDEX}"
 git push
 ```
 ````

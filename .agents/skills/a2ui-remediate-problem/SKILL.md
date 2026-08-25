@@ -86,7 +86,7 @@ Follow these steps to remediate an issue recommendation:
    ```bash
    gh issue comment "${ISSUE_NUMBER}" \
      --repo a2ui-project/a2ui \
-     --body "🤖 Automated remediation triggered! Created draft PR (${PR_URL}) on branch \`${BRANCH_NAME}\` to address recommendation #${RECOMMENDATION_INDEX}."
+     --body "🤖 Automated remediation triggered! Created draft PR (${PR_URL}) on branch \`${BRANCH_NAME}\` to address recommendation ${RECOMMENDATION_INDEX}."
    ```
 
 ---
