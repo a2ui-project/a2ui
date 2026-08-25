@@ -28,6 +28,8 @@ from ...schema.common_types import (
     DynamicString,
     DynamicStringList,
     FunctionCall,
+    ListReference,
+    SingleReference,
     StrictBaseModel,
     TemplateChildList,
 )

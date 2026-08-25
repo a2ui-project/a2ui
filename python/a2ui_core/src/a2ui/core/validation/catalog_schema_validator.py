@@ -26,7 +26,7 @@ from typing import (
     TYPE_CHECKING,
 )
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationError
 from jsonschema import Draft202012Validator
 from ..exceptions import A2uiValidationError, A2uiErrorDetail
 from ..catalog import Catalog
@@ -212,9 +212,55 @@ class CatalogSchemaValidator:
                     )
                 )
 
+            self._validate_nested_functions(
+                comp_id or "unknown", comp, "", active_config, errors
+            )
+
         if errors:
             summary = "\n".join(f"{e.path}: {e.message}" for e in errors)
             raise A2uiValidationError(summary, details=errors)
+
+    def _validate_nested_functions(
+        self,
+        comp_id: str,
+        val: Any,
+        path: str,
+        config: Optional[ValidationConfig],
+        errors: List[A2uiErrorDetail],
+    ) -> None:
+        """Recursively validates nested function calls within component properties."""
+        if isinstance(val, dict):
+            fn_name = val.get("call") or val.get("function")
+            if fn_name and isinstance(fn_name, str):
+                fn_args = val.get("args")
+                args_dict = fn_args if isinstance(fn_args, dict) else {}
+                try:
+                    self.validate_function(fn_name, args_dict, config=config)
+                except A2uiValidationError as e:
+                    if e.details:
+                        errors.extend(e.details)
+                    else:
+                        errors.append(
+                            A2uiErrorDetail(
+                                path=f"components.{comp_id}.{path}"
+                                if path
+                                else f"components.{comp_id}",
+                                code="invalid_function_call",
+                                message=str(e),
+                            )
+                        )
+            for k, v in val.items():
+                if k not in ("id", "component"):
+                    child_path = f"{path}.{k}" if path else k
+                    self._validate_nested_functions(
+                        comp_id, v, child_path, config, errors
+                    )
+        elif isinstance(val, list):
+            for idx, item in enumerate(val):
+                child_path = f"{path}.{idx}"
+                self._validate_nested_functions(
+                    comp_id, item, child_path, config, errors
+                )
 
     def validate_function(
         self,
@@ -249,6 +295,43 @@ class CatalogSchemaValidator:
                     ],
                 )
             return
+
+        if fn_def is not None:
+            model_cls = (
+                getattr(fn_def, "schema", None)
+                or getattr(fn_def, "model_class", None)
+                or getattr(fn_def, "parameters", None)
+            )
+            if isinstance(model_cls, type) and issubclass(model_cls, BaseModel):
+                try:
+                    model_cls.model_validate(args or {})
+                    return
+                except ValidationError as e:
+                    fn_errors = []
+                    for err in e.errors():
+                        loc_parts = [str(x) for x in err.get("loc", [])]
+                        path_str = ".".join(loc_parts)
+                        err_type = err.get("type", "")
+                        if err_type == "missing":
+                            code = "missing_field"
+                        elif err_type == "extra_forbidden":
+                            code = "extra_field"
+                        elif "type" in err_type or "parsing" in err_type:
+                            code = "type_mismatch"
+                        else:
+                            code = "invalid_value"
+                        fn_errors.append(
+                            A2uiErrorDetail(
+                                path=f"functions.{name}.{path_str}"
+                                if path_str
+                                else f"functions.{name}",
+                                code=code,
+                                message=err.get("msg", "Validation failed"),
+                            )
+                        )
+                    if fn_errors:
+                        summary = "\n".join(f"{e.path}: {e.message}" for e in fn_errors)
+                        raise A2uiValidationError(summary, details=fn_errors)
 
         param_schema = None
         defs = base_schema.get("$defs", {})

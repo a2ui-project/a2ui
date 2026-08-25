@@ -307,3 +307,74 @@
                 component: "Text"
                 text: "No Root"
       expectError: "Missing root component"
+
+- name: test_v10_unknown_component_type
+  description: Tests that unknown component types fail schema validation in v1.0.
+  action: validate
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  steps:
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s1"
+            components:
+              - id: "root"
+                component: "UnknownWidget"
+                foo: "bar"
+      expectError:
+        category: "ValidationError"
+
+- name: test_v10_unknown_component_property
+  description: Tests that extra unknown component properties fail schema validation in v1.0.
+  action: validate
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  steps:
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s1"
+            components:
+              - id: "root"
+                component: "Button"
+                label: "Click Me"
+                unknownAttribute: "someValue"
+      expectError:
+        category: "ValidationError"
+
+- name: test_v10_unknown_nested_function
+  description: Tests that unknown nested functions fail schema validation in v1.0.
+  action: validate
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  steps:
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s1"
+            components:
+              - id: "root"
+                component: "Button"
+                label: "Click Me"
+                action:
+                  call: "unknownFunc"
+                  args:
+                    arg: "val"
+      expectError:
+        category: "ValidationError"

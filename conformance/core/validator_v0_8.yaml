@@ -281,3 +281,47 @@
                     children:
                       explicitList: []
       expectError: "Missing root component"
+
+- name: test_v08_unknown_component_type
+  description: Tests that unknown component types fail schema validation in v0.8.
+  action: validate
+  protocolVersion: "v0.8"
+  catalogPaths:
+    - "specification/v0_8/json/standard_catalog_definition.json"
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: "s1"
+            root: "root"
+        - surfaceUpdate:
+            surfaceId: "s1"
+            components:
+              - id: "root"
+                component:
+                  UnknownWidget:
+                    foo: "bar"
+      expectError:
+        category: "ValidationError"
+
+- name: test_v08_unknown_component_property
+  description: Tests that extra unknown component properties fail schema validation in v0.8.
+  action: validate
+  protocolVersion: "v0.8"
+  catalogPaths:
+    - "specification/v0_8/json/standard_catalog_definition.json"
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: "s1"
+            root: "root"
+        - surfaceUpdate:
+            surfaceId: "s1"
+            components:
+              - id: "root"
+                component:
+                  Button:
+                    label:
+                      literalString: "Click Me"
+                    unknownAttribute: "someValue"
+      expectError:
+        category: "ValidationError"

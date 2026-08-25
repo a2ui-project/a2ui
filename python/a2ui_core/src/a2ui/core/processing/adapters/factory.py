@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 from .base import VersionAdapter
 from .v0_8 import V0Point8Adapter
 from .v0_9 import V0Point9Adapter
@@ -39,7 +39,7 @@ class VersionAdapterFactory:
         cls._adapters[adapter.version] = adapter
 
     @classmethod
-    def get_adapter(cls, version: Any) -> VersionAdapter:
+    def get_adapter(cls, version: Union[ProtocolVersion, str]) -> VersionAdapter:
         """Resolves the version adapter for the specified protocol version enum or string."""
         if isinstance(version, str):
             version = cls._parse_version(version) or DEFAULT_PROTOCOL_VERSION

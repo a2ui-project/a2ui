@@ -25,12 +25,6 @@ from ...exceptions import (
 )
 from ...validation.integrity_checker import validate_recursion_and_paths
 from ...schema import ProtocolVersion, AgentToRendererMessagePayload
-from ...schema.v0_9.constants import (
-    MSG_TYPE_CREATE_SURFACE,
-    MSG_TYPE_UPDATE_COMPONENTS,
-    MSG_TYPE_UPDATE_DATA_MODEL,
-    MSG_TYPE_DELETE_SURFACE,
-)
 
 
 def _clean_loc_part(x: str) -> str:
@@ -88,6 +82,15 @@ class BaseVersionAdapter(VersionAdapter, ABC):
     ) -> List[A2uiErrorDetail]:
         """Formats Pydantic validation errors while filtering out irrelevant union branches."""
         details = []
+        branch_to_action = {}
+        action_to_branch = {}
+        for action in self.valid_actions:
+            branch = action[0].upper() + action[1:] + "Message"
+            branch_to_action[branch] = action
+            action_to_branch[action] = branch
+
+        all_branch_names = set(branch_to_action.keys())
+
         for err in error.errors():
             loc = err.get("loc", [])
             loc_parts = [_clean_loc_part(str(x)) for x in loc]
@@ -95,48 +98,17 @@ class BaseVersionAdapter(VersionAdapter, ABC):
                 msg_idx = loc[1]
                 if msg_idx < len(messages) and isinstance(messages[msg_idx], dict):
                     m = messages[msg_idx]
-                    is_recognized_message_type = any(
-                        k in m
-                        for k in [
-                            MSG_TYPE_CREATE_SURFACE,
-                            MSG_TYPE_UPDATE_COMPONENTS,
-                            MSG_TYPE_UPDATE_DATA_MODEL,
-                            MSG_TYPE_DELETE_SURFACE,
-                        ]
-                    )
-                    if is_recognized_message_type:
+                    present_actions = [k for k in self.valid_actions if k in m]
+                    if present_actions:
                         branch = loc_parts[2]
-                        if (
-                            branch == "CreateSurfaceMessage"
-                            and MSG_TYPE_CREATE_SURFACE not in m
-                        ):
-                            continue
-                        if (
-                            branch == "UpdateComponentsMessage"
-                            and MSG_TYPE_UPDATE_COMPONENTS not in m
-                        ):
-                            continue
-                        if (
-                            branch == "UpdateDataModelMessage"
-                            and MSG_TYPE_UPDATE_DATA_MODEL not in m
-                        ):
-                            continue
-                        if (
-                            branch == "DeleteSurfaceMessage"
-                            and MSG_TYPE_DELETE_SURFACE not in m
-                        ):
-                            continue
-            clean_loc_parts = [
-                x
-                for x in loc_parts
-                if x
-                not in (
-                    "CreateSurfaceMessage",
-                    "UpdateComponentsMessage",
-                    "UpdateDataModelMessage",
-                    "DeleteSurfaceMessage",
-                )
-            ]
+                        if branch in all_branch_names:
+                            expected_branches = {
+                                action_to_branch[act] for act in present_actions
+                            }
+                            if branch not in expected_branches:
+                                continue
+
+            clean_loc_parts = [x for x in loc_parts if x not in all_branch_names]
             path_str = ".".join(clean_loc_parts)
             msg = err.get("msg", "Validation failed")
             err_type = err.get("type", "")

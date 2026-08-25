@@ -22,7 +22,7 @@ from a2ui.core.catalog import (
     ModelComponentApi,
     FunctionImplementation,
 )
-from a2ui.core.exceptions import A2uiCatalogError
+from a2ui.core.exceptions import A2uiCatalogError, A2uiValidationError
 from a2ui.core.catalog.catalog import TComponent, TFunction
 from a2ui.core.validation import CatalogSchemaValidator
 from a2ui.core.basic_catalog import BasicCatalog
@@ -247,35 +247,109 @@ def test_unrecognized_type_and_mismatched_properties_with_models():
 # ==============================================================================
 
 
-@pytest.mark.skip(
-    reason="TODO: validation package is only about component schema validation"
-)
 def test_function_validation_with_models():
-    pass
+    class CustomArgs(BaseModel):
+        query: str
+        limit: int
+
+    catalog = Catalog(
+        protocol_version=PROTOCOL_VERSION,
+        catalog_id="https://a2ui.org/func-test",
+        functions=[FunctionApi("search", schema=CustomArgs)],
+    )
+    val = _val(catalog)
+    val.validate_function("search", {"query": "hello", "limit": 10})
+    with pytest.raises(A2uiValidationError):
+        val.validate_function("search", {"query": "hello", "limit": "not-an-int"})
 
 
-@pytest.mark.skip(
-    reason="TODO: validation package is only about component schema validation"
-)
 def test_function_validation_from_json():
-    pass
+    json_catalog = {
+        "catalogId": "https://a2ui.org/func-json-test",
+        "protocolVersion": PROTOCOL_VERSION,
+        "functions": {
+            "search": {
+                "parameters": {
+                    "query": {"type": "string"},
+                    "limit": {"type": "integer"},
+                },
+                "required": ["query"],
+            }
+        },
+    }
+    catalog = Catalog.from_json(json_catalog)
+    val = _val(catalog)
+    val.validate_function("search", {"query": "hello", "limit": 10})
+    with pytest.raises(A2uiValidationError):
+        val.validate_function("search", {"query": "hello", "limit": "not-an-int"})
 
 
-@pytest.mark.skip(
-    reason="TODO: validation package is only about component schema validation"
-)
-@pytest.mark.skip(
-    reason="TODO: validation package is only about component schema validation"
-)
 def test_nested_function_validation_with_models():
-    pass
+    class SearchArgs(BaseModel):
+        query: str
+
+    class SearchButton(BaseModel):
+        id: str
+        component: Literal["SearchButton"] = "SearchButton"
+        onSearch: Dict[str, Any]
+
+    catalog = Catalog(
+        protocol_version=PROTOCOL_VERSION,
+        catalog_id="https://a2ui.org/nested-func-test",
+        components=[ModelComponentApi(SearchButton)],
+        functions=[FunctionApi("doSearch", schema=SearchArgs)],
+    )
+    val = _val(catalog)
+    val.validate_components([{
+        "id": "b1",
+        "component": "SearchButton",
+        "onSearch": {"call": "doSearch", "args": {"query": "test"}},
+    }])
+    with pytest.raises(A2uiValidationError):
+        val.validate_components([{
+            "id": "b1",
+            "component": "SearchButton",
+            "onSearch": {"call": "doSearch", "args": {"query": 12345}},
+        }])
 
 
-@pytest.mark.skip(
-    reason="TODO: validation package is only about component schema validation"
-)
 def test_nested_function_validation_from_json():
-    pass
+    json_catalog = {
+        "catalogId": "https://a2ui.org/nested-func-json-test",
+        "protocolVersion": PROTOCOL_VERSION,
+        "components": {
+            "SearchButton": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "component": {"const": "SearchButton"},
+                    "onSearch": {"type": "object"},
+                },
+                "required": ["id", "component", "onSearch"],
+            }
+        },
+        "functions": {
+            "doSearch": {
+                "parameters": {
+                    "query": {"type": "string"},
+                },
+                "required": ["query"],
+            }
+        },
+    }
+    catalog = Catalog.from_json(json_catalog)
+    val = _val(catalog)
+    val.validate_components([{
+        "id": "b1",
+        "component": "SearchButton",
+        "onSearch": {"call": "doSearch", "args": {"query": "test"}},
+    }])
+    with pytest.raises(A2uiValidationError):
+        val.validate_components([{
+            "id": "b1",
+            "component": "SearchButton",
+            "onSearch": {"call": "doSearch", "args": {"query": 12345}},
+        }])
 
 
 @pytest.mark.skip(
@@ -396,22 +470,19 @@ def test_basic_catalog_validate_theme():
     pass
 
 
-@pytest.mark.skip(
-    reason="TODO: validation package is only about component schema validation"
-)
 def test_basic_catalog_validate_functions():
-    pass
+    catalog = BasicCatalog()
+    validator = _val(catalog)
+    # Valid function call
+    validator.validate_function("formatNumber", {"value": 123.45, "decimals": 2})
+    # Unrecognized function call
+    with pytest.raises(A2uiValidationError, match="Unrecognized function"):
+        validator.validate_function("unknownFunction", {})
 
 
-@pytest.mark.skip(
-    reason="TODO: validation package is only about component schema validation"
-)
 def test_basic_catalog_nested_function_validation():
-    pass
-    # formatNumber expects decimal parameter to be a float/number or binding, not a boolean/string!
-    with pytest.raises(
-        ValueError, match="Invalid function call 'formatNumber'|decimal"
-    ):
+    catalog = BasicCatalog()
+    with pytest.raises(A2uiValidationError, match="formatNumber|type_mismatch|number"):
         _val(catalog).validate_components([{
             "id": "root",
             "component": "Text",
@@ -449,3 +520,16 @@ def test_basic_catalog_version_submodules():
 
     cat_v08 = v0_8.BasicCatalog()
     assert cat_v08.protocol_version == "v0.8"
+
+
+def test_validation_config_defaults():
+    from a2ui.core.validation import (
+        RELAXED_VALIDATION,
+        STRICT_VALIDATION,
+        ValidationConfig,
+    )
+
+    config = ValidationConfig()
+    assert config.allow_unknown_elements is False
+    assert STRICT_VALIDATION.allow_unknown_elements is False
+    assert RELAXED_VALIDATION.allow_unknown_elements is True
