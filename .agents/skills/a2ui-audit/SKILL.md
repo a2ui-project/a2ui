@@ -33,8 +33,7 @@ fix issues.
 4. **Summarize the report**:
    - Add a `## Summary` section at the top of the `compliance_report.md` file with a detailed overview of the audit scope and key findings across all audited codebases.
    - Add a `## Recommendations` section listing actionable, prioritized follow-up items formatted as a numbered list (e.g. `1. **P0**: ...`). Each numbered item MUST represent a concrete, self-contained remediation task.
-   - Immediately below the recommendations list, include the mandatory automated remediation callout:
-     > 🤖 **Automated Remediation**: Comment `/fix <number>` (e.g., `/fix 1`) on this issue to have an agent create a draft PR for that recommendation.
+   - Under each recommendation item, include a copyable prompt code block enclosed in quadruple backticks (````markdown ... ````) that a developer can copy with one click to instruct an AI coding agent to implement the fix and create a Draft PR using the `a2ui-remediate-problem` skill.
 
 5. **Format and Detail Requirements**:
    - **MANDATORY COMPLETE REPOSITORY COVERAGE**: The report MUST include status rows and detailed findings for **ALL 8 production codebases** discovered by `check_compliance.py`. Do NOT truncate, shortcut, or abbreviate the summary tables or detailed findings.
@@ -58,17 +57,25 @@ fix issues.
 
 When compiling `compliance_report.md`, use the following structure:
 
-```markdown
+`````markdown
 ## Summary
 
 [Provide a 2-3 paragraph detailed summary explaining the repository state, key areas audited across SDKs, renderers, and tests, and major findings.]
 
 ## Recommendations
 
-1. **[Priority]**: [Clear title and detailed explanation of the fix needed, specifying affected directories or modules.]
-2. **[Priority]**: [Clear title and detailed explanation of the fix needed, specifying affected directories or modules.]
+1. **[Priority]**: **[Title]**
+   - [Clear detailed explanation of the fix needed, specifying affected directories or modules.]
+   ````markdown
+   Please remediate recommendation 1 from this compliance report by following the playbook in `.agents/skills/a2ui-remediate-problem/SKILL.md` and submit a Draft PR.
+   ````
 
-> 🤖 **Automated Remediation**: Comment `/fix <number>` (e.g., `/fix 1`) on this issue to have an agent create a draft PR for that recommendation.
+2. **[Priority]**: **[Title]**
+   - [Clear detailed explanation of the fix needed, specifying affected directories or modules.]
+   ````markdown
+   Please remediate recommendation 2 from this compliance report by following the playbook in `.agents/skills/a2ui-remediate-problem/SKILL.md` and submit a Draft PR.
+   ````
+`````
 
 ## Codebase Blueprint Compliance Audit
 
@@ -105,7 +112,7 @@ When compiling `compliance_report.md`, use the following structure:
   - `path/to/test_file.ext` (`test_function_name`): [Explanation of weak assertion, e.g. using `assertNotNull` instead of schema/type check.]
 - **Missing Edge Case Tests**:
   - `path/to/module`: [Boundary conditions, error cases, or invalid inputs that lack test coverage.]
-```
+`````
 
 ---
 
