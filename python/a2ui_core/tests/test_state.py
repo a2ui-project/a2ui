@@ -46,6 +46,54 @@ def test_component_model_lifecycle():
     comp.dispose()
 
 
+def test_component_model_get_child_references():
+    comp = ComponentModel(
+        "c1",
+        "Container",
+        {
+            "singleChild": "child1",
+            "childrenList": ["child2", "child3"],
+            "nestedObj": {"componentId": "child4"},
+            "tabs": [{"child": "tab1"}, {"child": "tab2"}],
+        },
+    )
+
+    refs = list(comp.get_child_references())
+    ref_ids = [r[0] for r in refs]
+
+    assert "child1" in ref_ids
+    assert "child2" in ref_ids
+    assert "child3" in ref_ids
+    assert "child4" in ref_ids
+    assert "tab1" in ref_ids
+    assert "tab2" in ref_ids
+
+
+def test_component_model_get_child_references_with_typed_references():
+    from a2ui.core.schema.common_types import (
+        SingleReference,
+        TemplateChildList,
+        ComponentId,
+    )
+
+    comp = ComponentModel(
+        "c1",
+        "CustomLayout",
+        {
+            "customSlot": SingleReference("slot1"),
+            "items": TemplateChildList(
+                componentId=ComponentId("template1"), path="/items"
+            ),
+        },
+    )
+
+    refs = list(comp.get_child_references())
+    ref_ids = [r[0] for r in refs]
+
+    assert "slot1" in ref_ids
+    assert "template1" in ref_ids
+
+
 def test_surface_components_model_duplicate_reject():
     scm = SurfaceComponentsModel()
     c1 = ComponentModel("c1", "Text", {"text": "Hello"})

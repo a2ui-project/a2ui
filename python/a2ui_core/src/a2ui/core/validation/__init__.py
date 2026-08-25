@@ -12,30 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .validator import (
-    A2uiValidator,
+from .catalog_schema_validator import (
+    CatalogSchemaValidator,
     A2uiValidatorError,
     ValidationConfig,
     STRICT_VALIDATION,
     RELAXED_VALIDATION,
 )
-from .topology_analyzer import analyze_topology
 from .integrity_checker import (
     validate_component_integrity,
     validate_recursion_and_paths,
-    get_component_references,
 )
-from .catalog_schema_validator import CatalogSchemaValidator
+from .topology_analyzer import analyze_topology
+from .composition_validator import validate_composition_constraints
 
 __all__ = [
-    "A2uiValidator",
     "A2uiValidatorError",
     "ValidationConfig",
     "STRICT_VALIDATION",
     "RELAXED_VALIDATION",
+    "CatalogSchemaValidator",
     "analyze_topology",
     "validate_component_integrity",
     "validate_recursion_and_paths",
-    "get_component_references",
-    "CatalogSchemaValidator",
+    "validate_composition_constraints",
 ]

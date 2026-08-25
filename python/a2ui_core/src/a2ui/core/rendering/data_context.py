@@ -19,7 +19,7 @@ import warnings
 from typing import Any, Callable, Dict, List, Optional, Set, Union
 from ..state import DataModel
 from ..state.surface_model import SurfaceModel
-from ..validating import CatalogSchemaValidator
+from ..validation.catalog_schema_validator import CatalogSchemaValidator
 from ..common.events import Subscription, EventSource, Signal, AbortSignal
 
 EXPRESSION_PATTERN = re.compile(r"(\\)?\$\{(.*?)\}")

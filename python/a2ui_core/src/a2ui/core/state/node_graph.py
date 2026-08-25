@@ -16,10 +16,8 @@ import copy
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from ..common.events import Signal, Subscription
 from .component_node import ComponentNode
-from .component_model import ComponentModel
+from .component_model import ComponentModel, is_child_prop_key
 from .surface_model import SurfaceModel
-from ..catalog import Catalog
-from ..validating import CatalogSchemaValidator
 
 if TYPE_CHECKING:
     from ..rendering.generic_binder import GenericBinder
@@ -145,17 +143,23 @@ class NodeGraph:
 
                     new_props[k] = make_action_closure
 
-            # Get reference fields from catalog
-            ref_map = CatalogSchemaValidator.from_catalog(
-                self.surface.catalog
-            ).extract_ref_fields()
-            comp_type = component_model.type if component_model else ""
-            ref_tuple = ref_map.get(comp_type)
-            if ref_tuple:
-                single_refs, list_refs = ref_tuple[0], ref_tuple[1]
-                nested_refs = getattr(ref_tuple, "nested_refs", {})
-            else:
-                single_refs, list_refs, nested_refs = set(), set(), {}
+            single_refs: set[str] = set()
+            list_refs: set[str] = set()
+            nested_refs: dict[str, Any] = {}
+
+            known_ids = set(self.surface.components_model.get_all().keys())
+            for key, val in list(new_props.items()):
+                if key in ("id", "component"):
+                    continue
+                if is_child_prop_key(key, val, known_ids):
+                    if isinstance(val, list):
+                        list_refs.add(key)
+                    elif (
+                        isinstance(val, dict) and "componentId" in val and "path" in val
+                    ):
+                        list_refs.add(key)
+                    else:
+                        single_refs.add(key)
 
             # Resolve single-child references
             for single_ref in single_refs:

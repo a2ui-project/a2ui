@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from ..common.events import EventSource, Signal
-from .component_model import ComponentModel
+from .component_model import ComponentModel, is_child_prop_key
 from .component_node import ComponentNode
 from .data_model import DataModel
 from .surface_components_model import SurfaceComponentsModel
@@ -31,4 +31,5 @@ __all__ = [
     "SurfaceGroupModel",
     "SurfaceModel",
     "NodeGraph",
+    "is_child_prop_key",
 ]

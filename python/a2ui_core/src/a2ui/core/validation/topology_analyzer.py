@@ -12,33 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Optional, Set, Tuple, Mapping
-from .integrity_checker import get_component_references, MAX_GLOBAL_DEPTH
-from ..schema.v0_9.constants import ROOT_ID
-from ..exceptions import A2uiRecursionError, A2uiIntegrityError
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Dict, List, Optional, Set
+
+from ..state.component_model import ComponentModel
+from ..exceptions import A2uiIntegrityError, A2uiRecursionError
+from .integrity_checker import ROOT_ID, MAX_GLOBAL_DEPTH
+
+if TYPE_CHECKING:
+    from .validator import ValidationConfig
 
 
 def analyze_topology(
-    components: List[Dict[str, Any]],
-    ref_fields_map: Mapping[str, Tuple[Set[str], Set[str]]],
+    components: Dict[str, ComponentModel],
     root_id: str = ROOT_ID,
-    allow_orphan_components: bool = False,
-    allow_missing_root: bool = False,
+    config: Optional[ValidationConfig] = None,
 ) -> Set[str]:
-    adj_list: Dict[str, List[str]] = {}
-    all_ids: Set[str] = set()
+    allow_orphan_components = config.allow_orphan_components if config else False
+    allow_missing_root = config.allow_missing_root if config else False
 
-    # Build Adjacency List
-    for comp in components:
-        comp_id = comp.get("id")
+    adj_list: Dict[str, List[str]] = {}
+    all_ids: Set[str] = set(components.keys())
+
+    for comp_id, comp in components.items():
         if comp_id is None:
             continue
-
-        all_ids.add(comp_id)
         if comp_id not in adj_list:
             adj_list[comp_id] = []
 
-        for ref_id, field_name in get_component_references(comp, ref_fields_map):
+        for ref_id, field_name in comp.get_child_references(
+            known_component_ids=all_ids
+        ):
             if ref_id == comp_id:
                 raise A2uiRecursionError(
                     f"Self-reference detected: Component '{comp_id}' references itself"
@@ -46,7 +51,6 @@ def analyze_topology(
                 )
             adj_list[comp_id].append(ref_id)
 
-    # Detect Cycles and Depth using DFS
     visited: Set[str] = set()
     recursion_stack: Set[str] = set()
 
@@ -70,7 +74,6 @@ def analyze_topology(
         recursion_stack.remove(node_id)
 
     if allow_missing_root:
-        # No root provided or allowed missing (e.g. partial update): we traverse everything to check for cycles
         for node_id in sorted(list(all_ids)):
             if node_id not in visited:
                 dfs(node_id, 0)
@@ -78,7 +81,6 @@ def analyze_topology(
         if root_id in all_ids:
             dfs(root_id, 0)
 
-        # Check for Orphans if prohibited
         if not allow_orphan_components:
             orphans = all_ids - visited
             if orphans:

@@ -20,6 +20,7 @@ from ...schema.v0_9 import (
     MSG_TYPE_DELETE_SURFACE,
     MSG_TYPE_UPDATE_COMPONENTS,
     MSG_TYPE_UPDATE_DATA_MODEL,
+    A2uiMessageListWrapper,
 )
 from ..operations import (
     InternalCreateSurfaceOp,
@@ -36,6 +37,10 @@ class V0Point9Adapter(BaseVersionAdapter):
     @property
     def version(self) -> ProtocolVersion:
         return ProtocolVersion.V0_9
+
+    @property
+    def schema(self) -> Any:
+        return A2uiMessageListWrapper
 
     @property
     def valid_actions(self) -> Set[str]:

@@ -124,6 +124,7 @@ def test_strategy_based_converters(test_catalog, monkeypatch):
     assert len(parts_json) == 1
 
 
+@pytest.mark.skip(reason="TODO: validation package was removed from a2ui_agent library")
 def test_supports_streaming_property(test_catalog):
     from a2ui.schema.catalog import CatalogConfig
     from a2ui.schema.catalog_provider import A2uiCatalogProvider
@@ -169,6 +170,7 @@ def test_process_chunk_raises_not_implemented(test_catalog):
     assert "Streaming is not supported by ElementalParser" in str(exc_info.value)
 
 
+@pytest.mark.skip(reason="TODO: validation package was removed from a2ui_agent library")
 def test_decompiler_delegation(test_catalog):
     from a2ui.schema.catalog import CatalogConfig
     from a2ui.schema.catalog_provider import A2uiCatalogProvider

@@ -33,8 +33,6 @@ from ...schema.v0_9.common_types import (
     DynamicStringList,
     DynamicValue,
     FunctionCall,
-    ListReference,
-    SingleReference,
     StrictBaseModel,
     TemplateChildList,
 )

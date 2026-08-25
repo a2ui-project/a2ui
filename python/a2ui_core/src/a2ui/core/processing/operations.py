@@ -32,6 +32,7 @@ class InternalCreateSurfaceOp:
     send_data_model: bool = False
     components: Optional[List[Dict[str, Any]]] = None
     data_model: Optional[Dict[str, Any]] = None
+    root: Optional[str] = None
     type: str = MSG_TYPE_CREATE_SURFACE
 
 

@@ -34,8 +34,6 @@ from ...schema.v1_0.common_types import (
     FunctionCall,
     FunctionCommon,
     IndexSystemFunction,
-    ListReference,
-    SingleReference,
     StrictBaseModel,
     TemplateChildList,
 )

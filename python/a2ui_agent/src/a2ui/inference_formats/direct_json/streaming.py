@@ -29,14 +29,14 @@ from a2ui.schema.constants import (
     SURFACE_ID_KEY,
     CATALOG_COMPONENTS_KEY,
 )
-from a2ui.validation.validator import (
-    extract_component_ref_fields,
-    extract_component_required_fields,
-)
-from a2ui.validation.validator import A2uiValidator
-from a2ui.core.validating import analyze_topology
+from a2ui.core.validation import analyze_topology
 from a2ui.parser.response_part import ResponsePart
-from a2ui.core.validating.validator import RELAXED_VALIDATION, STRICT_VALIDATION, ValidationConfig
+from a2ui.schema.schema_helper import CatalogSchemaHelper
+from a2ui.core.validation import (
+    RELAXED_VALIDATION,
+    STRICT_VALIDATION,
+    ValidationConfig,
+)
 from a2ui.core import A2uiParseError, A2uiIntegrityError
 
 
@@ -71,9 +71,7 @@ class DirectJsonStreamParser:
     def __init__(self, catalog: A2uiCatalog):
         self._version = catalog.version
         self._cuttable_keys = catalog.cuttable_keys
-        self._ref_fields_map = extract_component_ref_fields(catalog)
-        self._required_fields_map = extract_component_required_fields(catalog)
-        self._validator = A2uiValidator(catalog)
+        self._schema_helper = CatalogSchemaHelper(catalog)
 
         self._found_delimiter = False
         self._buffer = ""
@@ -226,18 +224,19 @@ class DirectJsonStreamParser:
             if not self._deduplicate_data_model(m):
                 continue
 
-            # Each surface update message must specify a surfaceId and satisfy catalog validation.
-            if self._validator:
-                try:
-                    self._validator.validate(m, root_id=self.root_id, config=config)
-                except ValueError as e:
-                    if config == STRICT_VALIDATION:
-                        raise e
-                    else:
-                        logger.debug(
-                            f"Validation failed for partial/sniffed message: {e}"
-                        )
-                        continue
+            # TODO: Leverage MessageProcessor to validate the json data.
+            # # Each surface update message must specify a surfaceId and satisfy catalog validation.
+            # if self._validator:
+            #     try:
+            #         self._validator.validate(m, root_id=self.root_id, config=config)
+            #     except ValueError as e:
+            #         if config == STRICT_VALIDATION:
+            #             raise e
+            #         else:
+            #             logger.debug(
+            #                 f"Validation failed for partial/sniffed message: {e}"
+            #             )
+            #             continue
 
             # Consolidated appending logic
             if messages and messages[-1].a2ui_json is None:
@@ -825,12 +824,12 @@ class DirectJsonStreamParser:
             # v0.8 nested style: check properties inside component
             return
 
-        if isinstance(component_def, dict) and hasattr(self, "_required_fields_map"):
+        if isinstance(component_def, dict):
             comp_type = next(iter(component_def.keys())) if component_def else None
             if comp_type:
                 props = component_def.get(comp_type, {})
                 if isinstance(props, dict):
-                    required_fields = self._required_fields_map.get(comp_type, set())
+                    required_fields = self._schema_helper.get_required_props(comp_type)
                     for req in required_fields:
                         if req not in props:
                             return
@@ -918,12 +917,13 @@ class DirectJsonStreamParser:
                     f" {active_msg_type}"
                 )
 
-            reachable_ids = analyze_topology(
-                components_to_analyze,
-                self._ref_fields_map,
-                root_id=self.root_id,
-                allow_orphan_components=not raise_on_orphans,
-            )
+            # TODO: check topology using message processor
+            # reachable_ids = analyze_topology(
+            #     components_to_analyze,
+            #     self._ref_fields_map,
+            #     root_id=self.root_id,
+            #     allow_orphan_components=not raise_on_orphans,
+            # )
 
             # We only yield components we actually have in our "seen" cache
             available_reachable = reachable_ids & set(self._seen_components.keys())

@@ -40,6 +40,7 @@ class SurfaceModel:
 
         self.data_model = data_model or DataModel()
         self.components_model = SurfaceComponentsModel()
+        self.root_id: Optional[str] = None
         self.on_action = EventSource()
         self.on_error = EventSource()
 

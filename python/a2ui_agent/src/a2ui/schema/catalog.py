@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from urllib.parse import urlparse
 from a2ui.core.catalog import Catalog
 from a2ui.core import A2uiCatalogError
+from a2ui.core.validation.catalog_schema_validator import CatalogSchemaValidator
 
 
 from .catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
@@ -38,9 +39,6 @@ from .constants import (
     VERSION_0_8,
     ENCODING,
 )
-
-if TYPE_CHECKING:
-    from a2ui.validation.validator import A2uiValidator
 
 
 @dataclass
@@ -181,16 +179,6 @@ class A2uiCatalog:
             return val
         raise A2uiCatalogError(f"Catalog '{self.name}' catalogId is not a string")
 
-    @cached_property
-    def validator(self) -> "A2uiValidator":
-        from a2ui.validation.validator import A2uiValidator
-
-        # cached_property stores the validator on the instance's __dict__,
-        # bypassing the frozen dataclass __setattr__. This avoids rebuilding
-        # the jsonschema Registry on every access while tying cache lifetime
-        # to the catalog object (no global state, no memory leaks).
-        return A2uiValidator(self, experiments=self.experiments)
-
     @property
     def core_catalog(self) -> Catalog[Any, Any]:
         return Catalog.from_json(
@@ -198,6 +186,10 @@ class A2uiCatalog:
             protocol_version=self.version,
             catalog_id=self.catalog_id,
         )
+
+    @property
+    def validator(self) -> CatalogSchemaValidator:
+        return CatalogSchemaValidator.from_catalog(self.core_catalog)
 
     def _with_pruned_components(self, allowed_components: List[str]) -> A2uiCatalog:
         """Returns a new catalog with only allowed components.

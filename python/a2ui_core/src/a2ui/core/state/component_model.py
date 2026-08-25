@@ -13,8 +13,73 @@
 # limitations under the License.
 
 import copy
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterator, Optional, Set, Tuple
 from ..common.events import EventSource
+from ..schema.common_types import (
+    ComponentReference,
+    SingleReference,
+    ListReference,
+    TemplateChildList,
+)
+
+
+def is_child_prop_key(
+    key: str, val: Any = None, known_ids: Optional[Set[str]] = None
+) -> bool:
+    """Checks if property key or value structure matches component reference conventions or reference types."""
+    if isinstance(val, ComponentReference):
+        return True
+
+    if (
+        key in ("child", "children", "items", "components")
+        or key.endswith("Child")
+        or key.endswith("children")
+    ):
+        return True
+
+    if isinstance(val, list):
+        return any(
+            isinstance(i, ComponentReference)
+            or (isinstance(i, str) and known_ids is not None and i in known_ids)
+            or (isinstance(i, dict) and any(k in i for k in ("child", "componentId")))
+            for i in val
+        )
+    elif isinstance(val, dict):
+        return isinstance(val, ComponentReference) or any(
+            k in val for k in ("child", "componentId")
+        )
+    elif isinstance(val, str) and known_ids is not None:
+        return isinstance(val, SingleReference) or val in known_ids
+
+    return False
+
+
+def _extract_child_refs(val: Any) -> Iterator[Tuple[str, str]]:
+    """Helper that recursively extracts component IDs from property values."""
+    if not val:
+        return
+    if isinstance(val, SingleReference):
+        if str(val):
+            yield str(val), ""
+    elif isinstance(val, TemplateChildList):
+        if isinstance(val.component_id, str) and val.component_id:
+            yield str(val.component_id), "componentId"
+    elif isinstance(val, str):
+        if val:
+            yield val, ""
+    elif isinstance(val, list):
+        for idx, item in enumerate(val):
+            for ref_id, sub_path in _extract_child_refs(item):
+                yield ref_id, f"[{idx}]{'.' + sub_path if sub_path else ''}"
+    elif isinstance(val, dict):
+        if "componentId" in val and isinstance(val["componentId"], str):
+            yield val["componentId"], "componentId"
+        elif "child" in val and isinstance(val["child"], str):
+            yield val["child"], "child"
+        else:
+            for sub_k, sub_v in val.items():
+                for ref_id, sub_path in _extract_child_refs(sub_v):
+                    yield ref_id, f"{sub_k}{'.' + sub_path if sub_path else ''}"
 
 
 class ComponentModel:
@@ -46,6 +111,26 @@ class ComponentModel:
         tree = {"id": self.id, "type": self.type}
         tree.update(self._properties)
         return tree
+
+    def get_child_references(
+        self, known_component_ids: Optional[Set[str]] = None
+    ) -> Iterator[Tuple[str, str]]:
+        """Recursively extracts referenced child ComponentIds from component properties."""
+        props = self.properties
+        if not isinstance(props, dict):
+            return
+
+        for key, value in props.items():
+            if key in ("id", "component"):
+                continue
+
+            if (
+                is_child_prop_key(key, value, known_component_ids)
+                or known_component_ids is None
+            ):
+                for ref_id, sub_path in _extract_child_refs(value):
+                    full_path = f"{key}.{sub_path}" if sub_path else key
+                    yield ref_id, full_path
 
     def dispose(self) -> None:
         """Disposes of the component and its resources."""

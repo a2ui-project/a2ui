@@ -12,11 +12,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from abc import ABC, abstractmethod
+<<<<<<< HEAD
 from typing import Any, Dict, List, Optional, Set, Union
+=======
+from typing import Any, Dict, List, Optional, Set
+from pydantic import ValidationError
+
+>>>>>>> e77479e7 (refactor(python): consolidate validation logic and remove validator.py)
 from ..operations import InternalOperation
-from ...exceptions import A2uiValidationError
+from ...exceptions import (
+    A2uiCatalogError,
+    A2uiErrorDetail,
+    A2uiIntegrityError,
+    A2uiValidationError,
+)
+from ...validation.integrity_checker import validate_recursion_and_paths
 from ...schema import ProtocolVersion, AgentToRendererMessagePayload
+from ...schema.v0_9.constants import (
+    MSG_TYPE_CREATE_SURFACE,
+    MSG_TYPE_UPDATE_COMPONENTS,
+    MSG_TYPE_UPDATE_DATA_MODEL,
+    MSG_TYPE_DELETE_SURFACE,
+)
+
+
+def _clean_loc_part(x: str) -> str:
+    """Extracts base message class names from Pydantic validator wrapper strings."""
+    if x.startswith("function-after[") or x.startswith("function-before["):
+        match = re.search(r"([A-Za-z0-9_]+Message)\]", x)
+        if match:
+            return match.group(1)
+    return x
 
 
 class VersionAdapter(ABC):
@@ -50,6 +78,88 @@ class BaseVersionAdapter(VersionAdapter, ABC):
         """Whether to raise an error if no valid action keys are found."""
         return False
 
+    @property
+    @abstractmethod
+    def schema(self) -> Any:
+        """Returns the Pydantic wrapper model for envelope validation of this protocol version."""
+        pass
+
+    def prepare_payload_for_validation(self, msg_obj: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalizes the message object before running schema validation."""
+        return msg_obj
+
+    def _format_validation_errors(
+        self, error: ValidationError, messages: List[Dict[str, Any]]
+    ) -> List[A2uiErrorDetail]:
+        """Formats Pydantic validation errors while filtering out irrelevant union branches."""
+        details = []
+        for err in error.errors():
+            loc = err.get("loc", [])
+            loc_parts = [_clean_loc_part(str(x)) for x in loc]
+            if len(loc) >= 3 and loc[0] == "messages" and isinstance(loc[1], int):
+                msg_idx = loc[1]
+                if msg_idx < len(messages) and isinstance(messages[msg_idx], dict):
+                    m = messages[msg_idx]
+                    is_recognized_message_type = any(
+                        k in m
+                        for k in [
+                            MSG_TYPE_CREATE_SURFACE,
+                            MSG_TYPE_UPDATE_COMPONENTS,
+                            MSG_TYPE_UPDATE_DATA_MODEL,
+                            MSG_TYPE_DELETE_SURFACE,
+                        ]
+                    )
+                    if is_recognized_message_type:
+                        branch = loc_parts[2]
+                        if (
+                            branch == "CreateSurfaceMessage"
+                            and MSG_TYPE_CREATE_SURFACE not in m
+                        ):
+                            continue
+                        if (
+                            branch == "UpdateComponentsMessage"
+                            and MSG_TYPE_UPDATE_COMPONENTS not in m
+                        ):
+                            continue
+                        if (
+                            branch == "UpdateDataModelMessage"
+                            and MSG_TYPE_UPDATE_DATA_MODEL not in m
+                        ):
+                            continue
+                        if (
+                            branch == "DeleteSurfaceMessage"
+                            and MSG_TYPE_DELETE_SURFACE not in m
+                        ):
+                            continue
+            clean_loc_parts = [
+                x
+                for x in loc_parts
+                if x
+                not in (
+                    "CreateSurfaceMessage",
+                    "UpdateComponentsMessage",
+                    "UpdateDataModelMessage",
+                    "DeleteSurfaceMessage",
+                )
+            ]
+            path_str = ".".join(clean_loc_parts)
+            msg = err.get("msg", "Validation failed")
+            err_type = err.get("type", "")
+            if err_type == "missing":
+                code = "missing_field"
+            elif err_type == "extra_forbidden":
+                code = "extra_field"
+            elif (
+                err_type.endswith("_type")
+                or err_type.endswith("_parsing")
+                or "type" in err_type
+            ):
+                code = "type_mismatch"
+            else:
+                code = "invalid_value"
+            details.append(A2uiErrorDetail(path_str, code, msg))
+        return details
+
     def _extract_single_action(self, message: Dict[str, Any]) -> Optional[str]:
         """Validates presence of exactly one action key from valid_actions."""
         update_types = [k for k in self.valid_actions if k in message]
@@ -65,7 +175,10 @@ class BaseVersionAdapter(VersionAdapter, ABC):
                     f"{', '.join(sorted(self.valid_actions))}."
                 )
             return None
-        return update_types[0]
+        action = update_types[0]
+        if isinstance(message.get(action), dict):
+            self._get_surface_id(message[action])
+        return action
 
     def _get_surface_id(self, action_dict: Dict[str, Any]) -> str:
         """Extracts surfaceId and validates that it is a string."""
@@ -84,10 +197,15 @@ class BaseVersionAdapter(VersionAdapter, ABC):
             return []
 
         raw_payload: Any = payload
+        validate_recursion_and_paths(raw_payload)
+
         if hasattr(raw_payload, "model_dump"):
             raw_payload = raw_payload.model_dump(by_alias=True, exclude_none=True)
 
         if isinstance(raw_payload, list):
+            for item in raw_payload:
+                if isinstance(item, dict):
+                    self._extract_single_action(item)
             ops: List[InternalOperation] = []
             for item in raw_payload:
                 ops.extend(self.extract_operations(item))
@@ -106,7 +224,36 @@ class BaseVersionAdapter(VersionAdapter, ABC):
                     f"Payload for action '{action}' must be an object"
                 )
 
+<<<<<<< HEAD
             return self._extract_operations_for_action(action, raw_payload)
+=======
+            ver_str = (
+                self.version.value
+                if hasattr(self.version, "value")
+                else str(self.version)
+            )
+            if ver_str != "v0.8":
+                if "version" not in payload:
+                    raise A2uiValidationError(
+                        f"Invalid {self.version} message: messages.0.version: 'version'"
+                        " is a required property"
+                    )
+                if payload["version"] != ver_str:
+                    raise A2uiValidationError(
+                        f"Invalid {self.version} message: messages.0.version: Input"
+                        f" should be '{ver_str}'"
+                    )
+
+            prepared_msg = self.prepare_payload_for_validation(payload)
+            try:
+                self.schema.model_validate({"messages": [prepared_msg]})
+            except ValidationError as e:
+                details = self._format_validation_errors(e, [payload])
+                summary = "; ".join(f"{d.path}: {d.message}" for d in details)
+                raise A2uiValidationError(f"Invalid {self.version} message: {summary}")
+
+            return self._extract_operations_for_action(action, payload)
+>>>>>>> e77479e7 (refactor(python): consolidate validation logic and remove validator.py)
 
         return []
 

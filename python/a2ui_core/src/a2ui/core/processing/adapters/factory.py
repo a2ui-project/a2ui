@@ -39,8 +39,10 @@ class VersionAdapterFactory:
         cls._adapters[adapter.version] = adapter
 
     @classmethod
-    def get_adapter(cls, version: ProtocolVersion) -> VersionAdapter:
-        """Resolves the version adapter for the specified protocol version enum."""
+    def get_adapter(cls, version: Any) -> VersionAdapter:
+        """Resolves the version adapter for the specified protocol version enum or string."""
+        if isinstance(version, str):
+            version = cls._parse_version(version) or DEFAULT_PROTOCOL_VERSION
         adapter = cls._adapters.get(version)
         if not adapter:
             supported = ", ".join(v.value for v in cls._adapters.keys())

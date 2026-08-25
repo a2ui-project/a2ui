@@ -1,0 +1,309 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# ==============================================================================
+# A2UI Conformance Suite: Envelope, Schema, and Topology Validation (v1.0)
+# ==============================================================================
+
+- name: test_validator_1_0
+  description: Tests schema validation of v1.0 message envelopes (inline components, optional catalogId, data deletion) against the basic v1.0 catalog schema.
+  action: validate
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  steps:
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            sendDataModel: true
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Inline Text"
+            dataModel:
+              counter: 100
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s_nocat"
+    - messages:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/user/token"
+            value: null
+    - messages:
+        - createSurface:
+            surfaceId: "s1"
+      expectError:
+        category: "ValidationError"
+        details:
+          - path: "messages.0.version"
+            code: "missing_field"
+    - messages:
+        - version: "v0.9"
+          createSurface:
+            surfaceId: "s1"
+      expectError:
+        category: "ValidationError"
+        details:
+          - path: "messages.0.version"
+            code: "invalid_value"
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: 123
+      expectError:
+        category: "ValidationError"
+        details:
+          - path: "messages.0.createSurface.surfaceId"
+            code: "type_mismatch"
+
+- name: test_custom_catalog_1_0
+  description: Tests component property schema validation in v1.0 against custom catalog schema.
+  action: validate
+  protocolVersion: "v1.0"
+  catalog:
+    catalogId: "custom"
+    components:
+      Canvas:
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: Canvas}
+          children:
+            type: array
+            items: {type: string}
+        required:
+          - component
+          - children
+      Chart:
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: Chart}
+          chartType:
+            enum:
+              - doughnut
+              - pie
+          title: {type: string}
+        required:
+          - component
+  steps:
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: custom
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Canvas
+                children: [c1, c2]
+              - id: c1
+                component: Chart
+                chartType: doughnut
+                title: Chart 1
+              - id: c2
+                component: Chart
+                chartType: pie
+                title: Chart 2
+    - messages:
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: c1
+                component: Chart
+                chartType: bar
+      expectError:
+        category: "ValidationError"
+        details:
+          - path: "chartType"
+            code: "invalid_value"
+    - messages:
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: c1
+                component: Canvas
+      expectError:
+        category: "ValidationError"
+        details:
+          - path: "children"
+            code: "missing_field"
+    - messages:
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: c1
+                component: UnknownComponent
+      expectError:
+        category: "ValidationError"
+        details:
+          - path: "component"
+            code: "invalid_value"
+
+- name: test_validator_theme_schema
+  description: Tests schema validation of surface theme properties against catalog theme schema.
+  action: validate
+  catalog:
+    catalogId: "theme_cat"
+    theme:
+      type: "object"
+      properties:
+        primaryColor:
+          type: "string"
+          pattern: "^#[0-9a-fA-F]{6}$"
+      required: ["primaryColor"]
+      additionalProperties: false
+  steps:
+    - messages:
+        - version: "v0.9"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "theme_cat"
+            theme:
+              primaryColor: "#ff0000"
+    - messages:
+        - version: "v0.9"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "theme_cat"
+            theme:
+              primaryColor: "not-a-hex"
+      expectError:
+        category: "ValidationError"
+
+- name: test_v10_topology_circular_reference_error
+  description: Tests that circular component references fail validation in v1.0 strict mode.
+  action: validate
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  strictMode: true
+  steps:
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s1"
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["c1"]
+              - id: "c1"
+                component: "Column"
+                children: ["root"]
+      expectError: "Circular component reference"
+
+- name: test_v10_topology_dangling_child_reference_error
+  description: Tests that dangling child references fail validation in v1.0 strict mode.
+  action: validate
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  strictMode: true
+  steps:
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s1"
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["missing_child"]
+      expectError: "Dangling reference"
+
+- name: test_v10_topology_self_reference_error
+  description: Tests that self-referencing components fail validation in v1.0 strict mode.
+  action: validate
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  strictMode: true
+  steps:
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s1"
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["root"]
+      expectError: "Self-reference detected"
+
+- name: test_v10_topology_orphaned_component_error
+  description: Tests that unreachable orphaned components fail validation in v1.0 strict mode.
+  action: validate
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  strictMode: true
+  steps:
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s1"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Root"
+              - id: "orphan"
+                component: "Text"
+                text: "Orphan"
+      expectError: "is not reachable from"
+
+- name: test_v10_topology_missing_root_component_error
+  description: Tests that component updates missing root component fail validation in v1.0 strict mode.
+  action: validate
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  strictMode: true
+  steps:
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s1"
+            components:
+              - id: "c1"
+                component: "Text"
+                text: "No Root"
+      expectError: "Missing root component"
