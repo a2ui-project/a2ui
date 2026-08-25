@@ -42,16 +42,12 @@ Follow these steps to remediate an issue recommendation:
 
 ---
 
-### Step 3: Create Branch
+### Step 3: Choose Destination & Create Workspace / Branch
 
-1. Fetch latest `main` from upstream/origin:
-   ```bash
-   git fetch upstream main || git fetch origin main
-   ```
-2. Create and checkout a clean branch named `remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}` based on `upstream/main` (or `origin/main`):
-   ```bash
-   git checkout -b "remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}" upstream/main
-   ```
+1. Check with the user on where they would like the changes created:
+   - **Default recommendation**: Create a new git worktree with a clean branch based on `upstream/main` (e.g., `git worktree add ../remediation_issue_${ISSUE_NUMBER}_${RECOMMENDATION_INDEX} -b remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX} upstream/main`).
+   - Alternatively, create a branch in the current worktree or apply changes in place if requested.
+2. Ensure the working tree is clean and up to date with `upstream/main`.
 
 ---
 
@@ -68,11 +64,12 @@ Follow these steps to remediate an issue recommendation:
 
 ---
 
-### Step 5: Create Draft PR & Notify Issue
+### Step 5: Create Draft PR & Notify Issue (Optional / Upon Request)
 
-1. Generate a clear, descriptive PR title following the Conventional Commits format that concisely explains the specific fix being made (e.g. `fix(swift): create missing top-level README in swift/core`). **Do NOT include generic issue or recommendation numbers in the PR title.**
-2. Draft the PR description into a temporary file `pr_description.md` following the guidelines and structure in [pr-description-template.md](references/pr-description-template.md). Ensure that `${ISSUE_NUMBER}` and `${RECOMMENDATION_INDEX}` are referenced in the `## Summary` section.
-3. Push the branch to your fork / origin and create a Draft Pull Request against `main`:
+1. Check if the user wants to submit a Draft PR:
+2. Generate a clear, descriptive PR title following Conventional Commits that concisely explains the specific fix being made (e.g. `fix(swift): create missing top-level README in swift/core`). **Do NOT include generic issue or recommendation numbers in the PR title.**
+3. Draft the PR description into a temporary file `pr_description.md` following [pr-description-template.md](references/pr-description-template.md).
+4. Push the branch to `origin` (or user's fork) and create a Draft Pull Request against `main`:
    ```bash
    git push -u origin "remediation/issue-${ISSUE_NUMBER}-${RECOMMENDATION_INDEX}"
    PR_URL=$(gh pr create --draft \
@@ -82,11 +79,8 @@ Follow these steps to remediate an issue recommendation:
      --title "${PR_TITLE}" \
      --body-file pr_description.md)
    ```
-4. Clean up the temporary PR description file:
-   ```bash
-   rm -f pr_description.md
-   ```
-5. Comment on the original issue to notify maintainers of the new Draft PR and branch:
+5. Clean up the temporary file `pr_description.md`.
+6. Comment on the original issue to notify maintainers of the new Draft PR:
    ```bash
    gh issue comment "${ISSUE_NUMBER}" \
      --repo a2ui-project/a2ui \
