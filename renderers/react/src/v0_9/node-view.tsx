@@ -160,10 +160,10 @@ const behaviorCache = new WeakMap<object, BehaviorNode>();
  * the payload omits would reach the view with no setter at all. Shipped
  * views call setters unguarded, so restore the no-op here.
  */
-function addAbsentSetters(node: ComponentNode, viewProps: NodeProps): NodeProps {
+function addAbsentSetters(node: ComponentNode, viewProps: NodeProps): void {
   const schema = node.impl?.schema;
   if (!schema) {
-    return viewProps;
+    return;
   }
   let behavior = behaviorCache.get(schema);
   if (!behavior) {
@@ -171,7 +171,7 @@ function addAbsentSetters(node: ComponentNode, viewProps: NodeProps): NodeProps 
     behaviorCache.set(schema, behavior);
   }
   if (behavior.type !== 'OBJECT') {
-    return viewProps;
+    return;
   }
   for (const [key, child] of Object.entries(behavior.shape)) {
     if (child.type !== 'DYNAMIC') {
@@ -182,7 +182,6 @@ function addAbsentSetters(node: ComponentNode, viewProps: NodeProps): NodeProps 
       viewProps[setterName] = () => {};
     }
   }
-  return viewProps;
 }
 
 /**
@@ -205,10 +204,9 @@ export function useNodeView(
 
   const {viewProps, childIndex} = useMemo(() => {
     const index: ChildIndex = new Map();
-    return {
-      viewProps: addAbsentSetters(node, toViewProps(node, resolved, index) as NodeProps),
-      childIndex: index,
-    };
+    const props = toViewProps(node, resolved, index) as NodeProps;
+    addAbsentSetters(node, props);
+    return {viewProps: props, childIndex: index};
   }, [node, resolved]);
 
   // The component can be removed between the resolver's update and this
