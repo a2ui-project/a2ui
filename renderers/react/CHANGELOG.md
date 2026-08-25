@@ -1,7 +1,8 @@
 ## Unreleased
 
 - (v0_9) Component implementations may supply a `view` that renders from a resolved `ComponentNode` (see `NodeViewProps` and `useSignalValue`) ([#2077](https://github.com/a2ui-project/a2ui/pull/2077)).
-- (v0_9) `A2uiSurface` renders through the node layer: each component re-renders only when its own data changes. Implementations without a `view` keep rendering through `render`, and custom catalogs whose schemas do not mark child-reference properties keep working.
+- (v0_9) `A2uiSurface` renders through the node layer: each component re-renders only when its own data changes. Implementations without a `view` keep rendering through `render`.
+- **BREAKING CHANGE**: (v0_9) Remove the `DeferredChild` export. A child reference now renders only when the catalog schema marks the property as a component id, which `ComponentIdSchema` and the `componentId()` helper both do; a property that lost its marker (by replacing the schema's description) renders an error in place of the child instead of resolving it. Child lists are unaffected: they are recognized by shape.
 - (v0_9) When a late child arrives, its parent re-renders once as the placeholder is replaced.
 - (v0_9) The first render shows the loading state even for an already populated surface; content appears immediately after. Tests that assert on the very first render must wait for the next one.
 - (v0_9) Subtrees `A2uiSurface` previously resolved at reveal time (a closed `Modal`'s content, inactive `Tabs` children) resolve with the rest of the tree, so their function calls run and their errors are reported at message-processing time.

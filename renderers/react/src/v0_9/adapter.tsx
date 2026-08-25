@@ -69,9 +69,9 @@ export function createComponentImplementation<Api extends ComponentApi>(
   }> = ({context, buildChild}) => {
     const bindingRef = useRef<GenericBinder<Props> | null>(null);
 
-    // Create or recreate the binder if the context object changes.
-    // DeferredChild memoizes `context`, so reference changes strictly correspond
-    // to ComponentModel updates (like type changes) or Base Path adjustments.
+    // Create or recreate the binder if the context object changes. Callers
+    // memoize `context`, so a new reference means the component's model or its
+    // data path changed.
     if (!bindingRef.current) {
       bindingRef.current = new GenericBinder<Props>(context, api.schema);
     } else if ((bindingRef.current as unknown as {context: ComponentContext}).context !== context) {

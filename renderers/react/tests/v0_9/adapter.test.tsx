@@ -175,7 +175,7 @@ describe('adapter', () => {
       );
     });
 
-    // 3. Child should automatically resolve through DeferredChild's subscription
+    // 3. The resolver upgrades the placeholder, so the child renders.
     expect(queryByTestId('resolved')).not.toBeNull();
     expect(getByTestId('resolved').textContent).toBe('Loaded Data');
 

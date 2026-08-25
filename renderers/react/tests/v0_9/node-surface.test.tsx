@@ -125,6 +125,16 @@ const ProbeImpl: ReactComponentImplementation = {
   view: ({node}) => <span>{`id:${node.instanceId}`}</span>,
 };
 
+/**
+ * A child reference typed as a bare string, which is what a catalog gets when
+ * it replaces `ComponentIdSchema`'s description instead of using `componentId()`.
+ * The resolver cannot identify the property, so the id reaches `buildChild`.
+ */
+const UnmarkedParentImpl = createComponentImplementation(
+  {name: 'UnmarkedParent', schema: z.object({child: z.string().optional()})},
+  ({props, buildChild}) => <div>{props.child ? buildChild(props.child as string) : null}</div>,
+);
+
 function setup() {
   const catalog = new Catalog<ReactComponentImplementation>('node-react-test', [
     TextImpl,
@@ -133,6 +143,7 @@ function setup() {
     ButtonImpl,
     TextFieldImpl,
     ProbeImpl,
+    UnmarkedParentImpl,
   ]);
   const surface = new SurfaceModel<ReactComponentImplementation>('surf-1', catalog);
   return surface;
@@ -246,7 +257,18 @@ describe('A2uiSurface', () => {
     expect(actions[0]?.context).toEqual({itemId: 'fresh'});
   });
 
-  it('renders the shipped basic catalog unchanged, via DeferredChild for unmarked refs', () => {
+  it('reports a child reference the catalog schema does not mark as a component id', () => {
+    const surface = setup();
+    add(surface, 'root', 'UnmarkedParent', {child: 'lost'});
+    add(surface, 'lost', 'Text', {text: 'never rendered'});
+
+    render(<A2uiSurface surface={surface} />);
+
+    expect(screen.getByText(/Unresolved child reference/)).toBeDefined();
+    expect(screen.queryByText('never rendered')).toBeNull();
+  });
+
+  it('renders the shipped basic catalog unchanged', () => {
     const surface = new SurfaceModel<ReactComponentImplementation>('surf-basic', basicCatalog);
     add(surface, 'root', 'Column', {children: ['t1', 'card1']});
     add(surface, 't1', 'Text', {text: 'hello from nodes'});

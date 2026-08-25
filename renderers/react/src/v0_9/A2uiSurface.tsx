@@ -23,15 +23,12 @@
  * converts them back to the shapes existing views expect, so a data change
  * re-renders exactly the affected component. The surface only dispatches: it
  * hands each `view` its node and a `buildChild` that renders resolved child
- * nodes, falling back to `DeferredChild` recursion over the raw definitions
- * for ids the node layer could not classify, so catalogs without `REF:`
- * child-reference markers keep rendering.
+ * nodes.
  */
 
 import React, {memo, useCallback, useMemo, useSyncExternalStore} from 'react';
 import {
   ComponentContext,
-  type ComponentModel,
   type ComponentNode,
   isComponentNode,
   NodeResolver,
@@ -42,112 +39,6 @@ import {
 } from '@a2ui/web_core/v0_9';
 import type {ReactComponentImplementation} from './adapter';
 import {LoadingPlaceholder, NodeSurfaceContext, type NodeBuildChild} from './node-view';
-
-const ResolvedChild = memo(
-  ({
-    surface,
-    id,
-    basePath,
-    compImpl,
-    componentModel,
-  }: {
-    surface: SurfaceModel<ReactComponentImplementation>;
-    id: string;
-    basePath: string;
-    componentModel: ComponentModel;
-    compImpl: ReactComponentImplementation;
-  }) => {
-    const ComponentToRender = compImpl.render;
-
-    // Create context. Recreate if the componentModel instance changes (e.g. type change recreation).
-    const context = useMemo(
-      () => new ComponentContext(surface, id, basePath),
-      // componentModel is used as a trigger for recreation even if not in the body
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      [surface, id, basePath, componentModel],
-    );
-
-    const buildChild = useCallback(
-      (childId: string, specificPath?: string) => {
-        const path = specificPath || context.dataContext.path;
-        return (
-          <DeferredChild
-            key={`${childId}-${path}`}
-            surface={surface}
-            id={childId}
-            basePath={path}
-          />
-        );
-      },
-      [surface, context.dataContext.path],
-    );
-
-    return <ComponentToRender context={context} buildChild={buildChild} />;
-  },
-);
-ResolvedChild.displayName = 'ResolvedChild';
-
-export const DeferredChild: React.FC<{
-  surface: SurfaceModel<ReactComponentImplementation>;
-  id: string;
-  basePath: string;
-}> = memo(({surface, id, basePath}) => {
-  // 1. Subscribe specifically to this component's existence
-  const store = useMemo(() => {
-    let version = 0;
-    return {
-      subscribe: (cb: () => void) => {
-        const unsub1 = surface.componentsModel.onCreated.subscribe(comp => {
-          if (comp.id === id) {
-            version++;
-            cb();
-          }
-        });
-        const unsub2 = surface.componentsModel.onDeleted.subscribe(delId => {
-          if (delId === id) {
-            version++;
-            cb();
-          }
-        });
-        return () => {
-          unsub1.unsubscribe();
-          unsub2.unsubscribe();
-        };
-      },
-      getSnapshot: () => {
-        const comp = surface.componentsModel.get(id);
-        // We use instance identity + version as the snapshot to ensure
-        // type replacements (e.g. Button -> Text) trigger a re-render.
-        return comp ? `${comp.type}-${version}` : `missing-${version}`;
-      },
-    };
-  }, [surface, id]);
-
-  useSyncExternalStore(store.subscribe, store.getSnapshot);
-
-  const componentModel = surface.componentsModel.get(id);
-
-  if (!componentModel) {
-    return <LoadingPlaceholder componentId={id} />;
-  }
-
-  const compImpl = surface.catalog.components.get(componentModel.type);
-
-  if (!compImpl) {
-    return <div style={{color: 'red'}}>Unknown component: {componentModel.type}</div>;
-  }
-
-  return (
-    <ResolvedChild
-      surface={surface}
-      id={id}
-      basePath={basePath}
-      componentModel={componentModel}
-      compImpl={compImpl}
-    />
-  );
-});
-DeferredChild.displayName = 'DeferredChild';
 
 /** Renders an implementation that has no `view`: its wrapper binds itself. */
 const RenderFallback: React.FC<{
@@ -184,14 +75,15 @@ const NodeView = memo(
         if (isComponentNode(child)) {
           return <NodeView key={child.instanceId} surface={surface} node={child} />;
         }
-        // Not resolved by the node layer; recurse over the raw definitions.
+        // The resolver turns every child reference it can identify into a node.
+        // A leftover id means the catalog's schema does not mark this property
+        // as a child reference: see `componentId()` in web_core's common-types,
+        // whose `REF:` pointer a plain `.describe()` call replaces.
         return (
-          <DeferredChild
-            key={`${child}-${basePath ?? node.dataPath}`}
-            surface={surface}
-            id={child}
-            basePath={basePath ?? node.dataPath}
-          />
+          <div style={{color: 'red'}} key={`${child}-${basePath ?? node.dataPath}`}>
+            Unresolved child reference &apos;{child}&apos;: the catalog schema does not mark this
+            property as a component id.
+          </div>
         );
       },
       [surface, node],
