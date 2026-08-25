@@ -273,10 +273,11 @@ class FileResolver:
                 netloc = f"{netloc}:{parsed_current.port}"
             ip_url = parsed_current._replace(netloc=netloc).geturl()
 
+            host_header = f"{current_hostname}:{parsed_current.port}" if parsed_current.port else current_hostname
             async with self._http_client.stream(
                 "GET", 
                 ip_url, 
-                headers={"Host": current_hostname},
+                headers={"Host": host_header},
                 extensions={"sni_hostname": current_hostname},
                 follow_redirects=False
             ) as response:

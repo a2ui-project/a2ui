@@ -530,3 +530,42 @@ async def test_as_tool_decorator():
     invalid_files = [{"fileId": f"data:application/pdf;base64,!!!invalid!!!"}]
     res = await my_tool(my_files=invalid_files)
     assert "error" in res
+
+@pytest.mark.asyncio
+async def test_http_host_header_with_port():
+    pdf_bytes = b"%PDF-1.4"
+    
+    class MockStreamContext:
+        def __init__(self):
+            self.status_code = 200
+            self.headers = {}
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+        def raise_for_status(self):
+            pass
+        async def aiter_bytes(self) -> AsyncIterator[bytes]:
+            yield pdf_bytes
+
+    class MockHttpClient:
+        def __init__(self):
+            self.host_header_received = None
+            
+        def stream(self, method: str, url: str, **kwargs):
+            self.host_header_received = kwargs.get("headers", {}).get("Host")
+            return MockStreamContext()
+
+    mock_client = MockHttpClient()
+    resolver = FileResolver(
+        allowed_hosts=["example.com"],
+        http_client=mock_client,  # type: ignore[arg-type]
+    )
+
+    await resolver.resolve_bytes({
+        "fileId": "https://example.com:8443/doc.pdf",
+        "mimeType": "application/pdf",
+    })
+    
+    assert mock_client.host_header_received == "example.com:8443"
+
