@@ -92,7 +92,7 @@ jobs:
         if: steps.parse-command.outputs.triggered == 'true'
         env:
           GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.A2UI_REMEDIATION_PAT_TOKEN || secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
           python .github/scripts/run_remediation.py
