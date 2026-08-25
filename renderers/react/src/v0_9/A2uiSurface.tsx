@@ -28,7 +28,6 @@
 
 import React, {memo, useCallback, useMemo, useSyncExternalStore} from 'react';
 import {
-  ComponentContext,
   type ComponentNode,
   isComponentNode,
   NodeResolver,
@@ -38,28 +37,28 @@ import {
   type SurfaceModel,
 } from '@a2ui/web_core/v0_9';
 import type {ReactComponentImplementation} from './adapter';
-import {LoadingPlaceholder, NodeSurfaceContext, type NodeBuildChild} from './node-view';
+import {
+  LoadingPlaceholder,
+  NodeSurfaceContext,
+  useNodeView,
+  type NodeBuildChild,
+} from './node-view';
 
 /** Renders an implementation that has no `view`: its wrapper binds itself. */
 const RenderFallback: React.FC<{
-  surface: SurfaceModel<ReactComponentImplementation>;
   node: ComponentNode<ReactComponentImplementation>;
   impl: ReactComponentImplementation;
-  buildChild: (id: string, basePath?: string) => React.ReactNode;
-}> = ({surface, node, impl, buildChild}) => {
-  // See useNodeView: the component can vanish before this render commits.
-  const context = useMemo(
-    () =>
-      surface.componentsModel.get(node.componentId)
-        ? new ComponentContext(surface, node.componentId, node.dataPath)
-        : undefined,
-    [surface, node],
-  );
+  buildChild: NodeBuildChild;
+}> = ({node, impl, buildChild}) => {
+  // `render` reads child ids from the component model, so it needs the
+  // conversion's `buildChild`, which maps an id back to the node the resolver
+  // already built for it.
+  const {context, viewBuildChild} = useNodeView(node, buildChild);
   const Render = impl.render;
   if (!context) {
     return <LoadingPlaceholder componentId={node.componentId} />;
   }
-  return <Render context={context} buildChild={buildChild} />;
+  return <Render context={context} buildChild={viewBuildChild} />;
 };
 
 const NodeView = memo(
@@ -102,7 +101,7 @@ const NodeView = memo(
     }
     const View = impl.view;
     if (!View) {
-      return <RenderFallback surface={surface} node={node} impl={impl} buildChild={buildChild} />;
+      return <RenderFallback node={node} impl={impl} buildChild={buildChild} />;
     }
     return <View node={node} buildChild={buildChild} />;
   },

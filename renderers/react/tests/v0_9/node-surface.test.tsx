@@ -257,6 +257,28 @@ describe('A2uiSurface', () => {
     expect(actions[0]?.context).toEqual({itemId: 'fresh'});
   });
 
+  it('builds children for an implementation that has render but no view', () => {
+    // The shape `ReactComponentImplementation` documents as supported: `render`
+    // is required and `view` is optional. `render` receives ids from the
+    // component model, so this pins that they still resolve.
+    const RenderOnly: ReactComponentImplementation = {
+      name: 'RenderOnly',
+      schema: z.object({child: ComponentIdSchema.optional()}),
+      render: ({context, buildChild}) => {
+        const childId = context.componentModel.properties.child as string | undefined;
+        return <div>{childId ? buildChild(childId) : null}</div>;
+      },
+    };
+    const catalog = new Catalog<ReactComponentImplementation>('render-only', [RenderOnly, TextImpl]);
+    const surface = new SurfaceModel<ReactComponentImplementation>('surf-render-only', catalog);
+    add(surface, 'root', 'RenderOnly', {child: 'kid'});
+    add(surface, 'kid', 'Text', {text: 'child of a render-only parent'});
+
+    render(<A2uiSurface surface={surface} />);
+
+    expect(screen.getByText('child of a render-only parent')).toBeDefined();
+  });
+
   it('reports a child reference the catalog schema does not mark as a component id', () => {
     const surface = setup();
     add(surface, 'root', 'UnmarkedParent', {child: 'lost'});
