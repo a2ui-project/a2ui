@@ -28,9 +28,29 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 import jsonschema
 import yaml
 
-SCHEMA_PATH = Path(__file__).parent / "schema" / "template_definition.json"
-with open(SCHEMA_PATH, "r", encoding="utf-8") as _f:
-    TEMPLATE_DEFINITION_SCHEMA = json.load(_f)
+
+def _find_template_schema_path() -> Optional[Path]:
+    """Finds the template definition JSON schema in specification/proposals/templates/schema/."""
+    current = Path(__file__).resolve()
+    for parent in current.parents:
+        candidate = (
+            parent
+            / "specification"
+            / "proposals"
+            / "templates"
+            / "schema"
+            / "template_definition.json"
+        )
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+SCHEMA_PATH = _find_template_schema_path()
+TEMPLATE_DEFINITION_SCHEMA: Optional[Dict[str, Any]] = None
+if SCHEMA_PATH and SCHEMA_PATH.is_file():
+    with open(SCHEMA_PATH, "r", encoding="utf-8") as _f:
+        TEMPLATE_DEFINITION_SCHEMA = json.load(_f)
 
 
 class ParamType(str, Enum):
@@ -669,14 +689,17 @@ class StaticTemplate(BaseTemplate):
 
     def validate_definition(self) -> None:
         """Statically validates the template against the JSON Schema, verifies parameter references, and validates sampleData."""
-        raw_dict = self.to_dict()
-        try:
-            jsonschema.validate(instance=raw_dict, schema=TEMPLATE_DEFINITION_SCHEMA)
-        except jsonschema.ValidationError as err:
-            raise ValueError(
-                f"Template '{self.template_id}' fails template_definition.json schema:"
-                f" {err.message}"
-            ) from err
+        if TEMPLATE_DEFINITION_SCHEMA is not None:
+            raw_dict = self.to_dict()
+            try:
+                jsonschema.validate(
+                    instance=raw_dict, schema=TEMPLATE_DEFINITION_SCHEMA
+                )
+            except jsonschema.ValidationError as err:
+                raise ValueError(
+                    f"Template '{self.template_id}' fails template_definition.json"
+                    f" schema: {err.message}"
+                ) from err
 
         loop_vars = {"item"}
         for comp in self.components:

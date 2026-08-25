@@ -33,7 +33,7 @@ The following directories contain the base protocol logic, parsing, and schema o
 - **`models.py`**: Typed models (`StaticTemplate`, `DynamicTemplate`, `Param`, `ParamType`, AST expressions) and signature-based parameter inference.
 - **`processor.py`**: `TemplateProcessor` for generating synthetic inference catalogs and expanding template invocations into A2UI primitives.
 - **`format.py`**: `TemplateInferenceFormat` integrating template-aware prompt generation and synchronous parsing.
-- **`schema/template_definition.json`**: Formal JSON Schema for template structure and parameter types.
+- Reference schema: Located at `specification/proposals/templates/schema/template_definition.json`.
 
 ## A2A (`src/a2ui/a2a`)
 
