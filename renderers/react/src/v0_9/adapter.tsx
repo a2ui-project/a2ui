@@ -21,7 +21,7 @@ import type {
   InferredComponentApiSchemaType,
   ResolveA2uiProps,
 } from '@a2ui/web_core/v0_9';
-import {useNodeView, type NodeViewProps} from './node-view';
+import {LoadingPlaceholder, useNodeView, type NodeViewProps} from './node-view';
 
 export interface ReactComponentImplementation extends ComponentApi {
   /** The framework-specific rendering wrapper. */
@@ -102,12 +102,9 @@ export function createComponentImplementation<Api extends ComponentApi>(
   };
 
   const NodeView: React.FC<NodeViewProps> = ({node, buildChild}) => {
-    const {viewProps, context, hasSurface, viewBuildChild} = useNodeView(node, buildChild);
-    if (!hasSurface) {
-      throw new Error('A2UI component views render only inside A2uiSurface.');
-    }
+    const {viewProps, context, viewBuildChild} = useNodeView(node, buildChild);
     if (!context) {
-      return <div style={{color: 'gray', padding: '4px'}}>[Loading {node.componentId}...]</div>;
+      return <LoadingPlaceholder componentId={node.componentId} />;
     }
     return (
       <MemoizedRender props={viewProps as Props} buildChild={viewBuildChild} context={context} />
@@ -136,12 +133,9 @@ export function createBinderlessComponentImplementation(
   const NodeView: React.FC<NodeViewProps> = ({node, buildChild}) => {
     // The conversion's only role here is filling the child index; the
     // component binds its own values from the context.
-    const {context, hasSurface, viewBuildChild} = useNodeView(node, buildChild);
-    if (!hasSurface) {
-      throw new Error('A2UI component views render only inside A2uiSurface.');
-    }
+    const {context, viewBuildChild} = useNodeView(node, buildChild);
     if (!context) {
-      return <div style={{color: 'gray', padding: '4px'}}>[Loading {node.componentId}...]</div>;
+      return <LoadingPlaceholder componentId={node.componentId} />;
     }
     return <RenderComponent context={context} buildChild={viewBuildChild} />;
   };

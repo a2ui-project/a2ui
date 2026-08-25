@@ -41,7 +41,7 @@ import {
   type SurfaceModel,
 } from '@a2ui/web_core/v0_9';
 import type {ReactComponentImplementation} from './adapter';
-import {NodeSurfaceContext, type NodeBuildChild} from './node-view';
+import {LoadingPlaceholder, NodeSurfaceContext, type NodeBuildChild} from './node-view';
 
 const ResolvedChild = memo(
   ({
@@ -128,7 +128,7 @@ export const DeferredChild: React.FC<{
   const componentModel = surface.componentsModel.get(id);
 
   if (!componentModel) {
-    return <div style={{color: 'gray', padding: '4px'}}>[Loading {id}...]</div>;
+    return <LoadingPlaceholder componentId={id} />;
   }
 
   const compImpl = surface.catalog.components.get(componentModel.type);
@@ -166,7 +166,7 @@ const RenderFallback: React.FC<{
   );
   const Render = impl.render;
   if (!context) {
-    return <div style={{color: 'gray', padding: '4px'}}>[Loading {node.componentId}...]</div>;
+    return <LoadingPlaceholder componentId={node.componentId} />;
   }
   return <Render context={context} buildChild={buildChild} />;
 };
@@ -201,7 +201,7 @@ const NodeView = memo(
       return <div style={{color: 'red'}}>Unknown component type: {node.type}</div>;
     }
     if (node.isPlaceholder) {
-      return <div style={{color: 'gray', padding: '4px'}}>[Loading {node.componentId}...]</div>;
+      return <LoadingPlaceholder componentId={node.componentId} />;
     }
     const impl = node.impl;
     if (!impl) {
@@ -254,7 +254,7 @@ export const A2uiSurface: React.FC<{
   const root = useSyncExternalStore(subscribe, getSnapshot);
 
   if (!root) {
-    return <div style={{color: 'gray', padding: '4px'}}>[Loading root...]</div>;
+    return <LoadingPlaceholder componentId="root" />;
   }
   return (
     <NodeSurfaceContext.Provider value={surface}>

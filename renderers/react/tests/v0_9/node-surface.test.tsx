@@ -311,6 +311,25 @@ describe('A2uiSurface', () => {
     resolver.dispose();
   });
 
+  it('throws a named error when a view renders outside A2uiSurface', () => {
+    const surface = setup();
+    const resolver = new NodeResolver(surface, surface.catalog);
+    add(surface, 'root', 'Text', {text: 'hi'});
+    const root = getValue(resolver.rootNode);
+    const View = root!.impl!.view!;
+
+    // React logs the thrown error through console.error before rethrowing.
+    const consoleError = console.error;
+    console.error = () => {};
+    try {
+      expect(() => render(<View node={root!} buildChild={() => null} />)).toThrow(
+        /only inside A2uiSurface/,
+      );
+    } finally {
+      console.error = consoleError;
+    }
+    resolver.dispose();
+  });
 
   it('typing into an input whose value prop was omitted is a no-op, not a crash', () => {
     const surface = setup();

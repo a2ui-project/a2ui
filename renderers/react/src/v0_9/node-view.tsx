@@ -50,6 +50,11 @@ export const NodeSurfaceContext = createContext<SurfaceModel<ReactComponentImple
   null,
 );
 
+/** Stands in for a component that has not arrived, or has just been removed. */
+export const LoadingPlaceholder: React.FC<{componentId: string}> = ({componentId}) => (
+  <div style={{color: 'gray', padding: '4px'}}>[Loading {componentId}...]</div>
+);
+
 export function useSignalValue<T>(signal: Signal<T>): T {
   const subscribe = useCallback(
     (onChange: () => void) =>
@@ -193,7 +198,6 @@ export function useNodeView(
 ): {
   viewProps: NodeProps;
   context: ComponentContext | undefined;
-  hasSurface: boolean;
   viewBuildChild: (id: string, basePath?: string) => React.ReactNode;
 } {
   const surface = useContext(NodeSurfaceContext);
@@ -209,7 +213,8 @@ export function useNodeView(
 
   // The component can be removed between the resolver's update and this
   // render committing; ComponentContext's constructor throws on a missing
-  // model, so treat that window as not-ready rather than crashing.
+  // model, so treat that window as not-ready rather than crashing. Callers
+  // render a LoadingPlaceholder for it.
   const context = useMemo(
     () =>
       surface && surface.componentsModel.get(node.componentId)
@@ -217,7 +222,6 @@ export function useNodeView(
         : undefined,
     [surface, node],
   );
-  const hasSurface = surface !== null;
 
   const viewBuildChild = useCallback(
     (id: string, basePath?: string): React.ReactNode => {
@@ -227,5 +231,8 @@ export function useNodeView(
     [childIndex, buildChild, node],
   );
 
-  return {viewProps, context, hasSurface, viewBuildChild};
+  if (!surface) {
+    throw new Error('A2UI component views render only inside A2uiSurface.');
+  }
+  return {viewProps, context, viewBuildChild};
 }
