@@ -191,6 +191,13 @@ class A2uiCatalog:
     def validator(self) -> CatalogSchemaValidator:
         return CatalogSchemaValidator.from_catalog(self.core_catalog)
 
+    def validate(self, messages: Any) -> None:
+        """Validates payload messages using MessageProcessor."""
+        from a2ui.core.processing import MessageProcessor
+
+        msg_list = messages if isinstance(messages, list) else [messages]
+        MessageProcessor([self.core_catalog]).process_messages(msg_list)
+
     def _with_pruned_components(self, allowed_components: List[str]) -> A2uiCatalog:
         """Returns a new catalog with only allowed components.
 
@@ -405,7 +412,7 @@ class A2uiCatalog:
     def _validate_example(self, full_path: str, content: str) -> None:
         try:
             json_data = json.loads(content)
-            self.validator.validate(json_data)
+            self.validate(json_data)
         except Exception as e:
             raise A2uiCatalogError(
                 f"Failed to validate example {full_path}: {e}"

@@ -21,7 +21,7 @@ from ..exceptions import A2uiIntegrityError, A2uiRecursionError
 from .integrity_checker import ROOT_ID, MAX_GLOBAL_DEPTH
 
 if TYPE_CHECKING:
-    from .validator import ValidationConfig
+    from .catalog_schema_validator import ValidationConfig
 
 
 def analyze_topology(

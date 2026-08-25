@@ -26,7 +26,7 @@ from ..exceptions import (
 )
 
 if TYPE_CHECKING:
-    from .validator import ValidationConfig
+    from .catalog_schema_validator import ValidationConfig
 
 ROOT_ID = "root"
 MAX_GLOBAL_DEPTH = 50

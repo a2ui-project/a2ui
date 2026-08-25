@@ -14,13 +14,8 @@
 
 import re
 from abc import ABC, abstractmethod
-<<<<<<< HEAD
 from typing import Any, Dict, List, Optional, Set, Union
-=======
-from typing import Any, Dict, List, Optional, Set
 from pydantic import ValidationError
-
->>>>>>> e77479e7 (refactor(python): consolidate validation logic and remove validator.py)
 from ..operations import InternalOperation
 from ...exceptions import (
     A2uiCatalogError,
@@ -224,36 +219,32 @@ class BaseVersionAdapter(VersionAdapter, ABC):
                     f"Payload for action '{action}' must be an object"
                 )
 
-<<<<<<< HEAD
-            return self._extract_operations_for_action(action, raw_payload)
-=======
             ver_str = (
                 self.version.value
                 if hasattr(self.version, "value")
                 else str(self.version)
             )
             if ver_str != "v0.8":
-                if "version" not in payload:
+                if "version" not in raw_payload:
                     raise A2uiValidationError(
                         f"Invalid {self.version} message: messages.0.version: 'version'"
                         " is a required property"
                     )
-                if payload["version"] != ver_str:
+                if raw_payload["version"] != ver_str:
                     raise A2uiValidationError(
                         f"Invalid {self.version} message: messages.0.version: Input"
                         f" should be '{ver_str}'"
                     )
 
-            prepared_msg = self.prepare_payload_for_validation(payload)
+            prepared_msg = self.prepare_payload_for_validation(raw_payload)
             try:
                 self.schema.model_validate({"messages": [prepared_msg]})
             except ValidationError as e:
-                details = self._format_validation_errors(e, [payload])
+                details = self._format_validation_errors(e, [raw_payload])
                 summary = "; ".join(f"{d.path}: {d.message}" for d in details)
                 raise A2uiValidationError(f"Invalid {self.version} message: {summary}")
 
-            return self._extract_operations_for_action(action, payload)
->>>>>>> e77479e7 (refactor(python): consolidate validation logic and remove validator.py)
+            return self._extract_operations_for_action(action, raw_payload)
 
         return []
 

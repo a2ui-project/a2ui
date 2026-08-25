@@ -343,6 +343,13 @@ class CatalogSchemaValidator:
             return "type_mismatch"
         return "invalid_value"
 
+    def validate(self, messages: Any) -> None:
+        """Validates payload messages using MessageProcessor."""
+        from ..processing import MessageProcessor
+
+        msg_list = messages if isinstance(messages, list) else [messages]
+        MessageProcessor([self.catalog]).process_messages(msg_list)
+
     @classmethod
     def from_catalog(
         cls,

@@ -21,7 +21,7 @@ from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.parser.response_part import ResponsePart
 from a2ui.parser.constants import *
 from a2ui.schema.constants import SURFACE_ID_KEY, CATALOG_COMPONENTS_KEY
-from a2ui.core.validation.validator import RELAXED_VALIDATION
+from a2ui.core.validation import RELAXED_VALIDATION
 
 if TYPE_CHECKING:
     from a2ui.schema.catalog import A2uiCatalog

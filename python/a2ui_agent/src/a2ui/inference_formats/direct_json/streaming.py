@@ -829,7 +829,9 @@ class DirectJsonStreamParser:
             if comp_type:
                 props = component_def.get(comp_type, {})
                 if isinstance(props, dict):
-                    required_fields = self._schema_helper.get_required_props(comp_type)
+                    required_fields = self._schema_helper.get_component_required(
+                        comp_type
+                    )
                     for req in required_fields:
                         if req not in props:
                             return
@@ -925,7 +927,7 @@ class DirectJsonStreamParser:
             #     allow_orphan_components=not raise_on_orphans,
             # )
 
-            # We only yield components we actually have in our "seen" cache
+            reachable_ids = set(self._seen_components.keys())
             available_reachable = reachable_ids & set(self._seen_components.keys())
 
             if check_root and not available_reachable:
