@@ -110,6 +110,8 @@ async def test_resolve_http_streaming():
 
         def __init__(self, chunks: list[bytes]):
             self._chunks = chunks
+            self.status_code = 200
+            self.headers = {}
 
         async def __aenter__(self):
             return self
@@ -126,12 +128,12 @@ async def test_resolve_http_streaming():
 
     class MockHttpClient:
 
-        def stream(self, method: str, url: str, follow_redirects: bool = True):
+        def stream(self, method: str, url: str, follow_redirects: bool = False):
             assert method == "GET"
             assert url == "https://example.com/test.pdf"
             return MockStreamContext([test_bytes[:10], test_bytes[10:]])
 
-    resolver = FileResolver(http_client=MockHttpClient())  # type: ignore[arg-type]
+    resolver = FileResolver(allowed_hosts=["*"], http_client=MockHttpClient())  # type: ignore[arg-type]
     raw_bytes, mime = await resolver.resolve_bytes({
         "fileId": "https://example.com/test.pdf",
         "mimeType": "application/pdf",
@@ -287,6 +289,9 @@ async def test_security_max_file_size_custom_scheme():
 @pytest.mark.asyncio
 async def test_security_max_file_size_http_streaming():
     class MockStreamContext:
+        def __init__(self):
+            self.status_code = 200
+            self.headers = {}
 
         async def __aenter__(self):
             return self
@@ -303,11 +308,11 @@ async def test_security_max_file_size_http_streaming():
 
     class MockHttpClient:
 
-        def stream(self, method: str, url: str, follow_redirects: bool = True):
+        def stream(self, method: str, url: str, follow_redirects: bool = False):
             return MockStreamContext()
 
     resolver = FileResolver(
-        max_file_bytes=10, http_client=MockHttpClient()  # type: ignore[arg-type]
+        allowed_hosts=["*"], max_file_bytes=10, http_client=MockHttpClient()  # type: ignore[arg-type]
     )
 
     with pytest.raises(FileResolverSecurityError) as exc_info:
@@ -323,6 +328,9 @@ async def test_security_allowed_hosts_policy():
     pdf_bytes = b"%PDF-1.4 Allowed Host Content"
 
     class MockStreamContext:
+        def __init__(self):
+            self.status_code = 200
+            self.headers = {}
 
         async def __aenter__(self):
             return self
@@ -338,7 +346,7 @@ async def test_security_allowed_hosts_policy():
 
     class MockHttpClient:
 
-        def stream(self, method: str, url: str, follow_redirects: bool = True):
+        def stream(self, method: str, url: str, follow_redirects: bool = False):
             return MockStreamContext()
 
     resolver = FileResolver(
@@ -376,15 +384,19 @@ async def test_security_allowed_hosts_policy():
             "fileId": "http://169.254.169.254/latest/meta-data",
             "mimeType": "text/plain",
         })
-    assert "Host '169.254.169.254' is not permitted" in str(exc_info.value)
+    assert "169.254.169.254" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
 async def test_security_allowed_hosts_redirect_blocked():
     class MockRedirectResponse:
-
-        def __init__(self):
-            self.url = httpx.URL("https://evil-redirect.com/secret.pdf")
+        def __init__(self, is_redirect):
+            if is_redirect:
+                self.status_code = 302
+                self.headers = {"Location": "https://evil-redirect.com/secret.pdf"}
+            else:
+                self.status_code = 200
+                self.headers = {}
 
         async def __aenter__(self):
             return self
@@ -399,9 +411,10 @@ async def test_security_allowed_hosts_redirect_blocked():
             yield b"%PDF-1.4 secret"
 
     class MockHttpClient:
-
-        def stream(self, method: str, url: str, follow_redirects: bool = True):
-            return MockRedirectResponse()
+        def stream(self, method: str, url: str, follow_redirects: bool = False):
+            if url == "https://trusted.org/redirect-me":
+                return MockRedirectResponse(is_redirect=True)
+            return MockRedirectResponse(is_redirect=False)
 
     resolver = FileResolver(
         allowed_hosts=["trusted.org"],
@@ -413,7 +426,7 @@ async def test_security_allowed_hosts_redirect_blocked():
             "fileId": "https://trusted.org/redirect-me",
             "mimeType": "application/pdf",
         })
-    assert "Redirected host 'evil-redirect.com' is not permitted" in str(exc_info.value)
+    assert "evil-redirect.com" in str(exc_info.value)
 
 
 @pytest.mark.asyncio

@@ -33,7 +33,9 @@ import base64
 import fnmatch
 import functools
 import inspect
+import ipaddress
 import logging
+import socket
 from typing import (
     Any,
     Awaitable,
@@ -101,7 +103,7 @@ class FileResolver:
     ):
         self.max_file_bytes = max_file_bytes
         self.allowed_mime_types = allowed_mime_types
-        self.allowed_hosts = allowed_hosts
+        self.allowed_hosts = allowed_hosts if allowed_hosts is not None else []
         self.max_concurrent_downloads = max_concurrent_downloads
         self._owns_http_client = http_client is None
         self._http_client = http_client or httpx.AsyncClient()
@@ -250,39 +252,64 @@ class FileResolver:
 
         # 4. HTTPS / HTTP Ephemeral Download URL
         elif file_id.startswith("https://") or file_id.startswith("http://"):
-            parsed_url = urllib.parse.urlparse(file_id)
-            hostname = (parsed_url.hostname or "").lower()
+            buffer = bytearray()
+            current_url = file_id
+            redirects_followed = 0
+            max_redirects = 5
 
-            if self.allowed_hosts is not None:
+            while redirects_followed <= max_redirects:
+                parsed_current = urllib.parse.urlparse(current_url)
+                current_hostname = (parsed_current.hostname or "").lower()
+
                 if not any(
-                    fnmatch.fnmatch(hostname, pattern.lower())
+                    fnmatch.fnmatch(current_hostname, pattern.lower())
                     for pattern in self.allowed_hosts
                 ):
                     raise FileResolverSecurityError(
-                        f"Host '{hostname}' is not permitted by security policy"
+                        f"Host '{current_hostname}' is not permitted by security policy"
                     )
 
-            buffer = bytearray()
-            async with self._http_client.stream(
-                "GET", file_id, follow_redirects=True
-            ) as response:
-                if self.allowed_hosts is not None and hasattr(response, "url"):
-                    redirect_host = (getattr(response.url, "host", None) or "").lower()
-                    if redirect_host and not any(
-                        fnmatch.fnmatch(redirect_host, pattern.lower())
-                        for pattern in self.allowed_hosts
-                    ):
-                        raise FileResolverSecurityError(
-                            f"Redirected host '{redirect_host}' is not permitted by"
-                            " security policy"
-                        )
-                response.raise_for_status()
-                async for chunk in response.aiter_bytes():
-                    buffer.extend(chunk)
-                    if len(buffer) > self.max_file_bytes:
-                        raise FileResolverSecurityError(
-                            f"File exceeded max size of {self.max_file_bytes} bytes"
-                        )
+                try:
+                    loop = asyncio.get_running_loop()
+                    addr_info = await loop.getaddrinfo(current_hostname, None)
+                    for res in addr_info:
+                        ip = res[4][0]
+                        try:
+                            ip_obj = ipaddress.ip_address(ip)
+                            if (ip_obj.is_private or ip_obj.is_loopback or 
+                                ip_obj.is_link_local or ip_obj.is_multicast or 
+                                ip_obj.is_unspecified):
+                                raise FileResolverSecurityError(
+                                    f"Host '{current_hostname}' resolves to a private/local IP '{ip}', which is not permitted."
+                                )
+                        except ValueError:
+                            pass
+                except socket.gaierror as e:
+                    raise FileResolverSecurityError(f"Failed to resolve host '{current_hostname}': {e}")
+
+                async with self._http_client.stream(
+                    "GET", current_url, follow_redirects=False
+                ) as response:
+                    if response.status_code in (301, 302, 303, 307, 308):
+                        redirect_location = response.headers.get("Location")
+                        if not redirect_location:
+                            raise FileResolverSecurityError("Redirect missing Location header")
+                        current_url = urllib.parse.urljoin(current_url, redirect_location)
+                        redirects_followed += 1
+                        continue
+
+                    response.raise_for_status()
+                    async for chunk in response.aiter_bytes():
+                        buffer.extend(chunk)
+                        if len(buffer) > self.max_file_bytes:
+                            raise FileResolverSecurityError(
+                                f"File exceeded max size of {self.max_file_bytes} bytes"
+                            )
+                break
+            
+            if redirects_followed > max_redirects:
+                raise FileResolverSecurityError("Too many redirects")
+                
             raw_bytes = bytes(buffer)
         else:
             raise ValueError(f"Unsupported file pointer scheme: {file_id}")
