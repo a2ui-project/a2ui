@@ -102,6 +102,32 @@ class TestExtractRecommendation(unittest.TestCase):
         finally:
             os.remove(temp_path)
 
+    def test_extract_without_index_lists_all(self) -> None:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as f:
+            f.write(SAMPLE_REPORT)
+            temp_path = f.name
+
+        try:
+            res = extract_recommendation(temp_path)
+            self.assertEqual(res["type"], "compliance_report")
+            self.assertEqual(len(res["recommendations"]), 3)
+            self.assertEqual(res["recommendations"][0]["index"], 1)
+        finally:
+            os.remove(temp_path)
+
+    def test_extract_from_general_issue(self) -> None:
+        general_issue_text = "Bug report: The parser fails on nested JSON arrays."
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as f:
+            f.write(general_issue_text)
+            temp_path = f.name
+
+        try:
+            res = extract_recommendation(temp_path)
+            self.assertEqual(res["type"], "general_issue")
+            self.assertEqual(res["content"], general_issue_text)
+        finally:
+            os.remove(temp_path)
+
     @patch("subprocess.run")
     def test_extract_recommendation_via_gh_cli(self, mock_run: MagicMock) -> None:
         mock_res = MagicMock()
@@ -110,6 +136,7 @@ class TestExtractRecommendation(unittest.TestCase):
         mock_run.return_value = mock_res
 
         item = extract_recommendation("2391", 1, repo="a2ui-project/a2ui")
+        self.assertEqual(item["type"], "compliance_recommendation")
         self.assertEqual(item["index"], 1)
         self.assertEqual(item["priority"], "P0")
         self.assertIn("Pin Module Blueprint Commits", item["content"])

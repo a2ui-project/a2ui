@@ -101,9 +101,9 @@ def _build_rec_entry(lines: list[str]) -> dict[str, str]:
 
 
 def extract_recommendation(
-    source: str, index: int, repo: str | None = None
+    source: str, index: int | None = None, repo: str | None = None
 ) -> dict[str, Any]:
-    """Extracts recommendation #index from a file path or GitHub issue number."""
+    """Extracts recommendation or general issue context from a file path or GitHub issue number."""
     if os.path.isfile(source):
         with open(source, "r", encoding="utf-8") as f:
             content = f.read()
@@ -111,6 +111,27 @@ def extract_recommendation(
         content = fetch_issue_body(source, repo=repo)
 
     recs = parse_recommendations(content)
+    if not recs:
+        # General issue (not an audit compliance report)
+        return {
+            "type": "general_issue",
+            "content": content.strip(),
+        }
+
+    if index is None:
+        # Return summary of all available recommendations
+        items = []
+        for idx in sorted(recs.keys()):
+            items.append({
+                "index": idx,
+                "priority": recs[idx]["priority"],
+                "content": recs[idx]["raw_text"],
+            })
+        return {
+            "type": "compliance_report",
+            "recommendations": items,
+        }
+
     if index not in recs:
         available = sorted(recs.keys())
         raise ValueError(
@@ -120,6 +141,7 @@ def extract_recommendation(
 
     rec = recs[index]
     return {
+        "type": "compliance_recommendation",
         "index": index,
         "priority": rec["priority"],
         "content": rec["raw_text"],
@@ -128,13 +150,19 @@ def extract_recommendation(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Extract recommendation item from A2UI compliance report."
+        description="Extract recommendation item or issue context for A2UI remediation."
     )
     parser.add_argument(
         "source",
         help="Path to report markdown file or GitHub issue number (e.g. '2391')",
     )
-    parser.add_argument("index", type=int, help="1-based recommendation index (e.g. 1)")
+    parser.add_argument(
+        "index",
+        nargs="?",
+        type=int,
+        default=None,
+        help="Optional 1-based recommendation index (e.g. 1)",
+    )
     parser.add_argument(
         "--repo",
         default="a2ui-project/a2ui",
@@ -156,8 +184,21 @@ def main() -> None:
 
     if args.json:
         print(json.dumps(data, indent=2))
+    elif data["type"] == "general_issue":
+        print("=== General Issue Context ===")
+        print(data["content"])
+    elif data["type"] == "compliance_report":
+        print(
+            f"=== Compliance Report ({len(data['recommendations'])} recommendations"
+            " found) ==="
+        )
+        for item in data["recommendations"]:
+            print(
+                f"- Recommendation {item['index']} ({item['priority']}):"
+                f" {item['content'].splitlines()[0]}"
+            )
     else:
-        print(f"=== Recommendation #{data['index']} ({data['priority']}) ===")
+        print(f"=== Recommendation {data['index']} ({data['priority']}) ===")
         print(data["content"])
 
 
