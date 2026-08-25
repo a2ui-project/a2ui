@@ -97,12 +97,10 @@ def inject_recommendation_prompts(report_content: str, issue_url: str) -> str:
 
                 new_lines.extend(rec_lines)
 
-                prompt_block = (
-                    "   Copy this prompt to implement this recommendation:\n  "
-                    f" ````markdown\n   Read the A2UI issue at {issue_url} and use the"
-                    f" `a2ui-remediate-problem` skill to implement recommendation {idx}"
-                    " described in the issue's Recommendation section.\n   ````"
-                )
+                prompt_block = f"""   Copy this prompt to implement this recommendation:
+   ````markdown
+   Read the A2UI issue at {issue_url} and use the `a2ui-remediate-problem` skill to implement recommendation {idx} described in the issue's Recommendation section.
+   ````"""
                 new_lines.append(prompt_block)
                 new_lines.append("")
                 continue
