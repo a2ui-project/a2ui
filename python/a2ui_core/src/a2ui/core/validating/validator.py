@@ -14,7 +14,7 @@
 
 import re
 from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Union
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 
 from ..exceptions import A2uiValidationError, A2uiErrorDetail
 from ..schema import A2uiMessageListWrapper
@@ -82,7 +82,7 @@ class A2uiValidator:
 
     def validate_protocol_envelope(
         self,
-        messages: List[Dict[str, Any]],
+        messages: Any,
         config: ValidationConfig = STRICT_VALIDATION,
     ) -> None:
         """Validates the overall A2UI protocol payload structure using Pydantic."""
@@ -111,7 +111,7 @@ class A2uiValidator:
                     )
 
         try:
-            A2uiMessageListWrapper.model_validate(
+            TypeAdapter(A2uiMessageListWrapper).validate_python(
                 {"messages": messages},
                 context={"target_version": expected_version},
             )

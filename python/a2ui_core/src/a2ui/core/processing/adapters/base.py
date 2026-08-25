@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Union
 from ..operations import InternalOperation
 from ...exceptions import A2uiValidationError
 from ...schema import ProtocolVersion, AgentToRendererMessagePayload
@@ -83,29 +83,30 @@ class BaseVersionAdapter(VersionAdapter, ABC):
         if not payload:
             return []
 
-        if hasattr(payload, "model_dump"):
-            payload = payload.model_dump(by_alias=True, exclude_none=True)
+        raw_payload: Any = payload
+        if hasattr(raw_payload, "model_dump"):
+            raw_payload = raw_payload.model_dump(by_alias=True, exclude_none=True)
 
-        if isinstance(payload, list):
+        if isinstance(raw_payload, list):
             ops: List[InternalOperation] = []
-            for item in payload:
+            for item in raw_payload:
                 ops.extend(self.extract_operations(item))
             return ops
 
-        if isinstance(payload, dict):
-            if "messages" in payload and isinstance(payload["messages"], list):
-                return self.extract_operations(payload["messages"])
+        if isinstance(raw_payload, dict):
+            if "messages" in raw_payload and isinstance(raw_payload["messages"], list):
+                return self.extract_operations(raw_payload["messages"])
 
-            action = self._extract_single_action(payload)
+            action = self._extract_single_action(raw_payload)
             if not action:
                 return []
 
-            if not isinstance(payload[action], dict):
+            if not isinstance(raw_payload[action], dict):
                 raise A2uiValidationError(
                     f"Payload for action '{action}' must be an object"
                 )
 
-            return self._extract_operations_for_action(action, payload)
+            return self._extract_operations_for_action(action, raw_payload)
 
         return []
 

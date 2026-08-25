@@ -58,16 +58,18 @@ class VersionAdapterFactory:
         if not payload:
             return cls.get_adapter(DEFAULT_PROTOCOL_VERSION)
 
-        if hasattr(payload, "model_dump"):
-            payload = payload.model_dump(by_alias=True, exclude_none=True)
+        raw_payload: Any = payload
+        if hasattr(raw_payload, "model_dump"):
+            raw_payload = raw_payload.model_dump(by_alias=True, exclude_none=True)
 
-        if isinstance(payload, list):
-            for item in payload:
-                if hasattr(item, "model_dump"):
-                    item = item.model_dump(by_alias=True, exclude_none=True)
-                if isinstance(item, dict):
-                    if "version" in item and isinstance(item["version"], str):
-                        ver_enum = cls._parse_version(item["version"])
+        if isinstance(raw_payload, list):
+            for item in raw_payload:
+                raw_item: Any = item
+                if hasattr(raw_item, "model_dump"):
+                    raw_item = raw_item.model_dump(by_alias=True, exclude_none=True)
+                if isinstance(raw_item, dict):
+                    if "version" in raw_item and isinstance(raw_item["version"], str):
+                        ver_enum = cls._parse_version(raw_item["version"])
                         if ver_enum:
                             return cls.get_adapter(ver_enum)
                     if any(
@@ -81,15 +83,15 @@ class VersionAdapterFactory:
                         return cls.get_adapter(ProtocolVersion.V0_8)
             return cls.get_adapter(DEFAULT_PROTOCOL_VERSION)
 
-        if isinstance(payload, dict):
-            if "messages" in payload and isinstance(payload["messages"], list):
-                return cls.resolve_from_payload(payload["messages"])
-            if "version" in payload and isinstance(payload["version"], str):
-                ver_enum = cls._parse_version(payload["version"])
+        if isinstance(raw_payload, dict):
+            if "messages" in raw_payload and isinstance(raw_payload["messages"], list):
+                return cls.resolve_from_payload(raw_payload["messages"])
+            if "version" in raw_payload and isinstance(raw_payload["version"], str):
+                ver_enum = cls._parse_version(raw_payload["version"])
                 if ver_enum:
                     return cls.get_adapter(ver_enum)
             if any(
-                k in payload
+                k in raw_payload
                 for k in (
                     "beginRendering",
                     "surfaceUpdate",

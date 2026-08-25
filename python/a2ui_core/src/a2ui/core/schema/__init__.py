@@ -50,6 +50,9 @@ AgentToRendererMessageListWrapper = Union[
 AgentToRendererMessagePayload = Union[
     AgentToRendererMessageListWrapper,
     List[AgentToRendererMessage],
+    AgentToRendererMessage,
+    Dict[str, Any],
+    List[Dict[str, Any]],
 ]
 
 RendererToAgentMessage = Union[
