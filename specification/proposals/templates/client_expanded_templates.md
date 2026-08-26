@@ -74,8 +74,8 @@ Initial templates known at surface creation time can be transported directly ins
           "child": {
             "component": "Column",
             "children": [
-              {"component": "Text", "text": "${label}", "variant": "caption"},
-              {"component": "Text", "text": "${value}", "variant": "h2"}
+              {"component": "Text", "text": "{{ label }}", "variant": "caption"},
+              {"component": "Text", "text": "{{ value }}", "variant": "h2"}
             ]
           }
         }
@@ -149,12 +149,12 @@ For templates delivered after surface creation, or emitted dynamically by connec
                 "component": "Row",
                 "justify": "spaceBetween",
                 "children": [
-                  {"component": "Text", "text": "#${prNumber} ${title}", "variant": "h3"},
-                  {"component": "Text", "text": "${status}", "variant": "caption"}
+                  {"component": "Text", "text": "#{{ prNumber }} {{ title }}", "variant": "h3"},
+                  {"component": "Text", "text": "{{ status }}", "variant": "caption"}
                 ]
               },
               {"component": "Divider", "axis": "horizontal"},
-              {"component": "Text", "text": "Opened by @${author}", "variant": "body"}
+              {"component": "Text", "text": "Opened by @{{ author }}", "variant": "body"}
             ]
           }
         }
@@ -355,12 +355,12 @@ Client-expanded templates have direct, low-latency access to the client's `DataM
                 "component": "Row",
                 "justify": "spaceBetween",
                 "children": [
-                  {"component": "Text", "text": "${hostname}", "variant": "h3"},
+                  {"component": "Text", "text": "{{ hostname }}", "variant": "h3"},
                   {"component": "Icon", "name": "dns"}
                 ]
               },
               {"component": "Divider", "axis": "horizontal"},
-              {"component": "Text", "text": "CPU Load: ${cpuUsage}%", "variant": "body"}
+              {"component": "Text", "text": "CPU Load: {{ cpuUsage }}%", "variant": "body"}
             ]
           }
         }
