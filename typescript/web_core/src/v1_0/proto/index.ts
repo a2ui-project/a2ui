@@ -15,18 +15,14 @@
 // Auto-generated Protobuf descriptor bindings. Do not edit manually.
 
 import protobuf from 'protobufjs';
-import protoJson from './a2ui-proto.json' with {type: 'json'};
+import protoJson from './a2ui-proto.json' with { type: 'json' };
 
 export const protoRoot = protobuf.Root.fromJSON(protoJson as unknown as protobuf.INamespace);
 
 export const AgentToRendererMessageType = protoRoot.lookupType('a2ui.v1_0.AgentToRendererMessage');
 export const RendererToAgentMessageType = protoRoot.lookupType('a2ui.v1_0.RendererToAgentMessage');
-export const AgentToRendererListWrapperType = protoRoot.lookupType(
-  'a2ui.v1_0.AgentToRendererListWrapper',
-);
-export const AgentToRendererMessageListType = protoRoot.lookupType(
-  'a2ui.v1_0.AgentToRendererMessageList',
-);
+export const AgentToRendererListWrapperType = protoRoot.lookupType('a2ui.v1_0.AgentToRendererListWrapper');
+export const AgentToRendererMessageListType = protoRoot.lookupType('a2ui.v1_0.AgentToRendererMessageList');
 export const ComponentType = protoRoot.lookupType('a2ui.v1_0.Component');
 
-export {protoJson};
+export { protoJson };

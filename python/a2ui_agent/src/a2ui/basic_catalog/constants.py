@@ -12,7 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..schema.constants import CATALOG_SCHEMA_KEY, VERSION_0_8, VERSION_0_9, VERSION_0_9_1
+from ..schema.constants import (
+    CATALOG_SCHEMA_KEY,
+    VERSION_0_8,
+    VERSION_0_9,
+    VERSION_0_9_1,
+    VERSION_1_0,
+)
 
 BASIC_CATALOG_NAME = "basic"
 
@@ -25,4 +31,5 @@ BASIC_CATALOG_PATHS = {
     VERSION_0_9_1: {
         CATALOG_SCHEMA_KEY: "specification/v0_9_1/catalogs/basic/catalog.json"
     },
+    VERSION_1_0: {CATALOG_SCHEMA_KEY: "specification/v1_0/catalogs/basic/catalog.json"},
 }

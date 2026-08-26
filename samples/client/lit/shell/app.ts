@@ -834,13 +834,12 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
     if (!file) return;
 
     this._localFileName = file.name;
+    const isBinaryProto =
+      file.name.endsWith('.pb') || file.name.endsWith('.bin') || file.name.endsWith('.proto');
+
     const reader = new FileReader();
     reader.onload = e => {
       try {
-        const content = e.target?.result as string;
-        const parsed = JSON.parse(content);
-        const messages = Array.isArray(parsed) ? parsed : [parsed];
-
         this._isLocalMode = true;
 
         // Clear all existing surfaces
@@ -848,18 +847,32 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
           this._processor.model.deleteSurface(surfaceId);
         }
 
-        this._processor.processMessages(messages);
-
-        this.showToast(`Successfully loaded mockup from ${file.name}`, 'info');
+        if (isBinaryProto) {
+          const buffer = e.target?.result as ArrayBuffer;
+          const bytes = new Uint8Array(buffer);
+          this._processor.processMessages(bytes);
+          this.showToast(`Successfully loaded Protobuf mockup from ${file.name}`, 'info');
+        } else {
+          const content = e.target?.result as string;
+          const parsed = JSON.parse(content);
+          const messages = Array.isArray(parsed) ? parsed : [parsed];
+          this._processor.processMessages(messages);
+          this.showToast(`Successfully loaded mockup from ${file.name}`, 'info');
+        }
       } catch (err) {
         console.error(err);
         this.showToast(
-          `Failed to parse A2UI JSON: ${err instanceof Error ? err.message : String(err)}`,
+          `Failed to parse A2UI payload: ${err instanceof Error ? err.message : String(err)}`,
           'error',
         );
       }
     };
-    reader.readAsText(file);
+
+    if (isBinaryProto) {
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.readAsText(file);
+    }
     fileInput.value = '';
   }
 
@@ -879,8 +892,6 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
       if (!response.ok) {
         throw new Error(`Failed to fetch sample file: ${response.statusText}`);
       }
-      const parsed = await response.json();
-      const messages = Array.isArray(parsed) ? parsed : [parsed];
 
       this._isLocalMode = true;
 
@@ -889,13 +900,23 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
         this._processor.model.deleteSurface(surfaceId);
       }
 
-      this._processor.processMessages(messages);
+      const isBinaryProto =
+        filename.endsWith('.pb') || filename.endsWith('.bin') || filename.endsWith('.proto');
 
-      this.showToast(`Successfully loaded sample: ${filename}`, 'info');
+      if (isBinaryProto) {
+        const buffer = await response.arrayBuffer();
+        this._processor.processMessages(new Uint8Array(buffer));
+        this.showToast(`Successfully loaded Protobuf sample: ${filename}`, 'info');
+      } else {
+        const parsed = await response.json();
+        const messages = Array.isArray(parsed) ? parsed : [parsed];
+        this._processor.processMessages(messages);
+        this.showToast(`Successfully loaded sample: ${filename}`, 'info');
+      }
     } catch (err) {
       console.error(err);
       this.showToast(
-        `Failed to load sample JSON: ${err instanceof Error ? err.message : String(err)}`,
+        `Failed to load sample: ${err instanceof Error ? err.message : String(err)}`,
         'error',
       );
     }

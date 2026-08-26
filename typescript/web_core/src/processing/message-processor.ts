@@ -379,6 +379,26 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       return;
     }
 
+    if (Array.isArray(messages)) {
+      const hasPartOrBinary = messages.some(
+        item =>
+          item instanceof Uint8Array ||
+          item instanceof ArrayBuffer ||
+          (typeof item === 'object' &&
+            item !== null &&
+            ('root' in item ||
+              ('kind' in item && (item.kind === 'file' || item.kind === 'data')) ||
+              ('file' in item && typeof (item as Record<string, unknown>).file === 'object'))),
+      );
+
+      if (hasPartOrBinary) {
+        for (const item of messages) {
+          this.processMessages(item);
+        }
+        return;
+      }
+    }
+
     if (
       typeof messages === 'object' &&
       messages !== null &&
@@ -397,6 +417,24 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       }
       if (root?.data) {
         this.processMessages(root.data);
+        return;
+      }
+    }
+
+    if (typeof messages === 'object' && messages !== null) {
+      const obj = messages as Record<string, unknown>;
+      if (obj.file && typeof obj.file === 'object') {
+        const file = obj.file as Record<string, unknown>;
+        if (file.bytes) {
+          const decoded = decodeAgentToRendererMessages(file.bytes as string);
+          for (const m of decoded) {
+            this.processMessages(m);
+          }
+          return;
+        }
+      }
+      if (obj.kind === 'data' && 'data' in obj) {
+        this.processMessages(obj.data);
         return;
       }
     }

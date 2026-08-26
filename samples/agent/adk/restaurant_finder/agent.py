@@ -15,6 +15,7 @@
 import json
 import logging
 import os
+from pathlib import Path
 from collections import OrderedDict
 from collections.abc import AsyncIterable
 from typing import Any, Optional, Dict
@@ -45,9 +46,11 @@ from tools import get_restaurants
 from a2ui.schema.constants import (
     VERSION_0_8,
     VERSION_0_9,
+    VERSION_1_0,
     A2UI_OPEN_TAG,
     A2UI_CLOSE_TAG,
 )
+from a2ui.core.serialization import OutputFormat
 from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.parser.parser import parse_response, ResponsePart
 from a2ui.basic_catalog.provider import BasicCatalog
@@ -63,10 +66,16 @@ class RestaurantAgent:
 
     SUPPORTED_CONTENT_TYPES = ["text/plain"]
 
-    def __init__(self, base_url: str):
+    def __init__(
+        self,
+        base_url: str,
+        output_format: Optional[Any] = None,
+    ):
         self.base_url = base_url
         self._agent_name = "Restaurant Agent"
         self._user_id = "remote_agent"
+        fmt = output_format or os.getenv("A2UI_OUTPUT_FORMAT", OutputFormat.JSON_DICT)
+        self._output_format = OutputFormat(fmt) if isinstance(fmt, str) else fmt
         self._text_runner: Optional[Runner] = self._build_runner(
             self._build_llm_agent()
         )
@@ -76,7 +85,7 @@ class RestaurantAgent:
         self._parsers = OrderedDict()
         self._max_parsers = 1000  # Max active sessions to keep in memory
 
-        for version in [VERSION_0_8, VERSION_0_9]:
+        for version in [VERSION_0_8, VERSION_0_9, VERSION_1_0]:
             inference_format = self._build_inference_format(version)
             self._inference_formats[version] = inference_format
             agent = self._build_llm_agent(inference_format)
@@ -88,15 +97,25 @@ class RestaurantAgent:
     def agent_card(self) -> AgentCard:
         return self._agent_card
 
+    @property
+    def output_format(self) -> OutputFormat:
+        return self._output_format
+
     def _build_inference_format(self, version: str) -> DirectJsonFormat:
+        sample_dir = Path(__file__).parent
+        ex_path = sample_dir / f"examples/{version}"
+        if not ex_path.exists():
+            ex_path = sample_dir / "examples/0.9"
+        experiments = {"version_1_0"} if version == VERSION_1_0 else None
         return DirectJsonFormat(
             version=version,
             catalogs=[
                 BasicCatalog.get_config(
-                    version=version, examples_path=f"examples/{version}"
+                    version=version, examples_path=str(ex_path)
                 )
             ],
             schema_modifiers=[remove_strict_validation],
+            experiments=experiments,
         )
 
     def _build_agent_card(self) -> AgentCard:
@@ -290,6 +309,7 @@ class RestaurantAgent:
                     self._parsers[session_id],
                     token_stream(),
                     version=ui_version,
+                    output_format=self._output_format,
                 ):
                     parts_streamed = True
                     yield {
@@ -363,7 +383,10 @@ class RestaurantAgent:
                     f" response (Attempt {attempt}). ---"
                 )
                 final_parts = parse_response_to_parts(
-                    final_response_content, fallback_text="OK.", version=ui_version
+                    final_response_content,
+                    fallback_text="OK.",
+                    version=ui_version,
+                    output_format=self._output_format,
                 )
 
                 yield {

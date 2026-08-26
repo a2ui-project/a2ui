@@ -103,8 +103,10 @@ export class A2UIClient {
     if (result.kind === 'task' && result.status.message?.parts) {
       const messages: any[] = [];
       for (const part of result.status.message.parts) {
-        if (part.kind === 'data') {
+        if (part.kind === 'data' && part.data) {
           messages.push(part.data);
+        } else if (part.kind === 'file') {
+          messages.push(part);
         }
       }
       return messages;

@@ -14,6 +14,7 @@
 
 import logging
 import os
+from pathlib import Path
 
 import click
 from a2a.server.apps import A2AStarletteApplication
@@ -36,9 +37,17 @@ class MissingAPIKeyError(Exception):
 
 
 @click.command()
-@click.option("--host", default="localhost")
-@click.option("--port", default=10002)
-def main(host, port):
+@click.option("--host", default="localhost", help="Host to bind to.")
+@click.option("--port", default=10002, help="Port to bind to.")
+@click.option(
+    "--format",
+    "--output-format",
+    "output_format",
+    type=click.Choice(["json_dict", "json_string", "proto_message", "proto_bytes"]),
+    default=None,
+    help="A2UI output serialization format (default: json_dict or A2UI_OUTPUT_FORMAT).",
+)
+def main(host, port, output_format):
     try:
         # Check for API key only if Vertex AI is not configured
         if not os.getenv("GOOGLE_GENAI_USE_VERTEXAI") == "TRUE":
@@ -50,7 +59,7 @@ def main(host, port):
 
         base_url = f"http://{host}:{port}"
 
-        agent = RestaurantAgent(base_url=base_url)
+        agent = RestaurantAgent(base_url=base_url, output_format=output_format)
 
         agent_executor = RestaurantAgentExecutor(agent)
 
@@ -73,7 +82,8 @@ def main(host, port):
             allow_headers=["*"],
         )
 
-        app.mount("/static", StaticFiles(directory="images"), name="static")
+        images_dir = Path(__file__).parent / "images"
+        app.mount("/static", StaticFiles(directory=str(images_dir)), name="static")
 
         uvicorn.run(app, host=host, port=port)
     except MissingAPIKeyError as e:

@@ -96,7 +96,7 @@ def _denormalize_payload_from_proto(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def dict_to_agent_message(
-    payload: dict[str, Any], ignore_unknown_fields: bool = False
+    payload: dict[str, Any], ignore_unknown_fields: bool = True
 ) -> agent_to_renderer_pb2.AgentToRendererMessage:
     """Converts an A2UI dictionary into an AgentToRendererMessage Protobuf instance.
 
@@ -116,6 +116,10 @@ def dict_to_agent_message(
         json_format.ParseDict(
             norm_payload, message, ignore_unknown_fields=ignore_unknown_fields
         )
+        if not message.WhichOneof("message"):
+            raise A2uiValidationError(
+                "Payload does not contain a recognized A2UI message type."
+            )
         return message
     except Exception as e:
         raise A2uiValidationError(
@@ -146,7 +150,7 @@ def agent_message_to_dict(
 
 
 def dict_to_renderer_message(
-    payload: dict[str, Any], ignore_unknown_fields: bool = False
+    payload: dict[str, Any], ignore_unknown_fields: bool = True
 ) -> renderer_to_agent_pb2.RendererToAgentMessage:
     """Converts an A2UI dictionary into a RendererToAgentMessage Protobuf instance.
 
@@ -165,6 +169,10 @@ def dict_to_renderer_message(
         json_format.ParseDict(
             payload, message, ignore_unknown_fields=ignore_unknown_fields
         )
+        if not message.WhichOneof("message"):
+            raise A2uiValidationError(
+                "Payload does not contain a recognized A2UI message type."
+            )
         return message
     except Exception as e:
         raise A2uiValidationError(

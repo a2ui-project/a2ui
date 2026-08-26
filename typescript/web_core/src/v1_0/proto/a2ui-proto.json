@@ -132,7 +132,10 @@
               "edition": "2023",
               "oneofs": {
                 "childrenType": {
-                  "oneof": ["staticList", "template"],
+                  "oneof": [
+                    "staticList",
+                    "template"
+                  ],
                   "comment": null
                 }
               },
@@ -220,7 +223,11 @@
               "edition": "2023",
               "oneofs": {
                 "value": {
-                  "oneof": ["literalString", "dataBinding", "functionCall"],
+                  "oneof": [
+                    "literalString",
+                    "dataBinding",
+                    "functionCall"
+                  ],
                   "comment": null
                 }
               },
@@ -247,7 +254,11 @@
               "edition": "2023",
               "oneofs": {
                 "value": {
-                  "oneof": ["literalNumber", "dataBinding", "functionCall"],
+                  "oneof": [
+                    "literalNumber",
+                    "dataBinding",
+                    "functionCall"
+                  ],
                   "comment": null
                 }
               },
@@ -274,7 +285,11 @@
               "edition": "2023",
               "oneofs": {
                 "value": {
-                  "oneof": ["literalBoolean", "dataBinding", "functionCall"],
+                  "oneof": [
+                    "literalBoolean",
+                    "dataBinding",
+                    "functionCall"
+                  ],
                   "comment": null
                 }
               },
@@ -313,7 +328,11 @@
               "edition": "2023",
               "oneofs": {
                 "value": {
-                  "oneof": ["literalStringList", "dataBinding", "functionCall"],
+                  "oneof": [
+                    "literalStringList",
+                    "dataBinding",
+                    "functionCall"
+                  ],
                   "comment": null
                 }
               },
@@ -384,7 +403,10 @@
               "edition": "2023",
               "oneofs": {
                 "condition": {
-                  "oneof": ["dataBinding", "functionCall"],
+                  "oneof": [
+                    "dataBinding",
+                    "functionCall"
+                  ],
                   "comment": null
                 }
               },
@@ -445,7 +467,10 @@
               "edition": "2023",
               "oneofs": {
                 "actionType": {
-                  "oneof": ["event", "functionCall"],
+                  "oneof": [
+                    "event",
+                    "functionCall"
+                  ],
                   "comment": null
                 }
               },
@@ -499,7 +524,10 @@
               "edition": "2023",
               "oneofs": {
                 "response": {
-                  "oneof": ["value", "error"],
+                  "oneof": [
+                    "value",
+                    "error"
+                  ],
                   "comment": null
                 }
               },
@@ -867,7 +895,10 @@
               "edition": "2023",
               "oneofs": {
                 "target": {
-                  "oneof": ["surfaceId", "functionCallId"],
+                  "oneof": [
+                    "surfaceId",
+                    "functionCallId"
+                  ],
                   "comment": null
                 }
               },
@@ -904,7 +935,10 @@
               "edition": "2023",
               "oneofs": {
                 "errorType": {
-                  "oneof": ["validationError", "genericError"],
+                  "oneof": [
+                    "validationError",
+                    "genericError"
+                  ],
                   "comment": null
                 }
               },
@@ -926,7 +960,12 @@
               "edition": "2023",
               "oneofs": {
                 "message": {
-                  "oneof": ["action", "callAgentFunction", "rendererFunctionResponse", "error"],
+                  "oneof": [
+                    "action",
+                    "callAgentFunction",
+                    "rendererFunctionResponse",
+                    "error"
+                  ],
                   "comment": null
                 }
               },
@@ -1231,7 +1270,11 @@
                       "edition": "2023",
                       "oneofs": {
                         "name": {
-                          "oneof": ["standard", "svgPath", "dataBinding"],
+                          "oneof": [
+                            "standard",
+                            "svgPath",
+                            "dataBinding"
+                          ],
                           "comment": null
                         }
                       },

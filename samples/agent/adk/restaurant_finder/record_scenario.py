@@ -124,9 +124,14 @@ async def record_query(agent, query, session_id, ui_version):
     async for event in agent.stream(query, session_id, ui_version):
         parts = event.get("parts", [])
         for p in parts:
-            if p.root.metadata and p.root.metadata.get("mimeType") in (
+            if hasattr(p.root, "file") and getattr(p.root.file, "bytes", None):
+                import base64
+                raw = base64.b64decode(p.root.file.bytes)
+                messages.append(raw)
+            elif p.root.metadata and p.root.metadata.get("mimeType") in (
                 "application/a2ui+json",
                 "application/json+a2ui",
+                "application/a2ui+proto",
             ):
                 if isinstance(p.root.data, list):
                     messages.extend(p.root.data)
