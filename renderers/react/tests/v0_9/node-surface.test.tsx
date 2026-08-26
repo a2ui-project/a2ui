@@ -126,6 +126,30 @@ const ProbeImpl: ReactComponentImplementation = {
   view: ({node}) => <span>{`id:${node.instanceId}`}</span>,
 };
 
+/** Render-only: no `view`, reads raw component ids from the model. */
+const RawItemImpl: ReactComponentImplementation = {
+  name: 'RawItem',
+  schema: z.object({
+    child: ComponentIdSchema.optional(),
+    children: ChildListSchema.optional(),
+  }),
+  render: ({context, buildChild}) => {
+    const properties = context.componentModel.properties;
+    const childId = properties.child as string | undefined;
+    const childIds = properties.children as string[] | undefined;
+    return (
+      <div>
+        {childId ? buildChild(childId) : null}
+        {Array.isArray(childIds)
+          ? childIds.map((id, index) => (
+              <React.Fragment key={`${id}-${index}`}>{buildChild(id)}</React.Fragment>
+            ))
+          : null}
+      </div>
+    );
+  },
+};
+
 /**
  * A child reference typed as a bare string, which is what a catalog gets when
  * it replaces `ComponentIdSchema`'s description instead of using `componentId()`.
@@ -155,6 +179,7 @@ function setup() {
     ButtonImpl,
     TextFieldImpl,
     ProbeImpl,
+    RawItemImpl,
     UnmarkedParentImpl,
   ]);
   const surface = new SurfaceModel<ReactComponentImplementation>('surf-1', catalog);
@@ -475,6 +500,56 @@ describe('A2uiSurface', () => {
     // first node's id at both positions.
     expect(screen.getByText('id:a')).toBeDefined();
     expect(screen.getByText('id:a#2')).toBeDefined();
+  });
+
+  it('resolves marked children of a render-only implementation inside a template', () => {
+    const surface = setup();
+    const reported: Array<Record<string, unknown>> = [];
+    surface.onError.subscribe(e => {
+      reported.push(e as Record<string, unknown>);
+    });
+    surface.dataModel.set('/items', [{}]);
+    add(surface, 'root', 'Column', {children: {componentId: 'item', path: '/items'}});
+    add(surface, 'item', 'RawItem', {child: 'kid'});
+    add(surface, 'kid', 'Text', {text: 'kid text'});
+
+    render(<A2uiSurface surface={surface} />);
+    expect(screen.getByText('kid text')).toBeDefined();
+    expect(reported.map(r => r.code)).toEqual([]);
+  });
+
+  it('resolves a marked child whose id looks like an occurrence token', () => {
+    const surface = setup();
+    const reported: Array<Record<string, unknown>> = [];
+    surface.onError.subscribe(e => {
+      reported.push(e as Record<string, unknown>);
+    });
+    add(surface, 'root', 'RawItem', {child: 'kid#2'});
+    add(surface, 'kid#2', 'Text', {text: 'hash kid'});
+
+    render(<A2uiSurface surface={surface} />);
+    expect(screen.getByText('hash kid')).toBeDefined();
+    expect(reported.map(r => r.code)).toEqual([]);
+  });
+
+  it('resolves raw ids and view tokens through separate namespaces', () => {
+    // The token namespace assigns 'a#2' to the second occurrence of 'a'; the
+    // raw id 'a#2' must still reach the component with that literal id. Raw
+    // duplicate references collapse onto the first instance; a raw string
+    // cannot name a later occurrence.
+    const surface = setup();
+    const reported: Array<Record<string, unknown>> = [];
+    surface.onError.subscribe(e => {
+      reported.push(e as Record<string, unknown>);
+    });
+    add(surface, 'root', 'RawItem', {children: ['a', 'a', 'a#2']});
+    add(surface, 'a', 'Text', {text: 'alpha'});
+    add(surface, 'a#2', 'Text', {text: 'literal'});
+
+    render(<A2uiSurface surface={surface} />);
+    expect(screen.getAllByText('alpha')).toHaveLength(2);
+    expect(screen.getByText('literal')).toBeDefined();
+    expect(reported.map(r => r.code)).toEqual([]);
   });
 
   it('renders the loading state for a component removed before its render commits', () => {

@@ -51,15 +51,14 @@ const RenderFallback: React.FC<{
   impl: ReactComponentImplementation;
   buildChild: NodeBuildChild;
 }> = ({node, impl, buildChild}) => {
-  // `render` reads child ids from the component model, so it needs the
-  // conversion's `buildChild`, which maps an id back to the node the resolver
-  // already built for it.
-  const {context, viewBuildChild} = useNodeView(node, buildChild);
+  // `render` reads raw component ids from the model, not the tokens the
+  // conversion puts in view props, so it resolves through the raw-id map.
+  const {context, rawBuildChild} = useNodeView(node, buildChild);
   const Render = impl.render;
   if (!context) {
     return <LoadingPlaceholder componentId={node.componentId} />;
   }
-  return <Render context={context} buildChild={viewBuildChild} />;
+  return <Render context={context} buildChild={rawBuildChild} />;
 };
 
 const NodeView = memo(

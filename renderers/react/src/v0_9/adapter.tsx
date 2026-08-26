@@ -132,12 +132,13 @@ export function createBinderlessComponentImplementation(
 ): ReactComponentImplementation {
   const NodeView: React.FC<NodeViewProps> = ({node, buildChild}) => {
     // The conversion's only role here is filling the child index; the
-    // component binds its own values from the context.
-    const {context, viewBuildChild} = useNodeView(node, buildChild);
+    // component binds its own values from the context, so its child ids are
+    // raw component ids, not view tokens.
+    const {context, rawBuildChild} = useNodeView(node, buildChild);
     if (!context) {
       return <LoadingPlaceholder componentId={node.componentId} />;
     }
-    return <RenderComponent context={context} buildChild={viewBuildChild} />;
+    return <RenderComponent context={context} buildChild={rawBuildChild} />;
   };
   NodeView.displayName = `${api.name}.view`;
 
