@@ -58,6 +58,10 @@ export function createComponentImplementation<Api extends ComponentApi>(
 
   const MemoizedRender = memo(RenderComponent, (prev, next) => {
     if (prev.props !== next.props) return false;
+    // The child index is rebuilt when a child arrives, leaves, or is
+    // replaced; binder props don't change with it, so the builder's identity
+    // is the only signal.
+    if (prev.buildChild !== next.buildChild) return false;
     if (prev.context.componentModel.id !== next.context.componentModel.id) return false;
     if (prev.context.dataContext.path !== next.context.dataContext.path) return false;
     return true;

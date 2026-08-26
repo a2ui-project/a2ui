@@ -126,6 +126,29 @@ const ProbeImpl: ReactComponentImplementation = {
   view: ({node}) => <span>{`id:${node.instanceId}`}</span>,
 };
 
+// A factory-created implementation with `view` removed: the shape an older
+// catalog holds, rendering through ReactWrapper and MemoizedRender.
+const factoryItem = createComponentImplementation(
+  {name: 'FactoryItem', schema: z.object({child: ComponentIdSchema.optional()})},
+  ({props, buildChild}) => <div>{props.child ? buildChild(props.child as string) : null}</div>,
+);
+const FactoryRenderOnlyImpl: ReactComponentImplementation = {
+  name: factoryItem.name,
+  schema: factoryItem.schema,
+  render: factoryItem.render,
+};
+
+const CollidingScoperImpl: ReactComponentImplementation = {
+  name: 'CollidingScoper',
+  schema: z.object({first: ComponentIdSchema.optional(), second: ComponentIdSchema.optional()}),
+  render: ({buildChild}) => (
+    <div>
+      {buildChild('kid@x', '/y')}
+      {buildChild('kid', 'x@/y')}
+    </div>
+  ),
+};
+
 /** Render-only: no `view`, reads raw component ids from the model. */
 const RawItemImpl: ReactComponentImplementation = {
   name: 'RawItem',
@@ -180,6 +203,8 @@ function setup() {
     TextFieldImpl,
     ProbeImpl,
     RawItemImpl,
+    FactoryRenderOnlyImpl,
+    CollidingScoperImpl,
     UnmarkedParentImpl,
   ]);
   const surface = new SurfaceModel<ReactComponentImplementation>('surf-1', catalog);
@@ -500,6 +525,41 @@ describe('A2uiSurface', () => {
     // first node's id at both positions.
     expect(screen.getByText('id:a')).toBeDefined();
     expect(screen.getByText('id:a#2')).toBeDefined();
+  });
+
+  it('tracks child arrival and removal under a factory-created render-only parent', async () => {
+    // Binder props don't change when a marked child arrives, so the memoized
+    // renderer must re-render on the builder's identity alone.
+    const surface = setup();
+    add(surface, 'root', 'FactoryItem', {child: 'late'});
+
+    render(<A2uiSurface surface={surface} />);
+    expect(screen.getByText(/Loading/)).toBeDefined();
+
+    await act(async () => {
+      add(surface, 'late', 'Text', {text: 'arrived'});
+    });
+    expect(screen.queryByText(/Loading/)).toBeNull();
+    expect(screen.getByText('arrived')).toBeDefined();
+
+    await act(async () => {
+      surface.componentsModel.removeComponent('late');
+    });
+    expect(screen.queryByText('arrived')).toBeNull();
+  });
+
+  it('reports each unresolved reference pair, not conflating look-alike pairs', () => {
+    const surface = setup();
+    const reported: string[] = [];
+    surface.onError.subscribe(e => {
+      reported.push((e as {code: string}).code);
+    });
+    add(surface, 'root', 'CollidingScoper', {first: 'kid@x', second: 'kid'});
+    add(surface, 'kid@x', 'Text', {text: 'one'});
+    add(surface, 'kid', 'Text', {text: 'two'});
+
+    render(<A2uiSurface surface={surface} />);
+    expect(reported.filter(code => code === 'UNRESOLVED_CHILD_REFERENCE')).toHaveLength(2);
   });
 
   it('resolves marked children of a render-only implementation inside a template', () => {
