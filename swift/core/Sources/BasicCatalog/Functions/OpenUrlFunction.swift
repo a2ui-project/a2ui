@@ -23,7 +23,7 @@ public protocol OpenURLHandler: AnyObject, Sendable {
 }
 
 /// Opens a URL using a registered handler, ensuring it has an `http` or `https` scheme.
-public struct OpenUrlFunction: FunctionImplementation, @unchecked Sendable {
+public final class OpenURLFunction: FunctionImplementation, @unchecked Sendable {
   public let api = FunctionAPI(
     name: "openUrl",
     returnType: .void,

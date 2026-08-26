@@ -40,7 +40,8 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<typeof
    * - `--a2ui-color-on-input`: Text color.
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-basic-textfield {
       display: flex;
       flex-direction: column;
       gap: var(--a2ui-spacing-xs, 0.25rem);

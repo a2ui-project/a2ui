@@ -47,6 +47,8 @@ def main() -> None:
         2. In your terminal sessions, export the required environment variables:
            export ISSUE_NUMBER="{issue_num}"
            export RECOMMENDATION_INDEX="{rec_idx}"
+           export GITHUB_TOKEN='{gh_token}'
+           export GH_TOKEN='{gh_token}'
         3. Read and follow all instructions in `.agents/skills/a2ui-audit/references/remediate-problem.md` to remediate recommendation #{rec_idx} from issue #{issue_num} and submit a Draft Pull Request.
         """)
 

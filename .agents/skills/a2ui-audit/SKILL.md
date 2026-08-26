@@ -33,6 +33,8 @@ fix issues.
 4. **Summarize the report**:
    - Add a `## Summary` section at the top of the `compliance_report.md` file with a detailed overview of the audit scope and key findings across all audited codebases.
    - Add a `## Recommendations` section listing actionable, prioritized follow-up items formatted as a numbered list (e.g. `1. **P0**: ...`). Each numbered item MUST represent a concrete, self-contained remediation task.
+   - Immediately below the recommendations list, include the mandatory automated remediation callout:
+     > 🤖 **Automated Remediation**: Comment `/fix <number>` (e.g., `/fix 1`) on this issue to have an agent create a draft PR for that recommendation.
 
 5. **Format and Detail Requirements**:
    - **MANDATORY COMPLETE REPOSITORY COVERAGE**: The report MUST include status rows and detailed findings for **ALL 8 production codebases** discovered by `check_compliance.py`. Do NOT truncate, shortcut, or abbreviate the summary tables or detailed findings.

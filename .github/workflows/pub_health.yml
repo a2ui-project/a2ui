@@ -1,0 +1,36 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This workflow is used to check that CHANGELOG.md is properly updated,
+# and the version in it is in agreement with pubspec.yaml.
+# See more information at
+# https://github.com/dart-lang/ecosystem/tree/main/pkgs/firehose#integrating-this-tool-into-a-repo
+name: Pub Health
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+jobs:
+  health:
+    # Pinned to a commit, as required by the unpinned-uses policy. The workflow
+    # itself installs package:firehose from the tip of main, so the checks stay
+    # up to date; bump this hash to pick up changes to the workflow steps.
+    uses: dart-lang/ecosystem/.github/workflows/health.yaml@cda8bd535dfbcff45010bc3c843d325682f944b2 # main, 2026-08-17
+    with:
+      # The changelog check also verifies the version in CHANGELOG.md agrees
+      # with pubspec.yaml. "version" is not a valid check name.
+      checks: "changelog"
+      fail_on: "changelog"
+    permissions:
+      pull-requests: write

@@ -23,6 +23,12 @@ import Testing
 @MainActor
 struct StressTests {
 
+  private let parser = MessageParser()
+
+  private func parse(_ json: String) throws -> ServerToClientMessage {
+    try parser.parse(jsonString: json)
+  }
+
   // MARK: - Deep Nesting
 
   @Test func deeplyNestedDataModel100Levels() throws {
@@ -53,14 +59,15 @@ struct StressTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-        """)
+        """))
 
     // Create 100 child components
     var components: [[String: JSONValue]] = []
@@ -86,7 +93,7 @@ struct StressTests {
     let updateMsg = ServerToClientMessage.updateComponents(
       UpdateComponentsMessage(surfaceID: "s1", components: components)
     )
-    try processor.process(message: updateMsg)
+    processor.process(message: updateMsg)
 
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     let stored = vm?.componentsModel.components ?? [:]
@@ -159,22 +166,24 @@ struct StressTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-        """)
+        """))
 
     // Button with only required fields — no label, no onClick
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
           {"id": "root", "component": "button"}
         ]}}
-        """)
+        """))
 
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     #expect(vm?.componentsModel.get("root") != nil)
@@ -184,18 +193,20 @@ struct StressTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-        """)
+        """))
 
     // Component references a data path that doesn't exist
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
           {
             "id": "root",
@@ -203,7 +214,7 @@ struct StressTests {
             "text": {"path": "/nonexistent/path"}
           }
         ]}}
-        """)
+        """))
 
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     #expect(vm?.dataModel.get("/nonexistent/path") == nil)
@@ -213,18 +224,20 @@ struct StressTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-        """)
-    try processor.process(
-      line: """
+        """))
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": []}}
-        """)
+        """))
 
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     #expect(vm?.componentsModel.components.isEmpty == true)
@@ -234,16 +247,18 @@ struct StressTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-        """)
-    try processor.process(
-      line: """
+        """))
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
           {
             "id": "root",
@@ -252,7 +267,7 @@ struct StressTests {
             "children": []
           }
         ]}}
-        """)
+        """))
 
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     let root = try #require(vm?.componentsModel.get("root"))
@@ -264,16 +279,18 @@ struct StressTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-        """)
-    try processor.process(
-      line: """
+        """))
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
           {
             "id": "root",
@@ -286,7 +303,7 @@ struct StressTests {
           },
           {"id": "childTemplate", "component": "text", "text": "Item"}
         ]}}
-        """)
+        """))
 
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     #expect(vm?.componentsModel.get("childTemplate") != nil)
@@ -309,23 +326,25 @@ struct StressTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-        """)
+        """))
 
     // Rapidly update the same component 500 times
     for i in 0..<500 {
-      try processor.process(
-        line: """
+      processor.process(
+        message: try parse(
+          """
           {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
             {"id": "root", "component": "text", "text": "Update \(i)"}
           ]}}
-          """)
+          """))
     }
 
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]

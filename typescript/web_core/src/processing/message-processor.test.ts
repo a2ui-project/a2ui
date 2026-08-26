@@ -23,6 +23,7 @@ import {
   RELAXED_VALIDATION,
 } from './message-processor.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
+import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_components.js';
 import {A2uiValidationError} from '../errors.js';
 import {z} from 'zod';
 
@@ -67,6 +68,26 @@ describe('MessageProcessor', () => {
         inlineCat.components.CustomButton.allOf[0].$ref,
         'https://example.com/schema.json#/$defs/Base',
       );
+    });
+
+    it('keeps $ref on basic catalog child references despite per-usage descriptions', () => {
+      const cat = new Catalog('cat-basic', [CardApi, RowApi, TabsApi]);
+      const proc = new MessageProcessor([cat]);
+
+      const caps = proc.getRendererCapabilities({includeInlineCatalogs: true});
+      const inlineCat = caps.inlineCatalogs?.[0] as any;
+      const components = inlineCat?.components;
+      assert.ok(components);
+
+      const cardChild = components.Card.allOf[1].properties.child;
+      assert.strictEqual(cardChild.$ref, 'common_types.json#/$defs/ComponentId');
+      assert.strictEqual(cardChild.type, undefined);
+
+      const rowChildren = components.Row.allOf[1].properties.children;
+      assert.strictEqual(rowChildren.$ref, 'common_types.json#/$defs/ChildList');
+
+      const tabChild = components.Tabs.allOf[1].properties.tabs.items.properties.child;
+      assert.strictEqual(tabChild.$ref, 'common_types.json#/$defs/ComponentId');
     });
   });
 

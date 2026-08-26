@@ -16,7 +16,7 @@ import A2UICore
 import Foundation
 import JSONSchema
 
-public struct EmailFunction: FunctionImplementation, Sendable {
+public final class EmailFunction: FunctionImplementation, Sendable {
   public let api = FunctionAPI(
     name: "email",
     returnType: .boolean,

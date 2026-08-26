@@ -16,7 +16,7 @@ import A2UICore
 import Foundation
 import JSONSchema
 
-public struct RegexFunction: FunctionImplementation, Sendable {
+public final class RegexFunction: FunctionImplementation, Sendable {
   public let api = FunctionAPI(
     name: "regex",
     returnType: .boolean,

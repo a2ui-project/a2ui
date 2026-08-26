@@ -15,7 +15,7 @@
 import A2UICore
 import JSONSchema
 
-public struct RequiredFunction: FunctionImplementation, Sendable {
+public final class RequiredFunction: FunctionImplementation, Sendable {
   public let api = FunctionAPI(
     name: "required",
     returnType: .boolean,
