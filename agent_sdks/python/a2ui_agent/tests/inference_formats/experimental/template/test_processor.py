@@ -433,7 +433,8 @@ def test_dynamic_template_decorator_processor_expansion():
 
 def test_mustache_substitution_syntax():
     """Verifies that double-curly Mustache syntax {{ param }} is supported for substitutions,
-    preserves exact types, allows whitespace, and leaves client ${/data/path} bindings intact."""
+    preserves exact types, allows whitespace, and leaves client ${/data/path} bindings intact.
+    """
     layout_yaml = """
 version: "0.1"
 name: MustacheCard
@@ -492,4 +493,3 @@ layout:
         "call": "formatString",
         "args": {"value": "Live: ${/metrics/cpu}, Dept: Engineering"},
     }
-
