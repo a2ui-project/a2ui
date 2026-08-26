@@ -76,7 +76,9 @@ Declarative static templates define immutable layout trees authored in YAML file
 
 ```yaml
 version: '0.1'
-templateId: UserProfile
+name: UserProfile
+catalogs:
+  - 'https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json'
 description: Standard identity card for team members.
 parameters:
   userId:
@@ -116,7 +118,8 @@ Data-binding dynamic templates decouple public model parameters from private or 
 ```python
 # Server Registration
 dynamic_salary = DynamicTemplate(
-    template_id="EmployeeSalaryCard",
+    name="EmployeeSalaryCard",
+    catalogs=["https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"],
     resolver=fetch_private_compensation,
     layout=salary_yaml_layout,
     description="Verified compensation card. Pass only employeeId.",
@@ -159,7 +162,8 @@ def render_payroll_summary(department: str = "Engineering", includeBonus: bool =
     }
 
 payroll_tmpl = DynamicTemplate(
-    template_id="PayrollSummary",
+    name="PayrollSummary",
+    catalogs=["https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"],
     render=render_payroll_summary,
     description="Dynamic payroll calculation matrix.",
 )
@@ -194,7 +198,9 @@ A template author specifies a loop over a parameter array:
 
 ```yaml
 version: '0.1'
-templateId: TeamGoalList
+name: TeamGoalList
+catalogs:
+  - 'https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json'
 parameters:
   teamName: {type: string}
   goals: {type: array}
@@ -317,7 +323,9 @@ Templates can accept path prefixes or IDs as parameters, constructing reactive c
 
 ```yaml
 version: '0.1'
-templateId: BoundLiveMetric
+name: BoundLiveMetric
+catalogs:
+  - 'https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json'
 parameters:
   metricKey: {type: string}
   label: {type: string}
@@ -397,17 +405,65 @@ layout:
 
 ---
 
-## 5. The Synthetic Catalog System
+## 5. Catalog Declaration, Validation & Multi-Catalog Disambiguation
+
+Templates must declare which catalog(s) they are authored against via the top-level `catalogs` property.
+
+### A. Mandatory Explicit Catalogs (No Basic Catalog Defaults)
+
+The template engine enforces strict decoupling from any specific catalog:
+
+- **No Hardcoded Defaults**: `TemplateProcessor` does not default to the Basic Catalog or any other specific catalog.
+- **Explicit Catalog Requirement**: All catalogs required by registered templates must be explicitly provided to the processor upon initialization (e.g. via `catalogs={...}`).
+- **Static Integrity Validation**: At registration time, the engine validates that every template's declared `catalogs` can be resolved against the provided catalog registry, and every primitive component referenced in `layout` exists within those catalogs with valid properties.
+
+### B. Prefix-Free Automatic Component Resolution
+
+In layout trees, authors write clean, standard component names (`Card`, `Text`, `HeartRateGraph`) without prefixes or namespace boilerplate:
+
+- **Unique Match (Standard Case)**: If component `Foo` exists in exactly one declared catalog, it automatically resolves to that catalog.
+- **Name Collision**: If two declared catalogs define `Foo`, the author can specify `catalogId` on that specific component in the layout to disambiguate. If omitted, the engine raises an `AmbiguousComponentError`.
+- **Unknown Component**: If `Foo` is found in zero declared catalogs, the engine raises an `UnknownComponentError`.
+
+### C. Protocol Version Rules: v0.9 vs. v1.0
+
+The template engine tailors its expansion and output depending on the target protocol version:
+
+| Dimension                     | A2UI v0.9 / v0.9.1 Behavior                                                                                               | A2UI v1.0 Behavior                                                                                 |
+| :---------------------------- | :------------------------------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------- |
+| **Surface Catalog Model**     | Single catalog per surface (`createSurface.catalogId` required).                                                          | Mixable catalogs (`createSurface.catalogId` optional default).                                     |
+| **Multi-Catalog Templates**   | **Rejected**: If a template declares multiple catalogs, unrolling onto a v0.9 surface raises `CatalogCompatibilityError`. | **Supported**: Expanded seamlessly across mixed catalogs.                                          |
+| **Surface Validation**        | Template's resolved catalog MUST match `createSurface.catalogId`.                                                         | All catalogs referenced by the template must be present in surface `supportedCatalogIds`.          |
+| **Expanded Component Output** | `catalogId` is **never** emitted on expanded component dicts (illegal property in v0.9).                                  | `catalogId` is automatically injected on any component whose catalog differs from surface default. |
+
+---
+
+## 6. Sub-Template Imports & Global Identity
+
+Templates decouple their local invocation name from their optional global identity:
+
+- **`name`** (Required): Component tag name used in layout trees and LLM prompts (`^[A-Za-z][A-Za-z0-9_]*$`). `templateId` is accepted as a backwards-compatible alias.
+- **`id`** (Optional): Globally unique URI or URN string (e.g. `https://company.org/templates/card/v1.json`) for package distribution and version pinning.
+- **`imports`** (Optional): List of global template IDs, or dictionary mapping local aliases to global template IDs (`imports: { VendorCard: "https://vendor.com/card.json" }`).
+
+### Usage Tiers
+
+1. **Tier 1 (Simple / Local)**: Templates omit `id` and `imports`. Sibling templates in the same file or registry resolve each other directly by `name`.
+2. **Tier 2 (Modular / Distributed)**: Templates declare `id` and import external sub-templates by `id` or alias via `imports`.
+
+---
+
+## 7. The Synthetic Catalog System
 
 To make templates discoverable and invoke-able by LLMs, the backend converts registered templates into a **Synthetic Component Catalog**.
 
 ### The Catalog Synthesis Algorithm
 
-When `TemplateProcessor(templates)` is initialized:
+When `TemplateProcessor(templates, catalogs)` is initialized:
 
-1. It copies the base catalog (e.g. Basic Catalog v0.9.1).
+1. It indexes all provided catalogs.
 2. For each registered `StaticTemplate` and `DynamicTemplate`:
-   - It registers a new component definition under `components[templateId]`.
+   - It registers a new component definition under `components[template.name]`.
    - It maps semantic parameter definitions to JSON schema properties:
      - `string` $\rightarrow$ `{"type": "string"}`
      - `number` / `integer` $\rightarrow$ `{"type": "number"}` / `{"type": "integer"}`
@@ -428,14 +484,14 @@ When `TemplateProcessor(templates)` is initialized:
                                                                    (Expands to Primitives)
                                                                             |
                                                                             v
-[Client Renderer] <---------------- (Standard Basic Catalog Only) <----------+
+[Client Renderer] <---------------- (Standard Catalog Components) <---------+
 ```
 
 The synthetic catalog is an ephemeral compile-time construct. The client renderer is completely unaware that templates exist.
 
 ---
 
-## 6. Parameter Expressions & Substitution Engine
+## 8. Parameter Expressions & Substitution Engine
 
 The template substitution engine replaces expressions according to strict typing and evaluation rules.
 
@@ -518,7 +574,7 @@ To emit a literal `${foo}` string without triggering parameter substitution, esc
 
 ---
 
-## 7. Deterministic Synthetic ID Generation Algorithm
+## 9. Deterministic Synthetic ID Generation Algorithm
 
 To guarantee collision-free component IDs across multiple template instances and deep nesting, implementations in all languages (Python, Dart, TypeScript) must implement the following deterministic naming rules:
 
@@ -555,7 +611,7 @@ This guarantees that two instances of the same template (`card_1` and `card_2`) 
 
 ---
 
-## 8. Higher-Order Container Templates (`child` and `children` Slots)
+## 10. Higher-Order Container Templates (`child` and `children` Slots)
 
 Templates can define structural containers that receive caller-provided components.
 
@@ -563,7 +619,9 @@ Templates can define structural containers that receive caller-provided componen
 
 ```yaml
 version: '0.1'
-templateId: SectionCard
+name: SectionCard
+catalogs:
+  - 'https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json'
 parameters:
   title: {type: string}
   headerAction: {type: child}
@@ -606,27 +664,30 @@ The template engine replaces `${headerAction}` with the synthesized single child
 
 ---
 
-## 9. Error Handling, Cycle Guards & Safety
+## 11. Error Handling, Cycle Guards & Safety
 
 ### Recursion & Circular Reference Detection
 
 Templates can invoke other templates. However, circular references (`A` invokes `B`, which invokes `A`) must be caught immediately to prevent stack overflow.
 
 - **Call Stack Tracking**: The `TemplateProcessor` maintains an active `_call_stack: Set[str]` throughout expansion.
-- **Cycle Guard**: Before expanding any template, if `template_id in _call_stack`, expansion terminates immediately with `TemplateCycleError: Circular template reference detected: A -> B -> A`.
+- **Cycle Guard**: Before expanding any template, if `template_name in _call_stack`, expansion terminates immediately with `TemplateCycleError: Circular template reference detected: A -> B -> A`.
 - **Maximum Depth Guard**: An absolute limit (`MAX_EXPANSION_DEPTH = 32`) enforces termination even in non-identical runaway recursion.
 
 ### Standard Error Hierarchy
 
-1. `TemplateNotFoundError`: Attempted to expand a `templateId` not present in the catalog.
+1. `TemplateNotFoundError`: Attempted to expand a template `name` or `id` not present in the registry.
 2. `TemplateParameterError`: Missing required parameter or invalid parameter type.
 3. `TemplateCycleError`: Circular reference detected during expansion.
 4. `TemplateDepthExceededError`: Expansion exceeded maximum recursion depth.
 5. `TemplateResolverError`: Exception raised by a dynamic template resolver function.
+6. `CatalogCompatibilityError`: Declared catalogs incompatible with target surface (e.g. multi-catalog template on v0.9 surface).
+7. `AmbiguousComponentError`: Component exists in multiple declared catalogs without disambiguation.
+8. `UnknownComponentError`: Component not found in any declared catalog.
 
 ---
 
-## 10. Multi-Document YAML Streams (`---`)
+## 12. Multi-Document YAML Streams (`---`)
 
 To streamline template maintenance, multiple templates can be defined in a single `.yaml` file separated by `---`:
 
@@ -635,7 +696,7 @@ To streamline template maintenance, multiple templates can be defined in a singl
 
 ---
 
-## 11. Template Versioning & Schema Evolution
+## 13. Template Versioning & Schema Evolution
 
 To ensure robust backward compatibility as template syntax and AST features evolve across future protocol releases, every template definition must declare a top-level `version` field.
 
@@ -647,11 +708,15 @@ To ensure robust backward compatibility as template syntax and AST features evol
 
 ---
 
-## 12. Conformance Checklist for SDK Implementations
+## 14. Conformance Checklist for SDK Implementations
 
 An implementation of the A2UI Template Engine in any language (Python, Dart, TypeScript, Go, etc.) is conformant if and only if it satisfies the following test requirements:
 
 - [ ] **Template Versioning**: Validates that all ingested templates declare `version: "0.1"` and rejects unsupported version strings.
+- [ ] **Catalog Decoupling**: Does not default to the Basic Catalog; requires catalogs to be passed explicitly and validates all components against them.
+- [ ] **Catalog Resolution & Disambiguation**: Resolves components across declared catalogs without prefixes; handles collision disambiguation via component-level `catalogId`.
+- [ ] **Protocol Version Output Rules**: Enforces v0.9 single-catalog surface constraints (stripping component `catalogId`); supports v1.0 mixable catalogs with automatic `catalogId` stamping.
+- [ ] **Sub-Template Imports**: Supports Tier 1 (local by `name`) and Tier 2 (modular by `id` with `imports` list and alias dictionary).
 - [ ] **Multi-Document Ingestion**: Parses single-doc and multi-doc (`---`) YAML streams.
 - [ ] **Forward Reference Resolution**: Expands templates regardless of registration order.
 - [ ] **Strict Native Type Preservation**: Exact `${param}` substitutions preserve `int`, `float`, `bool`, `dict`, and `list` types.

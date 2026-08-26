@@ -13,7 +13,9 @@
 # limitations under the License.
 
 version: "0.1"
-templateId: GoalItem
+name: GoalItem
+catalogs:
+  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
 description: Card showing an individual objective with priority, title, target date, and action button.
 
 parameters:

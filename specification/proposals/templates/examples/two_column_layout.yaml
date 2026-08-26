@@ -13,7 +13,9 @@
 # limitations under the License.
 
 version: "0.1"
-templateId: TwoColumnLayout
+name: TwoColumnLayout
+catalogs:
+  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
 description: Responsive two-column dashboard layout with banner header and split content regions.
 
 parameters:

@@ -13,7 +13,9 @@
 # limitations under the License.
 
 version: "0.1"
-templateId: UserProfile
+name: UserProfile
+catalogs:
+  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
 description: User profile card displaying avatar, full name, and role.
 
 parameters:

@@ -13,7 +13,9 @@
 # limitations under the License.
 
 version: "0.1"
-templateId: TeamFeedbackBoard
+name: TeamFeedbackBoard
+catalogs:
+  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
 description: Feedback board showing team header and feedback items.
 
 parameters:

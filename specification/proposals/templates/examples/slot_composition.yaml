@@ -13,7 +13,9 @@
 # limitations under the License.
 
 version: "0.1"
-templateId: CompositeSectionCard
+name: CompositeSectionCard
+catalogs:
+  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
 description: Collapsible or styled content section card with title, custom header action slot, and children slot.
 parameters:
   title:
@@ -55,7 +57,9 @@ sampleData:
 
 ---
 version: "0.1"
-templateId: TwoColumnLayoutWithHeader
+name: TwoColumnLayoutWithHeader
+catalogs:
+  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
 description: Responsive two-column dashboard grid with a hero header, left column, and right column.
 parameters:
   headerChild:

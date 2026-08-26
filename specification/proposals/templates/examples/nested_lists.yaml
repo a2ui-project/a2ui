@@ -13,7 +13,9 @@
 # limitations under the License.
 
 version: "0.1"
-templateId: NestedTeamRoster
+name: NestedTeamRoster
+catalogs:
+  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
 description: Team directory roster with styled header banner and nested team lists.
 parameters:
   directoryTitle:
@@ -52,7 +54,9 @@ sampleData:
 
 ---
 version: "0.1"
-templateId: NestedTeamCard
+name: NestedTeamCard
+catalogs:
+  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
 description: Team container card displaying member cards.
 parameters:
   teamName:

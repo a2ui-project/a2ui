@@ -13,7 +13,9 @@
 # limitations under the License.
 
 version: "0.1"
-templateId: TeamRoster
+name: TeamRoster
+catalogs:
+  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
 description: Team directory roster with styled header banner and nested team lists.
 
 parameters:

@@ -3,17 +3,50 @@
   "title": "A2UI Template Definition",
   "description": "Schema defining a parameterized A2UI declarative template authored in YAML with a nested layout tree and synthetic ID generation.",
   "type": "object",
-  "required": ["version", "templateId", "parameters"],
+  "required": ["version", "parameters", "catalogs"],
   "properties": {
     "version": {
       "type": "string",
       "const": "0.1",
       "description": "Specification version of the template definition format. Forced to '0.1'."
     },
+    "id": {
+      "type": "string",
+      "description": "Optional globally unique identifier or URI for the template."
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
+      "description": "Component tag name of the template used in layout trees and LLM prompts."
+    },
     "templateId": {
       "type": "string",
       "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
-      "description": "Unique identifier and component tag name of the template."
+      "description": "Deprecated alias for 'name'."
+    },
+    "catalogs": {
+      "description": "Catalog identifier (URI) or list of catalog identifiers against which components are resolved.",
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {"type": "string"},
+          "minItems": 1
+        },
+        {"type": "string"}
+      ]
+    },
+    "imports": {
+      "description": "Optional list or mapping of dependent templates imported by global ID.",
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        {
+          "type": "object",
+          "additionalProperties": {"type": "string"}
+        }
+      ]
     },
     "description": {
       "type": "string",
@@ -47,7 +80,14 @@
       "description": "Sample parameter values used for previewing and testing template inflation."
     }
   },
-  "anyOf": [{"required": ["layout"]}, {"required": ["components"]}],
+  "allOf": [
+    {
+      "anyOf": [{"required": ["name"]}, {"required": ["templateId"]}]
+    },
+    {
+      "anyOf": [{"required": ["layout"]}, {"required": ["components"]}]
+    }
+  ],
   "additionalProperties": false,
   "$defs": {
     "ParameterDefinition": {
@@ -220,6 +260,10 @@
           "type": "string",
           "description": "Catalog component tag name."
         },
+        "catalogId": {
+          "type": "string",
+          "description": "Optional catalog ID to disambiguate if the component name exists in multiple declared catalogs."
+        },
         "child": {
           "anyOf": [{"$ref": "#/$defs/NestedTemplateNode"}, {"$ref": "#/$defs/TemplateValue"}]
         },
@@ -254,6 +298,10 @@
         "component": {
           "type": "string",
           "description": "Catalog component tag name."
+        },
+        "catalogId": {
+          "type": "string",
+          "description": "Optional catalog ID to disambiguate if the component name exists in multiple declared catalogs."
         }
       },
       "additionalProperties": {

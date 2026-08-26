@@ -13,7 +13,9 @@
 # limitations under the License.
 
 version: "0.1"
-templateId: SalaryCard
+name: SalaryCard
+catalogs:
+  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
 description: Layout card for employee compensation package with security verification badge.
 
 parameters:

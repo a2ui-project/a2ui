@@ -13,7 +13,9 @@
 # limitations under the License.
 
 version: "0.1"
-templateId: BasicUserProfile
+name: BasicUserProfile
+catalogs:
+  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
 description: Standard identity card for team members.
 parameters:
   userId:
@@ -49,7 +51,9 @@ sampleData:
 
 ---
 version: "0.1"
-templateId: BasicMetricCard
+name: BasicMetricCard
+catalogs:
+  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
 description: Metric display card supporting both literal values and dynamic data model bindings.
 parameters:
   title:

@@ -13,7 +13,9 @@
 # limitations under the License.
 
 version: "0.1"
-templateId: SectionCard
+name: SectionCard
+catalogs:
+  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
 description: Standard container card with title, description, optional action, and child components.
 
 parameters:
