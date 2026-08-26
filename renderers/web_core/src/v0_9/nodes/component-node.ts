@@ -65,9 +65,9 @@ export interface ComponentNode<
    * the scoped data path is appended (e.g. `item-card-[/items/0]`); when one
    * parent references the same component at the same scope more than once,
    * each further occurrence gains a `#n` suffix (e.g. `item-card#2`). The
-   * suffix is not escaped: a sibling whose own component id ends in `#n`
-   * can collide with a suffixed id, so ids of that shape are not supported
-   * alongside duplicates of their base id.
+   * characters that carry meaning in this composition (`~`, `#`, `[`, `]`)
+   * are escaped in the component id and data path, so ids that mimic a
+   * suffixed or scoped form cannot collide with one.
    *
    * Until the spec provides data-derived child keys (a2ui#1745), this id
    * names a list position, not a data item: it is not stable across array

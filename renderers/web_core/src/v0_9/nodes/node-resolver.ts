@@ -676,9 +676,22 @@ export class NodeResolver<
   }
 }
 
+/**
+ * Escapes the characters that carry meaning in composed instance ids (`~`,
+ * `#`, `[`, `]`), so a component id or data path containing them cannot
+ * collide with the composed form of a different (componentId, dataPath,
+ * occurrence) tuple. Ids and paths without these characters are unchanged.
+ */
+function escapeIdPart(part: string): string {
+  return part.replace(/~/g, '~0').replace(/#/g, '~1').replace(/\[/g, '~2').replace(/\]/g, '~3');
+}
+
 function instanceIdFor(componentId: string, dataPath: string, occurrence: number): string {
   const trimmed = dataPath.replace(/\/+$/, '') || ROOT_DATA_PATH;
-  const base = dataPath === ROOT_DATA_PATH ? componentId : `${componentId}-[${trimmed}]`;
+  const base =
+    dataPath === ROOT_DATA_PATH
+      ? escapeIdPart(componentId)
+      : `${escapeIdPart(componentId)}-[${escapeIdPart(trimmed)}]`;
   return occurrence > 1 ? `${base}#${occurrence}` : base;
 }
 

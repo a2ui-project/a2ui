@@ -270,6 +270,52 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     resolver.dispose();
   });
 
+  it('keeps instance ids distinct when a component id mimics a suffixed or scoped form', () => {
+    const PaneApi = {
+      name: 'Pane',
+      schema: z.object({
+        main: ComponentIdSchema.optional(),
+        items: ChildListSchema.optional(),
+      }),
+    };
+    const catalog = new Catalog<ComponentApi>('mimic-catalog', [TextApi, ColumnApi, PaneApi], []);
+
+    // A sibling literally named 'a#2' next to duplicates of 'a'.
+    {
+      const surface = new SurfaceModel('surf-a', catalog);
+      const resolver = new NodeResolver(surface, catalog);
+      add(surface, 'root', 'Column', {children: ['a', 'a', 'a#2']});
+      add(surface, 'a', 'Text', {text: 'x'});
+      add(surface, 'a#2', 'Text', {text: 'y'});
+      const root = getValue(resolver.rootNode);
+      assert.ok(root);
+      const ids = (props(root).children as ComponentNode[]).map(n => n.instanceId);
+      assert.strictEqual(new Set(ids).size, ids.length, `collision in ${ids.join(', ')}`);
+      resolver.dispose();
+    }
+
+    // A root-scoped component literally named like a template instance,
+    // next to the template instance it mimics.
+    {
+      const surface = new SurfaceModel('surf-b', catalog);
+      const resolver = new NodeResolver(surface, catalog);
+      surface.dataModel.set('/items', [{v: 'row0'}]);
+      add(surface, 'root', 'Pane', {
+        main: 'a-[/items/0]',
+        items: {componentId: 'a', path: '/items'},
+      });
+      add(surface, 'a-[/items/0]', 'Text', {text: 'literal'});
+      add(surface, 'a', 'Text', {text: {path: 'v'}});
+      const root = getValue(resolver.rootNode);
+      assert.ok(root);
+      const rootProps = props(root);
+      const nodes = [rootProps.main, ...(rootProps.items as ComponentNode[])] as ComponentNode[];
+      const ids = nodes.map(n => n.instanceId);
+      assert.strictEqual(new Set(ids).size, ids.length, `collision in ${ids.join(', ')}`);
+      resolver.dispose();
+    }
+  });
+
   it('spawns one node per array item for a template child list', () => {
     const {surface, resolver} = setup();
     surface.dataModel.set('/items', [{name: 'A'}, {name: 'B'}]);
