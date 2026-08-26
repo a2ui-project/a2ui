@@ -38,15 +38,15 @@ layout:
   component: Column
   children:
     - component: Column
-      children: ${headerChild}
+      children: "{{ headerChild }}"
     - component: Divider
       axis: horizontal
     - component: Row
       children:
         - component: Column
-          children: ${leftChildren}
+          children: "{{ leftChildren }}"
         - component: Column
-          children: ${rightChildren}
+          children: "{{ rightChildren }}"
 
 sampleData:
   headerChild:

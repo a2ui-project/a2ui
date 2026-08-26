@@ -48,19 +48,19 @@ layout:
         align: center
         children:
           - component: Text
-            text: ${title}
+            text: "{{ title }}"
             variant: h3
           - component: Column
             id: action_slot
-            children: ${headerAction}
+            children: "{{ headerAction }}"
       - component: Text
-        text: ${description}
+        text: "{{ description }}"
         variant: caption
       - component: Divider
         axis: horizontal
       - component: Column
         id: body_container
-        children: ${children}
+        children: "{{ children }}"
 
 sampleData:
   title: Protocol Overview

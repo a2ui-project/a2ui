@@ -58,7 +58,7 @@ layout:
         align: center
         children:
           - component: Text
-            text: ${teamName}
+            text: "{{ teamName }}"
             variant: h3
           - component: Icon
             name: person

@@ -89,10 +89,10 @@ layout:
       - component: Icon
         name: person
       - component: Text
-        text: ${userName}
+        text: '{{ userName }}'
         variant: h3
       - component: Text
-        text: ${role}
+        text: '{{ role }}'
         variant: caption
 ```
 
@@ -199,7 +199,7 @@ layout:
     component: Column
     children:
       - component: Text
-        text: 'Objectives: ${teamName}'
+        text: 'Objectives: {{ teamName }}'
         variant: h2
       - component: Column
         children:
@@ -211,9 +211,9 @@ layout:
               justify: spaceBetween
               children:
                 - component: Text
-                  text: ${goal.title}
+                  text: '{{ goal.title }}'
                 - component: Text
-                  text: ${goal.priority}
+                  text: '{{ goal.priority }}'
                   variant: caption
 ```
 
@@ -324,10 +324,10 @@ layout:
     component: Column
     children:
       - component: Text
-        text: ${label}
+        text: '{{ label }}'
       - component: Text
         text:
-          path: '/system/metrics/${metricKey}/currentValue'
+          path: '/system/metrics/{{ metricKey }}/currentValue'
 ```
 
 **Expanded Output:**
@@ -366,13 +366,14 @@ layout:
   component: Column
   children:
     - component: Text
-      text: ${title}
+      text: '{{ title }}'
     - component: Text
-      text: ${val}
+      text: '{{ val }}'
 ```
 
 **Expanded Output:**
-Because `${val}` is an exact-match substitution, the dictionary type is strictly preserved:
+
+Because `{{ val }}` is an exact-match substitution, the dictionary type is strictly preserved:
 
 ```json
 {
@@ -480,25 +481,42 @@ The synthetic catalog is an ephemeral compile-time construct. The client rendere
 
 ## 8. Parameter Expressions & Substitution Engine
 
-The template substitution engine replaces expressions according to strict typing and evaluation rules.
+The template substitution engine replaces expressions according to strict typing and evaluation rules using standard double-curly Mustache syntax (`{{ param }}`).
 
 ### Rule 1: Exact Match Substitution (Type Preserving)
 
-If a string field value exactly matches the parameter token regex `^\$\{([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\}$`:
+If a string field value exactly matches the parameter token regex `^\{\{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\s*\}\}$`:
 
 - The entire field is replaced by the native runtime value of the parameter.
-- **Integers remain integers**: `level: ${userLevel}` $\rightarrow$ `level: 4` (not `"4"`).
-- **Booleans remain booleans**: `checked: ${isActive}` $\rightarrow$ `checked: true` (not `"true"`).
-- **Objects and Arrays remain native structures**: `items: ${memberList}` $\rightarrow$ `items: [{...}, {...}]`.
+- **Integers remain integers**: `level: "{{ userLevel }}"` $\rightarrow$ `level: 4` (not `"4"`).
+- **Booleans remain booleans**: `checked: "{{ isActive }}"` $\rightarrow$ `checked: true` (not `"true"`).
+- **Objects and Arrays remain native structures**: `items: "{{ memberList }}"` $\rightarrow$ `items: [{...}, {...}]`.
 
 ### Rule 2: Embedded String Interpolation
 
-If a parameter token appears alongside other characters (e.g. `"Hello, ${userName}!"` or `"${dept} - ${code}"`):
+If a parameter token appears alongside other characters (e.g. `"Hello, {{ userName }}!"` or `"{{ dept }} - {{ code }}"`):
 
-- All tokens are replaced by their string representations.
+- All tokens matching `\{\{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\s*\}\}` are replaced by their string representations.
 - Evaluates to a native string.
 
-### Rule 3: Deep Dot-Notation for Structured Objects
+### Rule 3: Client DataModel Disambiguation (`formatString`)
+
+Because template substitutions use double curlies `{{ ... }}`, client-side reactive expressions and data-model bindings in `formatString` (e.g. `${/user/name}`) pass through completely untouched without requiring escaping:
+
+```yaml
+component: Text
+text:
+  call: formatString
+  args:
+    value: 'Hello, ${/user/name}! Your team is {{ teamName }}.'
+```
+
+During server-side template expansion:
+
+- `{{ teamName }}` is resolved server-side and replaced with `"Engineering"`.
+- `${/user/name}` is preserved verbatim and emitted directly to the client renderer for reactive data-binding.
+
+### Rule 4: Deep Dot-Notation for Structured Objects
 
 Templates natively support deep dot-notation paths on object parameters:
 
@@ -524,7 +542,7 @@ layout:
   component: Card
   child:
     component: Text
-    text: '${account.profile.name} (${account.profile.tier})'
+    text: '{{ account.profile.name }} ({{ account.profile.tier }})'
 ```
 
 **Expanded Output:**
@@ -536,24 +554,24 @@ layout:
 }
 ```
 
-### Rule 4: String Format AST Expressions
+### Rule 5: String Format AST Expressions
 
 For complex string formatting across multiple languages:
 
 ```yaml
 format: 'Level {lvl} ({pts} points)'
 args:
-  lvl: ${level}
-  pts: ${experiencePoints}
+  lvl: '{{ level }}'
+  pts: '{{ experiencePoints }}'
 ```
 
-### Rule 5: Token Escaping
+### Rule 6: Token Escaping
 
-To emit a literal `${foo}` string without triggering parameter substitution, escape the leading dollar sign with a backslash:
+To emit a literal `{{ foo }}` string without triggering parameter substitution, escape the opening curly braces with a backslash:
 
-- `\${keep_literal}` $\rightarrow$ evaluates to literal `"${keep_literal}"`.
+- `\{{ keep_literal }}` $\rightarrow$ evaluates to literal `"{{ keep_literal }}"`.
 
-### Rule 6: Missing Values & Defaults
+### Rule 7: Missing Values & Defaults
 
 - If an argument is omitted but has a declared `default` in its parameter schema, the `default` is used.
 - If an argument is omitted, has no `default`, and is not required: the property is omitted from the synthesized component (it is not emitted as `null`).
@@ -624,14 +642,14 @@ layout:
         align: center
         children:
           - component: Text
-            text: ${title}
+            text: '{{ title }}'
             variant: h2
           - component: Column
-            children: ${headerAction}
+            children: '{{ headerAction }}'
       - component: Divider
         axis: horizontal
       - component: Column
-        children: ${children}
+        children: '{{ children }}'
 ```
 
 #### Model Invocation:
@@ -647,7 +665,7 @@ root = SectionCard(
 )
 ```
 
-The template engine replaces `${headerAction}` with the synthesized single child node, and concatenates the `${children}` component list into the body column.
+The template engine replaces `{{ headerAction }}` with the synthesized single child node, and concatenates the `{{ children }}` component list into the body column.
 
 ---
 
@@ -709,8 +727,8 @@ An implementation of the A2UI Template Engine in any language (Python, Dart, Typ
 - [ ] **Sub-Template Imports**: Supports Tier 1 (local by `name`) and Tier 2 (modular by `id` with `imports` list and alias dictionary).
 - [ ] **Multi-Document Ingestion**: Parses single-doc and multi-doc (`---`) YAML streams.
 - [ ] **Forward Reference Resolution**: Expands templates regardless of registration order.
-- [ ] **Strict Native Type Preservation**: Exact `${param}` substitutions preserve `int`, `float`, `bool`, `dict`, and `list` types.
-- [ ] **Dot-Notation Path Traversal**: Resolves arbitrary depth paths (e.g. `${user.details.address.zip}`).
+- [ ] **Strict Native Type Preservation**: Exact `{{ param }}` substitutions preserve `int`, `float`, `bool`, `dict`, and `list` types.
+- [ ] **Dot-Notation Path Traversal**: Resolves arbitrary depth paths (e.g. `{{ user.details.address.zip }}`).
 - [ ] **Inline and Named Loop Expansion**: Accurately unrolls arrays into synthesized component subtrees with indexed child IDs.
 - [ ] **Deterministic Synthetic IDs**: Emits canonical hierarchical IDs matching the `{parent}_{slot}_{index}_{type}` specification.
 - [ ] **Two-Way DataModel Passthrough**: Preserves `{path: "..."}` dictionary bindings without string conversion.

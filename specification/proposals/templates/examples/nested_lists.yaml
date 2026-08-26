@@ -30,7 +30,7 @@ layout:
   component: Column
   children:
     - component: Text
-      text: ${directoryTitle}
+      text: "{{ directoryTitle }}"
       variant: h1
     - component: Divider
       axis: horizontal
@@ -73,7 +73,7 @@ layout:
     component: Column
     children:
       - component: Text
-        text: ${teamName}
+        text: "{{ teamName }}"
         variant: h2
       - component: Divider
         axis: horizontal
@@ -87,9 +87,9 @@ layout:
               justify: spaceBetween
               children:
                 - component: Text
-                  text: ${member.userName}
+                  text: "{{ member.userName }}"
                 - component: Text
-                  text: ${member.role}
+                  text: "{{ member.role }}"
                   variant: caption
 
 sampleData:

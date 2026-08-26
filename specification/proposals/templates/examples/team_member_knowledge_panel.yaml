@@ -49,7 +49,7 @@ layout:
           - component: Icon
             name: check
           - component: Text
-            text: "Competency: ${userName}"
+            text: "Competency: {{ userName }}"
             variant: h4
       - component: Divider
         axis: horizontal
@@ -63,7 +63,7 @@ layout:
                 text: Role
                 variant: caption
               - component: Text
-                text: ${role}
+                text: "{{ role }}"
                 variant: body
           - component: Column
             align: center
@@ -72,7 +72,7 @@ layout:
                 text: Experience
                 variant: caption
               - component: Text
-                text: "${experienceYears} Yrs"
+                text: "{{ experienceYears }} Yrs"
                 variant: body
           - component: Column
             align: center
@@ -81,7 +81,7 @@ layout:
                 text: Tasks
                 variant: caption
               - component: Text
-                text: "${completedTasks} Done"
+                text: "{{ completedTasks }} Done"
                 variant: body
       - component: Text
         text: Verified Core Contributor

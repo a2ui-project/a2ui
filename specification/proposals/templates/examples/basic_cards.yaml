@@ -38,10 +38,10 @@ layout:
       - component: Icon
         name: person
       - component: Text
-        text: ${userName}
+        text: "{{ userName }}"
         variant: h3
       - component: Text
-        text: ${role}
+        text: "{{ role }}"
         variant: caption
 
 sampleData:
@@ -73,10 +73,10 @@ layout:
     component: Column
     children:
       - component: Text
-        text: ${title}
+        text: "{{ title }}"
         variant: caption
       - component: Text
-        text: ${metricValue}
+        text: "{{ metricValue }}"
         variant: h1
 
 sampleData:

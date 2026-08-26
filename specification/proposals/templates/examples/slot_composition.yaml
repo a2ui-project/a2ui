@@ -39,14 +39,14 @@ layout:
         align: center
         children:
           - component: Text
-            text: ${title}
+            text: "{{ title }}"
             variant: h2
           - component: Column
-            children: ${headerAction}
+            children: "{{ headerAction }}"
       - component: Divider
         axis: horizontal
       - component: Column
-        children: ${children}
+        children: "{{ children }}"
 
 sampleData:
   title: Project Milestones
@@ -76,7 +76,7 @@ layout:
   component: Column
   children:
     - component: Column
-      children: ${headerChild}
+      children: "{{ headerChild }}"
     - component: Divider
       axis: horizontal
     - component: Row
@@ -84,9 +84,9 @@ layout:
       align: start
       children:
         - component: Column
-          children: ${leftChildren}
+          children: "{{ leftChildren }}"
         - component: Column
-          children: ${rightChildren}
+          children: "{{ rightChildren }}"
 
 sampleData:
   headerChild:

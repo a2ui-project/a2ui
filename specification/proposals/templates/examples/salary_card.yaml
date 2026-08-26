@@ -68,16 +68,16 @@ layout:
                 text: "Verified Compensation"
                 variant: caption
           - component: Text
-            text: ${clearanceLevel}
+            text: "{{ clearanceLevel }}"
             variant: caption
       - component: Column
         children:
           - component: Text
-            text: ${employeeName}
+            text: "{{ employeeName }}"
             variant: h3
             id: name_txt
           - component: Text
-            text: ${role}
+            text: "{{ role }}"
             variant: body
       - component: Divider
         axis: horizontal
@@ -90,7 +90,7 @@ layout:
                 text: "Base Salary"
                 variant: caption
               - component: Text
-                text: ${baseSalary}
+                text: "{{ baseSalary }}"
                 variant: h4
                 id: sal_val
           - component: Column
@@ -99,7 +99,7 @@ layout:
                 text: "Annual Bonus"
                 variant: caption
               - component: Text
-                text: ${annualBonus}
+                text: "{{ annualBonus }}"
                 variant: h4
           - component: Column
             children:
@@ -107,7 +107,7 @@ layout:
                 text: "Equity Grants"
                 variant: caption
               - component: Text
-                text: ${equity}
+                text: "{{ equity }}"
                 variant: h4
       - component: Divider
         axis: horizontal
@@ -119,7 +119,7 @@ layout:
             text: "🔒 Fetched live from secure HR database"
             variant: caption
           - component: Text
-            text: "Verified: ${verifiedAt}"
+            text: "Verified: {{ verifiedAt }}"
             variant: caption
 
 sampleData:
