@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 from enum import Enum
+import functools
 import inspect
 import json
 import os
@@ -945,8 +946,64 @@ class DynamicTemplate(BaseTemplate):
             res["sampleData"] = self.sample_data
         return res
 
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Allows the DynamicTemplate instance to remain directly callable in unit tests or user code."""
+        if self.render_fn is not None:
+            return self.render_fn(*args, **kwargs)
+        if self.resolver is not None:
+            return self.resolve(kwargs if kwargs else (args[0] if args else {}))
+        raise TypeError(f"DynamicTemplate '{self.name}' is not callable.")
+
     def to_yaml(self) -> str:
         """Serializes the dynamic template or underlying layout to a clean YAML string."""
         if self.layout is not None:
             return self.layout.to_yaml()
         return yaml.dump(self.to_dict(), sort_keys=False)
+
+
+def dynamic_template(
+    name_or_fn: Optional[Union[str, Callable[..., Any]]] = None,
+    *,
+    name: Optional[str] = None,
+    catalogs: Optional[Union[List[str], str]] = None,
+    id: Optional[str] = None,
+    imports: Optional[Union[List[str], Dict[str, str]]] = None,
+    description: Optional[str] = None,
+    sample_data: Optional[Dict[str, Any]] = None,
+    version: str = "0.1",
+    **kwargs: Any,
+) -> Union[DynamicTemplate, Callable[[Callable[..., Any]], DynamicTemplate]]:
+    """Decorator to declare an A2UI DynamicTemplate directly on a Python render function.
+
+    Can be used with or without arguments:
+        @dynamic_template(catalogs=["https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"])
+        def user_card(title: str): ...
+
+        @dynamic_template
+        def user_card(title: str): ...
+    """
+
+    def _decorator(fn: Callable[..., Any]) -> DynamicTemplate:
+        explicit_name = name or (name_or_fn if isinstance(name_or_fn, str) else None)
+        tmpl_name = explicit_name or "".join(
+            word.capitalize() for word in fn.__name__.split("_")
+        )
+        desc = description or (fn.__doc__.strip() if fn.__doc__ else None)
+
+        tmpl = DynamicTemplate(
+            name=tmpl_name,
+            catalogs=catalogs,
+            id=id,
+            imports=imports,
+            render=fn,
+            description=desc,
+            sample_data=sample_data,
+            version=version,
+            **kwargs,
+        )
+        functools.update_wrapper(tmpl, fn)
+        return tmpl
+
+    if callable(name_or_fn):
+        return _decorator(name_or_fn)
+    return _decorator

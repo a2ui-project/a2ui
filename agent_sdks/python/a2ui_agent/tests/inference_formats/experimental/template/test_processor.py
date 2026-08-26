@@ -22,6 +22,7 @@ import pytest
 
 from a2ui.inference_formats.experimental.template import (
     DynamicTemplate,
+    dynamic_template,
     StaticTemplate,
     TemplateProcessor,
     TemplateId,
@@ -398,3 +399,33 @@ def test_type_aliases_and_private_helpers():
     p = TemplateProcessor(templates=[t], catalogs=BASIC_CATALOG)
     p._validate_templates()
     p.validate_templates()
+
+
+def test_dynamic_template_decorator_processor_expansion():
+    """Verifies that @dynamic_template can be directly registered and expanded by TemplateProcessor."""
+
+    @dynamic_template(
+        catalogs=["https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"],
+        description="Renders a KPI metric display.",
+    )
+    def kpi_metric(label: str, value: str, change: str = "+0.0%"):
+        return {
+            "component": "Card",
+            "child": {
+                "component": "Column",
+                "children": [
+                    {"component": "Text", "text": f"{label}: {value}"},
+                    {"component": "Text", "text": f"Change: {change}"},
+                ],
+            },
+        }
+
+    processor = TemplateProcessor(templates=[kpi_metric], catalogs=BASIC_CATALOG)
+    expanded = processor.expand_template(
+        "inst_kpi",
+        "KpiMetric",
+        {"label": "Revenue", "value": "$1.2M", "change": "+12%"},
+    )
+    assert len(expanded) == 4
+    assert any(c.get("text") == "Revenue: $1.2M" for c in expanded)
+    assert any(c.get("text") == "Change: +12%" for c in expanded)
