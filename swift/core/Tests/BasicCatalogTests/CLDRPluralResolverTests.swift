@@ -63,8 +63,8 @@ struct CLDRPluralResolverTests {
       ("lag", 0.0, "zero"),
       ("lag", 0.5, "one"),
       ("lag", 2.0, "other"),
-      ("cv", 0.0, "zero"),
-      ("cv", 1.0, "one"),
+      ("cv", 0.0, "other"),
+      ("cv", 1.0, "other"),
       ("cv", 2.0, "other"),
       ("he", 0.5, "one"),
       ("he", 1.0, "one"),
@@ -142,11 +142,11 @@ struct CLDRPluralResolverTests {
       ("ru", 2.0, "few"),
       ("ru", 5.0, "many"),
       ("ru", 0.5, "other"),
-      ("sgs", 1.0, "one"),
-      ("sgs", 2.0, "two"),
-      ("sgs", 3.0, "few"),
+      ("sgs", 1.0, "other"),
+      ("sgs", 2.0, "other"),
+      ("sgs", 3.0, "other"),
       ("sgs", 11.0, "other"),
-      ("sgs", 0.5, "many"),
+      ("sgs", 0.5, "other"),
       ("br", 1.0, "one"),
       ("br", 2.0, "two"),
       ("br", 3.0, "few"),
@@ -189,7 +189,68 @@ struct CLDRPluralResolverTests {
       ("cy", 4.0, "other"),
     ]
   )
-  func matchesCLDR48(localeIdentifier: String, value: Double, expected: String) {
+  func matchesPinnedICU(localeIdentifier: String, value: Double, expected: String) {
+    let resolver = CLDRPluralResolver(localeIdentifier: localeIdentifier)
+    #expect(resolver.pluralCategory(for: value).rawValue == expected)
+  }
+
+  // Reference fixtures generated with swift-foundation-icu revision
+  // 2e2854eee567589ed44c5f3c85c7343e6d91978d (swift-6.3.1-RELEASE).
+  @Test(
+    arguments: [
+      (Double(16.0005).nextDown, "other"),
+      (16.0005, "other"),
+      (Double(16.0005).nextUp, "other"),
+      (4.0005, "other"),
+      (8.0095, "other"),
+      (16.0995, "other"),
+    ]
+  )
+  func matchesPinnedICUDecimalBoundaryFixtures(value: Double, expected: String) {
+    let resolver = CLDRPluralResolver(localeIdentifier: "tzm")
+    #expect(resolver.pluralCategory(for: value).rawValue == expected)
+  }
+
+  @Test(
+    arguments: [
+      ("is", 8.001, "other"),
+      ("is", 8.005, "one"),
+      ("is", 8.21, "one"),
+      ("is", 64.21, "other"),
+      ("mk", 8.21, "other"),
+    ]
+  )
+  func matchesPinnedICUFractionOperandFixtures(
+    localeIdentifier: String,
+    value: Double,
+    expected: String
+  ) {
+    let resolver = CLDRPluralResolver(localeIdentifier: localeIdentifier)
+    #expect(resolver.pluralCategory(for: value).rawValue == expected)
+  }
+
+  @Test(
+    arguments: [
+      ("is", 9_007_199_254_740_991.0, "one"),
+      ("is", 9_007_199_254_740_992.0, "other"),
+      ("gv", Double(Int64.max).nextDown, "other"),
+      ("gv", Double(Int64.max), "other"),
+      ("fr", 1_000_000_000_000_000_000.0, "many"),
+      ("fr", 1_000_000_000_001_000_000.0, "other"),
+      ("it", 1_000_000_000_000_000_000.0, "many"),
+      ("fr", 1e20, "one"),
+      ("br", 1e20, "many"),
+      ("ar", Double.greatestFiniteMagnitude, "many"),
+      ("fr", Double.greatestFiniteMagnitude, "one"),
+      ("it", Double.greatestFiniteMagnitude, "other"),
+      ("en", Double.leastNonzeroMagnitude, "other"),
+    ]
+  )
+  func matchesPinnedICULargeNumberFixtures(
+    localeIdentifier: String,
+    value: Double,
+    expected: String
+  ) {
     let resolver = CLDRPluralResolver(localeIdentifier: localeIdentifier)
     #expect(resolver.pluralCategory(for: value).rawValue == expected)
   }
@@ -199,7 +260,6 @@ struct CLDRPluralResolverTests {
       ("en-US", "en_US", 1.0, "one"),
       ("en-US", "en_US", 2.0, "other"),
       ("pt-PT", "pt_PT", 0.0, "other"),
-      ("pt-PT", "pt_PT.UTF-8", 0.0, "other"),
       ("pt-PT", "pt_PT@currency=EUR", 0.0, "other"),
       ("zh-Hans-CN", "zh_Hans_CN", 1.0, "other"),
     ]
@@ -216,9 +276,33 @@ struct CLDRPluralResolverTests {
     #expect(posixCategory == bcp47Category)
   }
 
+  @Test(
+    arguments: [
+      ("pt-x-PT", "one"),
+      ("pt-Latn-x-PT", "one"),
+      ("pt-a-PT", "one"),
+      ("pt-u-rg-ptzzzz", "one"),
+      ("pt-PT", "other"),
+      ("pt_PT.UTF-8", "one"),
+      ("pt_PT@currency=EUR", "other"),
+    ]
+  )
+  func respectsLocaleCoreBoundaries(localeIdentifier: String, expected: String) {
+    let resolver = CLDRPluralResolver(localeIdentifier: localeIdentifier)
+    #expect(resolver.pluralCategory(for: 0).rawValue == expected)
+  }
+
   @Test func returnsOtherForUnknownLocales() {
     let resolver = CLDRPluralResolver(localeIdentifier: "xx")
     #expect(resolver.pluralCategory(for: 1) == .other)
+  }
+
+  @Test(arguments: ["cv", "ie", "kok", "kok-Latn", "sgs"])
+  func matchesPinnedICURootFallbacks(localeIdentifier: String) {
+    let resolver = CLDRPluralResolver(localeIdentifier: localeIdentifier)
+    #expect(resolver.pluralCategory(for: 0) == .other)
+    #expect(resolver.pluralCategory(for: 1) == .other)
+    #expect(resolver.pluralCategory(for: 2) == .other)
   }
 
   @Test(arguments: [Double.nan, Double.infinity, -Double.infinity])
