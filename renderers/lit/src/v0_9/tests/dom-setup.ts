@@ -44,6 +44,7 @@ export function setupTestDom() {
     const names = [
       'window',
       'document',
+      'Document',
       'HTMLElement',
       'customElements',
       'Element',
@@ -53,6 +54,10 @@ export function setupTestDom() {
       'requestAnimationFrame',
       'cancelAnimationFrame',
       'CSSStyleSheet',
+      'CSSStyleRule',
+      'CSSMediaRule',
+      'CSSRule',
+      'ShadowRoot',
     ];
 
     // Save originals once
@@ -85,6 +90,7 @@ export function setupTestDom() {
   applyGlobals({
     window: dom.window,
     document: dom.window.document,
+    Document: (dom.window as any).Document,
     HTMLElement: dom.window.HTMLElement,
     customElements: dom.window.customElements,
     Element: dom.window.Element,
@@ -92,6 +98,10 @@ export function setupTestDom() {
     Event: dom.window.Event,
     MutationObserver: dom.window.MutationObserver,
     CSSStyleSheet: dom.window.CSSStyleSheet,
+    CSSStyleRule: dom.window.CSSStyleRule,
+    CSSMediaRule: dom.window.CSSMediaRule,
+    CSSRule: dom.window.CSSRule,
+    ShadowRoot: (dom.window as any).ShadowRoot,
     requestAnimationFrame: (cb: FrameRequestCallback) => setTimeout(cb, 16),
     cancelAnimationFrame: (id: string | number | NodeJS.Timeout | undefined) =>
       clearTimeout(id as any),
@@ -99,16 +109,12 @@ export function setupTestDom() {
 }
 
 /**
- * Cleans up the JSDOM instance and restores the original Node.js globals.
+ * Cleans up the JSDOM instance between tests.
  */
 export function teardownTestDom() {
-  // Clear the document to prevent leaks between tests
   if (dom) {
     dom.window.document.body.innerHTML = '';
-    dom = null;
   }
-
-  applyGlobals(originalGlobals);
 }
 
 /**

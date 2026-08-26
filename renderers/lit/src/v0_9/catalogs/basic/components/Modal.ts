@@ -31,7 +31,8 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
    * - `--a2ui-modal-border-radius`: Border radius of the dialog. Defaults to `8px`.
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-modal {
       display: inline-block;
     }
     dialog {
