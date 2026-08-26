@@ -41,6 +41,14 @@ These projects are not directly A2UI renderers but are closely related and do su
 | ---------------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **vercel-labs/json-render** (`@json-render/*`) | React, Vue, Svelte, Solid, React Native | Generative UI framework by Vercel — uses its own JSON schema (not A2UI protocol) with Zod-based component catalogs. Supports streaming, 36 pre-built shadcn/ui components, and cross-platform rendering. | [GitHub](https://github.com/vercel-labs/json-render) · [npm](https://www.npmjs.com/package/@json-render/core) · [Docs](https://json-render.dev/) |
 
+### Agent-Side Libraries
+
+These projects produce A2UI rather than rendering it.
+
+| Project | Language | Description | Links |
+| ------- | -------- | ----------- | ----- |
+| **Max-Health-Inc/prefab** (`@maxhealth.tech/prefab`) | TypeScript | Server-side component library that emits A2UI from a typed component tree, with a diagnostic for anything the Basic catalog cannot express. Also serves A2UI over MCP as an `a2ui://` resource or an embedded resource. | [GitHub](https://github.com/Max-Health-Inc/prefab) · [npm](https://www.npmjs.com/package/@maxhealth.tech/prefab) · [Docs](https://maxhealth.tech/prefab/guide/a2ui) |
+
 ### Ecosystem Utilities
 
 - **[@a2ui/markdown-it](https://www.npmjs.com/package/@a2ui/markdown-it)** — Enables markdown rendering in the Text widgets of all renderers.
