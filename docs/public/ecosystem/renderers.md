@@ -45,9 +45,9 @@ These projects are not directly A2UI renderers but are closely related and do su
 
 These projects produce A2UI rather than rendering it.
 
-| Project | Language | Description | Links |
-| ------- | -------- | ----------- | ----- |
-| **Max-Health-Inc/prefab** (`@maxhealth.tech/prefab`) | TypeScript | Server-side component library that emits A2UI from a typed component tree, with a diagnostic for anything the Basic catalog cannot express. Also serves A2UI over MCP as an `a2ui://` resource or an embedded resource. | [GitHub](https://github.com/Max-Health-Inc/prefab) · [npm](https://www.npmjs.com/package/@maxhealth.tech/prefab) · [Docs](https://maxhealth.tech/prefab/guide/a2ui) |
+| Project                                              | Language   | Description                                                                                                                                                                                                             | Links                                                                                                                                                               |
+| ---------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Max-Health-Inc/prefab** (`@maxhealth.tech/prefab`) | TypeScript | Server-side component library that emits A2UI from a typed component tree, with a diagnostic for anything the Basic Catalog cannot express. Also serves A2UI over MCP as an `a2ui://` resource or an embedded resource. | [GitHub](https://github.com/Max-Health-Inc/prefab) · [npm](https://www.npmjs.com/package/@maxhealth.tech/prefab) · [Docs](https://maxhealth.tech/prefab/guide/a2ui) |
 
 ### Ecosystem Utilities
 
