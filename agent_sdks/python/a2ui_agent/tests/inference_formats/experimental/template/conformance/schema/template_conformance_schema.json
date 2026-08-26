@@ -46,6 +46,9 @@
         "type": ["object", "null"],
         "description": "Optional base catalog schema provided to processor."
       },
+      "catalogs": {
+        "description": "Optional catalogs schema provided to processor."
+      },
       "args": {
         "description": "Arguments/parameters passed to the action."
       },

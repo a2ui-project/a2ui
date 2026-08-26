@@ -206,7 +206,7 @@ class TemplateInferenceFormat(InferenceFormat):
         # 2. Initialize TemplateProcessor
         self.processor = TemplateProcessor(
             templates=self.templates,
-            base_catalog=self.base_catalog,
+            catalogs=self.base_catalog,
             version=self.version,
         )
 

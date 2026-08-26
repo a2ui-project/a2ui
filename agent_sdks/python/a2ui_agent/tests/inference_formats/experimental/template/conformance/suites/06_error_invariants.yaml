@@ -32,11 +32,17 @@
       parameters: {}
       layout:
         component: NodeB
+      catalogs:
+        - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+      name: NodeA
     - version: "0.1"
       templateId: NodeB
       parameters: {}
       layout:
         component: NodeA
+      catalogs:
+        - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+      name: NodeB
   instance_id: root_circ
   template_id: NodeA
   args: {}
@@ -53,6 +59,9 @@
       parameters: {}
       layout:
         component: SelfLoop
+      catalogs:
+        - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+      name: SelfLoop
   instance_id: root_self
   template_id: SelfLoop
   args: {}

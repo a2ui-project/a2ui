@@ -27,6 +27,9 @@
       child:
         component: Text
         text: ${title}
+    catalogs:
+      - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+    name: SimpleCard
   instance_id: card_inst
   template_id: SimpleCard
   args:
@@ -57,6 +60,9 @@
           text: ${name}
         - component: Text
           text: ${role}
+    catalogs:
+      - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+    name: ProfileHeader
   instance_id: prof_1
   template_id: ProfileHeader
   args:
@@ -85,6 +91,9 @@
     layout:
       component: Card
       child: ${content}
+    catalogs:
+      - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+    name: ContainerSlot
   instance_id: slot_inst
   template_id: ContainerSlot
   args:
@@ -107,6 +116,9 @@
     layout:
       component: Card
       child: ${optionalChild}
+    catalogs:
+      - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+    name: OptionalChildCard
   instance_id: opt_card
   template_id: OptionalChildCard
   args: {}
@@ -128,6 +140,9 @@
       component: Button
       text: ${label}
       action: ${onPress}
+    catalogs:
+      - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+    name: ActionButton
   instance_id: btn_inst
   template_id: ActionButton
   args:
@@ -159,6 +174,9 @@
     layout:
       component: Text
       text: ${valueBinding}
+    catalogs:
+      - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+    name: BoundMetric
   instance_id: bound_txt
   template_id: BoundMetric
   args:
@@ -183,6 +201,9 @@
       layout:
         component: Text
         text: "[${text}]"
+      catalogs:
+        - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+      name: Badge
     - version: "0.1"
       templateId: BadgeCard
       parameters:
@@ -193,6 +214,9 @@
         child:
           component: Badge
           text: ${tag}
+      catalogs:
+        - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+      name: BadgeCard
   instance_id: parent_inst
   template_id: BadgeCard
   args:

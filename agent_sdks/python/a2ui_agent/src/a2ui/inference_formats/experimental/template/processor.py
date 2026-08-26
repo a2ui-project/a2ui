@@ -194,6 +194,11 @@ class TemplateProcessor:
         templates: Sequence[
             Union[BaseTemplate, Template, StaticTemplate, DynamicTemplate]
         ],
+        catalogs: Optional[
+            Union[
+                CatalogSchema, Sequence[CatalogSchema], Mapping[str, CatalogSchema], Any
+            ]
+        ] = None,
         base_catalog: Optional[Union[CatalogSchema, Any]] = None,
         version: str = "v0.9.1",
     ):
@@ -201,29 +206,89 @@ class TemplateProcessor:
 
         Args:
             templates: List of registered Template definitions.
-            base_catalog: Optional base catalog schema dict or A2uiCatalog instance.
-                If omitted, the processor operates independently without catalog assumptions.
+            catalogs: Mandatory catalog schema(s) or A2uiCatalog instance(s) that templates
+                are validated and resolved against. No default to basic catalog is assumed.
+            base_catalog: Backwards-compatible alias for catalogs.
             version: Target A2UI protocol version ("v0.9", "v0.9.1", or "v1.0").
         """
+        raw_catalogs = catalogs if catalogs is not None else base_catalog
+        if raw_catalogs is None:
+            raise ValueError(
+                "TemplateProcessor requires explicit catalog(s) to be provided via"
+                " 'catalogs'. No defaults to the basic catalog are assumed."
+            )
+
+        self.version = version
+        self.catalogs: Dict[str, CatalogSchema] = {}
+
+        def _extract_catalog(c: Any) -> Tuple[str, CatalogSchema]:
+            if hasattr(c, "catalog_schema") and isinstance(c.catalog_schema, dict):
+                schema = c.catalog_schema
+            elif isinstance(c, dict):
+                schema = c
+            else:
+                raise ValueError(f"Invalid catalog object: {type(c)}")
+            c_id = (
+                schema.get("catalogId")
+                or schema.get("$id")
+                or schema.get("id")
+                or "default"
+            )
+            return str(c_id), schema
+
+        def _register_catalog(c_id: str, schema: CatalogSchema) -> None:
+            self.catalogs[c_id] = schema
+            if "v0_9/catalogs/basic/catalog.json" in c_id:
+                self.catalogs[c_id.replace("v0_9/", "v0_9_1/")] = schema
+            elif "v0_9_1/catalogs/basic/catalog.json" in c_id:
+                self.catalogs[c_id.replace("v0_9_1/", "v0_9/")] = schema
+
+        if isinstance(raw_catalogs, (list, tuple, set)):
+            for item in raw_catalogs:
+                c_id, s = _extract_catalog(item)
+                _register_catalog(c_id, s)
+        elif isinstance(raw_catalogs, dict):
+            if (
+                "components" in raw_catalogs
+                or "$id" in raw_catalogs
+                or "catalogId" in raw_catalogs
+            ):
+                c_id, s = _extract_catalog(raw_catalogs)
+                _register_catalog(c_id, s)
+            else:
+                for k, v in raw_catalogs.items():
+                    _, s = _extract_catalog(v)
+                    _register_catalog(str(k), s)
+        else:
+            c_id, s = _extract_catalog(raw_catalogs)
+            _register_catalog(c_id, s)
+
+        if not self.catalogs:
+            raise ValueError(
+                "TemplateProcessor requires at least one catalog. Empty catalog"
+                " collection provided."
+            )
+
+        self.base_catalog_id = next(iter(self.catalogs.keys()))
+        self.base_catalog = self.catalogs[self.base_catalog_id]
+
         self.templates: Dict[
             TemplateId, Union[BaseTemplate, Template, StaticTemplate, DynamicTemplate]
-        ] = {t.template_id: t for t in templates}
-        self.version = version
-        self.base_catalog: Optional[CatalogSchema] = None
-        self.base_catalog_id: Optional[str] = None
+        ] = {}
+        self.templates_by_id: Dict[
+            str, Union[BaseTemplate, Template, StaticTemplate, DynamicTemplate]
+        ] = {}
 
-        if base_catalog is not None:
-            if hasattr(base_catalog, "catalog_schema") and isinstance(
-                base_catalog.catalog_schema, dict
-            ):
-                self.base_catalog = base_catalog.catalog_schema
-            elif isinstance(base_catalog, dict):
-                self.base_catalog = base_catalog
-
-            if self.base_catalog is not None:
-                self.base_catalog_id = self.base_catalog.get(
-                    "$id"
-                ) or self.base_catalog.get("id")
+        for t in templates:
+            t_name = getattr(t, "name", None) or getattr(t, "template_id", None)
+            if not t_name:
+                continue
+            self.templates[t_name] = t
+            self.templates[t.template_id] = t
+            t_id = getattr(t, "id", None)
+            if t_id:
+                self.templates_by_id[t_id] = t
+                self.templates[t_id] = t
 
         self._validate_templates()
 
@@ -233,12 +298,11 @@ class TemplateProcessor:
     ) -> CatalogSchema:
         """Generates a synthetic JSON catalog containing allowed primitives and all registered templates."""
         if allowed_primitives is None:
-            if self.base_catalog is not None:
-                allowed_primitives = list(
-                    self.base_catalog.get("components", {}).keys()
-                )
-            else:
-                allowed_primitives = []
+            allowed_primitives = []
+            for cat in self.catalogs.values():
+                for comp_k in cat.get("components", {}).keys():
+                    if comp_k not in allowed_primitives:
+                        allowed_primitives.append(comp_k)
 
         catalog_id = (
             self.base_catalog_id
@@ -270,11 +334,14 @@ class TemplateProcessor:
             },
         }
 
-        # 1. Copy over allowed primitives from the base catalog if present
-        if self.base_catalog is not None:
-            base_components = self.base_catalog.get("components", {})
+        # 1. Copy over allowed primitives from registered catalogs
+        for cat in self.catalogs.values():
+            base_components = cat.get("components", {})
             for prim in allowed_primitives:
-                if prim in base_components:
+                if (
+                    prim in base_components
+                    and prim not in synthetic_catalog["components"]
+                ):
                     synthetic_catalog["components"][prim] = base_components[prim]
                     synthetic_catalog["$defs"]["anyComponent"]["oneOf"].append(
                         {"$ref": f"#/components/{prim}"}
@@ -287,7 +354,13 @@ class TemplateProcessor:
             else "https://a2ui.org/specification/v1_0/common_types.json"
         )
 
-        for t_id, template in self.templates.items():
+        seen_templates = set()
+        for template in self.templates.values():
+            t_id = getattr(template, "name", template.template_id)
+            if t_id in seen_templates:
+                continue
+            seen_templates.add(t_id)
+
             param_required = []
             properties_dict: Dict[str, Any] = {"component": {"const": t_id}}
 
@@ -710,7 +783,11 @@ class TemplateProcessor:
                                 sub_params[as_var] = item_dict
 
                             inline_template = StaticTemplate(
+                                name=f"{template_id}_inline_{idx}",
                                 template_id=f"{template_id}_inline_{idx}",
+                                catalogs=getattr(
+                                    layout, "catalogs", list(self.catalogs.keys())
+                                ),
                                 parameters={},
                                 components=item_comps,
                             )
@@ -769,7 +846,20 @@ class TemplateProcessor:
                 )
                 final_list.extend(nested_expanded)
             else:
-                final_list.append(c)
+                comp_out = dict(c)
+                if "0.9" in self.version:
+                    comp_out.pop("catalogId", None)
+                elif "1.0" in self.version:
+                    if "catalogId" not in comp_out:
+                        matching = [
+                            cat
+                            for cat in getattr(layout, "catalogs", [])
+                            if c_type
+                            in self.catalogs.get(cat, {}).get("components", {})
+                        ]
+                        if matching and matching[0] != self.base_catalog_id:
+                            comp_out["catalogId"] = matching[0]
+                final_list.append(comp_out)
 
         return final_list
 
@@ -790,7 +880,7 @@ class TemplateProcessor:
                 payload = dict(msg_copy[envelope_key])
                 if (
                     envelope_key == "createSurface"
-                    and "catalogId" in payload
+                    and "catalogId" not in payload
                     and self.base_catalog_id is not None
                 ):
                     payload["catalogId"] = self.base_catalog_id
@@ -889,19 +979,104 @@ class TemplateProcessor:
         return dict(p_meta)
 
     def _validate_templates(self) -> None:
-        """Validates all registered templates."""
-        for t_id, template in self.templates.items():
+        """Validates all registered templates against declared catalogs and component references."""
+        for t_key, template in list(self.templates.items()):
+            t_name = getattr(template, "name", template.template_id)
+            if t_key != t_name:
+                continue
+
+            # 1. Resolve declared catalogs on template
+            t_catalogs = getattr(template, "catalogs", [])
+            if isinstance(t_catalogs, str):
+                t_catalogs = [t_catalogs]
+                template.catalogs = t_catalogs
+
+            if not t_catalogs:
+                if len(self.catalogs) == 1:
+                    t_catalogs = list(self.catalogs.keys())
+                    template.catalogs = t_catalogs
+                else:
+                    raise ValueError(
+                        f"Template '{t_name}' must declare which catalog(s) it is"
+                        " written against via 'catalogs'. Registered catalogs:"
+                        f" {list(self.catalogs.keys())}"
+                    )
+
+            for c_uri in t_catalogs:
+                if c_uri not in self.catalogs:
+                    raise ValueError(
+                        f"Template '{t_name}' declares catalog '{c_uri}', which is not"
+                        " registered in TemplateProcessor. Available catalogs:"
+                        f" {list(self.catalogs.keys())}"
+                    )
+
+            # In v0.9, a template cannot span multiple catalogs
+            if "0.9" in self.version and len(t_catalogs) > 1:
+                raise ValueError(
+                    f"Template '{t_name}' declares multiple catalogs {t_catalogs}, but"
+                    f" A2UI {self.version} only supports a single catalog."
+                )
+
+            # 2. Validate template definition schema if static
             if isinstance(template, StaticTemplate):
                 template.validate_definition()
-                for comp in template.components:
-                    comp_dict = (
-                        comp.to_dict() if isinstance(comp, TemplateComponent) else comp
+
+            # 3. Validate components in layout
+            layout = getattr(template, "layout", None) or template
+            comps = getattr(layout, "components", [])
+            for comp in comps:
+                comp_dict = (
+                    comp.to_dict() if isinstance(comp, TemplateComponent) else comp
+                )
+                comp_type = comp_dict.get("component")
+                if not comp_type:
+                    raise ValueError(
+                        f"Component in template '{t_name}' is missing 'component' type."
                     )
-                    comp_type = comp_dict.get("component")
-                    if not comp_type:
+
+                # Check if component is a sub-template invocation
+                if (
+                    comp_type in self.templates
+                    or comp_type in self.templates_by_id
+                    or comp_type in getattr(template, "imports", [])
+                ):
+                    continue
+
+                # Otherwise it must be a primitive in the declared catalogs
+                matching_cats = [
+                    cat_uri
+                    for cat_uri in t_catalogs
+                    if comp_type in self.catalogs[cat_uri].get("components", {})
+                ]
+
+                explicit_cat = comp_dict.get("catalogId") or getattr(
+                    comp, "catalog_id", None
+                )
+                if explicit_cat:
+                    if explicit_cat not in t_catalogs:
                         raise ValueError(
-                            f"Component in template '{t_id}' is missing 'component'"
-                            " type."
+                            f"Component '{comp_type}' in template '{t_name}' specifies"
+                            f" catalogId '{explicit_cat}', which is not in template's"
+                            f" declared catalogs: {t_catalogs}"
+                        )
+                    if comp_type not in self.catalogs[explicit_cat].get(
+                        "components", {}
+                    ):
+                        raise ValueError(
+                            f"Component '{comp_type}' not found in catalog"
+                            f" '{explicit_cat}'"
+                        )
+                else:
+                    if len(matching_cats) == 0:
+                        raise ValueError(
+                            f"Component '{comp_type}' in template '{t_name}' was not"
+                            f" found in any declared catalog: {t_catalogs}"
+                        )
+                    elif len(matching_cats) > 1:
+                        raise ValueError(
+                            f"Component '{comp_type}' in template '{t_name}' is"
+                            " ambiguous across multiple declared catalogs:"
+                            f" {matching_cats}. Specify 'catalogId' on the component."
                         )
 
     def validate_templates(self) -> None:

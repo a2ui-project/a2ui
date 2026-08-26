@@ -24,7 +24,7 @@ import os
 from pathlib import Path
 import re
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import jsonschema
 import yaml
 
@@ -331,9 +331,12 @@ class TemplateComponent:
     properties: Dict[str, Any] = field(default_factory=dict)
     child: Optional[Union[str, ParamRef, Dict[str, Any]]] = None
     children: Optional[Union[List[Any], ParamRef, TemplateLoop, Dict[str, Any]]] = None
+    catalog_id: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         res: Dict[str, Any] = {"id": self.id, "component": self.component}
+        if self.catalog_id is not None:
+            res["catalogId"] = self.catalog_id
         if self.child is not None:
             res["child"] = (
                 self.child.to_dict() if isinstance(self.child, ParamRef) else self.child
@@ -355,11 +358,13 @@ class TemplateComponent:
         data_copy = dict(data)
         c_id = data_copy.pop("id")
         c_type = data_copy.pop("component")
+        c_cat = data_copy.pop("catalogId", None) or data_copy.pop("catalog_id", None)
         child = data_copy.pop("child", None)
         children = data_copy.pop("children", None)
         return cls(
             id=c_id,
             component=c_type,
+            catalog_id=c_cat,
             properties=data_copy,
             child=child,
             children=children,
@@ -508,11 +513,23 @@ def normalize_a2ui_type_to_jsonschema(meta: Any) -> Any:
 class BaseTemplate:
     """Base class for all templates."""
 
-    template_id: str
+    name: str = ""
+    catalogs: List[str] = field(default_factory=list)
+    id: Optional[str] = None
+    imports: Union[List[str], Dict[str, str]] = field(default_factory=list)
     version: str = "0.1"
     description: Optional[str] = None
     sample_data: Optional[Dict[str, Any]] = None
     is_dynamic: bool = False
+    template_id: str = ""
+
+    def __post_init__(self):
+        if not self.name and self.template_id:
+            self.name = self.template_id
+        elif not self.template_id and self.name:
+            self.template_id = self.name
+        if isinstance(self.catalogs, str):
+            self.catalogs = [self.catalogs]
 
 
 @dataclass
@@ -528,20 +545,31 @@ class StaticTemplate(BaseTemplate):
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> StaticTemplate:
         """Constructs a StaticTemplate instance from a dictionary payload."""
-        template_id = data.get("templateId") or data.get("template_id")
-        if not template_id:
-            raise ValueError("Template dictionary must contain 'templateId'.")
+        name = data.get("name") or data.get("templateId") or data.get("template_id")
+        if not name:
+            raise ValueError(
+                "Template dictionary must contain 'name' (or 'templateId')."
+            )
 
         version = data.get("version")
         if not version:
-            raise ValueError(
-                f"Template '{template_id}' missing required 'version' attribute."
-            )
+            raise ValueError(f"Template '{name}' missing required 'version' attribute.")
         if version != "0.1":
             raise ValueError(
                 f"Unsupported template version '{version}'. Currently only '0.1' is"
                 " supported."
             )
+
+        catalogs_raw = data.get("catalogs", [])
+        if isinstance(catalogs_raw, str):
+            catalogs = [catalogs_raw]
+        elif isinstance(catalogs_raw, (list, tuple)):
+            catalogs = list(catalogs_raw)
+        else:
+            catalogs = []
+
+        id_val = data.get("id")
+        imports = data.get("imports", [])
 
         raw_params = data.get("parameters", {})
         parsed_params: Dict[str, Union[Param, Dict[str, Any]]] = {}
@@ -558,11 +586,15 @@ class StaticTemplate(BaseTemplate):
             components = list(data["components"])
         else:
             raise ValueError(
-                f"Template '{template_id}' must declare a 'layout' tree definition."
+                f"Template '{name}' must declare a 'layout' tree definition."
             )
 
         instance = cls(
-            template_id=template_id,
+            name=name,
+            catalogs=catalogs,
+            id=id_val,
+            imports=imports,
+            template_id=name,
             version=version,
             parameters=parsed_params,
             components=components,
@@ -612,9 +644,15 @@ class StaticTemplate(BaseTemplate):
 
         res: Dict[str, Any] = {
             "version": self.version,
-            "templateId": self.template_id,
+            "name": self.name,
+            "templateId": self.name,
+            "catalogs": self.catalogs,
             "parameters": params_dict,
         }
+        if self.id is not None:
+            res["id"] = self.id
+        if self.imports:
+            res["imports"] = self.imports
         if self.raw_layout is not None:
             res["layout"] = self.raw_layout
         else:
@@ -744,7 +782,10 @@ class DynamicTemplate(BaseTemplate):
 
     def __init__(
         self,
-        template_id: str,
+        name: Optional[str] = None,
+        catalogs: Optional[Union[List[str], str]] = None,
+        id: Optional[str] = None,
+        imports: Optional[Union[List[str], Dict[str, str]]] = None,
         render: Optional[Callable[..., Any]] = None,
         resolver: Optional[Callable[..., Any]] = None,
         layout: Optional[Union[StaticTemplate, str, Dict[str, Any]]] = None,
@@ -753,18 +794,13 @@ class DynamicTemplate(BaseTemplate):
         sample_data: Optional[Dict[str, Any]] = None,
         render_fn: Optional[Callable[..., Any]] = None,
         version: str = "0.1",
+        template_id: Optional[str] = None,
     ):
-        super().__init__(
-            template_id=template_id,
-            version=version,
-            description=description,
-            sample_data=sample_data,
-            is_dynamic=True,
-        )
-        self.render_fn = render or render_fn
-        self.resolver = resolver
-        self.layout: Optional[StaticTemplate] = None
+        template_name = name or template_id
+        if not template_name:
+            raise ValueError("DynamicTemplate must provide 'name' (or 'template_id').")
 
+        self.layout: Optional[StaticTemplate] = None
         if layout is not None:
             if isinstance(layout, str):
                 if os.path.exists(layout):
@@ -776,10 +812,30 @@ class DynamicTemplate(BaseTemplate):
             else:
                 self.layout = layout
 
+        catalogs_list: List[str] = []
+        if catalogs is not None:
+            catalogs_list = [catalogs] if isinstance(catalogs, str) else list(catalogs)
+        elif self.layout is not None and self.layout.catalogs:
+            catalogs_list = list(self.layout.catalogs)
+
+        super().__init__(
+            name=template_name,
+            catalogs=catalogs_list,
+            id=id,
+            imports=imports or [],
+            template_id=template_name,
+            version=version,
+            description=description,
+            sample_data=sample_data,
+            is_dynamic=True,
+        )
+        self.render_fn = render or render_fn
+        self.resolver = resolver
+
         target_fn = self.render_fn or self.resolver
         if target_fn is None and self.layout is None:
             raise ValueError(
-                f"DynamicTemplate '{template_id}' must provide either a 'render'"
+                f"DynamicTemplate '{template_name}' must provide either a 'render'"
                 " function or a ('resolver', 'layout') pair."
             )
 

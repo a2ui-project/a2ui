@@ -24,7 +24,9 @@ def test_template_inference_format_end_to_end():
     """Verifies that TemplateInferenceFormat wraps ExpressFormat, generates prompts, and unrolls streaming chunks."""
     yaml_tmpl = """
 version: "0.1"
-templateId: UserProfile
+name: UserProfile
+catalogs:
+  - "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
 parameters:
   userId: {type: string}
   userName: {type: string}

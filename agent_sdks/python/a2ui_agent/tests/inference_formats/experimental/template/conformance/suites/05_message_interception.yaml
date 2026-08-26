@@ -27,6 +27,9 @@
       child:
         component: Text
         text: ${title}
+    catalogs:
+      - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+    name: SimpleCard
   message:
     createSurface:
       surfaceId: main
@@ -61,6 +64,9 @@
       child:
         component: Text
         text: ${title}
+    catalogs:
+      - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+    name: SimpleCard
   message:
     updateComponents:
       surfaceId: main
@@ -93,6 +99,9 @@
       child:
         component: Text
         text: ${title}
+    catalogs:
+      - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+    name: SimpleCard
   message:
     updateComponents:
       surfaceId: main
@@ -131,6 +140,9 @@
       child:
         component: Text
         text: ${title}
+    catalogs:
+      - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+    name: SimpleCard
   message:
     - updateDataModel:
         path: /session/user

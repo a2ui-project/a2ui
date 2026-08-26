@@ -14,9 +14,7 @@
 
 """Conformance test runner for A2UI Templates executing declarative YAML suites."""
 
-import glob
 import json
-import os
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 import jsonschema
@@ -30,6 +28,20 @@ from a2ui.inference_formats.experimental.template import (
 from a2ui.inference_formats.experimental.template.processor import (
     _substitute_params,
 )
+
+
+BASIC_CATALOG_PATH = (
+    Path(__file__).resolve().parents[7]
+    / "specification"
+    / "v0_9_1"
+    / "catalogs"
+    / "basic"
+    / "catalog.json"
+)
+BASIC_CATALOG: Dict[str, Any] = {}
+if BASIC_CATALOG_PATH.is_file():
+    with open(BASIC_CATALOG_PATH, "r", encoding="utf-8") as f:
+        BASIC_CATALOG = json.load(f)
 
 
 def get_conformance_dir() -> Path:
@@ -84,7 +96,10 @@ def _execute_case(case: Dict[str, Any]) -> Any:
                 templates.append(StaticTemplate.from_dict(t_dict))
 
         base_catalog = case.get("base_catalog", None)
-        processor = TemplateProcessor(templates=templates, base_catalog=base_catalog)
+        catalogs = case.get("catalogs", None) or base_catalog
+        if catalogs is None and BASIC_CATALOG:
+            catalogs = [BASIC_CATALOG]
+        processor = TemplateProcessor(templates=templates, catalogs=catalogs)
 
         template_id = case.get(
             "template_id",
@@ -108,7 +123,10 @@ def _execute_case(case: Dict[str, Any]) -> Any:
                 templates.append(StaticTemplate.from_dict(t_dict))
 
         base_catalog = case.get("base_catalog", None)
-        processor = TemplateProcessor(templates=templates, base_catalog=base_catalog)
+        catalogs = case.get("catalogs", None) or base_catalog
+        if catalogs is None and BASIC_CATALOG:
+            catalogs = [BASIC_CATALOG]
+        processor = TemplateProcessor(templates=templates, catalogs=catalogs)
 
         return processor.process_message(case["message"])
 

@@ -32,6 +32,9 @@
             children:
               - component: Text
                 text: ${m.name}
+    catalogs:
+      - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+    name: MemberList
   instance_id: team_col
   template_id: MemberList
   args:
@@ -71,6 +74,9 @@
       layout:
         component: Text
         text: "#${label}"
+      catalogs:
+        - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+      name: TagBadge
     - version: "0.1"
       templateId: TagContainer
       parameters:
@@ -82,6 +88,9 @@
           loop:
             param: tags
             template: TagBadge
+      catalogs:
+        - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+      name: TagContainer
   instance_id: row_tags
   template_id: TagContainer
   args:
@@ -118,6 +127,9 @@
           item:
             component: Text
             text: Item
+    catalogs:
+      - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+    name: EmptyListChecker
   instance_id: empty_col
   template_id: EmptyListChecker
   args:
@@ -145,6 +157,9 @@
           item:
             component: Text
             text: ${c.value}
+    catalogs:
+      - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+    name: ColorChips
   instance_id: chip_row
   template_id: ColorChips
   args:
@@ -181,6 +196,9 @@
           item:
             component: Text
             text: Fail
+    catalogs:
+      - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+    name: FailingLoop
   instance_id: fail_inst
   template_id: FailingLoop
   args:
