@@ -154,21 +154,20 @@ def _substitute_params(val: Any, params: TemplateParams) -> Any:
         return [_substitute_params(x, params) for x in val]
 
     elif isinstance(val, str):
-        # 1. Exact parameter match preserving type: e.g. "${user}" or "${score}"
-        match = re.match(r"^\$\{([\w\.]+)\}$", val)
+        # 1. Exact parameter match preserving type: e.g. "{{ user }}", "{{user}}", "${user}"
+        match = re.match(r"^(?:\{\{\s*|\$\{)([\w\.]+)(?:\s*\}\}|\})$", val)
         if match:
             param_path = match.group(1)
             found, res = _resolve_param_path(param_path, params)
             if found:
                 return res
 
-        # 2. Check for exact escaped token match: e.g. r"\${user}" -> "${user}"
-        escaped_match = re.match(r"^\\(\$\{[\w\.]+\})$", val)
+        # 2. Check for exact escaped token match: e.g. r"\{{ user }}" -> "{{ user }}" or r"\${user}" -> "${user}"
+        escaped_match = re.match(r"^\\((?:\{\{|\$\{)[^}]*(?:\}\}|\}))$", val)
         if escaped_match:
             return escaped_match.group(1)
 
         # 3. In-string replacement with escape handling:
-        # Negative lookbehind (?<!\\)\$\{([\w\.]+)\} for unescaped tokens
         def replacer(m: re.Match[str]) -> str:
             path = m.group(1)
             found, res = _resolve_param_path(path, params)
@@ -176,10 +175,13 @@ def _substitute_params(val: Any, params: TemplateParams) -> Any:
                 return str(res)
             return str(m.group(0))
 
-        # Replace unescaped tokens
-        substituted = re.sub(r"(?<!\\)\$\{([\w\.]+)\}", replacer, val)
-        # Unescape escaped tokens: r"\${path}" -> "${path}"
-        final_str = re.sub(r"\\(\$\{[\w\.]+\})", r"\1", substituted)
+        # Replace unescaped Mustache tokens: (?<!\\)\{\{\s*([\w\.]+)\s*\}\}
+        substituted = re.sub(r"(?<!\\)\{\{\s*([\w\.]+)\s*\}\}", replacer, val)
+        # Also replace unescaped ${param} tokens for fallback
+        substituted = re.sub(r"(?<!\\)\$\{([\w\.]+)\}", replacer, substituted)
+
+        # Unescape escaped tokens: r"\{{...}}" -> "{{...}}" and r"\${...}" -> "${...}"
+        final_str = re.sub(r"\\(\{\{.*?\}\}|\$\{.*?\})", r"\1", substituted)
         return final_str
 
     return val
@@ -587,7 +589,14 @@ class TemplateProcessor:
             if "default" in val:
                 return True, val["default"]
         elif isinstance(val, str):
-            if val.startswith("${") and val.endswith("}"):
+            s = val.strip()
+            if s.startswith("{{") and s.endswith("}}"):
+                p_path = s[2:-2].strip()
+                found, res = _resolve_param_path(p_path, params)
+                if found:
+                    return True, res
+                return True, None
+            elif val.startswith("${") and val.endswith("}"):
                 p_path = val[2:-1]
                 found, res = _resolve_param_path(p_path, params)
                 if found:
@@ -680,7 +689,8 @@ class TemplateProcessor:
                     and not (
                         isinstance(params[p_name], str)
                         and (
-                            params[p_name].startswith("${")
+                            params[p_name].strip().startswith("{{")
+                            or params[p_name].startswith("${")
                             or params[p_name].startswith("__")
                         )
                     )

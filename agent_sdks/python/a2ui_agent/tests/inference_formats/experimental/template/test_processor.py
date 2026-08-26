@@ -429,3 +429,67 @@ def test_dynamic_template_decorator_processor_expansion():
     assert len(expanded) == 4
     assert any(c.get("text") == "Revenue: $1.2M" for c in expanded)
     assert any(c.get("text") == "Change: +12%" for c in expanded)
+
+
+def test_mustache_substitution_syntax():
+    """Verifies that double-curly Mustache syntax {{ param }} is supported for substitutions,
+    preserves exact types, allows whitespace, and leaves client ${/data/path} bindings intact."""
+    layout_yaml = """
+version: "0.1"
+name: MustacheCard
+catalogs:
+  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
+parameters:
+  count: {type: integer}
+  isActive: {type: boolean}
+  user: {type: object}
+  tags: {type: array}
+  dept: {type: string}
+layout:
+  component: Card
+  child:
+    component: Column
+    children:
+      - component: Text
+        text: "{{ count }}"
+      - component: Text
+        text: "{{   isActive   }}"
+      - component: Text
+        text: "Hello, {{ user.profile.name }}! Dept: {{ dept }}"
+      - component: Text
+        text: "Literal: \\\\{{ escaped }}"
+      - component: Text
+        text:
+          call: formatString
+          args:
+            value: "Live: ${/metrics/cpu}, Dept: {{ dept }}"
+"""
+    tmpl = StaticTemplate.from_yaml(layout_yaml)
+    processor = TemplateProcessor(templates=[tmpl], catalogs=BASIC_CATALOG)
+    expanded = processor.expand_template(
+        "inst_1",
+        "MustacheCard",
+        {
+            "count": 42,
+            "isActive": True,
+            "user": {"profile": {"name": "Alice"}},
+            "tags": ["a", "b"],
+            "dept": "Engineering",
+        },
+    )
+
+    texts = [c for c in expanded if c.get("component") == "Text"]
+    # 1. Exact match integer type preserved
+    assert texts[0]["text"] == 42
+    # 2. Exact match boolean with whitespace preserved
+    assert texts[1]["text"] is True
+    # 3. Embedded interpolation with dot-notation
+    assert texts[2]["text"] == "Hello, Alice! Dept: Engineering"
+    # 4. Escaped literal unescaped
+    assert texts[3]["text"] == "Literal: {{ escaped }}"
+    # 5. Client data-model path ${/metrics/cpu} preserved untouched while {{ dept }} substituted
+    assert texts[4]["text"] == {
+        "call": "formatString",
+        "args": {"value": "Live: ${/metrics/cpu}, Dept: Engineering"},
+    }
+

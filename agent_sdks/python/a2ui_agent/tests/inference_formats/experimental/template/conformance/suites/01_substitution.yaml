@@ -163,3 +163,56 @@
       default: Contributor
     params: {}
   expect: Contributor
+- name: test_mustache_exact_integer_preservation
+  description: Verifies that exact Mustache token match preserves integer type.
+  action: substitute_params
+  args:
+    value: "{{ count }}"
+    params:
+      count: 42
+  expect: 42
+- name: test_mustache_exact_boolean_preservation
+  description: Verifies that exact Mustache token match preserves boolean type.
+  action: substitute_params
+  args:
+    value: "{{ isEnabled }}"
+    params:
+      isEnabled: true
+  expect: true
+- name: test_mustache_exact_array_preservation
+  description: Verifies that exact Mustache token match preserves array data structure.
+  action: substitute_params
+  args:
+    value: "{{ tags }}"
+    params:
+      tags:
+        - admin
+        - developer
+  expect:
+    - admin
+    - developer
+- name: test_mustache_string_interpolation
+  description: Verifies multiple Mustache tokens interpolated inside string.
+  action: substitute_params
+  args:
+    value: "{{ dept }} - Grade {{ grade }}"
+    params:
+      dept: Eng
+      grade: 9
+  expect: "Eng - Grade 9"
+- name: test_mustache_escaping
+  description: Verifies that escaped Mustache syntax is emitted as a literal.
+  action: substitute_params
+  args:
+    value: 'Literal \{{ keep }} and dynamic {{ replace }}'
+    params:
+      replace: substituted
+  expect: "Literal {{ keep }} and dynamic substituted"
+- name: test_mustache_client_data_binding_passthrough
+  description: Verifies that client ${/data/path} bindings are preserved untouched.
+  action: substitute_params
+  args:
+    value: "Client: ${/user/name}, Server: {{ serverVal }}"
+    params:
+      serverVal: local
+  expect: "Client: ${/user/name}, Server: local"

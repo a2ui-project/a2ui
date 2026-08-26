@@ -681,7 +681,7 @@ class StaticTemplate(BaseTemplate):
                 StaticTemplate._collect_loop_vars(item, loop_vars)
 
     def _check_val(self, val: Any, loop_vars: set) -> None:
-        expr_pattern = re.compile(r"\$\{([\w\.]+)\}")
+        expr_pattern = re.compile(r"(?<!\\)(?:\{\{\s*|\$\{)([\w\.]+)(?:\s*\}\}|\})")
         if isinstance(val, dict):
             if "param" in val and isinstance(val["param"], str):
                 self._check_path(val["param"], loop_vars)
