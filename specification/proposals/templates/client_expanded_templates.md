@@ -62,7 +62,8 @@ Initial templates known at surface creation time can be transported directly ins
     "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
     "templates": [
       {
-        "templateId": "MetricCard",
+        "name": "MetricCard",
+        "catalogs": ["https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"],
         "description": "KPI metric card",
         "parameters": {
           "label": {"type": "string"},
@@ -130,7 +131,8 @@ For templates delivered after surface creation, or emitted dynamically by connec
     "templateSource": "mcp://github-service/templates",
     "templates": [
       {
-        "templateId": "PullRequestCard",
+        "name": "PullRequestCard",
+        "catalogs": ["https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"],
         "description": "GitHub PR status card with merge status and CI indicator.",
         "parameters": {
           "prNumber": {"type": "integer"},
@@ -337,7 +339,8 @@ Client-expanded templates have direct, low-latency access to the client's `DataM
     "templateSource": "mcp://cloud-ops/templates",
     "templates": [
       {
-        "templateId": "ServerHealthCard",
+        "name": "ServerHealthCard",
+        "catalogs": ["https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"],
         "parameters": {
           "hostname": {"type": "string"},
           "cpuUsage": {"type": "number"},

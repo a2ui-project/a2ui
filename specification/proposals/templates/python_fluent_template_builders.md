@@ -324,7 +324,9 @@ def render_project_status(project_id: str):
 
 # Register DynamicTemplate
 project_template = DynamicTemplate(
+    name="ProjectStatusCard",
     template_id="ProjectStatusCard",
+    catalogs=["https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"],
     render=render_project_status,
     description="Live project tracking card with milestones.",
 )
