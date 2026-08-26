@@ -316,6 +316,42 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     }
   });
 
+  it('keeps edges distinct when property names and component ids share delimiters', () => {
+    // Field 'a' referencing 'b>c' and field 'a>b' referencing 'c' would
+    // concatenate to the same edge key without escaping, disposing the
+    // first node the moment the second resolves.
+    const TrickyApi = {
+      name: 'Tricky',
+      schema: z.object({
+        'a': ComponentIdSchema.optional(),
+        'a>b': ComponentIdSchema.optional(),
+      }),
+    };
+    const catalog = new Catalog<ComponentApi>('tricky-catalog', [TextApi, TrickyApi], []);
+    const surface = new SurfaceModel('surf-1', catalog);
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'Tricky', {'a': 'b>c', 'a>b': 'c'});
+    add(surface, 'b>c', 'Text', {text: 'first'});
+    add(surface, 'c', 'Text', {text: 'second'});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const first = props(root)['a'] as ComponentNode;
+    const second = props(root)['a>b'] as ComponentNode;
+    assert.ok(isComponentNode(first) && isComponentNode(second));
+    assert.strictEqual(first.disposed, false);
+    assert.strictEqual(second.disposed, false);
+    assert.strictEqual(bound(first, 'text'), 'first');
+    assert.strictEqual(bound(second, 'text'), 'second');
+
+    // Both stay live: an update must reach the first node.
+    const model = surface.componentsModel.get('b>c');
+    assert.ok(model);
+    model.properties = {text: 'updated'};
+    assert.strictEqual(bound(props(root)['a'] as ComponentNode, 'text'), 'updated');
+    resolver.dispose();
+  });
+
   it('spawns one node per array item for a template child list', () => {
     const {surface, resolver} = setup();
     surface.dataModel.set('/items', [{name: 'A'}, {name: 'B'}]);

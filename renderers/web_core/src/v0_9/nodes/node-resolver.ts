@@ -527,10 +527,10 @@ export class NodeResolver<
     // references to one component get distinct instance ids.
     const occurrences = new Map<string, number>();
     const resolveChild = (slot: string, componentId: string, dataPath: string): ComponentNode => {
-      const occurrenceKey = `${componentId}@${dataPath}`;
+      const occurrenceKey = `${escapeIdPart(componentId)}@${escapeIdPart(dataPath)}`;
       const occurrence = (occurrences.get(occurrenceKey) ?? 0) + 1;
       occurrences.set(occurrenceKey, occurrence);
-      const edgeKey = `${record.edgeKey}>${slot}>${componentId}@${dataPath}`;
+      const edgeKey = `${record.edgeKey}>${slot}>${occurrenceKey}`;
       const child = this.childNode(componentId, dataPath, edgeKey, record.node, occurrence);
       newEdges.set(edgeKey, child);
       return child;
@@ -541,7 +541,7 @@ export class NodeResolver<
         case 'single': {
           const value = next[key];
           if (typeof value === 'string' && value) {
-            next[key] = resolveChild(key, value, record.node.dataPath);
+            next[key] = resolveChild(escapeIdPart(key), value, record.node.dataPath);
           }
           break;
         }
@@ -552,17 +552,21 @@ export class NodeResolver<
           }
           next[key] = value.map((item, index) => {
             if (typeof item === 'string' && item) {
-              return resolveChild(`${key}[${index}]`, item, record.node.dataPath);
+              return resolveChild(`${escapeIdPart(key)}[${index}]`, item, record.node.dataPath);
             }
             if (item && typeof item === 'object' && !Array.isArray(item)) {
               const entry = item as Record<string, unknown>;
               // The binder resolves a {componentId, path} template into
               // {id, basePath} pairs, one per array element.
               if (typeof entry.id === 'string' && typeof entry.basePath === 'string') {
-                return resolveChild(`${key}[${index}]`, entry.id, entry.basePath);
+                return resolveChild(`${escapeIdPart(key)}[${index}]`, entry.id, entry.basePath);
               }
               if (typeof entry.componentId === 'string' && entry.componentId) {
-                return resolveChild(`${key}[${index}]`, entry.componentId, record.node.dataPath);
+                return resolveChild(
+                  `${escapeIdPart(key)}[${index}]`,
+                  entry.componentId,
+                  record.node.dataPath,
+                );
               }
             }
             return item;
@@ -584,7 +588,7 @@ export class NodeResolver<
               const childId = entry[subKey];
               if (typeof childId === 'string' && childId) {
                 entry[subKey] = resolveChild(
-                  `${key}[${index}].${subKey}`,
+                  `${escapeIdPart(key)}[${index}].${escapeIdPart(subKey)}`,
                   childId,
                   record.node.dataPath,
                 );
@@ -677,13 +681,19 @@ export class NodeResolver<
 }
 
 /**
- * Escapes the characters that carry meaning in composed instance ids (`~`,
- * `#`, `[`, `]`), so a component id or data path containing them cannot
- * collide with the composed form of a different (componentId, dataPath,
- * occurrence) tuple. Ids and paths without these characters are unchanged.
+ * Escapes the characters that carry meaning in composed instance ids and
+ * edge keys (`~`, `#`, `[`, `]`, `>`, `@`), so a component id, data path, or
+ * property name containing them cannot collide with the composed form of a
+ * different tuple. Parts without these characters are unchanged.
  */
 function escapeIdPart(part: string): string {
-  return part.replace(/~/g, '~0').replace(/#/g, '~1').replace(/\[/g, '~2').replace(/\]/g, '~3');
+  return part
+    .replace(/~/g, '~0')
+    .replace(/#/g, '~1')
+    .replace(/\[/g, '~2')
+    .replace(/\]/g, '~3')
+    .replace(/>/g, '~4')
+    .replace(/@/g, '~5');
 }
 
 function instanceIdFor(componentId: string, dataPath: string, occurrence: number): string {
