@@ -18,7 +18,7 @@ import JSONSchema
 
 extension BasicCatalogComponents {
   // MARK: - TextField
-  public static let textField = ComponentAPI(
+  public static let textField = AnyComponentAPI(
     name: "TextField",
     schema: try! Schema(
       instance: """

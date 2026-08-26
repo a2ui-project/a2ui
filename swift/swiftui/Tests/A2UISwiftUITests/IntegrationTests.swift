@@ -22,7 +22,7 @@ import Testing
 // MARK: - Test Catalog for Integration Tests
 
 /// Builds a catalog with button, text, and textField component schemas for integration tests.
-func makeIntegrationCatalog() throws -> Catalog {
+func makeIntegrationCatalog() throws -> AnyCatalog {
   let remote = A2UICommonSchema.allSchemas
   let buttonSchema = try Schema(
     instance: """
@@ -93,10 +93,10 @@ func makeIntegrationCatalog() throws -> Catalog {
   return Catalog(
     id: "default",
     components: [
-      ComponentAPI(name: "button", schema: buttonSchema),
-      ComponentAPI(name: "text", schema: textSchema),
-      ComponentAPI(name: "textField", schema: textFieldSchema),
-      ComponentAPI(name: "icon", schema: iconSchema),
+      AnyComponentAPI(name: "button", schema: buttonSchema),
+      AnyComponentAPI(name: "text", schema: textSchema),
+      AnyComponentAPI(name: "textField", schema: textFieldSchema),
+      AnyComponentAPI(name: "icon", schema: iconSchema),
     ]
   )
 }

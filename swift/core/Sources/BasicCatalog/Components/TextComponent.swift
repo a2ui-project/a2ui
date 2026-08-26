@@ -18,7 +18,7 @@ import JSONSchema
 
 extension BasicCatalogComponents {
   // MARK: - Text
-  public static let text = ComponentAPI(
+  public static let text = AnyComponentAPI(
     name: "Text",
     schema: try! Schema(
       instance: """

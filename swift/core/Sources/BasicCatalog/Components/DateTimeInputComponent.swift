@@ -18,7 +18,7 @@ import JSONSchema
 
 extension BasicCatalogComponents {
   // MARK: - DateTimeInput
-  public static let dateTimeInput = ComponentAPI(
+  public static let dateTimeInput = AnyComponentAPI(
     name: "DateTimeInput",
     schema: try! Schema(
       instance: """

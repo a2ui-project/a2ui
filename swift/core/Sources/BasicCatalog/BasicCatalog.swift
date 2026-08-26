@@ -51,10 +51,10 @@ public enum BasicCatalog: Sendable {
   /// Creates a Catalog instance with all Basic Catalog components and functions for a specified catalog ID.
   public static func createCatalog(
     id: String = v091CatalogURI,
-    components: [ComponentAPI] = BasicCatalogComponents.allComponents,
+    components: [AnyComponentAPI] = BasicCatalogComponents.allComponents,
     functions: [any FunctionImplementation] = BasicFunctions.allFunctions,
     themeSchema: Schema? = BasicCatalog.themeSchema
-  ) -> Catalog {
+  ) -> AnyCatalog {
     Catalog(
       id: id,
       components: components,
@@ -67,7 +67,7 @@ public enum BasicCatalog: Sendable {
   public static let v091Catalog = createCatalog(id: v091CatalogURI)
 
   /// All supported standard Basic Catalog instances.
-  public static let allCatalogs: [Catalog] = [
+  public static let allCatalogs: [AnyCatalog] = [
     v09Catalog,
     v091Catalog,
   ]

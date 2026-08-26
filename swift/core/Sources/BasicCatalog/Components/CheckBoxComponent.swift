@@ -18,7 +18,7 @@ import JSONSchema
 
 extension BasicCatalogComponents {
   // MARK: - CheckBox
-  public static let checkBox = ComponentAPI(
+  public static let checkBox = AnyComponentAPI(
     name: "CheckBox",
     schema: try! Schema(
       instance: """

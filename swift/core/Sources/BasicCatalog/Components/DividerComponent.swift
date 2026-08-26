@@ -18,7 +18,7 @@ import JSONSchema
 
 extension BasicCatalogComponents {
   // MARK: - Divider
-  public static let divider = ComponentAPI(
+  public static let divider = AnyComponentAPI(
     name: "Divider",
     schema: try! Schema(
       instance: """

@@ -18,7 +18,7 @@ import A2UICore
 public enum BasicCatalogComponents: Sendable {
 
   // MARK: - All Components
-  public static let allComponents: [ComponentAPI] = [
+  public static let allComponents: [AnyComponentAPI] = [
     text,
     image,
     icon,

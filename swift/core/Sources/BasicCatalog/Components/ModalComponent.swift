@@ -18,7 +18,7 @@ import JSONSchema
 
 extension BasicCatalogComponents {
   // MARK: - Modal
-  public static let modal = ComponentAPI(
+  public static let modal = AnyComponentAPI(
     name: "Modal",
     schema: try! Schema(
       instance: """

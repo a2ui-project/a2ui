@@ -18,7 +18,7 @@ import JSONSchema
 
 extension BasicCatalogComponents {
   // MARK: - Video
-  public static let video = ComponentAPI(
+  public static let video = AnyComponentAPI(
     name: "Video",
     schema: try! Schema(
       instance: """

@@ -18,7 +18,7 @@ import JSONSchema
 
 extension BasicCatalogComponents {
   // MARK: - ChoicePicker
-  public static let choicePicker = ComponentAPI(
+  public static let choicePicker = AnyComponentAPI(
     name: "ChoicePicker",
     schema: try! Schema(
       instance: """

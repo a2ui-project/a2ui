@@ -18,7 +18,7 @@ import JSONSchema
 
 extension BasicCatalogComponents {
   // MARK: - AudioPlayer
-  public static let audioPlayer = ComponentAPI(
+  public static let audioPlayer = AnyComponentAPI(
     name: "AudioPlayer",
     schema: try! Schema(
       instance: """
