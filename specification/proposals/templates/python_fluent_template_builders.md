@@ -277,9 +277,14 @@ With fluent builders, developers author server render functions with complete ID
 
 ```python
 from a2ui.inference_formats.experimental.template.builder import Card, Column, Row, Text, Icon, Divider, DataBinding
-from a2ui.inference_formats.experimental.template import DynamicTemplate
+from a2ui.inference_formats.experimental.template import dynamic_template
 
-def render_project_status(project_id: str):
+@dynamic_template(
+    name="ProjectStatusCard",
+    catalogs=["https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"],
+    description="Live project tracking card with milestones.",
+)
+def project_status_card(project_id: str):
     project = project_db.get(project_id)
 
     # 1. Native Python conditionals
@@ -321,15 +326,6 @@ def render_project_status(project_id: str):
             ]
         )
     )
-
-# Register DynamicTemplate
-project_template = DynamicTemplate(
-    name="ProjectStatusCard",
-    template_id="ProjectStatusCard",
-    catalogs=["https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"],
-    render=render_project_status,
-    description="Live project tracking card with milestones.",
-)
 ```
 
 ---
