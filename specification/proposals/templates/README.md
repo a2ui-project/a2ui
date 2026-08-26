@@ -2,11 +2,12 @@
 
 ## Abstract
 
-This document defines the authoritative specification for the **A2UI Templates System**. 
+This document defines the authoritative specification for the **A2UI Templates System**.
 
 Templates provide a declarative, human-readable mechanism for authoring reusable UI subtrees in nested YAML or via native programmatic render functions. At generation time, an agent or Large Language Model (LLM) outputs compact, high-level template invocations (such as `UserProfile("u1", "Alice")` or `PayrollSummary("Eng", true)`). The backend SDK expands these invocations into standard, flat A2UI Basic Catalog components in a single synchronous pass before emitting standard A2UI protocol messages (`updateComponents`) to the client.
 
 This architecture achieves three fundamental objectives:
+
 1. **Human Readability**: Layouts are authored as clean, natural tree hierarchies in YAML or native language code, eliminating artificial IDs and flat array boilerplate.
 2. **Token Efficiency & Context Optimization**: LLMs emit concise function-like signatures rather than verbose, deeply nested UI component trees, saving prompt context and generation tokens.
 3. **Zero Client Overhead**: Client renderers (@a2ui/react, @a2ui/lit, @a2ui/angular, @a2ui/flutter) implement only standard Basic Catalog primitives (`Card`, `Column`, `Row`, `Text`, `Divider`, `Icon`, `Button`). No custom client widgets, dynamic code deployment, or renderer plugins are required.
@@ -70,10 +71,11 @@ The template engine operates entirely server-side within the A2UI Agent SDK:
 A2UI defines three template modalities:
 
 ### A. Declarative Static Templates (YAML)
+
 Declarative static templates define immutable layout trees authored in YAML files. All parameter placeholders are populated directly from arguments provided by the model or caller.
 
 ```yaml
-version: "0.1"
+version: '0.1'
 templateId: UserProfile
 description: Standard identity card for team members.
 parameters:
@@ -104,7 +106,9 @@ layout:
 ```
 
 ### B. Dynamic Templates: Data-Binding Mode (`resolver + layout`)
-Data-binding dynamic templates decouple public model parameters from private or live backend data. 
+
+Data-binding dynamic templates decouple public model parameters from private or live backend data.
+
 - **Public Surface**: The model only sees and outputs high-level lookup parameters (e.g. `employeeId: "emp_101"`).
 - **Server Resolver**: At expansion time, a backend callback executes (e.g., querying an internal HR database or API) and produces a data dictionary.
 - **Layout Inflation**: The resolved dictionary is merged with the caller's arguments and applied to an underlying static YAML layout.
@@ -122,13 +126,14 @@ dynamic_salary = DynamicTemplate(
 **Security Rationale**: Confidential numbers (e.g., executive salaries, PII) never enter the model's prompt context window or inference transcript.
 
 ### C. Dynamic Templates: Programmatic Render Mode (`render_fn`)
+
 Programmatic dynamic templates bypass static YAML layouts entirely. Instead, a developer writes a native function in the host language (Python, Dart, etc.) that accepts parameters and directly returns a UI component tree.
 
 ```python
 def render_payroll_summary(department: str = "Engineering", includeBonus: bool = True) -> dict:
     total_base = sum(e.salary for e in db.get_dept(department))
     total_bonus = sum(e.bonus for e in db.get_dept(department))
-    
+
     rows = []
     for emp in db.get_dept(department):
         cols = [
@@ -161,6 +166,7 @@ payroll_tmpl = DynamicTemplate(
 ```
 
 **Advantages**:
+
 - Full host language power: arbitrary `for` loops, mathematical calculations, currency formatting, conditionals, and recursion.
 - Polymorphic return values: accepts raw dictionaries/maps, dataclasses, or typesafe fluent builder objects (`Card()`, `Column()`).
 
@@ -172,20 +178,22 @@ A critical question in template design is: **When does the template engine unrol
 
 ### Comparison Matrix
 
-| Dimension | Server-Side Template Unrolling | Client-Side DataModel Loop |
-| :--- | :--- | :--- |
-| **Execution Point** | Backend SDK (`TemplateProcessor`) during template expansion. | Client Renderer runtime during paint/state updates. |
-| **Data Source** | Static YAML literals, LLM invocation arguments, or server resolver output. | Client `DataModel` tree (e.g. `/session/cart/items`). |
-| **Component Output** | Emits $N$ concrete Basic Catalog component nodes with synthesized unique IDs. | Emits a single repeater/collection component with a `DataBinding` path. |
-| **Client Requirement** | Zero. Standard Basic Catalog renderers render it like any other static UI. | Requires client-side repeater support or SDK session re-renders. |
-| **Dynamic Mutation** | Immutable once generated unless the agent emits a new `updateComponents` message. | Reactively re-renders when the client data model updates (e.g. via button events). |
+| Dimension              | Server-Side Template Unrolling                                                    | Client-Side DataModel Loop                                                         |
+| :--------------------- | :-------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------- |
+| **Execution Point**    | Backend SDK (`TemplateProcessor`) during template expansion.                      | Client Renderer runtime during paint/state updates.                                |
+| **Data Source**        | Static YAML literals, LLM invocation arguments, or server resolver output.        | Client `DataModel` tree (e.g. `/session/cart/items`).                              |
+| **Component Output**   | Emits $N$ concrete Basic Catalog component nodes with synthesized unique IDs.     | Emits a single repeater/collection component with a `DataBinding` path.            |
+| **Client Requirement** | Zero. Standard Basic Catalog renderers render it like any other static UI.        | Requires client-side repeater support or SDK session re-renders.                   |
+| **Dynamic Mutation**   | Immutable once generated unless the agent emits a new `updateComponents` message. | Reactively re-renders when the client data model updates (e.g. via button events). |
 
 ### Example 1: Server-Side Template Loop Unrolling
+
 A template author specifies a loop over a parameter array:
 
 #### Template Definition:
+
 ```yaml
-version: "0.1"
+version: '0.1'
 templateId: TeamGoalList
 parameters:
   teamName: {type: string}
@@ -196,7 +204,7 @@ layout:
     component: Column
     children:
       - component: Text
-        text: "Objectives: ${teamName}"
+        text: 'Objectives: ${teamName}'
         variant: h2
       - component: Column
         children:
@@ -215,6 +223,7 @@ layout:
 ```
 
 #### Model Invocation:
+
 ```text
 root = TeamGoalList("Core Team", [
   {title: "Ship Protocol", priority: "High"},
@@ -223,28 +232,71 @@ root = TeamGoalList("Core Team", [
 ```
 
 #### Expanded Output Sent to Client:
+
 The engine unrolls the loop into concrete, synthetic child components:
+
 ```json
 [
   {"id": "root", "component": "Card", "child": "root_child_column"},
-  {"id": "root_child_column", "component": "Column", "children": ["root_child_column_children_0_text", "root_child_column_children_1_column"]},
-  {"id": "root_child_column_children_0_text", "component": "Text", "text": "Objectives: Core Team", "variant": "h2"},
-  {"id": "root_child_column_children_1_column", "component": "Column", "children": [
-    "root_child_column_children_1_column_goals_0_row",
-    "root_child_column_children_1_column_goals_1_row"
-  ]},
-  {"id": "root_child_column_children_1_column_goals_0_row", "component": "Row", "justify": "spaceBetween", "children": [
-    "root_child_column_children_1_column_goals_0_row_children_0_text",
-    "root_child_column_children_1_column_goals_0_row_children_1_text"
-  ]},
-  {"id": "root_child_column_children_1_column_goals_0_row_children_0_text", "component": "Text", "text": "Ship Protocol"},
-  {"id": "root_child_column_children_1_column_goals_0_row_children_1_text", "component": "Text", "text": "High", "variant": "caption"},
-  {"id": "root_child_column_children_1_column_goals_1_row", "component": "Row", "justify": "spaceBetween", "children": [
-    "root_child_column_children_1_column_goals_1_row_children_0_text",
-    "root_child_column_children_1_column_goals_1_row_children_1_text"
-  ]},
-  {"id": "root_child_column_children_1_column_goals_1_row_children_0_text", "component": "Text", "text": "Write Tests"},
-  {"id": "root_child_column_children_1_column_goals_1_row_children_1_text", "component": "Text", "text": "Medium", "variant": "caption"}
+  {
+    "id": "root_child_column",
+    "component": "Column",
+    "children": ["root_child_column_children_0_text", "root_child_column_children_1_column"]
+  },
+  {
+    "id": "root_child_column_children_0_text",
+    "component": "Text",
+    "text": "Objectives: Core Team",
+    "variant": "h2"
+  },
+  {
+    "id": "root_child_column_children_1_column",
+    "component": "Column",
+    "children": [
+      "root_child_column_children_1_column_goals_0_row",
+      "root_child_column_children_1_column_goals_1_row"
+    ]
+  },
+  {
+    "id": "root_child_column_children_1_column_goals_0_row",
+    "component": "Row",
+    "justify": "spaceBetween",
+    "children": [
+      "root_child_column_children_1_column_goals_0_row_children_0_text",
+      "root_child_column_children_1_column_goals_0_row_children_1_text"
+    ]
+  },
+  {
+    "id": "root_child_column_children_1_column_goals_0_row_children_0_text",
+    "component": "Text",
+    "text": "Ship Protocol"
+  },
+  {
+    "id": "root_child_column_children_1_column_goals_0_row_children_1_text",
+    "component": "Text",
+    "text": "High",
+    "variant": "caption"
+  },
+  {
+    "id": "root_child_column_children_1_column_goals_1_row",
+    "component": "Row",
+    "justify": "spaceBetween",
+    "children": [
+      "root_child_column_children_1_column_goals_1_row_children_0_text",
+      "root_child_column_children_1_column_goals_1_row_children_1_text"
+    ]
+  },
+  {
+    "id": "root_child_column_children_1_column_goals_1_row_children_0_text",
+    "component": "Text",
+    "text": "Write Tests"
+  },
+  {
+    "id": "root_child_column_children_1_column_goals_1_row_children_1_text",
+    "component": "Text",
+    "text": "Medium",
+    "variant": "caption"
+  }
 ]
 ```
 
@@ -253,16 +305,18 @@ The engine unrolls the loop into concrete, synthetic child components:
 ## 4. Relationship to the A2UI Data Model
 
 Templates and the A2UI Data Model operate in complementary scopes:
+
 - **Templates** expand during **server-side inference / response formulation**.
 - **Data Model** operates during **client-side runtime interaction & reactivity**.
 
 Templates interact with the client Data Model in three distinct patterns:
 
 ### Pattern 1: Dynamic Path Plumbing (Path Interpolation)
+
 Templates can accept path prefixes or IDs as parameters, constructing reactive client-side binding paths:
 
 ```yaml
-version: "0.1"
+version: '0.1'
 templateId: BoundLiveMetric
 parameters:
   metricKey: {type: string}
@@ -276,10 +330,11 @@ layout:
         text: ${label}
       - component: Text
         text:
-          path: "/system/metrics/${metricKey}/currentValue"
+          path: '/system/metrics/${metricKey}/currentValue'
 ```
 
 **Expanded Output:**
+
 ```json
 {
   "id": "root_val",
@@ -289,19 +344,23 @@ layout:
   }
 }
 ```
-*Client Behavior*: The client renderer attaches a live subscriber to `/system/metrics/cpuLoad/currentValue`. When telemetry updates arrive via `updateDataModel`, the component automatically re-renders without server roundtrips.
+
+_Client Behavior_: The client renderer attaches a live subscriber to `/system/metrics/cpuLoad/currentValue`. When telemetry updates arrive via `updateDataModel`, the component automatically re-renders without server roundtrips.
 
 ### Pattern 2: Direct `DataBinding` Passthrough
+
 When a template parameter has `type: object`, an agent or caller can pass an explicit A2UI binding object:
 
 #### Model Invocation:
+
 ```text
 root = MetricCard("Memory Used", {path: "/device/mem_percent"})
 ```
 
 #### Template Layout:
+
 ```yaml
-version: "0.1"
+version: '0.1'
 templateId: MetricCard
 parameters:
   title: {type: string}
@@ -317,6 +376,7 @@ layout:
 
 **Expanded Output:**
 Because `${val}` is an exact-match substitution, the dictionary type is strictly preserved:
+
 ```json
 {
   "component": "Text",
@@ -325,13 +385,14 @@ Because `${val}` is an exact-match substitution, the dictionary type is strictly
 ```
 
 ### Pattern 3: Hardcoded Session State References
+
 Templates can embed constant client bindings for global session preferences:
 
 ```yaml
 layout:
   component: Text
   text:
-    path: "/session/currentUser/displayName"
+    path: '/session/currentUser/displayName'
 ```
 
 ---
@@ -341,7 +402,9 @@ layout:
 To make templates discoverable and invoke-able by LLMs, the backend converts registered templates into a **Synthetic Component Catalog**.
 
 ### The Catalog Synthesis Algorithm
+
 When `TemplateProcessor(templates)` is initialized:
+
 1. It copies the base catalog (e.g. Basic Catalog v0.9.1).
 2. For each registered `StaticTemplate` and `DynamicTemplate`:
    - It registers a new component definition under `components[templateId]`.
@@ -358,6 +421,7 @@ When `TemplateProcessor(templates)` is initialized:
 3. The synthetic catalog is passed to `PromptGenerator` (Express, Elemental, Atom, Direct JSON), which automatically writes the syntax rules and documentation into the system prompt.
 
 ### Surface Isolation Boundary
+
 ```
 [LLM Agent] <---> [Synthetic Catalog (Templates + Primitives)] <---> [TemplateProcessor]
                                                                             |
@@ -366,6 +430,7 @@ When `TemplateProcessor(templates)` is initialized:
                                                                             v
 [Client Renderer] <---------------- (Standard Basic Catalog Only) <----------+
 ```
+
 The synthetic catalog is an ephemeral compile-time construct. The client renderer is completely unaware that templates exist.
 
 ---
@@ -375,21 +440,27 @@ The synthetic catalog is an ephemeral compile-time construct. The client rendere
 The template substitution engine replaces expressions according to strict typing and evaluation rules.
 
 ### Rule 1: Exact Match Substitution (Type Preserving)
+
 If a string field value exactly matches the parameter token regex `^\$\{([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\}$`:
+
 - The entire field is replaced by the native runtime value of the parameter.
 - **Integers remain integers**: `level: ${userLevel}` $\rightarrow$ `level: 4` (not `"4"`).
 - **Booleans remain booleans**: `checked: ${isActive}` $\rightarrow$ `checked: true` (not `"true"`).
 - **Objects and Arrays remain native structures**: `items: ${memberList}` $\rightarrow$ `items: [{...}, {...}]`.
 
 ### Rule 2: Embedded String Interpolation
+
 If a parameter token appears alongside other characters (e.g. `"Hello, ${userName}!"` or `"${dept} - ${code}"`):
+
 - All tokens are replaced by their string representations.
 - Evaluates to a native string.
 
 ### Rule 3: Deep Dot-Notation for Structured Objects
+
 Templates natively support deep dot-notation paths on object parameters:
 
 #### Invocation:
+
 ```text
 root = AccountCard({
   account: {
@@ -400,8 +471,9 @@ root = AccountCard({
 ```
 
 #### Template Layout:
+
 ```yaml
-version: "0.1"
+version: '0.1'
 templateId: AccountCard
 parameters:
   account: {type: object}
@@ -409,10 +481,11 @@ layout:
   component: Card
   child:
     component: Text
-    text: "${account.profile.name} (${account.profile.tier})"
+    text: '${account.profile.name} (${account.profile.tier})'
 ```
 
 **Expanded Output:**
+
 ```json
 {
   "component": "Text",
@@ -421,19 +494,24 @@ layout:
 ```
 
 ### Rule 4: String Format AST Expressions
+
 For complex string formatting across multiple languages:
+
 ```yaml
-format: "Level {lvl} ({pts} points)"
+format: 'Level {lvl} ({pts} points)'
 args:
   lvl: ${level}
   pts: ${experiencePoints}
 ```
 
 ### Rule 5: Token Escaping
+
 To emit a literal `${foo}` string without triggering parameter substitution, escape the leading dollar sign with a backslash:
+
 - `\${keep_literal}` $\rightarrow$ evaluates to literal `"${keep_literal}"`.
 
 ### Rule 6: Missing Values & Defaults
+
 - If an argument is omitted but has a declared `default` in its parameter schema, the `default` is used.
 - If an argument is omitted, has no `default`, and is not required: the property is omitted from the synthesized component (it is not emitted as `null`).
 - If an argument is required and missing: expansion raises a `TemplateParameterError`.
@@ -482,8 +560,9 @@ This guarantees that two instances of the same template (`card_1` and `card_2`) 
 Templates can define structural containers that receive caller-provided components.
 
 ### Example: `SectionCard` Container
+
 ```yaml
-version: "0.1"
+version: '0.1'
 templateId: SectionCard
 parameters:
   title: {type: string}
@@ -511,6 +590,7 @@ layout:
 ```
 
 #### Model Invocation:
+
 ```text
 root = SectionCard(
   "Project Status",
@@ -529,6 +609,7 @@ The template engine replaces `${headerAction}` with the synthesized single child
 ## 9. Error Handling, Cycle Guards & Safety
 
 ### Recursion & Circular Reference Detection
+
 Templates can invoke other templates. However, circular references (`A` invokes `B`, which invokes `A`) must be caught immediately to prevent stack overflow.
 
 - **Call Stack Tracking**: The `TemplateProcessor` maintains an active `_call_stack: Set[str]` throughout expansion.
@@ -536,6 +617,7 @@ Templates can invoke other templates. However, circular references (`A` invokes 
 - **Maximum Depth Guard**: An absolute limit (`MAX_EXPANSION_DEPTH = 32`) enforces termination even in non-identical runaway recursion.
 
 ### Standard Error Hierarchy
+
 1. `TemplateNotFoundError`: Attempted to expand a `templateId` not present in the catalog.
 2. `TemplateParameterError`: Missing required parameter or invalid parameter type.
 3. `TemplateCycleError`: Circular reference detected during expansion.
@@ -558,6 +640,7 @@ To streamline template maintenance, multiple templates can be defined in a singl
 To ensure robust backward compatibility as template syntax and AST features evolve across future protocol releases, every template definition must declare a top-level `version` field.
 
 ### Versioning Rules:
+
 1. **Mandatory Version Field**: Every YAML document (and each document within multi-doc streams separated by `---`) must include `version: "0.1"`.
 2. **Strict Schema Validation**: The canonical JSON schema enforces `"version": {"type": "string", "const": "0.1"}`. Attempting to inflate a template with an unsupported version raises an explicit `TemplateVersionError` / `ValueError`.
 3. **Future Extensibility**: As new template language capabilities are standardized (e.g. conditional slot rendering, client-expanded template directives), new version identifiers (such as `"0.2"` or `"1.0"`) allow engines to select the appropriate parser/evaluator without breaking legacy templates.
@@ -579,4 +662,3 @@ An implementation of the A2UI Template Engine in any language (Python, Dart, Typ
 - [ ] **Cycle and Recursion Safeguards**: Catches circular references and depth violations with explicit exceptions.
 - [ ] **Synthetic Catalog Generation**: Generates valid A2UI JSON schema catalogs matching input parameter definitions.
 - [ ] **Polymorphic Dynamic Templates**: Supports both resolver-based static bindings and programmatic render functions.
-

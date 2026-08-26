@@ -47,10 +47,7 @@
       "description": "Sample parameter values used for previewing and testing template inflation."
     }
   },
-  "anyOf": [
-    {"required": ["layout"]},
-    {"required": ["components"]}
-  ],
+  "anyOf": [{"required": ["layout"]}, {"required": ["components"]}],
   "additionalProperties": false,
   "$defs": {
     "ParameterDefinition": {
@@ -176,10 +173,7 @@
     "LoopDefinition": {
       "type": "object",
       "required": ["param"],
-      "anyOf": [
-        {"required": ["template"]},
-        {"required": ["item"]}
-      ],
+      "anyOf": [{"required": ["template"]}, {"required": ["item"]}],
       "properties": {
         "param": {
           "type": "string",
@@ -227,10 +221,7 @@
           "description": "Catalog component tag name."
         },
         "child": {
-          "anyOf": [
-            {"$ref": "#/$defs/NestedTemplateNode"},
-            {"$ref": "#/$defs/TemplateValue"}
-          ]
+          "anyOf": [{"$ref": "#/$defs/NestedTemplateNode"}, {"$ref": "#/$defs/TemplateValue"}]
         },
         "children": {
           "anyOf": [
