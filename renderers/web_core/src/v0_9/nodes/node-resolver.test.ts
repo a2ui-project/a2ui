@@ -245,6 +245,31 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     resolver.dispose();
   });
 
+  it('resolves a plain array of component ids as a child list', () => {
+    // The intuitive third-party spelling: z.array(ComponentIdSchema) instead
+    // of the ChildList union. The marker sits on the elements.
+    const PlainListApi = {
+      name: 'PlainList',
+      schema: z.object({children: z.array(ComponentIdSchema).optional()}),
+    };
+    const catalog = new Catalog<ComponentApi>('plain-list-catalog', [TextApi, PlainListApi], []);
+    const surface = new SurfaceModel('surf-1', catalog);
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'PlainList', {children: ['a', 'b']});
+    add(surface, 'a', 'Text', {text: 'A'});
+    add(surface, 'b', 'Text', {text: 'B'});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const children = props(root).children as ComponentNode[];
+    assert.strictEqual(children.length, 2);
+    assert.ok(isComponentNode(children[0]));
+    assert.ok(isComponentNode(children[1]));
+    assert.strictEqual(bound(children[0], 'text'), 'A');
+    assert.strictEqual(bound(children[1], 'text'), 'B');
+    resolver.dispose();
+  });
+
   it('spawns one node per array item for a template child list', () => {
     const {surface, resolver} = setup();
     surface.dataModel.set('/items', [{name: 'A'}, {name: 'B'}]);

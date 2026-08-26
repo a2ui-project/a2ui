@@ -282,6 +282,34 @@ describe('A2uiSurface', () => {
     expect(screen.getByText('child of a render-only parent')).toBeDefined();
   });
 
+  it('renders children declared as a plain array of component ids', () => {
+    // z.array(ComponentIdSchema): the marker sits on the elements, not the
+    // property. The resolver classifies it as a child list.
+    const PlainList = createComponentImplementation(
+      {name: 'PlainList', schema: z.object({children: z.array(ComponentIdSchema).optional()})},
+      ({props, buildChild}) => (
+        <div>
+          {Array.isArray(props.children)
+            ? (props.children as string[]).map(id => (
+                <React.Fragment key={id}>{buildChild(id)}</React.Fragment>
+              ))
+            : null}
+        </div>
+      ),
+    );
+    const catalog = new Catalog<ReactComponentImplementation>('plain-list', [PlainList, TextImpl]);
+    const surface = new SurfaceModel<ReactComponentImplementation>('surf-plain-list', catalog);
+    add(surface, 'root', 'PlainList', {children: ['a', 'b']});
+    add(surface, 'a', 'Text', {text: 'first child'});
+    add(surface, 'b', 'Text', {text: 'second child'});
+
+    render(<A2uiSurface surface={surface} />);
+
+    expect(screen.getByText('first child')).toBeDefined();
+    expect(screen.getByText('second child')).toBeDefined();
+    expect(screen.queryByText(/Unresolved child reference/)).toBeNull();
+  });
+
   it('reports a child reference the catalog schema does not mark as a component id', () => {
     const surface = setup();
     add(surface, 'root', 'UnmarkedParent', {child: 'lost'});

@@ -59,8 +59,9 @@ const refFieldsCache = new WeakMap<z.ZodTypeAny, RefFields>();
  * Detection is by the `REF:` pointers above, plus the same structural test
  * the binder uses for `ChildList` unions (an option object with both
  * `componentId` and `path`), so catalogs that build their own child-list
- * union need no pointer for list properties. Results are memoized per schema
- * object.
+ * union need no pointer for list properties. A plain array whose element
+ * carries the ComponentId pointer also classifies as a list. Results are
+ * memoized per schema object.
  */
 export function extractRefFields(schema: z.ZodTypeAny): RefFields {
   const cached = refFieldsCache.get(schema);
@@ -89,6 +90,12 @@ export function extractRefFields(schema: z.ZodTypeAny): RefFields {
     }
     if (field.schema._def.typeName === 'ZodArray') {
       const element = unwrap(field.schema._def.type as z.ZodTypeAny);
+      // A plain array of component ids: the marker sits on the element
+      // rather than the property (z.array(ComponentIdSchema)).
+      if (hasPointer(element.descriptions, COMPONENT_ID_REF)) {
+        fields.set(key, {kind: 'list'});
+        continue;
+      }
       if (element.schema._def.typeName === 'ZodObject') {
         const subKeys = new Set<string>();
         const elementShape = (element.schema as z.AnyZodObject).shape as Record<
