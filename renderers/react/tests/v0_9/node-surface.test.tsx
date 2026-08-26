@@ -135,6 +135,17 @@ const UnmarkedParentImpl = createComponentImplementation(
   ({props, buildChild}) => <div>{props.child ? buildChild(props.child as string) : null}</div>,
 );
 
+/** Catches an expected render error so it stays out of the test output. */
+class CatchBoundary extends React.Component<{children: React.ReactNode}, {error: Error | null}> {
+  state: {error: Error | null} = {error: null};
+  static getDerivedStateFromError(error: Error) {
+    return {error};
+  }
+  render() {
+    return this.state.error ? <div>caught: {this.state.error.message}</div> : this.props.children;
+  }
+}
+
 function setup() {
   const catalog = new Catalog<ReactComponentImplementation>('node-react-test', [
     TextImpl,
@@ -423,16 +434,24 @@ describe('A2uiSurface', () => {
     const root = getValue(resolver.rootNode);
     const View = root!.impl!.view!;
 
-    // React logs the thrown error through console.error before rethrowing.
+    // The boundary catches the expected throw. React dev also re-throws it
+    // through a window error event before boundary handling, and jsdom logs
+    // any unhandled one, so mark the event handled for the duration.
+    const onWindowError = (event: ErrorEvent) => event.preventDefault();
+    window.addEventListener('error', onWindowError);
     const consoleError = console.error;
     console.error = () => {};
     try {
-      expect(() => render(<View node={root!} buildChild={() => null} />)).toThrow(
-        /only inside A2uiSurface/,
+      render(
+        <CatchBoundary>
+          <View node={root!} buildChild={() => null} />
+        </CatchBoundary>,
       );
     } finally {
       console.error = consoleError;
+      window.removeEventListener('error', onWindowError);
     }
+    expect(screen.getByText(/only inside A2uiSurface/)).toBeDefined();
     resolver.dispose();
   });
 
