@@ -95,6 +95,7 @@ const TextFieldImpl = createComponentImplementation(
     return (
       <input
         data-testid={`input-${context.dataContext.path}`}
+        data-setter={typeof setValue}
         value={String(props.value ?? '')}
         onChange={event => setValue(event.target.value)}
       />
@@ -490,12 +491,47 @@ describe('A2uiSurface', () => {
     resolver.dispose();
   });
 
+  it('calling a nested setter whose prop was omitted is a no-op, not a crash', () => {
+    // The binder synthesized setters at every nesting level; a custom
+    // catalog with an optional nested dynamic must keep that contract.
+    const Grouped = createComponentImplementation(
+      {
+        name: 'Grouped',
+        schema: z.object({
+          group: z.object({value: CommonSchemas.DynamicString.optional()}).optional(),
+        }),
+      },
+      ({props}) => {
+        const group = props.group as {setValue: (v: string) => void} | undefined;
+        return (
+          <input
+            data-testid="nested-input"
+            data-setter={typeof group?.setValue}
+            onChange={event => group?.setValue(event.target.value)}
+          />
+        );
+      },
+    );
+    const catalog = new Catalog<ReactComponentImplementation>('grouped', [Grouped]);
+    const surface = new SurfaceModel<ReactComponentImplementation>('surf-grouped', catalog);
+    add(surface, 'root', 'Grouped', {group: {}});
+
+    render(<A2uiSurface surface={surface} />);
+    const input = screen.getByTestId('nested-input');
+    // A throw inside an event handler is reported, not propagated, so assert
+    // the setter's existence directly.
+    expect(input.dataset.setter).toBe('function');
+    fireEvent.change(input, {target: {value: 'typed'}});
+    expect(surface.dataModel.get('/group/value')).toBeUndefined();
+  });
+
   it('typing into an input whose value prop was omitted is a no-op, not a crash', () => {
     const surface = setup();
     add(surface, 'root', 'TextField', {label: 'Name'});
 
     render(<A2uiSurface surface={surface} />);
     const input = screen.getByTestId('input-/') as HTMLInputElement;
+    expect(input.dataset.setter).toBe('function');
 
     // A setter must exist even though the payload omitted `value`; shipped
     // views call it unguarded.

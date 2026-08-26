@@ -24,7 +24,6 @@ import {
   useSyncExternalStore,
 } from 'react';
 import {
-  type BehaviorNode,
   ComponentContext,
   type ComponentNode,
   isComponentNode,
@@ -34,7 +33,6 @@ import {
   getValue,
   peekValue,
   type NodeProps,
-  scrapeSchemaBehavior,
   type Signal,
   type SurfaceModel,
 } from '@a2ui/web_core/v0_9';
@@ -194,39 +192,6 @@ function toViewProps(
   return result;
 }
 
-const behaviorCache = new WeakMap<object, BehaviorNode>();
-
-/**
- * `GenericBinder` synthesizes a no-op `set<Prop>` for every dynamic schema
- * property, `wrapDynamicValues` drops each of them, and `toViewProps`
- * rebuilds setters only where a `ResolvedBinding` is present, so a property
- * the payload omits would reach the view with no setter at all. Shipped
- * views call setters unguarded, so restore the no-op here.
- */
-function addAbsentSetters(node: ComponentNode, viewProps: NodeProps): void {
-  const schema = node.impl?.schema;
-  if (!schema) {
-    return;
-  }
-  let behavior = behaviorCache.get(schema);
-  if (!behavior) {
-    behavior = scrapeSchemaBehavior(schema);
-    behaviorCache.set(schema, behavior);
-  }
-  if (behavior.type !== 'OBJECT') {
-    return;
-  }
-  for (const [key, child] of Object.entries(behavior.shape)) {
-    if (child.type !== 'DYNAMIC') {
-      continue;
-    }
-    const setterName = `set${key.charAt(0).toUpperCase()}${key.slice(1)}`;
-    if (!(setterName in viewProps)) {
-      viewProps[setterName] = () => {};
-    }
-  }
-}
-
 /**
  * Subscribes to a node's props and adapts them to the `ReactA2uiComponentProps`
  * shape existing views implement:
@@ -247,9 +212,7 @@ export function useNodeView(
 
   const {viewProps, childIndex} = useMemo(() => {
     const index: ChildIndex = new Map();
-    const props = toViewProps(node, resolved, index) as NodeProps;
-    addAbsentSetters(node, props);
-    return {viewProps: props, childIndex: index};
+    return {viewProps: toViewProps(node, resolved, index) as NodeProps, childIndex: index};
   }, [node, resolved]);
 
   // The component can be removed between the resolver's update and this

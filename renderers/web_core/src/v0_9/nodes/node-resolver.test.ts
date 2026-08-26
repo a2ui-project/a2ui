@@ -822,6 +822,40 @@ describe('NodeResolver malformed and unusual payloads', () => {
   });
 });
 
+describe('NodeResolver absent dynamic properties', () => {
+  it('represents omitted dynamic properties as read-only bindings at every level', () => {
+    const GroupApi = {
+      name: 'Group',
+      schema: z.object({
+        title: DynamicStringSchema.optional(),
+        group: z
+          .object({
+            value: DynamicStringSchema.optional(),
+            label: z.string().optional(),
+          })
+          .optional(),
+      }),
+    };
+    const catalog = new Catalog<ComponentApi>('group-catalog', [GroupApi], []);
+    const surface = new SurfaceModel('surf-1', catalog);
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'Group', {group: {label: 'x'}});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const rootProps = props(root);
+    const title = rootProps.title;
+    assert.ok(title instanceof ResolvedBinding && !isWritable(title));
+    assert.strictEqual(title.value, undefined);
+    const group = rootProps.group as Record<string, unknown>;
+    const value = group.value;
+    assert.ok(value instanceof ResolvedBinding && !isWritable(value), 'nested omitted dynamic');
+    assert.strictEqual(value.value, undefined);
+    assert.strictEqual(group.label, 'x');
+    resolver.dispose();
+  });
+});
+
 describe('NodeResolver resolved bindings (write path)', () => {
   it('makes bindings writable iff the payload bound a data path', () => {
     const {surface, resolver} = setup();

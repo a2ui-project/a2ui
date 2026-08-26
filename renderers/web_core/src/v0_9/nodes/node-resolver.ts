@@ -759,6 +759,15 @@ function wrapDynamicValues(
           dataContext,
         );
       }
+      // The binder guarantees every dynamic property a setter even when the
+      // payload omits it. Represent an omitted one as a read-only binding of
+      // undefined, at every nesting level, so consumers synthesizing setters
+      // from bindings keep that guarantee.
+      for (const [key, childBehavior] of Object.entries(behavior.shape)) {
+        if (childBehavior.type === 'DYNAMIC' && !(key in out)) {
+          out[key] = new ResolvedBinding(undefined);
+        }
+      }
       return out;
     }
     default:
