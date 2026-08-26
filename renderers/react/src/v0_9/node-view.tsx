@@ -15,7 +15,14 @@
  */
 
 import type React from 'react';
-import {createContext, useCallback, useContext, useMemo, useSyncExternalStore} from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+} from 'react';
 import {
   type BehaviorNode,
   ComponentContext,
@@ -59,19 +66,24 @@ export const LoadingPlaceholder: React.FC<{componentId: string}> = ({componentId
 const reportedUnresolved = new WeakMap<SurfaceModel<ReactComponentImplementation>, Set<string>>();
 
 /**
- * Renders the in-tree notice for a child reference the resolver built no
- * node for, and reports it through the surface's error channel once per
- * (id, path) so agents see it too, matching how the resolver reports
- * unknown types and cycles.
+ * The in-tree notice for a child reference the resolver built no node for.
+ * Also reports it through the surface's error channel once per (id, path)
+ * so agents see it too, matching how the resolver reports unknown types and
+ * cycles. The report runs in an effect: dispatching during render would
+ * invoke onError subscribers while React is rendering, and a subscriber
+ * that sets state would then warn.
  */
-export function unresolvedChildReference(
-  surface: SurfaceModel<ReactComponentImplementation> | null,
-  id: string,
-  requestedPath: string,
-  detail: string,
-): React.ReactElement {
+export const UnresolvedChildReference: React.FC<{
+  surface: SurfaceModel<ReactComponentImplementation> | null;
+  id: string;
+  requestedPath: string;
+  detail: string;
+}> = ({surface, id, requestedPath, detail}) => {
   const message = `Unresolved child reference '${id}' at '${requestedPath}': ${detail}`;
-  if (surface) {
+  useEffect(() => {
+    if (!surface) {
+      return;
+    }
     let seen = reportedUnresolved.get(surface);
     if (!seen) {
       seen = new Set();
@@ -82,13 +94,9 @@ export function unresolvedChildReference(
       seen.add(key);
       void surface.dispatchError({code: 'UNRESOLVED_CHILD_REFERENCE', message});
     }
-  }
-  return (
-    <div style={{color: 'red'}} key={`${id}-${requestedPath}`}>
-      {message}
-    </div>
-  );
-}
+  }, [surface, id, requestedPath, message]);
+  return <div style={{color: 'red'}}>{message}</div>;
+};
 
 export function useSignalValue<T>(signal: Signal<T>): T {
   const subscribe = useCallback(
@@ -272,12 +280,17 @@ export function useNodeView(
         }
       }
       if (elsewhere.length > 0) {
-        return unresolvedChildReference(
-          surface,
-          id,
-          requested,
-          `instances exist at ${elsewhere.join(', ')}. Instances are created only at ` +
-            `the data paths the payload implies; buildChild selects among them.`,
+        return (
+          <UnresolvedChildReference
+            key={`${id}-${requested}`}
+            surface={surface}
+            id={id}
+            requestedPath={requested}
+            detail={
+              `instances exist at ${elsewhere.join(', ')}. Instances are created only at ` +
+              `the data paths the payload implies; buildChild selects among them.`
+            }
+          />
         );
       }
       return buildChild(id, basePath);

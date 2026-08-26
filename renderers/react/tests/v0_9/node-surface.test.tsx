@@ -340,6 +340,41 @@ describe('A2uiSurface', () => {
     expect(reported).toHaveLength(1);
   });
 
+  it('reports unresolved references after render, so error subscribers may set state', async () => {
+    const surface = setup();
+    add(surface, 'root', 'UnmarkedParent', {child: 'lost'});
+    add(surface, 'lost', 'Text', {text: 'x'});
+
+    // A subscriber that sets state would trigger React's cannot-update
+    // warning if the report were dispatched during render.
+    const ErrorCounter: React.FC = () => {
+      const [count, setCount] = React.useState(0);
+      React.useEffect(() => {
+        const sub = surface.onError.subscribe(() => setCount(c => c + 1));
+        return () => sub.unsubscribe();
+      }, []);
+      return <span>{`errors:${count}`}</span>;
+    };
+
+    const warnings: string[] = [];
+    const consoleError = console.error;
+    console.error = (...args: unknown[]) => {
+      warnings.push(String(args[0]));
+    };
+    try {
+      render(
+        <>
+          <ErrorCounter />
+          <A2uiSurface surface={surface} />
+        </>,
+      );
+      expect(await screen.findByText('errors:1')).toBeDefined();
+    } finally {
+      console.error = consoleError;
+    }
+    expect(warnings.filter(w => w.includes('Cannot update a component'))).toHaveLength(0);
+  });
+
   it('reports a buildChild call for a data path the payload never created', () => {
     // A marked single ref resolves at the parent's path; asking for another
     // path names the instances that do exist instead of blaming the schema.

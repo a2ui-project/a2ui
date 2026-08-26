@@ -40,7 +40,7 @@ import type {ReactComponentImplementation} from './adapter';
 import {
   LoadingPlaceholder,
   NodeSurfaceContext,
-  unresolvedChildReference,
+  UnresolvedChildReference,
   useNodeView,
   type NodeBuildChild,
 } from './node-view';
@@ -78,21 +78,20 @@ const NodeView = memo(
         // The resolver turns every child reference it can identify into a
         // node, so a leftover id was never classified. Distinguish the two
         // causes a catalog author can actually have.
-        if (surface.componentsModel.get(child)) {
-          return unresolvedChildReference(
-            surface,
-            child,
-            basePath ?? node.dataPath,
-            'the component exists, but the catalog schema does not mark the referencing ' +
-              'property as a component id. Use componentId() or childList() from ' +
-              '@a2ui/web_core; calling .describe() on ComponentIdSchema drops the marker.',
-          );
-        }
-        return unresolvedChildReference(
-          surface,
-          child,
-          basePath ?? node.dataPath,
-          'no component with this id exists on the surface.',
+        const requested = basePath ?? node.dataPath;
+        const detail = surface.componentsModel.get(child)
+          ? 'the component exists, but the catalog schema does not mark the referencing ' +
+            'property as a component id. Use componentId() or childList() from ' +
+            '@a2ui/web_core; calling .describe() on ComponentIdSchema drops the marker.'
+          : 'no component with this id exists on the surface.';
+        return (
+          <UnresolvedChildReference
+            key={`${child}-${requested}`}
+            surface={surface}
+            id={child}
+            requestedPath={requested}
+            detail={detail}
+          />
         );
       },
       [surface, node],
