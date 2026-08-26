@@ -15,6 +15,7 @@
  */
 
 export * from './A2uiSurface';
+export {DeferredChild} from './deferred-child';
 export * from './adapter';
 export {useSignalValue, type NodeBuildChild, type NodeViewProps} from './node-view';
 
