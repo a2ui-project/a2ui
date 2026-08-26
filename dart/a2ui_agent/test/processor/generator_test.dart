@@ -188,20 +188,16 @@ void main() {
       );
     }, skip: pendingNegotiation);
 
-    test(
-      'rejects a renderer that supports no registered catalog',
-      () {
-        expect(
-          () => generator().createProcessor(
-            A2uiRendererCapabilities.forCatalogIds([
-              'https://example.com/unknown.json',
-            ]),
-          ),
-          throwsA(isA<A2uiCatalogError>()),
-        );
-      },
-      skip: pendingNegotiation,
-    );
+    test('rejects a renderer that supports no registered catalog', () {
+      expect(
+        () => generator().createProcessor(
+          A2uiRendererCapabilities.forCatalogIds([
+            'https://example.com/unknown.json',
+          ]),
+        ),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    }, skip: pendingNegotiation);
 
     test('rejects capabilities carrying no v0.9 entry', () {
       expect(
@@ -214,37 +210,33 @@ void main() {
       );
     });
 
-    test(
-      'rejects examples that the negotiated catalog cannot express',
-      () {
-        final A2uiGenerator<CatalogComponent, CatalogFunction> g = generator(
-          catalogs: [
-            CatalogConfig(
-              basicCatalog(),
-              transformers: [
-                ComponentPruningTransformer(['Text']),
+    test('rejects examples that the negotiated catalog cannot express', () {
+      final A2uiGenerator<CatalogComponent, CatalogFunction> g = generator(
+        catalogs: [
+          CatalogConfig(
+            basicCatalog(),
+            transformers: [
+              ComponentPruningTransformer(['Text']),
+            ],
+          ),
+        ],
+        examples: {
+          'uses a pruned component': [
+            UpdateComponentsMessage(
+              surfaceId: 's1',
+              components: [
+                {'id': 'v', 'component': 'Video', 'url': 'https://x/y.mp4'},
               ],
             ),
           ],
-          examples: {
-            'uses a pruned component': [
-              UpdateComponentsMessage(
-                surfaceId: 's1',
-                components: [
-                  {'id': 'v', 'component': 'Video', 'url': 'https://x/y.mp4'},
-                ],
-              ),
-            ],
-          },
-        );
+        },
+      );
 
-        expect(
-          () => g.createProcessor(basicCatalogCapabilities()),
-          throwsA(isA<A2uiValidationError>()),
-        );
-      },
-      skip: pendingNegotiation,
-    );
+      expect(
+        () => g.createProcessor(basicCatalogCapabilities()),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    }, skip: pendingNegotiation);
 
     test('creates an independent processor per request', () {
       final A2uiGenerator<CatalogComponent, CatalogFunction> g = generator();

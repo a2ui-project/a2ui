@@ -118,37 +118,29 @@ void main() {
   });
 
   group('A2uiRequestProcessor.parseResponse', () {
-    test(
-      'returns conversational text and compiled payloads in order',
-      () {
-        final List<ResponsePart> parts = processor().parseResponse(
-          'Here you go.\n'
-          '$a2uiJsonOpenTag$surfacePayload$a2uiJsonCloseTag\n'
-          'Anything else?',
-        );
+    test('returns conversational text and compiled payloads in order', () {
+      final List<ResponsePart> parts = processor().parseResponse(
+        'Here you go.\n'
+        '$a2uiJsonOpenTag$surfacePayload$a2uiJsonCloseTag\n'
+        'Anything else?',
+      );
 
-        expect(parts, hasLength(3));
-        expect(parts[0], const TextPart('Here you go.'));
-        expect((parts[1] as A2uiPart).a2ui.single, isA<CreateSurfaceMessage>());
-        expect(parts[2], const TextPart('Anything else?'));
-      },
-      skip: pendingProcessor,
-    );
+      expect(parts, hasLength(3));
+      expect(parts[0], const TextPart('Here you go.'));
+      expect((parts[1] as A2uiPart).a2ui.single, isA<CreateSurfaceMessage>());
+      expect(parts[2], const TextPart('Anything else?'));
+    }, skip: pendingProcessor);
 
-    test(
-      'rejects a payload declaring another protocol version',
-      () {
-        expect(
-          () => processor().parseResponse(
-            '$a2uiJsonOpenTag'
-            '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
-            '$a2uiJsonCloseTag',
-          ),
-          throwsA(isA<A2uiValidationError>()),
-        );
-      },
-      skip: pendingProcessor,
-    );
+    test('rejects a payload declaring another protocol version', () {
+      expect(
+        () => processor().parseResponse(
+          '$a2uiJsonOpenTag'
+          '[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]'
+          '$a2uiJsonCloseTag',
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    }, skip: pendingProcessor);
 
     test('rejects a payload whose messages omit the version', () {
       expect(
@@ -167,103 +159,83 @@ void main() {
       );
     }, skip: pendingProcessor);
 
-    test(
-      'rejects a surface created against an unnegotiated catalog',
-      () {
-        expect(
-          () => processor().parseResponse(
-            '$a2uiJsonOpenTag'
-            '[{"version": "v0.9", "createSurface": {"surfaceId": "s1", '
-            '"catalogId": "https://example.com/unknown.json"}}]'
-            '$a2uiJsonCloseTag',
-          ),
-          throwsA(isA<A2uiCatalogError>()),
-        );
-      },
-      skip: pendingProcessor,
-    );
+    test('rejects a surface created against an unnegotiated catalog', () {
+      expect(
+        () => processor().parseResponse(
+          '$a2uiJsonOpenTag'
+          '[{"version": "v0.9", "createSurface": {"surfaceId": "s1", '
+          '"catalogId": "https://example.com/unknown.json"}}]'
+          '$a2uiJsonCloseTag',
+        ),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    }, skip: pendingProcessor);
 
-    test(
-      'rejects a component the negotiated catalog does not declare',
-      () {
-        final SchemaCatalog pruned =
-            ComponentPruningTransformer<CatalogComponent, CatalogFunction>([
-              'Text',
-            ]).transform(basicCatalog());
+    test('rejects a component the negotiated catalog does not declare', () {
+      final SchemaCatalog pruned =
+          ComponentPruningTransformer<CatalogComponent, CatalogFunction>([
+            'Text',
+          ]).transform(basicCatalog());
 
-        expect(
-          () => processor(catalogs: [pruned]).parseResponse(
-            '$a2uiJsonOpenTag'
-            '[{"version": "v0.9", "updateComponents": {"surfaceId": "s1", '
-            '"components": [{"id": "v", "component": "Video", '
-            '"url": "https://example.com/clip.mp4"}]}}]'
-            '$a2uiJsonCloseTag',
-          ),
-          throwsA(isA<A2uiValidationError>()),
-        );
-      },
-      skip: pendingProcessor,
-    );
+      expect(
+        () => processor(catalogs: [pruned]).parseResponse(
+          '$a2uiJsonOpenTag'
+          '[{"version": "v0.9", "updateComponents": {"surfaceId": "s1", '
+          '"components": [{"id": "v", "component": "Video", '
+          '"url": "https://example.com/clip.mp4"}]}}]'
+          '$a2uiJsonCloseTag',
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    }, skip: pendingProcessor);
   });
 
   group('A2uiRequestProcessor.validateExamples', () {
-    test(
-      'accepts examples the negotiated catalogs can express',
-      () {
-        final A2uiRequestProcessor<CatalogComponent, CatalogFunction> p =
-            processor(
-              examples: {
-                'a greeting': [
-                  CreateSurfaceMessage(
-                    surfaceId: 's1',
-                    catalogId: basicCatalogId,
-                  ),
-                  UpdateComponentsMessage(
-                    surfaceId: 's1',
-                    components: [
-                      {'id': 'root', 'component': 'Text', 'text': 'Hello'},
-                    ],
-                  ),
-                ],
-              },
-            );
+    test('accepts examples the negotiated catalogs can express', () {
+      final A2uiRequestProcessor<CatalogComponent, CatalogFunction> p =
+          processor(
+            examples: {
+              'a greeting': [
+                CreateSurfaceMessage(
+                  surfaceId: 's1',
+                  catalogId: basicCatalogId,
+                ),
+                UpdateComponentsMessage(
+                  surfaceId: 's1',
+                  components: [
+                    {'id': 'root', 'component': 'Text', 'text': 'Hello'},
+                  ],
+                ),
+              ],
+            },
+          );
 
-        expect(p.validateExamples(), completes);
-      },
-      skip: pendingProcessor,
-    );
+      expect(p.validateExamples(), completes);
+    }, skip: pendingProcessor);
 
-    test(
-      'rejects examples using a component the catalog does not declare',
-      () {
-        final SchemaCatalog pruned =
-            ComponentPruningTransformer<CatalogComponent, CatalogFunction>([
-              'Text',
-            ]).transform(basicCatalog());
+    test('rejects examples using a component the catalog does not declare', () {
+      final SchemaCatalog pruned =
+          ComponentPruningTransformer<CatalogComponent, CatalogFunction>([
+            'Text',
+          ]).transform(basicCatalog());
 
-        final A2uiRequestProcessor<CatalogComponent, CatalogFunction> p =
-            processor(
-              catalogs: [pruned],
-              examples: {
-                'uses a pruned component': [
-                  UpdateComponentsMessage(
-                    surfaceId: 's1',
-                    components: [
-                      {
-                        'id': 'v',
-                        'component': 'Video',
-                        'url': 'https://x/y.mp4',
-                      },
-                    ],
-                  ),
-                ],
-              },
-            );
+      final A2uiRequestProcessor<CatalogComponent, CatalogFunction> p =
+          processor(
+            catalogs: [pruned],
+            examples: {
+              'uses a pruned component': [
+                UpdateComponentsMessage(
+                  surfaceId: 's1',
+                  components: [
+                    {'id': 'v', 'component': 'Video', 'url': 'https://x/y.mp4'},
+                  ],
+                ),
+              ],
+            },
+          );
 
-        expect(p.validateExamples(), throwsA(isA<A2uiValidationError>()));
-      },
-      skip: pendingProcessor,
-    );
+      expect(p.validateExamples(), throwsA(isA<A2uiValidationError>()));
+    }, skip: pendingProcessor);
 
     test('accepts a processor with no examples', () {
       expect(processor().validateExamples(), completes);

@@ -82,20 +82,16 @@ void main() {
   });
 
   group('ExpressPromptGenerator', () {
-    test(
-      'renders compact positional signatures for the catalog',
-      () {
-        final String prompt =
-            ExpressPromptGenerator<CatalogComponent, CatalogFunction>([
-              smallCatalog(),
-            ]).generate();
+    test('renders compact positional signatures for the catalog', () {
+      final String prompt =
+          ExpressPromptGenerator<CatalogComponent, CatalogFunction>([
+            smallCatalog(),
+          ]).generate();
 
-        expect(prompt, contains(a2uiExpressOpenTag));
-        expect(prompt, contains('Text'));
-        expect(prompt, contains('Card'));
-      },
-      skip: pendingExpress,
-    );
+      expect(prompt, contains(a2uiExpressOpenTag));
+      expect(prompt, contains('Text'));
+      expect(prompt, contains('Card'));
+    }, skip: pendingExpress);
   });
 
   group('ExpressCompiler', () {
@@ -117,18 +113,14 @@ void main() {
       );
     }, skip: pendingExpress);
 
-    test(
-      'rejects a component the active catalogs do not declare',
-      () {
-        expect(
-          () => ExpressCompiler<CatalogComponent, CatalogFunction>(
-            catalogs: [smallCatalog()],
-          ).compile('Video(v1, "https://example.com/clip.mp4")'),
-          throwsA(isA<A2uiValidationError>()),
-        );
-      },
-      skip: pendingExpress,
-    );
+    test('rejects a component the active catalogs do not declare', () {
+      expect(
+        () => ExpressCompiler<CatalogComponent, CatalogFunction>(
+          catalogs: [smallCatalog()],
+        ).compile('Video(v1, "https://example.com/clip.mp4")'),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    }, skip: pendingExpress);
   });
 
   group('ExpressDecompiler', () {

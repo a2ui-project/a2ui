@@ -33,7 +33,18 @@ Cases may also reference published specification artifacts by relative path, for
 
 ## Scope of a shared dataset
 
-A suite in this directory is a contract every implementation must satisfy, so it holds only behaviour that can hold across languages. Behaviour that is genuinely language specific stays in the owning package's own tests, with a note pointing back here. `core/data_model.yaml`, migrated from `renderers/web_core/src/v0_9/state/data-model.test.ts`, documents the exclusions it made and why.
+A suite in this directory is a contract every implementation must satisfy. Adding a case here asserts that every SDK already behaves that way, so a case that one SDK passes and another does not belongs in the failing SDK's own tests until the behaviour is agreed. Two kinds of exclusion come up:
+
+- **Language specific behaviour**, which cannot hold across implementations at all. `core/data_model.yaml`, migrated from `renderers/web_core/src/v0_9/state/data-model.test.ts`, lists the exclusions it made and why.
+- **Behaviour one SDK has and others do not yet.** These are real gaps rather than disagreements, but a suite is not the place to record them, because it would turn every other SDK's build red. They belong in an issue and in the owning SDK's own tests.
+
+Behaviour currently in the second category, held by the Dart SDK only:
+
+- Rejecting a payload whose messages declare a protocol version the SDK does not implement, or omit `version` entirely, during `parse_full`. The Python and Kotlin parsers do not validate the version while parsing.
+- Pruning catalog **functions**. The `prune` action currently supports `allowed_components` and `allowed_messages`; `allowed_functions` is implemented by the Dart `FunctionPruningTransformer` only.
+- Raising an error from `select_catalog` when the renderer and agent share no catalog. Kotlin raises with a different message and Python returns no selection instead.
+
+The new `process_request` action does assert version rejection, because that action has no prior implementations and its contract is being defined with it.
 
 ## Usage in SDKs
 

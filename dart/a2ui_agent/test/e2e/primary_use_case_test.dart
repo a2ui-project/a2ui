@@ -150,31 +150,27 @@ void main() {
   });
 
   group('primary use case: rejected turns', () {
-    test(
-      'rejects a payload declaring an unsupported protocol version',
-      () {
-        final Map<String, Object?> data = conformanceCase(
-          'test_primary_use_case_rejects_unsupported_version',
-        );
-        final args = data['args']! as Map<String, Object?>;
+    test('rejects a payload declaring an unsupported protocol version', () {
+      final Map<String, Object?> data = conformanceCase(
+        'test_primary_use_case_rejects_unsupported_version',
+      );
+      final args = data['args']! as Map<String, Object?>;
 
-        final generator = A2uiGenerator<CatalogComponent, CatalogFunction>(
-          catalogs: [CatalogConfig(basicCatalog())],
-        );
-        final A2uiRequestProcessor<CatalogComponent, CatalogFunction>
-        processor = generator.createProcessor(
-          A2uiRendererCapabilities.fromJson(
-            args['client_capabilities']! as Map<String, Object?>,
-          ),
-        );
+      final generator = A2uiGenerator<CatalogComponent, CatalogFunction>(
+        catalogs: [CatalogConfig(basicCatalog())],
+      );
+      final A2uiRequestProcessor<CatalogComponent, CatalogFunction> processor =
+          generator.createProcessor(
+            A2uiRendererCapabilities.fromJson(
+              args['client_capabilities']! as Map<String, Object?>,
+            ),
+          );
 
-        expect(
-          () => processor.parseResponse(args['llm_response']! as String),
-          throwsA(isA<A2uiValidationError>()),
-        );
-      },
-      skip: pendingEndToEnd,
-    );
+      expect(
+        () => processor.parseResponse(args['llm_response']! as String),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    }, skip: pendingEndToEnd);
 
     test('rejects a payload whose messages omit the version', () {
       final Map<String, Object?> data = conformanceCase(
@@ -198,29 +194,25 @@ void main() {
       );
     }, skip: pendingEndToEnd);
 
-    test(
-      'rejects a renderer that supports no registered catalog',
-      () {
-        final Map<String, Object?> data = conformanceCase(
-          'test_primary_use_case_rejects_unknown_catalog',
-        );
-        final args = data['args']! as Map<String, Object?>;
+    test('rejects a renderer that supports no registered catalog', () {
+      final Map<String, Object?> data = conformanceCase(
+        'test_primary_use_case_rejects_unknown_catalog',
+      );
+      final args = data['args']! as Map<String, Object?>;
 
-        final generator = A2uiGenerator<CatalogComponent, CatalogFunction>(
-          catalogs: [CatalogConfig(basicCatalog())],
-        );
+      final generator = A2uiGenerator<CatalogComponent, CatalogFunction>(
+        catalogs: [CatalogConfig(basicCatalog())],
+      );
 
-        expect(
-          () => generator.createProcessor(
-            A2uiRendererCapabilities.fromJson(
-              args['client_capabilities']! as Map<String, Object?>,
-            ),
+      expect(
+        () => generator.createProcessor(
+          A2uiRendererCapabilities.fromJson(
+            args['client_capabilities']! as Map<String, Object?>,
           ),
-          throwsA(isA<A2uiCatalogError>()),
-        );
-      },
-      skip: pendingEndToEnd,
-    );
+        ),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    }, skip: pendingEndToEnd);
   });
 
   group('primary use case data', () {

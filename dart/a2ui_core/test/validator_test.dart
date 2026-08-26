@@ -236,28 +236,24 @@ void main() {
       );
     }, skip: pendingValidator);
 
-    test(
-      'rejects a surface created against an unregistered catalog',
-      () {
-        final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-            A2uiValidator(catalogs: [testCatalog()]);
-        final List<A2uiMessage> messages = validator.parseMessages([
-          {
-            'version': 'v0.9',
-            'createSurface': {
-              'surfaceId': 's1',
-              'catalogId': 'https://example.com/catalogs/other.json',
-            },
+    test('rejects a surface created against an unregistered catalog', () {
+      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
+          A2uiValidator(catalogs: [testCatalog()]);
+      final List<A2uiMessage> messages = validator.parseMessages([
+        {
+          'version': 'v0.9',
+          'createSurface': {
+            'surfaceId': 's1',
+            'catalogId': 'https://example.com/catalogs/other.json',
           },
-        ]);
+        },
+      ]);
 
-        expect(
-          validator.validateAgainstCatalogs(messages),
-          throwsA(isA<A2uiCatalogError>()),
-        );
-      },
-      skip: pendingValidator,
-    );
+      expect(
+        validator.validateAgainstCatalogs(messages),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    }, skip: pendingValidator);
   });
 
   group('A2uiValidator.validate', () {

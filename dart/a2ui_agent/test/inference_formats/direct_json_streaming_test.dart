@@ -87,34 +87,26 @@ void main() {
       );
     }, skip: pendingStreaming);
 
-    test(
-      'heals a string cut mid-token when its key is progressive',
-      () {
-        final DirectJsonStreamProcessor<CatalogComponent, CatalogFunction> p =
-            processor()..process(
-              '$a2uiJsonOpenTag[{"version": "v0.9", "updateComponents": '
-              '{"surfaceId": "s1", "components": [{"id": "t", '
-              '"component": "Text", "text": "Partial te',
-            );
+    test('heals a string cut mid-token when its key is progressive', () {
+      final DirectJsonStreamProcessor<CatalogComponent, CatalogFunction> p =
+          processor()..process(
+            '$a2uiJsonOpenTag[{"version": "v0.9", "updateComponents": '
+            '{"surfaceId": "s1", "components": [{"id": "t", '
+            '"component": "Text", "text": "Partial te',
+          );
 
-        expect(p.progressiveKeys, contains('text'));
-      },
-      skip: pendingStreaming,
-    );
+      expect(p.progressiveKeys, contains('text'));
+    }, skip: pendingStreaming);
 
-    test(
-      'rejects a message declaring another protocol version',
-      () {
-        expect(
-          () => processor().process(
-            '$a2uiJsonOpenTag[{"version": "v1.0", "deleteSurface": '
-            '{"surfaceId": "s1"}}]$a2uiJsonCloseTag',
-          ),
-          throwsA(isA<A2uiValidationError>()),
-        );
-      },
-      skip: pendingStreaming,
-    );
+    test('rejects a message declaring another protocol version', () {
+      expect(
+        () => processor().process(
+          '$a2uiJsonOpenTag[{"version": "v1.0", "deleteSurface": '
+          '{"surfaceId": "s1"}}]$a2uiJsonCloseTag',
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    }, skip: pendingStreaming);
   });
 
   group('DirectJsonStreamProcessor.finish', () {

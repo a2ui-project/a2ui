@@ -112,59 +112,47 @@ void main() {
       expect(generator.allowedMessages, isNull);
     });
 
-    test(
-      'embeds the catalog schema in an a2ui_schema block',
-      () {
-        final generator =
-            DirectJsonPromptGenerator<CatalogComponent, CatalogFunction>([
-              basicCatalog(),
-            ]);
+    test('embeds the catalog schema in an a2ui_schema block', () {
+      final generator =
+          DirectJsonPromptGenerator<CatalogComponent, CatalogFunction>([
+            basicCatalog(),
+          ]);
 
-        final String prompt = generator.generate();
+      final String prompt = generator.generate();
 
-        expect(prompt, contains(a2uiSchemaOpenTag));
-        expect(prompt, contains(a2uiSchemaCloseTag));
-        expect(prompt, contains('"Card"'));
-        expect(prompt, contains('"TextField"'));
-        expect(prompt, contains('"required"'));
-      },
-      skip: pendingPromptGenerator,
-    );
+      expect(prompt, contains(a2uiSchemaOpenTag));
+      expect(prompt, contains(a2uiSchemaCloseTag));
+      expect(prompt, contains('"Card"'));
+      expect(prompt, contains('"TextField"'));
+      expect(prompt, contains('"required"'));
+    }, skip: pendingPromptGenerator);
 
-    test(
-      'instructs the model to emit payloads inside a2ui-json tags',
-      () {
-        final generator =
-            DirectJsonPromptGenerator<CatalogComponent, CatalogFunction>([
-              smallCatalog(),
-            ]);
+    test('instructs the model to emit payloads inside a2ui-json tags', () {
+      final generator =
+          DirectJsonPromptGenerator<CatalogComponent, CatalogFunction>([
+            smallCatalog(),
+          ]);
 
-        final String prompt = generator.generate();
+      final String prompt = generator.generate();
 
-        expect(prompt, contains(a2uiJsonOpenTag));
-        expect(prompt, contains(a2uiJsonCloseTag));
-      },
-      skip: pendingPromptGenerator,
-    );
+      expect(prompt, contains(a2uiJsonOpenTag));
+      expect(prompt, contains(a2uiJsonCloseTag));
+    }, skip: pendingPromptGenerator);
 
-    test(
-      'describes only the components a pruned catalog still declares',
-      () {
-        final SchemaCatalog pruned =
-            ComponentPruningTransformer<CatalogComponent, CatalogFunction>([
-              'Text',
-            ]).transform(smallCatalog());
+    test('describes only the components a pruned catalog still declares', () {
+      final SchemaCatalog pruned =
+          ComponentPruningTransformer<CatalogComponent, CatalogFunction>([
+            'Text',
+          ]).transform(smallCatalog());
 
-        final String prompt =
-            DirectJsonPromptGenerator<CatalogComponent, CatalogFunction>([
-              pruned,
-            ]).generate();
+      final String prompt =
+          DirectJsonPromptGenerator<CatalogComponent, CatalogFunction>([
+            pruned,
+          ]).generate();
 
-        expect(prompt, contains('"Text"'));
-        expect(prompt, isNot(contains('"Button"')));
-      },
-      skip: pendingPromptGenerator,
-    );
+      expect(prompt, contains('"Text"'));
+      expect(prompt, isNot(contains('"Button"')));
+    }, skip: pendingPromptGenerator);
 
     test('renders the example turns it was given', () {
       final generator =
@@ -186,22 +174,18 @@ void main() {
       expect(prompt, contains('createSurface'));
     }, skip: pendingPromptGenerator);
 
-    test(
-      'restricts the described envelopes to the allowed messages',
-      () {
-        final generator =
-            DirectJsonPromptGenerator<CatalogComponent, CatalogFunction>(
-              [smallCatalog()],
-              allowedMessages: ['createSurface'],
-            );
+    test('restricts the described envelopes to the allowed messages', () {
+      final generator =
+          DirectJsonPromptGenerator<CatalogComponent, CatalogFunction>(
+            [smallCatalog()],
+            allowedMessages: ['createSurface'],
+          );
 
-        final String prompt = generator.generate();
+      final String prompt = generator.generate();
 
-        expect(prompt, contains('createSurface'));
-        expect(prompt, isNot(contains('deleteSurface')));
-      },
-      skip: pendingPromptGenerator,
-    );
+      expect(prompt, contains('createSurface'));
+      expect(prompt, isNot(contains('deleteSurface')));
+    }, skip: pendingPromptGenerator);
 
     test('describes the protocol version it targets', () {
       final String prompt =

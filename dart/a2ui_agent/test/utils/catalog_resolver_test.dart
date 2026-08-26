@@ -100,71 +100,55 @@ void main() {
       expect(catalogs.single.components.keys.toSet(), {'Text', 'Card'});
     }, skip: pendingResolver);
 
-    test(
-      'ignores inline catalogs unless the agent accepts them',
-      () {
-        final capabilities = A2uiRendererCapabilities(
-          v0_9: A2uiVersionCapabilities(
-            supportedCatalogIds: const [],
-            inlineCatalogs: [
-              smallCatalog(id: 'https://example.com/inline.json'),
-            ],
-          ),
-        );
+    test('ignores inline catalogs unless the agent accepts them', () {
+      final capabilities = A2uiRendererCapabilities(
+        v0_9: A2uiVersionCapabilities(
+          supportedCatalogIds: const [],
+          inlineCatalogs: [smallCatalog(id: 'https://example.com/inline.json')],
+        ),
+      );
 
-        final List<Catalog<CatalogComponent, CatalogFunction>> catalogs =
-            resolveCatalogs(registered(), capabilities);
+      final List<Catalog<CatalogComponent, CatalogFunction>> catalogs =
+          resolveCatalogs(registered(), capabilities);
 
-        expect(
-          catalogs.map((c) => c.id),
-          isNot(contains('https://example.com/inline.json')),
-        );
-      },
-      skip: pendingResolver,
-    );
+      expect(
+        catalogs.map((c) => c.id),
+        isNot(contains('https://example.com/inline.json')),
+      );
+    }, skip: pendingResolver);
 
-    test(
-      'includes inline catalogs when the agent accepts them',
-      () {
-        final capabilities = A2uiRendererCapabilities(
-          v0_9: A2uiVersionCapabilities(
-            supportedCatalogIds: const [],
-            inlineCatalogs: [
-              smallCatalog(id: 'https://example.com/inline.json'),
-            ],
-          ),
-        );
+    test('includes inline catalogs when the agent accepts them', () {
+      final capabilities = A2uiRendererCapabilities(
+        v0_9: A2uiVersionCapabilities(
+          supportedCatalogIds: const [],
+          inlineCatalogs: [smallCatalog(id: 'https://example.com/inline.json')],
+        ),
+      );
 
-        final List<Catalog<CatalogComponent, CatalogFunction>> catalogs =
-            resolveCatalogs(
-              registered(),
-              capabilities,
-              acceptsInlineCatalogs: true,
-            );
-
-        expect(
-          catalogs.map((c) => c.id),
-          contains('https://example.com/inline.json'),
-        );
-      },
-      skip: pendingResolver,
-    );
-
-    test(
-      'rejects a renderer that shares no catalog with the agent',
-      () {
-        expect(
-          () => resolveCatalogs(
+      final List<Catalog<CatalogComponent, CatalogFunction>> catalogs =
+          resolveCatalogs(
             registered(),
-            A2uiRendererCapabilities.forCatalogIds([
-              'https://example.com/unknown.json',
-            ]),
-          ),
-          throwsA(isA<A2uiCatalogError>()),
-        );
-      },
-      skip: pendingResolver,
-    );
+            capabilities,
+            acceptsInlineCatalogs: true,
+          );
+
+      expect(
+        catalogs.map((c) => c.id),
+        contains('https://example.com/inline.json'),
+      );
+    }, skip: pendingResolver);
+
+    test('rejects a renderer that shares no catalog with the agent', () {
+      expect(
+        () => resolveCatalogs(
+          registered(),
+          A2uiRendererCapabilities.forCatalogIds([
+            'https://example.com/unknown.json',
+          ]),
+        ),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    }, skip: pendingResolver);
 
     test('rejects an agent with no registered catalogs', () {
       expect(

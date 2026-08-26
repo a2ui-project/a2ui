@@ -355,32 +355,3 @@
     client_capabilities:
       supportedCatalogIds: ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]
   expect_selected: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
-
-- name: test_select_catalog_no_overlap_v0_9
-  description: A renderer that supports no registered catalog cannot be served.
-  action: select_catalog
-  args:
-    supported_catalogs:
-      - catalogId: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
-        components: {}
-    client_capabilities:
-      supportedCatalogIds: ["https://example.com/catalogs/unknown.json"]
-  expect_error:
-    category: "CatalogError"
-    message: "no matching catalog"
-
-- name: test_select_catalog_rejects_unsupported_protocol_version
-  description: >-
-    Capabilities that carry no entry for a supported protocol version are
-    rejected rather than silently defaulting.
-  action: select_catalog
-  args:
-    supported_catalogs:
-      - catalogId: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
-        components: {}
-    client_capabilities_versioned:
-      "v1.0":
-        supportedCatalogIds: ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]
-  expect_error:
-    category: "ValidationError"
-    message: "v0.9"
