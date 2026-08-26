@@ -21,7 +21,7 @@ import {afterEach, beforeEach, describe, it, mock} from 'node:test';
 
 import issueTriage, {
   ASSIGNEE_REQUIRED_PRIORITIES,
-  authorHasResponded,
+  externalHasResponded,
   FLAG_LABEL,
   flagReason,
   isBot,
@@ -38,6 +38,7 @@ const daysAgo = n => new Date(NOW - n * DAY).toISOString();
 // Minimal factories matching the shape the script reads from the GitHub API.
 const issue = (overrides = {}) => ({
   number: 1,
+  state: 'open',
   pull_request: undefined,
   labels: [],
   assignees: [],
@@ -118,50 +119,65 @@ describe('lastHumanContribution', () => {
   });
 });
 
-describe('authorHasResponded', () => {
-  const reporter = {login: 'reporter', type: 'User'};
-  const item = issue({created_at: daysAgo(10), user: reporter});
-
+describe('externalHasResponded', () => {
   // The label went on 3 days ago, so only contributions newer than that answer it.
   const LABELED_AT = daysAgo(3);
-  const authorReply = age => event({created_at: daysAgo(age), user: reporter});
+  const externalReply = (age, login = 'reporter') =>
+    event({created_at: daysAgo(age), author_association: 'NONE', user: {login, type: 'User'}});
 
-  // Regression: the opening post is by definition the author's and always
-  // predates the label — an item with no replies is the one still waiting, not
-  // one the author has answered.
+  // Regression: the opening post is not a contribution and always predates the
+  // label — an item with no replies is the one still waiting, not one answered.
   it('does not count the opening post as a response', () => {
-    assert.equal(authorHasResponded(item, [], LABELED_AT), false);
+    assert.equal(externalHasResponded([], LABELED_AT), false);
   });
 
-  it('is true when the author contributed after the label was added', () => {
-    assert.equal(authorHasResponded(item, [authorReply(1)], LABELED_AT), true);
+  it('is true when an external contributor replied after the label was added', () => {
+    assert.equal(externalHasResponded([externalReply(1)], LABELED_AT), true);
   });
 
-  it('is false when the author only spoke before the label was added', () => {
-    assert.equal(authorHasResponded(item, [authorReply(5)], LABELED_AT), false);
+  it('is false when the only external reply predates the label', () => {
+    assert.equal(externalHasResponded([externalReply(5)], LABELED_AT), false);
   });
 
   // Ties resolve toward clearing: an item is better off back on the triage queue
   // than parked and invisible on the strength of a same-second timestamp.
   it('counts a reply stamped at the moment of labeling', () => {
-    assert.equal(authorHasResponded(item, [authorReply(3)], LABELED_AT), true);
+    assert.equal(externalHasResponded([externalReply(3)], LABELED_AT), true);
   });
 
-  it('still counts the author reply when someone else replied after it', () => {
-    const maintainerReply = event({created_at: daysAgo(0), user: {login: 'dev', type: 'User'}});
-    assert.equal(authorHasResponded(item, [authorReply(1), maintainerReply], LABELED_AT), true);
+  // What the label waits for is a word from outside the team, whoever it is
+  // from; the item's author has no special standing.
+  it('counts any external contributor, not just the item author', () => {
+    assert.equal(externalHasResponded([externalReply(1, 'passer-by')], LABELED_AT), true);
   });
 
-  it('ignores contributions from everyone but the author', () => {
-    const others = [
-      event({created_at: daysAgo(1), user: {login: 'dev', type: 'User'}}),
-      event({created_at: daysAgo(0), user: {login: 'bot[bot]', type: 'Bot'}}),
-    ];
-    assert.equal(authorHasResponded(item, others, LABELED_AT), false);
+  it('ignores maintainer replies, whatever their association', () => {
+    for (const association of ['OWNER', 'MEMBER', 'COLLABORATOR']) {
+      const reply = event({
+        created_at: daysAgo(1),
+        author_association: association,
+        user: {login: 'maintainer', type: 'User'},
+      });
+      assert.equal(externalHasResponded([reply], LABELED_AT), false, association);
+    }
+  });
+
+  it('ignores bot replies', () => {
+    const reply = event({
+      created_at: daysAgo(1),
+      author_association: 'NONE',
+      user: {login: 'stale-bot[bot]', type: 'Bot'},
+    });
+    assert.equal(externalHasResponded([reply], LABELED_AT), false);
+  });
+
+  it('still counts an external reply when a maintainer replied after it', () => {
+    const maintainerReply = event({created_at: daysAgo(0)}); // MEMBER by default
+    assert.equal(externalHasResponded([externalReply(1), maintainerReply], LABELED_AT), true);
   });
 
   it('is false when the labeling time is unknown, so the label survives', () => {
-    assert.equal(authorHasResponded(item, [authorReply(1)], null), false);
+    assert.equal(externalHasResponded([externalReply(1)], null), false);
   });
 });
 
@@ -204,6 +220,17 @@ describe('flagReason — issues', () => {
       assert.match(flagReason(item, [], NOW), /no human activity/);
     });
   }
+
+  // The staleness rules cover P0 and P1 only; P2 used to be flagged after 90
+  // days (rule 1e) and deliberately no longer is.
+  it('watches staleness for P0 and P1 only', () => {
+    assert.deepEqual(Object.keys(STALE_DAYS), ['P0', 'P1']);
+  });
+
+  it('never flags a P2 for staleness, however old', () => {
+    const item = issue({labels: ['P2'], assignees: [{login: 'dev'}], created_at: daysAgo(9999)});
+    assert.equal(flagReason(item, [], NOW), null);
+  });
 });
 
 // PRIORITY_LABELS is the single source of truth for which labels count as a
@@ -453,6 +480,19 @@ describe('issueTriage reconciliation', () => {
     assert.equal(calls.addLabels.length, 0);
   });
 
+  it('skips an item the listing reported as open but that is already closed', async () => {
+    // GitHub's index lags: the snapshot matches rule 1a, but the live re-read
+    // shows the item closed, and a closed item is nobody's triage work.
+    const item = issue({number: 25});
+    item.__fresh = issue({number: 25, state: 'closed'});
+    github = makeGithub([item]);
+    await issueTriage({github, context});
+
+    assert.deepEqual(calls.get, [25]); // we re-checked before mutating
+    assert.equal(calls.addLabels.length, 0);
+    assert.equal(calls.removeLabel.length, 0);
+  });
+
   it('skips the comments API call for items with zero comments', async () => {
     github = makeGithub([issue({number: 11, comments: 0})]);
     await issueTriage({github, context});
@@ -485,30 +525,39 @@ describe('issueTriage reconciliation', () => {
       created_at: realDaysAgo(days),
     });
 
-    // An item parked on its author: the waiting label went on `labeledDaysAgo`
-    // days ago, and the author has posted `comments` replies `repliedDaysAgo`
-    // days ago. Replies default to now so the staleness rules stay quiet and
-    // each test asserts on the waiting label alone; `labelEvent: false` drops the
-    // labeling from the item's history, as if it could not be read.
+    // A parked item: the waiting label went on `labeledDaysAgo` days ago, and
+    // `comments` replies were posted `repliedDaysAgo` days ago — by the reporter
+    // unless `replyFrom`/`replyAssociation` say otherwise. Replies default to now
+    // so the staleness rules stay quiet and each test asserts on the waiting
+    // label alone; `labelEvent: false` drops the labeling from the item's
+    // history, as if it could not be read.
     const parked = (
       number,
-      {comments = 0, repliedDaysAgo = 0, labeledDaysAgo = 1, labelEvent = true, ...overrides} = {},
+      {
+        comments = 0,
+        repliedDaysAgo = 0,
+        replyFrom = reporter,
+        replyAssociation = 'NONE',
+        labeledDaysAgo = 1,
+        labelEvent = true,
+        ...overrides
+      } = {},
     ) => {
       const item = issue({number, labels: [WAITING_LABEL], user: reporter, comments, ...overrides});
       item.__comments = Array.from({length: comments}, () =>
         comment({
           created_at: realDaysAgo(repliedDaysAgo),
-          author_association: 'NONE',
-          user: reporter,
+          author_association: replyAssociation,
+          user: replyFrom,
         }),
       );
       item.__events = labelEvent ? [labeling(WAITING_LABEL, labeledDaysAgo)] : [];
       return item;
     };
 
-    it('keeps the label, and the item out of triage, until the author replies', async () => {
+    it('keeps the label, and the item out of triage, until someone replies', async () => {
       // With no replies the opening post is the last human contribution, and it
-      // is the author's — it must not be mistaken for a response.
+      // predates the label — it must not be mistaken for a response.
       github = makeGithub([parked(15)]); // would otherwise match rule 1a
       await issueTriage({github, context});
 
@@ -517,7 +566,7 @@ describe('issueTriage reconciliation', () => {
       assert.equal(calls.addLabels.length, 0);
     });
 
-    it('clears the label once the author has replied', async () => {
+    it('clears the label once the reporter has replied', async () => {
       // P3, so no triage rule fires once the label is gone.
       github = makeGithub([parked(16, {comments: 1, labels: [WAITING_LABEL, 'P3']})]);
       await issueTriage({github, context});
@@ -527,7 +576,46 @@ describe('issueTriage reconciliation', () => {
       assert.equal(calls.addLabels.length, 0);
     });
 
-    it('keeps the label when the author only spoke before it was added', async () => {
+    it('clears the label when any external contributor replies, not just the reporter', async () => {
+      // The team is waiting to hear from outside, whoever answers.
+      github = makeGithub([
+        parked(25, {
+          comments: 1,
+          replyFrom: {login: 'passer-by', type: 'User'},
+          labels: [WAITING_LABEL, 'P3'],
+        }),
+      ]);
+      await issueTriage({github, context});
+
+      assert.deepEqual(calls.removeLabel, [{number: 25, name: WAITING_LABEL}]);
+    });
+
+    it('keeps the label when only a maintainer has replied', async () => {
+      // The team asked the question; asking again does not answer it.
+      github = makeGithub([
+        parked(26, {
+          comments: 1,
+          replyFrom: {login: 'maintainer', type: 'User'},
+          replyAssociation: 'MEMBER',
+        }),
+      ]);
+      await issueTriage({github, context});
+
+      assert.equal(calls.removeLabel.length, 0);
+      assert.equal(calls.addLabels.length, 0); // still parked, so still out of triage
+    });
+
+    it('keeps the label when only a bot has replied', async () => {
+      github = makeGithub([
+        parked(27, {comments: 1, replyFrom: {login: 'stale-bot[bot]', type: 'Bot'}}),
+      ]);
+      await issueTriage({github, context});
+
+      assert.equal(calls.removeLabel.length, 0);
+      assert.equal(calls.addLabels.length, 0);
+    });
+
+    it('keeps the label when the reply predates it', async () => {
       // The reply answered an earlier round of the conversation, not this label.
       github = makeGithub([parked(19, {comments: 1, repliedDaysAgo: 2, labeledDaysAgo: 1})]);
       await issueTriage({github, context});
@@ -579,6 +667,17 @@ describe('issueTriage reconciliation', () => {
 
       assert.deepEqual(calls.removeLabel, [{number: 17, name: WAITING_LABEL}]);
       assert.deepEqual(calls.addLabels, [17]);
+    });
+
+    it('does not clear the label on an item that has since been closed', async () => {
+      const item = parked(28, {comments: 1});
+      item.__fresh = issue({number: 28, state: 'closed', labels: [WAITING_LABEL]});
+      github = makeGithub([item]);
+      await issueTriage({github, context});
+
+      assert.deepEqual(calls.get, [28]); // we re-checked before mutating
+      assert.equal(calls.removeLabel.length, 0);
+      assert.equal(calls.addLabels.length, 0);
     });
 
     it('backs off when a concurrent run already reconciled both labels', async () => {

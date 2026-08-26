@@ -110,7 +110,7 @@ struct MessageProcessorTests {
     let handler = TestProcessorActionHandler()
     let catalog = try makeMessageProcessorTestCatalog()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
     return (processor, handler)

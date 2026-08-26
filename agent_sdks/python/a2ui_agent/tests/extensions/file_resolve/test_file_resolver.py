@@ -110,6 +110,8 @@ async def test_resolve_http_streaming():
 
         def __init__(self, chunks: list[bytes]):
             self._chunks = chunks
+            self.status_code = 200
+            self.headers = {}
 
         async def __aenter__(self):
             return self
@@ -126,12 +128,13 @@ async def test_resolve_http_streaming():
 
     class MockHttpClient:
 
-        def stream(self, method: str, url: str, follow_redirects: bool = True):
+        def stream(self, method: str, url: str, **kwargs):
             assert method == "GET"
-            assert url == "https://example.com/test.pdf"
+            assert "test.pdf" in url
+            assert kwargs.get("headers", {}).get("Host") == "example.com"
             return MockStreamContext([test_bytes[:10], test_bytes[10:]])
 
-    resolver = FileResolver(http_client=MockHttpClient())  # type: ignore[arg-type]
+    resolver = FileResolver(allowed_hosts=["*"], http_client=MockHttpClient())  # type: ignore[arg-type]
     raw_bytes, mime = await resolver.resolve_bytes({
         "fileId": "https://example.com/test.pdf",
         "mimeType": "application/pdf",
@@ -288,6 +291,10 @@ async def test_security_max_file_size_custom_scheme():
 async def test_security_max_file_size_http_streaming():
     class MockStreamContext:
 
+        def __init__(self):
+            self.status_code = 200
+            self.headers = {}
+
         async def __aenter__(self):
             return self
 
@@ -303,11 +310,11 @@ async def test_security_max_file_size_http_streaming():
 
     class MockHttpClient:
 
-        def stream(self, method: str, url: str, follow_redirects: bool = True):
+        def stream(self, method: str, url: str, **kwargs):
             return MockStreamContext()
 
     resolver = FileResolver(
-        max_file_bytes=10, http_client=MockHttpClient()  # type: ignore[arg-type]
+        allowed_hosts=["*"], max_file_bytes=10, http_client=MockHttpClient()  # type: ignore[arg-type]
     )
 
     with pytest.raises(FileResolverSecurityError) as exc_info:
@@ -324,6 +331,10 @@ async def test_security_allowed_hosts_policy():
 
     class MockStreamContext:
 
+        def __init__(self):
+            self.status_code = 200
+            self.headers = {}
+
         async def __aenter__(self):
             return self
 
@@ -338,7 +349,7 @@ async def test_security_allowed_hosts_policy():
 
     class MockHttpClient:
 
-        def stream(self, method: str, url: str, follow_redirects: bool = True):
+        def stream(self, method: str, url: str, **kwargs):
             return MockStreamContext()
 
     resolver = FileResolver(
@@ -376,15 +387,20 @@ async def test_security_allowed_hosts_policy():
             "fileId": "http://169.254.169.254/latest/meta-data",
             "mimeType": "text/plain",
         })
-    assert "Host '169.254.169.254' is not permitted" in str(exc_info.value)
+    assert "169.254.169.254" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
 async def test_security_allowed_hosts_redirect_blocked():
     class MockRedirectResponse:
 
-        def __init__(self):
-            self.url = httpx.URL("https://evil-redirect.com/secret.pdf")
+        def __init__(self, is_redirect):
+            if is_redirect:
+                self.status_code = 302
+                self.headers = {"Location": "https://evil-redirect.com/secret.pdf"}
+            else:
+                self.status_code = 200
+                self.headers = {}
 
         async def __aenter__(self):
             return self
@@ -400,8 +416,11 @@ async def test_security_allowed_hosts_redirect_blocked():
 
     class MockHttpClient:
 
-        def stream(self, method: str, url: str, follow_redirects: bool = True):
-            return MockRedirectResponse()
+        def stream(self, method: str, url: str, **kwargs):
+            host_header = kwargs.get("headers", {}).get("Host", "")
+            if host_header == "trusted.org" and "redirect-me" in url:
+                return MockRedirectResponse(is_redirect=True)
+            return MockRedirectResponse(is_redirect=False)
 
     resolver = FileResolver(
         allowed_hosts=["trusted.org"],
@@ -413,7 +432,7 @@ async def test_security_allowed_hosts_redirect_blocked():
             "fileId": "https://trusted.org/redirect-me",
             "mimeType": "application/pdf",
         })
-    assert "Redirected host 'evil-redirect.com' is not permitted" in str(exc_info.value)
+    assert "evil-redirect.com" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
@@ -515,3 +534,48 @@ async def test_as_tool_decorator():
     invalid_files = [{"fileId": f"data:application/pdf;base64,!!!invalid!!!"}]
     res = await my_tool(my_files=invalid_files)
     assert "error" in res
+
+
+@pytest.mark.asyncio
+async def test_http_host_header_with_port():
+    pdf_bytes = b"%PDF-1.4"
+
+    class MockStreamContext:
+
+        def __init__(self):
+            self.status_code = 200
+            self.headers = {}
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+        def raise_for_status(self):
+            pass
+
+        async def aiter_bytes(self) -> AsyncIterator[bytes]:
+            yield pdf_bytes
+
+    class MockHttpClient:
+
+        def __init__(self):
+            self.host_header_received = None
+
+        def stream(self, method: str, url: str, **kwargs):
+            self.host_header_received = kwargs.get("headers", {}).get("Host")
+            return MockStreamContext()
+
+    mock_client = MockHttpClient()
+    resolver = FileResolver(
+        allowed_hosts=["example.com"],
+        http_client=mock_client,  # type: ignore[arg-type]
+    )
+
+    await resolver.resolve_bytes({
+        "fileId": "https://example.com:8443/doc.pdf",
+        "mimeType": "application/pdf",
+    })
+
+    assert mock_client.host_header_received == "example.com:8443"
