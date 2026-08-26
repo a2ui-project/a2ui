@@ -57,7 +57,7 @@ layout:
           - component: Icon
             name: star
           - component: Text
-            text: "Strategic Objectives: ${teamName}"
+            text: "Strategic Objectives: {{ teamName }}"
             variant: h2
     - component: Column
       id: goals_container

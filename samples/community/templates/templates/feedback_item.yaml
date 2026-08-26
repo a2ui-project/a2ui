@@ -37,7 +37,8 @@ layout:
     component: Column
     children:
       - component: Text
-        text: ${note}
+        text: "{{ note }}"
+
         variant: body
       - component: Divider
         axis: horizontal
@@ -46,10 +47,11 @@ layout:
         align: center
         children:
           - component: Text
-            text: ${author}
+            text: "{{ author }}"
+
             variant: caption
           - component: Text
-            text: "Rating: ${rating}/5"
+            text: "Rating: {{ rating }}/5"
             variant: caption
 sampleData:
   author: Dr. Elena Vance

@@ -45,12 +45,13 @@ layout:
         align: center
         children:
           - component: Text
-            text: "Priority: ${priority}"
+            text: "Priority: {{ priority }}"
             variant: caption
           - component: Icon
             name: star
       - component: Text
-        text: ${title}
+        text: "{{ title }}"
+
         variant: h4
       - component: Divider
         axis: horizontal
@@ -59,7 +60,7 @@ layout:
         align: center
         children:
           - component: Text
-            text: "Due: ${targetDate}"
+            text: "Due: {{ targetDate }}"
             variant: caption
           - component: Button
             child:

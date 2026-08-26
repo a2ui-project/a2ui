@@ -29,12 +29,14 @@ layout:
   component: Column
   children:
     - component: Text
-      text: ${directoryTitle}
+      text: "{{ directoryTitle }}"
+
       variant: h1
     - component: Divider
       axis: horizontal
     - component: Column
-      children: ${children}
+      children: "{{ children }}"
+
 sampleData:
   directoryTitle: Global Engineering Directory
   children: []

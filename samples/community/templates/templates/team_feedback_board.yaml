@@ -56,7 +56,7 @@ layout:
           - component: Icon
             name: mail
           - component: Text
-            text: "Feedback & Retrospective: ${teamName}"
+            text: "Feedback & Retrospective: {{ teamName }}"
             variant: h2
     - component: Column
       id: feedbacks_container
