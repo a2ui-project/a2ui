@@ -336,7 +336,7 @@ describe('A2uiSurface', () => {
     expect(screen.getByText('via fallback')).toBeDefined();
     const reported = errors.filter(e => e.code === 'UNMARKED_CHILD_REFERENCE');
     expect(reported).toHaveLength(1);
-    expect(String(reported[0].message)).toContain('componentId()');
+    expect(String(reported[0]?.message)).toContain('componentId()');
   });
 
   it('keeps unmarked references live across arrival, removal, and type replacement', async () => {
@@ -449,6 +449,20 @@ describe('A2uiSurface', () => {
     expect(surface.dataModel.get('/items/1/value')).toBe('edited');
     expect((screen.getByTestId('input-/items/1') as HTMLInputElement).value).toBe('edited');
     expect(surface.dataModel.get('/items/0/value')).toBe('a');
+  });
+
+  it('renders a component whose id matches a duplicate token as its own subtree', () => {
+    // A literal component named 'a#2' next to duplicates of 'a': tokens are
+    // instance ids, which are injective, so the literal cannot be shadowed.
+    const surface = setup();
+    add(surface, 'root', 'Column', {children: ['a#2', 'a', 'a']});
+    add(surface, 'a#2', 'Probe', {});
+    add(surface, 'a', 'Probe', {});
+
+    render(<A2uiSurface surface={surface} />);
+    const texts = screen.getAllByText(/^id:/).map(e => e.textContent);
+    expect(texts).toHaveLength(3);
+    expect(new Set(texts).size).toBe(3);
   });
 
   it('renders duplicate child references as distinct subtrees', () => {
