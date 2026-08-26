@@ -49,7 +49,7 @@ export const DeprecatedUnmarkedReference: React.FC<{
       seen = new Set();
       reportedFallbacks.set(surface, seen);
     }
-    const key = `${id}@${basePath}`;
+    const key = JSON.stringify([id, basePath]);
     if (!seen.has(key)) {
       seen.add(key);
       void surface.dispatchError({

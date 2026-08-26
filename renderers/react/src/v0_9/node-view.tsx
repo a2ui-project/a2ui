@@ -87,7 +87,7 @@ export const UnresolvedChildReference: React.FC<{
       seen = new Set();
       reportedUnresolved.set(surface, seen);
     }
-    const key = `${id}@${requestedPath}`;
+    const key = JSON.stringify([id, requestedPath]);
     if (!seen.has(key)) {
       seen.add(key);
       void surface.dispatchError({code: 'UNRESOLVED_CHILD_REFERENCE', message});
