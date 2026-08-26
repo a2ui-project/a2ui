@@ -119,8 +119,11 @@ export const A2uiSurface: React.FC<{
   // Suspense) never constructs one, and every constructed resolver is
   // disposed by its own unsubscribe. StrictMode's double mount creates and
   // disposes two in turn.
+  // The factory reads nothing; the dependency exists to reset the box when
+  // the surface is swapped.
   const box = useMemo(
     () => ({resolver: undefined as NodeResolver<ReactComponentImplementation> | undefined}),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [surface],
   );
   const subscribe = useCallback(
