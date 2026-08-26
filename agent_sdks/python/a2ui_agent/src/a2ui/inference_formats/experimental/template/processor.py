@@ -70,7 +70,11 @@ A2UIMessage: TypeAlias = Dict[str, Any]
 CatalogSchema: TypeAlias = Dict[str, Any]
 JSONSchemaDict: TypeAlias = Dict[str, Any]
 
+# 5. Safety & Recursion Limits
+MAX_EXPANSION_DEPTH: int = 50
+
 __all__ = [
+    "MAX_EXPANSION_DEPTH",
     "TemplateProcessor",
     "TemplateId",
     "InstanceId",
@@ -435,7 +439,7 @@ class TemplateProcessor:
                 f" {template_id}"
             )
 
-        if _depth > 32:
+        if _depth > MAX_EXPANSION_DEPTH:
             raise RecursionError(
                 f"Maximum template expansion depth exceeded ({_depth}) at"
                 f" '{template_id}'. Call stack: {' -> '.join(_call_stack)}"
