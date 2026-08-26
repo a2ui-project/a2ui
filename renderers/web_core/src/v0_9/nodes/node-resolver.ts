@@ -201,12 +201,20 @@ export class NodeResolver<
       return;
     }
     if (component.id === ROOT_COMPONENT_ID) {
-      if (this.rootRecord && this.rootRecord.componentModel !== component) {
-        // The root was replaced; rebind to the new model instance.
+      // Events deliver late; reconcile against the model's current root, not
+      // the event payload. A stale creation must not rebuild a tree already
+      // bound to the current model, nor create one the model no longer has.
+      const current = this.surface.componentsModel.get(ROOT_COMPONENT_ID);
+      if (this.rootRecord && this.rootRecord.componentModel !== current) {
         this.disposeNode(this.rootRecord.node);
         this.rootRecord = undefined;
+        if (!current) {
+          setValue(this.rootNode, undefined);
+        }
       }
-      this.buildRoot();
+      if (current) {
+        this.buildRoot();
+      }
     }
     const waiting = this.pendingParents.get(component.id);
     if (waiting) {

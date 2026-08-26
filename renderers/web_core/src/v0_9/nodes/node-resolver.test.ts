@@ -786,6 +786,84 @@ describe('NodeResolver malformed and unusual payloads', () => {
     resolver.dispose();
   });
 
+  // Both stale-root tests register async listeners ahead of the resolver, as
+  // any subscriber registered before it does in production: each event then
+  // delivers to the resolver only after an await, by which time the model
+  // has moved on.
+  function setupWithDelayedDelivery() {
+    const TextApi = {
+      name: 'Text',
+      schema: z.object({text: DynamicStringSchema.optional()}),
+    };
+    const catalog = new Catalog<ComponentApi>('stale-root-catalog', [TextApi], []);
+    const surface = new SurfaceModel('surf-1', catalog);
+    surface.componentsModel.onCreated.subscribe(async () => {
+      await Promise.resolve();
+    });
+    surface.componentsModel.onDeleted.subscribe(async () => {
+      await Promise.resolve();
+    });
+    add(surface, 'root', 'Text', {text: 'first'});
+    const resolver = new NodeResolver(surface, catalog);
+    return {surface, resolver};
+  }
+
+  it('does not rebuild the current root when a stale creation event arrives', async () => {
+    const {surface, resolver} = setupWithDelayedDelivery();
+    await flush();
+    const seen: Array<ComponentNode | undefined> = [];
+    const stop = effect(() => {
+      seen.push(getValue(resolver.rootNode));
+    });
+
+    // Replace the root twice in one synchronous block: the intermediate
+    // creation is stale by the time it delivers.
+    surface.componentsModel.removeComponent('root');
+    add(surface, 'root', 'Text', {text: 'intermediate'});
+    surface.componentsModel.removeComponent('root');
+    add(surface, 'root', 'Text', {text: 'final'});
+    await flush();
+
+    const instances = new Set(seen.filter(Boolean));
+    // The initially bound root plus one rebind to the final model; the stale
+    // creation must not add a dispose-and-rebuild of the already-current
+    // tree.
+    assert.strictEqual(
+      instances.size,
+      2,
+      `saw ${instances.size} distinct root nodes after replacement`,
+    );
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.strictEqual((root.toJSON() as {text: unknown}).text, 'final');
+    stop();
+    resolver.dispose();
+  });
+
+  it('does not create a phantom root from a stale creation after the root is gone', async () => {
+    const {surface, resolver} = setupWithDelayedDelivery();
+    await flush();
+    const seen: Array<ComponentNode | undefined> = [];
+    const stop = effect(() => {
+      seen.push(getValue(resolver.rootNode));
+    });
+
+    surface.componentsModel.removeComponent('root');
+    add(surface, 'root', 'Text', {text: 'brief'});
+    surface.componentsModel.removeComponent('root');
+    await flush();
+
+    // The stale creation delivers while the model has no root; nothing may
+    // surface a pending stand-in for a root that does not exist.
+    assert.ok(
+      seen.every(node => !node || !node.isPlaceholder),
+      'a placeholder root was surfaced for an absent root',
+    );
+    assert.strictEqual(getValue(resolver.rootNode), undefined);
+    stop();
+    resolver.dispose();
+  });
+
   it('reports again after delete and re-add when the component id contains colons', () => {
     const {surface, resolver} = setup();
     const errors: Array<Record<string, unknown>> = [];
