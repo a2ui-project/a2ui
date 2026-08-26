@@ -15,7 +15,6 @@
 version: "0.1"
 templateId: TeamCard
 description: Card showing team header and unrolled member cards.
-
 parameters:
   teamName:
     type: string
@@ -45,7 +44,6 @@ parameters:
       required:
         - userId
         - userName
-
 layout:
   component: Card
   child:
@@ -67,7 +65,6 @@ layout:
           loop:
             param: members
             template: UserProfile
-
 sampleData:
   teamName: Antigravity Devs
   members:
@@ -80,3 +77,6 @@ sampleData:
     - userId: usr_103
       userName: Charlie Brown
       role: Product Manager
+catalogs:
+  - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+name: TeamCard

@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import glob
 import inspect
-import json
 import os
 from pathlib import Path
 import time
@@ -30,11 +29,8 @@ from google.genai import types
 from pydantic import BaseModel
 
 from a2ui.inference_formats.experimental.template import (
-    Template,
     StaticTemplate,
     DynamicTemplate,
-    Param,
-    ParamType,
     TemplateInferenceFormat,
 )
 
@@ -245,7 +241,7 @@ def load_templates() -> List[Any]:
     for path in glob.glob(templates_pattern):
         loaded_templates = StaticTemplate.from_yaml_file(path)
         for tmpl in loaded_templates:
-            if tmpl.template_id == "SalaryCard":
+            if tmpl.name == "SalaryCard" or tmpl.template_id == "SalaryCard":
                 salary_layout = tmpl
             else:
                 templates_list.append(tmpl)
@@ -254,7 +250,11 @@ def load_templates() -> List[Any]:
         # Register DynamicTemplate for EmployeeSalaryCard (Data Binding Mode)
         dynamic_salary = DynamicTemplate(
             version="0.1",
+            name="EmployeeSalaryCard",
             template_id="EmployeeSalaryCard",
+            catalogs=[
+                "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
+            ],
             resolver=fetch_employee_compensation,
             layout=salary_layout,
             description=(
@@ -270,7 +270,9 @@ def load_templates() -> List[Any]:
     # Register DynamicTemplate for PayrollSummary (Programmatic Render Mode)
     payroll_template = DynamicTemplate(
         version="0.1",
+        name="PayrollSummary",
         template_id="PayrollSummary",
+        catalogs=["https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"],
         render=render_payroll_summary,
         description=(
             "Programmatic dynamic template that aggregates company payroll, sums"

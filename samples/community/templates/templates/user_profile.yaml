@@ -15,7 +15,6 @@
 version: "0.1"
 templateId: UserProfile
 description: User profile card displaying avatar, full name, and role.
-
 parameters:
   userId:
     type: string
@@ -30,7 +29,6 @@ parameters:
     title: Role
     description: Job title or role.
     default: Member
-
 layout:
   component: Card
   child:
@@ -45,8 +43,10 @@ layout:
       - component: Text
         text: ${role}
         variant: caption
-
 sampleData:
   userId: usr_101
   userName: Alice Smith
   role: Lead Architect
+catalogs:
+  - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+name: UserProfile

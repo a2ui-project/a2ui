@@ -15,7 +15,6 @@
 version: "0.1"
 templateId: FeedbackItem
 description: Card showing feedback note, author, and rating.
-
 parameters:
   author:
     type: string
@@ -32,7 +31,6 @@ parameters:
     minimum: 1
     maximum: 5
     default: 5
-
 layout:
   component: Card
   child:
@@ -53,8 +51,10 @@ layout:
           - component: Text
             text: "Rating: ${rating}/5"
             variant: caption
-
 sampleData:
   author: Dr. Elena Vance
   note: A2UI templates are fast and easy to compose.
   rating: 5
+catalogs:
+  - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+name: FeedbackItem

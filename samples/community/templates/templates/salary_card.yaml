@@ -14,8 +14,8 @@
 
 version: "0.1"
 templateId: SalaryCard
-description: Layout card for employee compensation package with security verification badge.
-
+description: Layout card for employee compensation package with security verification
+  badge.
 parameters:
   employeeName:
     type: string
@@ -41,13 +41,12 @@ parameters:
     type: string
     title: Security Clearance
     description: Confidentiality level.
-    default: "Level 4 - Confidential"
+    default: Level 4 - Confidential
   verifiedAt:
     type: string
     title: Verification Date
     description: Timestamp of record retrieval.
     default: "2026-08-13"
-
 layout:
   component: Card
   child:
@@ -63,7 +62,7 @@ layout:
               - component: Icon
                 name: lock
               - component: Text
-                text: "Verified Compensation"
+                text: Verified Compensation
                 variant: caption
           - component: Text
             text: ${clearanceLevel}
@@ -85,7 +84,7 @@ layout:
           - component: Column
             children:
               - component: Text
-                text: "Base Salary"
+                text: Base Salary
                 variant: caption
               - component: Text
                 text: ${baseSalary}
@@ -94,7 +93,7 @@ layout:
           - component: Column
             children:
               - component: Text
-                text: "Annual Bonus"
+                text: Annual Bonus
                 variant: caption
               - component: Text
                 text: ${annualBonus}
@@ -102,7 +101,7 @@ layout:
           - component: Column
             children:
               - component: Text
-                text: "Equity Grants"
+                text: Equity Grants
                 variant: caption
               - component: Text
                 text: ${equity}
@@ -114,17 +113,19 @@ layout:
         align: center
         children:
           - component: Text
-            text: "🔒 Fetched live from secure HR database"
+            text: "\U0001F512 Fetched live from secure HR database"
             variant: caption
           - component: Text
             text: "Verified: ${verifiedAt}"
             variant: caption
-
 sampleData:
   employeeName: Dr. Elena Vance
   role: Principal Systems Architect
-  baseSalary: "$215,000"
-  annualBonus: "$45,000"
-  equity: "3,500 RSUs"
-  clearanceLevel: "Level 5 - Confidential"
+  baseSalary: $215,000
+  annualBonus: $45,000
+  equity: 3,500 RSUs
+  clearanceLevel: Level 5 - Confidential
   verifiedAt: "2026-08-13"
+catalogs:
+  - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+name: SalaryCard

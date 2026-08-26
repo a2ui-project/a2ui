@@ -14,8 +14,8 @@
 
 version: "0.1"
 templateId: SectionCard
-description: Standard container card with title, description, optional action, and child components.
-
+description: Standard container card with title, description, optional action, and
+  child components.
 parameters:
   title:
     type: string
@@ -35,7 +35,6 @@ parameters:
     title: Section Children
     description: Child component IDs rendered in the section body.
     default: []
-
 layout:
   component: Card
   child:
@@ -59,8 +58,10 @@ layout:
       - component: Column
         id: body_container
         children: ${children}
-
 sampleData:
   title: Protocol Overview
   description: High-level summary of the streaming architecture.
   children: []
+catalogs:
+  - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+name: SectionCard

@@ -15,7 +15,6 @@
 version: "0.1"
 templateId: TeamRoster
 description: Team directory roster with styled header banner and nested team lists.
-
 parameters:
   directoryTitle:
     type: string
@@ -26,7 +25,6 @@ parameters:
     title: Team Cards List
     description: List of child TeamCard components.
     default: []
-
 layout:
   component: Column
   children:
@@ -37,7 +35,9 @@ layout:
       axis: horizontal
     - component: Column
       children: ${children}
-
 sampleData:
   directoryTitle: Global Engineering Directory
   children: []
+catalogs:
+  - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+name: TeamRoster

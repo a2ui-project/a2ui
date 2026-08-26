@@ -15,7 +15,6 @@
 version: "0.1"
 templateId: TeamFeedbackBoard
 description: Feedback board showing team header and feedback items.
-
 parameters:
   teamName:
     type: string
@@ -46,7 +45,6 @@ parameters:
       required:
         - author
         - note
-
 layout:
   component: Column
   children:
@@ -66,13 +64,17 @@ layout:
         loop:
           param: feedbacks
           template: FeedbackItem
-
 sampleData:
   teamName: Streaming & Protocols Guild
   feedbacks:
     - author: Dr. Elena Vance
-      note: Splitting createSurface and updateComponents cleanly unblocked sequential stream processing.
+      note: Splitting createSurface and updateComponents cleanly unblocked sequential
+        stream processing.
       rating: 5
     - author: Marcus Vance
-      note: Unrolling nested lists statically in Python enables instant frontend mounting with zero runtime recursion.
+      note: Unrolling nested lists statically in Python enables instant frontend mounting
+        with zero runtime recursion.
       rating: 5
+catalogs:
+  - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+name: TeamFeedbackBoard

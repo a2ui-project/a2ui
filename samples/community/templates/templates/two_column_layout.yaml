@@ -14,8 +14,8 @@
 
 version: "0.1"
 templateId: TwoColumnLayout
-description: Responsive two-column dashboard layout with banner header and split content regions.
-
+description: Responsive two-column dashboard layout with banner header and split content
+  regions.
 parameters:
   headerChild:
     type: child
@@ -31,7 +31,6 @@ parameters:
     title: Right Column Children
     description: Child components placed in the right secondary region.
     default: []
-
 layout:
   component: Column
   children:
@@ -45,10 +44,12 @@ layout:
           children: ${leftChildren}
         - component: Column
           children: ${rightChildren}
-
 sampleData:
   headerChild:
     component: Text
     text: Header Title
   leftChildren: []
   rightChildren: []
+catalogs:
+  - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+name: TwoColumnLayout

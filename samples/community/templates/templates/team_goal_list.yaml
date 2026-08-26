@@ -15,7 +15,6 @@
 version: "0.1"
 templateId: TeamGoalList
 description: List of team goals with header banner.
-
 parameters:
   teamName:
     type: string
@@ -47,7 +46,6 @@ parameters:
           description: Target completion date (YYYY-MM-DD)
       required:
         - title
-
 layout:
   component: Column
   children:
@@ -67,7 +65,6 @@ layout:
         loop:
           param: goals
           template: GoalItem
-
 sampleData:
   teamName: A2UI Core Team
   goals:
@@ -77,3 +74,6 @@ sampleData:
     - title: Upgrade all templates to standard Basic Catalog components
       priority: High
       targetDate: "2026-07-10"
+catalogs:
+  - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+name: TeamGoalList

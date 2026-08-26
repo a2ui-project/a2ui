@@ -14,8 +14,8 @@
 
 version: "0.1"
 templateId: GoalItem
-description: Card showing an individual objective with priority, title, target date, and action button.
-
+description: Card showing an individual objective with priority, title, target date,
+  and action button.
 parameters:
   title:
     type: string
@@ -35,7 +35,6 @@ parameters:
     title: Target Date
     description: Target completion date in YYYY-MM-DD format.
     default: "2026-12-31"
-
 layout:
   component: Card
   child:
@@ -66,8 +65,10 @@ layout:
             child:
               component: Text
               text: View Details
-
 sampleData:
   title: Launch A2UI SDK v1.0
   priority: High
   targetDate: "2026-09-30"
+catalogs:
+  - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+name: GoalItem
