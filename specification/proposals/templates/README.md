@@ -1,8 +1,8 @@
-# A2UI Templates Specification
+# A2UI Template Specification
 
 ## Abstract
 
-This document defines the authoritative specification for the **A2UI Templates System**.
+This document defines the authoritative specification for **A2UI Templates**.
 
 Templates provide a declarative, human-readable mechanism for authoring reusable UI subtrees in nested YAML or via native programmatic render functions. At generation time, an agent or Large Language Model (LLM) outputs compact, high-level template invocations (such as `UserProfile("u1", "Alice")` or `PayrollSummary("Eng", true)`). The backend SDK expands these invocations into standard, flat A2UI Basic Catalog components in a single synchronous pass before emitting standard A2UI protocol messages (`updateComponents`) to the client.
 
@@ -18,57 +18,46 @@ This architecture achieves three fundamental objectives:
 
 The template engine operates entirely server-side within the A2UI Agent SDK:
 
-```
-+-------------------------------------------------------------------------------+
-| 1. Authoring & Registration                                                   |
-|    - Static YAML files (with multi-doc '---' support & cross-references)      |
-|    - Dynamic resolvers (data-binding mode & programmatic AST mode)            |
-+---------------------------------------+---------------------------------------+
-                                        |
-                                        v
-+-------------------------------------------------------------------------------+
-| 2. Synthetic Catalog Generation                                               |
-|    - TemplateProcessor scans registered templates                             |
-|    - Synthesizes virtual A2UI Component Catalog JSON schema                   |
-+---------------------------------------+---------------------------------------+
-                                        |
-                                        v
-+-------------------------------------------------------------------------------+
-| 3. Model Prompt Generation & Inference                                        |
-|    - PromptGenerator injects template signatures into system prompt           |
-|    - LLM emits compact Express DSL / JSON:                                    |
-|      root = TeamRoster("Engineering", [TeamCard("Core", [...])])              |
-+---------------------------------------+---------------------------------------+
-                                        |
-                                        v
-+-------------------------------------------------------------------------------+
-| 4. Synchronous Template Expansion (TemplateProcessor)                         |
-|    - Resolves dynamic callbacks or executes programmatic render functions     |
-|    - Substitutes typed parameters & evaluates dot-notation paths              |
-|    - Unrolls server loops & plumbs component slot arguments                   |
-|    - Assigns deterministic synthetic IDs: {parent}_{slot}_{index}_{type}      |
-+---------------------------------------+---------------------------------------+
-                                        |
-                                        v
-+-------------------------------------------------------------------------------+
-| 5. Standard A2UI Protocol Emission                                            |
-|    - Emits standard createSurface and updateComponents messages               |
-|    - Payload contains 100% standard Basic Catalog primitives                  |
-+---------------------------------------+---------------------------------------+
-                                        |
-                                        v
-+-------------------------------------------------------------------------------+
-| 6. Client Renderer Execution                                                  |
-|    - Standard Basic Catalog renderers paint the flat component graph          |
-|    - Binds reactive two-way paths to client DataModel                         |
-+-------------------------------------------------------------------------------+
+```mermaid
+flowchart TD
+    subgraph Stage1["1. Authoring & Registration"]
+        YAML["Static YAML Files<br/>(multi-doc '---' & cross-references)"]
+        Dynamic["Dynamic Resolvers<br/>(data-binding & programmatic AST)"]
+    end
+
+    subgraph Stage2["2. Synthetic Catalog Generation"]
+        Proc["TemplateProcessor indexes templates<br/>& synthesizes virtual Component Catalog"]
+    end
+
+    subgraph Stage3["3. Model Prompt Generation & Inference"]
+        Prompt["PromptGenerator injects template signatures into prompt"]
+        LLM["LLM emits compact Express DSL / JSON<br/>(e.g. root = TeamRoster(...))"]
+    end
+
+    subgraph Stage4["4. Synchronous Template Expansion"]
+        Expand["TemplateProcessor unrolls loops,<br/>substitutes params, assigns synthetic IDs"]
+    end
+
+    subgraph Stage5["5. Standard A2UI Protocol Emission"]
+        Msg["Emits createSurface & updateComponents<br/>(100% standard Basic Catalog primitives)"]
+    end
+
+    subgraph Stage6["6. Client Renderer Execution"]
+        Client["Client renderers paint standard components<br/>& bind reactive paths to client DataModel"]
+    end
+
+    Stage1 --> Stage2
+    Stage2 --> Stage3
+    Stage3 --> Stage4
+    Stage4 --> Stage5
+    Stage5 --> Stage6
 ```
 
 ---
 
 ## 2. Template Taxonomy
 
-A2UI defines three template modalities:
+A2UI supports three template authoring styles:
 
 ### A. Declarative Static Templates (YAML)
 
@@ -478,13 +467,11 @@ When `TemplateProcessor(templates, catalogs)` is initialized:
 
 ### Surface Isolation Boundary
 
-```
-[LLM Agent] <---> [Synthetic Catalog (Templates + Primitives)] <---> [TemplateProcessor]
-                                                                            |
-                                                                   (Expands to Primitives)
-                                                                            |
-                                                                            v
-[Client Renderer] <---------------- (Standard Catalog Components) <---------+
+```mermaid
+flowchart LR
+    Agent["LLM Agent"] <--> SyntheticCatalog["Synthetic Catalog<br/>(Templates + Primitives)"]
+    SyntheticCatalog <--> Processor["TemplateProcessor"]
+    Processor -->|"Synchronously expands<br/>to flat primitives"| Client["Client Renderer<br/>(Basic Catalog)"]
 ```
 
 The synthetic catalog is an ephemeral compile-time construct. The client renderer is completely unaware that templates exist.
@@ -668,11 +655,14 @@ The template engine replaces `${headerAction}` with the synthesized single child
 
 ### Recursion & Circular Reference Detection
 
-Templates can invoke other templates. However, circular references (`A` invokes `B`, which invokes `A`) must be caught immediately to prevent stack overflow.
+Templates can invoke other templates. However, circular references in template definitions (`A` invokes `B`, which invokes `A`) must be caught immediately to prevent stack overflow.
 
-- **Call Stack Tracking**: The `TemplateProcessor` maintains an active `_call_stack: Set[str]` throughout expansion.
-- **Cycle Guard**: Before expanding any template, if `template_name in _call_stack`, expansion terminates immediately with `TemplateCycleError: Circular template reference detected: A -> B -> A`.
-- **Maximum Depth Guard**: An absolute limit (`MAX_EXPANSION_DEPTH = 32`) enforces termination even in non-identical runaway recursion.
+- **Definition Cycles vs. Instance Nesting**:
+  - **Definition Cycles (Prohibited)**: The cycle guard specifically tracks the chain of template _definitions_ being expanded (`TemplateA -> TemplateB -> TemplateA`). If a template definition unconditionally references itself or another template in a cycle, expansion terminates with `TemplateCycleError`.
+  - **Instance Nesting (Fully Supported)**: When a caller passes an instance of a template as an argument into another template's `child` or `children` slot (for example, a `Card` template containing a `Carousel` template whose items are other `Card` template instances), this is standard, safe hierarchical composition. Each instance receives a unique synthetic ID and is bounded by caller input.
+- **Call Stack Tracking**: The `TemplateProcessor` maintains an active `_call_stack: Set[str]` of template definition names currently being evaluated.
+- **Cycle Guard**: Before expanding any template definition, if `template_name in _call_stack`, expansion terminates immediately with `TemplateCycleError: Circular template reference detected: A -> B -> A`.
+- **Maximum Depth Guard**: An absolute limit (`MAX_EXPANSION_DEPTH = 50`) enforces termination even in deeply nested or runaway recursion.
 
 ### Standard Error Hierarchy
 
