@@ -2,7 +2,7 @@
 
 ## Abstract
 
-This document proposes a catalog-driven code generator and type-safe fluent builder library for authoring A2UI templates and dynamic server render functions in Python. 
+This document proposes a catalog-driven code generator and type-safe fluent builder library for authoring A2UI templates and dynamic server render functions in Python.
 
 By analyzing an A2UI Component Catalog JSON Schema (`catalog.json`), a builder generator script automatically synthesizes strongly typed, IDE-friendly Python component classes (`Card`, `Column`, `Row`, `Text`, `Button`, `Divider`, `Icon`, `Image`, etc.). These builder classes enforce compile-time and runtime type safety, provide instant editor autocompletion, and seamlessly interoperate with the A2UI Python Agent SDK's polymorphic template engine.
 
@@ -18,6 +18,7 @@ def render_team_dashboard(team_id: str) -> dict:
 ```
 
 While authoring UI trees using raw Python dictionaries is flexible, it exposes developers to common mistakes:
+
 - **Typo errors**: Accidentally typing `"algn": "center"` instead of `"align": "center"`.
 - **Type mismatches**: Passing an integer `42` where a child component or string is expected.
 - **Invalid enum variants**: Passing `variant="heading1"` instead of standard `variant="h1"`.
@@ -84,6 +85,7 @@ agent_sdks/python/
 ```
 
 ### A. Handcrafted Runtime Infrastructure (Static SDK Code, Never Regenerated)
+
 These files provide the foundation and serialization contracts:
 
 1. **`base.py` (`ComponentBuilder`, `DataBinding`)**:
@@ -96,6 +98,7 @@ These files provide the foundation and serialization contracts:
    - The synchronous expansion engine that resolves dynamic functions and flattens layouts into standard Basic Catalog primitives.
 
 ### B. Auto-Generated Files (Synthesized from `catalog.json`)
+
 These files are generated on demand from any A2UI catalog schema:
 
 1. **`components.py`**:
@@ -122,14 +125,17 @@ a2ui-build-builders = "a2ui.tools.codegen.builder_generator:main"
 ```
 
 ### 4.2 Pre-bundled Builders (Zero-Setup for Standard Users)
+
 For standard A2UI development using the official **Basic Catalog**, developers do not need to run any code generation steps. The `a2ui-agent-sdk` package ships with pre-generated, tested builders directly under `a2ui.inference_formats.experimental.template.builder`.
 
 Developers simply write:
+
 ```python
 from a2ui.inference_formats.experimental.template.builder import Card, Column, Text, Icon, Divider, DataBinding
 ```
 
 ### 4.3 Generating Builders for Custom / Enterprise Catalogs
+
 When an enterprise team defines a custom component catalog (e.g. `finance_catalog.json` with `StockTicker`, `OrderBook`, `CandlestickChart`), they can run the CLI generator to produce their own custom builder package:
 
 ```bash
@@ -142,15 +148,16 @@ uv run a2ui-build-builders \
 
 #### CLI Options & Flags:
 
-| Flag | Type | Description |
-| :--- | :--- | :--- |
-| `--catalog`, `-c` | `str` (Required) | Path to local `catalog.json` or remote HTTPS schema URL. |
-| `--output`, `-o` | `str` (Required) | Target directory where Python builder files will be written. |
-| `--package-name` | `str` (Optional) | Custom Python package namespace for generated imports. |
-| `--format` | `bool` (Default: `True`) | Automatically format generated code using `pyink` or `black`. |
-| `--strict-types` | `bool` (Default: `True`) | Emit `Literal` enum types and strict primitive unions. |
+| Flag              | Type                     | Description                                                   |
+| :---------------- | :----------------------- | :------------------------------------------------------------ |
+| `--catalog`, `-c` | `str` (Required)         | Path to local `catalog.json` or remote HTTPS schema URL.      |
+| `--output`, `-o`  | `str` (Required)         | Target directory where Python builder files will be written.  |
+| `--package-name`  | `str` (Optional)         | Custom Python package namespace for generated imports.        |
+| `--format`        | `bool` (Default: `True`) | Automatically format generated code using `pyink` or `black`. |
+| `--strict-types`  | `bool` (Default: `True`) | Emit `Literal` enum types and strict primitive unions.        |
 
 ### 4.4 Hatchling / Build Hook Integration
+
 In the A2UI repository, the builder generation is wired into the build lifecycle (`pack_specs_hook.py` or `wireit`). When specifications under `specification/v0_9_1/catalogs/` update, the build hook regenerates `a2ui.template.builder` automatically before wheels are built.
 
 ---
@@ -159,15 +166,15 @@ In the A2UI repository, the builder generation is wired into the build lifecycle
 
 The generator maps JSON schema types to Python type annotations:
 
-| A2UI Catalog JSON Type | Generated Python Type Annotation | Description |
-| :--- | :--- | :--- |
-| `DynamicString` | `Union[str, DataBinding]` | Literal string or client data model binding. |
-| `DynamicNumber` | `Union[int, float, DataBinding]` | Numeric literal or client data model binding. |
-| `DynamicBoolean` | `Union[bool, DataBinding]` | Boolean flag or client data model binding. |
-| `ComponentId` / `child` | `Union[ComponentBuilder, Dict[str, Any], str]` | Single child component, raw dict AST, or ID reference. |
-| `ChildList` / `children` | `Union[List[Union[ComponentBuilder, Dict[str, Any], str]], Dict[str, Any]]` | Multi-child list or inline loop definition. |
-| `Action` | `Union[ActionRef, Dict[str, Any], str]` | Action event definition or action ID. |
-| `enum` (e.g. `variant`) | `Literal["h1", "h2", "h3", "h4", "h5", "caption", "body"]` | Strict string literals for IDE auto-complete. |
+| A2UI Catalog JSON Type   | Generated Python Type Annotation                                            | Description                                            |
+| :----------------------- | :-------------------------------------------------------------------------- | :----------------------------------------------------- |
+| `DynamicString`          | `Union[str, DataBinding]`                                                   | Literal string or client data model binding.           |
+| `DynamicNumber`          | `Union[int, float, DataBinding]`                                            | Numeric literal or client data model binding.          |
+| `DynamicBoolean`         | `Union[bool, DataBinding]`                                                  | Boolean flag or client data model binding.             |
+| `ComponentId` / `child`  | `Union[ComponentBuilder, Dict[str, Any], str]`                              | Single child component, raw dict AST, or ID reference. |
+| `ChildList` / `children` | `Union[List[Union[ComponentBuilder, Dict[str, Any], str]], Dict[str, Any]]` | Multi-child list or inline loop definition.            |
+| `Action`                 | `Union[ActionRef, Dict[str, Any], str]`                                     | Action event definition or action ID.                  |
+| `enum` (e.g. `variant`)  | `Literal["h1", "h2", "h3", "h4", "h5", "caption", "body"]`                  | Strict string literals for IDE auto-complete.          |
 
 ---
 
@@ -189,7 +196,7 @@ from .types import TextVariant, FlexAlign, FlexJustify, DividerAxis
 @dataclass
 class Text(ComponentBuilder):
     """Text component for structured typographic display.
-    
+
     Parameters:
         text: The text content to display, or a DataBinding path.
         variant: Typographic hierarchy level ('h1' through 'h5', 'caption', 'body').
@@ -214,7 +221,7 @@ class Text(ComponentBuilder):
 @dataclass
 class Column(ComponentBuilder):
     """Vertical layout container.
-    
+
     Parameters:
         children: List of child component builders or raw AST dicts.
         align: Cross-axis alignment ('start', 'center', 'end', 'stretch').
@@ -244,7 +251,7 @@ class Column(ComponentBuilder):
 @dataclass
 class Card(ComponentBuilder):
     """Visual surface container card.
-    
+
     Parameters:
         child: Single child component contained within the card surface.
         id: Optional explicit component identifier.
@@ -330,18 +337,21 @@ project_template = DynamicTemplate(
 When developers write code using fluent builders, IDEs (VS Code / Pylance, PyCharm, Cursor) and static type checkers (`mypy`, `pyright`) catch errors before runtime:
 
 ### 1. Typo Prevention
+
 ```python
 # Mypy Error: Unexpected keyword argument "algn" for "Column"
 Column(children=[], algn="center")
 ```
 
 ### 2. Slot Type Validation
+
 ```python
 # Mypy Error: Argument "child" to "Card" has incompatible type "int"; expected "ComponentBuilder | dict | str"
 Card(child=123)
 ```
 
 ### 3. Enum Variant Checking
+
 ```python
 # Mypy Error: Argument "variant" to "Text" has incompatible type 'Literal["heading1"]'; expected 'Literal["h1", "h2", ...]'
 Text("Title", variant="heading1")
@@ -352,6 +362,7 @@ Text("Title", variant="heading1")
 ## 9. Polymorphic Engine Interoperability
 
 Because the engine's [`flatten_nested_layout()`](file:///Users/jsimionato/development/a2ui_repos/templates/a2ui/agent_sdks/python/a2ui_agent/src/a2ui/template/models.py#L358) includes duck-type normalization (`hasattr(node, "to_dict")`), fluent builder trees:
+
 - Are flattened automatically into canonical Basic Catalog primitives with synthetic IDs (`root`, `{parent}_{slot}_{index}_{type}`).
 - Can be freely mixed with raw dictionaries, dataclasses, or Pydantic models anywhere in the hierarchy.
 - Require zero modifications to `TemplateProcessor` or `TemplateInferenceFormat`.

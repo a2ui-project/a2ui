@@ -2,11 +2,12 @@
 
 ## Abstract
 
-This proposal extends the A2UI Templates architecture to support **client-side template expansion** and **dynamic template federation over the Model Context Protocol (MCP)**. 
+This proposal extends the A2UI Templates architecture to support **client-side template expansion** and **dynamic template federation over the Model Context Protocol (MCP)**.
 
 While server-expanded templates expand into canonical Basic Catalog primitives prior to leaving the Agent SDK, **client-expanded templates** are transported as compact JSON definitions over the wire. Templates can be bundled directly in `createSurface` or dynamically streamed via a new `updateTemplates` protocol message. Furthermore, components inside `updateComponents` can explicitly reference remote templates via a `templateSource` property (analogous to component-level `catalogId` in A2UI v1.0). When an unknown template source is encountered, the client framework dynamically fetches the template from the designated MCP server or endpoint, caches it locally, and synchronously inflates the layout tree on the client.
 
 This architecture enables:
+
 1. **Extreme Wire Efficiency**: Transmitting compact parameter payloads over low-bandwidth channels instead of extensive repetitive component graphs.
 2. **Decoupled Multi-Agent & Tool UI Federation**: Independent MCP servers (e.g., GitHub, Jira, Salesforce) can publish and maintain their own specialized UI templates without requiring the core conversational agent to know their visual layout details.
 3. **Reactive Edge Expansion**: Instant client-side re-inflation when local data models mutate, without server roundtrips.
@@ -16,14 +17,18 @@ This architecture enables:
 ## 1. Motivation & Problem Statement
 
 ### The Multi-Agent & MCP UI Dilemma
-In modern AI agent ecosystems, a central orchestrating agent often communicates with multiple specialized tools and subagents via the Model Context Protocol (MCP). 
+
+In modern AI agent ecosystems, a central orchestrating agent often communicates with multiple specialized tools and subagents via the Model Context Protocol (MCP).
 
 Under the existing model:
+
 - **Approach A (Server-expanded templates)**: The orchestrator's backend must hold all template layouts in memory. If a GitHub MCP server wants to display a Pull Request Card, the orchestrator needs to know the exact YAML layout of that card. This breaks tool encapsulation.
 - **Approach B (Raw Basic Catalog components from tools)**: The MCP tool returns hundreds of raw UI primitives in its tool output. This significantly inflates token usage and wire payload size.
 
 ### The Solution: Client-Expanded Federated Templates
+
 Client-expanded templates solve this dilemma:
+
 - The MCP server serves as the **Template Authority**, emitting specialized template definitions via `updateTemplates`.
 - The central orchestrator outputs only a compact invocation:
   ```json
@@ -84,6 +89,7 @@ Initial templates known at surface creation time can be transported directly ins
 For templates delivered after surface creation, or emitted dynamically by connected MCP servers, the protocol introduces the top-level `updateTemplates` message.
 
 #### Schema Specification:
+
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -116,6 +122,7 @@ For templates delivered after surface creation, or emitted dynamically by connec
 ```
 
 #### Example Message:
+
 ```json
 {
   "version": "v1.0",
@@ -191,6 +198,7 @@ Analogously, client-expanded templates introduce `template` and `templateSource`
 ```
 
 #### Property Definitions:
+
 - **`template`** (string, required): The ID of the template to instantiate (e.g. `"PullRequestCard"`).
 - **`templateSource`** (string, optional): The URI or namespace of the template provider.
   - Can be an MCP URI: `mcp://<serverId>/<endpoint>`
@@ -218,18 +226,18 @@ sequenceDiagram
     Note over Agent, Client: User asks: "Show me PR #342"
     Agent->>MCP: Call tool: get_pull_request(342)
     MCP-->>Agent: Returns PR data {prNumber: 342, title: "Add client templates", ...}
-    
+
     Agent->>Client: updateComponents(components: [{id: "card_1", template: "PullRequestCard", templateSource: "mcp://github-server/templates", parameters: {...}}])
-    
+
     Note over Client: Client checks local template cache for "PullRequestCard" from "mcp://github-server/templates"... (MISS)
-    
+
     Client->>UI: Render Skeleton / Placeholder for "card_1"
-    
+
     Client->>MCP: Request MCP Resource or Tool: get_template("PullRequestCard")
     MCP-->>Client: updateTemplates(templateSource: "mcp://github-server/templates", templates: [PullRequestCard])
-    
+
     Note over Client: Client caches PullRequestCard<br/>Expands template locally with parameters<br/>Injects synthetic child components
-    
+
     Client->>UI: Smoothly replaces Skeleton with rendered PullRequestCard!
 ```
 
@@ -251,12 +259,15 @@ The architecture supports both delivery patterns:
 ## 5. Client Expansion Engine & Lifecycle
 
 ### 5.1 Deterministic Client Synthetic ID Generation
+
 When the client-side A2UI framework expands a template, it preserves the existing adjacency list component architecture. It generates synthetic IDs for all internal components of the template layout:
 
 $$\text{syntheticId} = \{\text{hostId}\} \mathbin{\_} \{\text{slotName}\} \mathbin{\_} \{\text{index}\} \mathbin{\_} \{\text{componentType}\}$$
 
 #### Example Expansion:
+
 Given host component:
+
 ```json
 {
   "id": "team_lead_widget",
@@ -266,6 +277,7 @@ Given host component:
 ```
 
 The client engine replaces `team_lead_widget` in its active render tree with:
+
 ```json
 [
   {
@@ -297,14 +309,18 @@ The client engine replaces `team_lead_widget` in its active render tree with:
 ```
 
 ### 5.2 Progressive Rendering & Skeleton Loading
+
 Because remote template retrieval involves an asynchronous network hop, the client framework must provide a seamless user experience:
+
 1. **Placeholder State**: When an un-cached template is encountered, the client mounts a canonical placeholder (e.g. an animated skeleton card with the specified dimensions or basic text).
 2. **Progressive Mounting**: Once `updateTemplates` is processed, the placeholder is smoothly replaced with the expanded component tree without unmounting neighboring components.
 3. **Timeout Fallback**: If the template source fails to resolve within a configurable timeout (default: 3000ms), a clean error card is displayed:
    `"Unable to load template 'PullRequestCard' from mcp://github-server/templates"`.
 
 ### 5.3 Two-Way Client Data Binding Interoperability
+
 Client-expanded templates have direct, low-latency access to the client's `DataModel`:
+
 - **Local Interpolation**: If a template parameter contains a data binding path (e.g. `path: "/currentUser/name"`), the client resolves it reactively against the local surface data store.
 - **Dynamic Updates**: When the agent sends `updateDataModel`, any client-expanded template bound to that path automatically updates without needing re-expansion.
 
@@ -313,6 +329,7 @@ Client-expanded templates have direct, low-latency access to the client's `DataM
 ## 6. End-to-End Concrete Example
 
 ### Step 1: MCP Server Emits `updateTemplates`
+
 ```json
 {
   "version": "v1.0",
@@ -351,6 +368,7 @@ Client-expanded templates have direct, low-latency access to the client's `DataM
 ```
 
 ### Step 2: Agent Sends Compact `updateComponents`
+
 ```json
 {
   "version": "v1.0",
@@ -388,6 +406,7 @@ Client-expanded templates have direct, low-latency access to the client's `DataM
 ```
 
 ### Step 3: Client Inflates Component Subtrees Locally
+
 The client expands `server_1` and `server_2` into native `Card`, `Column`, `Row`, and `Text` nodes, rendering the complete dashboard with zero server expansion overhead.
 
 ---
@@ -395,27 +414,35 @@ The client expands `server_1` and `server_2` into native `Card`, `Column`, `Row`
 ## 7. Edge Cases & Boundary Conditions
 
 ### 1. Template Namespace Collisions
+
 **Problem**: Two distinct MCP servers (e.g. `mcp://github` and `mcp://gitlab`) both define a template named `IssueCard`.
 **Solution**: Templates are keyed internally in the client cache by the composite tuple `(templateSource, templateId)`. If `templateSource` is omitted in the invocation, the resolution order is:
+
 1. Active surface local templates.
 2. Global session templates.
 3. Fallback error if multiple matching templates exist in different sources.
 
 ### 2. Security & Declarative Sandboxing
+
 **Risk**: Can an untrusted MCP server deliver malicious executable scripts inside a template?
-**Mitigation**: 
+**Mitigation**:
+
 - A2UI templates are strictly **declarative JSON data structures** validating against `template_definition.json`.
-- Templates contain *no executable code*, JavaScript, or eval functions.
+- Templates contain _no executable code_, JavaScript, or eval functions.
 - The client engine validates all component types within a template against the surface's allowed `catalogId`. A template cannot invoke unverified or unauthorized custom components.
 
 ### 3. Client Recursion Limits
+
 To prevent cyclic template references (e.g. Template `A` invokes Template `B` which invokes Template `A`), the client expansion engine maintains a call-stack set and enforces a strict depth limit:
+
 ```typescript
 const MAX_CLIENT_TEMPLATE_DEPTH = 16;
 ```
+
 If this depth is exceeded, the client halts expansion and marks the node as `TemplateRecursionError`.
 
 ### 4. Cache Persistence & Invalidation
+
 - **Session Cache**: Cached in memory for the duration of the client connection.
 - **Persistent Cache (Optional)**: If the client enables local storage caching (e.g. IndexedDB), templates with versioned sources (e.g. `mcp://github/templates/v1.2.0`) can be cached across browser refreshes, making subsequent loads instant.
 - **Invalidation**: Sending an `updateTemplates` message with `replace: true` flushes the cache for that `templateSource`.
@@ -424,11 +451,11 @@ If this depth is exceeded, the client halts expansion and marks the node as `Tem
 
 ## 8. Summary Comparison: Server vs. Client Expansion
 
-| Feature | Server-Expanded Templates | Client-Expanded Templates |
-| :--- | :--- | :--- |
-| **Expansion Location** | Agent SDK (Server-Side) | A2UI Framework / Renderer (Client-Side) |
-| **Wire Protocol Payload** | Standard Basic Catalog primitives (`Card`, `Text`, etc.) | Compact JSON template references & `updateTemplates` |
-| **Client Requirement** | Zero. Any standard Basic Catalog renderer works. | Client must include template inflation logic (`@a2ui/templates`). |
-| **Dynamic Tool Federation** | Central orchestrator must hold all tool templates. | Autonomous MCP servers publish templates dynamically via `updateTemplates`. |
-| **Confidential Data Resolution** | Excellent (secure server callbacks query private DBs). | Moderate (private data must be transmitted to the client). |
-| **Wire Bandwidth** | Higher (expanded component graphs sent over wire). | Minimal (only parameters and IDs sent over wire). |
+| Feature                          | Server-Expanded Templates                                | Client-Expanded Templates                                                   |
+| :------------------------------- | :------------------------------------------------------- | :-------------------------------------------------------------------------- |
+| **Expansion Location**           | Agent SDK (Server-Side)                                  | A2UI Framework / Renderer (Client-Side)                                     |
+| **Wire Protocol Payload**        | Standard Basic Catalog primitives (`Card`, `Text`, etc.) | Compact JSON template references & `updateTemplates`                        |
+| **Client Requirement**           | Zero. Any standard Basic Catalog renderer works.         | Client must include template inflation logic (`@a2ui/templates`).           |
+| **Dynamic Tool Federation**      | Central orchestrator must hold all tool templates.       | Autonomous MCP servers publish templates dynamically via `updateTemplates`. |
+| **Confidential Data Resolution** | Excellent (secure server callbacks query private DBs).   | Moderate (private data must be transmitted to the client).                  |
+| **Wire Bandwidth**               | Higher (expanded component graphs sent over wire).       | Minimal (only parameters and IDs sent over wire).                           |
