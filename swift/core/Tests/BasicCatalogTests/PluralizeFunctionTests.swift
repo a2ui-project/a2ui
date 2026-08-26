@@ -39,7 +39,8 @@ private final class MockPluralResolver: PluralResolver, @unchecked Sendable {
 
 struct PluralizeFunctionTests {
 
-  let function = PluralizeFunction()
+  let function = PluralizeFunction(locale: Locale(identifier: "en_US"))
+  let welshFunction = PluralizeFunction(locale: Locale(identifier: "cy"))
   let context = DataContext(
     dataModel: DataModel(), path: "", functionHandler: MockFunctionHandler())
 
@@ -50,7 +51,7 @@ struct PluralizeFunctionTests {
     #expect(function.api.returnType == .string)
   }
 
-  // MARK: - Evaluation (Default Heuristic)
+  // MARK: - Evaluation (Built-in CLDR resolver)
 
   @Test func returnsOneWhenValueIsOne() throws {
     let result = try function.evaluate(
@@ -72,7 +73,7 @@ struct PluralizeFunctionTests {
   }
 
   @Test func returnsZeroWhenValueIsZeroAndZeroIsProvided() throws {
-    let result = try function.evaluate(
+    let result = try welshFunction.evaluate(
       arguments: [
         "value": .number(0),
         "zero": .string("No items"),
@@ -82,7 +83,7 @@ struct PluralizeFunctionTests {
   }
 
   @Test func returnsOtherWhenValueIsZeroAndZeroIsMissing() throws {
-    let result = try function.evaluate(
+    let result = try welshFunction.evaluate(
       arguments: [
         "value": .number(0),
         "other": .string("0 items"),
@@ -91,7 +92,7 @@ struct PluralizeFunctionTests {
   }
 
   @Test func returnsTwoWhenValueIsTwoAndTwoIsProvided() throws {
-    let result = try function.evaluate(
+    let result = try welshFunction.evaluate(
       arguments: [
         "value": .number(2),
         "two": .string("a pair of items"),
@@ -108,6 +109,18 @@ struct PluralizeFunctionTests {
         "other": .string("100 items"),
       ], context: context)
     #expect(result == .string("100 items"))
+  }
+
+  @Test(arguments: [0.0, 2.0])
+  func englishUsesOtherForZeroAndTwo(value: Double) throws {
+    let result = try function.evaluate(
+      arguments: [
+        "value": .number(value),
+        "zero": .string("zero"),
+        "two": .string("two"),
+        "other": .string("other"),
+      ], context: context)
+    #expect(result == .string("other"))
   }
 
   @Test func worksWithNumericStrings() throws {
