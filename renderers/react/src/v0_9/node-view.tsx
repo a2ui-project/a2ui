@@ -114,18 +114,16 @@ type ChildIndex = Map<string, ComponentNode<ReactComponentImplementation>>;
 
 /**
  * Registers a child and returns the token views should hand back to
- * `buildChild`: the component id, or the node's `instanceId` (distinct per
- * position) when the same component is referenced twice at one scope.
+ * `buildChild`: the node's `instanceId`, which is distinct per position and
+ * cannot collide with another node's token. For a component referenced once
+ * at the parent's scope, the instanceId is the component id.
  */
 function registerChild(
   index: ChildIndex,
   child: ComponentNode<ReactComponentImplementation>,
 ): string {
-  const token = index.has(`${child.componentId}@${child.dataPath}`)
-    ? child.instanceId
-    : child.componentId;
-  index.set(`${token}@${child.dataPath}`, child);
-  return token;
+  index.set(`${child.instanceId}@${child.dataPath}`, child);
+  return child.instanceId;
 }
 
 /**
