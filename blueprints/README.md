@@ -2,7 +2,7 @@
 
 > [!IMPORTANT]
 > **INSTRUCTION FOR AI AGENTS:**
-> **1. IGNORE THIS ENTIRE `blueprints/` FOLDER AND ALL FILES WITHIN IT** during normal coding, debugging, or feature implementation tasks, **UNLESS** the user explicitly specifies that they want to use blueprints or Spec-Driven Development (SDD), or unless you are explicitly asked to work on blueprint files.
+> **IGNORE THIS ENTIRE `blueprints/` FOLDER AND ALL FILES WITHIN IT** during normal coding, debugging, or feature implementation tasks, **UNLESS** the user explicitly specifies that they want to use blueprints or Spec-Driven Development (SDD), or unless you are explicitly asked to work on blueprint files.
 
 ---
 
