@@ -42,7 +42,7 @@ This section describes goals at a high level. See concrete steps in the section 
 
 See [all github labels](https://github.com/a2ui-project/a2ui/labels).
 
-Two of these are automated by [scripts/triage.mjs](../../scripts/triage.mjs): `status: needs-triage` is added and removed entirely by the bot, and `status: waiting-for-author-response` is applied by hand — while it is set the item stays out of the triage queue, and the bot removes it once the author has posted a reply, review, or review comment after the label went on. Replies from anyone else do not clear it, and neither does the author pushing commits without saying anything; remove it by hand in those cases.
+Two of these are automated by [scripts/triage.mjs](../../scripts/triage.mjs): `status: needs-triage` is added and removed entirely by the bot, and `status: waiting-for-author-response` is applied by hand — while it is set the item stays out of the triage queue, and the bot removes it once an external contributor has posted a reply, review, or review comment after the label went on. Replies from the team do not clear it, and neither do commits pushed without a word; remove it by hand in those cases.
 
 ## Triage responsibilities
 
