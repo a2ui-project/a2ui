@@ -5,10 +5,7 @@
   "type": "array",
   "items": {
     "type": "object",
-    "required": [
-      "name",
-      "action"
-    ],
+    "required": ["name", "action"],
     "properties": {
       "name": {
         "type": "string",
@@ -46,10 +43,7 @@
         "description": "Identifier of the template being expanded."
       },
       "base_catalog": {
-        "type": [
-          "object",
-          "null"
-        ],
+        "type": ["object", "null"],
         "description": "Optional base catalog schema provided to processor."
       },
       "args": {

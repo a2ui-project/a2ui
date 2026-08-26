@@ -3,13 +3,14 @@
 The `a2ui.inference_formats.experimental.template` package provides server-side UI template expansion and synthetic catalog compilation for the A2UI Python Agent SDK.
 
 For the language-agnostic protocol specification, JSON schemas, and multi-platform design guidelines, see:
-👉 **[`specification/proposals/templates/README.md`](../../../../../../specification/proposals/templates/README.md)**
+👉 **[`specification/proposals/templates/README.md`](../../../../../../../../specification/proposals/templates/README.md)**
 
 ---
 
 ## Python API Reference
 
 ### 1. `StaticTemplate`
+
 Represents a declarative, immutable UI template parsed from YAML or a dictionary.
 
 ```python
@@ -23,9 +24,11 @@ single_template = StaticTemplate.from_yaml(yaml_string)
 ```
 
 ### 2. `DynamicTemplate`
+
 Extends templates with server-side execution. Supports two modes:
 
 #### A. Data-Binding Mode (`resolver + layout`)
+
 Takes a lookup argument (e.g. `employeeId`), runs a resolver callback, and injects the result into a static YAML presentation layout:
 
 ```python
@@ -46,6 +49,7 @@ dynamic_salary = DynamicTemplate(
 ```
 
 #### B. Programmatic Render Mode (`render`)
+
 Bypasses static layouts and runs native Python logic (loops, arithmetic, conditionals) returning a component AST:
 
 ```python
@@ -73,6 +77,7 @@ server_template = DynamicTemplate(
 ```
 
 ### 3. `TemplateProcessor`
+
 The core synchronous template expansion and catalog generation engine.
 
 ```python
@@ -96,6 +101,7 @@ expanded_components: A2UIComponentList = processor.expand_template(
 ```
 
 ### 4. `TemplateInferenceFormat`
+
 Integrates templates seamlessly with LLM prompting and parsing.
 
 ```python

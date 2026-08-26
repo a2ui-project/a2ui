@@ -1,3 +1,17 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 - name: test_exact_integer_preservation
   description: Verifies that exact token match preserves integer type without string
     coercion.
@@ -22,13 +36,13 @@
     value: ${tags}
     params:
       tags:
-      - admin
-      - developer
-      - tester
+        - admin
+        - developer
+        - tester
   expect:
-  - admin
-  - developer
-  - tester
+    - admin
+    - developer
+    - tester
 - name: test_exact_object_preservation
   description: Verifies that exact token match preserves nested dictionary structure.
   action: substitute_params
@@ -93,16 +107,16 @@
     value: ${teams.0.members.1.name}
     params:
       teams:
-      - members:
-        - name: First
-        - name: Second
+        - members:
+            - name: First
+            - name: Second
   expect: Second
 - name: test_format_expression_ast
   description: Verifies evaluating format expression dictionary with arguments.
   action: substitute_params
   args:
     value:
-      format: 'Progress: {current} of {total} ({pct}%)'
+      format: "Progress: {current} of {total} ({pct}%)"
       args:
         current: ${metrics.completed}
         total: ${metrics.total}
@@ -111,7 +125,7 @@
       metrics:
         completed: 15
         total: 20
-  expect: 'Progress: 15 of 20 (75%)'
+  expect: "Progress: 15 of 20 (75%)"
 - name: test_concat_expression_ast
   description: Verifies evaluating concat expression combining string literals and
     param references.
@@ -119,15 +133,15 @@
   args:
     value:
       concat:
-      - 'Status: '
-      - param: state
-      - ' ('
-      - param: code
-      - )
+        - "Status: "
+        - param: state
+        - " ("
+        - param: code
+        - )
     params:
       state: OK
       code: 200
-  expect: 'Status: OK (200)'
+  expect: "Status: OK (200)"
 - name: test_concat_with_none_omits_part
   description: Verifies that None or unresolved parts in concat do not insert 'None'
     strings.
@@ -135,9 +149,9 @@
   args:
     value:
       concat:
-      - Prefix-
-      - param: missing
-      - -Suffix
+        - Prefix-
+        - param: missing
+        - -Suffix
     params: {}
   expect: Prefix--Suffix
 - name: test_param_ref_with_default

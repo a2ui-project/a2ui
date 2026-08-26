@@ -1,9 +1,23 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 - name: test_single_child_card_expansion
   description: Verifies expanding card container with single child and deterministic
     ID prefixing.
   action: expand_template
   template:
-    version: '0.1'
+    version: "0.1"
     templateId: SimpleCard
     parameters:
       title:
@@ -18,17 +32,17 @@
   args:
     title: Welcome
   expect:
-  - id: card_inst
-    component: Card
-    child: card_inst_child_text
-  - id: card_inst_child_text
-    component: Text
-    text: Welcome
+    - id: card_inst
+      component: Card
+      child: card_inst_child_text
+    - id: card_inst_child_text
+      component: Text
+      text: Welcome
 - name: test_default_param_values
   description: Verifies default value is assigned when argument is omitted.
   action: expand_template
   template:
-    version: '0.1'
+    version: "0.1"
     templateId: ProfileHeader
     parameters:
       name:
@@ -39,31 +53,31 @@
     layout:
       component: Column
       children:
-      - component: Text
-        text: ${name}
-      - component: Text
-        text: ${role}
+        - component: Text
+          text: ${name}
+        - component: Text
+          text: ${role}
   instance_id: prof_1
   template_id: ProfileHeader
   args:
     name: Bob
   expect:
-  - id: prof_1
-    component: Column
-    children:
-    - prof_1_child_0_text
-    - prof_1_child_1_text
-  - id: prof_1_child_0_text
-    component: Text
-    text: Bob
-  - id: prof_1_child_1_text
-    component: Text
-    text: Team Member
+    - id: prof_1
+      component: Column
+      children:
+        - prof_1_child_0_text
+        - prof_1_child_1_text
+    - id: prof_1_child_0_text
+      component: Text
+      text: Bob
+    - id: prof_1_child_1_text
+      component: Text
+      text: Team Member
 - name: test_higher_order_child_slot
   description: Verifies passing a component ID into a child slot parameter.
   action: expand_template
   template:
-    version: '0.1'
+    version: "0.1"
     templateId: ContainerSlot
     parameters:
       content:
@@ -76,15 +90,15 @@
   args:
     content: custom_chart_comp_id
   expect:
-  - id: slot_inst
-    component: Card
-    child: custom_chart_comp_id
+    - id: slot_inst
+      component: Card
+      child: custom_chart_comp_id
 - name: test_unfilled_optional_child_slot_omitted
   description: Verifies that when an optional child slot parameter is omitted, the
     child property is omitted from output.
   action: expand_template
   template:
-    version: '0.1'
+    version: "0.1"
     templateId: OptionalChildCard
     parameters:
       optionalChild:
@@ -97,13 +111,13 @@
   template_id: OptionalChildCard
   args: {}
   expect:
-  - id: opt_card
-    component: Card
+    - id: opt_card
+      component: Card
 - name: test_higher_order_action_slot
   description: Verifies binding an Action object to a button action slot via parameter.
   action: expand_template
   template:
-    version: '0.1'
+    version: "0.1"
     templateId: ActionButton
     parameters:
       label:
@@ -123,19 +137,19 @@
       parameters:
         env: production
   expect:
-  - id: btn_inst
-    component: Button
-    text: Deploy
-    action:
-      name: triggerDeployment
-      parameters:
-        env: production
+    - id: btn_inst
+      component: Button
+      text: Deploy
+      action:
+        name: triggerDeployment
+        parameters:
+          env: production
 - name: test_data_binding_passthrough
   description: Verifies passing a client DataBinding dictionary through a parameter
     preserving dictionary structure.
   action: expand_template
   template:
-    version: '0.1'
+    version: "0.1"
     templateId: BoundMetric
     parameters:
       label:
@@ -152,41 +166,41 @@
     valueBinding:
       path: /system/cpu/usage
   expect:
-  - id: bound_txt
-    component: Text
-    text:
-      path: /system/cpu/usage
+    - id: bound_txt
+      component: Text
+      text:
+        path: /system/cpu/usage
 - name: test_nested_template_invocation
   description: Verifies a parent template layout referencing a child template expanding
     recursively.
   action: expand_template
   templates:
-  - version: '0.1'
-    templateId: Badge
-    parameters:
-      text:
-        type: string
-    layout:
-      component: Text
-      text: '[${text}]'
-  - version: '0.1'
-    templateId: BadgeCard
-    parameters:
-      tag:
-        type: string
-    layout:
-      component: Card
-      child:
-        component: Badge
-        text: ${tag}
+    - version: "0.1"
+      templateId: Badge
+      parameters:
+        text:
+          type: string
+      layout:
+        component: Text
+        text: "[${text}]"
+    - version: "0.1"
+      templateId: BadgeCard
+      parameters:
+        tag:
+          type: string
+      layout:
+        component: Card
+        child:
+          component: Badge
+          text: ${tag}
   instance_id: parent_inst
   template_id: BadgeCard
   args:
     tag: PRO
   expect:
-  - id: parent_inst
-    component: Card
-    child: parent_inst_child_badge
-  - id: parent_inst_child_badge
-    component: Text
-    text: '[PRO]'
+    - id: parent_inst
+      component: Card
+      child: parent_inst_child_badge
+    - id: parent_inst_child_badge
+      component: Text
+      text: "[PRO]"
