@@ -915,6 +915,36 @@ describe('NodeResolver stale event delivery', () => {
     resolver.dispose();
   });
 
+  it('keeps waiting for a component whose add and remove both preceded a delayed delivery', async () => {
+    const catalog = makeCatalog();
+    const surface = new SurfaceModel('surf-1', catalog);
+    surface.componentsModel.onCreated.subscribe(async () => {
+      await flush();
+    });
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'Column', {children: ['kid']});
+    await flush();
+    await flush();
+
+    // The delayed onCreated delivery clears the waiting registration; the
+    // deletion then reuses the pending placeholder. A later legitimate add
+    // must still upgrade it.
+    add(surface, 'kid', 'Text', {text: 'one'});
+    surface.componentsModel.removeComponent('kid');
+    await flush();
+    await flush();
+    add(surface, 'kid', 'Text', {text: 'two'});
+    await flush();
+    await flush();
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const kid = child(root, 'children', 0);
+    assert.strictEqual(kid.state, 'resolved');
+    assert.strictEqual(bound(kid, 'text'), 'two');
+    resolver.dispose();
+  });
+
   it('rebinds a child node whose component model was replaced before a delayed deletion delivery', async () => {
     const catalog = makeCatalog();
     const surface = new SurfaceModel('surf-1', catalog);

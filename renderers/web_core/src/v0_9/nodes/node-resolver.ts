@@ -291,12 +291,7 @@ export class NodeResolver<
         {edgeKey, parent, occurrence, refFields: EMPTY_REF_FIELDS},
       );
       if (parent) {
-        let waiting = this.pendingParents.get(componentId);
-        if (!waiting) {
-          waiting = new Set();
-          this.pendingParents.set(componentId, waiting);
-        }
-        waiting.add(parent);
+        this.registerPendingParent(componentId, parent);
       }
       return record.node;
     }
@@ -465,11 +460,27 @@ export class NodeResolver<
             existing.type === model.type &&
             existingRecord?.componentModel === model);
       if (upToDate) {
+        if (existing.state === 'pending') {
+          // A deletion delivered between this component's add and remove
+          // clears the waiting registration; reusing the placeholder without
+          // restoring it would leave a later legitimate add unnoticed.
+          this.registerPendingParent(componentId, parent);
+        }
         return existing;
       }
       this.disposeNode(existing);
     }
     return this.createNode(componentId, dataPath, edgeKey, parent, occurrence);
+  }
+
+  /** Registers a parent to be refreshed when `componentId` arrives. */
+  private registerPendingParent(componentId: string, parent: MutableComponentNode): void {
+    let waiting = this.pendingParents.get(componentId);
+    if (!waiting) {
+      waiting = new Set();
+      this.pendingParents.set(componentId, waiting);
+    }
+    waiting.add(parent);
   }
 
   /** True when (componentId, dataPath) already appears in the parent chain. */
