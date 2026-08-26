@@ -13,28 +13,28 @@
 // limitations under the License.
 
 import '../primitives/errors.dart';
+import '../primitives/protocol_version.dart';
 
 /// Base class for all A2UI messages.
 abstract class A2uiMessage {
+  /// The protocol version this message declares, as it appears on the wire.
   final String version;
+
   A2uiMessage({this.version = 'v0.9'});
 
+  /// The parsed protocol version this message declares.
+  A2uiProtocolVersion get protocolVersion =>
+      A2uiProtocolVersion.fromJson(version);
+
   /// Deserializes a JSON envelope into a typed [A2uiMessage].
+  ///
+  /// Throws [A2uiValidationError] if the envelope omits `version` or declares
+  /// a protocol version this SDK does not implement.
   factory A2uiMessage.fromJson(Map<String, dynamic> json) {
-    final Object? rawVersion = json['version'];
-    if (rawVersion is! String) {
-      throw A2uiValidationError(
-        "A2UI message must have a string 'version' field.",
-        details: json,
-      );
-    }
-    if (rawVersion != 'v0.9') {
-      throw A2uiValidationError(
-        "A2UI message must have version 'v0.9' (got '$rawVersion').",
-        details: json,
-      );
-    }
-    final String version = rawVersion;
+    final String version = A2uiProtocolVersion.fromJson(
+      json['version'],
+      details: json,
+    ).jsonValue;
 
     const messageBodyKeys = {
       'createSurface',

@@ -475,3 +475,98 @@
   action: verify_cuttable_keys
   expect:
     custom_cuttable_keys: ["customKey1", "customKey2"]
+
+# --- Basic catalog pruning (v0.9) ---
+#
+# The `$defs/anyComponent` and `$defs/anyFunction` unions of a catalog document
+# must be narrowed alongside the entries they reference, otherwise a pruned
+# catalog still advertises components the agent may not emit. The ref shapes
+# here match `specification/v0_9_1/catalogs/basic/catalog.json`.
+
+- name: test_prune_components_narrows_any_component_union
+  description: Pruning components narrows the anyComponent union to the kept components.
+  catalog:
+    version: "0.9"
+    catalog_schema:
+      catalogId: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+      components:
+        Text: {type: object}
+        Card: {type: object}
+        Button: {type: object}
+        Video: {type: object}
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Text"
+            - $ref: "#/components/Card"
+            - $ref: "#/components/Button"
+            - $ref: "#/components/Video"
+  action: prune
+  args:
+    allowed_components: [Text, Card, Button]
+  expect:
+    catalog_schema:
+      catalogId: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+      components:
+        Text: {type: object}
+        Card: {type: object}
+        Button: {type: object}
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Text"
+            - $ref: "#/components/Card"
+            - $ref: "#/components/Button"
+
+- name: test_prune_functions_narrows_any_function_union
+  description: Pruning functions narrows the anyFunction union to the kept functions.
+  catalog:
+    version: "0.9"
+    catalog_schema:
+      catalogId: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+      components:
+        Text: {type: object}
+      functions:
+        required: {type: object}
+        email: {type: object}
+        openUrl: {type: object}
+      $defs:
+        anyFunction:
+          oneOf:
+            - $ref: "#/functions/required"
+            - $ref: "#/functions/email"
+            - $ref: "#/functions/openUrl"
+  action: prune
+  args:
+    allowed_functions: [required, email]
+  expect:
+    catalog_schema:
+      catalogId: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+      components:
+        Text: {type: object}
+      functions:
+        required: {type: object}
+        email: {type: object}
+      $defs:
+        anyFunction:
+          oneOf:
+            - $ref: "#/functions/required"
+            - $ref: "#/functions/email"
+
+- name: test_prune_unknown_component_names_are_ignored
+  description: Allowlist entries the catalog does not declare are ignored, not errors.
+  catalog:
+    version: "0.9"
+    catalog_schema:
+      catalogId: basic
+      components:
+        Text: {type: object}
+        Card: {type: object}
+  action: prune
+  args:
+    allowed_components: [Text, NotInCatalog]
+  expect:
+    catalog_schema:
+      catalogId: basic
+      components:
+        Text: {type: object}

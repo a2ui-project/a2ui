@@ -147,3 +147,61 @@
   action: fix_payload
   input: '[{"a": [1, 2, 3,]}]'
   expect: [{"a": [1, 2, 3]}]
+
+# --- Basic catalog payloads (v0.9) ---
+
+- name: test_parse_response_v0_9_basic_catalog_surface
+  description: Parses a v0.9 payload that creates a surface against the basic catalog.
+  catalog:
+    version: "0.9"
+    catalog_schema: "../specification/v0_9_1/catalogs/basic/catalog.json"
+  action: parse_full
+  input: >-
+    Here you go.<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId":
+    "s1", "catalogId":
+    "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"}}]</a2ui-json>
+  expect:
+    - text: "Here you go."
+      a2ui:
+        - version: "v0.9"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+
+- name: test_parse_response_rejects_v1_0_message
+  description: A payload message declaring v1.0 is rejected by a v0.9 implementation.
+  catalog:
+    version: "0.9"
+    catalog_schema: "../specification/v0_9_1/catalogs/basic/catalog.json"
+  action: parse_full
+  input: >-
+    <a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s1",
+    "catalogId":
+    "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"}}]</a2ui-json>
+  expect_error:
+    category: "ValidationError"
+    message: "v1.0"
+
+- name: test_parse_response_rejects_message_without_version
+  description: A payload message that omits the version field is rejected.
+  catalog:
+    version: "0.9"
+    catalog_schema: "../specification/v0_9_1/catalogs/basic/catalog.json"
+  action: parse_full
+  input: >-
+    <a2ui-json>[{"createSurface": {"surfaceId": "s1", "catalogId":
+    "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"}}]</a2ui-json>
+  expect_error:
+    category: "ValidationError"
+    message: "version"
+
+- name: test_parse_response_rejects_unknown_message_type
+  description: A payload envelope that names no known message body is rejected.
+  catalog:
+    version: "0.9"
+    catalog_schema: "../specification/v0_9_1/catalogs/basic/catalog.json"
+  action: parse_full
+  input: '<a2ui-json>[{"version": "v0.9", "notAMessage": {}}]</a2ui-json>'
+  expect_error:
+    category: "ValidationError"
+    message: "Unknown A2UI message type"

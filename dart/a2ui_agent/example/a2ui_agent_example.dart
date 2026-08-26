@@ -13,8 +13,80 @@
 // limitations under the License.
 
 import 'package:a2ui_agent/a2ui_agent.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 
+/// One agent turn, from startup to messages ready for a renderer.
+///
+/// Most of the SDK is still stubbed, so running this throws
+/// [UnimplementedError] at the first unimplemented step. It is written to show
+/// the intended shape of an integration.
 void main() {
-  var awesome = Awesome();
-  awesome.toString();
+  // 1. Agent startup. Register every catalog the agent can generate UI for,
+  //    narrowed to the components and functions this agent actually uses.
+  final generator = A2uiGenerator<CatalogComponent, CatalogFunction>(
+    catalogs: [
+      CatalogConfig.fromPath(
+        'specification/v0_9_1/catalogs/basic/catalog.json',
+        transformers: [
+          ComponentPruningTransformer(['Card', 'Column', 'Text', 'Button']),
+          FunctionPruningTransformer(['required', 'email']),
+        ],
+      ),
+    ],
+    examples: {
+      'a confirmation card': [
+        CreateSurfaceMessage(
+          surfaceId: 'confirmation',
+          catalogId:
+              'https://a2ui.org/specification/v0_9/'
+              'catalogs/basic/catalog.json',
+        ),
+      ],
+    },
+  );
+
+  // 2. Per request. Negotiate the agent's catalogs against what the renderer
+  //    says it can render. `a2uiClientCapabilities` arrives in transport
+  //    metadata, for example the A2A message metadata.
+  final capabilities = A2uiRendererCapabilities.fromJson({
+    'v0.9': {
+      'supportedCatalogIds': [
+        'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+      ],
+    },
+  });
+  final A2uiRequestProcessor<CatalogComponent, CatalogFunction> processor =
+      generator.createProcessor(capabilities);
+
+  // 3. Inference. Prepend your own role and workflow preamble to the snippet,
+  //    then call your model with it.
+  final systemPrompt =
+      'You are a helpful assistant.\n\n${processor.promptSnippet}';
+  final String modelOutput = callYourModel(systemPrompt);
+
+  // 4. Parse and validate. Conversational text and A2UI payloads come back in
+  //    the order the model emitted them.
+  final List<ResponsePart> parts = processor.parseResponse(modelOutput);
+
+  // 5. Deliver. Text goes to the chat transcript; messages go to the renderer.
+  for (final part in parts) {
+    switch (part) {
+      case TextPart(:final String text):
+        sendTextToUser(text);
+      case A2uiPart(:final List<A2uiMessage> a2ui):
+        sendA2uiToRenderer(a2ui);
+      case ResponsePart():
+        break;
+    }
+  }
 }
+
+/// Stands in for your model call.
+String callYourModel(String systemPrompt) =>
+    throw UnimplementedError('Wire this up to your model.');
+
+/// Stands in for delivering conversational text.
+void sendTextToUser(String text) {}
+
+/// Stands in for delivering A2UI messages to a renderer.
+void sendA2uiToRenderer(List<A2uiMessage> messages) {}

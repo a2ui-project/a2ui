@@ -91,7 +91,9 @@
           "try_activate",
           "select_newest",
           "verify_cuttable_keys",
-          "accessibility_check"
+          "accessibility_check",
+          "data_model",
+          "process_request"
         ]
       }
     },
@@ -121,7 +123,9 @@
           {"$ref": "#/$defs/TryActivateTest"},
           {"$ref": "#/$defs/SelectNewestTest"},
           {"$ref": "#/$defs/VerifyCuttableKeysTest"},
-          {"$ref": "#/$defs/AccessibilityCheckTest"}
+          {"$ref": "#/$defs/AccessibilityCheckTest"},
+          {"$ref": "#/$defs/DataModelTest"},
+          {"$ref": "#/$defs/ProcessRequestTest"}
         ]
       }
     ]
@@ -483,6 +487,111 @@
       },
       "required": ["action", "surface", "assertions"]
     },
+    "DataModelTest": {
+      "type": "object",
+      "properties": {
+        "action": {"const": "data_model"},
+        "initial": {
+          "description": "Initial contents of the data model. Defaults to an empty object."
+        },
+        "watch": {
+          "type": "array",
+          "description": "Paths observed for the duration of the case. A path may repeat to attach more than one observer.",
+          "items": {"type": "string"}
+        },
+        "steps": {
+          "type": "array",
+          "description": "Operations applied to the model, in order.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "description": "The operation to apply.",
+                "enum": ["get", "set", "delete", "dispose"]
+              },
+              "path": {
+                "type": "string",
+                "description": "JSON Pointer the operation targets. Required for every op except dispose."
+              },
+              "value": {"description": "Value to write. Only meaningful for set."},
+              "expect": {
+                "description": "Value the path is expected to hold. Only meaningful for get."
+              },
+              "expect_absent": {
+                "type": "boolean",
+                "description": "Whether the path is expected to hold no value. Only meaningful for get."
+              },
+              "expect_type": {
+                "type": "string",
+                "enum": ["list", "object"],
+                "description": "Structural type the path is expected to hold. Only meaningful for get."
+              },
+              "expect_values": {
+                "type": "object",
+                "description": "Value each watched path holds after this step, keyed by path."
+              },
+              "expect_notified": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Watched paths whose observers fired for this step, one entry per observer that fired."
+              },
+              "expect_error": {"$ref": "#/$defs/ExpectError"}
+            },
+            "required": ["op"]
+          }
+        }
+      },
+      "required": ["steps"]
+    },
+    "ProcessRequestTest": {
+      "type": "object",
+      "properties": {
+        "action": {"const": "process_request"},
+        "args": {
+          "type": "object",
+          "description": "Inputs to one agent turn.",
+          "properties": {
+            "client_capabilities": {
+              "type": "object",
+              "description": "The a2uiClientCapabilities object the renderer sent."
+            },
+            "allowed_components": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Component allowlist applied to the registered catalogs."
+            },
+            "allowed_functions": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Function allowlist applied to the registered catalogs."
+            },
+            "accepts_inline_catalogs": {
+              "type": "boolean",
+              "description": "Whether the agent accepts catalogs supplied inline by the renderer."
+            },
+            "llm_response": {
+              "type": "string",
+              "description": "The complete raw model response for the turn."
+            }
+          },
+          "required": ["client_capabilities", "llm_response"]
+        },
+        "expect_active_catalog_ids": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Catalog ids negotiated for the turn."
+        },
+        "expect_prompt_contains": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Substrings the generated system prompt snippet must contain."
+        },
+        "expect": {"type": "array", "description": "Expected response parts, in order."},
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["args"]
+    },
     "ExpectError": {
       "oneOf": [
         {
@@ -500,7 +609,8 @@
                 "CatalogError",
                 "IntegrityError",
                 "RecursionError",
-                "CompileError"
+                "CompileError",
+                "DataError"
               ]
             },
             "message": {

@@ -14,7 +14,7 @@
 
 name: a2ui_agent
 description: The A2UI agent SDK.
-version: 0.0.1-wip001
+version: 0.0.2-wip001
 repository: https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_agent
 
 resolution: workspace
@@ -23,7 +23,10 @@ environment:
   sdk: ">=3.10.0 <4.0.0"
 
 dependencies:
-  a2ui_core: ^0.1.1
+  a2ui_core: ^0.2.0
+  collection: ^1.18.0
 
 dev_dependencies:
+  path: ^1.9.0
   test: ^1.26.2
+  yaml: ^3.1.2

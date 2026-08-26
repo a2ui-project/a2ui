@@ -326,3 +326,61 @@
     - "### Catalog Schema:"
     - '"Text": {'
     - "---END A2UI JSON SCHEMA---"
+
+# --- Basic catalog loading and negotiation (v0.9) ---
+#
+# These cases load the published basic catalog schema from
+# `specification/v0_9_1/catalogs/basic/catalog.json` rather than any SDK's own
+# catalog, so implementations are measured against the same document. Paths are
+# resolved relative to the `conformance/` directory.
+
+- name: test_load_basic_catalog_v0_9
+  description: Loads the published v0.9 basic catalog document from disk.
+  action: load_catalog
+  catalog_configs:
+    - name: basic
+      path: "../specification/v0_9_1/catalogs/basic/catalog.json"
+  expect:
+    supported_catalog_ids: ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]
+
+- name: test_select_basic_catalog_by_id_v0_9
+  description: A renderer that declares the basic catalog id negotiates to it.
+  action: select_catalog
+  args:
+    supported_catalogs:
+      - catalogId: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+        components: {}
+      - catalogId: id_custom
+        components: {}
+    client_capabilities:
+      supportedCatalogIds: ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]
+  expect_selected: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+
+- name: test_select_catalog_no_overlap_v0_9
+  description: A renderer that supports no registered catalog cannot be served.
+  action: select_catalog
+  args:
+    supported_catalogs:
+      - catalogId: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+        components: {}
+    client_capabilities:
+      supportedCatalogIds: ["https://example.com/catalogs/unknown.json"]
+  expect_error:
+    category: "CatalogError"
+    message: "no matching catalog"
+
+- name: test_select_catalog_rejects_unsupported_protocol_version
+  description: >-
+    Capabilities that carry no entry for a supported protocol version are
+    rejected rather than silently defaulting.
+  action: select_catalog
+  args:
+    supported_catalogs:
+      - catalogId: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+        components: {}
+    client_capabilities_versioned:
+      "v1.0":
+        supportedCatalogIds: ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]
+  expect_error:
+    category: "ValidationError"
+    message: "v0.9"

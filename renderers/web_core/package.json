@@ -154,7 +154,8 @@
     "gts": "^7.0.0",
     "rxjs": "^7.8.2",
     "typescript": "5.9.3",
-    "wireit": "^0.15.0-pre.2"
+    "wireit": "^0.15.0-pre.2",
+    "yaml": "^2.8.1"
   },
   "dependencies": {
     "@preact/signals-core": "^1.14.2",

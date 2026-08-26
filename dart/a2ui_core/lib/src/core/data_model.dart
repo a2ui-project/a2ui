@@ -132,6 +132,15 @@ class DataModel {
             current.add(null);
           }
           current[index] = value;
+        } else {
+          // The parent of the final segment resolved to a primitive, so there
+          // is nothing to write into. Dropping the write silently would hide
+          // a malformed path, so report it.
+          throw A2uiDataError(
+            "Cannot set path '$path': '$lastSegment' is a property of a "
+            'primitive value.',
+            path: path,
+          );
         }
       }
 

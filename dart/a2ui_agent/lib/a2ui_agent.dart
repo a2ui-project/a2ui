@@ -12,8 +12,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// The A2UI agent SDK: catalog management, capability negotiation, prompt
+/// engineering, response parsing and payload validation for agents that
+/// generate A2UI.
+///
+/// This SDK implements version 0.9 of the A2UI protocol. Payloads and
+/// capabilities that declare any other version, or omit the version, are
+/// rejected.
 library;
 
-export 'src/a2ui_agent_base.dart';
-
-// TODO: Export any libraries intended for clients of this package.
+// Catalog transformers.
+export 'src/catalog_transformers/base.dart';
+export 'src/catalog_transformers/pruning.dart';
+// Inference format contracts.
+export 'src/inference_format.dart';
+// DIRECT_JSON format.
+export 'src/inference_formats/direct_json/constants.dart';
+export 'src/inference_formats/direct_json/format.dart';
+export 'src/inference_formats/direct_json/parser.dart';
+export 'src/inference_formats/direct_json/prompt_generator.dart';
+export 'src/inference_formats/direct_json/streaming.dart';
+// EXPRESS format.
+export 'src/inference_formats/express/compiler.dart';
+export 'src/inference_formats/express/constants.dart';
+export 'src/inference_formats/express/decompiler.dart';
+export 'src/inference_formats/express/format.dart';
+export 'src/inference_formats/express/parser.dart';
+export 'src/inference_formats/express/prompt_generator.dart';
+// Parser contracts.
+export 'src/parser/parser.dart';
+export 'src/parser/response_part.dart';
+// High-level application facade.
+export 'src/processor/catalog_config.dart';
+export 'src/processor/catalog_providers.dart';
+export 'src/processor/generator.dart';
+export 'src/processor/processor.dart';
+// Prompt generation contracts.
+export 'src/prompt/generator.dart';
+// Capability negotiation helpers.
+export 'src/utils/catalog_resolver.dart';

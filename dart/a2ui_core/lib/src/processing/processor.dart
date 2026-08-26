@@ -24,7 +24,7 @@ import '../primitives/errors.dart';
 /// The central processor for A2UI messages.
 class MessageProcessor<T extends ComponentApi> {
   final SurfaceGroupModel<T> groupModel;
-  final List<Catalog<T>> catalogs;
+  final List<Catalog<T, FunctionImplementation>> catalogs;
 
   MessageProcessor({
     required this.catalogs,
@@ -55,7 +55,7 @@ class MessageProcessor<T extends ComponentApi> {
   }
 
   void _processCreateSurface(CreateSurfaceMessage message) {
-    final Catalog<T> catalog = catalogs.firstWhere(
+    final Catalog<T, FunctionImplementation> catalog = catalogs.firstWhere(
       (c) => c.id == message.catalogId,
       orElse: () =>
           throw A2uiStateError('Catalog not found: ${message.catalogId}'),
@@ -140,7 +140,9 @@ class MessageProcessor<T extends ComponentApi> {
     return {'v0.9': v09};
   }
 
-  Map<String, dynamic> _generateInlineCatalog(Catalog<T> catalog) {
+  Map<String, dynamic> _generateInlineCatalog(
+    Catalog<T, FunctionImplementation> catalog,
+  ) {
     final components = <String, dynamic>{};
     for (final MapEntry<String, T> entry in catalog.components.entries) {
       final Map<String, dynamic> jsonSchema = entry.value.schema.toJsonMap();
