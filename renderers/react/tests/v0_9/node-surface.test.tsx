@@ -312,13 +312,43 @@ describe('A2uiSurface', () => {
 
   it('reports a child reference the catalog schema does not mark as a component id', () => {
     const surface = setup();
+    const errors: Array<Record<string, unknown>> = [];
+    surface.onError.subscribe(e => {
+      errors.push(e as Record<string, unknown>);
+    });
     add(surface, 'root', 'UnmarkedParent', {child: 'lost'});
     add(surface, 'lost', 'Text', {text: 'never rendered'});
 
     render(<A2uiSurface surface={surface} />);
 
-    expect(screen.getByText(/Unresolved child reference/)).toBeDefined();
+    // The message names the actual cause: the component exists and the
+    // schema marker is what is missing.
+    expect(screen.getByText(/does not mark the referencing property/)).toBeDefined();
     expect(screen.queryByText('never rendered')).toBeNull();
+    const reported = errors.filter(e => e.code === 'UNRESOLVED_CHILD_REFERENCE');
+    expect(reported).toHaveLength(1);
+  });
+
+  it('reports a buildChild call for a data path the payload never created', () => {
+    // A marked single ref resolves at the parent's path; asking for another
+    // path names the instances that do exist instead of blaming the schema.
+    const Scoper: ReactComponentImplementation = {
+      name: 'Scoper',
+      schema: z.object({child: ComponentIdSchema.optional()}),
+      render: ({context, buildChild}) => {
+        const childId = context.componentModel.properties.child as string | undefined;
+        return <div>{childId ? buildChild(childId, '/somewhere/else') : null}</div>;
+      },
+    };
+    const catalog = new Catalog<ReactComponentImplementation>('scoper', [Scoper, TextImpl]);
+    const surface = new SurfaceModel<ReactComponentImplementation>('surf-scoper', catalog);
+    add(surface, 'root', 'Scoper', {child: 'kid'});
+    add(surface, 'kid', 'Text', {text: 'scoped child'});
+
+    render(<A2uiSurface surface={surface} />);
+
+    expect(screen.getByText(/instances exist at \//)).toBeDefined();
+    expect(screen.queryByText(/does not mark the referencing property/)).toBeNull();
   });
 
   it('renders the shipped basic catalog unchanged', () => {

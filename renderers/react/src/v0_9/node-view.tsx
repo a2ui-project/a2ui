@@ -55,6 +55,41 @@ export const LoadingPlaceholder: React.FC<{componentId: string}> = ({componentId
   <div style={{color: 'gray', padding: '4px'}}>[Loading {componentId}...]</div>
 );
 
+/** Unresolved-reference reports already dispatched, per surface. */
+const reportedUnresolved = new WeakMap<SurfaceModel<ReactComponentImplementation>, Set<string>>();
+
+/**
+ * Renders the in-tree notice for a child reference the resolver built no
+ * node for, and reports it through the surface's error channel once per
+ * (id, path) so agents see it too, matching how the resolver reports
+ * unknown types and cycles.
+ */
+export function unresolvedChildReference(
+  surface: SurfaceModel<ReactComponentImplementation> | null,
+  id: string,
+  requestedPath: string,
+  detail: string,
+): React.ReactElement {
+  const message = `Unresolved child reference '${id}' at '${requestedPath}': ${detail}`;
+  if (surface) {
+    let seen = reportedUnresolved.get(surface);
+    if (!seen) {
+      seen = new Set();
+      reportedUnresolved.set(surface, seen);
+    }
+    const key = `${id}@${requestedPath}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      void surface.dispatchError({code: 'UNRESOLVED_CHILD_REFERENCE', message});
+    }
+  }
+  return (
+    <div style={{color: 'red'}} key={`${id}-${requestedPath}`}>
+      {message}
+    </div>
+  );
+}
+
 export function useSignalValue<T>(signal: Signal<T>): T {
   const subscribe = useCallback(
     (onChange: () => void) =>
@@ -223,10 +258,31 @@ export function useNodeView(
 
   const viewBuildChild = useCallback(
     (id: string, basePath?: string): React.ReactNode => {
-      const childNode = childIndex.get(`${id}@${basePath ?? node.dataPath}`);
-      return buildChild(childNode ?? id, basePath);
+      const requested = basePath ?? node.dataPath;
+      const childNode = childIndex.get(`${id}@${requested}`);
+      if (childNode) {
+        return buildChild(childNode, basePath);
+      }
+      // An instance at another data path means the reference itself is fine
+      // and the requested path is not one the payload created.
+      const elsewhere: string[] = [];
+      for (const key of childIndex.keys()) {
+        if (key.startsWith(`${id}@`)) {
+          elsewhere.push(key.slice(id.length + 1));
+        }
+      }
+      if (elsewhere.length > 0) {
+        return unresolvedChildReference(
+          surface,
+          id,
+          requested,
+          `instances exist at ${elsewhere.join(', ')}. Instances are created only at ` +
+            `the data paths the payload implies; buildChild selects among them.`,
+        );
+      }
+      return buildChild(id, basePath);
     },
-    [childIndex, buildChild, node],
+    [childIndex, buildChild, node, surface],
   );
 
   if (!surface) {
