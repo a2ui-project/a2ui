@@ -31,6 +31,7 @@ from pydantic import BaseModel
 from a2ui.inference_formats.experimental.template import (
     StaticTemplate,
     DynamicTemplate,
+    dynamic_template,
     TemplateInferenceFormat,
 )
 
@@ -98,6 +99,17 @@ def fetch_employee_compensation(employeeId: str) -> Dict[str, Any]:
     return EMPLOYEE_COMPENSATION_DB[employeeId]
 
 
+@dynamic_template(
+    name="PayrollSummary",
+    catalogs=["https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"],
+    description=(
+        "Programmatic dynamic template that aggregates company payroll, sums"
+        " employee base salaries and bonuses using server Python logic, and builds"
+        " an interactive summary table. Pass department (default 'Engineering') and"
+        " includeBonus (default True)."
+    ),
+    sample_data={"department": "Global Engineering", "includeBonus": True},
+)
 def render_payroll_summary(
     department: str = "Global Engineering", includeBonus: bool = True
 ) -> Dict[str, Any]:
@@ -267,22 +279,8 @@ def load_templates() -> List[Any]:
         )
         templates_list.append(dynamic_salary)
 
-    # Register DynamicTemplate for PayrollSummary (Programmatic Render Mode)
-    payroll_template = DynamicTemplate(
-        version="0.1",
-        name="PayrollSummary",
-        template_id="PayrollSummary",
-        catalogs=["https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"],
-        render=render_payroll_summary,
-        description=(
-            "Programmatic dynamic template that aggregates company payroll, sums"
-            " employee base salaries and bonuses using server Python logic, and builds"
-            " an interactive summary table. Pass department (default 'Engineering') and"
-            " includeBonus (default True)."
-        ),
-        sample_data={"department": "Global Engineering", "includeBonus": True},
-    )
-    templates_list.append(payroll_template)
+    # Register DynamicTemplate for PayrollSummary (Programmatic Render Mode via decorator)
+    templates_list.append(render_payroll_summary)
 
     return templates_list
 
