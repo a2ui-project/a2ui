@@ -50,7 +50,7 @@ Notes for grading:
 4. Minor variations in label text that preserve the core semantic meaning (e.g., 'Submit' vs 'Send', or 'First Name' vs 'Given Name') are acceptable unless exact literal text was requested.
 5. The inclusion of valid optional properties defined in the schema (such as accessibility hints or default values) that were not explicitly requested should not be penalized as long as they make sense in context.
 6. If data binding paths are not explicitly specified in the prompt, accept any logically sound path structure (e.g., accepting `/user/email` or simply `/email` when the prompt asks to "bind to the user's email" without specifying a full path).
-7. Partial credit "P" can be awarded when the submitted answer is a correct answer with only minor cosmetic variations or additional valid optional properties that do not substantially change the meaning of the component.  When an answer is missing components or contains substantive errors, it should be considered incorrect and awarded an "I" grade.
+7. Partial credit "P" can be awarded when the submitted answer is a correct answer with only minor cosmetic variations or additional valid optional properties that do not substantially change the meaning of the component. When an answer is missing components or contains substantive errors, it should be considered incorrect and awarded an "I" grade.
 """
 
 
