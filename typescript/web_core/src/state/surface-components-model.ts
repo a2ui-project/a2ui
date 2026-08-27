@@ -37,7 +37,6 @@ import {ValidationConfig} from '../validating/validator.js';
  */
 export class SurfaceComponentsModel {
   private components: Map<string, ComponentModel> = new Map();
-  private catalogOrRefMap?: Catalog<any, any> | ComponentRefMap;
   private refMap?: ComponentRefMap;
   private static readonly refMapCache = new WeakMap<Catalog<any, any>, ComponentRefMap>();
 
@@ -75,7 +74,6 @@ export class SurfaceComponentsModel {
    * @param catalogOrRefMap Catalog instance or ComponentRefMap.
    */
   setCatalog(catalogOrRefMap: Catalog<any, any> | ComponentRefMap): void {
-    this.catalogOrRefMap = catalogOrRefMap;
     this.refMap =
       catalogOrRefMap instanceof Catalog
         ? SurfaceComponentsModel.getOrCreateRefMap(catalogOrRefMap)
@@ -165,18 +163,8 @@ export class SurfaceComponentsModel {
     const comp = this.components.get(componentId);
     if (!comp) return [];
 
-    let refMap: ComponentRefMap;
-    if (comp.catalog) {
-      refMap = SurfaceComponentsModel.getOrCreateRefMap(comp.catalog);
-    } else if (this.refMap) {
-      refMap = this.refMap;
-    } else if (this.catalogOrRefMap instanceof Catalog) {
-      refMap = SurfaceComponentsModel.getOrCreateRefMap(this.catalogOrRefMap);
-    } else if (this.catalogOrRefMap) {
-      refMap = this.catalogOrRefMap;
-    } else {
-      refMap = {};
-    }
+    const refMap: ComponentRefMap =
+      (comp.catalog ? SurfaceComponentsModel.getOrCreateRefMap(comp.catalog) : this.refMap) ?? {};
 
     return Array.from(
       getComponentReferences({id: comp.id, component: comp.type, ...comp.properties}, refMap),
