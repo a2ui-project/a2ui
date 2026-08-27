@@ -12,7 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union, cast
+import sys
+from typing import Any, Callable, Dict, Generic, List, Optional, Union, cast
+
+if sys.version_info >= (3, 13):
+    from typing import TypeVar
+else:
+    from typing_extensions import TypeVar
 from pydantic import BaseModel
 
 from ..exceptions import A2uiCatalogError

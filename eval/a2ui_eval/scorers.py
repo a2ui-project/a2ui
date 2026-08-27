@@ -93,8 +93,24 @@ def a2ui_scorer(version: str) -> Scorer:
                     ),
                 )
 
+            has_create = any(
+                isinstance(m, dict) and "createSurface" in m for m in all_messages
+            )
+            if not has_create and all_messages:
+                first_surface = "main"
+                for m in all_messages:
+                    if isinstance(m, dict) and "updateComponents" in m:
+                        first_surface = m["updateComponents"].get("surfaceId", "main")
+                        break
+                ver_prefix = version if version.startswith("v") else f"v{version}"
+                create_msg = {
+                    "version": ver_prefix,
+                    "createSurface": {"surfaceId": first_surface},
+                }
+                all_messages = [create_msg] + all_messages
+
             answer_text = json.dumps(all_messages, indent=2)
-            validator.validate(all_messages)
+            catalog.validate(all_messages)
             return Score(
                 value=1.0, answer=answer_text, explanation="Valid A2UI payload"
             )

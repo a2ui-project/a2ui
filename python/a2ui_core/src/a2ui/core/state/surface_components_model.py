@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 from ..common.events import EventSource
 from ..exceptions import A2uiErrorDetail, A2uiValidationError
 from .component_model import ComponentModel
@@ -67,6 +67,24 @@ class SurfaceComponentsModel:
         """Validates inbound component models schema, composition constraints, and graph completeness BEFORE updating surface state."""
         if config is None:
             return
+
+        seen_ids: Set[str] = set()
+        for comp_model in new_components:
+            if comp_model.id in seen_ids:
+                raise A2uiValidationError(
+                    f"Duplicate component ID '{comp_model.id}' in update payload.",
+                    details=[
+                        A2uiErrorDetail(
+                            path=f"components.{comp_model.id}",
+                            code="duplicate_id",
+                            message=(
+                                f"Duplicate component ID '{comp_model.id}' in update"
+                                " payload."
+                            ),
+                        )
+                    ],
+                )
+            seen_ids.add(comp_model.id)
 
         all_errors: List[A2uiErrorDetail] = []
         comp_summaries: List[str] = []

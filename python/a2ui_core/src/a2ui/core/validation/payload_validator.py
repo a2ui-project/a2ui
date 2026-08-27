@@ -467,6 +467,17 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                 param_schema["required"] = fn_schema["required"]
             if "additionalProperties" in fn_schema:
                 param_schema["additionalProperties"] = fn_schema["additionalProperties"]
+        elif (
+            "properties" in fn_schema
+            and isinstance(fn_schema["properties"], dict)
+            and "args" in fn_schema["properties"]
+            and isinstance(fn_schema["properties"]["args"], dict)
+        ):
+            param_schema = {
+                "$schema": JSON_SCHEMA_DRAFT_2020_12,
+                "$defs": defs,
+                **fn_schema["properties"]["args"],
+            }
         elif "properties" in fn_schema and isinstance(fn_schema["properties"], dict):
             param_schema = {
                 "$schema": JSON_SCHEMA_DRAFT_2020_12,

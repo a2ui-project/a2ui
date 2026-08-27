@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from urllib.parse import urlparse
 from a2ui.core.catalog import Catalog
 from a2ui.core import A2uiCatalogError
-from a2ui.core.validation.payload_validator import PayloadValidator
+from a2ui.core.validation.payload_validator import PayloadValidator, STRICT_VALIDATION
 
 
 from .catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
@@ -189,14 +189,16 @@ class A2uiCatalog:
 
     @property
     def validator(self) -> PayloadValidator[Any, Any]:
-        return PayloadValidator(self.core_catalog)
+        return PayloadValidator(self.core_catalog, config=STRICT_VALIDATION)
 
     def validate(self, messages: Any) -> None:
         """Validates payload messages using MessageProcessor."""
         from a2ui.core.processing import MessageProcessor
 
         msg_list = messages if isinstance(messages, list) else [messages]
-        MessageProcessor([self.core_catalog]).process_messages(msg_list)
+        MessageProcessor(
+            [self.core_catalog], validation_config=STRICT_VALIDATION
+        ).process_messages(msg_list)
 
     def _with_pruned_components(self, allowed_components: List[str]) -> A2uiCatalog:
         """Returns a new catalog with only allowed components.
