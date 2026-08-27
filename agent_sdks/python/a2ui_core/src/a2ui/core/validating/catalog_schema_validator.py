@@ -390,7 +390,7 @@ class CatalogSchemaValidator:
     def from_catalog(
         cls,
         catalog: Any,
-        common_types_schema: Optional[Dict[str, Any]] = None,
+        common_types_schema: Optional[Mapping[str, Any]] = None,
     ) -> "CatalogSchemaValidator":
         if isinstance(catalog, CatalogSchemaValidator):
             return catalog

@@ -212,7 +212,7 @@ class A2uiCatalog:
         if not allowed_components:
             return self
 
-        schema_copy: dict[str, Any] = dict(copy.deepcopy(self.catalog_schema))
+        schema_copy: dict[str, Any] = copy.deepcopy(dict(self.catalog_schema))
 
         if CATALOG_COMPONENTS_KEY in schema_copy and isinstance(
             schema_copy[CATALOG_COMPONENTS_KEY], dict
@@ -258,7 +258,7 @@ class A2uiCatalog:
         if not allowed_messages:
             return self
 
-        s2c_schema_copy: dict[str, Any] = dict(copy.deepcopy(self.s2c_schema))
+        s2c_schema_copy: dict[str, Any] = copy.deepcopy(dict(self.s2c_schema))
 
         if self.version == VERSION_0_8:
             # 0.8 style: Messages are in root properties.
@@ -331,8 +331,8 @@ class A2uiCatalog:
             if "common_types.json#/$defs/" in ref:
                 root_common_types.append(ref.split("#/$defs/")[-1])
 
-        new_common_types_schema: dict[str, Any] = dict(
-            copy.deepcopy(self.common_types_schema)
+        new_common_types_schema: dict[str, Any] = copy.deepcopy(
+            dict(self.common_types_schema)
         )
         new_common_types_schema["$defs"] = _prune_defs_by_reachability(
             defs=new_common_types_schema["$defs"],

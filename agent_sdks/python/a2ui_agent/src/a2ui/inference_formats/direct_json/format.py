@@ -184,7 +184,7 @@ class DirectJsonFormat(InferenceFormat):
         if not client_ui_capabilities:
             return self._supported_catalogs[0]
 
-        if isinstance(client_ui_capabilities, (dict, Mapping)):
+        if isinstance(client_ui_capabilities, Mapping):
             # Inject default supportedCatalogIds if missing to pass validation
             data = dict(client_ui_capabilities)
             if (
