@@ -37,11 +37,14 @@ interface FeedItem {
 
 interface TemplateDefinition {
   version?: string;
+  name?: string;
+  macroId?: string;
   templateId: string;
   parameters: Record<string, any>;
   components?: any[];
   layout?: Record<string, any>;
   yamlContent?: string;
+  pythonCode?: string;
   description?: string;
   sampleData?: Record<string, any>;
   sampleMessages?: any[];
@@ -51,6 +54,7 @@ interface TemplateDefinition {
   renderSource?: string;
   layoutTemplate?: Record<string, any>;
   layoutTemplateYaml?: string;
+  layoutTemplatePython?: string;
   resolvedData?: Record<string, any>;
   availablePresets?: Array<{label: string; value: string}>;
 }
@@ -162,9 +166,23 @@ export default function App() {
             setSelectedTemplateId(prev =>
               list.find(t => t.templateId === prev) ? prev : list[0].templateId,
             );
+            const safeProcessMessages = (msgs: any[]) => {
+              for (const m of msgs) {
+                if (m.createSurface) {
+                  const sId = m.createSurface.surfaceId;
+                  if (libraryProcessor.model.getSurface(sId)) {
+                    libraryProcessor.processMessages([
+                      {version: 'v0.9.1', deleteSurface: {surfaceId: sId}},
+                    ]);
+                  }
+                }
+              }
+              libraryProcessor.processMessages(msgs);
+            };
+
             for (const item of list) {
               if (item.sampleMessages && item.sampleMessages.length > 0) {
-                libraryProcessor.processMessages(item.sampleMessages);
+                safeProcessMessages(item.sampleMessages);
                 if (item.isDynamic) {
                   const empId = item.sampleData?.employeeId || 'emp_101';
                   const dynamicSurfaceId = `preview_${item.templateId}_${empId}`;
@@ -189,7 +207,7 @@ export default function App() {
                     }
                     return m;
                   });
-                  libraryProcessor.processMessages(dynamicMsgs);
+                  safeProcessMessages(dynamicMsgs);
                 }
               }
             }
@@ -287,6 +305,11 @@ export default function App() {
           }
           return m;
         });
+        if (libraryProcessor.model.getSurface(dynamicSurfaceId)) {
+          libraryProcessor.processMessages([
+            {version: 'v0.9.1', deleteSurface: {surfaceId: dynamicSurfaceId}},
+          ]);
+        }
         libraryProcessor.processMessages(updatedMessages);
         setLibraryTick(t => t + 1);
       }
@@ -1359,9 +1382,7 @@ export default function App() {
                       {id: 'input', label: '1. Input Interface'},
                       {
                         id: 'layout',
-                        label: selectedTemplate.isProgrammatic
-                          ? '2. Python AST Generator'
-                          : '2. Static Blueprint',
+                        label: '2. Python Macro Function',
                       },
                       {id: 'resolved', label: '3. Resolved Output'},
                     ].map(tab => (
@@ -1646,14 +1667,12 @@ export default function App() {
                               color: '#0f172a',
                             }}
                           >
-                            {selectedTemplate.isProgrammatic
-                              ? 'Step 2: Python Render Function (Programmatic AST Generator)'
-                              : 'Step 2: Underlying Layout Template (Static Blueprint)'}
+                            Step 2: Python Macro Function (Typesafe Component Builder)
                           </h3>
                           <p style={{fontSize: '13px', color: '#64748b', margin: 0}}>
                             {selectedTemplate.isProgrammatic
-                              ? 'This template is generated directly by a Python render function using loops, conditionals, and math to construct the component AST.'
-                              : 'The visual layout is declared once in YAML (salary_card.yaml). Parameter placeholders like baseSalary and annualBonus are populated by the server callback.'}
+                              ? 'This macro is generated directly by a Python render function using loops, conditionals, and math to construct the component AST.'
+                              : 'The visual layout is constructed programmatically using pure Python functions and typesafe catalog builders. Sensitive parameters are resolved server-side.'}
                           </p>
                         </div>
 
@@ -1672,11 +1691,11 @@ export default function App() {
                             whiteSpace: 'pre',
                           }}
                         >
-                          {selectedTemplate.isProgrammatic
-                            ? selectedTemplate.renderSource || '# Python render function'
-                            : selectedTemplate.layoutTemplateYaml ||
-                              selectedTemplate.yamlContent ||
-                              ''}
+                          {selectedTemplate.renderSource ||
+                            selectedTemplate.layoutTemplatePython ||
+                            selectedTemplate.layoutTemplateYaml ||
+                            selectedTemplate.pythonCode ||
+                            '# Python macro function'}
                         </pre>
                       </div>
                     )}
@@ -1902,16 +1921,19 @@ export default function App() {
                   >
                     <div>
                       <h3 style={{fontSize: '16px', fontWeight: 700, margin: 0, color: '#0f172a'}}>
-                        Template Declaration (YAML)
+                        Macro Definition (Python)
                       </h3>
                       <p style={{fontSize: '12px', color: '#64748b', margin: '2px 0 0'}}>
-                        Parameterized YAML layout definition
+                        Pure Python @macro function using typesafe catalog builders
                       </p>
                     </div>
 
                     <button
                       onClick={() => {
-                        copyToClipboard(selectedTemplate.yamlContent || '', true);
+                        copyToClipboard(
+                          selectedTemplate.pythonCode || selectedTemplate.yamlContent || '',
+                          true,
+                        );
                       }}
                       style={{
                         display: 'inline-flex',
@@ -1931,7 +1953,7 @@ export default function App() {
                       <span className="material-symbols-outlined" style={{fontSize: '15px'}}>
                         {copiedTemplate ? 'check' : 'content_copy'}
                       </span>
-                      <span>{copiedTemplate ? 'Copied YAML!' : 'Copy Template YAML'}</span>
+                      <span>{copiedTemplate ? 'Copied Python!' : 'Copy Macro Code'}</span>
                     </button>
                   </div>
 
@@ -1959,8 +1981,10 @@ export default function App() {
                         color: '#94a3b8',
                       }}
                     >
-                      <span>{selectedTemplate.templateId.toLowerCase()}.yaml</span>
-                      <span>YAML Schema draft 2020-12</span>
+                      <span style={{fontFamily: 'monospace', color: '#38bdf8'}}>
+                        {selectedTemplate.name || selectedTemplate.templateId}.py
+                      </span>
+                      <span>Python 3.10+ · @macro</span>
                     </div>
 
                     <div
@@ -1975,8 +1999,9 @@ export default function App() {
                       }}
                     >
                       {(() => {
-                        const yamlText = selectedTemplate.yamlContent || '';
-                        const lines = yamlText.split('\n');
+                        const codeText =
+                          selectedTemplate.pythonCode || selectedTemplate.yamlContent || '';
+                        const lines = codeText.split('\n');
 
                         return (
                           <>

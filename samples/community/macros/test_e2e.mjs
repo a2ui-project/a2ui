@@ -182,16 +182,22 @@ async function runE2ETest() {
     }
     console.log('   ✓ Dynamic server resolver executed and updated preview for Marcus Vance');
 
-    // Test Stage 2: Static Blueprint Tab
-    const layoutTabBtn = page.locator('button:has-text("2. Static Blueprint")');
+    // Test Stage 2: Python Macro Function Tab
+    const layoutTabBtn = page.locator(
+      'button:has-text("2. Python Macro Function"), button:has-text("2. Static Blueprint")',
+    );
     await layoutTabBtn.click();
     await page.waitForTimeout(400);
 
     libraryBody = await page.textContent('body');
-    if (!libraryBody.includes('salary_card.yaml') && !libraryBody.includes('baseSalary')) {
-      throw new Error(`Static Blueprint stage failed to display:\n${libraryBody}`);
+    if (
+      !libraryBody.includes('SalaryCard') &&
+      !libraryBody.includes('base_salary') &&
+      !libraryBody.includes('baseSalary')
+    ) {
+      throw new Error(`Python Macro stage failed to display:\n${libraryBody}`);
     }
-    console.log('   ✓ Static Blueprint stage displayed underlying salary_card.yaml layout');
+    console.log('   ✓ Python Macro stage displayed underlying SalaryCard python function');
 
     // Test Stage 3: Resolved Output Tab
     const resolvedTabBtn = page.locator('button:has-text("3. Resolved Output")');

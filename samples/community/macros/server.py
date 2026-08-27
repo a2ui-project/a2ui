@@ -513,6 +513,11 @@ def list_macros():
         except Exception:
             sample_messages = []
 
+        try:
+            python_code = inspect.getsource(m.func)
+        except Exception:
+            python_code = ""
+
         t_dict = {
             "version": "0.1",
             "name": m_name,
@@ -520,7 +525,8 @@ def list_macros():
             "templateId": m_name,
             "description": m.description or "",
             "parameters": schema.get("properties", {}),
-            "yamlContent": json.dumps(schema, indent=2),
+            "pythonCode": python_code,
+            "yamlContent": python_code,
             "sampleData": sample_params,
             "sampleMessages": sample_messages,
         }
@@ -531,11 +537,12 @@ def list_macros():
             try:
                 t_dict["renderSource"] = inspect.getsource(render_payroll_summary)
             except Exception:
-                t_dict["renderSource"] = ""
+                t_dict["renderSource"] = python_code
 
         if m_name == "EmployeeSalaryCard":
             t_dict["isDynamic"] = True
             t_dict["isDataBinding"] = True
+            t_dict["renderSource"] = python_code
             emp_id = sample_params.get("employeeId", "emp_101")
             try:
                 rec = fetch_employee_compensation(emp_id)
@@ -550,10 +557,12 @@ def list_macros():
                     verified_at=rec["verifiedAt"],
                 )
                 t_dict["layoutTemplate"] = t_layout.to_dict()
-                t_dict["layoutTemplateYaml"] = (
-                    "# blueprint: salary_card.yaml / SalaryCard\n# parameters: baseSalary, annualBonus, equity\n"
-                    + json.dumps(t_dict["layoutTemplate"], indent=2)
-                )
+                try:
+                    salary_card_py = inspect.getsource(SalaryCard)
+                except Exception:
+                    salary_card_py = python_code
+                t_dict["layoutTemplateYaml"] = salary_card_py
+                t_dict["layoutTemplatePython"] = salary_card_py
             except Exception:
                 t_dict["resolvedData"] = {}
             t_dict["availablePresets"] = [
