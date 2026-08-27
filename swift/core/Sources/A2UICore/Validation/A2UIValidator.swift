@@ -19,7 +19,7 @@ import OrderedJSON
 
 /// Validates A2UI message protocol envelopes, JSON schemas, and component graph topologies.
 public final class A2UIValidator: Sendable {
-  private static let validPathRegex = try? NSRegularExpression(
+  private static let validPathRegex = try! NSRegularExpression(
     pattern: "^(?:(?:/(?:[^~/]|~[01])*)*|(?:[^~/]|~[01])+(?:/(?:[^~/]|~[01])*)*)$"
   )
   private static let maxFunctionDepth = 5
@@ -336,7 +336,10 @@ public final class A2UIValidator: Sendable {
     for component in components {
       guard let type = component["component"]?.stringValue else { continue }
       let catalog =
-        component["catalogId"]?.stringValue.flatMap { catalogs[$0] } ?? catalogs.values.first
+        component["catalogId"]?.stringValue.flatMap { catalogs[$0] }
+        ?? (catalogs.count == 1
+          ? catalogs.values.first
+          : catalogs[catalogs.keys.sorted().first ?? ""])
       guard let catalog else { continue }
 
       if let componentAPI = catalog.components[type] {
@@ -392,20 +395,18 @@ public final class A2UIValidator: Sendable {
     switch value {
     case .object(let dictionary):
       if let path = dictionary["path"]?.stringValue {
-        if let regex = Self.validPathRegex {
-          let range = NSRange(path.startIndex..<path.endIndex, in: path)
-          if regex.firstMatch(in: path, range: range) == nil {
-            throw A2UIValidationError(
-              "Invalid path syntax: '\(path)'",
-              details: [
-                A2UIErrorDetail(
-                  path: path,
-                  code: "invalid_path_syntax",
-                  message: "Invalid path syntax"
-                )
-              ]
-            )
-          }
+        let range = NSRange(path.startIndex..<path.endIndex, in: path)
+        if Self.validPathRegex.firstMatch(in: path, range: range) == nil {
+          throw A2UIValidationError(
+            "Invalid path syntax: '\(path)'",
+            details: [
+              A2UIErrorDetail(
+                path: path,
+                code: "invalid_path_syntax",
+                message: "Invalid path syntax"
+              )
+            ]
+          )
         }
       }
 

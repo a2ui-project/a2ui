@@ -46,21 +46,46 @@ public struct ResolvedDictionary: Resolved, Equatable, Sendable {
 
   /// Returns the resolved string value for the given property key.
   public func string(for key: String) -> String? {
-    (storage[key] as? String) ?? (storage[key] as? DataBinding<String>)?.value
+    if let stringValue = storage[key] as? String { return stringValue }
+    if let binding = storage[key] as? DataBinding<String> { return binding.value }
+    if let jsonValue = storage[key] as? JSONValue { return jsonValue.stringValue }
+    if let jsonBinding = storage[key] as? DataBinding<JSONValue> {
+      return jsonBinding.value?.stringValue
+    }
+    return nil
   }
 
   /// Returns the resolved boolean value for the given property key.
   public func bool(for key: String) -> Bool? {
-    (storage[key] as? Bool) ?? (storage[key] as? DataBinding<Bool>)?.value
+    if let booleanValue = storage[key] as? Bool { return booleanValue }
+    if let binding = storage[key] as? DataBinding<Bool> { return binding.value }
+    if let jsonValue = storage[key] as? JSONValue { return jsonValue.boolValue }
+    if let jsonBinding = storage[key] as? DataBinding<JSONValue> {
+      return jsonBinding.value?.boolValue
+    }
+    return nil
   }
 
   /// Returns the resolved double value for the given property key.
   public func double(for key: String) -> Double? {
-    (storage[key] as? Double) ?? (storage[key] as? DataBinding<Double>)?.value
+    if let doubleValue = storage[key] as? Double { return doubleValue }
+    if let binding = storage[key] as? DataBinding<Double> { return binding.value }
+    if let jsonValue = storage[key] as? JSONValue { return jsonValue.doubleValue }
+    if let jsonBinding = storage[key] as? DataBinding<JSONValue> {
+      return jsonBinding.value?.doubleValue
+    }
+    if let intValue = storage[key] as? Int { return Double(intValue) }
+    return nil
   }
 
   /// Returns the resolved integer value for the given property key.
   public func int(for key: String) -> Int? {
-    (storage[key] as? Int) ?? (storage[key] as? DataBinding<Int>)?.value
+    if let intValue = storage[key] as? Int { return intValue }
+    if let binding = storage[key] as? DataBinding<Int> { return binding.value }
+    if let jsonValue = storage[key] as? JSONValue { return jsonValue.intValue }
+    if let jsonBinding = storage[key] as? DataBinding<JSONValue> {
+      return jsonBinding.value?.intValue
+    }
+    return nil
   }
 }

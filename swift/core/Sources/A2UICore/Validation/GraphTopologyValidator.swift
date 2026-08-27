@@ -138,12 +138,7 @@ public enum GraphTopologyValidator {
     case .string(let stringValue):
       // Only treat string as reference if field path suggests child/componentId link
       let lowercasedPath = path.lowercased()
-      if lowercasedPath == "child"
-        || lowercasedPath.hasSuffix(".child")
-        || lowercasedPath == "componentid"
-        || lowercasedPath.hasSuffix(".componentid")
-        || lowercasedPath.hasSuffix("child")
-      {
+      if lowercasedPath.hasSuffix("child") || lowercasedPath.hasSuffix("componentid") {
         result.append((stringValue, path))
       }
 
@@ -151,10 +146,7 @@ public enum GraphTopologyValidator {
       for (index, item) in array.enumerated() {
         if let stringValue = item.stringValue {
           let lowercasedPath = path.lowercased()
-          if lowercasedPath == "children"
-            || lowercasedPath.hasSuffix(".children")
-            || lowercasedPath.contains("child")
-          {
+          if lowercasedPath.contains("child") {
             result.append((stringValue, path))
           }
         } else {
