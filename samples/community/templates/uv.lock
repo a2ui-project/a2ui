@@ -32,7 +32,9 @@ dependencies = [
     { name = "antlr4-python3-runtime" },
     { name = "google-adk" },
     { name = "google-genai" },
+    { name = "httpx" },
     { name = "jsonschema" },
+    { name = "nest-asyncio" },
     { name = "pyyaml" },
 ]
 
@@ -43,7 +45,9 @@ requires-dist = [
     { name = "antlr4-python3-runtime", specifier = ">=4.13.0,<4.14.0" },
     { name = "google-adk", specifier = ">=1.28.1" },
     { name = "google-genai", specifier = ">=1.27.0" },
+    { name = "httpx", specifier = ">=0.27.0" },
     { name = "jsonschema", specifier = ">=4.0.0" },
+    { name = "nest-asyncio", specifier = ">=1.6.0" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
 
@@ -709,7 +713,7 @@ name = "exceptiongroup"
 version = "1.3.1"
 source = { registry = "http://airlock-proxy.uplink.goog:999/python/artifact-foundry-prod/ah-3p-staging-python/simple/" }
 dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
 sdist = { url = "http://airlock-proxy.uplink.goog:999/python/artifact-foundry-prod/ah-3p-staging-python/exceptiongroup/exceptiongroup-1.3.1.tar.gz", hash = "sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219" }
 wheels = [
@@ -900,6 +904,7 @@ dependencies = [
     { name = "protobuf" },
     { name = "requests" },
 ]
+sdist = { url = "http://airlock-proxy.uplink.goog:999/python/artifact-foundry-prod/ah-3p-staging-python/google-api-core/google_api_core-2.35.0.tar.gz", hash = "sha256:80611ccbd0291919f6cea8827d57b472946fcd9ab519625becce0c002140a7b0" }
 wheels = [
     { url = "http://airlock-proxy.uplink.goog:999/python/artifact-foundry-prod/ah-3p-staging-python/google-api-core/google_api_core-2.35.0-py3-none-any.whl", hash = "sha256:88ce7a11146e1ddd331f7d2fd379787eb7e9015c34c6ed681e4f5fb8af3615af" },
 ]
@@ -912,6 +917,7 @@ dependencies = [
     { name = "cryptography" },
     { name = "pyasn1-modules" },
 ]
+sdist = { url = "http://airlock-proxy.uplink.goog:999/python/artifact-foundry-prod/ah-3p-staging-python/google-auth/google_auth-2.57.0.tar.gz", hash = "sha256:9b4f96d6a1feb5f7201231f47cfb3de08d8f176f8a61f9e461555116e95a8789" }
 wheels = [
     { url = "http://airlock-proxy.uplink.goog:999/python/artifact-foundry-prod/ah-3p-staging-python/google-auth/google_auth-2.57.0-py3-none-any.whl", hash = "sha256:180dafe015cfb62193bea26b677500fab5b9fd51a1e825ebf3ad9b182047ae59" },
 ]
@@ -1197,6 +1203,15 @@ wheels = [
     { url = "http://airlock-proxy.uplink.goog:999/python/artifact-foundry-prod/ah-3p-staging-python/multidict/multidict-6.7.1-cp314-cp314t-win_amd64.whl", hash = "sha256:497bde6223c212ba11d462853cfa4f0ae6ef97465033e7dc9940cdb3ab5b48e5" },
     { url = "http://airlock-proxy.uplink.goog:999/python/artifact-foundry-prod/ah-3p-staging-python/multidict/multidict-6.7.1-cp314-cp314t-win_arm64.whl", hash = "sha256:2bbd113e0d4af5db41d5ebfe9ccaff89de2120578164f86a5d17d5a576d1e5b2" },
     { url = "http://airlock-proxy.uplink.goog:999/python/artifact-foundry-prod/ah-3p-staging-python/multidict/multidict-6.7.1-py3-none-any.whl", hash = "sha256:55d97cc6dae627efa6a6e548885712d4864b81110ac76fa4e534c03819fa4a56" },
+]
+
+[[package]]
+name = "nest-asyncio"
+version = "1.6.0"
+source = { registry = "http://airlock-proxy.uplink.goog:999/python/artifact-foundry-prod/ah-3p-staging-python/simple/" }
+sdist = { url = "http://airlock-proxy.uplink.goog:999/python/artifact-foundry-prod/ah-3p-staging-python/nest-asyncio/nest_asyncio-1.6.0.tar.gz", hash = "sha256:6f172d5449aca15afd6c646851f4e31e02c598d553a667e38cafa997cfec55fe" }
+wheels = [
+    { url = "http://airlock-proxy.uplink.goog:999/python/artifact-foundry-prod/ah-3p-staging-python/nest-asyncio/nest_asyncio-1.6.0-py3-none-any.whl", hash = "sha256:87af6efd6b5e897c81050477ef65c62e2b2f35d51703cae01aff2905b1852e1c" },
 ]
 
 [[package]]

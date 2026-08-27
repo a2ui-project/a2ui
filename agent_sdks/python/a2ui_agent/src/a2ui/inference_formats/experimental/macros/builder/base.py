@@ -95,11 +95,17 @@ class FunctionCall:
 class Action:
     """An interaction handler dispatching a server event or client function."""
 
-    event: Optional[dict[str, Any]] = None
+    event: Optional[Union[str, dict[str, Any]]] = None
     function: Optional[FunctionCall] = None
 
     def to_dict(self) -> dict[str, Any]:
         if self.event is not None:
+            if isinstance(self.event, str):
+                return {"event": {"name": self.event}}
+            elif isinstance(self.event, dict):
+                if "name" in self.event:
+                    return {"event": self.event}
+                return {"event": {"name": self.event.get("name", "action")}}
             return {"event": self.event}
         if self.function is not None:
             return {"function": self.function.to_dict()}
