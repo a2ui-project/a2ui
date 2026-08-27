@@ -15,14 +15,14 @@
  */
 
 import {z} from 'zod';
+import {childRefKindOf, type ChildRefKind} from '../schema/common-types.js';
 
 /**
- * The `REF:` description pointers from common-types that mark a property as
- * referencing child components. The same convention the capabilities
- * generator resolves into wire `$ref`s, reused here as the machine-readable
- * classification source. Catalogs declare single-child properties with
- * `ComponentIdSchema` (or `componentId`, which keeps the
- * pointer when adding prose).
+ * Classification reads the child-reference marker `ComponentIdSchema` and
+ * `ChildListSchema` carry in their zod metadata, which survives
+ * `.describe()` and other schema-rebuilding methods. The `REF:` description
+ * pointers below are recognized as well, for schemas that author the
+ * pointer by hand rather than deriving from those two.
  */
 const COMPONENT_ID_REF = 'REF:common_types.json#/$defs/ComponentId';
 const CHILD_LIST_REF = 'REF:common_types.json#/$defs/ChildList';
@@ -59,8 +59,9 @@ const refFieldsCache = new WeakMap<z.ZodTypeAny, RefFields>();
  * Detection is by the `REF:` pointers above, plus the same structural test
  * the binder uses for `ChildList` unions (an option object with both
  * `componentId` and `path`), so catalogs that build their own child-list
- * union need no pointer for list properties. Results are memoized per schema
- * object.
+ * union need no pointer for list properties. A plain array whose element
+ * carries the ComponentId pointer also classifies as a list. Results are
+ * memoized per schema object.
  */
 export function extractRefFields(schema: z.ZodTypeAny): RefFields {
   const cached = refFieldsCache.get(schema);
@@ -79,16 +80,22 @@ export function extractRefFields(schema: z.ZodTypeAny): RefFields {
   const shape = (unwrapped.schema as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
   for (const [key, value] of Object.entries(shape)) {
     const field = unwrap(value);
-    if (hasPointer(field.descriptions, CHILD_LIST_REF) || isChildListUnion(field.schema)) {
+    if (marksChildList(field) || isChildListUnion(field.schema)) {
       fields.set(key, {kind: 'list'});
       continue;
     }
-    if (hasPointer(field.descriptions, COMPONENT_ID_REF)) {
+    if (marksComponentId(field)) {
       fields.set(key, {kind: 'single'});
       continue;
     }
     if (field.schema._def.typeName === 'ZodArray') {
       const element = unwrap(field.schema._def.type as z.ZodTypeAny);
+      // A plain array of component ids: the marker sits on the element
+      // rather than the property (z.array(ComponentIdSchema)).
+      if (marksComponentId(element)) {
+        fields.set(key, {kind: 'list'});
+        continue;
+      }
       if (element.schema._def.typeName === 'ZodObject') {
         const subKeys = new Set<string>();
         const elementShape = (element.schema as z.AnyZodObject).shape as Record<
@@ -96,7 +103,7 @@ export function extractRefFields(schema: z.ZodTypeAny): RefFields {
           z.ZodTypeAny
         >;
         for (const [subKey, subValue] of Object.entries(elementShape)) {
-          if (hasPointer(unwrap(subValue).descriptions, COMPONENT_ID_REF)) {
+          if (marksComponentId(unwrap(subValue))) {
             subKeys.add(subKey);
           }
         }
@@ -117,12 +124,23 @@ export function extractRefFields(schema: z.ZodTypeAny): RefFields {
  * description seen along the way (a pointer may sit on the wrapper or on the
  * inner type).
  */
-function unwrap(schema: z.ZodTypeAny): {schema: z.ZodTypeAny; descriptions: string[]} {
+interface UnwrappedField {
+  schema: z.ZodTypeAny;
+  descriptions: string[];
+  refs: Set<ChildRefKind>;
+}
+
+function unwrap(schema: z.ZodTypeAny): UnwrappedField {
   const descriptions: string[] = [];
+  const refs = new Set<ChildRefKind>();
   let current = schema;
   for (;;) {
     if (current.description) {
       descriptions.push(current.description);
+    }
+    const ref = childRefKindOf(current);
+    if (ref) {
+      refs.add(ref);
     }
     const typeName = current._def.typeName;
     if (typeName === 'ZodOptional' || typeName === 'ZodNullable' || typeName === 'ZodDefault') {
@@ -130,9 +148,17 @@ function unwrap(schema: z.ZodTypeAny): {schema: z.ZodTypeAny; descriptions: stri
     } else if (typeName === 'ZodEffects') {
       current = current._def.schema;
     } else {
-      return {schema: current, descriptions};
+      return {schema: current, descriptions, refs};
     }
   }
+}
+
+function marksComponentId(field: UnwrappedField): boolean {
+  return field.refs.has('component-id') || hasPointer(field.descriptions, COMPONENT_ID_REF);
+}
+
+function marksChildList(field: UnwrappedField): boolean {
+  return field.refs.has('child-list') || hasPointer(field.descriptions, CHILD_LIST_REF);
 }
 
 function hasPointer(descriptions: string[], pointer: string): boolean {

@@ -43,14 +43,13 @@ import {
 describe('Basic Catalog Components', () => {
   describe('Text', () => {
     it('renders static text', () => {
-      renderA2uiComponent(Text, 't1', {text: 'Hello World'});
+      renderA2uiComponent(Text, {text: 'Hello World'});
       expect(screen.getByText('Hello World')).toBeDefined();
     });
 
     it('renders reactive text from data model', async () => {
       const {updateData} = renderA2uiComponent(
         Text,
-        't1',
         {text: {path: '/msg'}},
         {initialData: {msg: 'Initial'}},
       );
@@ -65,7 +64,7 @@ describe('Basic Catalog Components', () => {
     });
 
     it('renders with correct heading tag based on variant', () => {
-      const {view} = renderA2uiComponent(Text, 't1', {text: 'Title', variant: 'h1'});
+      const {view} = renderA2uiComponent(Text, {text: 'Title', variant: 'h1'});
       const h1 = view.container.querySelector('div.h1 h1');
       expect(h1).not.toBeNull();
       expect(h1?.textContent).toBe('Title');
@@ -74,7 +73,7 @@ describe('Basic Catalog Components', () => {
 
   describe('Image', () => {
     it('renders image with url and object-fit', () => {
-      const {view} = renderA2uiComponent(Image, 'i1', {
+      const {view} = renderA2uiComponent(Image, {
         url: 'https://example.com/img.png',
         fit: 'cover',
       });
@@ -84,7 +83,7 @@ describe('Basic Catalog Components', () => {
     });
 
     it('renders image with description as alt text', () => {
-      const {view} = renderA2uiComponent(Image, 'i1', {
+      const {view} = renderA2uiComponent(Image, {
         url: 'url',
         description: 'A beautiful sunset',
       });
@@ -93,7 +92,7 @@ describe('Basic Catalog Components', () => {
     });
 
     it('applies variant-specific styling (avatar)', () => {
-      const {view} = renderA2uiComponent(Image, 'i1', {
+      const {view} = renderA2uiComponent(Image, {
         url: 'url',
         variant: 'avatar',
       });
@@ -105,13 +104,13 @@ describe('Basic Catalog Components', () => {
 
   describe('Icon', () => {
     it('renders material icon by name', () => {
-      const {view} = renderA2uiComponent(Icon, 'ic1', {name: 'settings'});
+      const {view} = renderA2uiComponent(Icon, {name: 'settings'});
       expect(view.container.textContent).toContain('settings');
       expect(view.container.querySelector('.material-symbols-outlined')).not.toBeNull();
     });
 
     it('converts camelCase icon names to snake_case', () => {
-      const {view} = renderA2uiComponent(Icon, 'ic1', {name: 'shoppingCart'});
+      const {view} = renderA2uiComponent(Icon, {name: 'shoppingCart'});
       expect(view.container.textContent).toContain('shopping_cart');
     });
 
@@ -121,14 +120,14 @@ describe('Basic Catalog Components', () => {
       ['favoriteOff', 'favorite_border'],
       ['starOff', 'star_border'],
     ])('maps "%s" to "%s"', (specName, materialName) => {
-      const {view} = renderA2uiComponent(Icon, 'ic1', {name: specName});
+      const {view} = renderA2uiComponent(Icon, {name: specName});
       expect(view.container.textContent).toContain(materialName);
     });
   });
 
   describe('Video', () => {
     it('renders video element with source and controls', () => {
-      const {view} = renderA2uiComponent(Video, 'v1', {url: 'vid.mp4'});
+      const {view} = renderA2uiComponent(Video, {url: 'vid.mp4'});
       const video = view.container.querySelector('video') as HTMLVideoElement;
       expect(video.src).toContain('vid.mp4');
       expect(video.controls).toBe(true);
@@ -137,7 +136,7 @@ describe('Basic Catalog Components', () => {
 
   describe('AudioPlayer', () => {
     it('renders audio element and description', () => {
-      renderA2uiComponent(AudioPlayer, 'a1', {
+      renderA2uiComponent(AudioPlayer, {
         url: 'audio.mp3',
         description: 'Listen to this',
       });
@@ -149,7 +148,7 @@ describe('Basic Catalog Components', () => {
 
   describe('Button', () => {
     it('dispatches action on click', async () => {
-      const {surface} = renderA2uiComponent(Button, 'b1', {
+      const {surface} = renderA2uiComponent(Button, {
         action: {event: {name: 'submit_clicked'}},
         child: 'label1',
       });
@@ -165,7 +164,6 @@ describe('Basic Catalog Components', () => {
     it('is disabled when isValid is false (via checks)', async () => {
       const {updateData} = renderA2uiComponent(
         Button,
-        'b1',
         {
           action: {event: {name: 'submit'}},
           checks: [
@@ -189,16 +187,15 @@ describe('Basic Catalog Components', () => {
       expect(button.disabled).toBe(false);
     });
 
-    it('delegates child rendering to buildChild', () => {
-      const {buildChild} = renderA2uiComponent(Button, 'b1', {child: 'inner1'});
-      expect(buildChild).toHaveBeenCalledWith('inner1');
+    it('renders its child', () => {
+      renderA2uiComponent(Button, {child: 'inner1'});
       expect(screen.getByTestId('child-inner1')).toBeDefined();
     });
   });
 
   describe('TextField', () => {
     it('updates data model on change', () => {
-      const {surface} = renderA2uiComponent(TextField, 'f1', {
+      const {surface} = renderA2uiComponent(TextField, {
         label: 'Name',
         value: {path: '/user/name'},
       });
@@ -212,7 +209,6 @@ describe('Basic Catalog Components', () => {
     it('shows validation error message', async () => {
       const {updateData} = renderA2uiComponent(
         TextField,
-        'f1',
         {
           label: 'Email',
           value: {path: '/email'},
@@ -233,28 +229,24 @@ describe('Basic Catalog Components', () => {
 
   describe('Layout and Structural Components', () => {
     it('Row renders multiple children', () => {
-      const {buildChild} = renderA2uiComponent(Row, 'r1', {
+      renderA2uiComponent(Row, {
         children: ['c1', 'c2'],
       });
 
-      expect(buildChild).toHaveBeenCalledWith('c1');
-      expect(buildChild).toHaveBeenCalledWith('c2');
       expect(screen.getByTestId('child-c1')).toBeDefined();
       expect(screen.getByTestId('child-c2')).toBeDefined();
     });
 
     it('Column renders children vertically', () => {
-      const {buildChild, view} = renderA2uiComponent(Column, 'col1', {
+      const {view} = renderA2uiComponent(Column, {
         children: ['c1'],
       });
-      expect(buildChild).toHaveBeenCalledWith('c1');
       expect(view.container.firstChild).toHaveStyle({flexDirection: 'column'});
     });
 
     it('List supports dynamic templates with scoped data context', () => {
       renderA2uiComponent(
         List,
-        'list1',
         {
           children: {componentId: 'itemComp', path: '/items'},
         },
@@ -270,13 +262,12 @@ describe('Basic Catalog Components', () => {
     });
 
     it('Card renders its child', () => {
-      const {buildChild} = renderA2uiComponent(Card, 'card1', {child: 'c1'});
-      expect(buildChild).toHaveBeenCalledWith('c1');
+      renderA2uiComponent(Card, {child: 'c1'});
       expect(screen.getByTestId('child-c1')).toBeDefined();
     });
 
     it('Tabs switches active tab content', () => {
-      renderA2uiComponent(Tabs, 'tabs1', {
+      renderA2uiComponent(Tabs, {
         tabs: [
           {title: 'Home', child: 'home_c'},
           {title: 'Settings', child: 'settings_c'},
@@ -293,7 +284,7 @@ describe('Basic Catalog Components', () => {
     });
 
     it('Modal opens content on trigger click', () => {
-      renderA2uiComponent(Modal, 'm1', {
+      renderA2uiComponent(Modal, {
         trigger: 't1',
         content: 'c1',
       });
@@ -307,14 +298,14 @@ describe('Basic Catalog Components', () => {
     });
 
     it('Divider renders a themed line', () => {
-      const {view} = renderA2uiComponent(Divider, 'd1', {axis: 'horizontal'});
+      const {view} = renderA2uiComponent(Divider, {axis: 'horizontal'});
       expect(view.container.firstChild).toHaveStyle({height: 'var(--a2ui-border-width, 1px)'});
     });
   });
 
   describe('Input Components', () => {
     it('CheckBox updates data', () => {
-      const {surface} = renderA2uiComponent(CheckBox, 'cb1', {
+      const {surface} = renderA2uiComponent(CheckBox, {
         label: 'Agree',
         value: {path: '/agreed'},
       });
@@ -324,7 +315,7 @@ describe('Basic Catalog Components', () => {
     });
 
     it('Slider updates data', () => {
-      const {surface} = renderA2uiComponent(Slider, 's1', {
+      const {surface} = renderA2uiComponent(Slider, {
         label: 'Volume',
         value: {path: '/vol'},
         max: 100,
@@ -335,7 +326,7 @@ describe('Basic Catalog Components', () => {
     });
 
     it('ChoicePicker mutuallyExclusive selection', () => {
-      const {surface} = renderA2uiComponent(ChoicePicker, 'cp1', {
+      const {surface} = renderA2uiComponent(ChoicePicker, {
         label: 'Pick',
         options: [
           {label: 'A', value: 'a'},
@@ -353,7 +344,7 @@ describe('Basic Catalog Components', () => {
     });
 
     it('ChoicePicker filters options', () => {
-      renderA2uiComponent(ChoicePicker, 'cp2', {
+      renderA2uiComponent(ChoicePicker, {
         label: 'Pick',
         options: [
           {label: 'Apple', value: 'apple'},
@@ -375,7 +366,7 @@ describe('Basic Catalog Components', () => {
     });
 
     it('ChoicePicker renders chips and handles selection', () => {
-      const {surface} = renderA2uiComponent(ChoicePicker, 'cp3', {
+      const {surface} = renderA2uiComponent(ChoicePicker, {
         label: 'Pick',
         options: [
           {label: 'A', value: 'a'},
@@ -390,7 +381,7 @@ describe('Basic Catalog Components', () => {
     });
 
     it('DateTimeInput handles date changes', () => {
-      const {surface} = renderA2uiComponent(DateTimeInput, 'dt1', {
+      const {surface} = renderA2uiComponent(DateTimeInput, {
         label: 'When',
         value: {path: '/date'},
         enableDate: true,
