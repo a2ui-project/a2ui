@@ -105,6 +105,7 @@
       "files": [
         "src/**/*.ts",
         "src/**/*.json",
+        "tests/**/*.ts",
         "tsconfig.json"
       ],
       "output": [
@@ -127,6 +128,7 @@
       "files": [
         "src/**/*.ts",
         "src/**/*.json",
+        "tests/**/*.ts",
         "scripts/**/*.js",
         "package.json",
         "tsconfig.json"
@@ -137,6 +139,7 @@
       "files": [
         "src/**/*.ts",
         "src/**/*.json",
+        "tests/**/*.ts",
         "scripts/**/*.js",
         "package.json",
         "tsconfig.json"

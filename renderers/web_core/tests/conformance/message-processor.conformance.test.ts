@@ -17,9 +17,9 @@
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
 import {loadConformanceSuite} from './harness.js';
-import {MessageProcessor} from '../processing/message-processor.js';
-import {Catalog, ComponentApi} from '../catalog/types.js';
-import {SurfaceModel} from '../state/surface-model.js';
+import {MessageProcessor} from '../../src/v0_9/processing/message-processor.js';
+import {Catalog, ComponentApi} from '../../src/v0_9/catalog/types.js';
+import {SurfaceModel} from '../../src/v0_9/state/surface-model.js';
 
 /**
  * Runs the shared `conformance/core/message_processor.yaml` suite against
