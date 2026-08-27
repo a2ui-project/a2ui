@@ -36,6 +36,8 @@ export class WritableBinding<T> extends ResolvedBinding<T> {
   constructor(
     value: T,
     readonly set: (value: T) => void,
+    /** The authored data path, not resolved against the node's data scope. */
+    readonly path: string,
   ) {
     super(value);
   }
@@ -48,12 +50,18 @@ export function isWritable<T>(binding: ResolvedBinding<T>): binding is WritableB
 
 /**
  * Whether two bindings count as unchanged for props change detection: same
- * writability and equal snapshot values. Plain arrays and objects compare
- * structurally; non-plain objects compare by identity only, mirroring the
- * resolver's change detection for props.
+ * writability, same write destination, and equal snapshot values. Plain
+ * arrays and objects compare structurally; non-plain objects compare by
+ * identity only, mirroring the resolver's change detection for props.
  */
 export function sameBinding(a: ResolvedBinding<unknown>, b: ResolvedBinding<unknown>): boolean {
-  return isWritable(a) === isWritable(b) && valueEquals(a.value, b.value);
+  if (isWritable(a) !== isWritable(b)) {
+    return false;
+  }
+  if (isWritable(a) && isWritable(b) && a.path !== b.path) {
+    return false;
+  }
+  return valueEquals(a.value, b.value);
 }
 
 function valueEquals(a: unknown, b: unknown): boolean {
