@@ -17,9 +17,10 @@ This implementation plan details the steps to:
 To guarantee stability and prevent regressions in production packages:
 
 - **`a2ui_core` (`agent_sdks/python/a2ui_core/`)**:
-  - **Zero modifications required**.
-  - Core classes (`Catalog`, `ComponentApi`, `FunctionApi`, `CatalogSchemaValidator`) remain 100% untouched.
-  - All schema analysis and type extraction logic is implemented via the non-invasive `AnalysedComponentApi` and `AnalysedCatalog` adapter classes located inside `a2ui_codegen`.
+  - Existing core classes (`Catalog`, `ComponentApi`, `FunctionApi`, `CatalogSchemaValidator`) remain 100% untouched.
+  - Hosts the handwritten runtime base abstractions (`ComponentBuilderNode`, `DataBinding`, `Action`, `FunctionCall`, `bind`, `IdAllocator`, `flatten_component_tree`) as a clean, purely additive module (`a2ui.core.builder.base`).
+  - **`base.py` is handwritten, NEVER generated**: Because `base.py` defines catalog-agnostic runtime primitives, keeping it handwritten in core ensures that all generated catalogs share identical base types. This allows custom enterprise components to nest directly inside standard containers (e.g. `Column(children=[CustomCard(...)])`) without type incompatibility.
+  - All schema analysis and type extraction logic is implemented via non-invasive `AnalysedComponentApi` and `AnalysedCatalog` adapter classes located inside `a2ui_codegen`.
 - **Client Renderers (`renderers/*`)**:
   - **Zero modifications required**.
   - The synthetic component expansion pipeline produces standard A2UI primitive component dictionaries (`Text`, `Card`, `Column`, `Row`, etc.) that render identically on existing web and mobile renderers.
@@ -98,12 +99,12 @@ Located in `agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental
   - Re-anchor the module around `@synthetic_component` (with backward-compatible alias `dynamic_template`).
   - Support programmatic Python functions that accept typed arguments and return typesafe component trees (or dictionaries).
 - **Pre-bundled Basic Catalog Typesafe Builders**:
-  - Generate and pre-bundle the typed builders for the official Basic Catalog directly under `template/builder/`:
-    - `builder/base.py`: `ComponentBuilderNode`, `DataBinding`, `bind`, `Action`, `FunctionCall`.
+  - Handcrafted base runtime module (`builder/base.py` / `a2ui.core.builder.base`): `ComponentBuilderNode`, `DataBinding`, `bind`, `Action`, `FunctionCall`, `IdAllocator`, `flatten_component_tree`.
+  - Generated from `basic/catalog.json` using `a2ui-codegen`:
     - `builder/components.py`: `Card`, `Column`, `Row`, `Text`, `Button`, `Divider`, `Icon`, `Image`, `TextField`, `Slider`, `Switch`, etc.
     - `builder/functions.py`: `formatString`, etc.
     - `builder/types.py`: `TextVariant`, `FlexJustify`, etc.
-    - `builder/flattener.py`: Tree flattening with invocation ID stitching and scoped sub-component IDs.
+    - `builder/__init__.py`: Re-exports and `py.typed`.
 - **ID Management and Tree Flattening (`builder/flattener.py`)**:
   - **Root ID stitching**: The returned root node adopts the invocation ID (`id=invocation_id`).
   - **Sub-component namespacing**: Internal sub-components receive scoped IDs (`f"{invocation_id}__{local_id}"`), preventing collisions when multiple instances of the same synthetic component are rendered.

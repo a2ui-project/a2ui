@@ -568,7 +568,9 @@ def flatten_component_tree(
 
 ### Generated Python code structure
 
-The Python emitter turns a `Catalog` into four files:
+The base abstractions (`ComponentBuilderNode`, `DataBinding`, `Action`, `FunctionCall`, `bind`, `IdAllocator`, `flatten_component_tree`) are **handwritten in A2UI Core** (`a2ui.core.builder.base`). They are **never generated**.
+
+Because the base runtime types are shared from core, every generated catalog can seamlessly interoperate with every other catalog. The Python emitter turns an ingested `Catalog` into four catalog-specific files that import from core:
 
 1. **`types.py`**:
    - String enum unions:
