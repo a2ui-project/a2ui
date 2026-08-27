@@ -16,6 +16,7 @@ resolution-markers = [
 [manifest]
 members = [
     "a2ui-agent-sdk",
+    "a2ui-codegen",
     "a2ui-conformance-validation",
     "a2ui-core",
     "a2ui-custom-components-example",
@@ -99,6 +100,25 @@ dev = [
     { name = "hatchling", specifier = ">=1.30.1" },
     { name = "types-jsonschema" },
     { name = "types-pyyaml" },
+]
+
+[[package]]
+name = "a2ui-codegen"
+version = "0.1.0"
+source = { editable = "agent_sdks/python/a2ui_codegen" }
+dependencies = [
+    { name = "a2ui-core" },
+    { name = "jsonschema" },
+    { name = "pydantic" },
+    { name = "referencing" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "a2ui-core", editable = "agent_sdks/python/a2ui_core" },
+    { name = "jsonschema", specifier = ">=4.20.0" },
+    { name = "pydantic", specifier = ">=2.10.0" },
+    { name = "referencing", specifier = ">=0.35.0" },
 ]
 
 [[package]]
