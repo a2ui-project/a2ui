@@ -45,7 +45,8 @@ IGNORE_PATTERNS = [
     "**/build/**",
     "**/.dart_tool/**",
     "**/generated/**",
-    "**/third_party/**",
+    "**/dist/**",
+    "**/.wireit/**",
     "eval/bin/transcrypt",
     "eval/datasets/*.yaml",
 ]

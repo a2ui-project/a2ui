@@ -4,9 +4,9 @@
 
 This implementation plan details the steps to:
 
-1. Build the **A2UI Typesafe API Generator** as a standalone package (`agent_sdks/python/a2ui_codegen` v0.1.0) alongside the Agent SDK.
-2. Completely remove the legacy YAML format from the Python templating system in favor of **Programmatic Macros**.
-3. Provide pre-bundled typesafe Basic Catalog builders and a tree flattener that guarantees root ID stitching and sub-component ID scoping.
+1. Build the **A2UI TypeScript CLI** (`@a2ui/cli` v0.1.0 at `javascript/a2ui_cli`) as a monorepo Yarn workspace, providing modular subcommands (`a2ui codegen`) powered by `Catalog.fromJson()` in `@a2ui/web_core`.
+2. Provide pre-bundled typesafe Basic Catalog builders in Python, generated directly by the TypeScript CLI.
+3. Completely remove the legacy YAML format from the Python templating system in favor of **Programmatic Macros** (`@macro`).
 4. Migrate all templates in the community example app (`samples/community/templates/`) to programmatic macro functions.
 5. Provide exhaustive unit, integration, and end-to-end test suites and documentation.
 
@@ -28,60 +28,52 @@ To guarantee stability and prevent regressions in production packages:
 
 ---
 
-## 3. Package 1: Standalone Code Generator (`a2ui_codegen` v0.1.0)
+## 3. Package 1: A2UI TypeScript CLI (`@a2ui/cli` v0.1.0) & Schema Ingestion Engine
 
-A new package created at `agent_sdks/python/a2ui_codegen/`.
+The CLI generator is implemented in TypeScript at `javascript/a2ui_cli/`, registered as a Yarn Berry workspace. Ingestion logic resides in `@a2ui/web_core` via `Catalog.fromJson()`.
 
 ### Directory and File Layout
 
 ```
-agent_sdks/python/a2ui_codegen/
-├── pyproject.toml
-├── README.md
+renderers/web_core/src/v0_9/catalog/
+├── json_schema_loader.ts         # Schema dereferencing, version extraction, and Zod mapper
+├── json_schema_loader.test.ts    # Tests schema conversion and version validation
+└── types.ts                      # Catalog.fromJson() static entry point
+
+javascript/a2ui_cli/
+├── package.json                  # Canonical scripts: build, test, lint, format; bin: a2ui
+├── tsconfig.json
+├── eslint.config.mjs
 ├── src/
-│   └── a2ui/
-│       └── codegen/
-│           ├── __init__.py
-│           ├── cli.py               # CLI entry point (argparse: --catalog, --lang, --out, --package-name)
-│           ├── types.py             # Strongly typed TypeDescriptor algebraic sum types
-│           ├── analyzer.py          # AnalysedCatalog and AnalysedComponentApi wrapping CatalogSchemaHelper
-│           └── emitter/
-│               ├── __init__.py
-│               ├── base.py          # Abstract BaseEmitter
-│               └── python.py        # PythonEmitter generating types.py, components.py, functions.py, __init__.py
+│   ├── cli.ts                    # Commander CLI entry point (subcommands: codegen)
+│   ├── commands/
+│   │   └── codegen.ts            # 'codegen' command implementation
+│   ├── analyzer/
+│   │   ├── types.ts              # Strongly typed TypeDescriptor discriminated union
+│   │   └── catalog-analyzer.ts   # CatalogAnalyzer inspecting Catalog<ComponentApi, FunctionApi>
+│   └── emitters/
+│       └── python/
+│           ├── type-mapper.ts    # Maps TypeDescriptor to Python syntax and sanitizes keywords
+│           └── python-emitter.ts # Emits types.py, components.py, functions.py, __init__.py, py.typed
 └── tests/
-    ├── __init__.py
-    ├── test_types.py                # Tests TypeDescriptor hierarchy and exhaustiveness
-    ├── test_analyzer.py             # Tests schema crawling, property detection, enum extraction
-    ├── test_python_emitter.py       # Tests emitted Python code syntax, imports, and docstrings
-    └── test_cli.py                  # Tests CLI execution via subprocess / Runner against Basic Catalog
+    ├── analyzer.test.ts          # Tests CatalogAnalyzer property and slot extraction
+    ├── python_emitter.test.ts    # Tests Python code generation
+    └── cli.test.ts               # Tests a2ui CLI end-to-end command execution
 ```
 
 ### Key Components:
 
-1. **`types.py` (Algebraic Type Descriptor System)**:
-   - Replaces stringly-typed `target_type: str` with typed immutable dataclasses:
-     - `PrimitiveType(PrimitiveKind)` (`STRING`, `INTEGER`, `FLOAT`, `BOOLEAN`, `ANY`).
-     - `EnumType(name, values)`.
-     - `ComponentRefType()` (single child slot).
-     - `ComponentListType()` (children sequence slot).
-     - `DynamicType(inner)` (wraps primitive into `T | DataBinding | FunctionCall`).
-     - `ActionType()`, `DataBindingType()`, `ListType(element_type)`, `MapType(value_type)`, `UnionType(options)`.
-   - `TypeDescriptor` algebraic sum type.
-2. **`analyzer.py` (Non-Invasive Schema Analysis)**:
-   - Leverages the existing `CatalogSchemaHelper` from `a2ui.schema.schema_helper`.
-   - Implements `AnalysedComponentApi` wrapping `ComponentApi` without modifying `a2ui_core`.
-   - Resolves component properties into `PropertyApi(name, type_desc, required, description, default_value)`.
-3. **`emitter/python.py` (Python Code Generator)**:
-   - Consumes `AnalysedCatalog`.
-   - Emits:
-     - `types.py`: `Literal[...]` unions for catalog enums.
-     - `components.py`: Typed `@dataclass(kw_only=True)` classes implementing `ComponentBuilderNode` and `.to_dict()`.
-     - `functions.py`: Callable wrapper functions returning `FunctionCall`.
-     - `__init__.py`: Re-exports and `py.typed` marker.
-4. **`cli.py`**:
-   - Command-line parser with flags: `--catalog`, `--lang` (defaults to `"python"`), `--out`, `--package-name`.
-   - Formats emitted code using `pyink` or `black` if available.
+1. **`Catalog.fromJson()` (`@a2ui/web_core`)**:
+   - Parses catalog schemas directly into typed `Catalog` and `ComponentApi` instances.
+   - Enforces explicit protocol specification versions (e.g. `v0.9.1`, `v1.0`), preventing silent fallback defaults.
+   - Maps JSON Schema definitions to canonical Zod schemas (`DynamicStringSchema`, `ChildListSchema`, `ActionSchema`, etc.).
+   - Converts function argument schemas to `z.ZodObject` without component-level common properties (`accessibility`, `weight`).
+2. **`CatalogAnalyzer` (`@a2ui/cli`)**:
+   - Inspects the loaded `Catalog` to extract typed `AnalysedCatalog`, preserving slots, actions, dynamic properties, and string literal enums (`FlexJustify`, `FlexAlign`, `IconName`, etc.).
+3. **`PythonEmitter` (`@a2ui/cli`)**:
+   - Emits clean, typed Python source files (`types.py`, `components.py`, `functions.py`, `__init__.py`, `py.typed`).
+4. **Subcommand Architecture (`a2ui codegen`)**:
+   - `a2ui codegen --catalog <path> --spec-version <ver> --out <dir>` provides a clear command interface, allowing additional subcommands to be registered in the future.
 
 ---
 
@@ -206,22 +198,19 @@ Located in `samples/community/templates/`.
 
 ## 7. Phased Execution Steps
 
-1. **Phase 1: Build `a2ui_codegen` package**:
-   - Create `agent_sdks/python/a2ui_codegen/` with `pyproject.toml`, `types.py`, `analyzer.py`, `emitter/python.py`, `cli.py`, and `README.md`.
-   - Add to root `pyproject.toml` workspace members.
-   - Write and pass all codegen unit tests (`pytest`).
-2. **Phase 2: Build `macros` Inference Format and Builders**:
-   - Implement handcrafted base runtime module in `a2ui_agent/src/a2ui/inference_formats/experimental/macros/builder/base.py`.
-   - Run `a2ui-codegen` against Basic Catalog v0.9.1 to produce pre-bundled builders (`components.py`, `functions.py`, `types.py`, `__init__.py`).
-   - Implement `@macro`, `MacroProcessor`, and `MacroInferenceFormat`.
-   - Deprecate/forward legacy `template/` module.
-   - Add exhaustive unit tests in `a2ui_agent/tests/inference_formats/experimental/macros/`.
-3. **Phase 3: Migrate Community Sample App**:
-   - Delete `.yaml` files in `samples/community/templates/templates/`.
-   - Implement all 11 macro functions in Python using the typesafe builder interface.
-   - Update `server.py` to register programmatic functions.
-   - Run and verify `samples/community/templates/test_e2e.mjs`.
-4. **Phase 4: Format, Lint, License, and Verification**:
-   - Format Python code with Pyink.
-   - Verify license headers with `./scripts/fix_licenses.py --check`.
-   - Run full test suites across packages.
+1. **Phase 1: Implement `Catalog.fromJson()` in `@a2ui/web_core`**:
+   - Implemented `json_schema_loader.ts` and `Catalog.fromJson()` supporting explicit protocol versions, canonical Zod common types, and function argument parsing.
+   - Added unit tests in `json_schema_loader.test.ts` (335 web_core tests passing).
+2. **Phase 2: Build `@a2ui/cli` TypeScript Package**:
+   - Created `javascript/a2ui_cli` in Yarn Berry workspace with canonical scripts (`build`, `test`, `lint`, `format`).
+   - Implemented `CatalogAnalyzer`, `PythonEmitter`, and `a2ui codegen` subcommand.
+   - Verified unit and CLI end-to-end execution tests.
+3. **Phase 3: Generate Python Builders**:
+   - Re-generated `builder/` in `a2ui_agent` using `node javascript/a2ui_cli/dist/src/cli.js codegen --catalog specification/v0_9_1/catalogs/basic/catalog.json --spec-version v0.9.1 --out agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/macros/builder`.
+4. **Phase 4: Migrate Community Sample App**:
+   - Migrated all 11 community templates to programmatic `@macro` functions.
+   - Verified demo `server.py` with `MacroInferenceFormat`.
+5. **Phase 5: Exhaustive Multi-Suite Verification**:
+   - Verified Python unit tests (`test_macros.py` - 15 passed).
+   - Verified server tests (`test_server.py` - 4 passed).
+   - Verified end-to-end browser integration (`test_e2e.mjs` - all 7 presets, inspector drawer, template library, dynamic 3-stage studio, and live Gemini inference passed).

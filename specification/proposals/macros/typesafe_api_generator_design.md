@@ -49,10 +49,11 @@ The typesafe API generator uses a three-tier architecture that separates schema 
 
 ### Component boundaries
 
-1. **Catalog Ingestion Engine**: Loads catalog JSON schemas from a local file or URL, parses the schema AST, resolves `$ref` references, and instantiates the in-memory `Catalog` object. JSON Schema is treated as an ingestion format / implementation detail.
-2. **The In-Memory Catalog as Normalized IR**: The existing `Catalog` class in `a2ui_core` (containing `ComponentApi` and `FunctionApi`) serves as the normalized intermediate representation. We enhance `ComponentApi` with methods to inspect typed properties and child slots, eliminating the need for an external, duplicated IR layer.
-3. **Language Emitters**: Pluggable code generation backends. Each backend receives a `Catalog` instance and emits formatted source files adhering to the idioms of the target programming language.
-4. **Runtime Core (`a2ui-core`)**: A lightweight, zero-dependency library providing base interfaces (`ComponentBuilderNode`, `DataBinding`, `Action`, `FunctionCall`), tree flattening algorithms, and surface-level ID allocation. Generated code imports only this runtime core.
+1. **Catalog Ingestion Engine (`@a2ui/web_core`)**: Loads catalog JSON schemas into the TypeScript in-memory `Catalog` class using `Catalog.fromJson()`. Strictly verifies protocol version metadata, unpacks `allOf` chains, and converts properties into canonical Zod common types while excluding envelope properties.
+2. **Normalized Catalog IR & Analyzer (`@a2ui/cli`)**: The `CatalogAnalyzer` inspects the loaded `Catalog` to extract typed component definitions, parameter signatures, slot types (`ComponentRef`, `ComponentList`), and enums.
+3. **Pluggable Language Emitters (`@a2ui/cli`)**: Code generation backends that receive an `AnalysedCatalog` and emit language-specific bindings. The `PythonEmitter` emits typed Python dataclasses, string literal enums, function factories, and package initializers.
+4. **Subcommand CLI Architecture (`a2ui`)**: The command-line tool `a2ui` provides modular subcommands (`a2ui codegen`) distributed via NPM (`@a2ui/cli` at `javascript/a2ui_cli`), making installation straightforward across developer operating systems without Python version mismatch issues.
+5. **Runtime Core (`a2ui-core`)**: Base interfaces (`ComponentBuilderNode`, `DataBinding`, `Action`, `FunctionCall`), tree flattening algorithms, and surface ID allocation imported by generated code.
 
 ---
 
@@ -860,19 +861,14 @@ To support TypeScript, Dart, and Kotlin in the future while maximizing shared co
 
 ### Generator sharing options
 
-- **Option 1: Python-based multi-language CLI tool (Recommended)**:
-  - The CLI generator is written in Python (using the monorepo's existing Python infrastructure).
-  - Uses Jinja2 templates for each language emitter:
-    - `templates/python/components.py.jinja`
-    - `templates/typescript/components.ts.jinja`
-    - `templates/dart/components.dart.jinja`
-    - `templates/kotlin/components.kt.jinja`
-  - _Advantage_: 100% of schema ingestion, dereferencing, `allOf` normalization, and semantic type detection code is shared. Adding a new language target requires only creating a new Jinja2 template folder.
-- **Option 2: Standalone JSON IR compiler**:
-  - A CLI tool compiles any catalog JSON schema into a simplified `catalog.ir.json`.
-  - Each language repo provides a small script that reads `catalog.ir.json` and outputs code.
-  - _Advantage_: Language teams write templates in their preferred language.
-  - _Trade-off_: Requires maintaining template scripts across multiple repositories.
+- **TypeScript CLI tool (`@a2ui/cli`) (Implemented)**:
+  - Located in `javascript/a2ui_cli` in the monorepo.
+  - Ingests schemas directly into the canonical TypeScript `Catalog` model via `Catalog.fromJson()` in `@a2ui/web_core`.
+  - Analyzes the `Catalog` model via `CatalogAnalyzer` into an `AnalysedCatalog` intermediate representation.
+  - Emits target code via pluggable emitters (`PythonEmitter` implemented; TypeScript, Dart, and Kotlin emitters follow the same interface).
+  - _Advantage_: Developers install the CLI through NPM (`npm install -g @a2ui/cli` or `npx @a2ui/cli codegen`), avoiding inconsistent local Python virtualenv configurations and keeping backend agent SDK packages lean.
+- **Protocol version validation rule**:
+  - The CLI enforces explicit protocol versions. If a catalog JSON does not specify an explicit version in its metadata or URI, the user must provide `--spec-version <version>`. The loader never silently falls back to an arbitrary default protocol version.
 
 ### Language idiom mappings
 
@@ -953,56 +949,42 @@ The serialization layer bridges protocol differences automatically:
 
 ## Packaging, distribution, and bloat prevention
 
-A critical architectural consideration is whether `a2ui-codegen` should be bundled directly inside the Agent SDK (`a2ui-agent-sdk`), or whether that would introduce unnecessary bloat for production codebases that only need runtime execution.
+A key architectural requirement is keeping production server runtime packages lightweight while making the developer tooling simple to install across diverse developer environments.
 
-### The bloat problem: Build-time tooling vs. runtime execution
+### The bloat and installation problem: Build-time tooling vs. runtime execution
 
-- **The Code Generator is an author-time tool**: It runs on a developer's workstation or in a CI build pipeline to generate `.py`, `.ts`, or `.dart` source files from a catalog schema. It requires template engines (Jinja2), schema crawlers, and file generators.
-- **The Agent SDK is a runtime server library**: It runs in production environments (web servers, serverless AWS Lambda / Cloud Run functions, microservices, and lightweight Model Context Protocol MCP servers) to orchestrate agent turns and emit A2UI messages.
-- **The risk of direct bundling**: If `a2ui-codegen` and its dependencies (e.g. `jinja2`, CLI runners, formatting utilities) were bundled into the default `dependencies` of `a2ui-agent-sdk`:
-  - Production Docker containers and serverless packages would carry generator dependencies that are never invoked during agent execution.
-  - Users could face dependency version conflicts (e.g. Jinja2 version pins conflicting with their existing web framework).
+- **The CLI is an author-time tool**: It runs on a developer workstation or in a CI build pipeline to generate source files from a catalog schema.
+- **The Agent SDK is a runtime server library**: It runs in production environments (web servers, serverless functions, microservices, Model Context Protocol MCP servers) to orchestrate agent turns and emit A2UI messages.
+- **Why TypeScript and NPM**: Installing developer CLIs via Python often encounters version mismatches (e.g. conflicting global Python versions, virtualenv isolation issues). Distributing the tool as an NPM package (`@a2ui/cli`) allows developers to execute it reliably with zero permanent virtualenv pollution (`npx @a2ui/cli codegen`) or via a single global install (`npm install -g @a2ui/cli`).
+- **Codebase co-existence**: The TypeScript CLI (`javascript/a2ui_cli`) is the primary active direction, while the existing Python CLI codebase in `agent_sdks/python/a2ui_codegen` is temporarily preserved for backwards reference.
 
-### The separation strategy: Three tiers of distribution
-
-To achieve maximum convenience without bloating production codebases, the system uses a three-tier separation strategy:
-
-#### 1. Zero-dependency runtime pre-bundling (`a2ui-core`)
-
-The vast majority (>90%) of developers authoring UI use the official A2UI Basic Catalog:
-
-- `a2ui-core` ships with **pre-generated, pre-tested typesafe bindings** for the Basic Catalog (`from a2ui.basic import Card, Column, Row, Text`).
-- Developers using standard components never need to install, configure, or run the code generator CLI.
-- `a2ui-core` has zero heavy dependencies, ensuring a minimal runtime footprint for production deployments.
-
-#### 2. Standalone ephemeral execution via `uvx` / `pipx` (Zero virtualenv pollution)
-
-For developers creating domain-specific custom catalogs or enterprise component suites:
-
-- `a2ui-codegen` is published to PyPI as a standalone package with console entry point `[project.scripts] a2ui-codegen = "a2ui.codegen.cli:main"`.
-- Developers run it on-demand using modern ephemeral runners:
-
-  ```bash
-  # Ephemeral zero-install run via uv (recommended):
-  uvx a2ui-codegen --catalog ./catalogs/custom.json --lang python --out ./src/generated/ui
-
-  # Ephemeral run via pipx:
-  pipx run a2ui-codegen --catalog ./catalogs/custom.json --lang python --out ./src/generated/ui
-  ```
-
-- **Why this prevents bloat**: `uvx` downloads and runs the tool in an isolated temporary sandbox. The generated Python files are written to the project's repository, but **zero generator dependencies or packages are added to the project's virtualenv, `pyproject.toml`, or lockfile**.
-
-#### 3. Optional SDK extra for unified installation (`a2ui-agent-sdk[codegen]`)
-
-For developers who prefer having the CLI permanently available in their local development virtualenv:
-
-- The dependency is declared as an optional extra in `a2ui_agent/pyproject.toml`:
-  ```toml
-  [project.optional-dependencies]
-  codegen = [
-      "jinja2>=3.1.0",
-  ]
-  ```
-- **Production deployment**: `pip install a2ui-agent-sdk` (remains lean with zero generator bloat).
-- **Local development**: `pip install "a2ui-agent-sdk[codegen]"` (installs the extra and provides the `a2ui-codegen` command).
-````
+### The separation strategy: NPM CLI distribution with pre-bundled SDKs
+ 
+ To provide a clean workflow without bloating production backend deployments, the system separates author-time tooling from runtime SDKs:
+ 
+ #### 1. Zero-dependency runtime pre-bundling (`a2ui_agent`)
+ 
+ The vast majority of developers authoring UI use the official A2UI Basic Catalog:
+ 
+ - Pre-generated, tested typesafe bindings for the Basic Catalog are committed directly in the SDK (`from a2ui.inference_formats.experimental.macros.builder import Card, Column, Row, Text`).
+ - Developers using standard components do not need to install, configure, or run the code generator CLI.
+ - The runtime SDK has no code generator or compiler dependencies.
+ 
+ #### 2. NPM distribution of the A2UI CLI (`@a2ui/cli`)
+ 
+ For developers creating domain-specific custom catalogs or generating bindings for new catalogs:
+ 
+ - `@a2ui/cli` is published to NPM from `javascript/a2ui_cli` with the `a2ui` executable command.
+ - Developers run it on-demand using standard Node tooling without needing to install Python generator tools into their backend virtualenvs:
+ 
+   ```bash
+   # Ephemeral execution via npx:
+   npx @a2ui/cli codegen --catalog ./catalogs/custom.json --spec-version v0.9.1 --lang python --out ./src/generated/ui
+ 
+   # Global installation:
+   npm install -g @a2ui/cli
+   a2ui codegen --catalog ./catalogs/custom.json --spec-version v0.9.1 --lang python --out ./src/generated/ui
+   ```
+ 
+ - **Subcommand architecture**: The CLI uses a modular subcommand design (`a2ui codegen [options]`), enabling additional developer commands (e.g. `a2ui validate`, `a2ui inspect`) to be added under the same binary in the future.
+ - **Strict version validation**: Protocol specification versions must be explicitly declared either in the catalog schema or via `--spec-version <version>`. The tool rejects inputs where the protocol version is ambiguous rather than guessing a default.

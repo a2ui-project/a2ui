@@ -431,17 +431,20 @@ To illustrate how a developer generates and consumes a typesafe API from a custo
 A developer working with a custom catalog schema (for example, a CRM catalog `crm_catalog.json`) runs the code generator using standard package execution tools:
 
 ```bash
-# Python: Generate typed API using uvx or pipx
-uvx a2ui-codegen \
+# Ephemeral execution via npx (recommended):
+npx @a2ui/cli codegen \
   --catalog ./catalogs/crm_catalog.json \
+  --spec-version v0.9.1 \
   --lang python \
   --out ./src/my_app/ui/crm
 
-# TypeScript: Generate typed API using npx
-npx @a2ui/codegen \
+# Global CLI installation:
+npm install -g @a2ui/cli
+a2ui codegen \
   --catalog ./catalogs/crm_catalog.json \
-  --lang typescript \
-  --out ./src/generated/crm
+  --spec-version v0.9.1 \
+  --lang python \
+  --out ./src/my_app/ui/crm
 ```
 
 ### Step 2: Generated file structure
@@ -571,12 +574,11 @@ The design must decouple the runtime classes from the code generation tools:
   - Base classes (`ComponentBuilderNode`, `DataBinding`, `Action`, `FunctionCall`, the tree flattener, and the ID allocator) must reside in a lightweight runtime package (e.g. `a2ui-core` or `a2ui-runtime`).
   - _Dependency isolation_: Generated code must depend only on this lightweight runtime package. It must have zero dependencies on LLM orchestration frameworks, agent servers, or heavy web frameworks.
   - This guarantees that generated UI code can be deployed in resource-constrained environments such as serverless functions, lightweight MCP tool servers, or embedded microservices without pulling in the entire agent development kit.
-- **API generator CLI tool**:
-  - The generator requires schema resolvers, Jinja2/Mustache template engines, and file system utilities.
-  - _Distribution options_:
-    1. **Standalone CLI package**: Distributed as an independent tool (`a2ui-codegen` on PyPI, `@a2ui/codegen` on npm, `a2ui_codegen` on pub.dev). Developers can run it on-demand via `uvx a2ui-codegen`, `pipx run a2ui-codegen`, or `npx @a2ui/codegen` without installing generator dependencies into their application runtime.
-    2. **SDK extra**: Bundled as an optional extra in the primary agent SDK (e.g. `pip install "a2ui-agent[codegen]"`), accessible via `python -m a2ui.tools.codegen`.
-    3. **Hybrid approach**: Publish both the standalone CLI package on package registries and include the CLI entry point in the developer SDK.
+- **API generator CLI tool (`@a2ui/cli`)**:
+  - The CLI is implemented in TypeScript at `javascript/a2ui_cli` in the monorepo, depending directly on `@a2ui/web_core`.
+  - _Distribution via NPM_: Distributing the CLI via NPM (`@a2ui/cli`, binary `a2ui`) avoids Python version inconsistencies across developer workstations (such as mismatching global Python installations or virtualenv conflicts). Developers run it with `npx @a2ui/cli codegen` or install it globally with `npm install -g @a2ui/cli`.
+  - _Subcommand architecture_: Built with subcommands (`a2ui codegen`, with future room for other developer tools) to unify A2UI tooling under a single binary.
+  - _Python CLI co-existence_: The legacy Python generator in `agent_sdks/python/a2ui_codegen` is retained for backwards reference, while TypeScript represents the primary active CLI direction.
 
 ### Pre-bundled standard catalogs (zero-setup experience)
 

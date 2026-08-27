@@ -1,0 +1,102 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import {TypeDescriptor} from '../../analyzer/types.js';
+
+export const PYTHON_KEYWORDS = new Set([
+  'and',
+  'as',
+  'assert',
+  'async',
+  'await',
+  'break',
+  'class',
+  'continue',
+  'def',
+  'del',
+  'elif',
+  'else',
+  'except',
+  'finally',
+  'for',
+  'from',
+  'global',
+  'if',
+  'import',
+  'in',
+  'is',
+  'lambda',
+  'nonlocal',
+  'not',
+  'or',
+  'pass',
+  'raise',
+  'return',
+  'try',
+  'while',
+  'with',
+  'yield',
+]);
+
+export function sanitizeIdent(name: string): string {
+  if (PYTHON_KEYWORDS.has(name)) {
+    return `${name}_`;
+  }
+  return name;
+}
+
+export function typeToPython(desc: TypeDescriptor): string {
+  switch (desc.kind) {
+    case 'primitive': {
+      switch (desc.primitive) {
+        case 'string':
+          return 'str';
+        case 'integer':
+          return 'int';
+        case 'float':
+          return 'float';
+        case 'boolean':
+          return 'bool';
+        default:
+          return 'Any';
+      }
+    }
+    case 'enum':
+      return desc.name;
+    case 'component_ref':
+      return 'ComponentBuilderNode';
+    case 'component_list':
+      return 'Sequence[ComponentBuilderNode] | DynamicChildList';
+    case 'dynamic': {
+      const inner = typeToPython(desc.inner);
+      return `${inner} | DataBinding | FunctionCall`;
+    }
+    case 'action':
+      return 'Action';
+    case 'data_binding':
+      return 'DataBinding';
+    case 'check_rule':
+      return 'CheckRule';
+    case 'list':
+      return `Sequence[${typeToPython(desc.elementType)}]`;
+    case 'map':
+      return `Mapping[str, ${typeToPython(desc.valueType)}]`;
+    case 'union':
+      return desc.options.map(typeToPython).join(' | ');
+    default:
+      return 'Any';
+  }
+}
