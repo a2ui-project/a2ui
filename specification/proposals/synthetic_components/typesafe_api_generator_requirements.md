@@ -2,39 +2,39 @@
 
 ## Context and goals
 
-The A2UI project is shifting from declarative YAML template files to programmatic code templates. Instead of authoring YAML templates that rely on string-based parameter substitution, developers will write template functions in target programming languages (starting with Python, followed by TypeScript, Dart, and Kotlin).
+A2UI Synthetic Components allow developers to define higher-level, reusable composite UI components programmatically in their backend programming language (starting with Python, followed by TypeScript, Dart, and Kotlin). These synthetic components are published into the component catalog alongside primitive components, enabling LLMs and autonomous agents to generate concise, structured UI while delegating detailed layout expansion to backend code.
 
-To support this transition, A2UI requires a typesafe API generator. The generator inspects A2UI Component Catalogs (such as the Basic Catalog v0.9.1) and produces typed classes, constructors, function wrappers, and serialization helpers.
+To support this capability, A2UI introduces a typesafe API generator. The generator inspects A2UI Component Catalogs (such as the Basic Catalog v0.9.1) and produces typed classes, constructors, function wrappers, and serialization helpers.
 
 This document establishes the requirements for the typesafe API generator. It addresses two primary contexts:
 
-- **Template expansion (synthetic components)**: Writing macro components whose expansion bodies are executed by an agent or template processor to produce A2UI component trees.
-- **Direct payload authoring (non-template use cases)**: Writing A2UI surfaces, dialogs, cards, or messages directly in non-agent backends, deterministic web servers, MCP tool implementations, test fixtures, and workflow engines without involving an LLM or template processor.
+- **Synthetic components**: Writing macro components whose expansion bodies are executed by an agent or synthetic component processor to produce primitive A2UI component trees.
+- **Direct payload authoring**: Writing A2UI surfaces, dialogs, cards, or messages directly in non-agent backends, deterministic web servers, MCP tool implementations, test fixtures, and workflow engines without involving an LLM or synthetic component processor.
 
 ---
 
 ## Core use cases
 
-### Programmatic template expansion (synthetic components)
+### Programmatic synthetic component expansion
 
-In the programmatic template model, a developer registers a code function as a template. The function defines the layout using typed A2UI constructors:
+In the synthetic component model, a developer registers a code function as a component. The function defines the layout using typed A2UI constructors:
 
 - **Input**: The function accepts typed parameters (for example, numbers, strings, booleans, data dictionaries, child component slots, or action definitions).
 - **Body**: The function body constructs an A2UI component tree using the typesafe catalog API. It can evaluate native language logic, such as conditional statements (`if`/`else`), iterations (`for`, list comprehensions), string formatting, and mathematical calculations.
 - **Output**: The function returns a root component or a list of components.
-- **Catalog synthesis**: The template processor inspects the function signature, type annotations, and docstrings to generate an entry in the synthetic component catalog. The LLM can then invoke this synthetic component during inference.
-- **Expansion pipeline**: When the LLM emits a call to the synthetic component, the template processor runs the registered code function with the provided arguments, expanding the synthetic component into standard primitive components before messages are sent to the client renderer.
+- **Catalog synthesis**: The synthetic component processor inspects the function signature, type annotations, and docstrings to generate an entry in the synthetic component catalog. The LLM can then invoke this synthetic component during inference.
+- **Expansion pipeline**: When the LLM emits a call to the synthetic component, the synthetic component processor runs the registered code function with the provided arguments, expanding the synthetic component into standard primitive components before messages are sent to the client renderer.
 
-### Direct A2UI payload authoring (non-template use cases)
+### Direct A2UI payload authoring
 
-Many backend components need to emit A2UI messages directly without an LLM or a template processor. The typesafe API must support these non-template scenarios:
+Many backend services need to emit A2UI messages directly without an LLM or a synthetic component processor. The typesafe API must support these direct authoring scenarios:
 
 - **Model Context Protocol (MCP) tool servers**: An MCP server executes a tool (for example, querying a database or fetching telemetry) and returns an A2UI payload in the tool result for client display.
 - **Deterministic backend services**: Web applications, microservices, or admin panels emitting standard A2UI responses (such as order confirmation receipts, authentication prompts, or billing tables) based on deterministic business logic.
 - **Test suites and fixtures**: Unit, integration, and conformance tests that construct expected A2UI component trees and verify serialization correctness with compiler-enforced schema validity.
 - **Standalone UI generators**: Command-line tools or batch scripts that generate static A2UI surfaces from data files.
 
-In these use cases, the API must be capable of emitting standard A2UI message streams (`beginRendering`, `surfaceUpdate`, `dataModelUpdate`) or raw component lists directly, with no dependency on the template processor.
+In these use cases, the API must be capable of emitting standard A2UI message streams (`beginRendering`, `surfaceUpdate`, `dataModelUpdate`) or raw component lists directly, with no dependency on the synthetic component processor.
 
 ---
 
@@ -42,7 +42,7 @@ In these use cases, the API must be capable of emitting standard A2UI message st
 
 ### Ergonomics of writing layouts
 
-Developers authoring A2UI layouts (either in templates or in direct payload generation) require an interface that feels natural in their host language:
+Developers authoring A2UI layouts (either inside synthetic components or in direct payload generation) require an interface that feels natural in their host language:
 
 - **Idiomatic constructors**:
   - In Python: standard keyword arguments, typed classes or functions, support for keyword-only parameters, and clear docstrings displayed in IDEs.
@@ -57,7 +57,7 @@ Developers authoring A2UI layouts (either in templates or in direct payload gene
   - The developer writes a tree structure (for example, `Card(child=Column(children=[Text(text="Hello"), Button(text="Click")]))`).
   - The serialization logic must automatically flatten the tree into the standard A2UI flat list of component dictionaries, converting nested `child` and `children` objects into component ID references.
 - **Slot and child composition**:
-  - Template functions must be able to declare parameters of type `Component` or `list[Component]`.
+  - Synthetic component functions must be able to declare parameters of type `Component` or `list[Component]`.
   - Callers can pass arbitrary subtrees into these slots, and the engine must preserve and link them into the parent container correctly.
 - **Editor support**:
   - Full autocomplete for component names, property names, and enum values.
@@ -92,7 +92,7 @@ The design must evaluate three architectural options:
 
 - **Option 1: Single central generator with multi-language backends**:
   - A single CLI tool (written in Python or TypeScript) parses the catalog schema and common type definitions.
-  - Pluggable code emitters or templates (for example, Jinja2 or Mustache) produce the typed code for each target language.
+  - Pluggable code emitters or templates produce the typed code for each target language.
   - _Advantage_: Schema resolution, validation rules, and feature additions happen in one place.
   - _Trade-off_: The generator maintainer must understand code generation idioms for all target languages.
 - **Option 2: Language-specific generators**:
@@ -236,17 +236,17 @@ The API generator must be capable of expressing every component and layout patte
 
 - Telemetry dashboards where metrics display live data via path subscriptions.
 - Multi-field forms bound to a shared client data model object.
-- Dynamic text that combines static templates with bound paths via `formatString`.
+- Dynamic text that combines synthetic components with bound paths via `formatString`.
 
 ### 6. Collections and repeating lists
 
-- Programmatic loops in templates (unrolling lists of cards or rows using native language loops).
+- Programmatic loops in synthetic component functions (unrolling lists of cards or rows using native language loops).
 - Dynamic lists driven by client data model arrays (`ChildList` with `componentId` and `path`).
 - Table-like data grids built from nested rows and columns.
 
-### 7. Slot-based composite templates
+### 7. Slot-based synthetic components
 
-- Master-detail templates that accept a custom header component, body component, and footer action bar.
+- Master-detail synthetic components that accept a custom header component, body component, and footer action bar.
 - Card grids where the caller passes an arbitrary list of child cards into a grid slot.
 - Two-column split layouts where left and right panes accept arbitrary subtrees.
 
