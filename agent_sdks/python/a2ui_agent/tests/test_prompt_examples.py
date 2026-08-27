@@ -131,7 +131,26 @@ class TestPromptExamplesValidity:
                     clean_ex = re.sub(r"^```[a-z]*\n?", "", clean_ex)
                     clean_ex = re.sub(r"\n?```$", "", clean_ex)
                 parsed = compiler.compile(clean_ex)
-                assert parsed is not None, f"Atom Example {i+1} returned None payload"
+                assert isinstance(
+                    parsed, dict
+                ), f"Atom Example {i+1} returned non-dict payload"
+                components = []
+                if (
+                    "createSurface" in parsed
+                    and "components" in parsed["createSurface"]
+                ):
+                    components.extend(parsed["createSurface"]["components"])
+                if (
+                    "updateComponents" in parsed
+                    and "components" in parsed["updateComponents"]
+                ):
+                    components.extend(parsed["updateComponents"]["components"])
+                assert len(components) > 0, f"Atom Example {i+1} compiled 0 components"
+                for comp in components:
+                    assert isinstance(
+                        comp, dict
+                    ), f"Component must be dict in Atom Example {i+1}"
+                    assert "id" in comp, f"Component missing 'id' in Atom Example {i+1}"
             except Exception as e:
                 pytest.fail(
                     f"Atom Prompt Example {i+1} failed to parse:\n{example}\nError: {e}"
@@ -148,9 +167,34 @@ class TestPromptExamplesValidity:
                     clean_ex = re.sub(r"^```[a-z]*\n?", "", clean_ex)
                     clean_ex = re.sub(r"\n?```$", "", clean_ex)
                 parsed = compiler.compile(clean_ex)
+                assert isinstance(
+                    parsed, list
+                ), f"Express Example {i+1} returned non-list payload"
                 assert (
-                    parsed is not None
-                ), f"Express Example {i+1} returned None payload"
+                    len(parsed) > 0
+                ), f"Express Example {i+1} returned empty message list"
+                components = []
+                for msg in parsed:
+                    assert isinstance(
+                        msg, dict
+                    ), f"Express Example {i+1} message is not a dict"
+                    if "createSurface" in msg and "components" in msg["createSurface"]:
+                        components.extend(msg["createSurface"]["components"])
+                    if (
+                        "updateComponents" in msg
+                        and "components" in msg["updateComponents"]
+                    ):
+                        components.extend(msg["updateComponents"]["components"])
+                assert (
+                    len(components) > 0
+                ), f"Express Example {i+1} compiled 0 components"
+                for comp in components:
+                    assert isinstance(
+                        comp, dict
+                    ), f"Component must be dict in Express Example {i+1}"
+                    assert (
+                        "id" in comp
+                    ), f"Component missing 'id' in Express Example {i+1}"
             except Exception as e:
                 pytest.fail(
                     f"Express Prompt Example {i+1} failed to"

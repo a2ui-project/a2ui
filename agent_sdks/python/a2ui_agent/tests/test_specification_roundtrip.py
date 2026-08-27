@@ -51,13 +51,50 @@ def _find_specification_example_files():
 EXAMPLE_FILES = _find_specification_example_files()
 
 
-class TestSpecificationRoundtripAllFormats:
-    """Verifies 100% round-trip decompilation and compilation across all specification v1.0 JSON examples."""
+def _assert_recompiled_matches_payload(
+    recompiled, expected_surface_id, expected_components
+):
+    assert recompiled, "Recompiled payload must not be empty"
+    messages = recompiled if isinstance(recompiled, list) else [recompiled]
+    recompiled_components = []
+    found_surface_id = None
+    for msg in messages:
+        assert isinstance(msg, dict), f"Message item must be dict, got {type(msg)}"
+        if "createSurface" in msg:
+            found_surface_id = msg["createSurface"].get("surfaceId", found_surface_id)
+            if "components" in msg["createSurface"]:
+                recompiled_components.extend(msg["createSurface"]["components"])
+        if "updateComponents" in msg:
+            found_surface_id = msg["updateComponents"].get(
+                "surfaceId", found_surface_id
+            )
+            if "components" in msg["updateComponents"]:
+                recompiled_components.extend(msg["updateComponents"]["components"])
 
+    if found_surface_id is not None and found_surface_id != "main":
+        assert (
+            found_surface_id == expected_surface_id
+        ), f"Expected surfaceId '{expected_surface_id}', got '{found_surface_id}'"
 
-from a2ui.inference_formats.experimental.express.format import ExpressFormat
-from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
-from a2ui.inference_formats.experimental.atom.format import AtomFormat
+    assert len(recompiled_components) > 0, "Recompiled messages must contain components"
+
+    expected_ids = {
+        c.get("id") for c in expected_components if isinstance(c, dict) and "id" in c
+    }
+
+    for comp in recompiled_components:
+        assert isinstance(comp, dict), f"Component must be a dict, got {type(comp)}"
+        assert "id" in comp, f"Component missing 'id': {comp}"
+        assert (
+            "component" in comp or len(comp.keys()) > 1
+        ), f"Component missing type or properties: {comp}"
+
+    recompiled_ids = {c["id"] for c in recompiled_components}
+    if "root" in expected_ids:
+        assert (
+            "root" in recompiled_ids
+        ), "Expected 'root' component in recompiled output"
+    assert len(recompiled_ids) >= 1, "At least one component ID must be recompiled"
 
 
 class TestSpecificationRoundtripAllFormats:
@@ -89,8 +126,8 @@ class TestSpecificationRoundtripAllFormats:
 
         messages = data.get("messages", [data])
 
-        # Extract all components across updateComponents messages
-        all_components = []
+        # Extract all components across updateComponents messages (deduping by ID)
+        components_by_id = {}
         surface_id = "main"
 
         for msg in messages:
@@ -100,7 +137,11 @@ class TestSpecificationRoundtripAllFormats:
                 surface_id = msg["createSurface"].get("surfaceId", surface_id)
             if "updateComponents" in msg:
                 comps = msg["updateComponents"].get("components", [])
-                all_components.extend(comps)
+                for c in comps:
+                    if isinstance(c, dict) and "id" in c:
+                        components_by_id[c["id"]] = c
+
+        all_components = list(components_by_id.values())
 
         if not all_components:
             pytest.skip(f"No components in {os.path.basename(json_file)}")
@@ -120,7 +161,9 @@ class TestSpecificationRoundtripAllFormats:
             express_dsl = self.express_fmt.parser.decompile(surface_payload)
             if express_dsl:
                 recompiled = self.express_fmt.parser.compile(express_dsl)
-                assert recompiled is not None
+                _assert_recompiled_matches_payload(
+                    recompiled, surface_id, all_components
+                )
                 processed += 1
         except Exception as e:
             print(f"\n[Express Error] {os.path.basename(json_file)}: {e}")
@@ -130,7 +173,9 @@ class TestSpecificationRoundtripAllFormats:
             elemental_dom = self.elemental_fmt.parser.decompile(surface_payload)
             if elemental_dom:
                 recompiled = self.elemental_fmt.parser.compile(elemental_dom)
-                assert recompiled is not None
+                _assert_recompiled_matches_payload(
+                    recompiled, surface_id, all_components
+                )
                 processed += 1
         except Exception as e:
             print(f"\n[Elemental Error] {os.path.basename(json_file)}: {e}")
@@ -140,7 +185,9 @@ class TestSpecificationRoundtripAllFormats:
             atom_sexpr = self.atom_fmt.parser.decompile(surface_payload)
             if atom_sexpr:
                 recompiled = self.atom_fmt.parser.compile(atom_sexpr)
-                assert recompiled is not None
+                _assert_recompiled_matches_payload(
+                    recompiled, surface_id, all_components
+                )
                 processed += 1
         except Exception as e:
             print(f"\n[Atom Error] {os.path.basename(json_file)}: {e}")
