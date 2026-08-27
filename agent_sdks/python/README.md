@@ -1,5 +1,12 @@
 # Python agent SDKs
 
+For full release documentation and guides, see:
+
+- **General Release Guide**: [docs/contributing/package_releases.md](../../docs/contributing/package_releases.md)
+- **Python Publishing Technical Guide**: [agent_sdks/python/docs/python_publishing.md](docs/python_publishing.md)
+
+---
+
 ## Detect non-released changes
 
 To check if there are new changes after [last release](https://pypi.org/project/a2ui-agent-sdk/#history), run the command from any directory:

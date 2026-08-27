@@ -11,6 +11,7 @@ This document is the authoritative guide for AI agents working within the A2UI r
 
 - **For working with Spec-Driven Development (SDD) or repository blueprints:** Read [blueprints/README.md](blueprints/README.md)
 - **For implementing new SDKs in a client language:** Read [.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md](.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md)
+- **For releasing SDKs and packages:** Read [.agents/skills/a2ui-release-sdks/SKILL.md](.agents/skills/a2ui-release-sdks/SKILL.md)
 
 ---
 

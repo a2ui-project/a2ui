@@ -133,6 +133,63 @@ The scripts also support the full package names, e.g. `@a2ui/web_core`, but the
 
 ---
 
+## 📦 2. Publishing `@a2ui/lit`, `@a2ui/angular`, and `@a2ui/markdown-it`
+
+These packages depend on `@a2ui/web_core` via workspace paths for development. They must be published from their generated `dist/` folders. We use specialized scripts to automatically rewrite their `package.json` with the correct `@a2ui/web_core` npm version before publishing.
+
+### Pre-flight Checks
+
+1. Ensure `@a2ui/web_core` is already published (or its version string is correctly updated) since these packages will read that version number.
+2. Update the `version` in the package you want to publish (e.g., `renderers/lit/package.json`).
+3. Verify all tests pass:
+   ```sh
+   yarn workspace @a2ui/lit run test
+   yarn workspace @a2ui/angular run test
+   ```
+
+### Publish to NPM
+
+Run the automated publish script from the repository root:
+
+**For Lit:**
+
+```sh
+yarn workspace @a2ui/lit run publish:package
+```
+
+**For Angular:**
+
+```sh
+yarn workspace @a2ui/angular run publish:package
+```
+
+**For Markdown-it:**
+
+```sh
+yarn workspace @a2ui/markdown-it run publish:package
+```
+
+### How It Works (Explanations)
+
+**What happens during `publish:package`?**
+Before publishing, the script runs the necessary `build` command which processes the code. For Lit and Markdown-it, `prepare-publish.mjs` runs, and for Angular, `postprocess-build.mjs` runs. These scripts:
+
+1. Copy `package.json`, `README.md`, and `LICENSE` to the `dist/` folder.
+2. Read the `version` from `@a2ui/web_core`.
+3. Update the `workspace:` dependency in the `dist/package.json` to the actual core version (e.g., `^0.8.0`).
+4. Adjust exports and paths to be relative to `dist/`.
+5. Remove any build scripts (`prepublishOnly`, `scripts`) so they don't interfere with the publish process.
+
+The script then `cd`s to the `dist/` directory and runs `yarn npm publish` to upload only the contents of the `dist/` directory to the npm registry.
+
+Googlers can visit [go/a2ui-oss-exit-gate-artifacts](https://go/a2ui-oss-exit-gate-artifacts) to see the published artifacts on Exit Gate (staging registry).
+
+---
+
+## ✅ Post-Publish Verification
+
+1. Verify that your package version is uploaded to the internal Artifact Registry staging environment.
+2. Monitor the email notification from the OSS Exit Gate infrastructure confirming that public publication to npmjs.com has succeeded.
 ## Troubleshooting
 
 - **Dirty Working Tree Warnings**: If build artifacts or temporary files

@@ -45,13 +45,19 @@ protocol.
 
 ## Running tests
 
-1. Navigate to the package directory:
+1. Synchronize workspace dependencies:
+
+   ```bash
+   uv sync --all-packages
+   ```
+
+2. Navigate to the package directory:
 
    ```bash
    cd agent_sdks/python/a2ui_agent
    ```
 
-2. Run the tests
+3. Run the tests:
 
    ```bash
    uv run pytest
