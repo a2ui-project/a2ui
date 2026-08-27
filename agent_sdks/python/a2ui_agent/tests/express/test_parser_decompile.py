@@ -415,8 +415,8 @@ class TestExpressParser(unittest.TestCase):
         decompiled = decompiler.decompile(envelope)
         self.assertIn('surface("update-surf-789")', decompiled)
 
-    def test_is_complete_and_unwrap_fence_variations(self):
-        """Test has_format_content checks and unwrap code fence variants without trailing newlines."""
+    def test_has_format_content_and_unwrap_backtick_tags(self):
+        """Test has_format_content checks and unwrap backticked tag normalization."""
         parser = ExpressParser(self.catalog)
         self.assertTrue(
             parser.has_format_content("<a2ui>root = Text('Hi')</a2ui>", complete=True)
@@ -428,8 +428,8 @@ class TestExpressParser(unittest.TestCase):
             parser.has_format_content("<a2ui>root = Text('Hi')", complete=False)
         )
 
-        # Code fence with no trailing newline before closing fence
-        content = "Intro\n```a2ui\nroot = Text('Hi')```\nOutro"
+        # Backticked tags `<a2ui>` ... `</a2ui>`
+        content = "Intro\n`<a2ui>`\nroot = Text('Hi')\n`</a2ui>`\nOutro"
         parts = parser.unwrap(content)
         self.assertEqual(len(parts), 2)
         self.assertEqual(parts[0].text, "Intro")
