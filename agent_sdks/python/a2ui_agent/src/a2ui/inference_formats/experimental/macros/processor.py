@@ -28,11 +28,16 @@ from a2ui.inference_formats.experimental.macros.macro import get_macro
 class MacroProcessor:
     """Executes registered macros and flattens them into standard A2UI components."""
 
+    def has_macro(self, macro_name: str) -> bool:
+        """Checks if a macro is registered by name."""
+        return get_macro(macro_name) is not None
+
     def expand(
         self,
         macro_name: str,
         args: dict[str, Any],
         invocation_id: Optional[str] = None,
+        instance_id: Optional[str] = None,
     ) -> list[dict[str, Any]]:
         """Executes a macro by name with provided arguments and returns flat component dicts.
 
@@ -40,10 +45,12 @@ class MacroProcessor:
             macro_name: The registered macro function name.
             args: Keyword arguments for the macro invocation.
             invocation_id: The ID assigned to this macro invocation (becomes root component ID).
+            instance_id: Alias for invocation_id.
 
         Returns:
             List of standard A2UI component dictionaries ready for surfaceUpdate.
         """
+        root_id = invocation_id or instance_id
         meta = get_macro(macro_name)
         if meta is None:
             raise KeyError(f"Macro '{macro_name}' is not registered.")
@@ -88,4 +95,4 @@ class MacroProcessor:
             )
 
         # Flatten into primitive components with ID namespacing and root stitching
-        return flatten_component_tree(result, root_id=invocation_id)
+        return flatten_component_tree(result, root_id=root_id)

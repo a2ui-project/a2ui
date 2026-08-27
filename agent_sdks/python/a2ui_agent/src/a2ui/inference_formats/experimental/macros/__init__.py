@@ -52,6 +52,7 @@ __all__ = [
     "register_macro",
     "get_macro",
     "list_macros",
+    "get_all_macros",
     "clear_macros",
     "MacroMetadata",
     "MacroParameter",

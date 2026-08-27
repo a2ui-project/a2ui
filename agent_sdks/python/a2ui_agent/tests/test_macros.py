@@ -214,7 +214,7 @@ def test_macro_decorator_and_schema_synthesis():
 
     meta = get_macro("profile_card")
     assert meta is not None
-    assert meta.name == "profile_card"
+    assert meta.name == "ProfileCard"
     assert meta.description == "A user summary card."
 
     schema = meta.to_json_schema()
@@ -287,13 +287,73 @@ def test_macro_processor_slot_coercion():
     assert "external_child_id" in col_comp["children"]
 
 
+def test_macro_docstring_parameter_parsing():
+    @macro
+    def MetricCard(
+        title: str,
+        value: int,
+        unit: str = "items",
+    ) -> Card:
+        """Dashboard metric counter.
+
+        Args:
+            title: Title label of the metric.
+            value: Numerical counter value.
+            unit: Optional unit label.
+        """
+        return Card(child=Column(children=[Text(text=title), Text(text=str(value))]))
+
+    meta = get_macro("MetricCard")
+    assert meta is not None
+    assert meta.name == "MetricCard"
+    assert meta.description == "Dashboard metric counter."
+    assert meta.parameters["title"].description == "Title label of the metric."
+    assert meta.parameters["title"].required is True
+    assert meta.parameters["value"].description == "Numerical counter value."
+    assert meta.parameters["value"].required is True
+    assert meta.parameters["unit"].description == "Optional unit label."
+    assert meta.parameters["unit"].required is False
+
+    schema = meta.to_json_schema()
+    assert schema["properties"]["title"]["description"] == "Title label of the metric."
+    assert schema["properties"]["value"]["type"] == "integer"
+    assert schema["required"] == ["title", "value"]
+
+
+def test_macro_naming_conventions():
+    # 1. Automatic snake_to_pascal
+    @macro
+    def employee_roster(team: str) -> Column:
+        return Column(children=[Text(text=team)])
+
+    meta = get_macro("EmployeeRoster")
+    assert meta is not None
+    assert meta.name == "EmployeeRoster"
+
+    # 2. Explicit positional name
+    @macro("CustomAlert")
+    def alert_fn(msg: str) -> Card:
+        return Card(child=Text(text=msg))
+
+    meta2 = get_macro("CustomAlert")
+    assert meta2 is not None
+    assert meta2.name == "CustomAlert"
+
+
 def test_macro_inference_format_pipeline():
-    @macro(description="Quick alert")
+    from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+    @macro("QuickAlert")
     def quick_alert(msg: str) -> Card:
         return Card(child=Text(text=msg, variant="h4"))
 
-    inf_format = MacroInferenceFormat(macros=[quick_alert])
-    assert "quick_alert" in inf_format.combined_catalog.catalog_schema["components"]
+    # Verify base_format is required
+    with pytest.raises(ValueError, match="requires a base_format to be passed"):
+        MacroInferenceFormat(macros=[quick_alert])  # type: ignore
+
+    base = ExpressFormat(surface_id="main")
+    inf_format = MacroInferenceFormat(base_format=base, macros=[quick_alert])
+    assert "QuickAlert" in inf_format.combined_catalog.catalog_schema["components"]
 
     # Test parser compilation and macro expansion
     raw_message = [
@@ -302,7 +362,7 @@ def test_macro_inference_format_pipeline():
                 "surfaceId": "main",
                 "components": [
                     {
-                        "component": "quick_alert",
+                        "component": "QuickAlert",
                         "id": "alert_instance_1",
                         "msg": "Payment received!",
                     }

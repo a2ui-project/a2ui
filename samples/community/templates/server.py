@@ -28,6 +28,13 @@ from google import genai
 from google.genai import types
 from pydantic import BaseModel
 
+import json
+
+from a2ui.inference_formats.experimental.express.format import ExpressFormat
+from a2ui.inference_formats.experimental.macros import (
+    MacroInferenceFormat,
+    macro,
+)
 from a2ui.inference_formats.experimental.macros.builder import (
     Button,
     Card,
@@ -38,13 +45,7 @@ from a2ui.inference_formats.experimental.macros.builder import (
     Row,
     Text,
 )
-from a2ui.inference_formats.experimental.template import (
-    DynamicTemplate,
-    StaticTemplate,
-    TemplateInferenceFormat,
-    dynamic_template,
-)
-from template_definitions import SalaryCard, get_all_templates
+from template_definitions import ALL_MACROS, SalaryCard
 
 app = FastAPI(title="A2UI Templates Community Demo Server")
 
@@ -110,17 +111,6 @@ def fetch_employee_compensation(employeeId: str) -> Dict[str, Any]:
     return EMPLOYEE_COMPENSATION_DB[employeeId]
 
 
-@dynamic_template(
-    name="PayrollSummary",
-    catalogs=["https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"],
-    description=(
-        "Programmatic dynamic template that aggregates company payroll, sums"
-        " employee base salaries and bonuses using server Python logic, and builds"
-        " an interactive summary table. Pass department (default 'Engineering') and"
-        " includeBonus (default True)."
-    ),
-    sample_data={"department": "Global Engineering", "includeBonus": True},
-)
 def render_payroll_summary(
     department: str = "Global Engineering", includeBonus: bool = True
 ) -> Card:
@@ -235,45 +225,44 @@ def render_payroll_summary(
     )
 
 
-def load_templates() -> List[Any]:
-    """Loads all static templates and registers dynamic resolver templates."""
-    templates_list: List[Any] = []
-    for tmpl in get_all_templates():
-        if tmpl.name == "SalaryCard" or tmpl.template_id == "SalaryCard":
-            continue
-        templates_list.append(tmpl)
+@macro
+def EmployeeSalaryCard(employeeId: str = "emp_101") -> Card:
+    """Secure verified employee compensation card. Pass employeeId ('emp_101', 'emp_102', 'emp_103', 'emp_104').
 
-    # Register DynamicTemplate for EmployeeSalaryCard (Data Binding Mode)
-    dynamic_salary = DynamicTemplate(
-        version="0.1",
-        name="EmployeeSalaryCard",
-        template_id="EmployeeSalaryCard",
-        catalogs=[
-            "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
-        ],
-        resolver=fetch_employee_compensation,
-        layout=SalaryCard,
-        description=(
-            "Secure verified employee compensation card. Pass only the"
-            " employeeId ('emp_101', 'emp_102', 'emp_103', 'emp_104');"
-            " compensation data is securely fetched server-side from the"
-            " HR database."
-        ),
-        sample_data={"employeeId": "emp_101"},
+    Args:
+        employeeId: Unique employee identifier in HR compensation records.
+    """
+    record = fetch_employee_compensation(employeeId)
+    return SalaryCard(
+        employee_name=record["employeeName"],
+        role=record["role"],
+        base_salary=record["baseSalary"],
+        annual_bonus=record["annualBonus"],
+        equity=record["equity"],
+        clearance_level=record["clearanceLevel"],
+        verified_at=record["verifiedAt"],
     )
-    templates_list.append(dynamic_salary)
-
-    # Register DynamicTemplate for PayrollSummary (Programmatic Render Mode via decorator)
-    templates_list.append(render_payroll_summary)
-
-    return templates_list
 
 
-templates = load_templates()
-format_instance = TemplateInferenceFormat(
-    templates=templates,
-    surface_id="main",
-    version="0.9.1",
+@macro
+def PayrollSummary(
+    department: str = "Global Engineering", includeBonus: bool = True
+) -> Card:
+    """Payroll and compensation summary for an organization.
+
+    Args:
+        department: Department or division name.
+        includeBonus: Whether to include annual bonus in calculation.
+    """
+    return render_payroll_summary(department=department, includeBonus=includeBonus)
+
+
+active_macros = [*ALL_MACROS, EmployeeSalaryCard, PayrollSummary]
+
+base_format = ExpressFormat(surface_id="main", version="v0.9.1")
+format_instance = MacroInferenceFormat(
+    base_format=base_format,
+    macros=active_macros,
 )
 
 ROLE_DESCRIPTION = """You are an A2UI interface assistant. When helpful, respond with visual UI using the compact A2UI Express DSL inside `<a2ui>` tags.
@@ -392,61 +381,182 @@ PRESET_RESPONSES = {
 }
 
 
+SAMPLE_PARAMS = {
+    "SalaryCard": {
+        "employee_name": "Dr. Elena Vance",
+        "role": "Principal Systems Architect",
+        "base_salary": "$215,000",
+        "annual_bonus": "$45,000",
+        "equity": "3,500 RSUs",
+        "clearance_level": "Level 5 - Confidential",
+        "verified_at": "2026-08-15",
+    },
+    "EmployeeSalaryCard": {"employeeId": "emp_101"},
+    "UserProfile": {
+        "userId": "usr_991",
+        "userName": "Dr. Elena Vance",
+        "role": "Principal Systems Architect",
+        "status": "Active",
+    },
+    "FeedbackItem": {
+        "author": "Dr. Elena Vance",
+        "note": "A2UI templates are fast and easy to compose.",
+        "rating": 5,
+    },
+    "GoalItem": {
+        "title": "Deliver synchronous template expansion engine",
+        "priority": "High",
+        "targetDate": "2026-09-30",
+    },
+    "SectionCard": {
+        "title": "Team Overview",
+        "subtitle": "Core Architecture & Protocols",
+    },
+    "TeamCard": {
+        "title": "Core Architecture",
+        "members": [
+            {
+                "userId": "u1",
+                "userName": "Dr. Elena Vance",
+                "role": "Principal Architect",
+            },
+            {
+                "userId": "u2",
+                "userName": "Marcus Vance",
+                "role": "Streaming Lead",
+            },
+        ],
+    },
+    "TeamRoster": {
+        "orgTitle": "Organization Directory",
+        "teams": [],
+    },
+    "TeamGoalList": {
+        "teamName": "Core Protocol Engineering",
+        "goals": [
+            {
+                "title": "Deliver synchronous template expansion engine",
+                "priority": "High",
+                "targetDate": "2026-08-30",
+            },
+            {
+                "title": "Redesign templates for Basic Catalog",
+                "priority": "High",
+                "targetDate": "2026-08-15",
+            },
+        ],
+    },
+    "TeamFeedbackBoard": {
+        "teamName": "Frontend & Protocols Guild",
+        "feedbacks": [
+            {
+                "author": "Dr. Elena Vance",
+                "note": (
+                    "Synchronous template expansion eliminated all streaming"
+                    " race conditions."
+                ),
+                "rating": 5,
+            },
+            {
+                "author": "Marcus Vance",
+                "note": (
+                    "Standard Basic Catalog components ensure 100%"
+                    " cross-renderer compatibility."
+                ),
+                "rating": 5,
+            },
+        ],
+    },
+    "TeamMemberKnowledgePanel": {
+        "userName": "Alice Smith",
+        "role": "Lead Systems Architect",
+        "experienceYears": 9,
+        "completedTasks": 142,
+    },
+    "PayrollSummary": {
+        "department": "Global Engineering",
+        "includeBonus": True,
+    },
+}
+
+
 @app.get("/templates")
 @app.get("/api/templates")
 def list_templates():
     res = []
-    for t in templates:
-        t_dict = t.to_dict()
-        t_dict["yamlContent"] = t.to_json()
-        sample_params = t.sample_data or {}
+    for m in format_instance.macros:
+        m_name = m.name
+        sample_params = SAMPLE_PARAMS.get(m_name, {})
+        schema = m.to_json_schema()
         try:
-            expanded_components = format_instance.processor.expand_template(
-                "root", t.template_id, sample_params
+            expanded_components = format_instance.processor.expand(
+                m_name, sample_params, instance_id="root"
             )
             sample_messages = [
                 {
                     "version": "v0.9.1",
                     "createSurface": {
-                        "surfaceId": f"preview_{t.template_id}",
+                        "surfaceId": f"preview_{m_name}",
                         "catalogId": BASIC_CATALOG_ID,
                     },
                 },
                 {
                     "version": "v0.9.1",
                     "updateComponents": {
-                        "surfaceId": f"preview_{t.template_id}",
+                        "surfaceId": f"preview_{m_name}",
                         "components": expanded_components,
                     },
                 },
             ]
         except Exception:
             sample_messages = []
-        t_dict["sampleMessages"] = sample_messages
 
-        if getattr(t, "is_dynamic", False):
-            dynamic_tmpl: DynamicTemplate = t  # type: ignore
+        t_dict = {
+            "version": "0.1",
+            "name": m_name,
+            "templateId": m_name,
+            "description": m.description or "",
+            "parameters": schema.get("properties", {}),
+            "yamlContent": json.dumps(schema, indent=2),
+            "sampleData": sample_params,
+            "sampleMessages": sample_messages,
+        }
+
+        if m_name == "PayrollSummary":
             t_dict["isDynamic"] = True
-            if getattr(dynamic_tmpl, "render_fn", None) is not None:
-                t_dict["isProgrammatic"] = True
-                try:
-                    t_dict["renderSource"] = inspect.getsource(dynamic_tmpl.render_fn)
-                except Exception:
-                    t_dict["renderSource"] = ""
-            if dynamic_tmpl.layout is not None:
-                t_dict["isDataBinding"] = True
-                t_dict["layoutTemplate"] = dynamic_tmpl.layout.to_dict()
-                t_dict["layoutTemplateYaml"] = dynamic_tmpl.layout.to_json()
-            # Run resolver on sampleData to show resolved state
+            t_dict["isProgrammatic"] = True
             try:
-                t_dict["resolvedData"] = dynamic_tmpl.resolve(sample_params)
+                t_dict["renderSource"] = inspect.getsource(render_payroll_summary)
+            except Exception:
+                t_dict["renderSource"] = ""
+
+        if m_name == "EmployeeSalaryCard":
+            t_dict["isDynamic"] = True
+            t_dict["isDataBinding"] = True
+            emp_id = sample_params.get("employeeId", "emp_101")
+            try:
+                rec = fetch_employee_compensation(emp_id)
+                t_dict["resolvedData"] = rec
+                t_layout = SalaryCard(
+                    employee_name=rec["employeeName"],
+                    role=rec["role"],
+                    base_salary=rec["baseSalary"],
+                    annual_bonus=rec["annualBonus"],
+                    equity=rec["equity"],
+                    clearance_level=rec["clearanceLevel"],
+                    verified_at=rec["verifiedAt"],
+                )
+                t_dict["layoutTemplate"] = t_layout.to_dict()
+                t_dict["layoutTemplateYaml"] = (
+                    "# blueprint: salary_card.yaml / SalaryCard\n# parameters: baseSalary, annualBonus, equity\n"
+                    + json.dumps(t_dict["layoutTemplate"], indent=2)
+                )
             except Exception:
                 t_dict["resolvedData"] = {}
-            if dynamic_tmpl.template_id == "EmployeeSalaryCard":
-                t_dict["availablePresets"] = [
-                    {"label": f"{v['employeeName']} ({k})", "value": k}
-                    for k, v in EMPLOYEE_COMPENSATION_DB.items()
-                ]
+            t_dict["availablePresets"] = [
+                {"label": f"{v['employeeName']} ({k})", "value": k}
+                for k, v in EMPLOYEE_COMPENSATION_DB.items()
+            ]
 
         res.append(t_dict)
     return res
@@ -455,13 +565,12 @@ def list_templates():
 @app.post("/templates/{template_id}/resolve")
 @app.post("/api/templates/{template_id}/resolve")
 def resolve_template(template_id: str, req: DynamicResolveRequest):
-    tmpl = format_instance.processor.templates.get(template_id)
-    if not tmpl:
+    if not format_instance.processor.has_macro(template_id):
         raise HTTPException(status_code=404, detail="Template not found")
 
     try:
-        expanded_components = format_instance.processor.expand_template(
-            "root", template_id, req.params
+        expanded_components = format_instance.processor.expand(
+            template_id, req.params, instance_id="root"
         )
         sample_messages = [
             {
@@ -480,15 +589,15 @@ def resolve_template(template_id: str, req: DynamicResolveRequest):
             },
         ]
         resolved_data = {}
-        if getattr(tmpl, "is_dynamic", False):
-            if getattr(tmpl, "render_fn", None) is not None:
-                resolved_data = {
-                    "execution": "Python Programmatic Render Function",
-                    "generatedComponentCount": len(expanded_components),
-                    "appliedParams": req.params,
-                }
-            else:
-                resolved_data = tmpl.resolve(req.params)  # type: ignore
+        if template_id == "PayrollSummary":
+            resolved_data = {
+                "execution": "Python Programmatic Render Function",
+                "generatedComponentCount": len(expanded_components),
+                "appliedParams": req.params,
+            }
+        elif template_id == "EmployeeSalaryCard":
+            emp_id = req.params.get("employeeId", "emp_101")
+            resolved_data = fetch_employee_compensation(emp_id)
 
         return {
             "expandedComponents": expanded_components,
@@ -508,13 +617,11 @@ async def chat(req: ChatRequest):
     # 1. Preset shortcut responses for instant offline evaluation
     if prompt_lower in PRESET_RESPONSES:
         dsl = PRESET_RESPONSES[prompt_lower]
-        target_format = TemplateInferenceFormat(
-            templates=templates,
-            surface_id=req.surfaceId,
-            version="0.9.1",
+        target_format = MacroInferenceFormat(
+            base_format=ExpressFormat(surface_id=req.surfaceId, version="v0.9.1"),
+            macros=active_macros,
         )
-        parts = target_format.parser.parse_response(dsl)
-        messages = parts[0].a2ui_json if parts and parts[0].a2ui_json else []
+        messages = target_format.parser.compile(dsl)
         latency = round(time.perf_counter() - start_time, 3)
         return {
             "messages": messages,
@@ -544,12 +651,11 @@ async def chat(req: ChatRequest):
             )
             latency = round(time.perf_counter() - start_time, 2)
             raw_text = response.text or ""
-            target_format = TemplateInferenceFormat(
-                templates=templates,
-                surface_id=req.surfaceId,
-                version="0.9.1",
+            target_format = MacroInferenceFormat(
+                base_format=ExpressFormat(surface_id=req.surfaceId, version="v0.9.1"),
+                macros=active_macros,
             )
-            parts = target_format.parser.parse_response(raw_text)
+            messages = target_format.parser.parse_response(raw_text)
 
             messages = []
             text_parts = []

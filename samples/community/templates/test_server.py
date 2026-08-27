@@ -53,8 +53,10 @@ def test_payroll_summary_dynamic_builder():
     """Verifies programmatic dynamic template returns typesafe card and expands cleanly."""
     card = render_payroll_summary(department="AI Research", includeBonus=True)
     assert card.component_name == "Card"
-    expanded = format_instance.processor.expand_template(
-        "root", "PayrollSummary", {"department": "AI Research", "includeBonus": True}
+    expanded = format_instance.processor.expand(
+        "PayrollSummary",
+        {"department": "AI Research", "includeBonus": True},
+        instance_id="root",
     )
     assert len(expanded) > 10
     # Root component must be Card with ID root
@@ -67,8 +69,8 @@ def test_payroll_summary_dynamic_builder():
 
 def test_employee_salary_card_resolver():
     """Verifies data binding resolver mode for confidential employee salary."""
-    expanded = format_instance.processor.expand_template(
-        "root", "EmployeeSalaryCard", {"employeeId": "emp_102"}
+    expanded = format_instance.processor.expand(
+        "EmployeeSalaryCard", {"employeeId": "emp_102"}, instance_id="root"
     )
     assert len(expanded) > 0
     record = EMPLOYEE_COMPENSATION_DB["emp_102"]
