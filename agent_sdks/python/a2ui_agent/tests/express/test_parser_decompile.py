@@ -415,6 +415,25 @@ class TestExpressParser(unittest.TestCase):
         decompiled = decompiler.decompile(envelope)
         self.assertIn('surface("update-surf-789")', decompiled)
 
+    def test_has_format_content_and_unwrap_tags(self):
+        """Test has_format_content checks and unwrap tag tokenization."""
+        parser = ExpressParser(self.catalog)
+        self.assertTrue(
+            parser.has_format_content("<a2ui>root = Text('Hi')</a2ui>", complete=True)
+        )
+        self.assertFalse(
+            parser.has_format_content("<a2ui>root = Text('Hi')", complete=True)
+        )
+        self.assertTrue(
+            parser.has_format_content("<a2ui>root = Text('Hi')", complete=False)
+        )
+
+        content = "Intro\n<a2ui>\nroot = Text('Hi')\n</a2ui>\nOutro"
+        parts = parser.unwrap(content)
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(parts[0].text, "Intro")
+        self.assertIn("root = Text('Hi')", parts[0].a2ui_raw)
+
 
 if __name__ == "__main__":
     unittest.main()
