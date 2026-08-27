@@ -30,6 +30,7 @@ members = [
   "conformance",
   "agent_sdks/python/a2ui_agent",
   "agent_sdks/python/a2ui_core",
+  "agent_sdks/python/a2ui_codegen",
   "eval",
   "samples/agent/adk/custom-components-example",
   "samples/agent/adk/restaurant_finder",
