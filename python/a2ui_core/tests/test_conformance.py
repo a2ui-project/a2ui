@@ -53,12 +53,6 @@ SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "v1.0", "0.8", "0.9", "1.0"}
 
 # Transition skip list for core test cases pending feature implementation or version adapters
 SKIP_TEST_NAMES: Set[str] = {
-    "test_create_surface_strict_theme_validation_failure",
-    "test_composition_surface_implicit_parent_container",
-    "test_composition_allowed_parent_success",
-    "test_composition_unallowed_parent_error",
-    "test_composition_allowed_child_success",
-    "test_composition_unallowed_child_error",
     "test_index_function_in_collection_loop",
     "test_index_function_with_offset",
     "test_index_function_nested_path",
@@ -191,13 +185,23 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
     catalogs_map["v1.0:basic"] = v10_catalog
 
     version = resolve_protocol_version(case) or "v0.9"
+    cur_basic = (
+        v10_catalog
+        if version == "v1.0"
+        else (v08_catalog if version == "v0.8" else v09_catalog)
+    )
 
     def add_catalog_id(cat_id: str, ver: Optional[str] = None):
-        if cat_id and cat_id not in catalogs_map:
+        if cat_id and (
+            cat_id not in catalogs_map
+            or not any(
+                getattr(c, "catalog_id", None) == cat_id for c in catalogs_map.values()
+            )
+        ):
             catalogs_map[cat_id] = Catalog(
                 catalog_id=cat_id,
                 protocol_version=ver or version,
-                components=list(basic_catalog.components.values()),
+                components=list(cur_basic.components.values()),
             )
 
     specified_catalogs: List[Any] = []
@@ -389,6 +393,13 @@ def assert_raises(expect_error: Any):
             or (
                 "was unexpected" in msg_norm
                 and ("unrecognized" in err_str or "unexpected" in err_str)
+            )
+            or (
+                "cannot contain child" in msg_norm and "cannot contain child" in err_str
+            )
+            or (
+                "cannot be placed under parent" in msg_norm
+                and "cannot be placed under parent" in err_str
             )
         )
         assert (
