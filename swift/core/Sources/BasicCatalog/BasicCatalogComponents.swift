@@ -12,18 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import SwiftUI
+import A2UICore
 
-/// Environment key for propagating the catalog implementation through
-/// the SwiftUI view hierarchy.
-public struct A2UICatalogImplementationKey: EnvironmentKey {
-  public static let defaultValue: CatalogImplementation? = nil
-}
+/// Component API definitions for all 18 standard components in the A2UI Basic Catalog.
+public enum BasicCatalogComponents: Sendable {
 
-extension EnvironmentValues {
-  /// The active A2UI catalog implementation, if any.
-  public var a2uiCatalogImplementation: CatalogImplementation? {
-    get { self[A2UICatalogImplementationKey.self] }
-    set { self[A2UICatalogImplementationKey.self] = newValue }
-  }
+  // MARK: - All Components
+  public static let allComponents: [AnyComponentAPI] = [
+    text,
+    image,
+    icon,
+    video,
+    audioPlayer,
+    row,
+    column,
+    list,
+    card,
+    tabs,
+    modal,
+    divider,
+    button,
+    textField,
+    checkBox,
+    choicePicker,
+    slider,
+    dateTimeInput,
+  ]
 }

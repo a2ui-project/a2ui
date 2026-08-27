@@ -29,21 +29,30 @@ public final class MessageProcessor: ObservableObject {
   /// The surface group model owning all active surfaces.
   public let surfaceGroupModel: SurfaceGroupModel
 
-  private let catalogs: [String: Catalog]
+  private let catalogs: [String: AnyCatalog]
   private weak var actionHandler: (any ActionHandling)?
   private let errorMapper = MessageErrorMapper()
 
   /// Creates a new message processor with an array of catalogs.
   public init(
-    catalogs: [Catalog],
+    catalogs: [any CatalogProtocol],
     actionHandler: (any ActionHandling)? = nil
   ) {
+    let anyCatalogs = catalogs.map { $0.eraseToAnyCatalog() }
     self.catalogs = Dictionary(
-      catalogs.map { ($0.id, $0) },
+      anyCatalogs.map { ($0.id, $0) },
       uniquingKeysWith: { _, last in last }
     )
     self.actionHandler = actionHandler
     self.surfaceGroupModel = SurfaceGroupModel()
+  }
+
+  /// Creates a new message processor with a single catalog.
+  public convenience init(
+    catalog: any CatalogProtocol,
+    actionHandler: (any ActionHandling)? = nil
+  ) {
+    self.init(catalogs: [catalog], actionHandler: actionHandler)
   }
 
   /// Returns the aggregated data model for surfaces with `sendDataModel` enabled.
@@ -133,7 +142,7 @@ public final class MessageProcessor: ObservableObject {
     )
   }
 
-  private func generateInlineCatalog(_ catalog: Catalog) -> JSONValue {
+  private func generateInlineCatalog(_ catalog: AnyCatalog) -> JSONValue {
     var componentsDictionary: OrderedDictionary<String, JSONValue> = [:]
 
     for (name, componentAPI) in catalog.components {
@@ -308,7 +317,7 @@ public final class MessageProcessor: ObservableObject {
   @discardableResult
   private func createSurface(
     surfaceID: String,
-    catalog: Catalog,
+    catalog: AnyCatalog,
     theme: [String: JSONValue]? = nil,
     sendDataModel: Bool = false
   ) throws -> SurfaceViewModel {
