@@ -970,6 +970,72 @@ describe('NodeResolver absent dynamic properties', () => {
   });
 });
 
+describe('NodeResolver child markers survive schema description', () => {
+  it('resolves a child whose componentId schema was described', () => {
+    const Api = {
+      name: 'DescribedCard',
+      schema: z.object({child: ComponentIdSchema.describe('The child to show.').optional()}),
+    };
+    const TextApi = {name: 'Text', schema: z.object({text: DynamicStringSchema.optional()})};
+    const catalog = new Catalog<ComponentApi>('described-catalog', [Api, TextApi], []);
+    const surface = new SurfaceModel('surf-1', catalog);
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'DescribedCard', {child: 'kid'});
+    add(surface, 'kid', 'Text', {text: 'child text'});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const child = props(root).child;
+    assert.ok(isComponentNode(child), 'expected a resolved child node');
+    assert.strictEqual((child as ComponentNode).componentId, 'kid');
+    resolver.dispose();
+  });
+
+  it('resolves a child list whose schema was described', () => {
+    const Api = {
+      name: 'DescribedColumn',
+      schema: z.object({children: ChildListSchema.describe('The children.').optional()}),
+    };
+    const TextApi = {name: 'Text', schema: z.object({text: DynamicStringSchema.optional()})};
+    const catalog = new Catalog<ComponentApi>('described-catalog', [Api, TextApi], []);
+    const surface = new SurfaceModel('surf-1', catalog);
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'DescribedColumn', {children: ['a', 'b']});
+    add(surface, 'a', 'Text', {text: 'one'});
+    add(surface, 'b', 'Text', {text: 'two'});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const children = props(root).children as ComponentNode[];
+    assert.strictEqual(children.length, 2);
+    assert.ok(children.every(isComponentNode));
+    resolver.dispose();
+  });
+
+  it('still recognizes a hand-authored REF description', () => {
+    const Api = {
+      name: 'HandAuthored',
+      schema: z.object({
+        child: z
+          .string()
+          .describe('REF:common_types.json#/$defs/ComponentId|Authored by hand.')
+          .optional(),
+      }),
+    };
+    const TextApi = {name: 'Text', schema: z.object({text: DynamicStringSchema.optional()})};
+    const catalog = new Catalog<ComponentApi>('hand-catalog', [Api, TextApi], []);
+    const surface = new SurfaceModel('surf-1', catalog);
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'HandAuthored', {child: 'kid'});
+    add(surface, 'kid', 'Text', {text: 'x'});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.ok(isComponentNode(props(root).child), 'expected a resolved child node');
+    resolver.dispose();
+  });
+});
+
 describe('NodeResolver resolved bindings (write path)', () => {
   it('makes bindings writable iff the payload bound a data path', () => {
     const {surface, resolver} = setup();
