@@ -1172,5 +1172,171 @@ describe('MessageProcessor', () => {
       assert.ok(proc.getSurface('multi-surf'));
       assert.strictEqual(proc.getSurface('multi-surf')?.componentsModel.size, 3);
     });
+
+    it('validates merged properties on delta component updates', () => {
+      const counterCatalog = new Catalog('counter-cat', [
+        {
+          name: 'Counter',
+          schema: z.object({
+            label: z.string(),
+            count: z.number().min(0),
+          }),
+        },
+      ]);
+      const proc = new MessageProcessor([counterCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      // 1. Initial creation
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's_delta',
+          catalogId: 'counter-cat',
+          components: [{id: 'root', component: 'Counter', label: 'Score', count: 5}],
+        },
+      });
+
+      // 2. Delta update with valid count (omitting label - merged from existing)
+      assert.doesNotThrow(() =>
+        proc.processMessages({
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's_delta',
+            components: [{id: 'root', component: 'Counter', count: 10}],
+          },
+        }),
+      );
+      assert.strictEqual(
+        proc.getSurface('s_delta')?.componentsModel.get('root')?.properties.count,
+        10,
+      );
+      assert.strictEqual(
+        proc.getSurface('s_delta')?.componentsModel.get('root')?.properties.label,
+        'Score',
+      );
+
+      // 3. Raw operation delta update omitting component type entirely
+      assert.doesNotThrow(() =>
+        proc.processOperation({
+          type: 'updateComponents',
+          surfaceId: 's_delta',
+          components: [{id: 'root', count: 15}],
+        }),
+      );
+      assert.strictEqual(
+        proc.getSurface('s_delta')?.componentsModel.get('root')?.properties.count,
+        15,
+      );
+
+      // 4. Delta update with invalid count (< 0) fails schema validation
+      assert.throws(
+        () =>
+          proc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's_delta',
+              components: [{id: 'root', component: 'Counter', count: -1}],
+            },
+          }),
+        (err: any) =>
+          err instanceof A2uiValidationError &&
+          err.message.includes("Validation failed for component 'Counter'"),
+      );
+    });
+
+    it('merges existing properties on delta update with component type so required fields are preserved', () => {
+      const cardCatalog = new Catalog('card-cat', [
+        {
+          name: 'Card',
+          schema: z.object({
+            title: z.string(),
+            subtitle: z.string().optional(),
+            child: z.string().describe('ChildComponentId'),
+          }),
+        },
+        {
+          name: 'Text',
+          schema: z.object({text: z.string()}),
+        },
+      ]);
+      const proc = new MessageProcessor([cardCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      // 1. Initial creation
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's_card',
+          catalogId: 'card-cat',
+          components: [
+            {id: 'root', component: 'Card', title: 'Initial Title', child: 'txt'},
+            {id: 'txt', component: 'Text', text: 'Hello'},
+          ],
+        },
+      });
+
+      // 2. Partial update providing component: 'Card' but only updating subtitle
+      // Required fields (title and child) are already set on existing and should not cause validation failure
+      assert.doesNotThrow(() =>
+        proc.processMessages({
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's_card',
+            components: [{id: 'root', component: 'Card', subtitle: 'New Subtitle'}],
+          },
+        }),
+      );
+      const rootComp = proc.getSurface('s_card')?.componentsModel.get('root');
+      assert.strictEqual(rootComp?.properties.title, 'Initial Title');
+      assert.strictEqual(rootComp?.properties.subtitle, 'New Subtitle');
+      assert.strictEqual(rootComp?.properties.child, 'txt');
+    });
+
+    it('preserves container child relationships in composition constraint validation during partial updates', () => {
+      const constraintCatalog = new Catalog('constraint-cat', [
+        {
+          name: 'StrictParent',
+          schema: z.object({
+            title: z.string().optional(),
+            children: z.array(z.string()).describe('ChildList'),
+          }),
+        },
+        {
+          name: 'RestrictedChild',
+          schema: z.object({text: z.string()}),
+          allowedParents: ['StrictParent'],
+        },
+      ]);
+      const proc = new MessageProcessor([constraintCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      // 1. Initial surface creation with StrictParent and RestrictedChild
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's_constr',
+          catalogId: 'constraint-cat',
+          components: [
+            {id: 'root', component: 'StrictParent', children: ['c1']},
+            {id: 'c1', component: 'RestrictedChild', text: 'Allowed'},
+          ],
+        },
+      });
+
+      // 2. Partial update modifying only title on StrictParent
+      // RestrictedChild must not be falsely flagged as missing an allowed parent
+      assert.doesNotThrow(() =>
+        proc.processMessages({
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's_constr',
+            components: [{id: 'root', component: 'StrictParent', title: 'Updated Title'}],
+          },
+        }),
+      );
+    });
   });
 });

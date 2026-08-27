@@ -78,17 +78,19 @@ function checkJsonSchemaRef(schema: Record<string, any>): ChildRefAnalysis {
     }
   }
 
+  let hasChild = false;
   for (const combiner of ['oneOf', 'anyOf', 'allOf'] as const) {
     if (Array.isArray(schema[combiner])) {
       for (const sub of schema[combiner]) {
         if (typeof sub === 'object' && sub !== null) {
           const subRes = checkJsonSchemaRef(sub);
           if (subRes.isChildList) return {isChild: false, isChildList: true};
-          if (subRes.isChild) return {isChild: true, isChildList: false};
+          if (subRes.isChild) hasChild = true;
         }
       }
     }
   }
+  if (hasChild) return {isChild: true, isChildList: false};
 
   if (
     schema.type === 'object' &&
@@ -277,6 +279,22 @@ export function buildComponentRefMap(
                   }
                 }
               }
+            }
+          }
+        }
+      } else if (
+        typeof compApi.schema === 'object' &&
+        compApi.schema !== null &&
+        'properties' in compApi.schema
+      ) {
+        const rawProps = (compApi.schema as any).properties;
+        if (typeof rawProps === 'object' && rawProps !== null) {
+          for (const [key, propSchema] of Object.entries(rawProps)) {
+            const res = analyzeChildRefSchema(propSchema);
+            if (res.isChildList) {
+              listRefs.add(key);
+            } else if (res.isChild) {
+              singleRefs.add(key);
             }
           }
         }
@@ -498,13 +516,18 @@ function traverseRecursionAndPaths(item: any, globalDepth: number, funcDepth: nu
       }
     }
 
-    const isFuncV08 =
+    const isFunctionCallWrapper =
       'functionCall' in item && typeof item.functionCall === 'object' && item.functionCall !== null;
-    const isFuncV09 = 'call' in item && 'args' in item;
+    const isBareFunctionCall = 'call' in item && 'args' in item;
 
-    if (isFuncV08) {
-      traverseRecursionAndPaths(item.functionCall, globalDepth + 1, funcDepth);
-    } else if (isFuncV09) {
+    if (isFunctionCallWrapper) {
+      if (funcDepth >= MAX_FUNC_CALL_DEPTH) {
+        throw new A2uiRecursionError(
+          `Recursion limit exceeded: functionCall depth > ${MAX_FUNC_CALL_DEPTH}`,
+        );
+      }
+      traverseRecursionAndPaths(item.functionCall, globalDepth + 1, funcDepth + 1);
+    } else if (isBareFunctionCall) {
       if (funcDepth >= MAX_FUNC_CALL_DEPTH) {
         throw new A2uiRecursionError(
           `Recursion limit exceeded: functionCall depth > ${MAX_FUNC_CALL_DEPTH}`,

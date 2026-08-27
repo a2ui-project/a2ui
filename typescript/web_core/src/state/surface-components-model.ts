@@ -304,8 +304,8 @@ export class SurfaceComponentsModel {
   }
 
   /**
-   * Performs non-throwing validation of references across the component graph.
-   * Returns a list of all validation errors found in a single pass.
+   * Performs non-throwing validation of references and topology across the component graph.
+   * Returns an array containing the first validation error encountered, or an empty array if valid.
    *
    * @param options Validation options.
    * @returns Array of validation error objects.

@@ -528,8 +528,9 @@ export class MessageProcessor<T extends ComponentApi> {
         }
       }
 
-      const componentType = component;
-      const mergedProperties = properties;
+      const existing = surface.componentsModel.get(id);
+      const componentType = component || existing?.type;
+      const mergedProperties = existing ? {...existing.properties, ...properties} : properties;
       if (componentType) {
         const componentApi = targetCatalog.components.get(componentType);
         if (!componentApi) {
@@ -689,8 +690,10 @@ export class MessageProcessor<T extends ComponentApi> {
             compCatalogMap.set(id, found);
           }
         }
+        const existing = surface.componentsModel.get(id);
+        const mergedProps = existing ? {...existing.properties, ...props} : props;
         const list: string[] = [];
-        this.extractChildIdsFromProps(props, list);
+        this.extractChildIdsFromProps(mergedProps, list);
         if (list.length > 0) {
           childMap.set(id, list);
         } else {

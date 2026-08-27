@@ -153,6 +153,18 @@ describe('A2uiValidator & Integrity Verification', () => {
           err instanceof A2uiRecursionError && err.message.includes('Recursion limit exceeded'),
       );
     });
+
+    it('throws when wrapped functionCall recursion depth limit is exceeded', () => {
+      let wrappedCall: any = {call: 'leaf', args: {}};
+      for (let i = 0; i < 6; i++) {
+        wrappedCall = {functionCall: wrappedCall};
+      }
+      assert.throws(
+        () => validateRecursionAndPaths(wrappedCall),
+        (err: any) =>
+          err instanceof A2uiRecursionError && err.message.includes('Recursion limit exceeded'),
+      );
+    });
   });
 
   describe('analyzeTopology', () => {
@@ -357,6 +369,51 @@ describe('A2uiValidator & Integrity Verification', () => {
       // 3. A2uiValidator validateComponents with array of catalogs
       const validator = new A2uiValidator();
       assert.doesNotThrow(() => validator.validateComponents(components, [catalogA, catalogB]));
+    });
+
+    it('prioritizes isChildList over isChild when inspecting oneOf combiners with both', () => {
+      const mixedUnionSchema = {
+        oneOf: [
+          {$ref: 'https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentId'},
+          {$ref: 'https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList'},
+        ],
+      };
+      const res = analyzeChildRefSchema(mixedUnionSchema);
+      assert.strictEqual(res.isChildList, true);
+      assert.strictEqual(res.isChild, false);
+    });
+
+    it('builds dynamic ref map from plain JSON Schema component definitions', () => {
+      const rawJsonSchemaApi = {
+        name: 'PlainJsonComponent',
+        schema: {
+          type: 'object',
+          properties: {
+            headerSlot: {
+              $ref: 'https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentId',
+            },
+            itemsSlot: {
+              $ref: 'https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList',
+            },
+            label: {type: 'string'},
+          },
+        },
+      };
+
+      const refMap = buildComponentRefMap([rawJsonSchemaApi as any]);
+      assert.ok(refMap.PlainJsonComponent);
+      assert.deepStrictEqual(Array.from(refMap.PlainJsonComponent[0]), ['headerSlot']);
+      assert.deepStrictEqual(Array.from(refMap.PlainJsonComponent[1]), ['itemsSlot']);
+    });
+
+    it('instantiates A2uiIntegrityError and A2uiRecursionError with custom error codes', () => {
+      const integrityErr = new A2uiIntegrityError('Integrity failed');
+      assert.strictEqual(integrityErr.code, 'INTEGRITY_ERROR');
+      assert.strictEqual(integrityErr.name, 'A2uiIntegrityError');
+
+      const recursionErr = new A2uiRecursionError('Recursion exceeded');
+      assert.strictEqual(recursionErr.code, 'RECURSION_ERROR');
+      assert.strictEqual(recursionErr.name, 'A2uiRecursionError');
     });
   });
 });

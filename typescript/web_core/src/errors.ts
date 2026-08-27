@@ -66,8 +66,9 @@ export class A2uiValidationError extends A2uiError {
   constructor(
     message: string,
     public readonly details?: any,
+    code: string = 'VALIDATION_ERROR',
   ) {
-    super(message, 'VALIDATION_ERROR');
+    super(message, code);
   }
 }
 
@@ -132,9 +133,10 @@ export class A2uiIntegrityError extends A2uiValidationError {
    *
    * @param message Error description.
    * @param details Additional error details.
+   * @param code Error category code. Defaults to 'INTEGRITY_ERROR'.
    */
-  constructor(message: string, details?: any) {
-    super(message, details);
+  constructor(message: string, details?: any, code: string = 'INTEGRITY_ERROR') {
+    super(message, details, code);
     this.name = 'A2uiIntegrityError';
   }
 }
@@ -148,9 +150,10 @@ export class A2uiRecursionError extends A2uiValidationError {
    *
    * @param message Error description.
    * @param details Additional error details.
+   * @param code Error category code. Defaults to 'RECURSION_ERROR'.
    */
-  constructor(message: string, details?: any) {
-    super(message, details);
+  constructor(message: string, details?: any, code: string = 'RECURSION_ERROR') {
+    super(message, details, code);
     this.name = 'A2uiRecursionError';
   }
 }
