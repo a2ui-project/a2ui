@@ -77,32 +77,111 @@ We implement an **Adapter Wrapper Pattern**:
 ```python
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Sequence, Union
 from a2ui.core.catalog import Catalog, ComponentApi, FunctionApi
 from a2ui.schema.schema_helper import CatalogSchemaHelper
 
 
-class PropertyKind(str, Enum):
-    PRIMITIVE = "primitive"  # str, int, float, bool
-    DYNAMIC = "dynamic"  # DynamicString, DynamicNumber, DynamicBoolean, DynamicValue
-    ENUM = "enum"  # string with enum values
-    CHILD = "child"  # single child component reference
-    CHILD_LIST = "child_list"  # sequence of child components or dynamic binding
-    ACTION = "action"  # server event or client function
-    DATA_BINDING = "data_binding"  # DataBinding object
-    OBJECT = "object"  # arbitrary dictionary
-    ARRAY = "array"  # primitive list
+# --- Strongly-Typed Type Descriptor System ---
 
 
-@dataclass
+class PrimitiveKind(str, Enum):
+    STRING = "string"
+    INTEGER = "integer"
+    FLOAT = "float"
+    BOOLEAN = "boolean"
+    ANY = "any"
+
+
+@dataclass(frozen=True)
+class PrimitiveType:
+    kind: PrimitiveKind
+
+
+@dataclass(frozen=True)
+class EnumType:
+    name: str
+    values: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ComponentRefType:
+    """Single child component slot (e.g. Card.child)."""
+
+    pass
+
+
+@dataclass(frozen=True)
+class ComponentListType:
+    """Sequence of child components or dynamic template (e.g. Column.children)."""
+
+    pass
+
+
+@dataclass(frozen=True)
+class DynamicType:
+    """A2UI dynamic value: literal T | DataBinding | FunctionCall[T]."""
+
+    inner: "TypeDescriptor"
+
+
+@dataclass(frozen=True)
+class ActionType:
+    """Server event or client function trigger."""
+
+    pass
+
+
+@dataclass(frozen=True)
+class DataBindingType:
+    """Explicit client data model path binding."""
+
+    pass
+
+
+@dataclass(frozen=True)
+class ListType:
+    """Sequence of primitive elements."""
+
+    element_type: "TypeDescriptor"
+
+
+@dataclass(frozen=True)
+class MapType:
+    """Key-value dictionary."""
+
+    value_type: "TypeDescriptor"
+
+
+@dataclass(frozen=True)
+class UnionType:
+    """Union of multiple alternative types."""
+
+    options: tuple["TypeDescriptor", ...]
+
+
+# Algebraic sum type for all property types (eliminates stringly-typed target_type)
+TypeDescriptor = Union[
+    PrimitiveType,
+    EnumType,
+    ComponentRefType,
+    ComponentListType,
+    DynamicType,
+    ActionType,
+    DataBindingType,
+    ListType,
+    MapType,
+    UnionType,
+]
+
+
+@dataclass(frozen=True)
 class PropertyApi:
     name: str
-    kind: PropertyKind
-    target_type: str  # e.g. "str", "int", "bool", "Any", or enum type name
+    type_desc: TypeDescriptor
     required: bool
     description: Optional[str]
     default_value: Optional[Any] = None
-    enum_values: Sequence[str] = ()
 
 
 class AnalysedComponentApi:
@@ -120,29 +199,21 @@ class AnalysedComponentApi:
         self._helper = schema_helper
 
     def get_properties(self) -> Sequence[PropertyApi]:
-        """Returns normalized property metadata by querying the schema helper."""
+        """Returns normalized, strongly typed property metadata."""
         prop_names = self._helper.get_component_properties(self.name)
         reqs = set(self._helper.get_component_required(self.name))
         results = []
         for prop_name in prop_names:
             prop_schema = self._helper.get_property_schema(self.name, prop_name)
-            # Classify kind (Child, ChildList, DynamicString, Enum, Primitive)
-            kind = self._classify_kind(prop_name, prop_schema)
-            enum_vals = self._helper.component_property_enums.get(
-                (self.name, prop_name), []
-            )
+            type_desc = self._resolve_type_desc(prop_name, prop_schema)
             results.append(
                 PropertyApi(
                     name=prop_name,
-                    kind=kind,
-                    target_type=self._determine_target_type(
-                        prop_name, prop_schema, enum_vals
-                    ),
+                    type_desc=type_desc,
                     required=prop_name in reqs,
                     description=(
                         prop_schema.get("description") if prop_schema else None
                     ),
-                    enum_values=enum_vals,
                 )
             )
         return results
@@ -152,7 +223,7 @@ class AnalysedComponentApi:
         return [
             p
             for p in self.get_properties()
-            if p.kind in (PropertyKind.CHILD, PropertyKind.CHILD_LIST)
+            if isinstance(p.type_desc, (ComponentRefType, ComponentListType))
         ]
 
     @property
@@ -165,9 +236,10 @@ class AnalysedComponentApi:
         """Returns the component description from schema."""
         return self.schema.get("description")
 
-    def _classify_kind(
+    def _resolve_type_desc(
         self, prop_name: str, prop_schema: Optional[dict[str, Any]]
-    ) -> PropertyKind:
+    ) -> TypeDescriptor:
+        """Resolves JSON schema structure into strongly typed TypeDescriptor."""
         ...
 
 
@@ -182,6 +254,45 @@ class AnalysedCatalog:
             for name, comp in catalog.components.items()
         }
 ```
+
+### Pattern matching on TypeDescriptor in language emitters
+
+Replacing stringly-typed `target_type: str` with algebraic `TypeDescriptor` objects enables language emitters to use exhaustive pattern matching, guaranteeing compiler-verified type generation across all target languages:
+
+```python
+def to_python_type(t: TypeDescriptor) -> str:
+    match t:
+        case PrimitiveType(PrimitiveKind.STRING):
+            return "str"
+        case PrimitiveType(PrimitiveKind.INTEGER):
+            return "int"
+        case PrimitiveType(PrimitiveKind.FLOAT):
+            return "float"
+        case PrimitiveType(PrimitiveKind.BOOLEAN):
+            return "bool"
+        case PrimitiveType(PrimitiveKind.ANY):
+            return "Any"
+        case EnumType(name=name):
+            return name
+        case ComponentRefType():
+            return "ComponentNode | str"
+        case ComponentListType():
+            return "Sequence[ComponentNode] | DynamicChildList"
+        case DynamicType(inner=inner):
+            return f"{to_python_type(inner)} | DataBinding | FunctionCall"
+        case ActionType():
+            return "Action"
+        case DataBindingType():
+            return "DataBinding"
+        case ListType(element_type=elem):
+            return f"Sequence[{to_python_type(elem)}]"
+        case MapType(value_type=val):
+            return f"Mapping[str, {to_python_type(val)}]"
+        case UnionType(options=opts):
+            return " | ".join(to_python_type(o) for o in opts)
+```
+
+TypeScript, Dart, and Kotlin emitters implement the exact same pattern-matching logic against `TypeDescriptor`, completely eliminating string-formatting bugs or unhandled edge cases across languages.
 
 ### Centralizing schema crawling via existing CatalogSchemaHelper
 
