@@ -94,11 +94,16 @@ def a2ui_scorer(version: str) -> Scorer:
                 )
 
             ver_prefix = version if version.startswith("v") else f"v{version}"
+            target_cat_id = getattr(catalog, "catalog_id", None)
             for m in all_messages:
-                if isinstance(m, dict) and "version" in m:
-                    m_ver = str(m["version"])
-                    if not m_ver.startswith("v"):
-                        m["version"] = f"v{m_ver}"
+                if isinstance(m, dict):
+                    if "version" in m:
+                        m_ver = str(m["version"])
+                        if not m_ver.startswith("v"):
+                            m["version"] = f"v{m_ver}"
+                    if target_cat_id:
+                        if "createSurface" in m and isinstance(m["createSurface"], dict):
+                            m["createSurface"]["catalogId"] = target_cat_id
 
             has_create = any(
                 isinstance(m, dict) and "createSurface" in m for m in all_messages
@@ -110,7 +115,7 @@ def a2ui_scorer(version: str) -> Scorer:
                         first_surface = m["updateComponents"].get("surfaceId", "main")
                         break
                 cat_id = (
-                    getattr(catalog, "catalog_id", None)
+                    target_cat_id
                     or "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
                 )
                 create_msg = {
