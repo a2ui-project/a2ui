@@ -68,3 +68,30 @@ extension DataBinding where Value == Double {
     swiftUIBinding(default: 0.0)
   }
 }
+
+// MARK: - Node SwiftUI Binding Accessors
+
+extension Node {
+  /// Returns a two-way SwiftUI `Binding<Value>` for the given property key,
+  /// falling back to `defaultValue` if the binding is unset or missing.
+  public func binding<Value: Sendable & Equatable>(
+    for key: String,
+    default defaultValue: Value
+  ) -> Binding<Value> {
+    if let dataBinding = properties[key] as? DataBinding<Value> {
+      return dataBinding.swiftUIBinding(default: defaultValue)
+    }
+    return .constant(defaultValue)
+  }
+
+  /// Returns a SwiftUI `Binding<Value?>` for the given property key,
+  /// evaluating to `nil` if the binding is unset or missing.
+  public func optionalBinding<Value: Sendable & Equatable>(
+    for key: String
+  ) -> Binding<Value?> {
+    if let dataBinding = properties[key] as? DataBinding<Value> {
+      return dataBinding.swiftUIBinding
+    }
+    return .constant(nil)
+  }
+}

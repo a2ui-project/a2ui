@@ -6,8 +6,7 @@ description: Main coordination skill to run the blueprint compliance, documentat
 # A2UI Compliance Verification Skill
 
 This skill coordinates the execution of specification compliance, documentation
-sync, and test quality audits, and publishes the combined results to the GitHub
-repository.
+sync, and test quality audits, and publishes the combined results as a GitHub issue.
 
 Other than writing a report and creating an issue, this skill is purely a
 read-only skill; no changes are to be made to the codebase. Do not attempt to
