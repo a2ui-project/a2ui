@@ -47,4 +47,13 @@ export 'src/processing/expressions.dart';
 export 'src/processing/processor.dart';
 export 'src/rendering/binder.dart';
 // Payload validation.
+export 'src/validation/component_graph.dart'
+    show maxComponentDepth, maxFunctionCallDepth, rootComponentId;
+export 'src/validation/component_refs.dart'
+    show
+        ComponentRefFields,
+        ComponentReference,
+        componentReferences,
+        extractComponentRefFields,
+        selfDescribingProperties;
 export 'src/validation/validator.dart';

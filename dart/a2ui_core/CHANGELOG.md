@@ -15,9 +15,29 @@
   `$defs/anyFunction` unions narrowed to match.
 - Added `A2uiRendererCapabilities` and `A2uiVersionCapabilities`, mirroring
   `client_capabilities.json` and the `web_core` client capability types.
-- Added `A2uiValidator`, which parses payload envelopes and gates them on the
-  supported protocol version. Structural and catalog schema checks are declared
-  but not implemented yet.
+- Added `A2uiValidator`, which validates a payload in three stages:
+  `parseMessages` gates envelopes on the supported protocol version,
+  `validateStructure` checks the component graph, and `validateAgainstCatalogs`
+  checks each component against its catalog's schema. A payload that creates a
+  surface is treated as a full render, so it must declare a `root` component,
+  resolve every reference and leave nothing unreachable; a payload that only
+  updates components is incremental, so it may reference components the client
+  already holds, while duplicate ids, self-references and cycles still fail.
+  Which properties reference other components is read from the catalog schema,
+  through either the `$ref` pointers a catalog document uses or the `REF:`
+  description pointers a catalog built in Dart carries.
+- Added `A2uiValidator.commonTypesSchema`. Catalogs reference
+  `common_types.json` for their shared definitions; supplying it lets those
+  definitions be enforced. A reference this SDK cannot resolve is treated as
+  unconstrained rather than fetched, so validation never performs I/O.
+- `A2uiValidator` is exercised by the shared `conformance/core/validator.yaml`
+  suite. All 20 of its v0.9 cases pass; the 25 v0.8 cases are skipped with a
+  reason, as this SDK implements v0.9 only.
+- **Behaviour change:** `A2uiMessage.fromJson` now throws
+  `A2uiValidationError` for a message body that is not an object, a missing
+  required field, or a field of the wrong type. It previously let those fail
+  as a `TypeError`, which is an `Error` rather than an `Exception` and so was
+  not catchable as a payload defect.
 - Added the `A2uiParseError`, `A2uiCompileError`, `A2uiCatalogError`,
   `A2uiIntegrityError` and `A2uiRecursionError` categories.
 - Fixed `DataModel.set` silently dropping a write whose parent path resolves to
