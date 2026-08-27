@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from urllib.parse import urlparse
 from a2ui.core.catalog import Catalog
 from a2ui.core import A2uiCatalogError
-from a2ui.core.validation.catalog_schema_validator import CatalogSchemaValidator
+from a2ui.core.validation.payload_validator import PayloadValidator
 
 
 from .catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
@@ -188,8 +188,8 @@ class A2uiCatalog:
         )
 
     @property
-    def validator(self) -> CatalogSchemaValidator:
-        return CatalogSchemaValidator.from_catalog(self.core_catalog)
+    def validator(self) -> PayloadValidator[Any, Any]:
+        return PayloadValidator(self.core_catalog)
 
     def validate(self, messages: Any) -> None:
         """Validates payload messages using MessageProcessor."""

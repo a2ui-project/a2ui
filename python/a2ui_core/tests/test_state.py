@@ -32,7 +32,7 @@ dummy_catalog = BasicCatalog()
 
 def test_component_model_lifecycle():
     events: List[ComponentModel] = []
-    comp = ComponentModel("c1", "Button", {"label": "Click"})
+    comp = ComponentModel("c1", "Button", dummy_catalog, {"label": "Click"})
 
     comp.on_updated.subscribe(lambda c: events.append(c))
 
@@ -50,6 +50,7 @@ def test_component_model_get_child_references():
     comp = ComponentModel(
         "c1",
         "Container",
+        dummy_catalog,
         {
             "singleChild": "child1",
             "childrenList": ["child2", "child3"],
@@ -79,6 +80,7 @@ def test_component_model_get_child_references_with_typed_references():
     comp = ComponentModel(
         "c1",
         "CustomLayout",
+        dummy_catalog,
         {
             "customSlot": SingleReference("slot1"),
             "items": TemplateChildList(
@@ -96,13 +98,13 @@ def test_component_model_get_child_references_with_typed_references():
 
 def test_surface_components_model_duplicate_reject():
     scm = SurfaceComponentsModel()
-    c1 = ComponentModel("c1", "Text", {"text": "Hello"})
+    c1 = ComponentModel("c1", "Text", dummy_catalog, {"text": "Hello"})
     scm.add_component(c1)
 
     assert scm.get("c1") == c1
 
     with pytest.raises(ValueError, match="already exists"):
-        scm.add_component(ComponentModel("c1", "Image", {}))
+        scm.add_component(ComponentModel("c1", "Image", dummy_catalog, {}))
 
     scm.remove_component("c1")
     assert scm.get("c1") is None
@@ -164,7 +166,7 @@ def test_event_source():
 
 
 def test_component_model():
-    comp = ComponentModel("comp_1", "Text", {"text": "Hello"})
+    comp = ComponentModel("comp_1", "Text", dummy_catalog, {"text": "Hello"})
     assert comp.id == "comp_1"
     assert comp.type == "Text"
     assert comp.properties == {"text": "Hello"}
@@ -179,9 +181,52 @@ def test_component_model():
     assert comp.component_tree == expected_tree
 
 
+def test_component_model_validate():
+    comp = ComponentModel("c1", "Text", dummy_catalog, {"text": "Hello"})
+    errors = comp.validate()
+    assert errors == []
+
+
+def test_validate_components_update_atomic():
+    from a2ui.core.exceptions import A2uiValidationError
+    from a2ui.core.validation import ValidationConfig
+
+    scm = SurfaceComponentsModel()
+    root_comp = ComponentModel("root", "Text", dummy_catalog, {"text": "Original Root"})
+    scm.add_component(root_comp)
+
+    invalid_comp = ComponentModel("root", "Text", dummy_catalog, {})
+
+    with pytest.raises(A2uiValidationError):
+        scm.validate_components_update(
+            [invalid_comp], root_id="root", config=ValidationConfig()
+        )
+
+    assert scm.get("root").properties == {"text": "Original Root"}
+
+
+def test_validate_components_update_aggregates_errors():
+    from a2ui.core.exceptions import A2uiValidationError
+    from a2ui.core.validation import ValidationConfig
+
+    scm = SurfaceComponentsModel()
+    comp1 = ComponentModel("c1", "Text", dummy_catalog, {})
+    comp2 = ComponentModel("c2", "Text", dummy_catalog, {})
+
+    with pytest.raises(A2uiValidationError) as exc_info:
+        scm.validate_components_update(
+            [comp1, comp2],
+            root_id="c1",
+            config=ValidationConfig(allow_orphan_components=True),
+        )
+
+    err = exc_info.value
+    assert len(err.details) == 2
+
+
 def test_surface_components_model():
     scm = SurfaceComponentsModel()
-    comp = ComponentModel("comp_1", "Text", {"text": "Hello"})
+    comp = ComponentModel("comp_1", "Text", dummy_catalog, {"text": "Hello"})
 
     created = []
     scm.on_created.subscribe(lambda c: created.append(c.id))

@@ -16,13 +16,21 @@ from typing import Any, Dict, List
 import pytest
 
 from a2ui.core.state import (
-    ComponentModel,
+    ComponentModel as RealComponentModel,
     ComponentNode,
     Signal,
     SurfaceModel,
     NodeGraph,
 )
 from a2ui.core.basic_catalog import BasicCatalog
+
+_dummy_cat = BasicCatalog()
+
+
+def ComponentModel(
+    cid: str, ctype: str, props: Any = None, catalog: Any = None
+) -> RealComponentModel:
+    return RealComponentModel(cid, ctype, catalog or _dummy_cat, props)
 
 
 def test_component_node_lifecycle():

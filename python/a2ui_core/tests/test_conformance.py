@@ -274,6 +274,7 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
                             protocol_version=p_ver,
                             components=list(basic_catalog.components.values()),
                         )
+                    specified_catalogs.append(cat)
     if "catalogPaths" in case and isinstance(case["catalogPaths"], list):
         for p in case["catalogPaths"]:
             full_p = os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", p))
@@ -610,7 +611,7 @@ def validate_resolve_path_case(case: Dict[str, Any]) -> None:
     args = case.get("args", {})
     path = args.get("path", "")
     context_path = args.get("contextPath") or args.get("context_path")
-    surface = SurfaceModel(surface_id="dummy", catalog=basic_catalog)
+    surface = SurfaceModel(surface_id="dummy", default_catalog=basic_catalog)
     ctx = DataContext(surface=surface, path=context_path or "/")
     res = ctx.resolve_path(path)
     expected = case.get("expect", {})

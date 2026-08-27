@@ -626,6 +626,146 @@ def test_message_processor_custom_catalog_component_validation():
         }])
 
 
+def test_message_processor_component_catalog_override():
+    cat_a = Catalog.from_json({
+        "catalogId": "cat-a",
+        "protocolVersion": "v1.0",
+        "components": {
+            "CompA": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string"},
+                    "child": {"type": "string"},
+                },
+                "required": ["text"],
+            }
+        },
+    })
+    cat_b = Catalog.from_json({
+        "catalogId": "cat-b",
+        "protocolVersion": "v1.0",
+        "components": {
+            "CompB": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer"},
+                },
+                "required": ["count"],
+            }
+        },
+    })
+
+    processor = MessageProcessor(
+        catalogs=[cat_a, cat_b], validation_config=STRICT_VALIDATION
+    )
+
+    processor.process_messages([
+        {
+            "version": "v1.0",
+            "createSurface": {"surfaceId": "s1", "catalogId": "cat-a"},
+        },
+        {
+            "version": "v1.0",
+            "updateComponents": {
+                "surfaceId": "s1",
+                "components": [
+                    {
+                        "id": "root",
+                        "component": "CompA",
+                        "text": "hello",
+                        "child": "c2",
+                    },
+                    {
+                        "id": "c2",
+                        "component": "CompB",
+                        "catalogId": "cat-b",
+                        "count": 42,
+                    },
+                ],
+            },
+        },
+    ])
+
+    surface = processor.model.get_surface("s1")
+    assert surface is not None
+    assert surface.components_model.get("root").catalog is cat_a
+    assert surface.components_model.get("c2").catalog is cat_b
+
+    # Update c2 with explicit catalogId -> resolves to cat_b
+    processor.process_messages([{
+        "version": "v1.0",
+        "updateComponents": {
+            "surfaceId": "s1",
+            "components": [{"id": "c2", "catalogId": "cat-b", "count": 99}],
+        },
+    }])
+    assert surface.components_model.get("c2").catalog is cat_b
+    assert surface.components_model.get("c2").properties["count"] == 99
+
+    # Update c2 without catalogId -> defaults back to surface.default_catalog (cat_a)
+    processor.process_messages([{
+        "version": "v1.0",
+        "updateComponents": {
+            "surfaceId": "s1",
+            "components": [
+                {"id": "c2", "component": "CompA", "text": "updated", "count": 100}
+            ],
+        },
+    }])
+    assert surface.components_model.get("c2").catalog is cat_a
+
+
+def test_message_processor_atomic_state_rollback_on_error():
+    from a2ui.core.exceptions import A2uiValidationError
+
+    cat = Catalog.from_json({
+        "catalogId": "cat-test",
+        "protocolVersion": "v1.0",
+        "components": {
+            "Comp": {
+                "type": "object",
+                "properties": {
+                    "val": {"type": "string"},
+                },
+                "required": ["val"],
+            }
+        },
+    })
+
+    processor = MessageProcessor(catalogs=[cat], validation_config=STRICT_VALIDATION)
+
+    processor.process_messages([
+        {
+            "version": "v1.0",
+            "createSurface": {"surfaceId": "s1", "catalogId": "cat-test"},
+        },
+        {
+            "version": "v1.0",
+            "updateComponents": {
+                "surfaceId": "s1",
+                "components": [{"id": "root", "component": "Comp", "val": "initial"}],
+            },
+        },
+    ])
+
+    surface = processor.model.get_surface("s1")
+    assert surface is not None
+    assert surface.components_model.get("root").properties["val"] == "initial"
+
+    # Attempt invalid update on root (missing required 'val')
+    with pytest.raises(A2uiValidationError):
+        processor.process_messages([{
+            "version": "v1.0",
+            "updateComponents": {
+                "surfaceId": "s1",
+                "components": [{"id": "root", "component": "Comp"}],
+            },
+        }])
+
+    # Assert surface state remains unchanged
+    assert surface.components_model.get("root").properties["val"] == "initial"
+
+
 def test_message_processor_empty_catalogs_throws():
     with pytest.raises(ValueError, match="At least one catalog must be provided"):
         MessageProcessor(catalogs=[])

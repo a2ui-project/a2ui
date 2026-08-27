@@ -16,10 +16,11 @@ import copy
 import inspect
 import re
 import warnings
-from typing import Any, Callable, Dict, List, Optional, Set, Union
+from typing import Any, Callable, Dict, Generic, List, Optional, Set, Union
+from ..catalog.catalog import TComponent, TFunction
 from ..state import DataModel
 from ..state.surface_model import SurfaceModel
-from ..validation.catalog_schema_validator import CatalogSchemaValidator
+from ..validation.payload_validator import PayloadValidator
 from ..common.events import Subscription, EventSource, Signal, AbortSignal
 
 EXPRESSION_PATTERN = re.compile(r"(\\)?\$\{(.*?)\}")
@@ -31,12 +32,12 @@ class MissingDataBindingWarning(UserWarning):
     pass
 
 
-class DataContext:
+class DataContext(Generic[TComponent, TFunction]):
     """Headless evaluation scope for resolving A2UI dynamic bindings and expressions."""
 
     def __init__(
         self,
-        surface: SurfaceModel,
+        surface: SurfaceModel[TComponent, TFunction],
         path: str = "/",
     ):
         self.surface = surface
@@ -48,7 +49,7 @@ class DataContext:
         """Gets the locale for this context, inherited from the surface."""
         return getattr(self.surface, "locale", None)
 
-    def nested(self, relative_path: str) -> "DataContext":
+    def nested(self, relative_path: str) -> "DataContext[TComponent, TFunction]":
         """Creates a nested child context scope (e.g. for template item bindings)."""
         norm_rel = relative_path[1:] if relative_path.startswith("/") else relative_path
         return DataContext(
@@ -263,25 +264,44 @@ class DataContext:
         resolved_args: Dict[str, Any],
         abort_signal: Optional[AbortSignal] = None,
     ) -> Any:
-        """Invokes standard or catalog functions (e.g., formatString)."""
-        if self.surface.catalog:
-            if self.surface.catalog.catalog_schema:
-                try:
-                    CatalogSchemaValidator.from_catalog(
-                        self.surface.catalog
-                    ).validate_function(name, resolved_args)
-                except Exception as e:
-                    if self.surface and hasattr(self.surface, "dispatch_error"):
-                        self.surface.dispatch_error({
-                            "code": "EXPRESSION_ERROR",
-                            "message": str(e),
-                            "expression": name,
-                        })
-                        return None
-                    else:
-                        raise
+        catalogs_dict = {
+            "_default": self.surface.default_catalog,
+            **self.surface.catalogs,
+        }
+        active_catalogs = set(dict.fromkeys(catalogs_dict.values()))
+        if active_catalogs:
+            try:
+                validated = False
+                last_err = None
+                for cat in active_catalogs:
+                    try:
+                        PayloadValidator(catalog=cat).validate_function(
+                            name, resolved_args
+                        )
+                        validated = True
+                        break
+                    except Exception as err:
+                        last_err = err
+                if not validated and last_err:
+                    raise last_err
+            except Exception as e:
+                if self.surface and hasattr(self.surface, "dispatch_error"):
+                    self.surface.dispatch_error({
+                        "code": "EXPRESSION_ERROR",
+                        "message": str(e),
+                        "expression": name,
+                    })
+                    return None
+                else:
+                    raise
 
-            fn = self.surface.catalog.get_function(name)
+            fn = None
+            for cat in active_catalogs:
+                if hasattr(cat, "get_function"):
+                    f = cat.get_function(name)
+                    if f is not None:
+                        fn = f
+                        break
 
             if fn is not None:
                 try:

@@ -14,12 +14,21 @@
 
 from typing import Any, Dict, List, Optional
 from ..common.events import EventSource
-from ..exceptions import A2uiValidationError
+from ..exceptions import A2uiErrorDetail, A2uiValidationError
 from .component_model import ComponentModel
-from ..validation.catalog_schema_validator import (
-    CatalogSchemaValidator,
+from .validation_helpers import (
+    analyze_topology,
+    validate_component_integrity,
+    validate_composition_constraints,
+)
+from ..validation.payload_validator import (
+    PayloadValidator,
     ValidationConfig,
 )
+
+
+from ..catalog import Catalog
+from ..catalog.catalog import TComponent, TFunction
 
 
 class SurfaceComponentsModel:
@@ -34,7 +43,7 @@ class SurfaceComponentsModel:
         return self._components.get(component_id)
 
     def get_all(self) -> Dict[str, ComponentModel]:
-        return self._components
+        return dict(self._components)
 
     def add_component(self, component: ComponentModel) -> None:
         if component.id in self._components:
@@ -51,49 +60,42 @@ class SurfaceComponentsModel:
 
     def validate_components_update(
         self,
-        catalog: Any,
-        components: List[Dict[str, Any]],
-        config: Optional[ValidationConfig] = None,
-    ) -> None:
-        """Validates inbound component properties schema and composition constraints."""
-        if config is None:
-            return
-
-        from ..validation.composition_validator import validate_composition_constraints
-
-        try:
-            CatalogSchemaValidator.from_catalog(catalog).validate_components(
-                components, config=config
-            )
-        except Exception as e:
-            comp_types = [
-                c.get("component")
-                for c in components
-                if isinstance(c, dict) and c.get("component")
-            ]
-            comp_str = ", ".join(f"'{t}'" for t in comp_types if t)
-            raise A2uiValidationError(
-                f"Validation failed for component {comp_str}: {e}"
-            ) from e
-
-        validate_composition_constraints(catalog, self.get_all(), components)
-
-    def validate_completeness(
-        self,
+        new_components: List[ComponentModel],
         root_id: str = "root",
         config: Optional[ValidationConfig] = None,
     ) -> None:
-        """Validates post-update surface graph completeness (root presence, dangling refs, cycles, orphans)."""
+        """Validates inbound component models schema, composition constraints, and graph completeness BEFORE updating surface state."""
         if config is None:
             return
 
-        from ..validation.integrity_checker import validate_component_integrity
-        from ..validation.topology_analyzer import analyze_topology
+        all_errors: List[A2uiErrorDetail] = []
+        comp_summaries: List[str] = []
+        for comp_model in new_components:
+            errors = comp_model.validate(config=config)
+            if errors:
+                all_errors.extend(errors)
+                comp_type = comp_model.type
+                comp_str = f"'{comp_type}'" if comp_type else f"id '{comp_model.id}'"
+                comp_summary = "\n".join(f"{e.path}: {e.message}" for e in errors)
+                comp_summaries.append(f"{comp_str}: {comp_summary}")
 
-        comps = self.get_all()
+        if all_errors:
+            summary = "\n".join(comp_summaries)
+            raise A2uiValidationError(
+                f"Validation failed for component {summary}",
+                details=all_errors,
+            )
+
+        prospective_components = dict(self._components)
+        for comp_model in new_components:
+            prospective_components[comp_model.id] = comp_model
+
+        validate_composition_constraints(prospective_components)
         try:
-            validate_component_integrity(comps, root_id=root_id, config=config)
-            analyze_topology(comps, root_id=root_id, config=config)
+            validate_component_integrity(
+                prospective_components, root_id=root_id, config=config
+            )
+            analyze_topology(prospective_components, root_id=root_id, config=config)
         except Exception as e:
             raise A2uiValidationError(str(e)) from e
 

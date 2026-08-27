@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import copy
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, Generic, List, Optional, TYPE_CHECKING
+from ..catalog.catalog import TComponent, TFunction
 from ..common.events import Signal, Subscription
 from .component_node import ComponentNode
 from .component_model import ComponentModel, is_child_prop_key
@@ -23,10 +24,10 @@ if TYPE_CHECKING:
     from ..rendering.generic_binder import GenericBinder
 
 
-class NodeGraph:
+class NodeGraph(Generic[TComponent, TFunction]):
     """Manages the lifecycle and resolution of living ComponentNodes for a surface."""
 
-    def __init__(self, surface: SurfaceModel) -> None:
+    def __init__(self, surface: SurfaceModel[TComponent, TFunction]) -> None:
         self.surface = surface
 
         self.rootNode: Signal[Optional[ComponentNode]] = Signal(None)

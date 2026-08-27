@@ -24,19 +24,37 @@ from a2ui.core.catalog import (
 )
 from a2ui.core.exceptions import A2uiCatalogError, A2uiValidationError
 from a2ui.core.catalog.catalog import TComponent, TFunction
-from a2ui.core.validation import CatalogSchemaValidator
+from a2ui.core.validation import PayloadValidator
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema.v0_9.common_types import ComponentId
 from a2ui.core.schema.v0_9.constants import PROTOCOL_VERSION
 
 
-def _val(
-    catalog: Catalog[TComponent, TFunction],
-    common_types_schema: Dict[str, Any] = {},
-) -> CatalogSchemaValidator:
-    return CatalogSchemaValidator.from_catalog(
-        catalog, common_types_schema=common_types_schema
-    )
+class _TestValidatorHelper:
+
+    def __init__(self, catalog: Catalog[Any, Any]):
+        self.validator = PayloadValidator(catalog=catalog)
+
+    def validate_component(self, comp_or_list: Any) -> None:
+        comps = comp_or_list if isinstance(comp_or_list, list) else [comp_or_list]
+        all_errors = []
+        for c in comps:
+            errors = self.validator.validate_component(c)
+            if errors:
+                all_errors.extend(errors)
+        if all_errors:
+            summary = "\n".join(f"{e.path}: {e.message}" for e in all_errors)
+            raise A2uiValidationError(summary, details=all_errors)
+
+    def validate_components(self, components: Any) -> None:
+        self.validate_component(components)
+
+    def validate_function(self, name: str, args: Dict[str, Any]) -> None:
+        self.validator.validate_function(name, args)
+
+
+def _val(catalog: Catalog[TComponent, TFunction]) -> _TestValidatorHelper:
+    return _TestValidatorHelper(catalog)
 
 
 # ==============================================================================
@@ -407,26 +425,24 @@ def test_seamless_mixed_catalogs():
         functions=[],
     )
 
-    validator = CatalogSchemaValidator(catalog)
+    validator = _val(catalog)
 
     # 1. Validate payload conforming to ModelComponentApi
-    validator.validate_components(
-        [{"id": "a1", "component": "CompA", "message": "hello"}]
-    )
+    validator.validate_component({"id": "a1", "component": "CompA", "message": "hello"})
 
     # 2. Validate payload conforming to ComponentApi
-    validator.validate_components([{"id": "b1", "component": "CompB", "count": 42}])
+    validator.validate_component({"id": "b1", "component": "CompB", "count": 42})
 
     # 3. Mismatched property in ModelComponentApi raises error
     with pytest.raises((ValidationError, ValueError)):
-        validator.validate_components(
-            [{"id": "a2", "component": "CompA"}]
+        validator.validate_component(
+            {"id": "a2", "component": "CompA"}
         )  # missing message
 
     # 4. Mismatched property in ComponentApi raises error
     with pytest.raises((ValidationError, ValueError)):
-        validator.validate_components(
-            [{"id": "b2", "component": "CompB", "count": "not-an-int"}]
+        validator.validate_component(
+            {"id": "b2", "component": "CompB", "count": "not-an-int"}
         )
 
 
@@ -533,3 +549,51 @@ def test_validation_config_defaults():
     assert config.allow_unknown_elements is False
     assert STRICT_VALIDATION.allow_unknown_elements is False
     assert RELAXED_VALIDATION.allow_unknown_elements is True
+
+
+def test_mixed_catalog_validation():
+    from a2ui.core.catalog import Catalog
+    from a2ui.core.state import ComponentModel, SurfaceComponentsModel
+    from a2ui.core.validation import ValidationConfig
+
+    cat_a = Catalog.from_json({
+        "catalogId": "cat-a",
+        "protocolVersion": "v1.0",
+        "components": {
+            "CompA": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "component": {"const": "CompA"},
+                    "text": {"type": "string"},
+                },
+                "required": ["id", "component", "text"],
+            }
+        },
+    })
+
+    cat_b = Catalog.from_json({
+        "catalogId": "cat-b",
+        "protocolVersion": "v1.0",
+        "components": {
+            "CompB": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "component": {"const": "CompB"},
+                    "count": {"type": "integer"},
+                },
+                "required": ["id", "component", "count"],
+            }
+        },
+    })
+
+    c1 = ComponentModel("c1", "CompA", cat_a, {"text": "hello"})
+    c2 = ComponentModel("c2", "CompB", cat_b, {"count": 42})
+    components_model = SurfaceComponentsModel()
+
+    components_model.validate_components_update(
+        [c1, c2],
+        root_id="c1",
+        config=ValidationConfig(allow_orphan_components=True),
+    )

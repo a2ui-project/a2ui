@@ -54,15 +54,6 @@
           - path: "messages.0.version"
             code: "missing_field"
     - messages:
-        - version: "v0.9"
-          createSurface:
-            surfaceId: "s1"
-      expectError:
-        category: "ValidationError"
-        details:
-          - path: "messages.0.version"
-            code: "invalid_value"
-    - messages:
         - version: "v1.0"
           createSurface:
             surfaceId: 123

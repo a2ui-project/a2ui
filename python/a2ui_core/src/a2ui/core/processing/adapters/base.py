@@ -23,7 +23,7 @@ from ...exceptions import (
     A2uiIntegrityError,
     A2uiValidationError,
 )
-from ...validation.integrity_checker import validate_recursion_and_paths
+from ...state.validation_helpers import validate_recursion_and_paths
 from ...schema import ProtocolVersion, AgentToRendererMessagePayload
 
 

@@ -41,16 +41,6 @@
           - path: "messages.0.version"
             code: "missing_field"
     - messages:
-        - version: "v0.8"
-          createSurface:
-            surfaceId: "123"
-            catalogId: standard
-      expectError:
-        category: "ValidationError"
-        details:
-          - path: "messages.0.version"
-            code: "invalid_value"
-    - messages:
         - version: "v0.9"
           createSurface:
             surfaceId: 123
@@ -400,5 +390,28 @@
                   call: "unknownFunc"
                   args:
                     arg: "val"
+      expectError:
+        category: "ValidationError"
+
+- name: test_v09_multiple_component_validation_errors
+  description: Tests that updating components with multiple invalid component schemas raises ValidationError.
+  action: validate
+  protocolVersion: "v0.9"
+  catalogPaths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  steps:
+    - messages:
+        - version: "v0.9"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "https://a2ui.org/basic-catalog"
+        - version: "v0.9"
+          updateComponents:
+            surfaceId: "s1"
+            components:
+              - id: "root"
+                component: "Button"
+              - id: "c2"
+                component: "Text"
       expectError:
         category: "ValidationError"

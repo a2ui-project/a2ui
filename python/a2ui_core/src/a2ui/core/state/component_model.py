@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import copy
-from typing import Any, Dict, Iterator, Optional, Set, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Set, Tuple
 from ..common.events import EventSource
+from ..catalog.catalog import Catalog, TComponent, TFunction
+from ..exceptions import A2uiErrorDetail
 from ..schema.common_types import (
     ComponentReference,
     SingleReference,
@@ -89,10 +91,12 @@ class ComponentModel:
         self,
         component_id: str,
         component_type: str,
+        catalog: Catalog[TComponent, TFunction],
         properties: Optional[Dict[str, Any]] = None,
     ):
         self.id = component_id
         self.type = component_type
+        self.catalog = catalog
         self._properties = copy.deepcopy(properties or {})
         self.on_updated = EventSource()
 
@@ -111,6 +115,14 @@ class ComponentModel:
         tree = {"id": self.id, "type": self.type}
         tree.update(self._properties)
         return tree
+
+    def validate(self, config: Optional[Any] = None) -> List[A2uiErrorDetail]:
+        """Validates this component instance against its bound catalog using PayloadValidator."""
+        from ..validation.payload_validator import PayloadValidator
+
+        comp_dict = {"id": self.id, "component": self.type, **self.properties}
+        validator = PayloadValidator(self.catalog, config=config)
+        return validator.validate_component(comp_dict)
 
     def get_child_references(
         self, known_component_ids: Optional[Set[str]] = None

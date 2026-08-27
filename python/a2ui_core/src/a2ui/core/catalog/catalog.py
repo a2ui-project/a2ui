@@ -45,8 +45,8 @@ def _is_version_at_least_1_0(protocol_version: Union[str, Any]) -> bool:
         return False
 
 
-TComponent = TypeVar("TComponent", bound=ComponentApi)
-TFunction = TypeVar("TFunction", bound=FunctionApi)
+TComponent = TypeVar("TComponent", bound=ComponentApi, default=Any)
+TFunction = TypeVar("TFunction", bound=FunctionApi, default=Any)
 
 
 class Catalog(Generic[TComponent, TFunction]):
