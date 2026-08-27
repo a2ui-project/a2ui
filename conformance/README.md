@@ -11,15 +11,12 @@ Test suites are organized by functional domain:
 - `core/catalog.yaml`: Contains test cases for catalog operations (prune, render, load).
 - `core/accessibility.yaml`: Contains test cases for accessibility attributes and checks.
 - `core/validator.yaml`: Contains test cases for schema and structural validators, verifying structural integrity, cycle detection, and reachability.
-- `core/data_model.yaml`: Contains test cases for the reactive data model: JSON Pointer resolution, structural auto-vivification, and observer notification routing.
-- `core/message_processor.yaml`: Contains test cases for the message processor: the surface lifecycle, component graph mutation, per surface data model routing, and the capability and data model payloads a renderer sends back to the agent.
 
 ### Agent (`agent/`)
 
 - `agent/streaming_parser.yaml`: Contains test cases for streaming parser implementations, verifying chunk buffering, incremental yielding, and edge cases like cut tokens.
 - `agent/parser.yaml`: Contains test cases for non-streaming parsing and payload fixing.
 - `agent/inference_format.yaml`: Contains test cases for inference formats and schema managers (select_catalog, load_catalog, generate_prompt).
-- `agent/request_processor.yaml`: Contains end-to-end test cases for the agent turn described in `blueprints/modules/a2ui_agent.blueprint.md`: negotiate catalogs against renderer capabilities, render the system prompt snippet, and parse a full model response into deliverable A2UI messages.
 
 ### Extensions (`extensions/`)
 
@@ -28,24 +25,7 @@ Test suites are organized by functional domain:
 
 All static test data and simplified schemas are located in the `test_data/` directory.
 
-Cases may also reference published specification artifacts by relative path, for example `"../specification/v0_9_1/catalogs/basic/catalog.json"`. Path-valued fields such as `catalog_schema`, `s2c_schema` and `catalog_configs[].path` are resolved relative to this `conformance/` directory. Referencing the specification directly, rather than copying it here, keeps suites measured against the published contract instead of a snapshot that can drift.
-
 `conformance_schema.json` at the root is the JSON schema that validates the structure of the YAML test files themselves.
-
-## Scope of a shared dataset
-
-A suite in this directory is a contract every implementation must satisfy. Adding a case here asserts that every SDK already behaves that way, so a case that one SDK passes and another does not belongs in the failing SDK's own tests until the behaviour is agreed. Two kinds of exclusion come up:
-
-- **Language specific behaviour**, which cannot hold across implementations at all. `core/data_model.yaml`, migrated from `renderers/web_core/src/v0_9/state/data-model.test.ts`, lists the exclusions it made and why.
-- **Behaviour one SDK has and others do not yet.** These are real gaps rather than disagreements, but a suite is not the place to record them, because it would turn every other SDK's build red. They belong in an issue and in the owning SDK's own tests.
-
-Behaviour currently in the second category, held by the Dart SDK only:
-
-- Rejecting a payload whose messages declare a protocol version the SDK does not implement, or omit `version` entirely, during `parse_full`. The Python and Kotlin parsers do not validate the version while parsing.
-- Pruning catalog **functions**. The `prune` action currently supports `allowed_components` and `allowed_messages`; `allowed_functions` is implemented by the Dart `FunctionPruningTransformer` only.
-- Raising an error from `select_catalog` when the renderer and agent share no catalog. Kotlin raises with a different message and Python returns no selection instead.
-
-The new `process_request` and `process_messages` actions are not loaded by the Python or Kotlin harnesses, which read a fixed list of suite files. `process_request` does assert version rejection, because that action has no prior implementations and its contract is being defined with it.
 
 ## Usage in SDKs
 
