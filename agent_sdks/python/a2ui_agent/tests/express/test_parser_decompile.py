@@ -415,8 +415,8 @@ class TestExpressParser(unittest.TestCase):
         decompiled = decompiler.decompile(envelope)
         self.assertIn('surface("update-surf-789")', decompiled)
 
-    def test_has_format_content_and_unwrap_backtick_tags(self):
-        """Test has_format_content checks and unwrap backticked tag normalization."""
+    def test_has_format_content_and_unwrap_tags(self):
+        """Test has_format_content checks and unwrap tag tokenization."""
         parser = ExpressParser(self.catalog)
         self.assertTrue(
             parser.has_format_content("<a2ui>root = Text('Hi')</a2ui>", complete=True)
@@ -428,8 +428,7 @@ class TestExpressParser(unittest.TestCase):
             parser.has_format_content("<a2ui>root = Text('Hi')", complete=False)
         )
 
-        # Backticked tags `<a2ui>` ... `</a2ui>`
-        content = "Intro\n`<a2ui>`\nroot = Text('Hi')\n`</a2ui>`\nOutro"
+        content = "Intro\n<a2ui>\nroot = Text('Hi')\n</a2ui>\nOutro"
         parts = parser.unwrap(content)
         self.assertEqual(len(parts), 2)
         self.assertEqual(parts[0].text, "Intro")

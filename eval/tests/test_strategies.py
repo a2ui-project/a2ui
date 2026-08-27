@@ -139,7 +139,7 @@ async def test_a2ui_express_solvers() -> None:
         assert state.messages[0].role == "system"
         assert "A2UI Express DSL Output Contract" in state.messages[0].content
 
-        # 2. Test Compile Solver with accompanying text and backticked tags
+        # 2. Test Compile Solver with accompanying text and sentinel tags
         compile_solver = compile_format_payload("express", version="1.0")
         state.output = ModelOutput(
             model="mock/model",
@@ -148,7 +148,7 @@ async def test_a2ui_express_solvers() -> None:
                     message=ChatMessageAssistant(
                         content=(
                             "Here is the domain research synthesis.\n\n"
-                            '`<a2ui>`\nroot = Text("Hello")\n`</a2ui>`\n\n'
+                            '<a2ui>\nroot = Text("Hello")\n</a2ui>\n\n'
                             "Additional reference notes."
                         )
                     )
