@@ -28,6 +28,8 @@ export interface TopologyOptions {
   allowOrphanComponents?: boolean;
   /** Whether to perform analysis when the root component is absent. */
   allowMissingRoot?: boolean;
+  /** Maximum permitted global graph traversal depth. Defaults to 50. */
+  maxDepth?: number;
 }
 
 /**
@@ -104,6 +106,7 @@ export function analyzeTopology(
   const visited = model.detectCycles({
     rootId: options.rootId,
     allowMissingRoot: options.allowMissingRoot,
+    maxDepth: options.maxDepth,
   });
 
   if (!options.allowOrphanComponents && !options.allowMissingRoot) {

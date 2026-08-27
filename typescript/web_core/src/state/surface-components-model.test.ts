@@ -310,5 +310,25 @@ describe('SurfaceComponentsModel', () => {
           err.name === 'A2uiRecursionError' && err.message.includes('Circular reference detected'),
       );
     });
+
+    it('respects maxDepth configured via ValidationConfig in validateTopology', () => {
+      // Chain of 5 components: root -> c1 -> c2 -> c3 -> c4
+      model.addComponent(new ComponentModel('root', 'Box', {child: 'c1'}));
+      model.addComponent(new ComponentModel('c1', 'Box', {child: 'c2'}));
+      model.addComponent(new ComponentModel('c2', 'Box', {child: 'c3'}));
+      model.addComponent(new ComponentModel('c3', 'Box', {child: 'c4'}));
+      model.addComponent(new ComponentModel('c4', 'Text', {text: 'end'}));
+
+      // Max depth 3 should fail
+      assert.throws(
+        () => model.validateTopology({maxDepth: 3}),
+        (err: any) =>
+          err.name === 'A2uiRecursionError' &&
+          err.message.includes('Global recursion limit exceeded'),
+      );
+
+      // Max depth 10 should pass
+      assert.doesNotThrow(() => model.validateTopology({maxDepth: 10}));
+    });
   });
 });

@@ -34,7 +34,10 @@ import {
 
 import {ProtocolVersion, VersionAdapter} from './adapters/base.js';
 import {RendererCapabilities} from '../v1_0/schema/index.js';
-export type {RendererCapabilities};
+import {ValidationConfig, STRICT_VALIDATION, RELAXED_VALIDATION} from '../validating/validator.js';
+
+export type {RendererCapabilities, ValidationConfig};
+export {STRICT_VALIDATION, RELAXED_VALIDATION};
 
 /**
  * Interface for version adapter resolution services.
@@ -55,45 +58,6 @@ export interface CapabilitiesOptions {
   /** The base schema $ref to wrap component definitions in inline catalogs. Defaults to 'common_types.json#/$defs/ComponentCommon'. */
   componentEnvelopeRef?: string;
 }
-
-/**
- * Configuration options for payload, schema, and topology validation.
- */
-export interface ValidationConfig {
-  /** Target protocol version expected for incoming messages (e.g. 'v0.8', 'v0.9', 'v1.0'). */
-  targetVersion?: ProtocolVersion | string;
-
-  /** When false, verifies all components in a surface are reachable from the root component. Default: false. */
-  allowOrphanComponents?: boolean;
-
-  /** When false, verifies all component child references point to existing components. Default: false. */
-  allowDanglingReferences?: boolean;
-
-  /** When false, verifies that a component with id 'root' exists in the surface. Default: false. */
-  allowMissingRoot?: boolean;
-
-  /** When false, verifies that all component types exist in the surface catalog. Default: false. */
-  allowUnknownElements?: boolean;
-
-  /** Allowed top-level message operation types (e.g. ['createSurface', 'updateComponents']). */
-  allowedMessages?: string[];
-}
-
-/** Strict validation preset enforcing root presence, valid references, reachability, and catalog compliance. */
-export const STRICT_VALIDATION: ValidationConfig = Object.freeze({
-  allowOrphanComponents: false,
-  allowDanglingReferences: false,
-  allowMissingRoot: false,
-  allowUnknownElements: false,
-});
-
-/** Relaxed validation preset permitting partial topologies and unknown component types. */
-export const RELAXED_VALIDATION: ValidationConfig = Object.freeze({
-  allowOrphanComponents: true,
-  allowDanglingReferences: true,
-  allowMissingRoot: true,
-  allowUnknownElements: true,
-});
 
 /**
  * Options for configuring a MessageProcessor instance.

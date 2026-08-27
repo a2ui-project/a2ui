@@ -29,22 +29,7 @@ import {
   getComponentReferences,
   MAX_GLOBAL_DEPTH,
 } from '../validating/integrity-checker.js';
-
-/**
- * Configuration options for surface component topology validation.
- */
-export interface TopologyValidationConfig {
-  /** Expected identifier for the root component in the hierarchy. Defaults to 'root'. */
-  rootId?: string;
-  /** Whether to allow a component tree that does not contain a root component. */
-  allowMissingRoot?: boolean;
-  /** Whether to permit references to non-existent component identifiers. */
-  allowDanglingReferences?: boolean;
-  /** Whether to allow components that are not reachable from the root node. */
-  allowOrphanComponents?: boolean;
-  /** Maximum permitted global graph traversal depth. Defaults to 50. */
-  maxDepth?: number;
-}
+import {ValidationConfig} from '../validating/validator.js';
 
 /**
  * Manages the collection of components for a specific surface and performs
@@ -286,7 +271,7 @@ export class SurfaceComponentsModel {
    * @throws {A2uiIntegrityError} If missing root, dangling references, or orphan components exist.
    * @throws {A2uiRecursionError} If self-reference, cycle, or depth limit is detected.
    */
-  validateTopology(options: TopologyValidationConfig = {}): void {
+  validateTopology(options: ValidationConfig = {}): void {
     if (this.components.size === 0) return;
 
     const rootId = options.rootId ?? 'root';
@@ -337,7 +322,7 @@ export class SurfaceComponentsModel {
    * @param options Validation options.
    * @returns Array of validation error objects.
    */
-  validateReferences(options: TopologyValidationConfig = {}): A2uiValidationError[] {
+  validateReferences(options: ValidationConfig = {}): A2uiValidationError[] {
     const errors: A2uiValidationError[] = [];
     try {
       this.validateTopology(options);

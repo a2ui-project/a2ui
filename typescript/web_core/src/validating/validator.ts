@@ -15,6 +15,7 @@
  */
 
 import {A2uiValidationError} from '../errors.js';
+import {ProtocolVersion} from '../processing/adapters/base.js';
 import {VersionAdapterFactory} from '../processing/adapters/factory.js';
 import {
   CatalogOrRefMapInput,
@@ -24,22 +25,31 @@ import {
 } from './integrity-checker.js';
 import {analyzeTopology, TopologyOptions} from './topology-analyzer.js';
 
-/** Combined configuration specifying integrity and topology rules. */
-export interface ValidationConfig extends IntegrityOptions, TopologyOptions {}
+/** Combined configuration specifying integrity, topology, version, and catalog validation rules. */
+export interface ValidationConfig extends IntegrityOptions, TopologyOptions {
+  /** Target protocol version expected for incoming messages (e.g. 'v0.8', 'v0.9', 'v1.0'). */
+  targetVersion?: ProtocolVersion | string;
+  /** When false, verifies that all component types exist in the surface catalog. Default: false. */
+  allowUnknownElements?: boolean;
+  /** Allowed top-level message operation types (e.g. ['createSurface', 'updateComponents']). */
+  allowedMessages?: string[];
+}
 
-/** Strict validation configuration requiring root node presence, no orphans, and valid references. */
-export const STRICT_VALIDATION: ValidationConfig = {
+/** Strict validation configuration requiring root node presence, no orphans, valid references, and catalog compliance. */
+export const STRICT_VALIDATION: ValidationConfig = Object.freeze({
   allowOrphanComponents: false,
   allowDanglingReferences: false,
   allowMissingRoot: false,
-};
+  allowUnknownElements: false,
+});
 
-/** Relaxed validation configuration permitting orphan components, missing root, and dangling references. */
-export const RELAXED_VALIDATION: ValidationConfig = {
+/** Relaxed validation configuration permitting orphan components, missing root, dangling references, and unknown elements. */
+export const RELAXED_VALIDATION: ValidationConfig = Object.freeze({
   allowOrphanComponents: true,
   allowDanglingReferences: true,
   allowMissingRoot: true,
-};
+  allowUnknownElements: true,
+});
 
 /** Options for fine-tuning component validation operations. */
 export interface ValidateComponentsOptions {
