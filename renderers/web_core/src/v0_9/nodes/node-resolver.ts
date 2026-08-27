@@ -694,14 +694,18 @@ export class NodeResolver<
  * property name containing them cannot collide with the composed form of a
  * different tuple. Parts without these characters are unchanged.
  */
+const ID_PART_ESCAPES: Record<string, string> = {
+  '~': '~0',
+  '#': '~1',
+  '[': '~2',
+  ']': '~3',
+  '>': '~4',
+  '@': '~5',
+};
+
+// A single pass, so no replacement can see the output of an earlier one.
 function escapeIdPart(part: string): string {
-  return part
-    .replace(/~/g, '~0')
-    .replace(/#/g, '~1')
-    .replace(/\[/g, '~2')
-    .replace(/\]/g, '~3')
-    .replace(/>/g, '~4')
-    .replace(/@/g, '~5');
+  return part.replace(/[~#[\]>@]/g, match => ID_PART_ESCAPES[match]);
 }
 
 function instanceIdFor(componentId: string, dataPath: string, occurrence: number): string {
