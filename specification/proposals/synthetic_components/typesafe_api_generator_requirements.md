@@ -4,7 +4,7 @@
 
 A2UI Synthetic Components allow developers to define higher-level, reusable composite UI components programmatically in their backend programming language (starting with Python, followed by TypeScript, Dart, and Kotlin). These synthetic components are published into the component catalog alongside primitive components, enabling LLMs and autonomous agents to generate concise, structured UI while delegating detailed layout expansion to backend code.
 
-To support this capability, A2UI introduces a typesafe API generator. The generator inspects A2UI Component Catalogs (such as the Basic Catalog v0.9.1) and produces typed classes, constructors, function wrappers, and serialization helpers.
+To support this capability, A2UI introduces a typesafe API generator. The generator inspects A2UI Component Catalogs (such as the Basic Catalog v0.9.1 and v1.0) and produces typed classes, constructors, function wrappers, and serialization helpers.
 
 This document establishes the requirements for the typesafe API generator. It addresses two primary contexts:
 
@@ -34,7 +34,55 @@ Many backend services need to emit A2UI messages directly without an LLM or a sy
 - **Test suites and fixtures**: Unit, integration, and conformance tests that construct expected A2UI component trees and verify serialization correctness with compiler-enforced schema validity.
 - **Standalone UI generators**: Command-line tools or batch scripts that generate static A2UI surfaces from data files.
 
-In these use cases, the API must be capable of emitting standard A2UI message streams (`beginRendering`, `surfaceUpdate`, `dataModelUpdate`) or raw component lists directly, with no dependency on the synthetic component processor.
+In these use cases, the API must be capable of emitting standard A2UI message streams or raw component lists directly, with no dependency on the synthetic component processor.
+
+---
+
+## Open questions on API output formats
+
+The exact output data structure of the typesafe API may differ depending on the use case. The design must resolve the following questions:
+
+### Output for synthetic component expansion
+
+- **Single root vs. component lists**: Should a synthetic component function return a single root component node (e.g. `Card`), or should it be allowed to return a list of sibling components (e.g. `list[Component]`) for macro layouts like repeating rows or table bodies?
+- **Node tree vs. flattened dictionaries**: Does the synthetic component function return unflattened component nodes that the runtime engine flattens, or does the API flatten the tree into a list of wire dictionaries before returning?
+- **Component ID prefixing and scoping**: When a synthetic component is expanded within an existing surface, how are internal component IDs managed? Does the synthetic component processor prefix generated IDs (e.g. `card_0_text_1`) to avoid collisions with other components on the same surface, or does the builder accept a surface-level ID allocator?
+- **Bundling data model state**: Can a synthetic component function return initial data model state alongside its component tree (e.g. returning a tuple `(ComponentNode, dict[str, Any])` or a container object), or must state initialization remain separate from UI expansion?
+
+### Output for direct payload authoring
+
+- **Component list vs. message envelopes**: In non-agent applications, should the API output raw component dictionaries (`list[dict[str, Any]]`), or should it provide higher-level surface containers that emit complete protocol message sequences (such as `createSurface`, `updateSurface`, `updateDataModel`)?
+- **Surface lifecycle management**: Should the API provide a `Surface` builder object that tracks the surface ID, catalog ID, component tree, and data model state, exposing methods such as `.to_messages()`, `.to_json()`, or `.to_dict()`?
+- **Serialization formats**: Should the API serialize directly to JSON strings, return native language dictionaries, or emit typed wire protocol DTOs?
+
+---
+
+## Abstract intermediate interface and authoring layer decoupling
+
+Developer preferences for UI authoring syntax vary widely across languages and teams. Some prefer constructor keyword arguments, others prefer fluent method chaining, and TypeScript developers often prefer TSX or declarative factories.
+
+To allow different ergonomic authoring styles without duplicating flattening, ID allocation, and serialization logic, the system should define an abstract intermediate interface that all authoring styles conform to:
+
+### The component node contract
+
+Every component instance produced by any builder or authoring syntax must conform to a shared intermediate representation (IR) or interface (e.g. `ComponentNode` or `Renderable`):
+
+- **Component metadata**:
+  - `component_type`: String identifier matching the catalog component name (e.g. `"Text"`, `"Card"`).
+  - `id`: Optional explicit component ID.
+  - `catalog_id`: Optional catalog override for multi-catalog surfaces.
+- **Property inspection**:
+  - A method or mapping to inspect the component's configured properties, distinguishing between literals, data model bindings (`bind(...)`), and catalog function calls.
+- **Child slot inspection**:
+  - A structured mechanism to identify child slots (single `child` vs. list `children`), enabling tree traversal algorithms without hardcoding component-specific property names.
+- **Flattening capability**:
+  - A standardized method (e.g. `flatten(id_allocator) -> list[ComponentDict]`) that recursively traverses the tree, assigns IDs to unnumbered nodes, converts child references to ID strings, and returns the flat component list expected by the client renderer.
+
+### Benefits of the decoupled contract
+
+- **Pluggable authoring styles**: Teams can implement alternative ergonomic styles (e.g. fluent builders, TSX factories, functional helpers) as thin syntactic wrappers on top of the shared node contract.
+- **Isolated serialization logic**: Tree flattening, circular reference detection, ID collision prevention, and catalog validation are implemented once in the shared core rather than repeated across builder styles.
+- **Stable target for synthetic components**: The synthetic component processor accepts any object implementing the `ComponentNode` interface, ensuring backwards compatibility if the front-end builder syntax is revised.
 
 ---
 
@@ -72,6 +120,42 @@ Developers and SDK maintainers who generate the typed API from catalog definitio
 - **Catalog evolution and custom catalogs**: When a catalog schema changes, or when an organization creates a domain-specific catalog, running the generator must produce updated code without manual patches or overrides.
 - **Zero manual configuration for standard catalogs**: The generator must work out-of-the-box with the official A2UI Basic Catalog and Minimal Catalog across supported protocol versions (v0.9, v0.9.1, v1.0).
 - **Deterministic output**: Running the generator against the same catalog schema must produce identical output files, ensuring reproducible builds and clean version control diffs.
+
+---
+
+## Protocol versioning and cross-version considerations
+
+A2UI has multiple protocol versions with ongoing evolution (v0.9, v0.9.1, and v1.0). The generator must account for versioning in both its architecture and its generated APIs.
+
+### Versioning architectural options
+
+The design must decide between two core versioning strategies:
+
+- **Strategy A: Dedicated per-version generated modules**:
+  - The generator produces independent, versioned packages or namespaces (e.g. `a2ui.catalogs.v0_9_1.basic` and `a2ui.catalogs.v1_0.basic`).
+  - _Advantages_: Guarantees strict compile-time type precision. Each version exposes exactly the properties and components supported by its catalog schema. Autocomplete contains no confusing deprecated properties or premature future properties.
+  - _Trade-offs_: Code written against v0.9.1 must update its import paths when upgrading to v1.0.
+- **Strategy B: Unified builder API with version-targeted emitters**:
+  - The developer uses a single unversioned builder API (`a2ui.basic`), and passes a target protocol version flag during serialization (e.g. `surface.to_messages(version="v1.0")`).
+  - _Advantages_: Minimizes migration churn if components share similar names across versions.
+  - _Trade-offs_: Compromises compile-time type safety. The builder must accept the union of all properties across versions, deferring version compatibility errors (e.g. using a v1.0-only property with a v0.9.1 target) to runtime validation.
+
+### Key differences between v0.9.1 and v1.0
+
+To understand the requirements for multi-version support, the generator design must account for the structural and conceptual differences between v0.9.1 and v1.0:
+
+| Dimension                     | Protocol v0.9.1                                                                                                                                                                         | Protocol v1.0                                                                                                                                                                                                        |
+| :---------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Server-to-Client Messages** | Uses `server_to_client.json` with separate messages: `beginRendering` (sets surface ID, root ID, catalog ID), `surfaceUpdate` (component list), `dataModelUpdate`, and `deleteSurface`. | Uses `agent_to_renderer.json` with combined messages: `createSurface` (bundles surface ID, catalog ID, components, and initial data model in one payload), `updateSurface`, `updateDataModel`, and `destroySurface`. |
+| **Catalog Schema Structure**  | Components in `catalog.json` use JSON Schema `allOf` constructs combining `ComponentCommon`, `CatalogComponentCommon`, and property objects.                                            | Components in `catalog.json` use direct, flat object definitions without `allOf` indirection.                                                                                                                        |
+| **Catalog Overrides**         | Catalog ID is declared at the surface level during `beginRendering`.                                                                                                                    | Components include an optional `catalogId` property in `ComponentCommon`, enabling per-component catalog overrides within a multi-catalog surface.                                                                   |
+| **Accessibility Attributes**  | Supports `label` and `description` as `DynamicString`.                                                                                                                                  | Expands accessibility to include `live` (announcement priority: `"off"`, `"polite"`, `"assertive"`) and `hidden` (`DynamicBoolean`).                                                                                 |
+| **Metadata Extensions**       | No standardized extension metadata on components.                                                                                                                                       | Adds `metadata.extensions` to `ComponentCommon`, allowing vendor-specific or experimental metadata.                                                                                                                  |
+| **Child References**          | Container schemas define `child` as `ComponentId` and `children` as `ChildList` (`oneOf` string array or dynamic template object).                                                      | Formally introduces `$defs/Child` alongside `$defs/ChildList`.                                                                                                                                                       |
+| **Validation Checks**         | `Checkable` components define validation rules via `checks: list[CheckRule]`, where each rule has `condition` (`DynamicBoolean`) and `message` (`string`).                              | In the Basic Catalog, checks can be declared directly as function call expressions (e.g. `{"call": "required"}`) with built-in or parameter-based error messaging.                                                   |
+| **Function Invocations**      | Function calls declare `returnType` within schema `allOf` validation blocks.                                                                                                            | Function calls introduce optional `CallId` for tracking individual execution instances.                                                                                                                              |
+
+The generator must be architected so that differences in message wrappers, component common attributes, and catalog schema structures are handled cleanly, whether through version-specific modules or parameterized serialization backends.
 
 ---
 
