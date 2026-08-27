@@ -384,46 +384,22 @@ describe('A2uiSurface', () => {
     expect(screen.queryByText(/Unresolved child reference/)).toBeNull();
   });
 
-  it('renders an unmarked child reference through the fallback and reports the deprecation', () => {
+  it('reports an unmarked child reference and names the schema fix', () => {
     const surface = setup();
     const errors: Array<Record<string, unknown>> = [];
     surface.onError.subscribe(e => {
       errors.push(e as Record<string, unknown>);
     });
     add(surface, 'root', 'UnmarkedParent', {child: 'kid'});
-    add(surface, 'kid', 'Text', {text: 'via fallback'});
+    add(surface, 'kid', 'Text', {text: 'never reached'});
 
     render(<A2uiSurface surface={surface} />);
 
-    expect(screen.getByText('via fallback')).toBeDefined();
-    const reported = errors.filter(e => e.code === 'UNMARKED_CHILD_REFERENCE');
+    expect(screen.getByText(/does not mark the referencing property/)).toBeDefined();
+    expect(screen.queryByText('never reached')).toBeNull();
+    const reported = errors.filter(e => e.code === 'UNRESOLVED_CHILD_REFERENCE');
     expect(reported).toHaveLength(1);
     expect(String(reported[0]?.message)).toContain('componentId()');
-  });
-
-  it('keeps unmarked references live across arrival, removal, and type replacement', async () => {
-    const surface = setup();
-    add(surface, 'root', 'UnmarkedParent', {child: 'late'});
-
-    render(<A2uiSurface surface={surface} />);
-    expect(screen.getByText(/Loading late/)).toBeDefined();
-
-    // Model events deliver asynchronously, so each mutation needs a flush.
-    await act(async () => {
-      add(surface, 'late', 'Text', {text: 'arrived'});
-    });
-    expect(screen.getByText('arrived')).toBeDefined();
-
-    await act(async () => {
-      surface.componentsModel.removeComponent('late');
-    });
-    expect(screen.getByText(/Loading late/)).toBeDefined();
-
-    // Re-add with a different type: the fallback re-renders as the new one.
-    await act(async () => {
-      add(surface, 'late', 'Button', {});
-    });
-    expect(screen.getByTestId('btn-late')).toBeDefined();
   });
 
   it('reports unresolved references after render, so error subscribers may set state', async () => {

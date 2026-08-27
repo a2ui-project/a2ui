@@ -37,10 +37,10 @@ import {
   type SurfaceModel,
 } from '@a2ui/web_core/v0_9';
 import type {ReactComponentImplementation} from './adapter';
-import {DeprecatedUnmarkedReference} from './deferred-child';
 import {
   LoadingPlaceholder,
   NodeSurfaceContext,
+  UnresolvedChildReference,
   useNodeView,
   type NodeBuildChild,
 } from './node-view';
@@ -75,16 +75,21 @@ const NodeView = memo(
           return <NodeView key={child.instanceId} surface={surface} node={child} />;
         }
         // The resolver turns every child reference it can identify into a
-        // node, so a leftover id means the referencing property carries no
-        // schema marker. Render it the way the pre-node-layer surface did,
-        // and report the deprecation.
+        // node, so a leftover id was never classified. Distinguish the two
+        // causes a catalog author can actually have.
         const requested = basePath ?? node.dataPath;
+        const detail = surface.componentsModel.get(child)
+          ? 'the component exists, but the catalog schema does not mark the referencing ' +
+            'property as a component id. Use componentId() or childList() from ' +
+            '@a2ui/web_core.'
+          : 'no component with this id exists on the surface.';
         return (
-          <DeprecatedUnmarkedReference
+          <UnresolvedChildReference
             key={JSON.stringify([child, requested])}
             surface={surface}
             id={child}
-            basePath={requested}
+            requestedPath={requested}
+            detail={detail}
           />
         );
       },
