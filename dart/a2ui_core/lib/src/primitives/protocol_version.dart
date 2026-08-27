@@ -16,14 +16,11 @@ import 'errors.dart';
 
 /// A version of the A2UI protocol.
 ///
-/// This SDK implements version 0.9 of the protocol only. Payloads that declare
-/// any other version, or that omit the version entirely, are rejected by
-/// [A2uiProtocolVersion.fromJson].
+/// This SDK implements v0.9 only; [fromJson] rejects anything else, and a
+/// payload that omits the version.
 enum A2uiProtocolVersion {
-  /// Version 0.9 of the A2UI protocol.
-  ///
-  /// Also covers v0.9.1, which is schema-compatible with v0.9 and shares the
-  /// same `version` wire value.
+  /// Version 0.9, and the schema-compatible v0.9.1, which shares its wire
+  /// value.
   v0_9('v0.9');
 
   const A2uiProtocolVersion(this.jsonValue);
@@ -34,7 +31,7 @@ enum A2uiProtocolVersion {
   /// Parses the `version` field of an A2UI payload.
   ///
   /// Throws [A2uiValidationError] if [value] is absent, is not a string, or
-  /// names a protocol version this SDK does not implement.
+  /// names a version this SDK does not implement.
   static A2uiProtocolVersion fromJson(Object? value, {Object? details}) {
     if (value == null) {
       throw A2uiValidationError(
@@ -60,7 +57,7 @@ enum A2uiProtocolVersion {
     );
   }
 
-  /// A human readable list of the versions this SDK implements.
+  /// The versions this SDK implements, for error messages.
   static String get supportedVersions =>
       values.map((v) => "'${v.jsonValue}'").join(', ');
 }

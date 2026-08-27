@@ -20,8 +20,7 @@ import 'conformance_harness.dart';
 
 /// Runs the shared conformance suites that apply to the agent SDK.
 ///
-/// Cases targeting protocol versions this SDK does not implement are skipped,
-/// as are cases covering behaviour that is still stubbed. Each skip states its
+/// Cases for unimplemented versions or stubbed behaviour are skipped with a
 /// reason, so the suite doubles as the implementation checklist.
 void main() {
   _runSuite('core/catalog.yaml');

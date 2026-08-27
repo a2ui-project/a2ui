@@ -21,8 +21,7 @@ import 'streaming.dart';
 
 /// Parses A2UI JSON payload envelopes enclosed in `<a2ui-json>` sentinel tags.
 ///
-/// One instance parses one LLM turn: [parseChunk] accumulates streaming state
-/// that must not be shared across turns.
+/// One instance per turn: [parseChunk] state must not be shared.
 class DirectJsonParser<C extends ComponentApi, F extends FunctionApi>
     extends Parser {
   /// The active catalogs compiled payloads are validated against.
@@ -40,8 +39,7 @@ class DirectJsonParser<C extends ComponentApi, F extends FunctionApi>
     A2uiValidator<C, F>? validator,
   }) : validator = validator ?? A2uiValidator<C, F>(catalogs: catalogs);
 
-  /// The string property keys safe to auto-close when a stream cuts them
-  /// mid-token.
+  /// The keys safe to auto-close when a stream cuts them mid-token.
   Set<String> get progressiveKeys =>
       customProgressiveKeys ?? defaultProgressiveKeys;
 

@@ -16,10 +16,8 @@ import 'package:a2ui_agent/a2ui_agent.dart';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
-/// A parser that records what the base class asks of it.
-///
-/// Exercises `Parser.parseResponse`, the one behaviour the abstract class
-/// supplies rather than delegating to a format implementation.
+/// A parser that records what the base class asks of it, exercising
+/// `Parser.parseResponse` — the one behaviour it does not delegate.
 class RecordingParser extends Parser {
   final List<RawResponsePart> unwrapResult;
   final List<String> compiled = <String>[];

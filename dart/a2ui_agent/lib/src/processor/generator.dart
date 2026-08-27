@@ -19,18 +19,16 @@ import '../inference_formats/direct_json/format.dart';
 import 'catalog_config.dart';
 import 'processor.dart';
 
-/// The agent-level, long-lived entry point to the A2UI agent SDK.
+/// The long-lived entry point to the agent SDK.
 ///
-/// Created once at agent startup with every catalog the agent can generate UI
-/// for. Each incoming request produces an [A2uiRequestProcessor] pre-negotiated
-/// against that renderer's capabilities.
+/// Created once at startup with every catalog the agent supports; each request
+/// produces an [A2uiRequestProcessor] negotiated for one renderer.
 class A2uiGenerator<C extends ComponentApi, F extends FunctionApi> {
   /// Every catalog configuration this agent supports, in preference order.
   final List<CatalogConfig<C, F>> catalogs;
 
-  /// Few-shot example turns shared across sessions.
-  ///
-  /// Validated against the negotiated catalogs by [createProcessor].
+  /// Few-shot turns, validated against the negotiated catalogs by
+  /// [createProcessor].
   final Map<String, List<A2uiMessage>>? examples;
 
   /// The format factory used when no per-request override is supplied.
@@ -49,10 +47,10 @@ class A2uiGenerator<C extends ComponentApi, F extends FunctionApi> {
 
   /// Creates a processor bound to a renderer's declared capabilities.
   ///
-  /// Throws [A2uiCatalogError] if no registered catalog matches the renderer,
-  /// and [A2uiValidationError] if the capabilities declare no entry for the
-  /// protocol version this SDK implements, or if [examples] are not valid for
-  /// the negotiated catalogs.
+  /// Throws [A2uiCatalogError] if no registered catalog matches, and
+  /// [A2uiValidationError] if the capabilities declare no entry for the
+  /// version this SDK implements, or if [examples] are invalid for the
+  /// negotiated catalogs.
   A2uiRequestProcessor<C, F> createProcessor(
     A2uiRendererCapabilities rendererCapabilities, {
     InferenceFormatFactory<C, F>? inferenceFormatFactory,
@@ -60,9 +58,8 @@ class A2uiGenerator<C extends ComponentApi, F extends FunctionApi> {
     throw UnimplementedError('A2uiGenerator.createProcessor');
   }
 
-  /// The capabilities this agent advertises to renderers.
-  ///
-  /// Mirrors `specification/v0_9_1/json/server_capabilities.json`.
+  /// The capabilities this agent advertises, mirroring
+  /// `specification/v0_9_1/json/server_capabilities.json`.
   Map<String, Object?> get agentCapabilities => {
     'a2uiVersions': [A2uiProtocolVersion.v0_9.jsonValue],
     'supportedCatalogIds': [

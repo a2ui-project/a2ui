@@ -18,9 +18,8 @@ import '../../parser/response_part.dart';
 
 /// Incrementally decodes a streamed DIRECT_JSON response.
 ///
-/// Buffers partial tokens, heals string values whose key is listed in
-/// [progressiveKeys], and yields messages only once they are structurally
-/// complete and reachable from a surface root.
+/// Buffers partial tokens, heals [progressiveKeys] strings, and yields
+/// messages only once complete and reachable from a surface root.
 class DirectJsonStreamProcessor<C extends ComponentApi, F extends FunctionApi> {
   /// The active catalogs yielded payloads are validated against.
   final List<Catalog<C, F>> catalogs;
@@ -42,15 +41,14 @@ class DirectJsonStreamProcessor<C extends ComponentApi, F extends FunctionApi> {
     throw UnimplementedError('DirectJsonStreamProcessor.process');
   }
 
-  /// Flushes any buffered content at the end of a stream.
+  /// Flushes buffered content at the end of a stream.
   ///
-  /// Throws [A2uiParseError] if the buffer still holds an unterminated payload
-  /// block.
+  /// Throws [A2uiParseError] if a payload block is still unterminated.
   List<ResponsePart> finish() {
     throw UnimplementedError('DirectJsonStreamProcessor.finish');
   }
 
-  /// Discards all buffered state so the processor can start a new turn.
+  /// Discards buffered state for a new turn.
   void reset() {
     throw UnimplementedError('DirectJsonStreamProcessor.reset');
   }

@@ -19,19 +19,16 @@ import 'package:test/test.dart';
 import '../conformance/conformance_harness.dart';
 import '../test_catalogs.dart';
 
-/// Marks the end-to-end walkthrough, which cannot pass until capability
-/// negotiation, prompt generation and response parsing are implemented. Remove
-/// the skip alongside those implementations.
+/// Marks assertions needing negotiation, prompting and response parsing.
 const String pendingEndToEnd =
     'The agent turn is not implemented end to end yet.';
 
-/// The end-to-end agent turn described in section 5 of
+/// The agent turn from section 5 of
 /// `blueprints/modules/a2ui_agent.blueprint.md`.
 ///
-/// The turn's inputs and expected outputs come from
-/// `conformance/agent/request_processor.yaml`, so this walkthrough and the
-/// other SDKs are measured against the same data. The model is stubbed: this
-/// exercises the SDK, not an LLM.
+/// Inputs and expected outputs come from
+/// `conformance/agent/request_processor.yaml`, so every SDK is measured
+/// against the same data. The model is stubbed.
 void main() {
   final List<Map<String, Object?>> cases = loadConformanceSuite(
     'agent/request_processor.yaml',
@@ -52,8 +49,8 @@ void main() {
     });
 
     test('negotiates, prompts, and parses a full turn', () {
-      // 1. Agent startup: register every catalog the agent can generate UI for,
-      //    narrowed to the components and functions this agent uses.
+      // 1. Agent startup: register every catalog, narrowed to the components
+      //    and functions this agent uses.
       final generator = A2uiGenerator<CatalogComponent, CatalogFunction>(
         catalogs: [
           CatalogConfig(
@@ -91,7 +88,7 @@ void main() {
       // 4. Inference: a canned response stands in for the model.
       final modelOutput = args['llm_response']! as String;
 
-      // 5. Parsing and validation: what the agent delivers to the renderer.
+      // 5. Parsing and validation: what goes to the renderer.
       final List<ResponsePart> parts = processor.parseResponse(modelOutput);
 
       final expected = data['expect']! as List<Object?>;
@@ -121,8 +118,8 @@ void main() {
     }, skip: pendingEndToEnd);
 
     test('delivers a surface the renderer can render', () {
-      // The parsed payload must reconstruct into live surface state, which is
-      // what the renderer ultimately does with it.
+      // The payload must reconstruct into live surface state, which is what
+      // the renderer does with it.
       final generator = A2uiGenerator<CatalogComponent, CatalogFunction>(
         catalogs: [CatalogConfig(basicCatalog())],
       );

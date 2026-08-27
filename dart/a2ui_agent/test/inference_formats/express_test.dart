@@ -18,11 +18,8 @@ import 'package:test/test.dart';
 
 import '../test_catalogs.dart';
 
-/// Marks a test describing behaviour the EXPRESS format does not implement yet.
-///
-/// The format is declared so that agents can select it through
-/// [InferenceFormatFactory], but the grammar, compiler and decompiler are still
-/// to be written. Remove the skip alongside the implementation.
+/// Marks behaviour the EXPRESS format does not implement yet: it is selectable
+/// through [InferenceFormatFactory], but its grammar is still to be written.
 const String pendingExpress = 'The EXPRESS format is not implemented yet.';
 
 const String expressSource = 'createSurface(s1, "$basicCatalogId")';

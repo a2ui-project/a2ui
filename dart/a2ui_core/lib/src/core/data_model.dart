@@ -133,9 +133,8 @@ class DataModel {
           }
           current[index] = value;
         } else {
-          // The parent of the final segment resolved to a primitive, so there
-          // is nothing to write into. Dropping the write silently would hide
-          // a malformed path, so report it.
+          // The parent resolved to a primitive, so there is nothing to
+          // write into. Dropping the write would hide a malformed path.
           throw A2uiDataError(
             "Cannot set path '$path': '$lastSegment' is a property of a "
             'primitive value.',
@@ -191,14 +190,10 @@ class DataModel {
     }
 
     final Object? newValue = get(path);
-    // A container that was mutated in place keeps its identity, so handing the
-    // signal the live object would compare equal and suppress the
-    // notification. Hand it a copy instead, so containers always compare
-    // unequal, and let the signal's own equality check suppress notifications
-    // for values that genuinely did not change.
-    //
-    // Notifying unconditionally instead would wake every observer on a related
-    // path, including those whose own value is unchanged.
+    // A container mutated in place keeps its identity, so the live object
+    // would compare equal and suppress the notification. Hand over a copy,
+    // and let the signal's equality check suppress genuinely unchanged
+    // values; notifying unconditionally would wake unaffected observers.
     sig.set(switch (newValue) {
       final Map<String, Object?> map => Map<String, Object?>.of(map),
       final List<Object?> list => List<Object?>.of(list),

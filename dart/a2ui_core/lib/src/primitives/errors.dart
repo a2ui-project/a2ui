@@ -61,8 +61,7 @@ class A2uiParseError extends A2uiError {
     : super(message, 'PARSE_ERROR');
 }
 
-/// Thrown when a raw inference-format payload cannot be compiled into A2UI
-/// messages.
+/// Thrown when a raw format payload cannot be compiled into A2UI messages.
 class A2uiCompileError extends A2uiError {
   /// The raw content that could not be compiled.
   final String? rawContent;
@@ -86,8 +85,8 @@ class A2uiCatalogError extends A2uiError {
     : super(message, 'CATALOG_ERROR');
 }
 
-/// Thrown when a component graph is structurally invalid (unreachable roots,
-/// duplicate ids, dangling references).
+/// Thrown for a structurally invalid component graph: unreachable roots,
+/// duplicate ids, dangling references.
 class A2uiIntegrityError extends A2uiError {
   /// The component ids involved, when known.
   final List<String> componentIds;
@@ -96,8 +95,7 @@ class A2uiIntegrityError extends A2uiError {
     : super(message, 'INTEGRITY_ERROR');
 }
 
-/// Thrown when a component graph exceeds the maximum allowed nesting depth or
-/// contains a cycle.
+/// Thrown when a component graph cycles or exceeds the depth cap.
 class A2uiRecursionError extends A2uiError {
   /// The chain of component ids that produced the cycle, when known.
   final List<String> cycle;

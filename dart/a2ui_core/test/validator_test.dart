@@ -15,8 +15,7 @@
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
-/// Marks a test that describes behaviour `A2uiValidator` does not implement
-/// yet. Remove the skip alongside the implementation.
+/// Marks behaviour `A2uiValidator` does not implement yet.
 const String pendingValidator =
     'A2uiValidator deep checks are not implemented yet.';
 

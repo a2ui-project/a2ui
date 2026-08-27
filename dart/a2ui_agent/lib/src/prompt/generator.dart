@@ -16,20 +16,17 @@ import 'package:a2ui_core/a2ui_core.dart';
 
 /// Builds the format-specific portion of an agent's system instructions.
 ///
-/// The caller owns the surrounding prompt: role and workflow preambles are
-/// prepended and any suffix appended by the agent, not by this generator.
+/// The agent owns the surrounding preamble and suffix.
 abstract class PromptGenerator<C extends ComponentApi, F extends FunctionApi> {
-  /// The active catalogs to describe in the system instructions.
+  /// The catalogs to describe.
   final List<Catalog<C, F>> catalogs;
 
-  /// Few-shot example turns, keyed by a description of the turn.
-  ///
-  /// Each value is the A2UI payload the model is expected to produce for that
-  /// turn.
+  /// Few-shot turns, keyed by description, valued by the payload the model
+  /// is expected to produce.
   final Map<String, List<A2uiMessage>>? examples;
 
   PromptGenerator(this.catalogs, {this.examples});
 
-  /// Renders the format-specific system instructions and catalog schemas.
+  /// Renders the instructions and catalog schemas.
   String generate();
 }

@@ -17,14 +17,12 @@ import 'package:a2ui_core/a2ui_core.dart';
 import '../catalog_transformers/base.dart';
 import 'catalog_providers.dart';
 
-/// A [CatalogConfig] over schema-only catalogs.
-///
-/// This is the shape agents use, since [Catalog.fromJson] produces schema-only
-/// catalogs and an agent never evaluates a catalog function.
+/// A [CatalogConfig] over schema-only catalogs, the shape agents use: an
+/// agent never evaluates a catalog function.
 typedef SchemaCatalogConfig = CatalogConfig<CatalogComponent, CatalogFunction>;
 
-/// Associates a catalog with the transformations applied to it before it is
-/// used for prompting or validation.
+/// Pairs a catalog with the transformers applied before prompting or
+/// validation.
 class CatalogConfig<C extends ComponentApi, F extends FunctionApi> {
   /// The pristine catalog, as loaded from a [CatalogProvider].
   final Catalog<C, F> catalog;
@@ -52,7 +50,7 @@ class CatalogConfig<C extends ComponentApi, F extends FunctionApi> {
     transformers: transformers,
   );
 
-  /// The catalog after applying every configured transformer in order.
+  /// The catalog with every transformer applied, in order.
   Catalog<C, F> get transformedCatalog {
     Catalog<C, F> current = catalog;
     for (final CatalogTransformer<C, F> transformer in transformers) {

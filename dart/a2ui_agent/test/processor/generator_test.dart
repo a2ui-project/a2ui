@@ -18,8 +18,7 @@ import 'package:test/test.dart';
 
 import '../test_catalogs.dart';
 
-/// Marks a test describing behaviour capability negotiation does not implement
-/// yet. Remove the skip alongside the implementation.
+/// Marks behaviour capability negotiation does not implement yet.
 const String pendingNegotiation =
     'Capability negotiation is not implemented yet.';
 

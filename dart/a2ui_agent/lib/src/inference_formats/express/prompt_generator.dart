@@ -18,9 +18,8 @@ import '../../prompt/generator.dart';
 
 /// Renders system instructions for the EXPRESS format.
 ///
-/// Describes catalog components and functions as compact positional
-/// signatures, which costs far fewer output tokens than the JSON schemas the
-/// DIRECT_JSON generator emits.
+/// Describes components and functions as positional signatures, far cheaper
+/// in tokens than DIRECT_JSON's schemas.
 class ExpressPromptGenerator<C extends ComponentApi, F extends FunctionApi>
     extends PromptGenerator<C, F> {
   ExpressPromptGenerator(super.catalogs, {super.examples});

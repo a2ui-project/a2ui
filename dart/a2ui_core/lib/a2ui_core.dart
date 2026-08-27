@@ -15,7 +15,7 @@
 /// The A2UI core SDK: protocol messages, catalogs, reactive state models and
 /// payload validation, shared by renderers and agents.
 ///
-/// This SDK implements version 0.9 of the A2UI protocol.
+/// Implements protocol v0.9.
 library;
 
 // Protocol models.

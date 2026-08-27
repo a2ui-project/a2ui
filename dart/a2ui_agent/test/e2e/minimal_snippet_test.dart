@@ -20,18 +20,16 @@ import '../conformance/conformance_harness.dart';
 import '../test_catalogs.dart';
 import 'minimal_snippet.dart';
 
-/// Marks the assertions that cannot pass until capability negotiation, prompt
-/// generation and response parsing are implemented. Remove the skip alongside
-/// those implementations.
+/// Marks assertions needing negotiation, prompting and response parsing.
 const String pendingSnippet =
     'The blueprint snippet cannot run end to end yet.';
 
-/// Exercises [userSnippet], the transcription of the "Code Example" section of
+/// Exercises [userSnippet], the "Code Example" section of
 /// `blueprints/modules/a2ui_agent.blueprint.md`.
 ///
-/// The model response and the expected parse come from
-/// `conformance/agent/request_processor.yaml`, so the published example is
-/// measured against the same data as every other SDK.
+/// Its inputs and expected parse come from
+/// `conformance/agent/request_processor.yaml`, the data every SDK is measured
+/// against.
 void main() {
   final List<Map<String, Object?>> cases = loadConformanceSuite(
     'agent/request_processor.yaml',
@@ -63,22 +61,20 @@ void main() {
       final promptsSeen = <String>[];
       final UserSnippetResult result = run(promptsSeen: promptsSeen);
 
-      // Step 2: the basic catalog is negotiated, because the renderer
-      // declared support for it.
+      // Step 2: the renderer declared the basic catalog, so it is
+      // negotiated.
       expect(result.processor.activeCatalogs.map((c) => c.id), <String>[
         basicCatalogId,
       ]);
 
-      // Step 3: the model is called exactly once, with the prompt snippet the
-      // processor rendered.
+      // Step 3: the model is called once, with the rendered snippet.
       expect(promptsSeen, [result.promptSnippet]);
       for (final Object? fragment in data['expect_prompt_contains']! as List) {
         expect(result.promptSnippet, contains(fragment! as String));
       }
       expect(result.llmOutput, llmResponse);
 
-      // Step 4: text and A2UI blocks come back in the order the model emitted
-      // them.
+      // Step 4: parts come back in the order the model emitted them.
       final expected = data['expect']! as List<Object?>;
       expect(result.responseParts, hasLength(expected.length));
       for (var i = 0; i < expected.length; i++) {
@@ -101,7 +97,7 @@ void main() {
         }
       }
 
-      // Step 5: what is handed to the renderer is one flat, ordered payload.
+      // Step 5: the renderer gets one flat, ordered payload.
       expect(result.a2uiPayload.first, isA<CreateSurfaceMessage>());
       expect(
         (result.a2uiPayload.first as CreateSurfaceMessage).catalogId,
@@ -141,8 +137,8 @@ void main() {
 
   group('blueprint code example inputs', () {
     test('the agent registers the catalog the example loads', () {
-      // Step 1 of the example stands on its own: the generator is constructed
-      // and advertises the catalog before anything is negotiated.
+      // Step 1 stands on its own: the generator advertises its catalog
+      // before anything is negotiated.
       final generator = A2uiGenerator<CatalogComponent, CatalogFunction>(
         catalogs: [CatalogConfig(basicCatalog())],
       );

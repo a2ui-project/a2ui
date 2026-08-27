@@ -15,18 +15,15 @@
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:collection/collection.dart';
 
-/// A slice of an LLM response.
-///
-/// A parsed response is a list of [TextPart] and [A2uiPart]; an unwrapped but
-/// not yet compiled response is a list of [RawResponsePart], whose `part` is a
-/// [TextPart] or a [RawA2uiPart].
+/// A slice of an LLM response: [TextPart] and [A2uiPart] once parsed,
+/// [RawResponsePart] before compilation.
 sealed class ResponsePart {
   const ResponsePart();
 }
 
-/// Conversational text extracted from an LLM response.
+/// Conversational text from an LLM response.
 final class TextPart extends ResponsePart {
-  /// The text content intended for user display.
+  /// The text for user display.
   final String text;
 
   const TextPart(this.text);
@@ -41,9 +38,9 @@ final class TextPart extends ResponsePart {
   String toString() => 'TextPart(${_ellipsize(text)})';
 }
 
-/// An uncompiled A2UI content block extracted from an LLM response.
+/// An uncompiled A2UI block from an LLM response.
 final class RawA2uiPart extends ResponsePart {
-  /// The raw uncompiled format content (raw JSON, DSL, or XML).
+  /// The uncompiled format content (JSON, DSL, or XML).
   final String a2uiRaw;
 
   const RawA2uiPart(this.a2uiRaw);
@@ -59,9 +56,9 @@ final class RawA2uiPart extends ResponsePart {
   String toString() => 'RawA2uiPart(${_ellipsize(a2uiRaw)})';
 }
 
-/// Compiled A2UI payload messages ready to deliver to a renderer.
+/// Compiled A2UI messages, ready for a renderer.
 final class A2uiPart extends ResponsePart {
-  /// The validated messages to deliver to client renderers.
+  /// The validated messages.
   final List<A2uiMessage> a2ui;
 
   const A2uiPart(this.a2ui);
@@ -84,14 +81,12 @@ final class A2uiPart extends ResponsePart {
 
 /// An uncompiled token from an LLM response stream.
 ///
-/// [part] is a [TextPart] or a [RawA2uiPart]; passing any other kind of
-/// [ResponsePart] throws [ArgumentError].
+/// Throws [ArgumentError] unless [part] is a [TextPart] or a [RawA2uiPart].
 class RawResponsePart {
-  /// The underlying content: conversational [TextPart] or uncompiled
-  /// [RawA2uiPart].
+  /// The content: a [TextPart] or a [RawA2uiPart].
   final ResponsePart part;
 
-  /// Whether this part is complete, that is not truncated mid-stream.
+  /// Whether this part is complete, not truncated mid-stream.
   final bool isFinal;
 
   RawResponsePart(this.part, {this.isFinal = true}) {

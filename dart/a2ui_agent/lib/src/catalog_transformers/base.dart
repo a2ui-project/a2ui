@@ -14,17 +14,15 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 
-/// A transformation rule applied to a catalog before it is rendered into a
-/// prompt or used for payload validation.
+/// A rule applied to a catalog before prompting or validation.
 ///
-/// Transformers narrow a pristine catalog; they never widen it.
+/// Transformers narrow a catalog; they never widen it.
 abstract class CatalogTransformer<
   C extends ComponentApi,
   F extends FunctionApi
 > {
   const CatalogTransformer();
 
-  /// Transforms [catalog] into a modified catalog of the same component and
-  /// function types.
+  /// Narrows [catalog], preserving its component and function types.
   Catalog<C, F> transform(Catalog<C, F> catalog);
 }

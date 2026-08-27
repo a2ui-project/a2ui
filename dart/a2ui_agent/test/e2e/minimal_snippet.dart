@@ -17,8 +17,7 @@ import 'package:a2ui_core/a2ui_core.dart';
 
 import '../test_catalogs.dart';
 
-/// What one run of [userSnippet] produced, so a test can assert on each step
-/// of the blueprint's example rather than only on its final output.
+/// What one run of [userSnippet] produced, step by step.
 class UserSnippetResult {
   /// Step 1: the long-lived generator created at agent startup.
   final A2uiGenerator<CatalogComponent, CatalogFunction> generator;
@@ -26,19 +25,16 @@ class UserSnippetResult {
   /// Step 2: the processor negotiated for this request.
   final A2uiRequestProcessor<CatalogComponent, CatalogFunction> processor;
 
-  /// Step 3: the snippet the agent prepends its own preamble to before
-  /// calling the model.
+  /// Step 3: the snippet the agent prepends its preamble to.
   final String promptSnippet;
 
   /// Step 3: what the model returned.
   final String llmOutput;
 
-  /// Step 4: the parsed, validated response, with text and A2UI blocks in the
-  /// order the model emitted them.
+  /// Step 4: the parsed response, in the order the model emitted it.
   final List<ResponsePart> responseParts;
 
-  /// Step 5: the A2UI messages delivered to the renderer, flattened out of
-  /// [responseParts] in order.
+  /// Step 5: the messages for the renderer, flattened from [responseParts].
   final List<A2uiMessage> a2uiPayload;
 
   const UserSnippetResult({
@@ -58,17 +54,15 @@ UserSnippetResult userSnippet({
   required String Function(String promptSnippet) callLlm,
   Map<String, List<A2uiMessage>>? examples,
 }) {
-  // 1. Agent startup: initialize the long-lived A2uiGenerator with the agent's
-  //    catalog. Prompt examples passed here are validated during processor
-  //    creation (createProcessor) against the active negotiated catalogs, and
-  //    an example using components or structures the active catalog does not
-  //    support raises an error.
+  // 1. Agent startup: initialize the long-lived A2uiGenerator with the
+  //    agent's catalog. Examples passed here are validated against the
+  //    negotiated catalogs by createProcessor.
   final generator = A2uiGenerator<CatalogComponent, CatalogFunction>(
     catalogs: [CatalogConfig(basicCatalog())],
     examples: examples,
   );
 
-  // 2. In the request handler: retrieve the processor pre-negotiated against
+  // 2. In the request handler: retrieve the processor pre-negotiated for
   //    the renderer's capabilities.
   final A2uiRequestProcessor<CatalogComponent, CatalogFunction> processor =
       generator.createProcessor(rendererCapabilities);

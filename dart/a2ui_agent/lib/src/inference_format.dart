@@ -17,26 +17,25 @@ import 'package:a2ui_core/a2ui_core.dart';
 import 'parser/parser.dart';
 import 'prompt/generator.dart';
 
-/// Pairs a prompt generator (agent input) with a parser (agent output) for one
-/// wire format.
+/// Pairs a prompt generator with a parser for one wire format.
 abstract class InferenceFormat<C extends ComponentApi, F extends FunctionApi> {
   const InferenceFormat();
 
   /// The prompt generator for this format.
   PromptGenerator<C, F> get promptGenerator;
 
-  /// Creates a fresh, turn-scoped parser bound to this format's catalogs.
+  /// Creates a turn-scoped parser bound to this format's catalogs.
   Parser createParser();
 }
 
-/// Constructs [InferenceFormat] strategies bound to a set of active catalogs.
+/// Constructs [InferenceFormat]s bound to a set of active catalogs.
 abstract class InferenceFormatFactory<
   C extends ComponentApi,
   F extends FunctionApi
 > {
   const InferenceFormatFactory();
 
-  /// Constructs an [InferenceFormat] bound to [catalogs].
+  /// Binds a format to [catalogs].
   InferenceFormat<C, F> createFormat(
     List<Catalog<C, F>> catalogs, {
     Map<String, List<A2uiMessage>>? examples,

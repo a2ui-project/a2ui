@@ -47,9 +47,8 @@ enum A2uiReturnType {
 
 /// A definition of a UI function's API.
 ///
-/// This declares a function's signature only. Renderers that can also evaluate
-/// the function supply a [FunctionImplementation] instead; agents, which only
-/// need the signature to prompt and validate, use plain [FunctionApi] values.
+/// Declares a signature only. Renderers that also evaluate the function supply
+/// a [FunctionImplementation] instead.
 abstract class FunctionApi {
   String get name;
   A2uiReturnType get returnType;
@@ -66,10 +65,10 @@ abstract class FunctionImplementation extends FunctionApi {
   ]);
 }
 
-/// A [ComponentApi] backed directly by a catalog document's JSON schema.
+/// A [ComponentApi] backed by a catalog document's JSON schema.
 ///
-/// Produced by [Catalog.fromJson]. Carries no rendering behaviour, which makes
-/// it the component representation used on the agent side.
+/// Produced by [Catalog.fromJson]; carries no rendering behaviour, so it is
+/// the agent-side representation.
 class CatalogComponent implements ComponentApi {
   @override
   final String name;
@@ -80,10 +79,10 @@ class CatalogComponent implements ComponentApi {
   CatalogComponent({required this.name, required this.schema});
 }
 
-/// A [FunctionApi] backed directly by a catalog document's JSON schema.
+/// A [FunctionApi] backed by a catalog document's JSON schema.
 ///
-/// Produced by [Catalog.fromJson]. Declares a signature but cannot be
-/// evaluated; see [FunctionImplementation] for the renderer-side counterpart.
+/// Produced by [Catalog.fromJson]; declares a signature but cannot be
+/// evaluated. See [FunctionImplementation] for the renderer-side counterpart.
 class CatalogFunction implements FunctionApi {
   @override
   final String name;
@@ -94,8 +93,7 @@ class CatalogFunction implements FunctionApi {
   @override
   final Schema argumentSchema;
 
-  /// A human readable description of the function, when the catalog declares
-  /// one.
+  /// The function's description, when the catalog declares one.
   final String? description;
 
   CatalogFunction({
@@ -108,20 +106,16 @@ class CatalogFunction implements FunctionApi {
 
 /// A catalog whose components and functions carry schemas only.
 ///
-/// This is the shape [Catalog.fromJson] produces and the shape agents work
-/// with, since an agent prompts and validates against signatures but never
-/// evaluates a function.
+/// What [Catalog.fromJson] produces, and what agents work with: they prompt
+/// and validate against signatures but never evaluate a function.
 typedef SchemaCatalog = Catalog<CatalogComponent, CatalogFunction>;
 
 /// A collection of available components and functions.
 ///
-/// [C] is the component representation and [F] the function representation.
-/// Renderers parameterise this with [FunctionImplementation] so functions can
-/// be evaluated locally; agents parameterise it with [CatalogFunction], which
-/// declares a signature only.
+/// [C] is the component representation and [F] the function representation:
+/// renderers use [FunctionImplementation], agents [CatalogFunction].
 class Catalog<C extends ComponentApi, F extends FunctionApi> {
-  /// The catalog id, as declared by the `catalogId` field of a catalog
-  /// document.
+  /// The catalog id, from the document's `catalogId` field.
   final String id;
 
   /// The protocol version this catalog conforms to.
@@ -131,8 +125,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   final Map<String, F> functions;
   final Schema? themeSchema;
 
-  /// The catalog document this catalog was parsed from, when it was built by
-  /// [Catalog.fromJson].
+  /// The document this catalog was parsed from, if any.
   final Map<String, Object?>? _sourceSchema;
 
   Catalog({
@@ -148,16 +141,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
   /// Parses a catalog document into a schema-only [Catalog].
   ///
-  /// Accepts both the catalog document form used under
-  /// `specification/*/catalogs/*/catalog.json`, where `functions` is a map of
-  /// name to JSON schema, and the inline catalog form used in renderer
-  /// capabilities, where `functions` is a list of function definitions.
+  /// Accepts both forms of `functions`: the map of name to JSON schema used by
+  /// published catalog documents, and the list of definitions used by inline
+  /// catalogs in renderer capabilities.
   ///
-  /// Throws [A2uiCatalogError] if the document is malformed or if
-  /// [expectedCatalogId] conflicts with the document's `catalogId`. Throws
-  /// [A2uiValidationError] if the document declares a protocol version this
-  /// SDK does not implement, or one that conflicts with
-  /// [expectedProtocolVersion].
+  /// Throws [A2uiCatalogError] if the document is malformed or conflicts with
+  /// [expectedCatalogId], and [A2uiValidationError] if its version is
+  /// unsupported or conflicts with [expectedProtocolVersion].
   static SchemaCatalog fromJson(
     Map<String, Object?> json, {
     A2uiProtocolVersion? expectedProtocolVersion,
@@ -177,8 +167,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       );
     }
 
-    // `protocolVersion` is not declared by catalog documents before v1.0, so
-    // an absent value means the version this SDK implements.
+    // Catalog documents before v1.0 do not declare `protocolVersion`, so an
+    // absent value means the version this SDK implements.
     final A2uiProtocolVersion version = json.containsKey('protocolVersion')
         ? A2uiProtocolVersion.fromJson(json['protocolVersion'], details: json)
         : A2uiProtocolVersion.v0_9;
@@ -224,8 +214,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   static List<CatalogFunction> _parseFunctions(Object? raw, String catalogId) {
     if (raw == null) return const [];
 
-    // Inline catalog form: a list of {name, description, parameters,
-    // returnType} definitions.
+    // Inline form: {name, description, parameters, returnType} definitions.
     if (raw is List) {
       return [
         for (final Object? entry in raw)
@@ -243,9 +232,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       ];
     }
 
-    // Catalog document form: a map of name to the function's JSON schema, with
-    // the argument schema under `properties/args` and the declared return type
-    // under `properties/returnType/const`.
+    // Document form: name to JSON schema, with arguments under
+    // `properties/args` and the return type under
+    // `properties/returnType/const`.
     if (raw is! Map) {
       throw A2uiCatalogError(
         "Catalog 'functions' must be an object or a list of definitions.",
@@ -291,11 +280,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
   /// The catalog document for this catalog, as JSON.
   ///
-  /// When the catalog was built by [Catalog.fromJson], the original document is
-  /// returned with its `components`, `functions` and `$defs` narrowed to the
-  /// entries this catalog actually holds, so that a pruned catalog renders a
-  /// pruned document. Otherwise a document is synthesised from the component
-  /// and function schemas.
+  /// A parsed catalog returns its source document with `components`,
+  /// `functions` and `$defs` narrowed to what it still holds, so a pruned
+  /// catalog renders a pruned document. Otherwise the document is
+  /// synthesised from the schemas.
   Map<String, Object?> get catalogSchema {
     final Map<String, Object?>? source = _sourceSchema;
     if (source == null) return _synthesizeSchema();
@@ -329,8 +317,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     return document;
   }
 
-  /// Drops `$defs/<name>/oneOf` entries whose `$ref` points at an entry that is
-  /// no longer part of this catalog.
+  /// Drops `$defs/<name>/oneOf` entries whose `$ref` names a pruned entry.
   static void _narrowAnyOneOf(
     Map<String, Object?> document,
     String defName,
@@ -374,10 +361,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     if (themeSchema != null) r'$defs': {'theme': themeSchema!.value},
   };
 
-  /// Returns a copy of this catalog with the given components and functions.
+  /// A copy of this catalog with the given components and functions.
   ///
-  /// Used by catalog transformers, which narrow a pristine catalog before it is
-  /// rendered into a prompt or used for validation.
+  /// Used by catalog transformers to narrow a catalog before prompting or
+  /// validation.
   Catalog<C, F> copyWith({
     Iterable<C>? components,
     Iterable<F>? functions,

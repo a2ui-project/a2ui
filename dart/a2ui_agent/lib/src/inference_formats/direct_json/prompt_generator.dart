@@ -18,14 +18,12 @@ import '../../prompt/generator.dart';
 
 /// Renders system instructions for the DIRECT_JSON format.
 ///
-/// The generated snippet embeds the active catalog schemas inside
-/// `<a2ui_schema>` tags and instructs the model to emit A2UI payloads inside
-/// `<a2ui-json>` tags.
+/// Embeds the catalog schemas in `<a2ui_schema>` tags and asks the model for
+/// payloads in `<a2ui-json>` tags.
 class DirectJsonPromptGenerator<C extends ComponentApi, F extends FunctionApi>
     extends PromptGenerator<C, F> {
-  /// The payload envelope names the model may emit.
-  ///
-  /// When null, every envelope of the active protocol version is allowed.
+  /// The envelope names the model may emit; null allows every envelope of
+  /// the active protocol version.
   final List<String>? allowedMessages;
 
   DirectJsonPromptGenerator(

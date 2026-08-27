@@ -16,17 +16,14 @@ import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import 'catalog.dart';
 
-/// The catalogs a renderer can render for a single protocol version.
-///
-/// Mirrors the `A2uiVersionCapabilities` structure of
-/// `specification/v0_9_1/json/client_capabilities.json`.
+/// The catalogs a renderer can render for one protocol version, mirroring
+/// `A2uiVersionCapabilities` in `client_capabilities.json`.
 class A2uiVersionCapabilities {
   /// Ids of the catalogs the renderer supports.
   final List<String> supportedCatalogIds;
 
-  /// Catalogs supplied inline by the renderer.
-  ///
-  /// Only meaningful when the agent advertises `acceptsInlineCatalogs`.
+  /// Catalogs supplied inline, meaningful only when the agent advertises
+  /// `acceptsInlineCatalogs`.
   final List<SchemaCatalog> inlineCatalogs;
 
   A2uiVersionCapabilities({
@@ -36,8 +33,8 @@ class A2uiVersionCapabilities {
 
   /// Parses a version capabilities object.
   ///
-  /// Throws [A2uiValidationError] if `supportedCatalogIds` is missing or is not
-  /// a list of strings.
+  /// Throws [A2uiValidationError] unless `supportedCatalogIds` is a list of
+  /// strings and `inlineCatalogs`, if present, holds catalog objects.
   factory A2uiVersionCapabilities.fromJson(Map<String, Object?> json) {
     final Object? rawIds = json['supportedCatalogIds'];
     if (rawIds is! List) {
@@ -83,21 +80,17 @@ class A2uiVersionCapabilities {
   };
 }
 
-/// The UI rendering capabilities a renderer advertises to an agent.
+/// The rendering capabilities a renderer advertises, mirroring
+/// `a2uiClientCapabilities` in `client_capabilities.json` and web_core's
+/// `A2uiClientCapabilities`.
 ///
-/// Mirrors the `a2uiClientCapabilities` object of
-/// `specification/v0_9_1/json/client_capabilities.json`, and the `web_core`
-/// `A2uiClientCapabilities` type.
-///
-/// This SDK implements v0.9 only, so a capabilities object that does not carry
-/// a `v0.9` entry is rejected. Entries for other versions are preserved in
-/// [unsupportedVersions] but are never negotiated against.
+/// A capabilities object without a `v0.9` entry is rejected. Other versions
+/// are kept in [unsupportedVersions] but never negotiated against.
 class A2uiRendererCapabilities {
   /// The capabilities declared for v0.9.
   final A2uiVersionCapabilities v0_9;
 
-  /// Version keys present in the source object that this SDK does not
-  /// implement.
+  /// Version keys in the source object that this SDK does not implement.
   final List<String> unsupportedVersions;
 
   A2uiRendererCapabilities({
@@ -105,7 +98,7 @@ class A2uiRendererCapabilities {
     this.unsupportedVersions = const [],
   });
 
-  /// Convenience constructor for a renderer that supports catalogs by id only.
+  /// A renderer that supports catalogs by id only.
   factory A2uiRendererCapabilities.forCatalogIds(
     List<String> supportedCatalogIds, {
     List<SchemaCatalog> inlineCatalogs = const [],

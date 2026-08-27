@@ -18,17 +18,14 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
-/// Resolves a path from a conformance case against the `conformance/`
-/// directory.
-///
-/// Cases reference published specification artifacts with paths such as
+/// Resolves a case's path against the `conformance/` directory, for example
 /// `../specification/v0_9_1/catalogs/basic/catalog.json`.
 String resolveConformancePath(String relativePath) =>
     p.normalize(p.join(_conformanceRoot(), relativePath));
 
 String _conformanceRoot() {
-  // Walk up from the current directory until the conformance suite is found,
-  // so the harness works from the package directory and the workspace root.
+  // Walk up, so the harness works from the package directory and the
+  // workspace root.
   Directory dir = Directory.current;
   while (true) {
     final candidate = Directory(p.join(dir.path, 'conformance'));
@@ -63,10 +60,8 @@ List<Map<String, Object?>> loadConformanceSuite(String suite) {
   ];
 }
 
-/// Converts YAML nodes into plain Dart maps, lists and scalars.
-///
-/// The state models under test are typed against `Map<String, Object?>` and
-/// `List<Object?>`, which `YamlMap` and `YamlList` do not satisfy.
+/// Converts YAML nodes into plain Dart maps, lists and scalars, which
+/// `YamlMap` and `YamlList` are not.
 Object? normalizeYaml(Object? node) {
   if (node is YamlMap || node is Map) {
     return <String, Object?>{

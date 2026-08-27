@@ -12,13 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// The A2UI agent SDK: catalog management, capability negotiation, prompt
-/// engineering, response parsing and payload validation for agents that
-/// generate A2UI.
+/// The A2UI agent SDK: catalogs, capability negotiation, prompting, response
+/// parsing and payload validation for agents that generate A2UI.
 ///
-/// This SDK implements version 0.9 of the A2UI protocol. Payloads and
-/// capabilities that declare any other version, or omit the version, are
-/// rejected.
+/// Implements protocol v0.9 only; any other version, or none, is rejected.
 library;
 
 // Catalog transformers.

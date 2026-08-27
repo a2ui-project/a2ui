@@ -16,45 +16,38 @@ import 'package:a2ui_core/a2ui_core.dart';
 
 import 'response_part.dart';
 
-/// Tokenizes LLM output, unwraps format tags, and compiles raw format
-/// expressions into A2UI payload messages.
+/// Tokenizes LLM output and compiles it into A2UI messages.
 ///
-/// A parser instance is turn scoped: streaming state accumulated by
-/// [parseChunk] belongs to a single LLM response.
+/// Turn scoped: streaming state from [parseChunk] belongs to one response.
 abstract class Parser {
   const Parser();
 
   /// Whether this parser can process streamed chunks via [parseChunk].
   bool get supportsStreaming => false;
 
-  /// Converts raw response parts back into a single string, adding the
-  /// format's enclosing tags around each raw A2UI section and concatenating
-  /// conversational text parts.
+  /// Renders raw parts back to one string, re-adding the format's tags.
   String wrap(List<RawResponsePart> blocks);
 
-  /// Tokenizes an LLM response into an ordered list of raw parts, extracting
-  /// raw format content between sentinel tags while preserving the order in
-  /// which the model emitted them.
+  /// Tokenizes a response into raw parts, in the order the model emitted
+  /// them.
   ///
-  /// Throws [A2uiParseError] if the response contains no well-formed content
-  /// for this format.
+  /// Throws [A2uiParseError] if the response holds no well-formed content for
+  /// this format.
   List<RawResponsePart> unwrap(String content);
 
-  /// Compiles a raw format content string into validated A2UI messages.
+  /// Compiles raw format content into validated A2UI messages.
   ///
-  /// Throws [A2uiCompileError] if the content cannot be compiled, and
-  /// [A2uiValidationError] if the compiled messages are not valid for the
-  /// active catalogs or declare an unsupported protocol version.
+  /// Throws [A2uiCompileError] if it cannot be compiled, and
+  /// [A2uiValidationError] if the result is invalid for the active catalogs
+  /// or declares an unsupported version.
   List<A2uiMessage> compile(String formatContent);
 
   /// Decompiles A2UI messages into this format's raw notation.
   String decompile(List<A2uiMessage> a2uiPayload);
 
-  /// Parses a complete, non-streamed LLM response.
+  /// Parses a complete, non-streamed response, preserving emission order.
   ///
-  /// Preserves the chronological order of conversational text and A2UI payload
-  /// blocks. When [wrapped] is false the whole of [content] is treated as a
-  /// single raw A2UI block.
+  /// When [wrapped] is false, all of [content] is one raw A2UI block.
   List<ResponsePart> parseResponse(String content, {bool wrapped = true}) {
     if (!wrapped) return [A2uiPart(compile(content))];
     final parts = <ResponsePart>[];
@@ -65,19 +58,17 @@ abstract class Parser {
         case RawA2uiPart(:final String a2uiRaw):
           parts.add(A2uiPart(compile(a2uiRaw)));
         case A2uiPart():
-          // Unreachable: RawResponsePart rejects an already compiled part.
-          // Matching the concrete type rather than the sealed base keeps this
-          // switch exhaustive, so a new ResponsePart subtype is a compile
-          // error here rather than a silent fallthrough.
+          // Unreachable: RawResponsePart rejects compiled parts. Matching
+          // the concrete type keeps this switch exhaustive, so a new subtype
+          // is a compile error rather than a silent fallthrough.
           throw StateError('Unexpected raw part: ${raw.part}');
       }
     }
     return parts;
   }
 
-  /// Processes an incremental chunk of a streamed LLM response.
+  /// Processes one chunk of a streamed response.
   ///
-  /// Returns only the parts newly completed by this chunk. Buffered, still
-  /// incomplete content is retained for the next call.
+  /// Returns the parts this chunk completed; incomplete content is buffered.
   List<ResponsePart> parseChunk(String chunk, {bool wrapped = true});
 }

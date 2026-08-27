@@ -26,9 +26,9 @@ class ExpressCompiler<C extends ComponentApi, F extends FunctionApi> {
 
   /// Compiles an Express DSL string into A2UI messages.
   ///
-  /// Throws [A2uiCompileError] if [source] is not a well-formed Express
-  /// expression, and [A2uiValidationError] if it names components or functions
-  /// the active catalogs do not declare.
+  /// Throws [A2uiCompileError] if [source] is malformed, and
+  /// [A2uiValidationError] if it names components or functions the catalogs
+  /// do not declare.
   List<A2uiMessage> compile(String source) {
     throw UnimplementedError('ExpressCompiler.compile');
   }

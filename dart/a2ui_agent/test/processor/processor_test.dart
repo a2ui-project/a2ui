@@ -18,13 +18,11 @@ import 'package:test/test.dart';
 
 import '../test_catalogs.dart';
 
-/// Marks a test describing behaviour the request processor does not implement
-/// yet. Remove the skip alongside the implementation.
+/// Marks behaviour the request processor does not implement yet.
 const String pendingProcessor =
     'A2uiRequestProcessor.parseResponse is not implemented yet.';
 
-/// Marks a test describing prompt rendering, which the DIRECT_JSON prompt
-/// generator does not implement yet.
+/// Marks prompt rendering, which the DIRECT_JSON generator does not do yet.
 const String pendingPrompt =
     'DirectJsonPromptGenerator.generate is not implemented yet.';
 

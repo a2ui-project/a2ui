@@ -20,9 +20,6 @@ import 'compiler.dart';
 import 'decompiler.dart';
 
 /// Parses Express DSL payloads enclosed in `<a2ui-express>` sentinel tags.
-///
-/// Delegates compilation to [ExpressCompiler] and decompilation to
-/// [ExpressDecompiler].
 class ExpressParser<C extends ComponentApi, F extends FunctionApi>
     extends Parser {
   /// The active catalogs compiled payloads are validated against.

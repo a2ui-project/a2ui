@@ -18,8 +18,7 @@ import 'package:test/test.dart';
 
 import '../test_catalogs.dart';
 
-/// Marks a test describing behaviour the DIRECT_JSON parser does not implement
-/// yet. Remove the skip alongside the implementation.
+/// Marks behaviour the DIRECT_JSON parser does not implement yet.
 const String pendingParser = 'DirectJsonParser is not implemented yet.';
 
 DirectJsonParser<CatalogComponent, CatalogFunction> parser({

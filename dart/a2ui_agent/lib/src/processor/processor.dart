@@ -19,12 +19,10 @@ import '../inference_formats/direct_json/format.dart';
 import '../parser/parser.dart';
 import '../parser/response_part.dart';
 
-/// The per-request facade: holds the catalogs negotiated for one renderer,
-/// renders the system prompt snippet, creates turn-scoped parsers, and
-/// validates model output.
+/// The per-request facade: negotiated catalogs, prompt snippet, parsers and
+/// validation for one renderer.
 ///
-/// Obtained from `A2uiGenerator.createProcessor` rather than constructed
-/// directly in most agents.
+/// Usually obtained from `A2uiGenerator.createProcessor`.
 class A2uiRequestProcessor<C extends ComponentApi, F extends FunctionApi> {
   /// The negotiated catalogs active for this request.
   final List<Catalog<C, F>> activeCatalogs;
@@ -49,9 +47,8 @@ class A2uiRequestProcessor<C extends ComponentApi, F extends FunctionApi> {
        ),
        validator = validator ?? A2uiValidator<C, F>(catalogs: activeCatalogs);
 
-  /// The format-specific system prompt instruction snippet.
-  ///
-  /// The agent prepends its own role and workflow preamble.
+  /// The format-specific prompt snippet; the agent prepends its own
+  /// preamble.
   String get promptSnippet => format.promptGenerator.generate();
 
   /// Creates a parser scoped to a single LLM turn.
@@ -59,18 +56,18 @@ class A2uiRequestProcessor<C extends ComponentApi, F extends FunctionApi> {
 
   /// Parses and validates a complete LLM response.
   ///
-  /// Throws [A2uiParseError] if the response holds no well-formed payload
-  /// block, [A2uiCompileError] if a block cannot be compiled, and
-  /// [A2uiValidationError] if the compiled payload is invalid for
-  /// [activeCatalogs] or declares an unsupported protocol version.
+  /// Throws [A2uiParseError] if it holds no well-formed payload block,
+  /// [A2uiCompileError] if a block cannot be compiled, and
+  /// [A2uiValidationError] if the payload is invalid for [activeCatalogs] or
+  /// declares an unsupported version.
   List<ResponsePart> parseResponse(String content) {
     throw UnimplementedError('A2uiRequestProcessor.parseResponse');
   }
 
   /// Validates few-shot [examples] against [activeCatalogs].
   ///
-  /// Throws [A2uiValidationError] if an example uses components or structures
-  /// the active catalogs do not support.
+  /// Throws [A2uiValidationError] if an example uses anything they do not
+  /// support.
   Future<void> validateExamples() {
     throw UnimplementedError('A2uiRequestProcessor.validateExamples');
   }

@@ -21,9 +21,8 @@ import 'conformance/conformance_harness.dart';
 
 /// The path of the published basic catalog, relative to `conformance/`.
 ///
-/// Tests are measured against the specification's catalog rather than any
-/// catalog implemented inside an SDK, so every implementation is held to the
-/// same contract.
+/// Tests measure the SDK against the specification's catalog, not one of its
+/// own.
 const String basicCatalogPath =
     '../specification/v0_9_1/catalogs/basic/catalog.json';
 
@@ -46,7 +45,7 @@ SchemaCatalog basicCatalog() => Catalog.fromJson(basicCatalogJson());
 A2uiRendererCapabilities basicCatalogCapabilities() =>
     A2uiRendererCapabilities.forCatalogIds([basicCatalogId]);
 
-/// A small catalog used where the full basic catalog would obscure the case.
+/// A small catalog, where the basic catalog would obscure the case.
 SchemaCatalog smallCatalog({String id = 'https://example.com/small.json'}) =>
     Catalog.fromJson({
       'catalogId': id,

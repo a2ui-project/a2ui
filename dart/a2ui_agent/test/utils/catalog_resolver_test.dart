@@ -18,8 +18,7 @@ import 'package:test/test.dart';
 
 import '../test_catalogs.dart';
 
-/// Marks a test describing behaviour `resolveCatalogs` does not implement yet.
-/// Remove the skip alongside the implementation.
+/// Marks behaviour `resolveCatalogs` does not implement yet.
 const String pendingResolver = 'resolveCatalogs is not implemented yet.';
 
 const String smallCatalogId = 'https://example.com/small.json';

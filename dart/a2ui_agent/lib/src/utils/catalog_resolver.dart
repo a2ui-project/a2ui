@@ -18,15 +18,13 @@ import '../processor/catalog_config.dart';
 
 /// Negotiates renderer capabilities against the catalogs an agent supports.
 ///
-/// Returns the transformed catalogs the agent should prompt and validate
-/// against for this session, in agent preference order. When the renderer
-/// declares no supported catalog ids, the agent's first registered catalog is
-/// used. When [acceptsInlineCatalogs] is true, catalogs the renderer supplies
-/// inline are also eligible.
+/// Returns the transformed catalogs to prompt and validate against, in agent
+/// preference order, falling back to the first registered one. Inline catalogs
+/// count only when [acceptsInlineCatalogs] is true.
 ///
-/// Throws [A2uiCatalogError] if no registered catalog matches the renderer's
-/// capabilities. Throws [A2uiValidationError] if [rendererCapabilities]
-/// declares no capabilities for the protocol version this SDK implements.
+/// Throws [A2uiCatalogError] if no registered catalog matches, and
+/// [A2uiValidationError] if [rendererCapabilities] declares nothing for the
+/// protocol version this SDK implements.
 List<Catalog<C, F>>
 resolveCatalogs<C extends ComponentApi, F extends FunctionApi>(
   List<CatalogConfig<C, F>> catalogs,

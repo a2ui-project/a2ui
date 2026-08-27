@@ -20,12 +20,9 @@ import 'conformance_harness.dart';
 /// Runs the shared `conformance/core/data_model.yaml` suite against
 /// [DataModel].
 ///
-/// Two mappings are worth calling out, both documented in the suite header:
-///
-/// * `op: delete` maps to `set(path, null)`. Dart has no `undefined`, so
-///   removing a key is expressed by writing null.
-/// * `watch` attaches one observer per entry. Repeating a path attaches a
-///   second observer to the same underlying signal.
+/// Two mappings, both documented in the suite header: `op: delete` maps to
+/// `set(path, null)`, since Dart has no `undefined`; `watch` attaches one
+/// observer per entry, so a repeated path attaches a second.
 void main() {
   final List<Map<String, Object?>> cases = loadConformanceSuite(
     'core/data_model.yaml',
@@ -43,8 +40,7 @@ void main() {
 }
 
 void _runCase(Map<String, Object?> testCase) {
-  // The suite is parsed once and shared across cases, so the initial data is
-  // deep copied before the model mutates it.
+  // The suite is shared across cases, so deep copy before mutating.
   final model = DataModel(
     _deepCopy(testCase['initial']) ?? <String, Object?>{},
   );
@@ -199,8 +195,7 @@ class _Observer {
 
   _Observer(DataModel model, this.path) : signal = model.watch<Object?>(path) {
     signal.subscribe((_) => _count++);
-    // preact_signals delivers an immediate callback on subscribe; the initial
-    // value is not a change.
+    // preact_signals calls back on subscribe; that is not a change.
     _count = 0;
   }
 

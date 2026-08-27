@@ -19,9 +19,8 @@ import 'package:a2ui_core/a2ui_core.dart';
 
 /// Loads a catalog definition from some backing store.
 ///
-/// There is deliberately no bundled provider: nothing needs to ship with the
-/// SDK, because the catalogs an agent supports are either read from disk,
-/// supplied in memory, or sent inline by the renderer.
+/// There is deliberately no bundled provider: an agent's catalogs come from
+/// disk, from memory, or inline from the renderer.
 abstract class CatalogProvider<C extends ComponentApi, F extends FunctionApi> {
   const CatalogProvider();
 
@@ -49,10 +48,9 @@ class FileSystemCatalogProvider
 
   /// Reads and parses the catalog file.
   ///
-  /// Throws [A2uiCatalogError] if the file is missing or is not a JSON object,
-  /// or if [catalogId] conflicts with the document. Throws
-  /// [A2uiValidationError] if the document declares an unsupported protocol
-  /// version, or one conflicting with [protocolVersion].
+  /// Throws [A2uiCatalogError] if the file is missing, is not a JSON object,
+  /// or conflicts with [catalogId], and [A2uiValidationError] if its version
+  /// is unsupported or conflicts with [protocolVersion].
   @override
   Catalog<CatalogComponent, CatalogFunction> load() {
     final file = File(path);
@@ -98,9 +96,9 @@ class InMemoryCatalogProvider
 
   /// Parses the in-memory schema.
   ///
-  /// Throws [A2uiCatalogError] if the schema is malformed or if [catalogId]
-  /// conflicts with it, and [A2uiValidationError] if it declares an
-  /// unsupported protocol version or one conflicting with [protocolVersion].
+  /// Throws [A2uiCatalogError] if the schema is malformed or conflicts with
+  /// [catalogId], and [A2uiValidationError] if its version is unsupported or
+  /// conflicts with [protocolVersion].
   @override
   Catalog<CatalogComponent, CatalogFunction> load() => Catalog.fromJson(
     catalog,

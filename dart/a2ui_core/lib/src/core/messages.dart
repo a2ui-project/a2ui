@@ -17,19 +17,18 @@ import '../primitives/protocol_version.dart';
 
 /// Base class for all A2UI messages.
 abstract class A2uiMessage {
-  /// The protocol version this message declares, as it appears on the wire.
+  /// The declared protocol version, as it appears on the wire.
   final String version;
 
   A2uiMessage({this.version = 'v0.9'});
 
-  /// The parsed protocol version this message declares.
+  /// The declared protocol version, parsed.
   A2uiProtocolVersion get protocolVersion =>
       A2uiProtocolVersion.fromJson(version);
 
   /// Deserializes a JSON envelope into a typed [A2uiMessage].
   ///
-  /// Throws [A2uiValidationError] if the envelope omits `version` or declares
-  /// a protocol version this SDK does not implement.
+  /// Throws [A2uiValidationError] if `version` is missing or unsupported.
   factory A2uiMessage.fromJson(Map<String, dynamic> json) {
     final String version = A2uiProtocolVersion.fromJson(
       json['version'],

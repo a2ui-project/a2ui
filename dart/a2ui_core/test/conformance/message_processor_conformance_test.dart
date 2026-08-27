@@ -20,9 +20,8 @@ import 'conformance_harness.dart';
 /// Runs the shared `conformance/core/message_processor.yaml` suite against
 /// [MessageProcessor].
 ///
-/// The suite's catalog is built natively rather than parsed from the case, as
-/// the suite header explains: renderers construct catalogs from code, so the
-/// case supplies only the catalog id.
+/// Cases supply only a catalog id: renderers build catalogs from code, so each
+/// harness builds one natively, as the suite header explains.
 void main() {
   final List<Map<String, Object?>> cases = loadConformanceSuite(
     'core/message_processor.yaml',
@@ -66,9 +65,8 @@ void _runCase(Map<String, Object?> testCase) {
 
 /// Converts each envelope and processes it.
 ///
-/// Conversion is part of processing for this suite: the Dart processor takes
-/// typed messages, so a malformed envelope is rejected by
-/// [A2uiMessage.fromJson] rather than by the processor itself.
+/// Conversion counts as processing here: the Dart processor takes typed
+/// messages, so [A2uiMessage.fromJson] rejects a malformed envelope first.
 void _process(
   MessageProcessor<ComponentApi> processor,
   List<Map<String, Object?>> payload,

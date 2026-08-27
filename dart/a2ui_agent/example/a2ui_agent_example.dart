@@ -17,12 +17,11 @@ import 'package:a2ui_core/a2ui_core.dart';
 
 /// One agent turn, from startup to messages ready for a renderer.
 ///
-/// Most of the SDK is still stubbed, so running this throws
-/// [UnimplementedError] at the first unimplemented step. It is written to show
-/// the intended shape of an integration.
+/// Shows the intended shape of an integration. Most of the SDK is still
+/// stubbed, so running this throws [UnimplementedError].
 void main() {
-  // 1. Agent startup. Register every catalog the agent can generate UI for,
-  //    narrowed to the components and functions this agent actually uses.
+  // 1. Agent startup. Register every catalog the agent supports, narrowed to
+  //    the components and functions it uses.
   final generator = A2uiGenerator<CatalogComponent, CatalogFunction>(
     catalogs: [
       CatalogConfig.fromPath(
@@ -45,9 +44,8 @@ void main() {
     },
   );
 
-  // 2. Per request. Negotiate the agent's catalogs against what the renderer
-  //    says it can render. `a2uiClientCapabilities` arrives in transport
-  //    metadata, for example the A2A message metadata.
+  // 2. Per request. Negotiate against what the renderer says it can render.
+  //    `a2uiClientCapabilities` arrives in transport metadata.
   final capabilities = A2uiRendererCapabilities.fromJson({
     'v0.9': {
       'supportedCatalogIds': [
@@ -58,14 +56,12 @@ void main() {
   final A2uiRequestProcessor<CatalogComponent, CatalogFunction> processor =
       generator.createProcessor(capabilities);
 
-  // 3. Inference. Prepend your own role and workflow preamble to the snippet,
-  //    then call your model with it.
+  // 3. Inference. Prepend your own preamble, then call your model.
   final systemPrompt =
       'You are a helpful assistant.\n\n${processor.promptSnippet}';
   final String modelOutput = callYourModel(systemPrompt);
 
-  // 4. Parse and validate. Conversational text and A2UI payloads come back in
-  //    the order the model emitted them.
+  // 4. Parse and validate, in the order the model emitted.
   final List<ResponsePart> parts = processor.parseResponse(modelOutput);
 
   // 5. Deliver. Text goes to the chat transcript; messages go to the renderer.
