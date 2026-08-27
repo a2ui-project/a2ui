@@ -167,7 +167,7 @@ Located in `samples/community/templates/`.
 - `test_processor.py`:
   - Tests synchronous expansion of programmatic template functions.
   - Tests error handling when required parameters are omitted or invalid types are passed.
-  - Tests dynamic resolver execution (server-side data fetching).
+  - Tests programmatic data fetching and layout assembly within synthetic component functions.
   - Tests integration with `TemplateInferenceFormat` (prompt generation and tool interception).
 
 ### 4. Sample App E2E Tests:

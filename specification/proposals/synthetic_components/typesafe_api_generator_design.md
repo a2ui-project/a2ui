@@ -502,14 +502,6 @@ class DynamicChildList:
 
 
 @dataclass
-class SyntheticResult:
-    """Optional return type for synthetic components bundling layout with initial state."""
-
-    root: Union[ComponentBuilderNode, Sequence[ComponentBuilderNode]]
-    data_model: Optional[dict[str, Any]] = None
-
-
-@dataclass
 class Surface:
     """High-level container for direct payload authoring (MCP tools, tests, backend servers)."""
 
@@ -836,16 +828,12 @@ When the application boots:
 LLM Output: StatusCard(title="Order Placed", status="success")
                            |
                            v
-          Synthetic Component Processor
+           Synthetic Component Processor
                            |
            1. Lookup registered function
            2. Execute status_card("Order Placed", "success")
-           3. Receives return value:
-              - Single ComponentBuilderNode: standard root layout
-              - Sequence[ComponentBuilderNode]: sibling list (table rows / cards)
-              - SyntheticResult / (root, data_model): layout bundled with initial state
+           3. Receives return value: ComponentBuilderNode (or Sequence[ComponentBuilderNode])
            4. Run flatten_component_tree(root, root_id=invocation_id)
-           5. If data_model is present, merge into surface data model state
                            |
                            v
 Flat Component Dictionaries:
@@ -857,7 +845,7 @@ Flat Component Dictionaries:
 ]
                            |
                            v
-Emitted to Client Renderer via standard A2UI messages (surfaceUpdate + optional dataModelUpdate)
+Emitted to Client Renderer via standard A2UI messages (surfaceUpdate)
 ```
 
 ---

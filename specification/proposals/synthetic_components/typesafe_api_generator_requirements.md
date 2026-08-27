@@ -47,7 +47,7 @@ The exact output data structure of the typesafe API may differ depending on the 
 - **Single root vs. component lists**: Should a synthetic component function return a single root component node (e.g. `Card`), or should it be allowed to return a list of sibling components (e.g. `list[Component]`) for macro layouts like repeating rows or table bodies?
 - **Node tree vs. flattened dictionaries**: Does the synthetic component function return unflattened component nodes that the runtime engine flattens, or does the API flatten the tree into a list of wire dictionaries before returning?
 - **Component ID prefixing and scoping**: When a synthetic component is expanded within an existing surface, how are internal component IDs managed? Does the synthetic component processor prefix generated IDs (e.g. `card_0_text_1`) to avoid collisions with other components on the same surface, or does the builder accept a surface-level ID allocator?
-- **Bundling data model state**: Can a synthetic component function return initial data model state alongside its component tree (e.g. returning a tuple `(ComponentBuilderNode, dict[str, Any])` or a container object), or must state initialization remain separate from UI expansion?
+- **Purity and separation of data model state**: Synthetic components are strictly pure UI layout functions. They accept typed parameters and return component trees (`ComponentBuilderNode` or `Sequence[ComponentBuilderNode]`). They do NOT mutate or initialize the data model. State management and data model initialization remain decoupled at the surface and agent lifecycle levels.
 
 ### Output for direct payload authoring
 
