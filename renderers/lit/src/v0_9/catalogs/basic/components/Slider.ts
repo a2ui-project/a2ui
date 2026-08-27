@@ -32,7 +32,8 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderA
    * - `--a2ui-slider-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-slider {
       display: flex;
       flex-direction: column;
       gap: var(--a2ui-spacing-xs, 0.25rem);

@@ -33,7 +33,9 @@ import base64
 import fnmatch
 import functools
 import inspect
+import ipaddress
 import logging
+import socket
 from typing import (
     Any,
     Awaitable,
@@ -101,7 +103,7 @@ class FileResolver:
     ):
         self.max_file_bytes = max_file_bytes
         self.allowed_mime_types = allowed_mime_types
-        self.allowed_hosts = allowed_hosts
+        self.allowed_hosts = allowed_hosts if allowed_hosts is not None else []
         self.max_concurrent_downloads = max_concurrent_downloads
         self._owns_http_client = http_client is None
         self._http_client = http_client or httpx.AsyncClient()
@@ -156,12 +158,173 @@ class FileResolver:
 
         return final_mime
 
+    def _check_file_size(self, current_size: int) -> None:
+        if current_size > self.max_file_bytes:
+            raise FileResolverSecurityError(
+                f"File exceeded max size of {self.max_file_bytes} bytes"
+            )
+
     async def resolve_bytes(
         self, file_info: Dict[str, Any], session: Optional[Any] = None
     ) -> tuple[bytes, str]:
         """Resolves raw bytes and verified MIME type from a file pointer dictionary."""
         async with self._semaphore:
             return await self._resolve_bytes_internal(file_info, session)
+
+    def _resolve_inline(
+        self, file_id: str, session: Optional[Any]
+    ) -> tuple[bytes, str]:
+        if not session:
+            raise ValueError(f"Cannot resolve {file_id}: No session provided.")
+
+        for event in getattr(session, "events", []):
+            if (
+                hasattr(event, "message")
+                and event.message
+                and getattr(event.message, "parts", None)
+            ):
+                for part in event.message.parts:
+                    if getattr(part, "inline_data", None):
+                        part_meta = getattr(part, "part_metadata", None) or {}
+                        part_file_id = (
+                            part_meta.get("fileId")
+                            if isinstance(part_meta, dict)
+                            else getattr(part_meta, "fileId", None)
+                        )
+                        if part_file_id == file_id:
+                            return part.inline_data.data, part.inline_data.mime_type
+
+        raise ValueError(f"Inline data pointer {file_id} not found in session history.")
+
+    async def _resolve_custom(self, file_id: str, file_info: Dict[str, Any]) -> bytes:
+        prefix = next(p for p in self._custom_schemes if file_id.startswith(p))
+        handler_res = self._custom_schemes[prefix](file_id, file_info)
+        if inspect.isawaitable(handler_res):
+            return await handler_res
+        return handler_res
+
+    def _resolve_data_uri(self, file_id: str, claimed_mime: str) -> tuple[bytes, str]:
+        try:
+            header, encoded = file_id.split(",", 1)
+        except ValueError:
+            raise ValueError(f"Invalid data URI format: {file_id[:50]}...")
+
+        is_base64 = header.endswith(";base64")
+        if is_base64:
+            mime_part = header[5:-7].strip()
+        else:
+            mime_part = header[5:].strip()
+
+        if mime_part and not claimed_mime:
+            claimed_mime = mime_part.split(";")[0]
+        elif not mime_part and not claimed_mime:
+            claimed_mime = "text/plain"
+
+        try:
+            if is_base64:
+                raw_bytes = base64.b64decode(encoded)
+            else:
+                raw_bytes = urllib.parse.unquote_to_bytes(encoded)
+        except Exception as e:
+            raise ValueError(f"Failed to decode data URI: {e}")
+
+        return raw_bytes, claimed_mime
+
+    async def _resolve_http(self, file_id: str) -> bytes:
+        buffer = bytearray()
+        current_url = file_id
+        redirects_followed = 0
+        max_redirects = 5
+
+        while redirects_followed <= max_redirects:
+            parsed_current = urllib.parse.urlparse(current_url)
+            current_hostname = (parsed_current.hostname or "").lower()
+            if not current_hostname:
+                raise FileResolverSecurityError("URL is missing a valid hostname")
+
+            if not any(
+                fnmatch.fnmatch(current_hostname, pattern.lower())
+                for pattern in self.allowed_hosts
+            ):
+                raise FileResolverSecurityError(
+                    f"Host '{current_hostname}' is not permitted by security policy"
+                )
+
+            resolved_ip = None
+            try:
+                loop = asyncio.get_running_loop()
+                addr_info = await loop.getaddrinfo(current_hostname, None)
+                for res in addr_info:
+                    ip = res[4][0]
+                    try:
+                        ip_obj = ipaddress.ip_address(ip)
+                        if (
+                            ip_obj.is_private
+                            or ip_obj.is_loopback
+                            or ip_obj.is_link_local
+                            or ip_obj.is_multicast
+                            or ip_obj.is_unspecified
+                        ):
+                            raise FileResolverSecurityError(
+                                f"Host '{current_hostname}' resolves to a private/local"
+                                f" IP '{ip}', which is not permitted."
+                            )
+                        if not resolved_ip:
+                            resolved_ip = ip
+                    except ValueError:
+                        pass
+            except socket.gaierror as e:
+                raise FileResolverSecurityError(
+                    f"Failed to resolve host '{current_hostname}': {e}"
+                )
+
+            if not resolved_ip:
+                raise FileResolverSecurityError(
+                    f"Could not find a valid public IP for host '{current_hostname}'"
+                )
+
+            netloc = f"[{resolved_ip}]" if ":" in resolved_ip else resolved_ip
+            if parsed_current.port:
+                netloc = f"{netloc}:{parsed_current.port}"
+            ip_url = parsed_current._replace(netloc=netloc).geturl()
+
+            host_header = (
+                f"{current_hostname}:{parsed_current.port}"
+                if parsed_current.port
+                else current_hostname
+            )
+            async with self._http_client.stream(
+                "GET",
+                ip_url,
+                headers={"Host": host_header},
+                extensions={"sni_hostname": current_hostname},
+                follow_redirects=False,
+            ) as response:
+                if response.status_code in (301, 302, 303, 307, 308):
+                    redirect_location = response.headers.get("Location")
+                    if not redirect_location:
+                        raise FileResolverSecurityError(
+                            "Redirect missing Location header"
+                        )
+                    current_url = urllib.parse.urljoin(current_url, redirect_location)
+                    redirect_scheme = urllib.parse.urlparse(current_url).scheme.lower()
+                    if redirect_scheme not in ("http", "https"):
+                        raise FileResolverSecurityError(
+                            f"Unsupported redirect scheme: {redirect_scheme}"
+                        )
+                    redirects_followed += 1
+                    continue
+
+                response.raise_for_status()
+                async for chunk in response.aiter_bytes():
+                    buffer.extend(chunk)
+                    self._check_file_size(len(buffer))
+            break
+
+        if redirects_followed > max_redirects:
+            raise FileResolverSecurityError("Too many redirects")
+
+        return bytes(buffer)
 
     async def _resolve_bytes_internal(
         self, file_info: Dict[str, Any], session: Optional[Any] = None
@@ -177,120 +340,18 @@ class FileResolver:
         if not isinstance(claimed_mime, str):
             claimed_mime = ""
 
-        raw_bytes: bytes
-
-        # 1. Inline File resolving
         if file_id.startswith("inline://"):
-            if not session:
-                raise ValueError(f"Cannot resolve {file_id}: No session provided.")
-
-            # Search for the file in the ADK Session history
-            found_in_session = False
-            for event in getattr(session, "events", []):
-                if (
-                    hasattr(event, "message")
-                    and event.message
-                    and getattr(event.message, "parts", None)
-                ):
-                    for part in event.message.parts:
-                        if getattr(part, "inline_data", None):
-                            part_meta = getattr(part, "part_metadata", None) or {}
-                            part_file_id = (
-                                part_meta.get("fileId")
-                                if isinstance(part_meta, dict)
-                                else getattr(part_meta, "fileId", None)
-                            )
-                            if part_file_id == file_id:
-                                raw_bytes = part.inline_data.data
-                                claimed_mime = part.inline_data.mime_type
-                                found_in_session = True
-                                break
-                    if found_in_session:
-                        break
-
-            if not found_in_session:
-                raise ValueError(
-                    f"Inline data pointer {file_id} not found in session history."
-                )
-
-        # 2. Registered Scheme Handler
+            raw_bytes, claimed_mime = self._resolve_inline(file_id, session)
         elif any(file_id.startswith(p) for p in self._custom_schemes):
-            prefix = next(p for p in self._custom_schemes if file_id.startswith(p))
-            handler_res = self._custom_schemes[prefix](file_id, file_info)
-            if inspect.isawaitable(handler_res):
-                raw_bytes = await handler_res
-            else:
-                raw_bytes = handler_res
-
-        # 3. Data URI
+            raw_bytes = await self._resolve_custom(file_id, file_info)
         elif file_id.startswith("data:"):
-            try:
-                header, encoded = file_id.split(",", 1)
-            except ValueError:
-                raise ValueError(f"Invalid data URI format: {file_id[:50]}...")
-
-            is_base64 = header.endswith(";base64")
-            if is_base64:
-                mime_part = header[5:-7].strip()
-            else:
-                mime_part = header[5:].strip()
-
-            if mime_part and not claimed_mime:
-                claimed_mime = mime_part.split(";")[0]
-            elif not mime_part and not claimed_mime:
-                claimed_mime = "text/plain"
-
-            try:
-                if is_base64:
-                    raw_bytes = base64.b64decode(encoded)
-                else:
-                    raw_bytes = urllib.parse.unquote_to_bytes(encoded)
-            except Exception as e:
-                raise ValueError(f"Failed to decode data URI: {e}")
-
-        # 4. HTTPS / HTTP Ephemeral Download URL
+            raw_bytes, claimed_mime = self._resolve_data_uri(file_id, claimed_mime)
         elif file_id.startswith("https://") or file_id.startswith("http://"):
-            parsed_url = urllib.parse.urlparse(file_id)
-            hostname = (parsed_url.hostname or "").lower()
-
-            if self.allowed_hosts is not None:
-                if not any(
-                    fnmatch.fnmatch(hostname, pattern.lower())
-                    for pattern in self.allowed_hosts
-                ):
-                    raise FileResolverSecurityError(
-                        f"Host '{hostname}' is not permitted by security policy"
-                    )
-
-            buffer = bytearray()
-            async with self._http_client.stream(
-                "GET", file_id, follow_redirects=True
-            ) as response:
-                if self.allowed_hosts is not None and hasattr(response, "url"):
-                    redirect_host = (getattr(response.url, "host", None) or "").lower()
-                    if redirect_host and not any(
-                        fnmatch.fnmatch(redirect_host, pattern.lower())
-                        for pattern in self.allowed_hosts
-                    ):
-                        raise FileResolverSecurityError(
-                            f"Redirected host '{redirect_host}' is not permitted by"
-                            " security policy"
-                        )
-                response.raise_for_status()
-                async for chunk in response.aiter_bytes():
-                    buffer.extend(chunk)
-                    if len(buffer) > self.max_file_bytes:
-                        raise FileResolverSecurityError(
-                            f"File exceeded max size of {self.max_file_bytes} bytes"
-                        )
-            raw_bytes = bytes(buffer)
+            raw_bytes = await self._resolve_http(file_id)
         else:
             raise ValueError(f"Unsupported file pointer scheme: {file_id}")
 
-        if len(raw_bytes) > self.max_file_bytes:
-            raise FileResolverSecurityError(
-                f"File exceeded max size of {self.max_file_bytes} bytes"
-            )
+        self._check_file_size(len(raw_bytes))
 
         verified_mime = self._verify_magic_bytes(raw_bytes, claimed_mime)
         return raw_bytes, verified_mime
