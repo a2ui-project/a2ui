@@ -88,6 +88,7 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
   @Published public private(set) var dataModelString: String = "{}"
 
   private var processor: MessageProcessor
+  private let parser = MessageParser()
   private var surfaceSubscription: AnyCancellable?
   private let handler = GalleryActionHandler()
 
@@ -138,9 +139,19 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
 
     let rawMessage = sample.rawMessages[currentStepIndex]
     do {
-      try processor.process(line: rawMessage)
+      let message = try parser.parse(jsonString: rawMessage)
+      processor.process(message: message)
     } catch {
-      // Errors are routed directly to GalleryActionHandler by MessageProcessor.
+      // Errors from processor are reported to GalleryActionHandler;
+      // unhandled parse errors are logged here.
+      if error is MessageParseError {
+        appendLogEntry(
+          DiagnosticLogEntry(
+            type: .error,
+            message: "JSON Parse Error: \(error.localizedDescription)"
+          )
+        )
+      }
     }
 
     currentStepIndex += 1

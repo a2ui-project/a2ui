@@ -182,6 +182,10 @@ export class GenericBinder<T> {
 
   private context: ComponentContext;
   private behaviorTree: BehaviorNode;
+  // Actions resolve to closures, which downstream value comparison cannot
+  // inspect; reusing the closure while the raw payload is unchanged keeps
+  // unchanged action props reference-identical across rebuilds.
+  private actionClosures = new Map<string, {raw: unknown; closure: () => void}>();
 
   constructor(context: ComponentContext, schema: z.ZodTypeAny) {
     this.context = context;
@@ -241,7 +245,12 @@ export class GenericBinder<T> {
       }
 
       case 'ACTION': {
-        return () => {
+        const cacheKey = path.join('/');
+        const cached = this.actionClosures.get(cacheKey);
+        if (cached && jsonEquals(cached.raw, value)) {
+          return cached.closure;
+        }
+        const closure = () => {
           const resolveDeepSync = (val: any): any => {
             if (typeof val !== 'object' || val === null) return val;
             if ('path' in val || 'call' in val)
@@ -253,6 +262,8 @@ export class GenericBinder<T> {
           };
           this.context.dispatchAction(resolveDeepSync(value));
         };
+        this.actionClosures.set(cacheKey, {raw: value, closure});
+        return closure;
       }
 
       case 'STRUCTURAL': {
@@ -420,4 +431,26 @@ export class GenericBinder<T> {
   get snapshot() {
     return this.currentProps as T;
   }
+}
+
+/** Structural equality over JSON-shaped values (objects, arrays, primitives). */
+function jsonEquals(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) {
+    return false;
+  }
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+      return false;
+    }
+    return a.every((item, index) => jsonEquals(item, b[index]));
+  }
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  return aKeys.every(
+    key =>
+      Object.prototype.hasOwnProperty.call(b, key) &&
+      jsonEquals((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]),
+  );
 }

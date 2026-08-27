@@ -124,6 +124,31 @@ struct ClientToServerMessageTests {
     }
   }
 
+  @Test func decodeRejectsBothActionAndError() throws {
+    let json = try #require(
+      """
+      {
+        "version": "v0.9.1",
+        "action": {
+          "name": "submit",
+          "surfaceId": "main",
+          "sourceComponentId": "btn_submit",
+          "timestamp": "2023-10-27T10:00:00Z",
+          "context": {}
+        },
+        "error": {
+          "code": "VALIDATION_FAILED",
+          "surfaceId": "main",
+          "path": "/components/0",
+          "message": "Invalid input"
+        }
+      }
+      """.data(using: .utf8))
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(ClientToServerMessage.self, from: json)
+    }
+  }
+
   @Test func decodeRejectsActionMissingRequiredField() throws {
     let json = try #require(
       """

@@ -70,12 +70,33 @@ func makeIntegrationCatalog() throws -> Catalog {
     remoteSchemas: remote
   )
 
+  let iconSchema = try Schema(
+    instance: """
+      {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "component": {"type": "string"},
+          "name": {
+            "oneOf": [
+              {"type": "string"},
+              {"$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DataBinding"}
+            ]
+          }
+        },
+        "required": ["id", "component", "name"]
+      }
+      """,
+    remoteSchemas: remote
+  )
+
   return Catalog(
     id: "default",
     components: [
       ComponentAPI(name: "button", schema: buttonSchema),
       ComponentAPI(name: "text", schema: textSchema),
       ComponentAPI(name: "textField", schema: textFieldSchema),
+      ComponentAPI(name: "icon", schema: iconSchema),
     ]
   )
 }
@@ -99,26 +120,35 @@ final class IntegrationActionHandler: ActionHandling, @unchecked Sendable {
 @MainActor
 struct IntegrationTests {
 
+  private let parser = MessageParser()
+
+  private func parse(_ json: String) throws -> ServerToClientMessage {
+    try parser.parse(jsonString: json)
+  }
+
   // MARK: - Button + Text Binding
 
   @Test func buttonWithDynamicLabelResolvesFromDataModel() throws {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-        """)
-    try processor.process(
-      line: """
+        """))
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "updateDataModel": {"surfaceId": "s1", "path": "/buttonLabel", "value": "Submit"}}
-        """)
-    try processor.process(
-      line: """
+        """))
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
           {
             "id": "root",
@@ -126,7 +156,7 @@ struct IntegrationTests {
             "label": {"path": "/buttonLabel"}
           }
         ]}}
-        """)
+        """))
 
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     #expect(vm?.dataModel.get("/buttonLabel")?.stringValue == "Submit")
@@ -138,16 +168,18 @@ struct IntegrationTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-        """)
-    try processor.process(
-      line: """
+        """))
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
           {
             "id": "root",
@@ -161,7 +193,7 @@ struct IntegrationTests {
             }
           }
         ]}}
-        """)
+        """))
 
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     let root = try #require(vm?.componentsModel.get("root"))
@@ -174,16 +206,18 @@ struct IntegrationTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-        """)
-    try processor.process(
-      line: """
+        """))
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
           {
             "id": "label1",
@@ -191,7 +225,7 @@ struct IntegrationTests {
             "text": "Hello, World!"
           }
         ]}}
-        """)
+        """))
 
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     let textComp = vm?.componentsModel.get("label1")
@@ -204,18 +238,20 @@ struct IntegrationTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "form-surface", "catalogId": "default"}}
-        """)
+        """))
 
     // Step 1: Create form with text fields bound to data model
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "form-surface", "components": [
           {
             "id": "nameField",
@@ -238,21 +274,24 @@ struct IntegrationTests {
             }
           }
         ]}}
-        """)
+        """))
 
     // Step 2: Update data model with user input
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/name", "value": "Alice"}}
-        """)
-    try processor.process(
-      line: """
+        """))
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/email", "value": "alice@example.com"}}
-        """)
-    try processor.process(
-      line: """
+        """))
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/submitLabel", "value": "Submit Form"}}
-        """)
+        """))
 
     // Verify data model state
     let vm = try #require(processor.surfaceGroupModel.surfacesMap["form-surface"])
@@ -264,10 +303,11 @@ struct IntegrationTests {
     #expect(vm.componentsModel.components.count == 3)
 
     // Step 3: Update name and verify
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/name", "value": "Bob"}}
-        """)
+        """))
     #expect(vm.dataModel.get("/form/name")?.stringValue == "Bob")
   }
 
@@ -277,21 +317,23 @@ struct IntegrationTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-        """)
+        """))
 
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
           {"id": "root", "component": "text", "text": "Hello"}
         ]}}
-        """)
+        """))
 
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     let components = vm?.componentsModel.components
@@ -302,28 +344,68 @@ struct IntegrationTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
-        """)
+        """))
 
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
           {"id": "lbl", "component": "text", "text": {"path": "/title"}}
         ]}}
-        """)
+        """))
 
-    try processor.process(
-      line: """
+    processor.process(
+      message: try parse(
+        """
         {"version": "v0.9.1", "updateDataModel": {"surfaceId": "s1", "path": "/title", "value": "Dynamic Title"}}
-        """)
+        """))
 
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     #expect(vm?.dataModel.get("/title")?.stringValue == "Dynamic Title")
+  }
+
+  @Test func iconComponentResolvesDynamicDataBinding() async throws {
+    let catalog = try makeIntegrationCatalog()
+    let handler = IntegrationActionHandler()
+    let processor = MessageProcessor(
+      catalogs: [catalog],
+      actionHandler: handler
+    )
+
+    processor.process(
+      message: try parse(
+        """
+        {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
+        """))
+    processor.process(
+      message: try parse(
+        """
+        {"version": "v0.9.1", "updateDataModel": {"surfaceId": "s1", "path": "/icon", "value": "check"}}
+        """))
+    processor.process(
+      message: try parse(
+        """
+        {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
+          {
+            "id": "root",
+            "component": "icon",
+            "name": {"path": "/icon"}
+          }
+        ]}}
+        """))
+
+    await Task.yield()
+    let vm = try #require(processor.surfaceGroupModel.surfacesMap["s1"])
+    let root = try #require(vm.rootNode)
+    let binding = try #require(root.properties["name"] as? DataBinding<String>)
+    #expect(binding.value == "check")
   }
 }

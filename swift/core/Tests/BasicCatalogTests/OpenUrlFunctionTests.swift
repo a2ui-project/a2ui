@@ -32,7 +32,7 @@ private final class MockOpenURLHandler: OpenURLHandler, @unchecked Sendable {
   }
 }
 
-struct OpenUrlFunctionTests {
+struct OpenURLFunctionTests {
 
   let context = DataContext(
     dataModel: DataModel(), path: "", functionHandler: MockFunctionHandler())
@@ -40,7 +40,7 @@ struct OpenUrlFunctionTests {
   // MARK: - Initialization
 
   @Test func initializesWithExpectedAPI() {
-    let function = OpenUrlFunction()
+    let function = OpenURLFunction()
     #expect(function.api.name == "openUrl")
     #expect(function.api.returnType == .void)
   }
@@ -49,7 +49,7 @@ struct OpenUrlFunctionTests {
 
   @Test func opensValidHTTPSUrl() throws {
     let handler = MockOpenURLHandler()
-    let function = OpenUrlFunction(handler: handler)
+    let function = OpenURLFunction(handler: handler)
 
     let result = try function.evaluate(
       arguments: ["url": .string("https://example.com/foo?bar=baz")],
@@ -62,7 +62,7 @@ struct OpenUrlFunctionTests {
 
   @Test func opensValidHTTPUrl() throws {
     let handler = MockOpenURLHandler()
-    let function = OpenUrlFunction(handler: handler)
+    let function = OpenURLFunction(handler: handler)
 
     _ = try function.evaluate(
       arguments: ["url": .string("http://insecure.com")],
@@ -75,7 +75,7 @@ struct OpenUrlFunctionTests {
   @Test func resolvesRelativeUrlWhenBaseUrlIsProvided() throws {
     let handler = MockOpenURLHandler()
     let baseURL = URL(string: "https://google.com/search")!
-    let function = OpenUrlFunction(handler: handler, baseURL: baseURL)
+    let function = OpenURLFunction(handler: handler, baseURL: baseURL)
 
     _ = try function.evaluate(
       arguments: ["url": .string("?q=swift")],
@@ -86,7 +86,7 @@ struct OpenUrlFunctionTests {
   }
 
   @Test func throwsErrorWhenMissingUrlArgument() {
-    let function = OpenUrlFunction()
+    let function = OpenURLFunction()
 
     #expect(throws: FunctionError.self) {
       try function.evaluate(arguments: [:], context: context)
@@ -96,7 +96,7 @@ struct OpenUrlFunctionTests {
   // MARK: - Security Constraints
 
   @Test func throwsErrorWhenUsingJavascriptScheme() {
-    let function = OpenUrlFunction()
+    let function = OpenURLFunction()
 
     #expect(throws: FunctionError.self) {
       try function.evaluate(
@@ -107,7 +107,7 @@ struct OpenUrlFunctionTests {
   }
 
   @Test func throwsErrorWhenUsingDataScheme() {
-    let function = OpenUrlFunction()
+    let function = OpenURLFunction()
 
     #expect(throws: FunctionError.self) {
       try function.evaluate(
@@ -118,7 +118,7 @@ struct OpenUrlFunctionTests {
   }
 
   @Test func throwsErrorWhenRelativeUrlHasNoSchemeAndNoBaseUrl() {
-    let function = OpenUrlFunction()
+    let function = OpenURLFunction()
 
     #expect(throws: FunctionError.self) {
       try function.evaluate(
