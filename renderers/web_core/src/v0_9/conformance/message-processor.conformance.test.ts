@@ -112,7 +112,11 @@ function runCase(testCase: ConformanceCase): void {
     assert.ok(surface, `${name}: surface ${surfaceId} is open`);
 
     if (expectation.catalogId !== undefined) {
-      assert.strictEqual(surface.catalog.id, expectation.catalogId, `${name}: ${surfaceId} catalogId`);
+      assert.strictEqual(
+        surface.catalog.id,
+        expectation.catalogId,
+        `${name}: ${surfaceId} catalogId`,
+      );
     }
     if (expectation.sendDataModel !== undefined) {
       assert.strictEqual(

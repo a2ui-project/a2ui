@@ -12,6 +12,7 @@ Test suites are organized by functional domain:
 - `core/accessibility.yaml`: Contains test cases for accessibility attributes and checks.
 - `core/validator.yaml`: Contains test cases for schema and structural validators, verifying structural integrity, cycle detection, and reachability.
 - `core/data_model.yaml`: Contains test cases for the reactive data model: JSON Pointer resolution, structural auto-vivification, and observer notification routing.
+- `core/message_processor.yaml`: Contains test cases for the message processor: the surface lifecycle, component graph mutation, per surface data model routing, and the capability and data model payloads a renderer sends back to the agent.
 
 ### Agent (`agent/`)
 
@@ -44,7 +45,7 @@ Behaviour currently in the second category, held by the Dart SDK only:
 - Pruning catalog **functions**. The `prune` action currently supports `allowed_components` and `allowed_messages`; `allowed_functions` is implemented by the Dart `FunctionPruningTransformer` only.
 - Raising an error from `select_catalog` when the renderer and agent share no catalog. Kotlin raises with a different message and Python returns no selection instead.
 
-The new `process_request` action does assert version rejection, because that action has no prior implementations and its contract is being defined with it.
+The new `process_request` and `process_messages` actions are not loaded by the Python or Kotlin harnesses, which read a fixed list of suite files. `process_request` does assert version rejection, because that action has no prior implementations and its contract is being defined with it.
 
 ## Usage in SDKs
 

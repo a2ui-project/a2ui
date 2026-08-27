@@ -47,7 +47,8 @@
     version: "0.9"
     catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
   action: process_messages
-  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}]
+  payload:
+    [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}]
   expect: {"surfaces": {"s1": {"catalogId": "conformance-catalog", "sendDataModel": false}}}
 
 - name: test_processor_creates_surface_with_send_data_model
@@ -57,7 +58,14 @@
     version: "0.9"
     catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
   action: process_messages
-  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog", "sendDataModel": true}}]
+  payload:
+    [
+      {
+        "version": "v0.9",
+        "createSurface":
+          {"surfaceId": "s1", "catalogId": "conformance-catalog", "sendDataModel": true},
+      },
+    ]
   expect: {"surfaces": {"s1": {"sendDataModel": true}}}
 
 - name: test_processor_deletes_surface
@@ -67,7 +75,11 @@
     version: "0.9"
     catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
   action: process_messages
-  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "deleteSurface": {"surfaceId": "s1"}}]
+  payload:
+    [
+      {"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}},
+      {"version": "v0.9", "deleteSurface": {"surfaceId": "s1"}},
+    ]
   expect: {"absent_surfaces": ["s1"]}
 
 - name: test_processor_adds_components
@@ -77,8 +89,20 @@
     version: "0.9"
     catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
   action: process_messages
-  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}]
-  expect: {"surfaces": {"s1": {"components": {"root": {"component": "Text", "properties": {"text": "Hello"}}}}}}
+  payload:
+    [
+      {"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}},
+      {
+        "version": "v0.9",
+        "updateComponents":
+          {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]},
+      },
+    ]
+  expect:
+    {
+      "surfaces":
+        {"s1": {"components": {"root": {"component": "Text", "properties": {"text": "Hello"}}}}},
+    }
 
 - name: test_processor_updates_existing_component_properties
   description: >-
@@ -87,8 +111,25 @@
     version: "0.9"
     catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
   action: process_messages
-  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}, {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "World"}]}}]
-  expect: {"surfaces": {"s1": {"components": {"root": {"component": "Text", "properties": {"text": "World"}}}}}}
+  payload:
+    [
+      {"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}},
+      {
+        "version": "v0.9",
+        "updateComponents":
+          {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]},
+      },
+      {
+        "version": "v0.9",
+        "updateComponents":
+          {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "World"}]},
+      },
+    ]
+  expect:
+    {
+      "surfaces":
+        {"s1": {"components": {"root": {"component": "Text", "properties": {"text": "World"}}}}},
+    }
 
 - name: test_processor_recreates_component_when_type_changes
   description: >-
@@ -98,8 +139,31 @@
     version: "0.9"
     catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
   action: process_messages
-  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}, {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ["a"]}]}}]
-  expect: {"surfaces": {"s1": {"components": {"root": {"component": "Column", "properties": {"children": ["a"]}}}}}}
+  payload:
+    [
+      {"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}},
+      {
+        "version": "v0.9",
+        "updateComponents":
+          {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]},
+      },
+      {
+        "version": "v0.9",
+        "updateComponents":
+          {
+            "surfaceId": "s1",
+            "components": [{"id": "root", "component": "Column", "children": ["a"]}],
+          },
+      },
+    ]
+  expect:
+    {
+      "surfaces":
+        {
+          "s1":
+            {"components": {"root": {"component": "Column", "properties": {"children": ["a"]}}}},
+        },
+    }
 
 - name: test_processor_updates_components_on_the_named_surface_only
   description: >-
@@ -109,8 +173,24 @@
     version: "0.9"
     catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
   action: process_messages
-  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "createSurface": {"surfaceId": "s2", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "updateComponents": {"surfaceId": "s2", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}]
-  expect: {"surfaces": {"s1": {"components": {}}, "s2": {"components": {"root": {"component": "Text", "properties": {"text": "Hello"}}}}}}
+  payload:
+    [
+      {"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}},
+      {"version": "v0.9", "createSurface": {"surfaceId": "s2", "catalogId": "conformance-catalog"}},
+      {
+        "version": "v0.9",
+        "updateComponents":
+          {"surfaceId": "s2", "components": [{"id": "root", "component": "Text", "text": "Hello"}]},
+      },
+    ]
+  expect:
+    {
+      "surfaces":
+        {
+          "s1": {"components": {}},
+          "s2": {"components": {"root": {"component": "Text", "properties": {"text": "Hello"}}}},
+        },
+    }
 
 - name: test_processor_routes_data_model_updates
   description: >-
@@ -119,7 +199,14 @@
     version: "0.9"
     catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
   action: process_messages
-  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "path": "/user/name", "value": "Alice"}}]
+  payload:
+    [
+      {"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}},
+      {
+        "version": "v0.9",
+        "updateDataModel": {"surfaceId": "s1", "path": "/user/name", "value": "Alice"},
+      },
+    ]
   expect: {"surfaces": {"s1": {"data_model": {"user": {"name": "Alice"}}}}}
 
 - name: test_processor_routes_data_model_updates_per_surface
@@ -129,8 +216,15 @@
     version: "0.9"
     catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
   action: process_messages
-  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "createSurface": {"surfaceId": "s2", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "path": "/value", "value": "one"}}, {"version": "v0.9", "updateDataModel": {"surfaceId": "s2", "path": "/value", "value": "two"}}]
-  expect: {"surfaces": {"s1": {"data_model": {"value": "one"}}, "s2": {"data_model": {"value": "two"}}}}
+  payload:
+    [
+      {"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}},
+      {"version": "v0.9", "createSurface": {"surfaceId": "s2", "catalogId": "conformance-catalog"}},
+      {"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "path": "/value", "value": "one"}},
+      {"version": "v0.9", "updateDataModel": {"surfaceId": "s2", "path": "/value", "value": "two"}},
+    ]
+  expect:
+    {"surfaces": {"s1": {"data_model": {"value": "one"}}, "s2": {"data_model": {"value": "two"}}}}
 
 - name: test_processor_client_data_model_includes_opted_in_surfaces_only
   description: >-
@@ -140,7 +234,24 @@
     version: "0.9"
     catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
   action: process_messages
-  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog", "sendDataModel": true}}, {"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "path": "/foo", "value": "bar"}}, {"version": "v0.9", "createSurface": {"surfaceId": "s2", "catalogId": "conformance-catalog", "sendDataModel": false}}, {"version": "v0.9", "updateDataModel": {"surfaceId": "s2", "path": "/secret", "value": "baz"}}]
+  payload:
+    [
+      {
+        "version": "v0.9",
+        "createSurface":
+          {"surfaceId": "s1", "catalogId": "conformance-catalog", "sendDataModel": true},
+      },
+      {"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "path": "/foo", "value": "bar"}},
+      {
+        "version": "v0.9",
+        "createSurface":
+          {"surfaceId": "s2", "catalogId": "conformance-catalog", "sendDataModel": false},
+      },
+      {
+        "version": "v0.9",
+        "updateDataModel": {"surfaceId": "s2", "path": "/secret", "value": "baz"},
+      },
+    ]
   expect: {"client_data_model": {"surfaces": {"s1": {"foo": "bar"}}}}
 
 - name: test_processor_client_data_model_absent_without_opt_in
@@ -150,7 +261,11 @@
     version: "0.9"
     catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
   action: process_messages
-  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "path": "/foo", "value": "bar"}}]
+  payload:
+    [
+      {"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}},
+      {"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "path": "/foo", "value": "bar"}},
+    ]
   expect: {"client_data_model_absent": true}
 
 - name: test_processor_client_capabilities_list_catalog_ids
@@ -171,7 +286,14 @@
     version: "0.9"
     catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
   action: process_messages
-  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "https://example.com/not-registered.json"}}]
+  payload:
+    [
+      {
+        "version": "v0.9",
+        "createSurface":
+          {"surfaceId": "s1", "catalogId": "https://example.com/not-registered.json"},
+      },
+    ]
   expect_error: {"category": "StateError", "message": "Catalog not found"}
 
 - name: test_processor_rejects_duplicate_surface
@@ -181,7 +303,11 @@
     version: "0.9"
     catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
   action: process_messages
-  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}]
+  payload:
+    [
+      {"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}},
+      {"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}},
+    ]
   expect_error: {"category": "StateError", "message": "already exists"}
 
 - name: test_processor_rejects_components_for_unknown_surface
@@ -191,7 +317,14 @@
     version: "0.9"
     catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
   action: process_messages
-  payload: [{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}]
+  payload:
+    [
+      {
+        "version": "v0.9",
+        "updateComponents":
+          {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]},
+      },
+    ]
   expect_error: {"category": "StateError", "message": "Surface not found"}
 
 - name: test_processor_rejects_data_model_update_for_unknown_surface
@@ -201,7 +334,8 @@
     version: "0.9"
     catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
   action: process_messages
-  payload: [{"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "path": "/foo", "value": "bar"}}]
+  payload:
+    [{"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "path": "/foo", "value": "bar"}}]
   expect_error: {"category": "StateError", "message": "Surface not found"}
 
 - name: test_processor_rejects_component_without_id
@@ -211,7 +345,15 @@
     version: "0.9"
     catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
   action: process_messages
-  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"component": "Text", "text": "Hello"}]}}]
+  payload:
+    [
+      {"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}},
+      {
+        "version": "v0.9",
+        "updateComponents":
+          {"surfaceId": "s1", "components": [{"component": "Text", "text": "Hello"}]},
+      },
+    ]
   expect_error: {"category": "ValidationError", "message": "missing an 'id'"}
 
 - name: test_processor_rejects_new_component_without_type
@@ -222,7 +364,14 @@
     version: "0.9"
     catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
   action: process_messages
-  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "text": "Hello"}]}}]
+  payload:
+    [
+      {"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}},
+      {
+        "version": "v0.9",
+        "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "text": "Hello"}]},
+      },
+    ]
   expect_error: {"category": "ValidationError", "message": "Cannot create component"}
 
 - name: test_processor_rejects_message_with_multiple_bodies
@@ -232,5 +381,12 @@
     version: "0.9"
     catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
   action: process_messages
-  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}, "deleteSurface": {"surfaceId": "s1"}}]
+  payload:
+    [
+      {
+        "version": "v0.9",
+        "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"},
+        "deleteSurface": {"surfaceId": "s1"},
+      },
+    ]
   expect_error: {"category": "ValidationError"}
