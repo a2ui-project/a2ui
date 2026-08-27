@@ -102,7 +102,18 @@ def a2ui_scorer(version: str) -> Scorer:
                     if isinstance(m, dict) and "updateComponents" in m:
                         first_surface = m["updateComponents"].get("surfaceId", "main")
                         break
-                ver_prefix = version if version.startswith("v") else f"v{version}"
+                msg_ver = (
+                    all_messages[0].get("version")
+                    if (
+                        all_messages
+                        and isinstance(all_messages[0], dict)
+                        and "version" in all_messages[0]
+                    )
+                    else None
+                )
+                ver_prefix = msg_ver or (
+                    version if version.startswith("v") else f"v{version}"
+                )
                 cat_id = (
                     getattr(catalog, "catalog_id", None)
                     or "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
