@@ -68,14 +68,18 @@ By making `Catalog` the canonical in-memory model:
 - **Schema-free programmatic catalogs**: Developers can define catalogs programmatically in Python or load them from external sources without writing or maintaining raw JSON Schema files.
 - **Clean emitter boundary**: Code generation emitters receive a `Catalog` and iterate over `ComponentApi` and `FunctionApi` objects to synthesize source files.
 
-### Enhancing ComponentApi and FunctionApi for code generation
+### Non-invasive adapter pattern: AnalysedComponentApi in the experimental package
 
-We enhance `ComponentApi` and `FunctionApi` in `a2ui_core/catalog/` with methods that extract normalized property metadata:
+To maintain strict stability in `a2ui_core`, we avoid making intrusive or breaking changes to `ComponentApi` and `Catalog` during early development. Instead, the analysis and code generation logic resides entirely within the experimental package (`a2ui.inference_formats.experimental.template` or `a2ui.codegen`).
+
+We implement an **Adapter Wrapper Pattern**:
 
 ```python
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Optional, Sequence
+from a2ui.core.catalog import Catalog, ComponentApi, FunctionApi
+from a2ui.schema.schema_helper import CatalogSchemaHelper
 
 
 class PropertyKind(str, Enum):
@@ -101,71 +105,99 @@ class PropertyApi:
     enum_values: Sequence[str] = ()
 
 
-# Enhanced ComponentApi methods in a2ui.core.catalog.components:
-class ComponentApi:
+class AnalysedComponentApi:
+    """Non-invasive wrapper around ComponentApi providing schema analysis for codegen.
 
-    def __init__(self, name: str, schema: dict[str, Any]):
-        self.name = name
-        self.schema = schema
+    Lives in the experimental package, leaving a2ui_core.ComponentApi untouched.
+    """
+
+    def __init__(
+        self, component: ComponentApi, schema_helper: CatalogSchemaHelper
+    ):
+        self.component = component
+        self.name = component.name
+        self.schema = component.schema
+        self._helper = schema_helper
 
     def get_properties(self) -> Sequence[PropertyApi]:
-        """Analyzes the underlying schema and returns normalized property definitions."""
-        ...
+        """Returns normalized property metadata by querying the schema helper."""
+        prop_names = self._helper.get_component_properties(self.name)
+        reqs = set(self._helper.get_component_required(self.name))
+        results = []
+        for prop_name in prop_names:
+            prop_schema = self._helper.get_property_schema(self.name, prop_name)
+            # Classify kind (Child, ChildList, DynamicString, Enum, Primitive)
+            kind = self._classify_kind(prop_name, prop_schema)
+            enum_vals = self._helper.component_property_enums.get(
+                (self.name, prop_name), []
+            )
+            results.append(
+                PropertyApi(
+                    name=prop_name,
+                    kind=kind,
+                    target_type=self._determine_target_type(
+                        prop_name, prop_schema, enum_vals
+                    ),
+                    required=prop_name in reqs,
+                    description=(
+                        prop_schema.get("description") if prop_schema else None
+                    ),
+                    enum_values=enum_vals,
+                )
+            )
+        return results
 
     def get_child_slots(self) -> Sequence[PropertyApi]:
         """Returns properties representing child components or child lists."""
-        ...
+        return [
+            p
+            for p in self.get_properties()
+            if p.kind in (PropertyKind.CHILD, PropertyKind.CHILD_LIST)
+        ]
 
     @property
     def is_container(self) -> bool:
         """Returns True if the component accepts child or children slots."""
-        ...
+        return len(self.get_child_slots()) > 0
 
     @property
     def docstring(self) -> Optional[str]:
-# Enhanced ComponentApi methods in a2ui.core.catalog.components:
-class ComponentApi:
-
-    def __init__(self, name: str, schema: dict[str, Any]):
-        self.name = name
-        self.schema = schema
-
-    def get_properties(self) -> Sequence[PropertyApi]:
-        """Analyzes the underlying schema and returns normalized property definitions."""
-        ...
-
-    def get_child_slots(self) -> Sequence[PropertyApi]:
-        """Returns properties representing child components or child lists."""
-        ...
-
-    @property
-    def is_container(self) -> bool:
-        """Returns True if the component accepts child or children slots."""
-        ...
-
-    @property
-    def docstring(self) -> Optional[str]:
-        """Returns the description of the component from the catalog schema."""
+        """Returns the component description from schema."""
         return self.schema.get("description")
 
-
-# Enhanced FunctionApi methods in a2ui.core.catalog.functions:
-class FunctionApi:
-
-    def __init__(self, name: str, return_type: str, schema: dict[str, Any]):
-        self.name = name
-        self.return_type = return_type
-        self.schema = schema
-
-    def get_args(self) -> Sequence[PropertyApi]:
-        """Returns normalized argument definitions."""
+    def _classify_kind(
+        self, prop_name: str, prop_schema: Optional[dict[str, Any]]
+    ) -> PropertyKind:
         ...
 
-    @property
-    def docstring(self) -> Optional[str]:
-        """Returns the description of the function from the catalog schema."""
-        return self.schema.get("description")
+
+class AnalysedCatalog:
+    """Wraps an existing in-memory Catalog to expose rich analysis without modifying core."""
+
+    def __init__(self, catalog: Catalog[Any, Any]):
+        self.catalog = catalog
+        self.schema_helper = CatalogSchemaHelper(catalog)
+        self.components = {
+            name: AnalysedComponentApi(comp, self.schema_helper)
+            for name, comp in catalog.components.items()
+        }
 ```
+
+### Centralizing schema crawling via existing CatalogSchemaHelper
+
+The A2UI Python SDK already contains `CatalogSchemaHelper` in `a2ui.schema.schema_helper` (used across Express, Atom, and Elemental inference formats). `CatalogSchemaHelper` already implements:
+
+- Crawling and flattening `allOf` inheritance chains.
+- Ordering component and function properties deterministically.
+- Extracting required property lists.
+- Detecting `Checkable` components.
+- Detecting and extracting string enum choices.
+
+By implementing `AnalysedComponentApi` on top of `CatalogSchemaHelper`, we avoid duplicating schema crawling logic. The code generator simply consumes `AnalysedCatalog`, keeping `a2ui_core` stable and untouched while sharing crawler infrastructure across the SDK.
+
+### Graduation path to core
+
+Once the typesafe API generator matures and stabilizes in the experimental folder, the analytical properties on `AnalysedComponentApi` can be evaluated for direct inclusion into `a2ui_core.catalog.ComponentApi`, or remain as an independent analysis module.
 
 ### Why this in-memory model is the linchpin for cross-language sharing
 
