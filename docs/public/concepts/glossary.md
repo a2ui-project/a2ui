@@ -193,7 +193,7 @@ See the [data binding guide](data-binding.md).
 
 In component definition, a reference to a data element, resolvable either by path in the data model or by value.
 
-See the [example in the basic catalog](../../../specification/v0_9_1/catalogs/basic/catalog.json#L18).
+See the [example in the basic catalog](../../../specification/v0_9/catalogs/basic/catalog.json#L23).
 
 ### Client function
 
