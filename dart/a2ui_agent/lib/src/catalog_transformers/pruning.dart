@@ -18,8 +18,7 @@ import 'base.dart';
 
 /// Prunes catalog component definitions to an allowlist.
 ///
-/// Names in the allowlist that the catalog does not declare are ignored, so a
-/// single transformer can be reused across catalogs.
+/// Keeps only the components named in both the allowlist and catalog.
 class ComponentPruningTransformer<C extends ComponentApi, F extends FunctionApi>
     extends CatalogTransformer<C, F> {
   /// The components to keep.
@@ -39,8 +38,7 @@ class ComponentPruningTransformer<C extends ComponentApi, F extends FunctionApi>
 
 /// Prunes catalog function definitions to an allowlist.
 ///
-/// Names in the allowlist that the catalog does not declare are ignored, so a
-/// single transformer can be reused across catalogs.
+/// Keeps only the functions named in the allowlist and catalog.
 class FunctionPruningTransformer<C extends ComponentApi, F extends FunctionApi>
     extends CatalogTransformer<C, F> {
   /// The functions to keep.
