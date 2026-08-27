@@ -46,6 +46,10 @@ from .models import (
     normalize_a2ui_type_to_jsonschema,
     flatten_nested_layout,
 )
+from a2ui.inference_formats.experimental.macros.builder.base import (
+    ComponentBuilderNode,
+    flatten_component_tree,
+)
 
 # ---------------------------------------------------------------------------
 # Strong Semantic Type Aliases
@@ -501,6 +505,14 @@ class TemplateProcessor:
                         res_tree = asyncio.run(res)
                 else:
                     res_tree = res
+
+                if isinstance(res_tree, ComponentBuilderNode) or (
+                    isinstance(res_tree, Sequence)
+                    and not isinstance(res_tree, (str, bytes, dict))
+                    and res_tree
+                    and isinstance(res_tree[0], ComponentBuilderNode)
+                ):
+                    return flatten_component_tree(res_tree, root_id=instance_id)
 
                 if isinstance(res_tree, list):
                     flattened_list: A2UIComponentList = []

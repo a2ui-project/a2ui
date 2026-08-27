@@ -212,6 +212,14 @@ class PythonEmitter(BaseEmitter):
             "from .types import *",
             "",
             "",
+            "def _serialize_prop(val: Any) -> Any:",
+            '    if hasattr(val, "to_dict"):',
+            "        return val.to_dict()",
+            "    if isinstance(val, (list, tuple)):",
+            "        return [_serialize_prop(item) for item in val]",
+            "    return val",
+            "",
+            "",
         ]
 
         for comp in self.catalog.components.values():
@@ -264,7 +272,7 @@ class PythonEmitter(BaseEmitter):
             py_name = sanitize_ident(p_name)
             lines.append(f"        if self.{py_name} is not None:")
             lines.append(
-                f'            d["{p_name}"] = self.{py_name}.to_dict() if hasattr(self.{py_name}, "to_dict") else self.{py_name}'
+                f'            d["{p_name}"] = _serialize_prop(self.{py_name})'
             )
 
         lines.append("        if self.id is not None:")

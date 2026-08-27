@@ -25,9 +25,11 @@ import os
 from pathlib import Path
 import re
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import jsonschema
-import yaml
+from a2ui.inference_formats.experimental.macros.builder.base import (
+    ComponentBuilderNode,
+    flatten_component_tree,
+)
 
 
 def _find_template_schema_path() -> Optional[Path]:
@@ -608,29 +610,47 @@ class StaticTemplate(BaseTemplate):
         return instance
 
     @classmethod
-    def from_yaml_string(cls, yaml_content: str) -> List[StaticTemplate]:
-        """Parses a YAML string containing one or more '---' separated template documents."""
-        docs = list(yaml.safe_load_all(yaml_content))
-        templates: List[StaticTemplate] = []
-        for doc in docs:
-            if not doc or not isinstance(doc, dict):
-                continue
-            templates.append(cls.from_dict(doc))
-        if not templates:
-            raise ValueError("No valid template definitions found in YAML content.")
-        return templates
+    def from_builder(
+        cls,
+        name: str,
+        layout: ComponentBuilderNode,
+        catalogs: Optional[List[str]] = None,
+        description: Optional[str] = None,
+        sample_data: Optional[Dict[str, Any]] = None,
+    ) -> StaticTemplate:
+        """Creates a StaticTemplate from a typesafe ComponentBuilderNode."""
+        return cls(
+            name=name,
+            template_id=name,
+            catalogs=catalogs or [],
+            description=description,
+            sample_data=sample_data,
+            raw_layout=layout.to_dict(),
+            components=[],
+            is_dynamic=False,
+        )
 
     @classmethod
-    def from_yaml_file(cls, file_path: Union[str, Path]) -> List[StaticTemplate]:
-        """Loads and parses all Template definitions from a YAML file."""
+    def from_json_string(cls, json_content: str) -> List[StaticTemplate]:
+        """Parses a JSON string containing one or a list of template documents."""
+        data = json.loads(json_content)
+        if isinstance(data, list):
+            return [cls.from_dict(doc) for doc in data if isinstance(doc, dict)]
+        elif isinstance(data, dict):
+            return [cls.from_dict(data)]
+        raise ValueError("Invalid JSON content for template.")
+
+    @classmethod
+    def from_json_file(cls, file_path: Union[str, Path]) -> List[StaticTemplate]:
+        """Loads and parses template definitions from a JSON file."""
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
-        return cls.from_yaml_string(content)
+        return cls.from_json_string(content)
 
     @classmethod
-    def from_yaml(cls, yaml_content: str) -> StaticTemplate:
-        """Convenience method to load a single template definition from YAML."""
-        templates = cls.from_yaml_string(yaml_content)
+    def from_json(cls, json_content: str) -> StaticTemplate:
+        """Loads a single template definition from JSON."""
+        templates = cls.from_json_string(json_content)
         return templates[0]
 
     def to_dict(self) -> Dict[str, Any]:
@@ -665,9 +685,9 @@ class StaticTemplate(BaseTemplate):
             res["sampleData"] = self.sample_data
         return res
 
-    def to_yaml(self) -> str:
-        """Serializes the template instance to a clean YAML string."""
-        return yaml.dump(self.to_dict(), sort_keys=False)
+    def to_json(self, indent: Optional[int] = 2) -> str:
+        """Serializes the template instance to a clean JSON string."""
+        return json.dumps(self.to_dict(), indent=indent)
 
     @staticmethod
     def _collect_loop_vars(val: Any, loop_vars: set) -> None:
@@ -803,11 +823,18 @@ class DynamicTemplate(BaseTemplate):
 
         self.layout: Optional[StaticTemplate] = None
         if layout is not None:
-            if isinstance(layout, str):
+            if isinstance(layout, ComponentBuilderNode):
+                self.layout = StaticTemplate.from_builder(
+                    name=template_name,
+                    layout=layout,
+                    description=description,
+                    sample_data=sample_data,
+                )
+            elif isinstance(layout, str):
                 if os.path.exists(layout):
-                    self.layout = StaticTemplate.from_yaml_file(layout)[0]
+                    self.layout = StaticTemplate.from_json_file(layout)[0]
                 else:
-                    self.layout = StaticTemplate.from_yaml(layout)
+                    self.layout = StaticTemplate.from_json(layout)
             elif isinstance(layout, dict):
                 self.layout = StaticTemplate.from_dict(layout)
             else:
@@ -954,11 +981,11 @@ class DynamicTemplate(BaseTemplate):
             return self.resolve(kwargs if kwargs else (args[0] if args else {}))
         raise TypeError(f"DynamicTemplate '{self.name}' is not callable.")
 
-    def to_yaml(self) -> str:
-        """Serializes the dynamic template or underlying layout to a clean YAML string."""
+    def to_json(self, indent: Optional[int] = 2) -> str:
+        """Serializes the dynamic template or underlying layout to a clean JSON string."""
         if self.layout is not None:
-            return self.layout.to_yaml()
-        return yaml.dump(self.to_dict(), sort_keys=False)
+            return self.layout.to_json(indent=indent)
+        return json.dumps(self.to_dict(), indent=indent)
 
 
 def dynamic_template(

@@ -22,22 +22,22 @@ from a2ui.inference_formats.experimental.template import (
 
 def test_template_inference_format_end_to_end():
     """Verifies that TemplateInferenceFormat wraps ExpressFormat, generates prompts, and unrolls streaming chunks."""
-    yaml_tmpl = """
-version: "0.1"
-name: UserProfile
-catalogs:
-  - "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
-parameters:
-  userId: {type: string}
-  userName: {type: string}
-  role: {type: string}
-layout:
-  component: Card
-  child:
-    component: Text
-    text: ${userName}
-"""
-    tmpl = StaticTemplate.from_yaml(yaml_tmpl)
+    tmpl = StaticTemplate.from_dict({
+        "version": "0.1",
+        "name": "UserProfile",
+        "catalogs": [
+            "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+        ],
+        "parameters": {
+            "userId": {"type": "string"},
+            "userName": {"type": "string"},
+            "role": {"type": "string"},
+        },
+        "layout": {
+            "component": "Card",
+            "child": {"component": "Text", "text": "${userName}"},
+        },
+    })
     manager = TemplateInferenceFormat(
         templates=[tmpl],
         surface_id="main_surface",

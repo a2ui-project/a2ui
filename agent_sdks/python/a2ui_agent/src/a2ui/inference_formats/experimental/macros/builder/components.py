@@ -29,6 +29,14 @@ from a2ui.inference_formats.experimental.macros.builder.base import (
 from .types import *
 
 
+def _serialize_prop(val: Any) -> Any:
+    if hasattr(val, "to_dict"):
+        return val.to_dict()
+    if isinstance(val, (list, tuple)):
+        return [_serialize_prop(item) for item in val]
+    return val
+
+
 @dataclass(kw_only=True)
 class Text(ComponentBuilderNode):
     r"""Text component."""
@@ -41,9 +49,9 @@ class Text(ComponentBuilderNode):
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"component": self.component_name}
         if self.text is not None:
-            d["text"] = self.text.to_dict() if hasattr(self.text, "to_dict") else self.text
+            d["text"] = _serialize_prop(self.text)
         if self.variant is not None:
-            d["variant"] = self.variant.to_dict() if hasattr(self.variant, "to_dict") else self.variant
+            d["variant"] = _serialize_prop(self.variant)
         if self.id is not None:
             d["id"] = self.id
         return d
@@ -62,13 +70,13 @@ class Image(ComponentBuilderNode):
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"component": self.component_name}
         if self.url is not None:
-            d["url"] = self.url.to_dict() if hasattr(self.url, "to_dict") else self.url
+            d["url"] = _serialize_prop(self.url)
         if self.description is not None:
-            d["description"] = self.description.to_dict() if hasattr(self.description, "to_dict") else self.description
+            d["description"] = _serialize_prop(self.description)
         if self.fit is not None:
-            d["fit"] = self.fit.to_dict() if hasattr(self.fit, "to_dict") else self.fit
+            d["fit"] = _serialize_prop(self.fit)
         if self.variant is not None:
-            d["variant"] = self.variant.to_dict() if hasattr(self.variant, "to_dict") else self.variant
+            d["variant"] = _serialize_prop(self.variant)
         if self.id is not None:
             d["id"] = self.id
         return d
@@ -84,7 +92,7 @@ class Icon(ComponentBuilderNode):
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"component": self.component_name}
         if self.name is not None:
-            d["name"] = self.name.to_dict() if hasattr(self.name, "to_dict") else self.name
+            d["name"] = _serialize_prop(self.name)
         if self.id is not None:
             d["id"] = self.id
         return d
@@ -100,7 +108,7 @@ class Video(ComponentBuilderNode):
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"component": self.component_name}
         if self.url is not None:
-            d["url"] = self.url.to_dict() if hasattr(self.url, "to_dict") else self.url
+            d["url"] = _serialize_prop(self.url)
         if self.id is not None:
             d["id"] = self.id
         return d
@@ -117,9 +125,9 @@ class AudioPlayer(ComponentBuilderNode):
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"component": self.component_name}
         if self.url is not None:
-            d["url"] = self.url.to_dict() if hasattr(self.url, "to_dict") else self.url
+            d["url"] = _serialize_prop(self.url)
         if self.description is not None:
-            d["description"] = self.description.to_dict() if hasattr(self.description, "to_dict") else self.description
+            d["description"] = _serialize_prop(self.description)
         if self.id is not None:
             d["id"] = self.id
         return d
@@ -137,11 +145,11 @@ class Row(ComponentBuilderNode):
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"component": self.component_name}
         if self.children is not None:
-            d["children"] = self.children.to_dict() if hasattr(self.children, "to_dict") else self.children
+            d["children"] = _serialize_prop(self.children)
         if self.align is not None:
-            d["align"] = self.align.to_dict() if hasattr(self.align, "to_dict") else self.align
+            d["align"] = _serialize_prop(self.align)
         if self.justify is not None:
-            d["justify"] = self.justify.to_dict() if hasattr(self.justify, "to_dict") else self.justify
+            d["justify"] = _serialize_prop(self.justify)
         if self.id is not None:
             d["id"] = self.id
         return d
@@ -159,11 +167,11 @@ class Column(ComponentBuilderNode):
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"component": self.component_name}
         if self.children is not None:
-            d["children"] = self.children.to_dict() if hasattr(self.children, "to_dict") else self.children
+            d["children"] = _serialize_prop(self.children)
         if self.align is not None:
-            d["align"] = self.align.to_dict() if hasattr(self.align, "to_dict") else self.align
+            d["align"] = _serialize_prop(self.align)
         if self.justify is not None:
-            d["justify"] = self.justify.to_dict() if hasattr(self.justify, "to_dict") else self.justify
+            d["justify"] = _serialize_prop(self.justify)
         if self.id is not None:
             d["id"] = self.id
         return d
@@ -181,11 +189,11 @@ class List(ComponentBuilderNode):
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"component": self.component_name}
         if self.children is not None:
-            d["children"] = self.children.to_dict() if hasattr(self.children, "to_dict") else self.children
+            d["children"] = _serialize_prop(self.children)
         if self.align is not None:
-            d["align"] = self.align.to_dict() if hasattr(self.align, "to_dict") else self.align
+            d["align"] = _serialize_prop(self.align)
         if self.direction is not None:
-            d["direction"] = self.direction.to_dict() if hasattr(self.direction, "to_dict") else self.direction
+            d["direction"] = _serialize_prop(self.direction)
         if self.id is not None:
             d["id"] = self.id
         return d
@@ -201,7 +209,7 @@ class Card(ComponentBuilderNode):
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"component": self.component_name}
         if self.child is not None:
-            d["child"] = self.child.to_dict() if hasattr(self.child, "to_dict") else self.child
+            d["child"] = _serialize_prop(self.child)
         if self.id is not None:
             d["id"] = self.id
         return d
@@ -217,7 +225,7 @@ class Tabs(ComponentBuilderNode):
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"component": self.component_name}
         if self.tabs is not None:
-            d["tabs"] = self.tabs.to_dict() if hasattr(self.tabs, "to_dict") else self.tabs
+            d["tabs"] = _serialize_prop(self.tabs)
         if self.id is not None:
             d["id"] = self.id
         return d
@@ -234,9 +242,9 @@ class Modal(ComponentBuilderNode):
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"component": self.component_name}
         if self.content is not None:
-            d["content"] = self.content.to_dict() if hasattr(self.content, "to_dict") else self.content
+            d["content"] = _serialize_prop(self.content)
         if self.trigger is not None:
-            d["trigger"] = self.trigger.to_dict() if hasattr(self.trigger, "to_dict") else self.trigger
+            d["trigger"] = _serialize_prop(self.trigger)
         if self.id is not None:
             d["id"] = self.id
         return d
@@ -252,7 +260,7 @@ class Divider(ComponentBuilderNode):
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"component": self.component_name}
         if self.axis is not None:
-            d["axis"] = self.axis.to_dict() if hasattr(self.axis, "to_dict") else self.axis
+            d["axis"] = _serialize_prop(self.axis)
         if self.id is not None:
             d["id"] = self.id
         return d
@@ -271,13 +279,13 @@ class Button(ComponentBuilderNode):
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"component": self.component_name}
         if self.action is not None:
-            d["action"] = self.action.to_dict() if hasattr(self.action, "to_dict") else self.action
+            d["action"] = _serialize_prop(self.action)
         if self.child is not None:
-            d["child"] = self.child.to_dict() if hasattr(self.child, "to_dict") else self.child
+            d["child"] = _serialize_prop(self.child)
         if self.checks is not None:
-            d["checks"] = self.checks.to_dict() if hasattr(self.checks, "to_dict") else self.checks
+            d["checks"] = _serialize_prop(self.checks)
         if self.variant is not None:
-            d["variant"] = self.variant.to_dict() if hasattr(self.variant, "to_dict") else self.variant
+            d["variant"] = _serialize_prop(self.variant)
         if self.id is not None:
             d["id"] = self.id
         return d
@@ -297,15 +305,15 @@ class TextField(ComponentBuilderNode):
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"component": self.component_name}
         if self.label is not None:
-            d["label"] = self.label.to_dict() if hasattr(self.label, "to_dict") else self.label
+            d["label"] = _serialize_prop(self.label)
         if self.checks is not None:
-            d["checks"] = self.checks.to_dict() if hasattr(self.checks, "to_dict") else self.checks
+            d["checks"] = _serialize_prop(self.checks)
         if self.validationRegexp is not None:
-            d["validationRegexp"] = self.validationRegexp.to_dict() if hasattr(self.validationRegexp, "to_dict") else self.validationRegexp
+            d["validationRegexp"] = _serialize_prop(self.validationRegexp)
         if self.value is not None:
-            d["value"] = self.value.to_dict() if hasattr(self.value, "to_dict") else self.value
+            d["value"] = _serialize_prop(self.value)
         if self.variant is not None:
-            d["variant"] = self.variant.to_dict() if hasattr(self.variant, "to_dict") else self.variant
+            d["variant"] = _serialize_prop(self.variant)
         if self.id is not None:
             d["id"] = self.id
         return d
@@ -323,11 +331,11 @@ class CheckBox(ComponentBuilderNode):
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"component": self.component_name}
         if self.label is not None:
-            d["label"] = self.label.to_dict() if hasattr(self.label, "to_dict") else self.label
+            d["label"] = _serialize_prop(self.label)
         if self.value is not None:
-            d["value"] = self.value.to_dict() if hasattr(self.value, "to_dict") else self.value
+            d["value"] = _serialize_prop(self.value)
         if self.checks is not None:
-            d["checks"] = self.checks.to_dict() if hasattr(self.checks, "to_dict") else self.checks
+            d["checks"] = _serialize_prop(self.checks)
         if self.id is not None:
             d["id"] = self.id
         return d
@@ -349,19 +357,19 @@ class ChoicePicker(ComponentBuilderNode):
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"component": self.component_name}
         if self.options is not None:
-            d["options"] = self.options.to_dict() if hasattr(self.options, "to_dict") else self.options
+            d["options"] = _serialize_prop(self.options)
         if self.value is not None:
-            d["value"] = self.value.to_dict() if hasattr(self.value, "to_dict") else self.value
+            d["value"] = _serialize_prop(self.value)
         if self.checks is not None:
-            d["checks"] = self.checks.to_dict() if hasattr(self.checks, "to_dict") else self.checks
+            d["checks"] = _serialize_prop(self.checks)
         if self.displayStyle is not None:
-            d["displayStyle"] = self.displayStyle.to_dict() if hasattr(self.displayStyle, "to_dict") else self.displayStyle
+            d["displayStyle"] = _serialize_prop(self.displayStyle)
         if self.filterable is not None:
-            d["filterable"] = self.filterable.to_dict() if hasattr(self.filterable, "to_dict") else self.filterable
+            d["filterable"] = _serialize_prop(self.filterable)
         if self.label is not None:
-            d["label"] = self.label.to_dict() if hasattr(self.label, "to_dict") else self.label
+            d["label"] = _serialize_prop(self.label)
         if self.variant is not None:
-            d["variant"] = self.variant.to_dict() if hasattr(self.variant, "to_dict") else self.variant
+            d["variant"] = _serialize_prop(self.variant)
         if self.id is not None:
             d["id"] = self.id
         return d
@@ -381,15 +389,15 @@ class Slider(ComponentBuilderNode):
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"component": self.component_name}
         if self.max is not None:
-            d["max"] = self.max.to_dict() if hasattr(self.max, "to_dict") else self.max
+            d["max"] = _serialize_prop(self.max)
         if self.value is not None:
-            d["value"] = self.value.to_dict() if hasattr(self.value, "to_dict") else self.value
+            d["value"] = _serialize_prop(self.value)
         if self.checks is not None:
-            d["checks"] = self.checks.to_dict() if hasattr(self.checks, "to_dict") else self.checks
+            d["checks"] = _serialize_prop(self.checks)
         if self.label is not None:
-            d["label"] = self.label.to_dict() if hasattr(self.label, "to_dict") else self.label
+            d["label"] = _serialize_prop(self.label)
         if self.min is not None:
-            d["min"] = self.min.to_dict() if hasattr(self.min, "to_dict") else self.min
+            d["min"] = _serialize_prop(self.min)
         if self.id is not None:
             d["id"] = self.id
         return d
@@ -411,19 +419,19 @@ class DateTimeInput(ComponentBuilderNode):
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"component": self.component_name}
         if self.value is not None:
-            d["value"] = self.value.to_dict() if hasattr(self.value, "to_dict") else self.value
+            d["value"] = _serialize_prop(self.value)
         if self.checks is not None:
-            d["checks"] = self.checks.to_dict() if hasattr(self.checks, "to_dict") else self.checks
+            d["checks"] = _serialize_prop(self.checks)
         if self.enableDate is not None:
-            d["enableDate"] = self.enableDate.to_dict() if hasattr(self.enableDate, "to_dict") else self.enableDate
+            d["enableDate"] = _serialize_prop(self.enableDate)
         if self.enableTime is not None:
-            d["enableTime"] = self.enableTime.to_dict() if hasattr(self.enableTime, "to_dict") else self.enableTime
+            d["enableTime"] = _serialize_prop(self.enableTime)
         if self.label is not None:
-            d["label"] = self.label.to_dict() if hasattr(self.label, "to_dict") else self.label
+            d["label"] = _serialize_prop(self.label)
         if self.max is not None:
-            d["max"] = self.max.to_dict() if hasattr(self.max, "to_dict") else self.max
+            d["max"] = _serialize_prop(self.max)
         if self.min is not None:
-            d["min"] = self.min.to_dict() if hasattr(self.min, "to_dict") else self.min
+            d["min"] = _serialize_prop(self.min)
         if self.id is not None:
             d["id"] = self.id
         return d

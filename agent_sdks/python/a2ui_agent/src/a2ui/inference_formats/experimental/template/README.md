@@ -11,16 +11,29 @@ For the language-agnostic protocol specification, JSON schemas, and multi-platfo
 
 ### 1. `StaticTemplate`
 
-Represents a declarative, immutable UI template parsed from YAML or a dictionary.
+Represents a declarative, immutable UI template defined using typesafe Python component builders or parsed from JSON.
 
 ```python
+from a2ui.inference_formats.experimental.macros.builder import Card, Column, Icon, Text
 from a2ui.inference_formats.experimental.template import StaticTemplate
 
-# Load from single or multi-document ('---') YAML files
-templates = StaticTemplate.from_yaml_file("path/to/templates.yaml")
+# Define directly using typesafe builders
+layout = Card(
+    child=Column(
+        children=[
+            Text(text="Stock: {{ ticker }}"),
+            Text(text="Price: ${{ price }}"),
+        ]
+    )
+)
+stock_template = StaticTemplate.from_builder(
+    name="StockCard",
+    layout=layout,
+    description="Displays current stock pricing.",
+)
 
-# Load directly from a YAML string
-single_template = StaticTemplate.from_yaml(yaml_string)
+# Or load from JSON
+templates = StaticTemplate.from_json_file("path/to/templates.json")
 ```
 
 ### 2. `DynamicTemplate`
@@ -29,15 +42,28 @@ Extends templates with server-side execution. Supports two modes:
 
 #### A. Data-Binding Mode (`resolver + layout`)
 
-Takes a lookup argument (e.g. `employeeId`), runs a resolver callback, and injects the result into a static YAML presentation layout:
+Takes a lookup argument (e.g. `employeeId`), runs a resolver callback, and injects the result into a presentation layout:
 
 ```python
+from a2ui.inference_formats.experimental.macros.builder import Card, Column, Text
 from a2ui.inference_formats.experimental.template import DynamicTemplate, StaticTemplate
 
-layout = StaticTemplate.from_yaml_file("salary_card.yaml")[0]
+layout = StaticTemplate.from_builder(
+    name="SalaryCard",
+    layout=Card(
+        child=Column(
+            children=[
+                Text(text="{{ employeeName }}", variant="h3"),
+                Text(text="Base: {{ baseSalary }}", variant="body"),
+            ]
+        )
+    ),
+)
+
 
 def resolve_compensation(employeeId: str) -> dict:
-    return db.fetch_employee_salary(employeeId)
+  return db.fetch_employee_salary(employeeId)
+
 
 dynamic_salary = DynamicTemplate(
     template_id="EmployeeSalaryCard",
@@ -48,32 +74,26 @@ dynamic_salary = DynamicTemplate(
 )
 ```
 
-#### B. Programmatic Render Mode (`render`)
+#### B. Programmatic Render Mode (`render` or `@dynamic_template`)
 
-Bypasses static layouts and runs native Python logic (loops, arithmetic, conditionals) returning a component AST:
+Bypasses static layouts and runs native Python logic (loops, arithmetic, conditionals) returning typesafe builder nodes:
 
 ```python
-from a2ui.inference_formats.experimental.template import DynamicTemplate
+from a2ui.inference_formats.experimental.macros.builder import Card, Column, Icon, Text
+from a2ui.inference_formats.experimental.template import dynamic_template
 
-def render_server_health(serverId: str, includeDisks: bool = True) -> dict:
-    status_icon = "check_circle" if serverId == "srv_01" else "warning"
-    return {
-        "component": "Card",
-        "child": {
-            "component": "Column",
-            "children": [
-                {"component": "Text", "text": f"Server {serverId}", "variant": "h3"},
-                {"component": "Icon", "name": status_icon},
-            ]
-        }
-    }
 
-server_template = DynamicTemplate(
-    template_id="ServerHealthCard",
-    render=render_server_health,
-    description="Live server diagnostics.",
-    sample_data={"serverId": "srv_01", "includeDisks": True},
-)
+@dynamic_template(description="Live server diagnostics.")
+def server_health_card(serverId: str, includeDisks: bool = True) -> Card:
+  status_icon = "check_circle" if serverId == "srv_01" else "warning"
+  return Card(
+      child=Column(
+          children=[
+              Text(text=f"Server {serverId}", variant="h3"),
+              Icon(name=status_icon),
+          ]
+      )
+  )
 ```
 
 ### 3. `TemplateProcessor`

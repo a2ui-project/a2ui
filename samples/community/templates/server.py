@@ -28,12 +28,23 @@ from google import genai
 from google.genai import types
 from pydantic import BaseModel
 
-from a2ui.inference_formats.experimental.template import (
-    StaticTemplate,
-    DynamicTemplate,
-    dynamic_template,
-    TemplateInferenceFormat,
+from a2ui.inference_formats.experimental.macros.builder import (
+    Button,
+    Card,
+    Column,
+    ComponentBuilderNode,
+    Divider,
+    Icon,
+    Row,
+    Text,
 )
+from a2ui.inference_formats.experimental.template import (
+    DynamicTemplate,
+    StaticTemplate,
+    TemplateInferenceFormat,
+    dynamic_template,
+)
+from template_definitions import SalaryCard, get_all_templates
 
 app = FastAPI(title="A2UI Templates Community Demo Server")
 
@@ -112,11 +123,11 @@ def fetch_employee_compensation(employeeId: str) -> Dict[str, Any]:
 )
 def render_payroll_summary(
     department: str = "Global Engineering", includeBonus: bool = True
-) -> Dict[str, Any]:
+) -> Card:
     """Programmatic dynamic template: performs Python math, loops, formatting, and builds an AST table."""
     total_base = 0
     total_bonus = 0
-    rows: List[Dict[str, Any]] = []
+    rows: List[ComponentBuilderNode] = []
 
     for emp_id, record in EMPLOYEE_COMPENSATION_DB.items():
         base_int = int(record["baseSalary"].replace("$", "").replace(",", ""))
@@ -124,160 +135,133 @@ def render_payroll_summary(
         total_base += base_int
         total_bonus += bonus_int
 
-        cols = [
-            {"component": "Text", "text": record["employeeName"], "variant": "body"},
-            {"component": "Text", "text": record["role"], "variant": "caption"},
-            {"component": "Text", "text": record["baseSalary"], "variant": "body"},
+        cols: List[ComponentBuilderNode] = [
+            Text(text=record["employeeName"], variant="body"),
+            Text(text=record["role"], variant="caption"),
+            Text(text=record["baseSalary"], variant="body"),
         ]
         if includeBonus:
-            cols.append(
-                {"component": "Text", "text": record["annualBonus"], "variant": "body"}
-            )
+            cols.append(Text(text=record["annualBonus"], variant="body"))
 
-        rows.append({
-            "component": "Row",
-            "justify": "spaceBetween",
-            "align": "center",
-            "children": cols,
-        })
-        rows.append({"component": "Divider", "axis": "horizontal"})
+        rows.append(
+            Row(
+                justify="spaceBetween",
+                align="center",
+                children=cols,
+            )
+        )
+        rows.append(Divider(axis="horizontal"))
 
     # Header Row
-    header_cols = [
-        {"component": "Text", "text": "Employee", "variant": "caption"},
-        {"component": "Text", "text": "Role", "variant": "caption"},
-        {"component": "Text", "text": "Base Salary", "variant": "caption"},
+    header_cols: List[ComponentBuilderNode] = [
+        Text(text="Employee", variant="caption"),
+        Text(text="Role", variant="caption"),
+        Text(text="Base Salary", variant="caption"),
     ]
     if includeBonus:
-        header_cols.append(
-            {"component": "Text", "text": "Annual Bonus", "variant": "caption"}
-        )
+        header_cols.append(Text(text="Annual Bonus", variant="caption"))
 
     # Total Row
-    total_cols = [
-        {"component": "Text", "text": "TOTAL PAYROLL", "variant": "h4"},
-        {
-            "component": "Text",
-            "text": f"{len(EMPLOYEE_COMPENSATION_DB)} Employees",
-            "variant": "caption",
-        },
-        {"component": "Text", "text": f"${total_base:,}", "variant": "h4"},
+    total_cols: List[ComponentBuilderNode] = [
+        Text(text="TOTAL PAYROLL", variant="h4"),
+        Text(
+            text=f"{len(EMPLOYEE_COMPENSATION_DB)} Employees",
+            variant="caption",
+        ),
+        Text(text=f"${total_base:,}", variant="h4"),
     ]
     if includeBonus:
-        total_cols.append(
-            {"component": "Text", "text": f"${total_bonus:,}", "variant": "h4"}
-        )
+        total_cols.append(Text(text=f"${total_bonus:,}", variant="h4"))
 
     total_budget = total_base + (total_bonus if includeBonus else 0)
 
-    return {
-        "component": "Card",
-        "child": {
-            "component": "Column",
-            "children": [
-                {
-                    "component": "Row",
-                    "justify": "spaceBetween",
-                    "align": "center",
-                    "children": [
-                        {
-                            "component": "Row",
-                            "align": "center",
-                            "children": [
-                                {"component": "Icon", "name": "lock"},
-                                {
-                                    "component": "Text",
-                                    "text": (
+    return Card(
+        child=Column(
+            children=[
+                Row(
+                    justify="spaceBetween",
+                    align="center",
+                    children=[
+                        Row(
+                            align="center",
+                            children=[
+                                Icon(name="lock"),
+                                Text(
+                                    text=(
                                         f"Payroll & Compensation Summary: {department}"
                                     ),
-                                    "variant": "h3",
-                                },
+                                    variant="h3",
+                                ),
                             ],
-                        },
-                        {
-                            "component": "Text",
-                            "text": "Confidential HR Record",
-                            "variant": "caption",
-                        },
+                        ),
+                        Text(
+                            text="Confidential HR Record",
+                            variant="caption",
+                        ),
                     ],
-                },
-                {"component": "Divider", "axis": "horizontal"},
-                {
-                    "component": "Row",
-                    "justify": "spaceBetween",
-                    "align": "center",
-                    "children": header_cols,
-                },
-                {"component": "Divider", "axis": "horizontal"},
+                ),
+                Divider(axis="horizontal"),
+                Row(
+                    justify="spaceBetween",
+                    align="center",
+                    children=header_cols,
+                ),
+                Divider(axis="horizontal"),
                 *rows,
-                {
-                    "component": "Row",
-                    "justify": "spaceBetween",
-                    "align": "center",
-                    "children": total_cols,
-                },
-                {"component": "Divider", "axis": "horizontal"},
-                {
-                    "component": "Row",
-                    "justify": "spaceBetween",
-                    "align": "center",
-                    "children": [
-                        {
-                            "component": "Text",
-                            "text": (
+                Row(
+                    justify="spaceBetween",
+                    align="center",
+                    children=total_cols,
+                ),
+                Divider(axis="horizontal"),
+                Row(
+                    justify="spaceBetween",
+                    align="center",
+                    children=[
+                        Text(
+                            text=(
                                 "🔒 Computed live by server Python execution engine"
                             ),
-                            "variant": "caption",
-                        },
-                        {
-                            "component": "Text",
-                            "text": f"Total Budget: ${total_budget:,}",
-                            "variant": "caption",
-                        },
+                            variant="caption",
+                        ),
+                        Text(
+                            text=f"Total Budget: ${total_budget:,}",
+                            variant="caption",
+                        ),
                     ],
-                },
+                ),
             ],
-        },
-    }
+        )
+    )
 
 
 def load_templates() -> List[Any]:
     """Loads all static templates and registers dynamic resolver templates."""
-    current_file = Path(__file__).resolve()
-    templates_dir = current_file.parent / "templates"
-    templates_pattern = str(templates_dir / "*.yaml")
+    templates_list: List[Any] = []
+    for tmpl in get_all_templates():
+        if tmpl.name == "SalaryCard" or tmpl.template_id == "SalaryCard":
+            continue
+        templates_list.append(tmpl)
 
-    templates_list = []
-    salary_layout = None
-
-    for path in glob.glob(templates_pattern):
-        loaded_templates = StaticTemplate.from_yaml_file(path)
-        for tmpl in loaded_templates:
-            if tmpl.name == "SalaryCard" or tmpl.template_id == "SalaryCard":
-                salary_layout = tmpl
-            else:
-                templates_list.append(tmpl)
-
-    if salary_layout is not None:
-        # Register DynamicTemplate for EmployeeSalaryCard (Data Binding Mode)
-        dynamic_salary = DynamicTemplate(
-            version="0.1",
-            name="EmployeeSalaryCard",
-            template_id="EmployeeSalaryCard",
-            catalogs=[
-                "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
-            ],
-            resolver=fetch_employee_compensation,
-            layout=salary_layout,
-            description=(
-                "Secure verified employee compensation card. Pass only the"
-                " employeeId ('emp_101', 'emp_102', 'emp_103', 'emp_104');"
-                " compensation data is securely fetched server-side from the"
-                " HR database."
-            ),
-            sample_data={"employeeId": "emp_101"},
-        )
-        templates_list.append(dynamic_salary)
+    # Register DynamicTemplate for EmployeeSalaryCard (Data Binding Mode)
+    dynamic_salary = DynamicTemplate(
+        version="0.1",
+        name="EmployeeSalaryCard",
+        template_id="EmployeeSalaryCard",
+        catalogs=[
+            "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
+        ],
+        resolver=fetch_employee_compensation,
+        layout=SalaryCard,
+        description=(
+            "Secure verified employee compensation card. Pass only the"
+            " employeeId ('emp_101', 'emp_102', 'emp_103', 'emp_104');"
+            " compensation data is securely fetched server-side from the"
+            " HR database."
+        ),
+        sample_data={"employeeId": "emp_101"},
+    )
+    templates_list.append(dynamic_salary)
 
     # Register DynamicTemplate for PayrollSummary (Programmatic Render Mode via decorator)
     templates_list.append(render_payroll_summary)
@@ -414,7 +398,7 @@ def list_templates():
     res = []
     for t in templates:
         t_dict = t.to_dict()
-        t_dict["yamlContent"] = t.to_yaml()
+        t_dict["yamlContent"] = t.to_json()
         sample_params = t.sample_data or {}
         try:
             expanded_components = format_instance.processor.expand_template(
@@ -452,7 +436,7 @@ def list_templates():
             if dynamic_tmpl.layout is not None:
                 t_dict["isDataBinding"] = True
                 t_dict["layoutTemplate"] = dynamic_tmpl.layout.to_dict()
-                t_dict["layoutTemplateYaml"] = dynamic_tmpl.layout.to_yaml()
+                t_dict["layoutTemplateYaml"] = dynamic_tmpl.layout.to_json()
             # Run resolver on sampleData to show resolved state
             try:
                 t_dict["resolvedData"] = dynamic_tmpl.resolve(sample_params)

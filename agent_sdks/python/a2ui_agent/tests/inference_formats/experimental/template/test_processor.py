@@ -52,27 +52,29 @@ if BASIC_CATALOG_PATH.is_file():
 
 def test_dynamic_template_with_resolver():
     """Verifies Mode B dynamic template where a native Python resolver fetches data and binds it to a static layout."""
-    layout_yaml = """
-version: "0.1"
-name: LiveStockCard
-catalogs:
-  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
-parameters:
-  ticker: {type: string}
-  price: {type: number, required: false}
-  changePct: {type: string, required: false}
-layout:
-  component: Card
-  child:
-    component: Column
-    children:
-      - component: Text
-        text: "Stock: ${ticker}"
-      - component: Text
-        text: "Price: $${price}"
-      - component: Text
-        text: "Change: ${changePct}%"
-"""
+    layout_dict = {
+        "version": "0.1",
+        "name": "LiveStockCard",
+        "catalogs": [
+            "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
+        ],
+        "parameters": {
+            "ticker": {"type": "string"},
+            "price": {"type": "number", "required": False},
+            "changePct": {"type": "string", "required": False},
+        },
+        "layout": {
+            "component": "Card",
+            "child": {
+                "component": "Column",
+                "children": [
+                    {"component": "Text", "text": "Stock: ${ticker}"},
+                    {"component": "Text", "text": "Price: $${price}"},
+                    {"component": "Text", "text": "Change: ${changePct}%"},
+                ],
+            },
+        },
+    }
 
     mock_db = {
         "GOOG": {"price": 175.50, "changePct": "+1.8"},
@@ -87,7 +89,7 @@ layout:
         name="LiveStockCard",
         template_id="LiveStockCard",
         catalogs=["https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"],
-        layout=layout_yaml,
+        layout=layout_dict,
         resolver=fetch_stock_data,
         description="Displays live stock pricing.",
     )
@@ -170,17 +172,15 @@ def test_programmatic_dynamic_template_extra_params_filtered():
 
 def test_dynamic_template_resolve_non_dict_fallback():
     """Verifies graceful fallback when a resolver returns a non-dict value."""
-    layout_yaml = """
-version: "0.1"
-name: NonDictLayout
-catalogs:
-  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
-parameters:
-  paramA: {type: string}
-layout:
-  component: Text
-  text: ${paramA}
-"""
+    layout_dict = {
+        "version": "0.1",
+        "name": "NonDictLayout",
+        "catalogs": [
+            "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
+        ],
+        "parameters": {"paramA": {"type": "string"}},
+        "layout": {"component": "Text", "text": "${paramA}"},
+    }
 
     def bad_resolver(paramA: str):
         return "not a dict"
@@ -189,7 +189,7 @@ layout:
         name="NonDictLayout",
         template_id="NonDictLayout",
         catalogs=["https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"],
-        layout=layout_yaml,
+        layout=layout_dict,
         resolver=bad_resolver,
     )
     processor = TemplateProcessor(templates=[tmpl], catalogs=BASIC_CATALOG)
@@ -200,24 +200,27 @@ layout:
 
 def test_dynamic_template_loop_custom_as_variable():
     """Verifies dynamic template expansion utilizing custom loop variable naming."""
-    layout_yaml = """
-version: "0.1"
-name: CustomAsList
-catalogs:
-  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
-parameters:
-  items: {type: array}
-layout:
-  component: Column
-  children:
-    loop:
-      param: items
-      as: item_var
-      item:
-        component: Text
-        text: ${item_var.label}
-"""
-    tmpl = StaticTemplate.from_yaml(layout_yaml)
+    tmpl = StaticTemplate.from_dict({
+        "version": "0.1",
+        "name": "CustomAsList",
+        "catalogs": [
+            "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
+        ],
+        "parameters": {"items": {"type": "array"}},
+        "layout": {
+            "component": "Column",
+            "children": {
+                "loop": {
+                    "param": "items",
+                    "as": "item_var",
+                    "item": {
+                        "component": "Text",
+                        "text": "${item_var.label}",
+                    },
+                }
+            },
+        },
+    })
     processor = TemplateProcessor(templates=[tmpl], catalogs=BASIC_CATALOG)
     expanded = processor.expand_template(
         "root",
@@ -255,19 +258,16 @@ def test_template_processor_with_custom_domain_catalog():
         "functions": {},
     }
 
-    layout_yaml = """
-version: "0.1"
-name: MedicalReport
-catalogs:
-  - "https://company.org/custom_medical_catalog.json"
-parameters:
-  patientName: {type: string}
-layout:
-  component: PatientChart
-  properties:
-    name: ${patientName}
-"""
-    tmpl = StaticTemplate.from_yaml(layout_yaml)
+    tmpl = StaticTemplate.from_dict({
+        "version": "0.1",
+        "name": "MedicalReport",
+        "catalogs": ["https://company.org/custom_medical_catalog.json"],
+        "parameters": {"patientName": {"type": "string"}},
+        "layout": {
+            "component": "PatientChart",
+            "properties": {"name": "${patientName}"},
+        },
+    })
     processor = TemplateProcessor(templates=[tmpl], catalogs=custom_catalog)
 
     assert (
@@ -302,17 +302,16 @@ def test_multi_catalog_resolution_and_disambiguation():
     }
 
     # Case 1: Ambiguous component without disambiguation raises ValueError
-    ambiguous_yaml = """
-version: "0.1"
-name: AmbiguousTemplate
-catalogs:
-  - "https://a2ui.org/cat_a.json"
-  - "https://a2ui.org/cat_b.json"
-parameters: {}
-layout:
-  component: SharedBox
-"""
-    tmpl_ambiguous = StaticTemplate.from_yaml(ambiguous_yaml)
+    tmpl_ambiguous = StaticTemplate.from_dict({
+        "version": "0.1",
+        "name": "AmbiguousTemplate",
+        "catalogs": [
+            "https://a2ui.org/cat_a.json",
+            "https://a2ui.org/cat_b.json",
+        ],
+        "parameters": {},
+        "layout": {"component": "SharedBox"},
+    })
     with pytest.raises(ValueError, match="ambiguous across multiple declared catalogs"):
         TemplateProcessor(
             templates=[tmpl_ambiguous],
@@ -321,18 +320,19 @@ layout:
         )
 
     # Case 2: Disambiguated component with catalogId resolves successfully
-    disambiguated_yaml = """
-version: "0.1"
-name: DisambiguatedTemplate
-catalogs:
-  - "https://a2ui.org/cat_a.json"
-  - "https://a2ui.org/cat_b.json"
-parameters: {}
-layout:
-  component: SharedBox
-  catalogId: "https://a2ui.org/cat_b.json"
-"""
-    tmpl_ok = StaticTemplate.from_yaml(disambiguated_yaml)
+    tmpl_ok = StaticTemplate.from_dict({
+        "version": "0.1",
+        "name": "DisambiguatedTemplate",
+        "catalogs": [
+            "https://a2ui.org/cat_a.json",
+            "https://a2ui.org/cat_b.json",
+        ],
+        "parameters": {},
+        "layout": {
+            "component": "SharedBox",
+            "catalogId": "https://a2ui.org/cat_b.json",
+        },
+    })
     proc = TemplateProcessor(
         templates=[tmpl_ok],
         catalogs=[catalog_a, catalog_b],
@@ -354,17 +354,16 @@ def test_v09_rejects_multi_catalog_template():
         "$id": "https://a2ui.org/cat_b.json",
         "components": {"CompB": {}},
     }
-    multi_yaml = """
-version: "0.1"
-name: MultiCatTemplate
-catalogs:
-  - "https://a2ui.org/cat_a.json"
-  - "https://a2ui.org/cat_b.json"
-parameters: {}
-layout:
-  component: CompA
-"""
-    tmpl = StaticTemplate.from_yaml(multi_yaml)
+    tmpl = StaticTemplate.from_dict({
+        "version": "0.1",
+        "name": "MultiCatTemplate",
+        "catalogs": [
+            "https://a2ui.org/cat_a.json",
+            "https://a2ui.org/cat_b.json",
+        ],
+        "parameters": {},
+        "layout": {"component": "CompA"},
+    })
     with pytest.raises(ValueError, match="only supports a single catalog"):
         TemplateProcessor(
             templates=[tmpl],
@@ -435,37 +434,44 @@ def test_mustache_substitution_syntax():
     """Verifies that double-curly Mustache syntax {{ param }} is supported for substitutions,
     preserves exact types, allows whitespace, and leaves client ${/data/path} bindings intact.
     """
-    layout_yaml = """
-version: "0.1"
-name: MustacheCard
-catalogs:
-  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
-parameters:
-  count: {type: integer}
-  isActive: {type: boolean}
-  user: {type: object}
-  tags: {type: array}
-  dept: {type: string}
-layout:
-  component: Card
-  child:
-    component: Column
-    children:
-      - component: Text
-        text: "{{ count }}"
-      - component: Text
-        text: "{{   isActive   }}"
-      - component: Text
-        text: "Hello, {{ user.profile.name }}! Dept: {{ dept }}"
-      - component: Text
-        text: "Literal: \\\\{{ escaped }}"
-      - component: Text
-        text:
-          call: formatString
-          args:
-            value: "Live: ${/metrics/cpu}, Dept: {{ dept }}"
-"""
-    tmpl = StaticTemplate.from_yaml(layout_yaml)
+    tmpl = StaticTemplate.from_dict({
+        "version": "0.1",
+        "name": "MustacheCard",
+        "catalogs": [
+            "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
+        ],
+        "parameters": {
+            "count": {"type": "integer"},
+            "isActive": {"type": "boolean"},
+            "user": {"type": "object"},
+            "tags": {"type": "array"},
+            "dept": {"type": "string"},
+        },
+        "layout": {
+            "component": "Card",
+            "child": {
+                "component": "Column",
+                "children": [
+                    {"component": "Text", "text": "{{ count }}"},
+                    {"component": "Text", "text": "{{   isActive   }}"},
+                    {
+                        "component": "Text",
+                        "text": "Hello, {{ user.profile.name }}! Dept: {{ dept }}",
+                    },
+                    {"component": "Text", "text": "Literal: \\{{ escaped }}"},
+                    {
+                        "component": "Text",
+                        "text": {
+                            "call": "formatString",
+                            "args": {
+                                "value": "Live: ${/metrics/cpu}, Dept: {{ dept }}"
+                            },
+                        },
+                    },
+                ],
+            },
+        },
+    })
     processor = TemplateProcessor(templates=[tmpl], catalogs=BASIC_CATALOG)
     expanded = processor.expand_template(
         "inst_1",
@@ -493,3 +499,37 @@ layout:
         "call": "formatString",
         "args": {"value": "Live: ${/metrics/cpu}, Dept: Engineering"},
     }
+
+
+def test_dynamic_template_with_typesafe_builder():
+    """Verifies dynamic template expansion returning typesafe builder nodes."""
+    from a2ui.inference_formats.experimental.macros.builder import (
+        Card,
+        Column,
+        Text,
+    )
+
+    @dynamic_template(
+        name="TypesafeSummary",
+        catalogs=["https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"],
+    )
+    def render_summary(title: str, count: int) -> Card:
+        return Card(
+            child=Column(
+                children=[
+                    Text(text=title, variant="h3"),
+                    Text(text=str(count), variant="body"),
+                ]
+            )
+        )
+
+    processor = TemplateProcessor(templates=[render_summary], catalogs=BASIC_CATALOG)
+    expanded = processor.expand_template(
+        "root", "TypesafeSummary", {"title": "Orders", "count": 10}
+    )
+    assert len(expanded) == 4
+    card = [c for c in expanded if c["component"] == "Card"][0]
+    assert card["id"] == "root"
+    texts = [c for c in expanded if c["component"] == "Text"]
+    assert any(t["text"] == "Orders" for t in texts)
+    assert any(t["text"] == "10" for t in texts)
