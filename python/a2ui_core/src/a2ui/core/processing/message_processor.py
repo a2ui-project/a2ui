@@ -96,31 +96,34 @@ class MessageProcessor:
 
     def _decode_protobuf_bytes(self, data: bytes) -> List[Dict[str, Any]]:
         """Decodes binary Protobuf bytes into message dictionary representations."""
+        errors: List[str] = []
         try:
             msg = agent_to_renderer_pb2.AgentToRendererMessage()
             msg.ParseFromString(data)
             if msg.WhichOneof("message") is not None:
                 return [agent_message_to_dict(msg)]
-        except Exception:
-            pass
+        except Exception as e:
+            errors.append(f"AgentToRendererMessage: {e}")
 
         try:
             wrapper = agent_to_renderer_list_wrapper_pb2.AgentToRendererListWrapper()
             wrapper.ParseFromString(data)
             if len(wrapper.messages.messages) > 0:
                 return [agent_message_to_dict(m) for m in wrapper.messages.messages]
-        except Exception:
-            pass
+        except Exception as e:
+            errors.append(f"AgentToRendererListWrapper: {e}")
 
         try:
             msg_list = agent_to_renderer_list_pb2.AgentToRendererMessageList()
             msg_list.ParseFromString(data)
             if len(msg_list.messages) > 0:
                 return [agent_message_to_dict(m) for m in msg_list.messages]
-        except Exception:
-            pass
+        except Exception as e:
+            errors.append(f"AgentToRendererMessageList: {e}")
 
-        return []
+        raise ValueError(
+            f"Failed to decode binary Protobuf payload. Attempted formats: {', '.join(errors)}"
+        )
 
     def get_renderer_capabilities(
         self,

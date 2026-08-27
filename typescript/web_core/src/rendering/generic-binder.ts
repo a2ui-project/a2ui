@@ -76,12 +76,17 @@ function isCheckableField(type: z.ZodTypeAny, propertyName?: string): boolean {
   }
 
   let current = type;
-  while (
-    current._def.typeName === 'ZodOptional' ||
-    current._def.typeName === 'ZodNullable' ||
-    current._def.typeName === 'ZodDefault'
-  ) {
-    current = current._def.innerType;
+  while (current?._def) {
+    const typeName = current._def.typeName;
+    if (typeName === 'ZodOptional' || typeName === 'ZodNullable' || typeName === 'ZodDefault') {
+      current = current._def.innerType;
+    } else if (typeName === 'ZodEffects') {
+      current = current._def.schema;
+    } else if (typeName === 'ZodLazy') {
+      current = current._def.getter();
+    } else {
+      break;
+    }
   }
 
   const desc: string = current.description ?? current._def.description ?? '';
@@ -91,12 +96,21 @@ function isCheckableField(type: z.ZodTypeAny, propertyName?: string): boolean {
 
   if (current._def.typeName === 'ZodArray') {
     let elem = current._def.type;
-    while (
-      elem._def.typeName === 'ZodOptional' ||
-      elem._def.typeName === 'ZodNullable' ||
-      elem._def.typeName === 'ZodDefault'
-    ) {
-      elem = elem._def.innerType;
+    while (elem?._def) {
+      const elemTypeName = elem._def.typeName;
+      if (
+        elemTypeName === 'ZodOptional' ||
+        elemTypeName === 'ZodNullable' ||
+        elemTypeName === 'ZodDefault'
+      ) {
+        elem = elem._def.innerType;
+      } else if (elemTypeName === 'ZodEffects') {
+        elem = elem._def.schema;
+      } else if (elemTypeName === 'ZodLazy') {
+        elem = elem._def.getter();
+      } else {
+        break;
+      }
     }
     const elemDesc: string = elem.description ?? elem._def.description ?? '';
     if (elemDesc.includes('Check') || elemDesc.includes('ValidationRule')) {

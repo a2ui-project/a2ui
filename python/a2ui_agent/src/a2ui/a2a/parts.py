@@ -63,11 +63,12 @@ def create_a2ui_part(
     if output_format == OutputFormat.PROTO_BYTES or isinstance(
         a2ui_data, (bytes, bytearray)
     ):
-        raw_bytes = (
-            bytes(a2ui_data)
-            if isinstance(a2ui_data, (bytes, bytearray))
-            else ProtobufBinarySerializer().serialize(a2ui_data)
-        )
+        if isinstance(a2ui_data, (bytes, bytearray)):
+            raw_bytes = bytes(a2ui_data)
+        elif isinstance(a2ui_data, agent_to_renderer_pb2.AgentToRendererMessage):
+            raw_bytes = a2ui_data.SerializeToString()
+        else:
+            raw_bytes = ProtobufBinarySerializer().serialize(a2ui_data)
         import base64
 
         b64_str = base64.b64encode(raw_bytes).decode("utf-8")

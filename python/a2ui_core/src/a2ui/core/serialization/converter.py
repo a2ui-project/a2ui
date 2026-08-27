@@ -76,21 +76,19 @@ def _denormalize_payload_from_proto(payload: dict[str, Any]) -> dict[str, Any]:
             comp_flat.update(props)
         return comp_flat
 
-    if "createSurface" in denormalized and isinstance(
-        denormalized["createSurface"], dict
-    ):
-        cs = dict(denormalized["createSurface"])
-        if "components" in cs and isinstance(cs["components"], list):
-            cs["components"] = [_denormalize_comp(c) for c in cs["components"]]
-        denormalized["createSurface"] = cs
+    for key in ("createSurface", "create_surface"):
+        if key in denormalized and isinstance(denormalized[key], dict):
+            cs = dict(denormalized[key])
+            if "components" in cs and isinstance(cs["components"], list):
+                cs["components"] = [_denormalize_comp(c) for c in cs["components"]]
+            denormalized[key] = cs
 
-    if "updateComponents" in denormalized and isinstance(
-        denormalized["updateComponents"], dict
-    ):
-        uc = dict(denormalized["updateComponents"])
-        if "components" in uc and isinstance(uc["components"], list):
-            uc["components"] = [_denormalize_comp(c) for c in uc["components"]]
-        denormalized["updateComponents"] = uc
+    for key in ("updateComponents", "update_components"):
+        if key in denormalized and isinstance(denormalized[key], dict):
+            uc = dict(denormalized[key])
+            if "components" in uc and isinstance(uc["components"], list):
+                uc["components"] = [_denormalize_comp(c) for c in uc["components"]]
+            denormalized[key] = uc
 
     return denormalized
 

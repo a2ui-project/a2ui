@@ -408,7 +408,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       if (root?.file && typeof root.file === 'object') {
         const file = root.file as Record<string, unknown>;
         if (file.bytes) {
-          const decoded = decodeAgentToRendererMessages(file.bytes as string);
+          const decoded = decodeAgentToRendererMessages(
+            file.bytes as string | Uint8Array | ArrayBuffer,
+          );
           for (const m of decoded) {
             this.processMessages(m);
           }
