@@ -52,7 +52,7 @@ The typesafe API generator uses a three-tier architecture that separates schema 
 1. **Catalog Ingestion Engine**: Loads catalog JSON schemas from a local file or URL, parses the schema AST, resolves `$ref` references, and instantiates the in-memory `Catalog` object. JSON Schema is treated as an ingestion format / implementation detail.
 2. **The In-Memory Catalog as Normalized IR**: The existing `Catalog` class in `a2ui_core` (containing `ComponentApi` and `FunctionApi`) serves as the normalized intermediate representation. We enhance `ComponentApi` with methods to inspect typed properties and child slots, eliminating the need for an external, duplicated IR layer.
 3. **Language Emitters**: Pluggable code generation backends. Each backend receives a `Catalog` instance and emits formatted source files adhering to the idioms of the target programming language.
-4. **Runtime Core (`a2ui-core`)**: A lightweight, zero-dependency library providing base interfaces (`ComponentNode`, `DataBinding`, `Action`, `FunctionCall`), tree flattening algorithms, and surface-level ID allocation. Generated code imports only this runtime core.
+4. **Runtime Core (`a2ui-core`)**: A lightweight, zero-dependency library providing base interfaces (`ComponentBuilderNode`, `DataBinding`, `Action`, `FunctionCall`), tree flattening algorithms, and surface-level ID allocation. Generated code imports only this runtime core.
 
 ---
 
@@ -275,9 +275,9 @@ def to_python_type(t: TypeDescriptor) -> str:
         case EnumType(name=name):
             return name
         case ComponentRefType():
-            return "ComponentNode | str"
+            return "ComponentBuilderNode | str"
         case ComponentListType():
-            return "Sequence[ComponentNode] | DynamicChildList"
+            return "Sequence[ComponentBuilderNode] | DynamicChildList"
         case DynamicType(inner=inner):
             return f"{to_python_type(inner)} | DataBinding | FunctionCall"
         case ActionType():
@@ -431,7 +431,7 @@ class Action:
         return {}
 
 
-class ComponentNode(ABC):
+class ComponentBuilderNode(ABC):
     """Abstract interface implemented by all typesafe UI component instances."""
 
     id: Optional[str] = None
@@ -472,7 +472,7 @@ If internal components reference one another by ID (for example, in `child` or `
 
 #### 4. Slot boundary preservation
 
-When a synthetic component accepts a child component via a slot parameter (e.g. `def modal(body: ComponentNode)`):
+When a synthetic component accepts a child component via a slot parameter (e.g. `def modal(body: ComponentBuilderNode)`):
 
 - The `body` component was created in the **caller's scope**, not inside the synthetic component.
 - The flattener detects slot boundaries and **does not namespace caller-provided nodes**. Caller-provided IDs remain intact, allowing the caller's outer logic and event handlers to address slot components directly.
@@ -480,7 +480,7 @@ When a synthetic component accepts a child component via a slot parameter (e.g. 
 ```python
 # a2ui/core/flattener.py
 from typing import Any, Optional, Set
-from a2ui.core.ui import ComponentNode
+from a2ui.core.ui import ComponentBuilderNode
 
 
 class IdAllocator:
@@ -499,10 +499,10 @@ class IdAllocator:
 
 
 def flatten_component_tree(
-    root: ComponentNode,
+    root: ComponentBuilderNode,
     root_id: Optional[str] = None,
     id_prefix: Optional[str] = None,
-    slot_nodes: Optional[Set[ComponentNode]] = None,
+    slot_nodes: Optional[Set[ComponentBuilderNode]] = None,
 ) -> list[dict[str, Any]]:
     """Flattens a component tree into A2UI wire format with scoped IDs.
 
@@ -521,7 +521,7 @@ def flatten_component_tree(
     flattened: list[dict[str, Any]] = []
     is_root = True
 
-    def visit(node: ComponentNode) -> str:
+    def visit(node: ComponentBuilderNode) -> str:
         nonlocal is_root
 
         # Determine node ID
@@ -545,7 +545,7 @@ def flatten_component_tree(
 
         # Recursively flatten child slot
         if "child" in node_dict and isinstance(
-            node_dict["child"], ComponentNode
+            node_dict["child"], ComponentBuilderNode
         ):
             node_dict["child"] = visit(node_dict["child"])
 
@@ -553,7 +553,7 @@ def flatten_component_tree(
         if "children" in node_dict and isinstance(node_dict["children"], list):
             new_children = []
             for item in node_dict["children"]:
-                if isinstance(item, ComponentNode):
+                if isinstance(item, ComponentBuilderNode):
                     new_children.append(visit(item))
                 else:
                     new_children.append(item)
@@ -585,7 +585,7 @@ The Python emitter turns a `Catalog` into four files:
    * Dataclass definitions with explicit keyword arguments and catalog docstrings:
      ```python
      @dataclass(kw_only=True)
-     class Text(ComponentNode):
+     class Text(ComponentBuilderNode):
          """The text content to display.
 
          Supports Markdown formatting.
@@ -724,13 +724,13 @@ To support TypeScript, Dart, and Kotlin in the future while maximizing shared co
 
 ### Language idiom mappings
 
-| Concept             | Python                                               | TypeScript                                                     | Dart                               | Kotlin                                 |
-| :------------------ | :--------------------------------------------------- | :------------------------------------------------------------- | :--------------------------------- | :------------------------------------- |
-| **Component Class** | `@dataclass(kw_only=True) class Card(ComponentNode)` | `class Card implements ComponentNode` or `interface CardProps` | `class Card extends ComponentNode` | `data class Card(...) : ComponentNode` |
-| **String Enum**     | `Literal["h1", "body"]`                              | `"h1" \| "body"`                                               | `enum TextVariant { h1, body }`    | `enum class TextVariant { H1, BODY }`  |
-| **Child Slot**      | `child: ComponentNode \| str`                        | `child: ComponentNode \| string`                               | `ComponentNode child`              | `val child: ComponentNode`             |
-| **Dynamic String**  | `str \| DataBinding \| FunctionCall`                 | `string \| DataBinding \| FunctionCall`                        | `DynamicString text`               | `DynamicString text`                   |
-| **Serialization**   | `.to_dict()`                                         | `.toJSON()`                                                    | `.toJson()`                        | `.toMap()`                             |
+| Concept             | Python                                                      | TypeScript                                                            | Dart                                      | Kotlin                                        |
+| :------------------ | :---------------------------------------------------------- | :-------------------------------------------------------------------- | :---------------------------------------- | :-------------------------------------------- |
+| **Component Class** | `@dataclass(kw_only=True) class Card(ComponentBuilderNode)` | `class Card implements ComponentBuilderNode` or `interface CardProps` | `class Card extends ComponentBuilderNode` | `data class Card(...) : ComponentBuilderNode` |
+| **String Enum**     | `Literal["h1", "body"]`                                     | `"h1" \| "body"`                                                      | `enum TextVariant { h1, body }`           | `enum class TextVariant { H1, BODY }`         |
+| **Child Slot**      | `child: ComponentBuilderNode \| str`                        | `child: ComponentBuilderNode \| string`                               | `ComponentBuilderNode child`              | `val child: ComponentBuilderNode`             |
+| **Dynamic String**  | `str \| DataBinding \| FunctionCall`                        | `string \| DataBinding \| FunctionCall`                               | `DynamicString text`                      | `DynamicString text`                          |
+| **Serialization**   | `.to_dict()`                                                | `.toJSON()`                                                           | `.toJson()`                               | `.toMap()`                                    |
 
 ---
 

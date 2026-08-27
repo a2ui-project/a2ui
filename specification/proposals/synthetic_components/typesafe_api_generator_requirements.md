@@ -47,7 +47,7 @@ The exact output data structure of the typesafe API may differ depending on the 
 - **Single root vs. component lists**: Should a synthetic component function return a single root component node (e.g. `Card`), or should it be allowed to return a list of sibling components (e.g. `list[Component]`) for macro layouts like repeating rows or table bodies?
 - **Node tree vs. flattened dictionaries**: Does the synthetic component function return unflattened component nodes that the runtime engine flattens, or does the API flatten the tree into a list of wire dictionaries before returning?
 - **Component ID prefixing and scoping**: When a synthetic component is expanded within an existing surface, how are internal component IDs managed? Does the synthetic component processor prefix generated IDs (e.g. `card_0_text_1`) to avoid collisions with other components on the same surface, or does the builder accept a surface-level ID allocator?
-- **Bundling data model state**: Can a synthetic component function return initial data model state alongside its component tree (e.g. returning a tuple `(ComponentNode, dict[str, Any])` or a container object), or must state initialization remain separate from UI expansion?
+- **Bundling data model state**: Can a synthetic component function return initial data model state alongside its component tree (e.g. returning a tuple `(ComponentBuilderNode, dict[str, Any])` or a container object), or must state initialization remain separate from UI expansion?
 
 ### Output for direct payload authoring
 
@@ -80,7 +80,7 @@ Under this approach, the authoritative A2UI JSON specification serves directly a
 
 #### Approach 2: Abstract component node representation
 
-Under this approach, all builders must produce instances conforming to a formal node interface (e.g. `ComponentNode`) with explicit methods for inspecting component types, properties, and child slots before serialization:
+Under this approach, all builders must produce instances conforming to a formal node interface (e.g. `ComponentBuilderNode`) with explicit methods for inspecting component types, properties, and child slots before serialization:
 
 - **Strengths**: Enables tree inspection, transformations, or AST analysis prior to serialization.
 - **Trade-offs**: More prescriptive. Requires maintaining a standardized node object model across Python, TypeScript, Dart, and Kotlin, increasing SDK maintenance overhead.
@@ -382,10 +382,10 @@ The generator must recognize specific A2UI semantic types declared in `common_ty
   - Maps to an optional string parameter `id: Optional[str] = None`.
 - **`Child` (single child component)**:
   - In v0.9.1, declared as `$ref: "common_types.json#/$defs/ComponentId"` on a property named `child`. In v1.0, declared formally as `$defs/Child`.
-  - Must map to a parameter accepting a component instance (`child: ComponentNode | str`), allowing natural tree nesting while still permitting explicit ID references.
+  - Must map to a parameter accepting a component instance (`child: ComponentBuilderNode | str`), allowing natural tree nesting while still permitting explicit ID references.
 - **`ChildList` (component list or dynamic binding)**:
   - Declared as a `oneOf` schema accepting either a static array of component IDs or a dynamic template object (`{ componentId, path }`).
-  - Must map to a parameter accepting a sequence of components or a dynamic child list (`children: Sequence[ComponentNode] | DynamicChildList`).
+  - Must map to a parameter accepting a sequence of components or a dynamic child list (`children: Sequence[ComponentBuilderNode] | DynamicChildList`).
 - **`DynamicString`**:
   - Declared as a `oneOf` schema accepting a literal string, a data model binding (`DataBinding`), or a function call returning a string.
   - Must map to `str | DataBinding | FunctionCall[str]`.
@@ -568,7 +568,7 @@ The A2UI project already maintains and deploys multiple libraries across languag
 The design must decouple the runtime classes from the code generation tools:
 
 - **Lightweight runtime package**:
-  - Base classes (`ComponentNode`, `DataBinding`, `Action`, `FunctionCall`, the tree flattener, and the ID allocator) must reside in a lightweight runtime package (e.g. `a2ui-core` or `a2ui-runtime`).
+  - Base classes (`ComponentBuilderNode`, `DataBinding`, `Action`, `FunctionCall`, the tree flattener, and the ID allocator) must reside in a lightweight runtime package (e.g. `a2ui-core` or `a2ui-runtime`).
   - _Dependency isolation_: Generated code must depend only on this lightweight runtime package. It must have zero dependencies on LLM orchestration frameworks, agent servers, or heavy web frameworks.
   - This guarantees that generated UI code can be deployed in resource-constrained environments such as serverless functions, lightweight MCP tool servers, or embedded microservices without pulling in the entire agent development kit.
 - **API generator CLI tool**:
