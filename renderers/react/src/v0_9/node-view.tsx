@@ -276,7 +276,7 @@ export function useNodeView(
       if (elsewhere.length > 0) {
         return (
           <UnresolvedChildReference
-            key={`${id}-${requested}`}
+            key={JSON.stringify([id, requested])}
             surface={surface}
             id={id}
             requestedPath={requested}

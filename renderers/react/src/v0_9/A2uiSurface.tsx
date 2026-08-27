@@ -81,7 +81,7 @@ const NodeView = memo(
         const requested = basePath ?? node.dataPath;
         return (
           <DeprecatedUnmarkedReference
-            key={`${child}-${requested}`}
+            key={JSON.stringify([child, requested])}
             surface={surface}
             id={child}
             basePath={requested}

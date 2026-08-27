@@ -138,6 +138,17 @@ const FactoryRenderOnlyImpl: ReactComponentImplementation = {
   render: factoryItem.render,
 };
 
+const DashCollidingScoperImpl: ReactComponentImplementation = {
+  name: 'DashCollidingScoper',
+  schema: z.object({first: ComponentIdSchema.optional(), second: ComponentIdSchema.optional()}),
+  render: ({buildChild}) => (
+    <div>
+      {buildChild('a', '/b-/c')}
+      {buildChild('a-/b', '/c')}
+    </div>
+  ),
+};
+
 const CollidingScoperImpl: ReactComponentImplementation = {
   name: 'CollidingScoper',
   schema: z.object({first: ComponentIdSchema.optional(), second: ComponentIdSchema.optional()}),
@@ -205,6 +216,7 @@ function setup() {
     RawItemImpl,
     FactoryRenderOnlyImpl,
     CollidingScoperImpl,
+    DashCollidingScoperImpl,
     UnmarkedParentImpl,
   ]);
   const surface = new SurfaceModel<ReactComponentImplementation>('surf-1', catalog);
@@ -560,6 +572,28 @@ describe('A2uiSurface', () => {
 
     render(<A2uiSurface surface={surface} />);
     expect(reported.filter(code => code === 'UNRESOLVED_CHILD_REFERENCE')).toHaveLength(2);
+  });
+
+  it('keys look-alike unresolved notices distinctly', () => {
+    // ('a', '/b-/c') and ('a-/b', '/c') joined with '-' produce the same
+    // React key; duplicate sibling keys transfer state across ids on
+    // reorder.
+    const surface = setup();
+    add(surface, 'root', 'DashCollidingScoper', {first: 'a', second: 'a-/b'});
+    add(surface, 'a', 'Text', {text: 'one'});
+    add(surface, 'a-/b', 'Text', {text: 'two'});
+
+    const warnings: string[] = [];
+    const consoleError = console.error;
+    console.error = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(' '));
+    };
+    try {
+      render(<A2uiSurface surface={surface} />);
+    } finally {
+      console.error = consoleError;
+    }
+    expect(warnings.filter(w => w.includes('same key'))).toEqual([]);
   });
 
   it('resolves marked children of a render-only implementation inside a template', () => {
