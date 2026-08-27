@@ -799,62 +799,57 @@ The serialization layer bridges protocol differences automatically:
 
 ---
 
-## Packaging, distribution, and installation of the Python tooling
+## Packaging, distribution, and bloat prevention
 
-To provide a smooth developer experience across different environments (local development, production agent servers, lightweight MCP servers, and CI/CD pipelines), the Python tooling is structured into two distinct packages:
+A critical architectural consideration is whether `a2ui-codegen` should be bundled directly inside the Agent SDK (`a2ui-agent-sdk`), or whether that would introduce unnecessary bloat for production codebases that only need runtime execution.
 
-### 1. Runtime package (`a2ui-core` / `a2ui-agent`)
+### The bloat problem: Build-time tooling vs. runtime execution
 
-The runtime classes and pre-generated standard catalog modules are distributed directly in the core SDKs:
+- **The Code Generator is an author-time tool**: It runs on a developer's workstation or in a CI build pipeline to generate `.py`, `.ts`, or `.dart` source files from a catalog schema. It requires template engines (Jinja2), schema crawlers, and file generators.
+- **The Agent SDK is a runtime server library**: It runs in production environments (web servers, serverless AWS Lambda / Cloud Run functions, microservices, and lightweight Model Context Protocol MCP servers) to orchestrate agent turns and emit A2UI messages.
+- **The risk of direct bundling**: If `a2ui-codegen` and its dependencies (e.g. `jinja2`, CLI runners, formatting utilities) were bundled into the default `dependencies` of `a2ui-agent-sdk`:
+  - Production Docker containers and serverless packages would carry generator dependencies that are never invoked during agent execution.
+  - Users could face dependency version conflicts (e.g. Jinja2 version pins conflicting with their existing web framework).
 
-- **Pre-bundled zero-setup modules**:
-  - `a2ui.basic`: Pre-generated, pre-tested typesafe constructors (`Card`, `Column`, `Row`, `Text`, `Button`, etc.) for the official A2UI Basic Catalog.
-  - Standard developers never need to install, configure, or run the code generator CLI. They simply install `a2ui-core` (or `a2ui-agent`) and immediately import the typed classes:
-    ```python
-    from a2ui.basic import Card, Column, Text, bind
-    ```
+### The separation strategy: Three tiers of distribution
 
-````
-* **Lightweight runtime footprint**:
-  * Contains only `ComponentNode`, `DataBinding`, `Action`, `FunctionCall`, the tree flattener, and the ID allocator.
-  * Zero dependencies on LLM orchestration frameworks, heavy HTTP servers, or CLI tools.
-  * Can be installed in minimal environments such as AWS Lambda functions, Cloudflare Workers, lightweight MCP tool servers, or microservices.
+To achieve maximum convenience without bloating production codebases, the system uses a three-tier separation strategy:
 
-### 2. Standalone code generator CLI (`a2ui-codegen`)
+#### 1. Zero-dependency runtime pre-bundling (`a2ui-core`)
 
-For developers building domain-specific custom catalogs or enterprise UI component libraries:
+The vast majority (>90%) of developers authoring UI use the official A2UI Basic Catalog:
 
-* **Distribution on PyPI**:
-  * Published as a standalone package `a2ui-codegen` on PyPI.
-  * Registered console script in `pyproject.toml`:
-    ```toml
-    [project.scripts]
-    a2ui-codegen = "a2ui.codegen.cli:main"
-````
+- `a2ui-core` ships with **pre-generated, pre-tested typesafe bindings** for the Basic Catalog (`from a2ui.basic import Card, Column, Row, Text`).
+- Developers using standard components never need to install, configure, or run the code generator CLI.
+- `a2ui-core` has zero heavy dependencies, ensuring a minimal runtime footprint for production deployments.
 
-- **Installation and execution options**:
-  - **Option A (Zero-install via `uvx` - Recommended)**:
-    ```bash
-    uvx a2ui-codegen --catalog ./catalogs/custom.json --lang python --out ./src/generated/ui
-    ```
+#### 2. Standalone ephemeral execution via `uvx` / `pipx` (Zero virtualenv pollution)
 
-````
-    `uvx` downloads and runs the tool in an ephemeral, isolated environment with zero pollution of the local virtualenv.
-  * **Option B (Zero-install via `pipx`)**:
-    ```bash
-    pipx run a2ui-codegen --catalog ./catalogs/custom.json --lang python --out ./src/generated/ui
-````
+For developers creating domain-specific custom catalogs or enterprise component suites:
 
-- **Option C (Standard virtualenv install)**:
+- `a2ui-codegen` is published to PyPI as a standalone package with console entry point `[project.scripts] a2ui-codegen = "a2ui.codegen.cli:main"`.
+- Developers run it on-demand using modern ephemeral runners:
+
   ```bash
-  pip install a2ui-codegen
-  a2ui-codegen --catalog ./catalogs/custom.json --lang python --out ./src/generated/ui
+  # Ephemeral zero-install run via uv (recommended):
+  uvx a2ui-codegen --catalog ./catalogs/custom.json --lang python --out ./src/generated/ui
+
+  # Ephemeral run via pipx:
+  pipx run a2ui-codegen --catalog ./catalogs/custom.json --lang python --out ./src/generated/ui
   ```
 
-````
-  * **Option D (SDK extra)**:
-    For developers already developing agents with `a2ui-agent`, the codegen tool is also available via:
-    ```bash
-    pip install "a2ui-agent[codegen]"
-    python -m a2ui.codegen --catalog ./catalogs/custom.json --lang python --out ./src/generated/ui
-````
+- **Why this prevents bloat**: `uvx` downloads and runs the tool in an isolated temporary sandbox. The generated Python files are written to the project's repository, but **zero generator dependencies or packages are added to the project's virtualenv, `pyproject.toml`, or lockfile**.
+
+#### 3. Optional SDK extra for unified installation (`a2ui-agent-sdk[codegen]`)
+
+For developers who prefer having the CLI permanently available in their local development virtualenv:
+
+- The dependency is declared as an optional extra in `a2ui_agent/pyproject.toml`:
+  ```toml
+  [project.optional-dependencies]
+  codegen = [
+      "jinja2>=3.1.0",
+  ]
+  ```
+- **Production deployment**: `pip install a2ui-agent-sdk` (remains lean with zero generator bloat).
+- **Local development**: `pip install "a2ui-agent-sdk[codegen]"` (installs the extra and provides the `a2ui-codegen` command).
