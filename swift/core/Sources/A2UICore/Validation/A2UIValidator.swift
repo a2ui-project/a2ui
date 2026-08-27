@@ -25,18 +25,19 @@ public final class A2UIValidator: Sendable {
   private static let maxFunctionDepth = 5
 
   /// The catalogs registered for component and theme schema validation.
-  public let catalogs: [String: Catalog]
+  public let catalogs: [String: AnyCatalog]
 
   /// The validation configuration controlling strictness.
   public let config: ValidationConfig
 
   /// Creates a validator with a collection of catalogs and a configuration.
   public init(
-    catalogs: [Catalog] = [],
+    catalogs: [any CatalogProtocol] = [],
     config: ValidationConfig = .strict
   ) {
+    let anyCatalogs = catalogs.map { $0.eraseToAnyCatalog() }
     self.catalogs = Dictionary(
-      catalogs.map { ($0.id, $0) },
+      anyCatalogs.map { ($0.id, $0) },
       uniquingKeysWith: { _, last in last }
     )
     self.config = config
@@ -44,7 +45,7 @@ public final class A2UIValidator: Sendable {
 
   /// Creates a validator for a single catalog.
   public convenience init(
-    catalog: Catalog,
+    catalog: any CatalogProtocol,
     config: ValidationConfig = .strict
   ) {
     self.init(catalogs: [catalog], config: config)
@@ -53,7 +54,8 @@ public final class A2UIValidator: Sendable {
   /// Validates a raw JSON payload containing one or more A2UI protocol messages.
   ///
   /// - Parameter payload: The JSONValue representing the message or message array.
-  /// - Throws: `A2UIValidationError`, `A2UIIntegrityError`, `A2UIRecursionError`, or `A2UICatalogError`.
+  /// - Throws: `A2UIValidationError`, `A2UIIntegrityError`, `A2UIRecursionError`,
+  ///   or `A2UICatalogError`.
   public func validate(payload: JSONValue) throws {
     let messagesArray: [JSONValue]
     switch payload {
@@ -114,32 +116,16 @@ public final class A2UIValidator: Sendable {
     index: Int,
     details: inout [A2UIErrorDetail]
   ) {
-    // 1. Version check
-    if let versionValue = message["version"] {
-      if let versionString = versionValue.stringValue {
-        if versionString != "v0.9"
-          && versionString != "v0.9.1"
-          && versionString != "0.9"
-          && versionString != "0.9.1"
-        {
-          details.append(
-            A2UIErrorDetail(
-              path: "messages.\(index).version",
-              code: "invalid_value",
-              message: "Unsupported protocol version '\(versionString)'"
-            )
-          )
-        }
-      } else {
-        details.append(
-          A2UIErrorDetail(
-            path: "messages.\(index).version",
-            code: "type_mismatch",
-            message: "Version must be a string"
-          )
-        )
-      }
-    } else {
+    validateMessageVersion(in: message, index: index, details: &details)
+    validateMessageAction(in: message, index: index, details: &details)
+  }
+
+  private func validateMessageVersion(
+    in message: OrderedDictionary<String, JSONValue>,
+    index: Int,
+    details: inout [A2UIErrorDetail]
+  ) {
+    guard let versionValue = message["version"] else {
       details.append(
         A2UIErrorDetail(
           path: "messages.\(index).version",
@@ -147,9 +133,40 @@ public final class A2UIValidator: Sendable {
           message: "'version' is a required property"
         )
       )
+      return
     }
 
-    // 2. Action key check (exactly one action key)
+    guard let versionString = versionValue.stringValue else {
+      details.append(
+        A2UIErrorDetail(
+          path: "messages.\(index).version",
+          code: "type_mismatch",
+          message: "Version must be a string"
+        )
+      )
+      return
+    }
+
+    if versionString != "v0.9"
+      && versionString != "v0.9.1"
+      && versionString != "0.9"
+      && versionString != "0.9.1"
+    {
+      details.append(
+        A2UIErrorDetail(
+          path: "messages.\(index).version",
+          code: "invalid_value",
+          message: "Unsupported protocol version '\(versionString)'"
+        )
+      )
+    }
+  }
+
+  private func validateMessageAction(
+    in message: OrderedDictionary<String, JSONValue>,
+    index: Int,
+    details: inout [A2UIErrorDetail]
+  ) {
     let actionKeys = message.keys.filter { $0 != "version" }
     if actionKeys.isEmpty {
       details.append(

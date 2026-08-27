@@ -79,51 +79,23 @@ public enum ConformanceTestHelper {
   /// Builds a `Catalog` from a test case catalog configuration dictionary.
   public static func buildCatalog(
     from catalogConfiguration: [String: JSONValue]?
-  ) -> Catalog? {
+  ) -> AnyCatalog? {
     guard let catalogConfiguration else { return nil }
     var catalogID = "test_catalog"
-    var components: [ComponentAPI] = []
+    var components: [AnyComponentAPI] = []
     var allDefinitions: OrderedDictionary<String, JSONValue> = [:]
     var remoteSchemas = A2UICommonSchema.allSchemas
 
-    // 1. Load common_types_schema definitions and register remote schema
-    if let commonTypesValue = catalogConfiguration["common_types_schema"] {
-      var commonTypesJSON: JSONValue?
-      if let pathString = commonTypesValue.stringValue {
-        commonTypesJSON = try? loadJSON(filename: pathString)
-      } else if commonTypesValue.objectValue != nil {
-        commonTypesJSON = commonTypesValue
-      }
-      if let commonTypes = commonTypesJSON {
-        if let identifierString = commonTypes["$id"]?.stringValue {
-          remoteSchemas[identifierString] = commonTypes
-        }
-        remoteSchemas["common_types.json"] = commonTypes
-        remoteSchemas["https://a2ui.org/specification/v0_9/common_types.json"] = commonTypes
-        remoteSchemas["https://a2ui.org/specification/v0_9_1/common_types.json"] = commonTypes
-      }
-      if let definitions = commonTypesJSON?["$defs"]?.objectValue {
-        for (key, definition) in definitions {
-          allDefinitions[key] = definition
-        }
-      }
-    }
+    loadCommonTypesDefinitions(
+      from: catalogConfiguration,
+      remoteSchemas: &remoteSchemas,
+      allDefinitions: &allDefinitions
+    )
 
-    // 2. Load catalog_schema
-    var catalogSchemaJSON: JSONValue?
-    if let catalogSchemaValue = catalogConfiguration["catalog_schema"] {
-      if let pathString = catalogSchemaValue.stringValue {
-        catalogSchemaJSON = try? loadJSON(filename: pathString)
-      } else if catalogSchemaValue.objectValue != nil {
-        catalogSchemaJSON = catalogSchemaValue
-      }
-    }
-
-    if let catalogDefinitions = catalogSchemaJSON?["$defs"]?.objectValue {
-      for (key, definition) in catalogDefinitions {
-        allDefinitions[key] = definition
-      }
-    }
+    let catalogSchemaJSON = loadCatalogDefinitions(
+      from: catalogConfiguration,
+      allDefinitions: &allDefinitions
+    )
 
     let context = Context(dialect: .draft2020_12, remoteSchema: remoteSchemas)
 
@@ -145,7 +117,7 @@ public enum ConformanceTestHelper {
           }
 
           if let schema = try? Schema(rawSchema: .object(fullComponentObject), context: context) {
-            components.append(ComponentAPI(name: componentName, schema: schema))
+            components.append(AnyComponentAPI(name: componentName, schema: schema))
           }
         }
       }
@@ -154,7 +126,59 @@ public enum ConformanceTestHelper {
     return Catalog(id: catalogID, components: components)
   }
 
-  /// Recursively converts arbitrary YAML data (`[String: Any]`, `[Any]`, primitives) to `JSONValue`.
+  private static func loadCommonTypesDefinitions(
+    from catalogConfiguration: [String: JSONValue],
+    remoteSchemas: inout [String: JSONValue],
+    allDefinitions: inout OrderedDictionary<String, JSONValue>
+  ) {
+    guard let commonTypesValue = catalogConfiguration["common_types_schema"] else { return }
+
+    var commonTypesJSON: JSONValue?
+    if let pathString = commonTypesValue.stringValue {
+      commonTypesJSON = try? loadJSON(filename: pathString)
+    } else if commonTypesValue.objectValue != nil {
+      commonTypesJSON = commonTypesValue
+    }
+
+    if let commonTypes = commonTypesJSON {
+      if let identifierString = commonTypes["$id"]?.stringValue {
+        remoteSchemas[identifierString] = commonTypes
+      }
+      remoteSchemas["common_types.json"] = commonTypes
+      remoteSchemas["https://a2ui.org/specification/v0_9/common_types.json"] = commonTypes
+      remoteSchemas["https://a2ui.org/specification/v0_9_1/common_types.json"] = commonTypes
+    }
+
+    if let definitions = commonTypesJSON?["$defs"]?.objectValue {
+      for (key, definition) in definitions {
+        allDefinitions[key] = definition
+      }
+    }
+  }
+
+  private static func loadCatalogDefinitions(
+    from catalogConfiguration: [String: JSONValue],
+    allDefinitions: inout OrderedDictionary<String, JSONValue>
+  ) -> JSONValue? {
+    guard let catalogSchemaValue = catalogConfiguration["catalog_schema"] else { return nil }
+
+    var catalogSchemaJSON: JSONValue?
+    if let pathString = catalogSchemaValue.stringValue {
+      catalogSchemaJSON = try? loadJSON(filename: pathString)
+    } else if catalogSchemaValue.objectValue != nil {
+      catalogSchemaJSON = catalogSchemaValue
+    }
+
+    if let catalogDefinitions = catalogSchemaJSON?["$defs"]?.objectValue {
+      for (key, definition) in catalogDefinitions {
+        allDefinitions[key] = definition
+      }
+    }
+    return catalogSchemaJSON
+  }
+
+  /// Recursively converts arbitrary YAML data (`[String: Any]`, `[Any]`, primitives)
+  /// to `JSONValue`.
   public static func toJSONValue(_ value: Any) -> JSONValue {
     switch value {
     case let stringValue as String:

@@ -43,7 +43,7 @@ struct ValidatorConformanceTests {
         targetVersion: "v0.9.1"
       )
 
-      var catalogs: [Catalog] = []
+      var catalogs: [AnyCatalog] = []
       if let catalog = ConformanceTestHelper.buildCatalog(
         from: testCase.catalogConfiguration
       ) {
@@ -74,7 +74,10 @@ struct ValidatorConformanceTests {
             try validator.validate(payload: payload)
           } catch {
             Issue.record(
-              "Expected payload to validate cleanly for '\(testCase.name)' at step \(stepIndex), but caught: \(error)"
+              """
+              Expected payload to validate cleanly for '\(testCase.name)' \
+              at step \(stepIndex), but caught: \(error)
+              """
             )
           }
         }
@@ -92,22 +95,34 @@ struct ValidatorConformanceTests {
       case "ValidationError":
         #expect(
           error is A2UIValidationError,
-          "[\(testName)] Expected A2UIValidationError for category '\(category)', got \(type(of: error))"
+          """
+          [\(testName)] Expected A2UIValidationError for category '\(category)', \
+          got \(type(of: error))
+          """
         )
       case "IntegrityError":
         #expect(
           error is A2UIIntegrityError,
-          "[\(testName)] Expected A2UIIntegrityError for category '\(category)', got \(type(of: error))"
+          """
+          [\(testName)] Expected A2UIIntegrityError for category '\(category)', \
+          got \(type(of: error))
+          """
         )
       case "RecursionError":
         #expect(
           error is A2UIRecursionError,
-          "[\(testName)] Expected A2UIRecursionError for category '\(category)', got \(type(of: error))"
+          """
+          [\(testName)] Expected A2UIRecursionError for category '\(category)', \
+          got \(type(of: error))
+          """
         )
       case "CatalogError":
         #expect(
           error is A2UICatalogError,
-          "[\(testName)] Expected A2UICatalogError for category '\(category)', got \(type(of: error))"
+          """
+          [\(testName)] Expected A2UICatalogError for category '\(category)', \
+          got \(type(of: error))
+          """
         )
       default:
         break
@@ -145,7 +160,10 @@ struct ValidatorConformanceTests {
         }
         #expect(
           found,
-          "[\(testName)] Expected detail with path '\(expectedDetail.path)' and code '\(expectedDetail.code)' in \(validationError.details)"
+          """
+          [\(testName)] Expected detail with path '\(expectedDetail.path)' and \
+          code '\(expectedDetail.code)' in \(validationError.details)
+          """
         )
       }
     }

@@ -97,7 +97,8 @@ extension Node {
 extension Node {
   /// Returns the resolved string value for the given property key.
   ///
-  /// Unwraps literal `String`, `DataBinding<String>.value`, `JSONValue.stringValue`, or `DataBinding<JSONValue>.value.stringValue`.
+  /// Unwraps literal `String`, `DataBinding<String>.value`, `JSONValue.stringValue`,
+  /// or `DataBinding<JSONValue>.value.stringValue`.
   public func string(for key: String) -> String? {
     if let stringValue = properties[key] as? String { return stringValue }
     if let binding = properties[key] as? DataBinding<String> { return binding.value }
@@ -110,7 +111,8 @@ extension Node {
 
   /// Returns the resolved double value for the given property key.
   ///
-  /// Unwraps literal `Double`, `DataBinding<Double>.value`, `JSONValue.doubleValue`, or `DataBinding<JSONValue>.value.doubleValue`.
+  /// Unwraps literal `Double`, `DataBinding<Double>.value`, `JSONValue.doubleValue`,
+  /// or `DataBinding<JSONValue>.value.doubleValue`.
   public func double(for key: String) -> Double? {
     if let doubleValue = properties[key] as? Double { return doubleValue }
     if let binding = properties[key] as? DataBinding<Double> { return binding.value }
@@ -124,7 +126,8 @@ extension Node {
 
   /// Returns the resolved integer value for the given property key.
   ///
-  /// Unwraps literal `Int`, `DataBinding<Int>.value`, `JSONValue.intValue`, or `DataBinding<JSONValue>.value.intValue`.
+  /// Unwraps literal `Int`, `DataBinding<Int>.value`, `JSONValue.intValue`,
+  /// or `DataBinding<JSONValue>.value.intValue`.
   public func int(for key: String) -> Int? {
     if let intValue = properties[key] as? Int { return intValue }
     if let binding = properties[key] as? DataBinding<Int> { return binding.value }
@@ -137,7 +140,8 @@ extension Node {
 
   /// Returns the resolved boolean value for the given property key.
   ///
-  /// Unwraps literal `Bool`, `DataBinding<Bool>.value`, `JSONValue.boolValue`, or `DataBinding<JSONValue>.value.boolValue`.
+  /// Unwraps literal `Bool`, `DataBinding<Bool>.value`, `JSONValue.boolValue`,
+  /// or `DataBinding<JSONValue>.value.boolValue`.
   public func bool(for key: String) -> Bool? {
     if let booleanValue = properties[key] as? Bool { return booleanValue }
     if let binding = properties[key] as? DataBinding<Bool> { return binding.value }

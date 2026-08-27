@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Raised when an A2UI message payload violates formal schema structural boundaries or type constraints.
+/// Raised when an A2UI message payload violates formal schema structural boundaries
+/// or type constraints.
 public struct A2UIValidationError: A2UIError, Equatable, Sendable {
   /// The error message.
   public let message: String

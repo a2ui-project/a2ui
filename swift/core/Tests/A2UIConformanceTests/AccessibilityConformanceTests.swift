@@ -62,7 +62,7 @@ struct AccessibilityConformanceTests {
 
       let surfaceViewModel = SurfaceViewModel(
         surfaceID: "accessibility-surface",
-        catalog: Catalog(id: "std", components: [])
+        catalog: AnyCatalog(id: "std", components: [])
       )
 
       for component in componentsList {
@@ -98,28 +98,40 @@ struct AccessibilityConformanceTests {
         if let expectedLabel = expectedDictionary["label"]?.stringValue {
           #expect(
             accessibilityAttributes?.label == expectedLabel,
-            "[\(testCase.name)] Expected label '\(expectedLabel)' for '\(targetComponentID)', got '\(accessibilityAttributes?.label ?? "")'"
+            """
+            [\(testCase.name)] Expected label '\(expectedLabel)' for '\(targetComponentID)', \
+            got '\(accessibilityAttributes?.label ?? "")'
+            """
           )
         }
 
         if let expectedDescription = expectedDictionary["description"]?.stringValue {
           #expect(
             accessibilityAttributes?.description == expectedDescription,
-            "[\(testCase.name)] Expected description '\(expectedDescription)' for '\(targetComponentID)', got '\(accessibilityAttributes?.description ?? "")'"
+            """
+            [\(testCase.name)] Expected description '\(expectedDescription)' for \
+            '\(targetComponentID)', got '\(accessibilityAttributes?.description ?? "")'
+            """
           )
         }
 
         if let expectedLive = expectedDictionary["live"]?.stringValue {
           #expect(
             accessibilityAttributes?.live == expectedLive,
-            "[\(testCase.name)] Expected live '\(expectedLive)' for '\(targetComponentID)', got '\(accessibilityAttributes?.live ?? "")'"
+            """
+            [\(testCase.name)] Expected live '\(expectedLive)' for '\(targetComponentID)', \
+            got '\(accessibilityAttributes?.live ?? "")'
+            """
           )
         }
 
         if let expectedHidden = expectedDictionary["hidden"]?.boolValue {
           #expect(
             accessibilityAttributes?.hidden == expectedHidden,
-            "[\(testCase.name)] Expected hidden '\(expectedHidden)' for '\(targetComponentID)', got '\(accessibilityAttributes?.hidden == true)'"
+            """
+            [\(testCase.name)] Expected hidden '\(expectedHidden)' for '\(targetComponentID)', \
+            got '\(accessibilityAttributes?.hidden == true)'
+            """
           )
         }
       }
