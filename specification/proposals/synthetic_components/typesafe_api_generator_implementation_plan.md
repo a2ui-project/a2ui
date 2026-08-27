@@ -17,9 +17,8 @@ This implementation plan details the steps to:
 To guarantee stability and prevent regressions in production packages:
 
 - **`a2ui_core` (`agent_sdks/python/a2ui_core/`)**:
-  - Existing core classes (`Catalog`, `ComponentApi`, `FunctionApi`, `CatalogSchemaValidator`) remain 100% untouched.
-  - Hosts the handwritten runtime base abstractions (`ComponentBuilderNode`, `ExternalComponentBuilderNode` / `ComponentRef`, `DataBinding`, `Action`, `FunctionCall`, `bind`, `IdAllocator`, `flatten_component_tree`) as a clean, purely additive module (`a2ui.core.builder.base`).
-  - **`base.py` is handwritten, NEVER generated**: Because `base.py` defines catalog-agnostic runtime primitives, keeping it handwritten in core ensures that all generated catalogs share identical base types. This allows custom enterprise components to nest directly inside standard containers (e.g. `Column(children=[CustomCard(...)])`) without type incompatibility.
+  - **Zero modifications required**. Existing core classes (`Catalog`, `ComponentApi`, `FunctionApi`, `CatalogSchemaValidator`) remain 100% untouched.
+  - To keep `a2ui_core` completely stable, all builder base abstractions (`ComponentBuilderNode`, `ExternalComponentBuilderNode` / `ComponentRef`, `DataBinding`, `Action`, `FunctionCall`, `CheckRule`, `DynamicChildList`, `Surface`, `bind`, `IdAllocator`, `flatten_component_tree`) are hosted directly within the experimental inference format in the Agent SDK (`a2ui.inference_formats.experimental.synthetic_catalog.builder.base`).
   - All schema analysis and type extraction logic is implemented via non-invasive `AnalysedComponentApi` and `AnalysedCatalog` adapter classes located inside `a2ui_codegen`.
 - **Client Renderers (`renderers/*`)**:
   - **Zero modifications required**.
@@ -86,29 +85,58 @@ agent_sdks/python/a2ui_codegen/
 
 ---
 
-## 4. Package 2: Templating System Overhaul (`a2ui_agent`)
+## 4. Package 2: Synthetic Catalog Inference Format & Builders (`a2ui_agent`)
 
-Located in `agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/template/`.
+Located in `agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/synthetic_catalog/`.
+
+### Directory and File Layout:
+
+```
+agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/synthetic_catalog/
+├── __init__.py                  # Public exports: synthetic_component, Surface, ComponentBuilderNode, etc.
+├── decorator.py                 # @synthetic_component decorator (with dynamic_template alias)
+├── processor.py                 # SyntheticCatalogProcessor (function registry, expansion & flattening)
+├── format.py                    # SyntheticCatalogInferenceFormat (catalog prompt synthesis & tool routing)
+├── models.py                    # Component metadata models
+├── README.md                    # Complete documentation & usage guide
+└── builder/
+    ├── __init__.py              # Re-exports: Card, Column, Row, Text, Button, bind, Action, Surface, etc.
+    ├── py.typed                 # PEP 561 marker
+    ├── base.py                  # Handcrafted runtime base abstractions:
+    │                            # ComponentBuilderNode, ExternalComponentBuilderNode (ComponentRef),
+    │                            # DataBinding, bind, Action, FunctionCall, CheckRule,
+    │                            # DynamicChildList, Surface, IdAllocator, flatten_component_tree
+    ├── components.py            # Typesafe Basic Catalog components (Card, Column, Row, Text, Button, etc.)
+    ├── functions.py             # Typesafe Basic Catalog functions (formatString, etc.)
+    └── types.py                 # Typesafe Basic Catalog enums (TextVariant, FlexJustify, etc.)
+```
 
 ### Goals:
 
-- **Complete YAML Removal**:
-  - Delete all YAML loading methods (`StaticTemplate.from_yaml*`, `to_yaml`), YAML resolver logic, and inline YAML loop unrolling syntax.
-  - Remove `pyyaml` dependency from `template` module imports.
+- **Clean Retirement of YAML Templates**:
+  - Deprecate/remove legacy `experimental/template/` YAML loaders (`StaticTemplate.from_yaml*`, `to_yaml`), YAML resolver logic, and inline loop unrolling syntax.
+  - Eliminate `pyyaml` dependency from runtime imports.
+  - In `experimental/template/__init__.py`, forward exports to `synthetic_catalog` with deprecation notices to maintain backward compatibility for existing scripts.
 - **First-Class Programmatic Synthetic Components**:
   - Re-anchor the module around `@synthetic_component` (with backward-compatible alias `dynamic_template`).
-  - Support programmatic Python functions that accept typed arguments and return typesafe component trees (or dictionaries).
+  - Support programmatic Python functions that accept typed arguments and return typesafe component trees (`ComponentBuilderNode` or `Sequence[ComponentBuilderNode]`).
 - **Pre-bundled Basic Catalog Typesafe Builders**:
-  - Handcrafted base runtime module (`builder/base.py` / `a2ui.core.builder.base`): `ComponentBuilderNode`, `ExternalComponentBuilderNode` (`ComponentRef`), `DataBinding`, `bind`, `Action`, `FunctionCall`, `IdAllocator`, `flatten_component_tree`.
+  - Handcrafted base runtime module (`builder/base.py`):
+    - `ComponentBuilderNode`, `ExternalComponentBuilderNode` (`ComponentRef`).
+    - `DataBinding`, `bind`.
+    - `Action` (`Action.event`, `Action.client_function`).
+    - `FunctionCall`, `CheckRule`, `DynamicChildList`.
+    - `Surface` (high-level container for direct payload authoring with `.to_dict()`, `.to_json()`, and `.to_messages(version=...)`).
+    - `IdAllocator`, `flatten_component_tree`.
   - Generated from `basic/catalog.json` using `a2ui-codegen`:
     - `builder/components.py`: `Card`, `Column`, `Row`, `Text`, `Button`, `Divider`, `Icon`, `Image`, `TextField`, `Slider`, `Switch`, etc.
     - `builder/functions.py`: `formatString`, etc.
     - `builder/types.py`: `TextVariant`, `FlexJustify`, etc.
     - `builder/__init__.py`: Re-exports and `py.typed`.
-- **ID Management and Tree Flattening (`builder/flattener.py`)**:
+- **ID Management and Tree Flattening (`builder/base.py`)**:
   - **Root ID stitching**: The returned root node adopts the invocation ID (`id=invocation_id`).
   - **Sub-component namespacing**: Internal sub-components receive scoped IDs (`f"{invocation_id}__{local_id}"`), preventing collisions when multiple instances of the same synthetic component are rendered.
-  - **Slot preservation**: Caller-provided slot nodes are detected and exempted from namespacing.
+  - **Slot preservation**: Caller-provided slot nodes and `ExternalComponentBuilderNode` references are detected and exempted from namespacing.
 
 ---
 
@@ -152,7 +180,7 @@ Located in `samples/community/templates/`.
   - Proper docstrings from catalog descriptions.
 - `test_cli.py`: Invokes `a2ui-codegen` CLI via `subprocess` against official schemas and verifies exit code 0 and generated file structure.
 
-### 2. Typesafe Builders and Flattener Tests (`agent_sdks/python/a2ui_agent/tests/.../builder/`):
+### 2. Typesafe Builders and Flattener Tests (`agent_sdks/python/a2ui_agent/tests/.../synthetic_catalog/builder/`):
 
 - `test_builders.py`: Verifies instantiating `Card`, `Column`, `Row`, `Text`, `Button`, `Divider`, `Icon` with keyword arguments, data bindings (`bind("/path")`), client actions (`Action.event`, `Action.client_function`), and function calls (`formatString`).
 - `test_flattener.py`:
@@ -160,15 +188,15 @@ Located in `samples/community/templates/`.
   - Verifies root ID anchor stitching (`root_id="user_card_1"`).
   - Verifies sub-component namespacing (`user_card_1__save_btn`).
   - Verifies multi-instance collision prevention on the same surface.
-  - Verifies slot boundary preservation (exempting caller slot nodes from namespacing).
+  - Verifies slot boundary preservation (exempting caller slot nodes and `ExternalComponentBuilderNode` from namespacing).
 
-### 3. Template Processor Tests (`agent_sdks/python/a2ui_agent/tests/.../template/`):
+### 3. Synthetic Catalog Processor & Inference Tests (`agent_sdks/python/a2ui_agent/tests/.../synthetic_catalog/`):
 
 - `test_processor.py`:
-  - Tests synchronous expansion of programmatic template functions.
+  - Tests synchronous expansion of programmatic synthetic component functions.
   - Tests error handling when required parameters are omitted or invalid types are passed.
   - Tests programmatic data fetching and layout assembly within synthetic component functions.
-  - Tests integration with `TemplateInferenceFormat` (prompt generation and tool interception).
+  - Tests integration with `SyntheticCatalogInferenceFormat` (prompt generation and tool interception).
 
 ### 4. Sample App E2E Tests:
 
@@ -182,20 +210,18 @@ Located in `samples/community/templates/`.
    - Create `agent_sdks/python/a2ui_codegen/` with `pyproject.toml`, `types.py`, `analyzer.py`, `emitter/python.py`, `cli.py`, and `README.md`.
    - Add to root `pyproject.toml` workspace members.
    - Write and pass all codegen unit tests (`pytest`).
-2. **Phase 2: Generate and pre-bundle Basic Catalog Builders**:
-   - Run `a2ui-codegen` against Basic Catalog v0.9.1 to produce pre-bundled builders under `a2ui_agent/src/a2ui/inference_formats/experimental/template/builder/`.
-   - Implement `flattener.py` with root ID stitching and sub-component namespacing.
-   - Add unit tests for builders and flattener.
-3. **Phase 3: Overhaul Templating System**:
-   - Remove YAML parsing and YAML models from `models.py` and `processor.py`.
-   - Update `TemplateProcessor` and `TemplateInferenceFormat` to expand programmatic synthetic component functions.
-   - Update all unit tests in `a2ui_agent/tests/inference_formats/experimental/template/`.
-4. **Phase 4: Migrate Community Sample App**:
+2. **Phase 2: Build `synthetic_catalog` Inference Format and Builders**:
+   - Implement handcrafted base runtime module in `a2ui_agent/src/a2ui/inference_formats/experimental/synthetic_catalog/builder/base.py`.
+   - Run `a2ui-codegen` against Basic Catalog v0.9.1 to produce pre-bundled builders (`components.py`, `functions.py`, `types.py`, `__init__.py`).
+   - Implement `@synthetic_component`, `SyntheticCatalogProcessor`, and `SyntheticCatalogInferenceFormat`.
+   - Deprecate/forward legacy `template/` module.
+   - Add exhaustive unit tests in `a2ui_agent/tests/inference_formats/experimental/synthetic_catalog/`.
+3. **Phase 3: Migrate Community Sample App**:
    - Delete `.yaml` files in `samples/community/templates/templates/`.
-   - Implement all 11 template functions in Python using the typesafe builder interface.
+   - Implement all 11 synthetic component functions in Python using the typesafe builder interface.
    - Update `server.py` to register programmatic functions.
    - Run and verify `samples/community/templates/test_e2e.mjs`.
-5. **Phase 5: Format, Lint, License, and Verification**:
+4. **Phase 4: Format, Lint, License, and Verification**:
    - Format Python code with Pyink.
    - Verify license headers with `./scripts/fix_licenses.py --check`.
    - Run full test suites across packages.

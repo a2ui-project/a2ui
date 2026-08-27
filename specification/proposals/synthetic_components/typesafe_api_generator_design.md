@@ -356,12 +356,13 @@ The normalizer inspects each property schema and maps it to a strongly typed `Ty
 
 ## Python implementation design
 
-### Runtime core (`a2ui_core`)
+### Experimental builder foundation (`a2ui_agent`)
 
-The runtime foundation provides the base classes and serialization protocols without requiring the code generator or LLM dependencies:
+To keep non-experimental packages (`a2ui_core`) completely untouched and stable during this experimental cycle, the builder base classes and serialization flattener live directly inside the experimental synthetic catalog inference format:
+`a2ui.inference_formats.experimental.synthetic_catalog.builder.base` (in `agent_sdks/python/a2ui_agent`).
 
 ```python
-# a2ui/core/ui.py
+# a2ui/inference_formats/experimental/synthetic_catalog/builder/base.py
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Optional, Sequence, Union
@@ -604,9 +605,8 @@ When a synthetic component accepts a child component via a slot parameter (e.g. 
 - The flattener detects slot boundaries and **does not namespace caller-provided nodes**. Caller-provided IDs remain intact, allowing the caller's outer logic and event handlers to address slot components directly.
 
 ```python
-# a2ui/core/flattener.py
+# Part of a2ui/inference_formats/experimental/synthetic_catalog/builder/base.py
 from typing import Any, Optional, Set
-from a2ui.core.ui import ComponentBuilderNode, ExternalComponentBuilderNode
 
 
 class IdAllocator:
