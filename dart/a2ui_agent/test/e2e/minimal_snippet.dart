@@ -53,18 +53,6 @@ class UserSnippetResult {
 
 /// The agent turn from the "Code Example" section of
 /// `blueprints/modules/a2ui_agent.blueprint.md`, written against the Dart SDK.
-///
-/// This is deliberately a transcription of the blueprint's Python rather than
-/// idiomatic application code: it is how the published example reads once the
-/// SDK is implemented, and the test around it is what stops the example and
-/// the API drifting apart.
-///
-/// The pieces the blueprint leaves to the agent author are parameters here:
-/// [examples] stands in for `load_examples("./prompts/examples/**")`, and
-/// [callLlm] for `myagent.call_llm(prompt_snippet, request_context)`. The
-/// blueprint's second, custom catalog is left out: this SDK is scoped to the
-/// published basic catalog, and a catalog loaded from disk exercises
-/// [CatalogConfig.fromPath] rather than anything in the example's flow.
 UserSnippetResult userSnippet({
   required A2uiRendererCapabilities rendererCapabilities,
   required String Function(String promptSnippet) callLlm,
