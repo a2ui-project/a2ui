@@ -63,7 +63,7 @@ describe('A2uiSurface', () => {
     await asyncUpdate(el, e => document.body.appendChild(e as any));
 
     // Without surface, it should render nothing
-    assert.strictEqual(el.shadowRoot?.innerHTML, '<!---->');
+    assert.strictEqual((el.renderRoot as HTMLElement).innerHTML, '<!---->');
 
     document.body.removeChild(el);
   });
@@ -76,7 +76,7 @@ describe('A2uiSurface', () => {
       e.surface = surfaceModel;
     });
 
-    const html = el.shadowRoot?.innerHTML;
+    const html = (el.renderRoot as HTMLElement).innerHTML;
     assert.ok(html?.includes('Loading surface'), 'Should contain loading text');
 
     document.body.removeChild(el);
@@ -90,7 +90,7 @@ describe('A2uiSurface', () => {
       e.surface = surfaceModel;
     });
 
-    assert.ok(el.shadowRoot?.innerHTML?.includes('Loading surface'));
+    assert.ok((el.renderRoot as HTMLElement).innerHTML?.includes('Loading surface'));
 
     // Add root component
     await asyncUpdate(el, () => {
@@ -114,13 +114,13 @@ describe('A2uiSurface', () => {
     await el.updateComplete;
 
     // Wait for the child element (a2ui-text) to finish updating as well
-    const childEl = el.shadowRoot?.querySelector('a2ui-basic-text') as any;
+    const childEl = el.renderRoot.querySelector('a2ui-basic-text') as any;
     if (childEl && childEl.updateComplete) {
       await childEl.updateComplete;
     }
 
-    const html = el.shadowRoot?.innerHTML;
-    const childHtml = childEl?.shadowRoot?.innerHTML;
+    const html = (el.renderRoot as HTMLElement).innerHTML;
+    const childHtml = childEl?.innerHTML;
 
     assert.ok(!html?.includes('Loading surface'), 'Loading text should be gone');
     assert.ok(childHtml?.includes('Hello JSDOM'), 'Actual child HTML: ' + childHtml);

@@ -61,7 +61,8 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof 
    * - `--a2ui-datetimeinput-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-datetimeinput {
       display: flex;
       flex-direction: column;
       gap: var(--a2ui-spacing-xs, 0.25rem);
