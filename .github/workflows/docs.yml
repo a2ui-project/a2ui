@@ -40,7 +40,7 @@ on:
 jobs:
   changes:
     if: github.repository == 'a2ui-project/a2ui'
-    runs-on: ubuntu-latest-extra-capacity
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
@@ -67,7 +67,7 @@ jobs:
   build_and_deploy:
     needs: changes
     if: github.repository == 'a2ui-project/a2ui' && (github.event_name == 'push' || needs.changes.outputs.docs == 'true')
-    runs-on: ubuntu-latest-extra-capacity
+    runs-on: ubuntu-latest
     # Requires write access to publish built documentation to gh-pages branch
     permissions:
       contents: write

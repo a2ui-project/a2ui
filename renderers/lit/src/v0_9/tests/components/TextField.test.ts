@@ -105,11 +105,11 @@ describe('TextField Component', () => {
       e.context = context;
     });
 
-    const label = el.shadowRoot?.querySelector('label');
+    const label = el.querySelector('label');
     assert.ok(label);
     assert.strictEqual(label.textContent?.trim(), 'Username');
 
-    const input = el.shadowRoot?.querySelector('input');
+    const input = el.querySelector('input');
     assert.ok(input);
     assert.strictEqual(input.value, 'Bob');
   });
@@ -124,7 +124,7 @@ describe('TextField Component', () => {
       e.context = context;
     });
 
-    const input = el.shadowRoot?.querySelector('input');
+    const input = el.querySelector('input');
     assert.ok(input);
 
     input.value = 'Alice';
@@ -145,11 +145,11 @@ describe('TextField Component', () => {
       e.context = context;
     });
 
-    const textarea = el.shadowRoot?.querySelector('textarea');
+    const textarea = el.querySelector('textarea');
     assert.ok(textarea);
     assert.strictEqual(textarea.value, 'Initial Bio');
 
-    const input = el.shadowRoot?.querySelector('input');
+    const input = el.querySelector('input');
     assert.strictEqual(input, null);
   });
 
@@ -163,11 +163,11 @@ describe('TextField Component', () => {
       e.context = context;
     });
 
-    const error = el.shadowRoot?.querySelector('.error');
+    const error = el.querySelector('.error');
     assert.ok(error);
     assert.strictEqual(error.textContent?.trim(), 'Email is invalid');
 
-    const input = el.shadowRoot?.querySelector('input');
+    const input = el.querySelector('input');
     assert.ok(input);
     assert.ok(input.classList.contains('invalid'));
   });

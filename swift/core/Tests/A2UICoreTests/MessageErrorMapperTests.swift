@@ -46,6 +46,22 @@ struct MessageErrorMapperTests {
     }
   }
 
+  @Test func mapValidationFailedError() {
+    let error = ValidationFailedError(
+      surfaceID: "s1",
+      path: "/theme/primaryColor",
+      message: "Type mismatch"
+    )
+    let result = mapper.map(error, surfaceID: "s1")
+    if case .validationFailed(let valError) = result {
+      #expect(valError.surfaceID == "s1")
+      #expect(valError.path == "/theme/primaryColor")
+      #expect(valError.message == "Type mismatch")
+    } else {
+      Issue.record("Expected .validationFailed")
+    }
+  }
+
   @Test func parseExtractsSurfaceIDOnFailure() {
     let parser = MessageParser()
     let invalidPayloadWithSurface = """

@@ -55,6 +55,7 @@ async def _mock_drive_handler(file_id: str, file_info: Dict[str, Any]) -> bytes:
 
 resolver = FileResolver(
     allowed_mime_types=ALLOWED_MIME_TYPES,
+    allowed_hosts=[],
     custom_schemes={MOCK_DRIVE_SCHEME: _mock_drive_handler},
     http_client=_http_client,
 )

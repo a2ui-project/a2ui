@@ -265,6 +265,8 @@ class TestRunRemediation(unittest.TestCase):
 
         create_kwargs = mock_client.interactions.create.call_args.kwargs
         self.assertIn("branch: fix-branch", create_kwargs["input"])
+        self.assertIn("export GITHUB_TOKEN='fake-token'", create_kwargs["input"])
+        self.assertIn("export GH_TOKEN='fake-token'", create_kwargs["input"])
         allowlist = create_kwargs["environment"]["network"]["allowlist"]
         self.assertEqual(len(allowlist), 2)
         self.assertEqual(
