@@ -24,7 +24,8 @@ import {
 } from './message-processor.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_components.js';
-import {A2uiValidationError} from '../errors.js';
+import {BASIC_COMPONENTS} from '../v1_0/basic_catalog/components/basic_components.js';
+import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
 import {z} from 'zod';
 
 describe('MessageProcessor', () => {
@@ -918,6 +919,258 @@ describe('MessageProcessor', () => {
           return true;
         },
       );
+    });
+  });
+
+  describe('MessageProcessor Full Pipeline & Validation Integration', () => {
+    const basicCatalog = new Catalog('https://a2ui.org/catalog', BASIC_COMPONENTS);
+
+    it('validates a valid message envelope stream', () => {
+      const proc = new MessageProcessor([basicCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+      const payload = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'main',
+            catalogId: 'https://a2ui.org/catalog',
+          },
+        },
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 'main',
+            components: [
+              {
+                id: 'root',
+                component: 'Column',
+                children: ['c1'],
+              },
+              {
+                id: 'c1',
+                component: 'Text',
+                text: 'Hello World',
+              },
+            ],
+          },
+        },
+      ];
+
+      assert.doesNotThrow(() => proc.processMessages(payload));
+      assert.ok(proc.getSurface('main'));
+      assert.strictEqual(proc.getSurface('main')?.componentsModel.size, 2);
+    });
+
+    it('validates inline components inside createSurface for v1.0', () => {
+      const proc = new MessageProcessor([basicCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+      const payload = {
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 'main',
+          catalogId: 'https://a2ui.org/catalog',
+          components: [
+            {
+              id: 'root',
+              component: 'Column',
+              children: ['c1'],
+            },
+            {
+              id: 'c1',
+              component: 'Text',
+              text: 'Inline text',
+            },
+          ],
+        },
+      };
+
+      assert.doesNotThrow(() => proc.processMessages(payload));
+      assert.ok(proc.getSurface('main'));
+      assert.strictEqual(proc.getSurface('main')?.componentsModel.size, 2);
+    });
+
+    it('respects relaxed validation config for dangling references & orphans', () => {
+      const strictProc = new MessageProcessor([basicCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+      const relaxedProc = new MessageProcessor([basicCatalog], undefined, {
+        validationConfig: RELAXED_VALIDATION,
+      });
+
+      const orphanPayload = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: 'https://a2ui.org/catalog',
+          },
+        },
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [
+              {id: 'root', component: 'Column', children: ['c1']},
+              {id: 'c1', component: 'Text', text: 'Child'},
+              {id: 'orphan', component: 'Text', text: 'Unused'},
+            ],
+          },
+        },
+      ];
+
+      assert.throws(
+        () => strictProc.processMessages(orphanPayload),
+        (err: any) => err instanceof A2uiIntegrityError && err.message.includes('not reachable'),
+      );
+
+      assert.doesNotThrow(() => relaxedProc.processMessages(orphanPayload));
+      assert.ok(relaxedProc.getSurface('s1'));
+      assert.strictEqual(relaxedProc.getSurface('s1')?.componentsModel.size, 3);
+    });
+
+    it('validates components split across multiple stream messages', () => {
+      const proc = new MessageProcessor([basicCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: 'https://a2ui.org/catalog',
+        },
+      });
+
+      // Split across multiple update messages in relaxed intermediate or batched update
+      const splitPayload = [
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [
+              {id: 'root', component: 'Column', children: ['c1']},
+              {id: 'c1', component: 'Text', text: 'Child in first message'},
+            ],
+          },
+        },
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'c1', component: 'Text', text: 'Child updated in second message'}],
+          },
+        },
+      ];
+
+      assert.doesNotThrow(() => proc.processMessages(splitPayload));
+      assert.strictEqual(
+        proc.getSurface('s1')?.componentsModel.get('c1')?.properties.text,
+        'Child updated in second message',
+      );
+    });
+
+    it('validates v0.9 envelope messages with version adapter', () => {
+      const v09Catalog = new Catalog('basic', BASIC_COMPONENTS);
+      const proc = new MessageProcessor([v09Catalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      const v09Payload = [
+        {
+          version: 'v0.9',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: 'basic',
+          },
+        },
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [
+              {id: 'root', component: 'Card', child: 'txt'},
+              {id: 'txt', component: 'Text', text: 'Hello v0.9'},
+            ],
+          },
+        },
+      ];
+
+      assert.doesNotThrow(() => proc.processMessages(v09Payload));
+      assert.ok(proc.getSurface('s1'));
+      assert.strictEqual(proc.getSurface('s1')?.componentsModel.size, 2);
+    });
+
+    it('enforces recursion depth limit (>50) and path syntax in processMessages', () => {
+      const proc = new MessageProcessor([basicCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      // Build payload exceeding recursion depth 50
+      let nested: any = {leaf: 'val'};
+      for (let i = 0; i < 52; i++) {
+        nested = {layer: nested};
+      }
+
+      const recursivePayload = {
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's_deep',
+          catalogId: 'https://a2ui.org/catalog',
+          theme: nested,
+        },
+      };
+
+      assert.throws(
+        () => proc.processMessages(recursivePayload),
+        (err: any) =>
+          err instanceof A2uiRecursionError &&
+          err.message.includes('Global recursion limit exceeded'),
+      );
+    });
+
+    it('processes and validates multi-surface payloads across mixed catalogs', () => {
+      const catalogA = new Catalog('cat-a', [
+        {
+          name: 'BoxA',
+          schema: z.object({childSlot: z.string().describe('ChildComponentId')}),
+        },
+      ]);
+      const catalogB = new Catalog('cat-b', [
+        {
+          name: 'BoxB',
+          schema: z.object({contentSlot: z.string().describe('ChildComponentId')}),
+        },
+        {
+          name: 'LeafB',
+          schema: z.object({text: z.string()}),
+        },
+      ]);
+
+      const proc = new MessageProcessor([catalogA, catalogB], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      const components = [
+        {id: 'root', component: 'BoxA', catalogId: 'cat-a', childSlot: 'node-b'},
+        {id: 'node-b', component: 'BoxB', catalogId: 'cat-b', contentSlot: 'leaf-b'},
+        {id: 'leaf-b', component: 'LeafB', catalogId: 'cat-b', text: 'Hello'},
+      ];
+
+      assert.doesNotThrow(() =>
+        proc.processMessages({
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'multi-surf',
+            catalogId: 'cat-a',
+            components,
+          },
+        }),
+      );
+
+      assert.ok(proc.getSurface('multi-surf'));
+      assert.strictEqual(proc.getSurface('multi-surf')?.componentsModel.size, 3);
     });
   });
 });

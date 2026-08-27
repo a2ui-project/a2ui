@@ -35,6 +35,7 @@ import {
 import {ProtocolVersion, VersionAdapter} from './adapters/base.js';
 import {RendererCapabilities} from '../v1_0/schema/index.js';
 import {ValidationConfig, STRICT_VALIDATION, RELAXED_VALIDATION} from '../validating/validator.js';
+import {validateRecursionAndPaths} from '../validating/integrity-checker.js';
 
 export type {RendererCapabilities, ValidationConfig};
 export {STRICT_VALIDATION, RELAXED_VALIDATION};
@@ -362,6 +363,10 @@ export class MessageProcessor<T extends ComponentApi> {
    */
   processMessages(messages: unknown): void {
     if (!messages) return;
+
+    if (this.validationConfig) {
+      validateRecursionAndPaths(messages);
+    }
 
     if (this.validationConfig?.targetVersion) {
       this.validateTargetVersion(messages);

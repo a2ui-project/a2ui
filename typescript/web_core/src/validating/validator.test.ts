@@ -31,7 +31,7 @@ import {
   validateRecursionAndPaths,
 } from './integrity-checker.js';
 import {analyzeTopology} from './topology-analyzer.js';
-import {A2uiValidator, RELAXED_VALIDATION, STRICT_VALIDATION} from './validator.js';
+import {A2uiValidator} from './validator.js';
 import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
 import {Catalog} from '../catalog/types.js';
 import {BASIC_COMPONENTS} from '../v1_0/basic_catalog/components/basic_components.js';
@@ -207,116 +207,9 @@ describe('A2uiValidator & Integrity Verification', () => {
     });
   });
 
-  describe('A2uiValidator Full Pipeline', () => {
+  describe('A2uiValidator Component Validation', () => {
     const validator = new A2uiValidator();
     const basicCatalog = new Catalog('basic', BASIC_COMPONENTS);
-
-    it('validates a valid message envelope stream', () => {
-      const payload = [
-        {
-          version: 'v1.0',
-          createSurface: {
-            surfaceId: 'main',
-            catalogId: 'https://a2ui.org/catalog',
-          },
-        },
-        {
-          version: 'v1.0',
-          updateComponents: {
-            surfaceId: 'main',
-            components: [
-              {
-                id: 'root',
-                component: 'Column',
-                children: ['c1'],
-              },
-              {
-                id: 'c1',
-                component: 'Text',
-                text: 'Hello World',
-              },
-            ],
-          },
-        },
-      ];
-
-      assert.doesNotThrow(() => validator.validate(payload, basicCatalog));
-    });
-
-    it('validates inline components inside createSurface for v1.0', () => {
-      const payload = {
-        version: 'v1.0',
-        createSurface: {
-          surfaceId: 'main',
-          catalogId: 'https://a2ui.org/catalog',
-          components: [
-            {
-              id: 'root',
-              component: 'Column',
-              children: ['c1'],
-            },
-            {
-              id: 'c1',
-              component: 'Text',
-              text: 'Inline text',
-            },
-          ],
-        },
-      };
-
-      assert.doesNotThrow(() => validator.validate(payload, basicCatalog));
-    });
-
-    it('auto-enables allowMissingRoot for incremental updateComponents messages without createSurface', () => {
-      const incrementalPayload = {
-        version: 'v1.0',
-        updateComponents: {
-          surfaceId: 'main',
-          components: [
-            {
-              id: 'c1',
-              component: 'Text',
-              text: 'Updated child node only',
-            },
-          ],
-        },
-      };
-
-      // By default without createSurface, allowMissingRoot is automatically enabled
-      assert.doesNotThrow(() => validator.validate(incrementalPayload, basicCatalog));
-    });
-
-    it('respects relaxed validation config for dangling references & orphans', () => {
-      const orphanPayload = [
-        {
-          version: 'v1.0',
-          createSurface: {
-            surfaceId: 's1',
-            catalogId: 'https://a2ui.org/catalog',
-          },
-        },
-        {
-          version: 'v1.0',
-          updateComponents: {
-            surfaceId: 's1',
-            components: [
-              {id: 'root', component: 'Column', children: ['c1']},
-              {id: 'c1', component: 'Text', text: 'Child'},
-              {id: 'orphan', component: 'Text', text: 'Unused'},
-            ],
-          },
-        },
-      ];
-
-      assert.throws(
-        () => validator.validate(orphanPayload, basicCatalog, STRICT_VALIDATION),
-        (err: any) => err instanceof A2uiIntegrityError && err.message.includes('not reachable'),
-      );
-
-      assert.doesNotThrow(() =>
-        validator.validate(orphanPayload, basicCatalog, RELAXED_VALIDATION),
-      );
-    });
 
     it('enforces missing root even when allowDanglingReferences is true', () => {
       const components = [{id: 'c1', component: 'Text', text: 'No root'}];
@@ -329,27 +222,6 @@ describe('A2uiValidator & Integrity Verification', () => {
         (err: any) =>
           err instanceof A2uiIntegrityError && err.message.includes("No component has id='root'"),
       );
-    });
-
-    it('validates components split across multiple stream messages', () => {
-      const splitPayload = [
-        {
-          version: 'v1.0',
-          updateComponents: {
-            surfaceId: 's1',
-            components: [{id: 'root', component: 'Column', children: ['c1']}],
-          },
-        },
-        {
-          version: 'v1.0',
-          updateComponents: {
-            surfaceId: 's1',
-            components: [{id: 'c1', component: 'Text', text: 'Child in second message'}],
-          },
-        },
-      ];
-
-      assert.doesNotThrow(() => validator.validate(splitPayload, basicCatalog, STRICT_VALIDATION));
     });
 
     it('builds dynamic ref map from custom Catalog schemas', () => {
@@ -369,34 +241,6 @@ describe('A2uiValidator & Integrity Verification', () => {
       ];
 
       assert.doesNotThrow(() => validator.validateComponents(components, customCat));
-    });
-
-    it('validates v0.9 envelope messages with version adapter', () => {
-      const v09Payload = [
-        {
-          version: 'v0.9',
-          createSurface: {
-            surfaceId: 's1',
-            catalogId: 'basic',
-          },
-        },
-        {
-          version: 'v0.9',
-          updateComponents: {
-            surfaceId: 's1',
-            components: [{id: 'root', component: 'Card', child: 'txt'}],
-          },
-        },
-        {
-          version: 'v0.9',
-          updateComponents: {
-            surfaceId: 's1',
-            components: [{id: 'txt', component: 'Text', text: 'Hello v0.9'}],
-          },
-        },
-      ];
-
-      assert.doesNotThrow(() => validator.validate(v09Payload, basicCatalog));
     });
   });
 
@@ -510,21 +354,9 @@ describe('A2uiValidator & Integrity Verification', () => {
       assert.ok(visited.has('node-b'));
       assert.ok(visited.has('leaf-b'));
 
-      // 3. A2uiValidator full pipeline with array of catalogs
+      // 3. A2uiValidator validateComponents with array of catalogs
       const validator = new A2uiValidator();
-      assert.doesNotThrow(() =>
-        validator.validate(
-          {
-            version: 'v1.0',
-            createSurface: {
-              surfaceId: 'multi-surf',
-              catalogId: 'cat-a',
-              components,
-            },
-          },
-          [catalogA, catalogB],
-        ),
-      );
+      assert.doesNotThrow(() => validator.validateComponents(components, [catalogA, catalogB]));
     });
   });
 });
