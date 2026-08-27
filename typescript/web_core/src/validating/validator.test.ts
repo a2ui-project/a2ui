@@ -90,6 +90,22 @@ describe('A2uiValidator & Integrity Verification', () => {
       );
     });
 
+    it('throws on component missing an id or having an empty id', () => {
+      assert.throws(
+        () => validateComponentIntegrity([{component: 'Text', text: 'No id'} as any], {}),
+        (err: any) =>
+          err instanceof A2uiIntegrityError &&
+          err.message.includes('Component is missing a valid id'),
+      );
+
+      assert.throws(
+        () => validateComponentIntegrity([{id: '', component: 'Text', text: 'Empty id'}], {}),
+        (err: any) =>
+          err instanceof A2uiIntegrityError &&
+          err.message.includes('Component is missing a valid id'),
+      );
+    });
+
     it('throws on missing root component', () => {
       const components = [{id: 'c1', component: 'Box'}];
       assert.throws(

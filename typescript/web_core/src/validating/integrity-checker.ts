@@ -392,43 +392,44 @@ export type CatalogOrRefMapInput =
   | Array<Catalog<any>>
   | Map<string, Catalog<any>>;
 
+const globalRefMapCache = new WeakMap<Catalog<any>, ComponentRefMap>();
+
+function getOrCreateRefMap(catalog: Catalog<any>): ComponentRefMap {
+  let map = globalRefMapCache.get(catalog);
+  if (!map) {
+    map = buildComponentRefMap(catalog);
+    globalRefMapCache.set(catalog, map);
+  }
+  return map;
+}
+
 function resolveRefMapForComponent(
   comp: Record<string, any>,
   catalogInput: CatalogOrRefMapInput,
-  refMapCache: Map<Catalog<any>, ComponentRefMap>,
 ): ComponentRefMap {
-  const getRefMap = (cat: Catalog<any>) => {
-    let m = refMapCache.get(cat);
-    if (!m) {
-      m = buildComponentRefMap(cat);
-      refMapCache.set(cat, m);
-    }
-    return m;
-  };
-
   if (catalogInput instanceof Catalog) {
-    return getRefMap(catalogInput);
+    return getOrCreateRefMap(catalogInput);
   }
   if (Array.isArray(catalogInput)) {
     const rawCatalogId = comp.catalogId ?? comp.catalogID;
     if (typeof rawCatalogId === 'string' && rawCatalogId) {
       const found = catalogInput.find(c => c.id === rawCatalogId);
-      if (found) return getRefMap(found);
+      if (found) return getOrCreateRefMap(found);
     }
     if (catalogInput.length > 0 && catalogInput[0] instanceof Catalog) {
-      return getRefMap(catalogInput[0]);
+      return getOrCreateRefMap(catalogInput[0]);
     }
     return {};
   }
   if (catalogInput instanceof Map) {
     const rawCatalogId = comp.catalogId ?? comp.catalogID;
-    if (typeof rawCatalogId === 'string' && rawCatalogId && catalogInput.has(rawCatalogId)) {
-      const cat = catalogInput.get(rawCatalogId)!;
-      return getRefMap(cat);
+    if (typeof rawCatalogId === 'string' && rawCatalogId) {
+      const cat = catalogInput.get(rawCatalogId);
+      if (cat) return getOrCreateRefMap(cat);
     }
     const first = catalogInput.values().next().value;
     if (first instanceof Catalog) {
-      return getRefMap(first);
+      return getOrCreateRefMap(first);
     }
     return {};
   }
@@ -456,7 +457,6 @@ export function validateComponentIntegrity(
   const rootId = options.rootId ?? 'root';
   const allowDanglingReferences = options.allowDanglingReferences ?? false;
   const allowMissingRoot = options.allowMissingRoot ?? false;
-  const refMapCache = new Map<Catalog<any>, ComponentRefMap>();
 
   const ids = new Set<string>();
 
@@ -464,7 +464,9 @@ export function validateComponentIntegrity(
   for (const comp of components) {
     if (!comp || typeof comp !== 'object') continue;
     const compId = comp.id;
-    if (compId === undefined || compId === null) continue;
+    if (compId === undefined || compId === null || compId === '') {
+      throw new A2uiIntegrityError('Component is missing a valid id.');
+    }
     const compIdStr = String(compId);
     if (ids.has(compIdStr)) {
       throw new A2uiIntegrityError(`Duplicate component ID: ${compIdStr}`);
@@ -485,7 +487,7 @@ export function validateComponentIntegrity(
   for (const comp of components) {
     if (!comp || typeof comp !== 'object') continue;
     const compId = comp.id !== undefined && comp.id !== null ? String(comp.id) : 'Unknown';
-    const refFieldsMap = resolveRefMapForComponent(comp, catalogOrRefMap, refMapCache);
+    const refFieldsMap = resolveRefMapForComponent(comp, catalogOrRefMap);
     for (const [refId, fieldName] of getComponentReferences(comp, refFieldsMap)) {
       if (!ids.has(refId)) {
         throw new A2uiIntegrityError(
