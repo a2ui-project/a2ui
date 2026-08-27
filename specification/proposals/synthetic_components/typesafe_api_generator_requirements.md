@@ -117,6 +117,232 @@ Developers authoring A2UI layouts (either inside synthetic components or in dire
   - Inline documentation and parameter descriptions pulled directly from catalog JSON schemas.
   - Jump-to-definition leading to readable generated code or type stubs.
 
+### Concrete example: Payroll summary synthetic component
+
+To ground the ergonomic requirements in a real development task, consider a synthetic component that computes and renders a confidential payroll matrix. The component performs backend data calculations, filters based on parameters (`department`, `include_bonus`), constructs repeating rows, and wraps the result in a structured layout.
+
+#### Version A: Authoring with raw untyped dictionaries (without typesafe API)
+
+Without a generated typesafe API, the developer writes raw nested Python dictionaries conforming to the wire protocol:
+
+```python
+from typing import Any
+
+EMPLOYEE_DB = {
+    "emp_1": {
+        "name": "Alice Chen",
+        "role": "Staff Engineer",
+        "base": 185000,
+        "bonus": 35000,
+    },
+    "emp_2": {
+        "name": "Bob Smith",
+        "role": "Product Designer",
+        "base": 140000,
+        "bonus": 20000,
+    },
+}
+
+
+def render_payroll_summary(
+    department: str = "Engineering", include_bonus: bool = True
+) -> dict[str, Any]:
+    total_base = 0
+    total_bonus = 0
+    rows: list[dict[str, Any]] = []
+
+    for emp_id, record in EMPLOYEE_DB.items():
+        total_base += record["base"]
+        total_bonus += record["bonus"]
+
+        cols: list[dict[str, Any]] = [
+            {"component": "Text", "text": record["name"], "variant": "body"},
+            {"component": "Text", "text": record["role"], "variant": "caption"},
+            {
+                "component": "Text",
+                "text": f"${record['base']:,}",
+                "variant": "body",
+            },
+        ]
+        if include_bonus:
+            cols.append({
+                "component": "Text",
+                "text": f"${record['bonus']:,}",
+                "variant": "body",
+            })
+
+        rows.append({
+            "component": "Row",
+            "justify": "spaceBetween",
+            "align": "center",
+            "children": cols,
+        })
+        rows.append({"component": "Divider", "axis": "horizontal"})
+
+    total_cols: list[dict[str, Any]] = [
+        {"component": "Text", "text": "TOTAL PAYROLL", "variant": "h4"},
+        {"component": "Text", "text": f"${total_base:,}", "variant": "h4"},
+    ]
+    if include_bonus:
+        total_cols.append({
+            "component": "Text",
+            "text": f"${total_bonus:,}",
+            "variant": "h4",
+        })
+
+    return {
+        "component": "Card",
+        "child": {
+            "component": "Column",
+            "children": [
+                {
+                    "component": "Row",
+                    "justify": "spaceBetween",
+                    "align": "center",
+                    "children": [
+                        {
+                            "component": "Row",
+                            "align": "center",
+                            "children": [
+                                {"component": "Icon", "name": "lock"},
+                                {
+                                    "component": "Text",
+                                    "text": (
+                                        f"Payroll Summary: {department}"
+                                    ),
+                                    "variant": "h3",
+                                },
+                            ],
+                        },
+                        {
+                            "component": "Text",
+                            "text": "Confidential",
+                            "variant": "caption",
+                        },
+                    ],
+                },
+                {"component": "Divider", "axis": "horizontal"},
+                *rows,
+                {
+                    "component": "Row",
+                    "justify": "spaceBetween",
+                    "align": "center",
+                    "children": total_cols,
+                },
+            ],
+        },
+    }
+```
+
+#### Version B: Authoring with the generated typesafe API
+
+With the generated typesafe API, the developer authors the exact same component tree using typed constructors:
+
+```python
+from a2ui.basic import Card, Column, Row, Text, Icon, Divider
+
+EMPLOYEE_DB = {
+    "emp_1": {
+        "name": "Alice Chen",
+        "role": "Staff Engineer",
+        "base": 185000,
+        "bonus": 35000,
+    },
+    "emp_2": {
+        "name": "Bob Smith",
+        "role": "Product Designer",
+        "base": 140000,
+        "bonus": 20000,
+    },
+}
+
+
+def render_payroll_summary(
+    department: str = "Engineering", include_bonus: bool = True
+) -> Card:
+    total_base = 0
+    total_bonus = 0
+    rows: list[Row | Divider] = []
+
+    for emp_id, record in EMPLOYEE_DB.items():
+        total_base += record["base"]
+        total_bonus += record["bonus"]
+
+        cols: list[Text] = [
+            Text(text=record["name"], variant="body"),
+            Text(text=record["role"], variant="caption"),
+            Text(text=f"${record['base']:,}", variant="body"),
+        ]
+        if include_bonus:
+            cols.append(Text(text=f"${record['bonus']:,}", variant="body"))
+
+        rows.append(
+            Row(
+                justify="spaceBetween",
+                align="center",
+                children=cols,
+            )
+        )
+        rows.append(Divider(axis="horizontal"))
+
+    total_cols: list[Text] = [
+        Text(text="TOTAL PAYROLL", variant="h4"),
+        Text(text=f"${total_base:,}", variant="h4"),
+    ]
+    if include_bonus:
+        total_cols.append(Text(text=f"${total_bonus:,}", variant="h4"))
+
+    return Card(
+        child=Column(
+            children=[
+                Row(
+                    justify="spaceBetween",
+                    align="center",
+                    children=[
+                        Row(
+                            align="center",
+                            children=[
+                                Icon(name="lock"),
+                                Text(
+                                    text=f"Payroll Summary: {department}",
+                                    variant="h3",
+                                ),
+                            ],
+                        ),
+                        Text(text="Confidential", variant="caption"),
+                    ],
+                ),
+                Divider(axis="horizontal"),
+                *rows,
+                Row(
+                    justify="spaceBetween",
+                    align="center",
+                    children=total_cols,
+                ),
+            ]
+        )
+    )
+```
+
+#### Comparative analysis and authoring differences
+
+Comparing Version A and Version B demonstrates the specific developer experience gaps the typesafe API generator must solve:
+
+- **Static type verification**:
+  - In Version A, all structure relies on string keys (`"component"`, `"children"`, `"variant"`). A misspelling like `"compnent"` or `"colums"` passes type checkers and is only caught when a client fails to render.
+  - In Version B, every component and property name is checked at edit-time and compile-time by `mypy` or `pyright`.
+- **Enum validation**:
+  - In Version A, strings like `"body"` or `"spaceBetween"` have no typing. Writing `"space-between"` (kebab-case) or `"head"` causes runtime rendering anomalies.
+  - In Version B, enums are typed `Literal` unions (`Literal["h1", "h2", "h3", "h4", "h5", "caption", "body"]`). Invalid values are flagged immediately in the IDE.
+- **Child slot constraints**:
+  - In Version A, nothing prevents a developer from mistakenly passing a list to `Card.child` or a single element to `Column.children`.
+  - In Version B, the constructor signatures enforce `child: Component` on `Card` and `children: Sequence[Component]` on `Column` and `Row`. Leaf components like `Text` or `Divider` do not accept child arguments.
+- **IDE discovery and documentation**:
+  - In Version A, the developer must read catalog documentation in a separate browser tab to know valid attributes and enum values.
+  - In Version B, typing `Text(` triggers IDE parameter hints and docstrings extracted directly from the catalog schema.
+- **Component ID decoupling**:
+  - In Version B, the developer does not write manual ID allocation code. The serialization logic assigns unique, scoped component IDs when flattening the nested tree.
+
 ### Ergonomics of running code generation
 
 Developers and SDK maintainers who generate the typed API from catalog definitions need a straightforward, repeatable process:
