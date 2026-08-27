@@ -415,6 +415,26 @@ class TestExpressParser(unittest.TestCase):
         decompiled = decompiler.decompile(envelope)
         self.assertIn('surface("update-surf-789")', decompiled)
 
+    def test_is_complete_and_unwrap_fence_variations(self):
+        """Test has_format_content checks and unwrap code fence variants without trailing newlines."""
+        parser = ExpressParser(self.catalog)
+        self.assertTrue(
+            parser.has_format_content("<a2ui>root = Text('Hi')</a2ui>", complete=True)
+        )
+        self.assertFalse(
+            parser.has_format_content("<a2ui>root = Text('Hi')", complete=True)
+        )
+        self.assertTrue(
+            parser.has_format_content("<a2ui>root = Text('Hi')", complete=False)
+        )
+
+        # Code fence with no trailing newline before closing fence
+        content = "Intro\n```a2ui\nroot = Text('Hi')```\nOutro"
+        parts = parser.unwrap(content)
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(parts[0].text, "Intro")
+        self.assertIn("root = Text('Hi')", parts[0].a2ui_raw)
+
 
 if __name__ == "__main__":
     unittest.main()

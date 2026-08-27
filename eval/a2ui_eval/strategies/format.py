@@ -15,6 +15,7 @@
 import asyncio
 import json
 import re
+from typing import Any
 from inspect_ai.solver import Solver, solver, TaskState, Generate
 from inspect_ai.model import (
     ChatMessageSystem,
@@ -121,7 +122,7 @@ def _parse_and_validate_in_process(
     resolved_catalog_path: str,
     surface_id: str,
     completion: str,
-) -> dict:
+) -> dict[str, Any]:
     catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
     strategy = _get_strategy(
         format_name,
@@ -185,7 +186,7 @@ def parse_with_hard_kill_timeout(
     surface_id: str,
     completion: str,
     timeout_sec: float = 5.0,
-) -> dict:
+) -> dict[str, Any]:
     with multiprocessing.Manager() as manager:
         return_dict = manager.dict()
         p = multiprocessing.Process(

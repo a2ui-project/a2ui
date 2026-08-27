@@ -68,7 +68,7 @@ class ExpressParser(Parser):
         """Unwraps/tokenizes the response content into raw Express DSL parts."""
         # Normalize code fences: ```a2ui ... ``` -> <a2ui> ... </a2ui>
         normalized = re.sub(
-            r"```(?:a2ui|express)\s*\n(.*?)\n```",
+            r"```(?:a2ui|express)\s*\n(.*?)\n?```",
             r"<a2ui>\n\1\n</a2ui>",
             content,
             flags=re.DOTALL | re.IGNORECASE,
