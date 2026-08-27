@@ -16,7 +16,7 @@
 
 import {A2uiIntegrityError} from '../errors.js';
 import {Catalog} from '../catalog/types.js';
-import {ComponentRefMap} from './integrity-checker.js';
+import {CatalogOrRefMapInput} from './integrity-checker.js';
 import {SurfaceComponentsModel} from '../state/surface-components-model.js';
 import {ComponentModel} from '../state/component-model.js';
 
@@ -35,7 +35,7 @@ export interface TopologyOptions {
  * Delegates directly to SurfaceComponentsModel for graph and topology evaluation.
  *
  * @param components List of component definition objects forming the graph.
- * @param catalogOrRefMap Mapping of reference property names per component type or Catalog instance.
+ * @param catalogOrRefMap Mapping of reference property names per component type, Catalog instance, or list/map of Catalogs.
  * @param options Topology evaluation options.
  * @returns Set of all component identifiers visited during graph traversal.
  * @throws {A2uiRecursionError} If a self-reference, circular dependency, or excessive depth is detected.
@@ -48,10 +48,19 @@ export interface TopologyOptions {
  */
 export function analyzeTopology(
   components: Array<Record<string, any>>,
-  catalogOrRefMap: Catalog<any> | ComponentRefMap,
+  catalogOrRefMap: CatalogOrRefMapInput,
   options: TopologyOptions = {},
 ): Set<string> {
-  const model = new SurfaceComponentsModel(catalogOrRefMap);
+  const defaultCatalog =
+    catalogOrRefMap instanceof Catalog
+      ? catalogOrRefMap
+      : Array.isArray(catalogOrRefMap)
+        ? catalogOrRefMap[0]
+        : catalogOrRefMap instanceof Map
+          ? catalogOrRefMap.values().next().value
+          : catalogOrRefMap;
+
+  const model = new SurfaceComponentsModel(defaultCatalog);
   for (const comp of components) {
     if (!comp || typeof comp !== 'object') continue;
     const compId = comp.id !== undefined && comp.id !== null ? String(comp.id) : undefined;
@@ -66,7 +75,30 @@ export function analyzeTopology(
       props = comp.component[compType] ?? {};
     }
 
-    model.addComponent(new ComponentModel(compId, compType, props));
+    let compCatalog: Catalog<any> | undefined;
+    const rawCatalogId = comp.catalogId ?? comp.catalogID;
+    if (catalogOrRefMap instanceof Catalog) {
+      compCatalog = catalogOrRefMap;
+    } else if (Array.isArray(catalogOrRefMap)) {
+      if (typeof rawCatalogId === 'string' && rawCatalogId) {
+        compCatalog = catalogOrRefMap.find(c => c.id === rawCatalogId);
+      }
+      if (!compCatalog && catalogOrRefMap.length > 0 && catalogOrRefMap[0] instanceof Catalog) {
+        compCatalog = catalogOrRefMap[0];
+      }
+    } else if (catalogOrRefMap instanceof Map) {
+      if (typeof rawCatalogId === 'string' && rawCatalogId && catalogOrRefMap.has(rawCatalogId)) {
+        compCatalog = catalogOrRefMap.get(rawCatalogId);
+      }
+      if (!compCatalog) {
+        const first = catalogOrRefMap.values().next().value;
+        if (first instanceof Catalog) {
+          compCatalog = first;
+        }
+      }
+    }
+
+    model.addComponent(new ComponentModel(compId, compType, props, compCatalog));
   }
 
   const visited = model.detectCycles({

@@ -187,7 +187,7 @@ export class MessageProcessor<T extends ComponentApi> {
    * @param options Configuration options for the processor.
    */
   constructor(
-    private catalogs: Catalog<T>[],
+    private catalogs: Catalog<any>[],
     private actionHandler?: ActionListener,
     options?: MessageProcessorOptions,
   ) {
@@ -537,19 +537,36 @@ export class MessageProcessor<T extends ComponentApi> {
     // 1. Validation pass: validate all components before mutating state
     for (const comp of op.components) {
       const {id, component, ...properties} = comp;
+      const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
 
       if (!id) {
         throw new A2uiValidationError(`Component '${component}' is missing an 'id'.`);
       }
 
+      let targetCatalog = surface.catalog;
+      if (typeof rawCatalogId === 'string' && rawCatalogId) {
+        const found = this.catalogs.find(c => c.id === rawCatalogId);
+        if (!found) {
+          throw new A2uiValidationError(
+            `Unknown catalog ID '${rawCatalogId}' for component '${id}'. Available catalogs: ${this.catalogs.map(c => c.id).join(', ')}`,
+          );
+        }
+        targetCatalog = found;
+      } else {
+        const existing = surface.componentsModel.get(id);
+        if (existing?.catalog) {
+          targetCatalog = existing.catalog as Catalog<T>;
+        }
+      }
+
       const componentType = component;
       const mergedProperties = properties;
       if (componentType) {
-        const componentApi = surface.catalog.components.get(componentType);
+        const componentApi = targetCatalog.components.get(componentType);
         if (!componentApi) {
           if (this.validationConfig && !this.validationConfig.allowUnknownElements) {
             throw new A2uiValidationError(
-              `Unknown component type '${componentType}' not found in catalog '${surface.catalog.id}'.`,
+              `Unknown component type '${componentType}' not found in catalog '${targetCatalog.id}'.`,
             );
           }
         } else {
@@ -577,14 +594,29 @@ export class MessageProcessor<T extends ComponentApi> {
     // 2. Mutation pass: apply state updates
     for (const comp of op.components) {
       const {id, component, ...properties} = comp;
+      const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
       const existing = surface.componentsModel.get(id);
       const mergedProperties = existing ? {...existing.properties, ...properties} : properties;
 
+      let targetCatalog = surface.catalog;
+      if (typeof rawCatalogId === 'string' && rawCatalogId) {
+        const found = this.catalogs.find(c => c.id === rawCatalogId);
+        if (found) {
+          targetCatalog = found;
+        }
+      } else if (existing?.catalog) {
+        targetCatalog = existing.catalog as Catalog<T>;
+      }
+
       if (existing) {
-        if (component && component !== existing.type) {
-          // Recreate component if type changes
+        if (
+          component &&
+          (component !== existing.type ||
+            (rawCatalogId && existing.catalog?.id !== targetCatalog.id))
+        ) {
+          // Recreate component if type or catalog changes
           surface.componentsModel.removeComponent(id);
-          const newComponent = new ComponentModel(id, component, mergedProperties);
+          const newComponent = new ComponentModel(id, component, mergedProperties, targetCatalog);
           surface.componentsModel.addComponent(newComponent);
         } else {
           existing.properties = mergedProperties;
@@ -593,7 +625,7 @@ export class MessageProcessor<T extends ComponentApi> {
         if (!component) {
           throw new A2uiValidationError(`Cannot create component ${id} without a type.`);
         }
-        const newComponent = new ComponentModel(id, component, properties);
+        const newComponent = new ComponentModel(id, component, properties, targetCatalog);
         surface.componentsModel.addComponent(newComponent);
       }
     }
@@ -657,12 +689,16 @@ export class MessageProcessor<T extends ComponentApi> {
     surface: SurfaceModel<T>,
     newComponents: Array<Record<string, unknown>>,
   ): void {
-    // 1. Build map of all component types in the surface (combining existing & new)
+    // 1. Build map of all component types and catalogs in the surface (combining existing & new)
     const typeMap = new Map<string, string>();
+    const compCatalogMap = new Map<string, Catalog<T>>();
     const childMap = new Map<string, string[]>();
 
     for (const [id, model] of surface.componentsModel.entries) {
       typeMap.set(id, model.type);
+      if (model.catalog) {
+        compCatalogMap.set(id, model.catalog as Catalog<T>);
+      }
       const props = model.properties || {};
       const list: string[] = [];
       this.extractChildIdsFromProps(props, list);
@@ -673,10 +709,17 @@ export class MessageProcessor<T extends ComponentApi> {
 
     for (const comp of newComponents) {
       const {id, component, ...props} = comp;
+      const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
       if (typeof id === 'string' && typeof component === 'string') {
         typeMap.set(id, component);
       }
       if (typeof id === 'string') {
+        if (typeof rawCatalogId === 'string' && rawCatalogId) {
+          const found = this.catalogs.find(c => c.id === rawCatalogId);
+          if (found) {
+            compCatalogMap.set(id, found);
+          }
+        }
         const list: string[] = [];
         this.extractChildIdsFromProps(props, list);
         if (list.length > 0) {
@@ -698,7 +741,8 @@ export class MessageProcessor<T extends ComponentApi> {
 
     // 2. Validate constraints for each component
     for (const [id, componentType] of typeMap.entries()) {
-      const componentApi = surface.catalog.components.get(componentType);
+      const compCatalog = compCatalogMap.get(id) ?? surface.catalog;
+      const componentApi = compCatalog.components.get(componentType);
       if (!componentApi) continue;
 
       // Parent constraint validation

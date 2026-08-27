@@ -241,5 +241,74 @@ describe('SurfaceComponentsModel', () => {
       assert.strictEqual(errors.length, 1);
       assert.ok(errors[0].message.includes('Missing root component'));
     });
+
+    it('extracts references and validates topology across mixed catalogs', () => {
+      const customCatalog = new Catalog('custom-cat', [
+        {
+          name: 'CustomCard',
+          schema: z.object({
+            bodySlot: z.string().describe('ChildComponentId'),
+            footerSlot: z.string().describe('ChildComponentId').optional(),
+          }),
+        },
+        {
+          name: 'CustomChart',
+          schema: z.object({title: z.string()}),
+        },
+      ]);
+
+      // root uses customCatalog ('CustomCard' with bodySlot pointing to 'c1' and footerSlot pointing to 'c2')
+      const root = new ComponentModel(
+        'root',
+        'CustomCard',
+        {bodySlot: 'c1', footerSlot: 'c2'},
+        customCatalog,
+      );
+      // c1 is a standard Box from testCatalog pointing to c3 (CustomChart)
+      const c1 = new ComponentModel('c1', 'Box', {child: 'c3'});
+      // c2 is a standard Text from testCatalog
+      const c2 = new ComponentModel('c2', 'Text', {text: 'Footer'});
+      // c3 is a CustomChart from customCatalog
+      const c3 = new ComponentModel('c3', 'CustomChart', {title: 'Sales'}, customCatalog);
+
+      model.addComponent(root);
+      model.addComponent(c1);
+      model.addComponent(c2);
+      model.addComponent(c3);
+
+      const rootRefs = model.getChildIds('root');
+      assert.ok(rootRefs.includes('c1'));
+      assert.ok(rootRefs.includes('c2'));
+
+      const c1Refs = model.getChildIds('c1');
+      assert.ok(c1Refs.includes('c3'));
+
+      // Topology validation should pass with zero errors
+      assert.doesNotThrow(() => model.validateTopology({allowOrphanComponents: false}));
+    });
+
+    it('detects cycles between components from different catalogs', () => {
+      const customCatalog = new Catalog('custom-cat', [
+        {
+          name: 'CustomContainer',
+          schema: z.object({
+            contentId: z.string().describe('ChildComponentId'),
+          }),
+        },
+      ]);
+
+      // root (CustomContainer from customCatalog) -> c1 (Box from testCatalog) -> root (cycle!)
+      const root = new ComponentModel('root', 'CustomContainer', {contentId: 'c1'}, customCatalog);
+      const c1 = new ComponentModel('c1', 'Box', {child: 'root'});
+
+      model.addComponent(root);
+      model.addComponent(c1);
+
+      assert.throws(
+        () => model.detectCycles(),
+        (err: any) =>
+          err.name === 'A2uiRecursionError' && err.message.includes('Circular reference detected'),
+      );
+    });
   });
 });

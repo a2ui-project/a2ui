@@ -15,6 +15,7 @@
  */
 
 import {EventEmitter, EventSource} from '../common/events.js';
+import {Catalog} from '../catalog/types.js';
 
 /**
  * Represents the state model for an individual UI component.
@@ -34,11 +35,13 @@ export class ComponentModel {
    * @param id The unique identifier for this component.
    * @param type The component type name.
    * @param initialProperties The initial properties for the component.
+   * @param catalog Optional Catalog associated with this component.
    */
   constructor(
     readonly id: string,
     readonly type: string,
     initialProperties: Record<string, any>,
+    readonly catalog?: Catalog<any, any>,
   ) {
     this._properties = initialProperties;
   }

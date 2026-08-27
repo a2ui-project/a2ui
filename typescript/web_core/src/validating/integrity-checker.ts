@@ -368,11 +368,60 @@ export interface IntegrityOptions {
   allowMissingRoot?: boolean;
 }
 
+export type CatalogOrRefMapInput =
+  | Catalog<any>
+  | ComponentRefMap
+  | Array<Catalog<any>>
+  | Map<string, Catalog<any>>;
+
+function resolveRefMapForComponent(
+  comp: Record<string, any>,
+  catalogInput: CatalogOrRefMapInput,
+  refMapCache: Map<Catalog<any>, ComponentRefMap>,
+): ComponentRefMap {
+  const getRefMap = (cat: Catalog<any>) => {
+    let m = refMapCache.get(cat);
+    if (!m) {
+      m = buildComponentRefMap(cat);
+      refMapCache.set(cat, m);
+    }
+    return m;
+  };
+
+  if (catalogInput instanceof Catalog) {
+    return getRefMap(catalogInput);
+  }
+  if (Array.isArray(catalogInput)) {
+    const rawCatalogId = comp.catalogId ?? comp.catalogID;
+    if (typeof rawCatalogId === 'string' && rawCatalogId) {
+      const found = catalogInput.find(c => c.id === rawCatalogId);
+      if (found) return getRefMap(found);
+    }
+    if (catalogInput.length > 0 && catalogInput[0] instanceof Catalog) {
+      return getRefMap(catalogInput[0]);
+    }
+    return {};
+  }
+  if (catalogInput instanceof Map) {
+    const rawCatalogId = comp.catalogId ?? comp.catalogID;
+    if (typeof rawCatalogId === 'string' && rawCatalogId && catalogInput.has(rawCatalogId)) {
+      const cat = catalogInput.get(rawCatalogId)!;
+      return getRefMap(cat);
+    }
+    const first = catalogInput.values().next().value;
+    if (first instanceof Catalog) {
+      return getRefMap(first);
+    }
+    return {};
+  }
+  return catalogInput as ComponentRefMap;
+}
+
 /**
  * Validates the structural integrity of a list of component definitions.
  *
  * @param components Array of component definition objects to audit.
- * @param catalogOrRefMap Component reference field mapping definitions or Catalog instance.
+ * @param catalogOrRefMap Component reference field mapping definitions, Catalog instance, or list/map of Catalogs.
  * @param options Integrity configuration options.
  * @throws {A2uiIntegrityError} If duplicate IDs, missing root, or dangling references are found.
  *
@@ -383,14 +432,13 @@ export interface IntegrityOptions {
  */
 export function validateComponentIntegrity(
   components: Array<Record<string, any>>,
-  catalogOrRefMap: Catalog<any> | ComponentRefMap,
+  catalogOrRefMap: CatalogOrRefMapInput,
   options: IntegrityOptions = {},
 ): void {
-  const refFieldsMap: ComponentRefMap =
-    catalogOrRefMap instanceof Catalog ? buildComponentRefMap(catalogOrRefMap) : catalogOrRefMap;
   const rootId = options.rootId ?? 'root';
   const allowDanglingReferences = options.allowDanglingReferences ?? false;
   const allowMissingRoot = options.allowMissingRoot ?? false;
+  const refMapCache = new Map<Catalog<any>, ComponentRefMap>();
 
   const ids = new Set<string>();
 
@@ -419,6 +467,7 @@ export function validateComponentIntegrity(
   for (const comp of components) {
     if (!comp || typeof comp !== 'object') continue;
     const compId = comp.id !== undefined && comp.id !== null ? String(comp.id) : 'Unknown';
+    const refFieldsMap = resolveRefMapForComponent(comp, catalogOrRefMap, refMapCache);
     for (const [refId, fieldName] of getComponentReferences(comp, refFieldsMap)) {
       if (!ids.has(refId)) {
         throw new A2uiIntegrityError(

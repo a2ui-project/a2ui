@@ -772,4 +772,152 @@ describe('MessageProcessor', () => {
       });
     });
   });
+
+  describe('Mixed Catalogs Support', () => {
+    const basicCat: Catalog<ComponentApi> = new Catalog('cat-basic', [
+      {
+        name: 'Box',
+        schema: z.object({child: z.string().describe('ChildComponentId').optional()}),
+      },
+      {
+        name: 'Text',
+        schema: z.object({text: z.string()}),
+      },
+    ]);
+
+    const customCat: Catalog<ComponentApi> = new Catalog('cat-custom', [
+      {
+        name: 'CustomCard',
+        schema: z.object({
+          title: z.string(),
+          contentSlot: z.string().describe('ChildComponentId'),
+        }),
+      },
+      {
+        name: 'CustomButton',
+        schema: z.object({
+          actionName: z.string(),
+          variant: z.enum(['primary', 'secondary']),
+        }),
+      },
+    ]);
+
+    it('processes and validates components from multiple catalogs on a single surface', () => {
+      const processor = new MessageProcessor([basicCat, customCat]);
+
+      // Create surface with basicCat as default
+      processor.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 'surface-1', catalogId: 'cat-basic'},
+      });
+
+      // Send components from both cat-basic and cat-custom
+      processor.processMessages({
+        version: 'v1.0',
+        updateComponents: {
+          surfaceId: 'surface-1',
+          components: [
+            {
+              id: 'root',
+              component: 'CustomCard',
+              catalogId: 'cat-custom',
+              title: 'Dashboard',
+              contentSlot: 'btn1',
+            },
+            {
+              id: 'btn1',
+              component: 'CustomButton',
+              catalogId: 'cat-custom',
+              actionName: 'submit',
+              variant: 'primary',
+            },
+            {
+              id: 'status',
+              component: 'Text',
+              text: 'Active',
+            },
+          ],
+        },
+      });
+
+      const surface = processor.getSurface('surface-1');
+      assert.ok(surface);
+
+      const rootComp = surface?.componentsModel.get('root');
+      assert.strictEqual(rootComp?.type, 'CustomCard');
+      assert.strictEqual(rootComp?.catalog?.id, 'cat-custom');
+
+      const btnComp = surface?.componentsModel.get('btn1');
+      assert.strictEqual(btnComp?.type, 'CustomButton');
+      assert.strictEqual(btnComp?.catalog?.id, 'cat-custom');
+
+      const statusComp = surface?.componentsModel.get('status');
+      assert.strictEqual(statusComp?.type, 'Text');
+      assert.strictEqual(statusComp?.catalog?.id, 'cat-basic');
+    });
+
+    it('fails schema validation if custom component properties are invalid against custom catalog', () => {
+      const processor = new MessageProcessor([basicCat, customCat]);
+      processor.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 'surface-1', catalogId: 'cat-basic'},
+      });
+
+      assert.throws(
+        () => {
+          processor.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 'surface-1',
+              components: [
+                {
+                  id: 'btn1',
+                  component: 'CustomButton',
+                  catalogId: 'cat-custom',
+                  actionName: 'submit',
+                  variant: 'invalid-variant',
+                },
+              ],
+            },
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.ok(err.message.includes("Validation failed for component 'CustomButton'"));
+          return true;
+        },
+      );
+    });
+
+    it('fails when component references an unknown catalogId', () => {
+      const processor = new MessageProcessor([basicCat, customCat]);
+      processor.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 'surface-1', catalogId: 'cat-basic'},
+      });
+
+      assert.throws(
+        () => {
+          processor.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 'surface-1',
+              components: [
+                {
+                  id: 'c1',
+                  component: 'CustomCard',
+                  catalogId: 'non-existent-catalog',
+                },
+              ],
+            },
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.ok(err.message.includes("Unknown catalog ID 'non-existent-catalog'"));
+          return true;
+        },
+      );
+    });
+  });
 });

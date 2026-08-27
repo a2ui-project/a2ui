@@ -15,11 +15,9 @@
  */
 
 import {A2uiValidationError} from '../errors.js';
-import {Catalog} from '../catalog/types.js';
 import {VersionAdapterFactory} from '../processing/adapters/factory.js';
 import {
-  buildComponentRefMap,
-  ComponentRefMap,
+  CatalogOrRefMapInput,
   IntegrityOptions,
   validateComponentIntegrity,
   validateRecursionAndPaths,
@@ -96,7 +94,7 @@ export class A2uiValidator {
    * Validates component list integrity and graph topology.
    *
    * @param components List of component definition objects.
-   * @param catalogOrRefMap Reference field definitions per component type or Catalog instance.
+   * @param catalogOrRefMap Reference field definitions per component type, Catalog instance, or list/map of Catalogs.
    * @param config Validation settings for integrity and topology.
    * @param options Additional component validation options.
    * @throws {A2uiIntegrityError} If integrity check or reachability check fails.
@@ -105,25 +103,22 @@ export class A2uiValidator {
    */
   public validateComponents(
     components: Array<Record<string, any>>,
-    catalogOrRefMap: Catalog<any> | ComponentRefMap,
+    catalogOrRefMap: CatalogOrRefMapInput,
     config: ValidationConfig = STRICT_VALIDATION,
     options: ValidateComponentsOptions = {},
   ): void {
-    const refFieldsMap: ComponentRefMap =
-      catalogOrRefMap instanceof Catalog ? buildComponentRefMap(catalogOrRefMap) : catalogOrRefMap;
-
     if (!options.skipRecursionCheck) {
       validateRecursionAndPaths(components);
     }
-    validateComponentIntegrity(components, refFieldsMap, config);
-    analyzeTopology(components, refFieldsMap, config);
+    validateComponentIntegrity(components, catalogOrRefMap, config);
+    analyzeTopology(components, catalogOrRefMap, config);
   }
 
   /**
    * Validates an entire A2UI payload (envelope, components, topology, and path syntax).
    *
    * @param messages Single message object or array of message objects to validate.
-   * @param catalogOrRefMap Component reference mapping or Catalog instance.
+   * @param catalogOrRefMap Component reference mapping, Catalog instance, or list/map of Catalogs.
    * @param config Validation configuration options.
    * @throws {A2uiValidationError} If envelope format or path syntax is invalid.
    * @throws {A2uiIntegrityError} If component references or graph integrity are violated.
@@ -136,12 +131,9 @@ export class A2uiValidator {
    */
   public validate(
     messages: Array<Record<string, any>> | Record<string, any>,
-    catalogOrRefMap: Catalog<any> | ComponentRefMap,
+    catalogOrRefMap: CatalogOrRefMapInput,
     config: ValidationConfig = STRICT_VALIDATION,
   ): void {
-    const refFieldsMap: ComponentRefMap =
-      catalogOrRefMap instanceof Catalog ? buildComponentRefMap(catalogOrRefMap) : catalogOrRefMap;
-
     const msgList = Array.isArray(messages) ? messages : [messages];
     this.validateProtocolEnvelope(msgList);
 
@@ -167,7 +159,7 @@ export class A2uiValidator {
     }
 
     if (accumulatedComponents.length > 0) {
-      this.validateComponents(accumulatedComponents, refFieldsMap, effectiveConfig, {
+      this.validateComponents(accumulatedComponents, catalogOrRefMap, effectiveConfig, {
         skipRecursionCheck: true,
       });
     }

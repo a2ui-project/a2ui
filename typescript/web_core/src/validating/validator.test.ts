@@ -475,5 +475,56 @@ describe('A2uiValidator & Integrity Verification', () => {
       ]);
       assert.deepStrictEqual(Array.from(refMap.CustomSplitPane[1]), ['sidePanels']);
     });
+
+    it('validates components and graph topology across multiple catalogs', () => {
+      const catalogA = new Catalog('cat-a', [
+        {
+          name: 'BoxA',
+          schema: z.object({childSlot: z.string().describe('ChildComponentId')}),
+        },
+      ]);
+      const catalogB = new Catalog('cat-b', [
+        {
+          name: 'BoxB',
+          schema: z.object({contentSlot: z.string().describe('ChildComponentId')}),
+        },
+        {
+          name: 'LeafB',
+          schema: z.object({text: z.string()}),
+        },
+      ]);
+
+      const components = [
+        {id: 'root', component: 'BoxA', catalogId: 'cat-a', childSlot: 'node-b'},
+        {id: 'node-b', component: 'BoxB', catalogId: 'cat-b', contentSlot: 'leaf-b'},
+        {id: 'leaf-b', component: 'LeafB', catalogId: 'cat-b', text: 'Hello'},
+      ];
+
+      // 1. validateComponentIntegrity with array of catalogs
+      assert.doesNotThrow(() => validateComponentIntegrity(components, [catalogA, catalogB]));
+
+      // 2. analyzeTopology with array of catalogs
+      const visited = analyzeTopology(components, [catalogA, catalogB]);
+      assert.strictEqual(visited.size, 3);
+      assert.ok(visited.has('root'));
+      assert.ok(visited.has('node-b'));
+      assert.ok(visited.has('leaf-b'));
+
+      // 3. A2uiValidator full pipeline with array of catalogs
+      const validator = new A2uiValidator();
+      assert.doesNotThrow(() =>
+        validator.validate(
+          {
+            version: 'v1.0',
+            createSurface: {
+              surfaceId: 'multi-surf',
+              catalogId: 'cat-a',
+              components,
+            },
+          },
+          [catalogA, catalogB],
+        ),
+      );
+    });
   });
 });

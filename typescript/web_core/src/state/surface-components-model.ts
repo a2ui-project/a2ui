@@ -54,6 +54,16 @@ export class SurfaceComponentsModel {
   private components: Map<string, ComponentModel> = new Map();
   private catalogOrRefMap?: Catalog<any, any> | ComponentRefMap;
   private refMap?: ComponentRefMap;
+  private static readonly refMapCache = new WeakMap<Catalog<any, any>, ComponentRefMap>();
+
+  private static getOrCreateRefMap(catalog: Catalog<any, any>): ComponentRefMap {
+    let map = SurfaceComponentsModel.refMapCache.get(catalog);
+    if (!map) {
+      map = buildComponentRefMap(catalog);
+      SurfaceComponentsModel.refMapCache.set(catalog, map);
+    }
+    return map;
+  }
 
   private readonly _onCreated = new EventEmitter<ComponentModel>();
   private readonly _onDeleted = new EventEmitter<string>();
@@ -82,7 +92,9 @@ export class SurfaceComponentsModel {
   setCatalog(catalogOrRefMap: Catalog<any, any> | ComponentRefMap): void {
     this.catalogOrRefMap = catalogOrRefMap;
     this.refMap =
-      catalogOrRefMap instanceof Catalog ? buildComponentRefMap(catalogOrRefMap) : catalogOrRefMap;
+      catalogOrRefMap instanceof Catalog
+        ? SurfaceComponentsModel.getOrCreateRefMap(catalogOrRefMap)
+        : catalogOrRefMap;
   }
 
   /**
@@ -167,11 +179,22 @@ export class SurfaceComponentsModel {
   getChildReferences(componentId: string): Array<[referencedId: string, propertyPath: string]> {
     const comp = this.components.get(componentId);
     if (!comp) return [];
+
+    let refMap: ComponentRefMap;
+    if (comp.catalog) {
+      refMap = SurfaceComponentsModel.getOrCreateRefMap(comp.catalog);
+    } else if (this.refMap) {
+      refMap = this.refMap;
+    } else if (this.catalogOrRefMap instanceof Catalog) {
+      refMap = SurfaceComponentsModel.getOrCreateRefMap(this.catalogOrRefMap);
+    } else if (this.catalogOrRefMap) {
+      refMap = this.catalogOrRefMap;
+    } else {
+      refMap = {};
+    }
+
     return Array.from(
-      getComponentReferences(
-        {id: comp.id, component: comp.type, ...comp.properties},
-        this.refMap ?? this.catalogOrRefMap ?? {},
-      ),
+      getComponentReferences({id: comp.id, component: comp.type, ...comp.properties}, refMap),
     );
   }
 
