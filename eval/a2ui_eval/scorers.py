@@ -95,47 +95,6 @@ def a2ui_scorer(version: str) -> Scorer:
                     ),
                 )
 
-            if version.startswith("0.9") or version.startswith("v0.9"):
-                ver_prefix = "v0.9"
-            elif version.startswith("1.0") or version.startswith("v1.0"):
-                ver_prefix = "v1.0"
-            elif version.startswith("0.8") or version.startswith("v0.8"):
-                ver_prefix = "v0.8"
-            else:
-                ver_prefix = version if version.startswith("v") else f"v{version}"
-
-            target_cat_id = getattr(catalog, "catalog_id", None)
-            for m in all_messages:
-                if isinstance(m, dict):
-                    m["version"] = ver_prefix
-                    if target_cat_id:
-                        if "createSurface" in m and isinstance(
-                            m["createSurface"], dict
-                        ):
-                            m["createSurface"]["catalogId"] = target_cat_id
-
-            has_create = any(
-                isinstance(m, dict) and "createSurface" in m for m in all_messages
-            )
-            if not has_create and all_messages:
-                first_surface = "main"
-                for m in all_messages:
-                    if isinstance(m, dict) and "updateComponents" in m:
-                        first_surface = m["updateComponents"].get("surfaceId", "main")
-                        break
-                cat_id = (
-                    target_cat_id
-                    or "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
-                )
-                create_msg = {
-                    "version": ver_prefix,
-                    "createSurface": {
-                        "surfaceId": first_surface,
-                        "catalogId": cat_id,
-                    },
-                }
-                all_messages = [create_msg] + all_messages
-
             answer_text = json.dumps(all_messages, indent=2)
             MessageProcessor(
                 [catalog.core_catalog], validation_config=STRICT_VALIDATION

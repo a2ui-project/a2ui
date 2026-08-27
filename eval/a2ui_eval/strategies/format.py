@@ -23,6 +23,8 @@ from inspect_ai.model import (
     ChatCompletionChoice,
     ChatMessageAssistant,
 )
+from a2ui.core.processing import MessageProcessor
+from a2ui.core.validation import STRICT_VALIDATION
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.inference_format import InferenceFormat
@@ -155,7 +157,9 @@ def _parse_and_validate_in_process(
             f"No compiled A2UI {format_name} user interface found in parsed parts."
         )
 
-    validator.validate(compiled_jsons)
+    MessageProcessor(
+        [catalog.core_catalog], validation_config=STRICT_VALIDATION
+    ).process_messages(compiled_jsons)
     return {"compiled_jsons": compiled_jsons, "parts": serialized_parts}
 
 
