@@ -54,10 +54,13 @@ def _get_strategy(
         return direct_json_format
 
     catalog = direct_json_format.get_selected_catalog()
+    formatted_version = f"v{version}" if not version.startswith("v") else version
     if format_name == "express":
         from a2ui.inference_formats.experimental.express.format import ExpressFormat
 
-        return ExpressFormat(catalog=catalog, surface_id=surface_id)
+        return ExpressFormat(
+            catalog=catalog, surface_id=surface_id, version=formatted_version
+        )
     elif format_name == "elemental":
         from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
 
@@ -118,7 +121,7 @@ def _parse_and_validate_in_process(
     resolved_catalog_path: str,
     surface_id: str,
     completion: str,
-) -> list:
+) -> dict:
     catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
     strategy = _get_strategy(
         format_name,
@@ -135,7 +138,10 @@ def _parse_and_validate_in_process(
 
     parts = strategy.parser.parse_response(completion)
     compiled_jsons = []
+    serialized_parts = []
     for p in parts:
+        part_dict = {"text": p.text, "a2ui_json": p.a2ui_json}
+        serialized_parts.append(part_dict)
         a2ui_json = getattr(p, "a2ui_json", None)
         if a2ui_json:
             if isinstance(a2ui_json, list):
@@ -149,7 +155,7 @@ def _parse_and_validate_in_process(
         )
 
     validator.validate(compiled_jsons)
-    return compiled_jsons
+    return {"compiled_jsons": compiled_jsons, "parts": serialized_parts}
 
 
 import traceback
@@ -179,7 +185,7 @@ def parse_with_hard_kill_timeout(
     surface_id: str,
     completion: str,
     timeout_sec: float = 5.0,
-) -> list:
+) -> dict:
     with multiprocessing.Manager() as manager:
         return_dict = manager.dict()
         p = multiprocessing.Process(
@@ -238,7 +244,7 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
                 surface_id = found_id
 
         try:
-            compiled_jsons = await asyncio.to_thread(
+            res_dict = await asyncio.to_thread(
                 parse_with_hard_kill_timeout,
                 format_name,
                 version,
@@ -248,9 +254,26 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
                 timeout_sec=5.0,
             )
 
-            formatted = (
-                f"<a2ui-json>\n{json.dumps(compiled_jsons, indent=2)}\n</a2ui-json>"
-            )
+            compiled_jsons = res_dict.get("compiled_jsons", [])
+            parts = res_dict.get("parts", [])
+
+            formatted_parts = []
+            for p in parts:
+                text_part = p.get("text")
+                if text_part:
+                    formatted_parts.append(text_part)
+                json_part = p.get("a2ui_json")
+                if json_part:
+                    formatted_parts.append(
+                        f"<a2ui-json>\n{json.dumps(json_part, indent=2)}\n</a2ui-json>"
+                    )
+
+            formatted = "\n\n".join(formatted_parts).strip()
+            if "<a2ui-json>" not in formatted:
+                formatted = (
+                    f"<a2ui-json>\n{json.dumps(compiled_jsons, indent=2)}\n</a2ui-json>"
+                )
+
             state.output = ModelOutput(
                 model=state.output.model,
                 choices=[

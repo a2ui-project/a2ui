@@ -139,19 +139,25 @@ async def test_a2ui_express_solvers() -> None:
         assert state.messages[0].role == "system"
         assert "A2UI Express DSL Output Contract" in state.messages[0].content
 
-        # 2. Test Compile Solver
+        # 2. Test Compile Solver with accompanying text and backticks
         compile_solver = compile_format_payload("express", version="1.0")
         state.output = ModelOutput(
             model="mock/model",
             choices=[
                 ChatCompletionChoice(
                     message=ChatMessageAssistant(
-                        content='<a2ui>\nroot = Text("Hello")\n</a2ui>'
+                        content=(
+                            'Here is the domain research synthesis.\n\n'
+                            '```a2ui\nroot = Text("Hello")\n```\n\n'
+                            'Additional reference notes.'
+                        )
                     )
                 )
             ],
         )
         state = await compile_solver(state, dummy_generate)
+        assert "Here is the domain research synthesis." in state.output.completion
+        assert "Additional reference notes." in state.output.completion
         assert "<a2ui-json>" in state.output.completion
         assert '"component": "Text"' in state.output.completion
     finally:

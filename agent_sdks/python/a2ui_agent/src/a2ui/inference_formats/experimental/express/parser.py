@@ -14,6 +14,7 @@
 
 """Parser utilities to extract and compile A2UI Express DSL from LLM responses."""
 
+import re
 from typing import Any, List, Union
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
@@ -65,6 +66,21 @@ class ExpressParser(Parser):
 
     def unwrap(self, content: str) -> List[ResponsePart]:
         """Unwraps/tokenizes the response content into raw Express DSL parts."""
+        # Normalize code fences: ```a2ui ... ``` -> <a2ui> ... </a2ui>
+        normalized = re.sub(
+            r"```(?:a2ui|express)\s*\n(.*?)\n```",
+            r"<a2ui>\n\1\n</a2ui>",
+            content,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        # Normalize backticked tags: `<a2ui>` -> <a2ui>, `</a2ui>` -> </a2ui>
+        normalized = re.sub(
+            r"`+<a2ui\b([^>]*)>`+", r"<a2ui\1>", normalized, flags=re.IGNORECASE
+        )
+        normalized = re.sub(
+            r"`+</a2ui>`+", r"</a2ui>", normalized, flags=re.IGNORECASE
+        )
+
         from a2ui.parser.lexer import BlockLexer
 
         lexer = BlockLexer(
@@ -73,7 +89,7 @@ class ExpressParser(Parser):
             string_delimiters={"'", '"'},
             single_line_comments={"#"},
         )
-        return lexer.tokenize(content)
+        return lexer.tokenize(normalized)
 
     def compile(
         self, format_content: str, *, is_final: bool = True

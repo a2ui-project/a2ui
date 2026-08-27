@@ -41,6 +41,7 @@ def parse_and_fix(payload: str) -> List[Dict[str, Any]]:
     ) as e:
         logger.warning(f"Initial A2UI payload validation failed: {e}")
         updated_payload = _remove_trailing_commas(normalized_payload)
+        updated_payload = _fix_unescaped_backslashes(updated_payload)
         a2ui_json = _parse(updated_payload)
         return a2ui_json
 
@@ -85,4 +86,21 @@ def _remove_trailing_commas(json_str: str) -> str:
     if fixed_json != json_str:
         logger.warning("Detected trailing commas in LLM output; applied autofix.")
 
+    return fixed_json
+
+
+def _fix_unescaped_backslashes(json_str: str) -> str:
+    """Escapes invalid backslashes inside JSON strings (e.g. \\approx, \\Delta).
+
+    Args:
+      json_str: The raw JSON string from the LLM.
+
+    Returns:
+      A JSON string with invalid backslashes escaped.
+    """
+    fixed_json = re.sub(r'\\(?![/"\\bfnrtu]|u[0-9a-fA-F]{4})', r"\\\\", json_str)
+    if fixed_json != json_str:
+        logger.warning(
+            "Detected invalid escape sequences in LLM output; applied backslash autofix."
+        )
     return fixed_json
