@@ -275,7 +275,7 @@ def to_python_type(t: TypeDescriptor) -> str:
         case EnumType(name=name):
             return name
         case ComponentRefType():
-            return "ComponentBuilderNode | str"
+            return "ComponentBuilderNode"
         case ComponentListType():
             return "Sequence[ComponentBuilderNode] | DynamicChildList"
         case DynamicType(inner=inner):
@@ -441,6 +441,26 @@ class ComponentBuilderNode(ABC):
     def to_dict(self) -> dict[str, Any]:
         """Serializes the component to an A2UI JSON dictionary."""
         pass
+
+
+class ExternalComponentBuilderNode(ComponentBuilderNode):
+    """Represents an external component referenced strictly by ID.
+
+    Used during streaming expansion and slot binding to maintain strict type
+    safety without allowing raw, unvalidated strings to be passed into child
+    slots.
+    """
+
+    def __init__(self, id: str):
+        self.id = id
+        self.component_name = "ExternalComponent"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {}
+
+
+# Ergonomic alias
+ComponentRef = ExternalComponentBuilderNode
 ```
 
 ### ID management, collision prevention, and tree flattening
@@ -474,13 +494,13 @@ If internal components reference one another by ID (for example, in `child` or `
 
 When a synthetic component accepts a child component via a slot parameter (e.g. `def modal(body: ComponentBuilderNode)`):
 
-- The `body` component was created in the **caller's scope**, not inside the synthetic component.
+- The `body` component was created in the **caller's scope**, not inside the synthetic component. It may be a full component tree or an `ExternalComponentBuilderNode(id="...")`.
 - The flattener detects slot boundaries and **does not namespace caller-provided nodes**. Caller-provided IDs remain intact, allowing the caller's outer logic and event handlers to address slot components directly.
 
 ```python
 # a2ui/core/flattener.py
 from typing import Any, Optional, Set
-from a2ui.core.ui import ComponentBuilderNode
+from a2ui.core.ui import ComponentBuilderNode, ExternalComponentBuilderNode
 
 
 class IdAllocator:
@@ -524,7 +544,11 @@ def flatten_component_tree(
     def visit(node: ComponentBuilderNode) -> str:
         nonlocal is_root
 
-        # Determine node ID
+        # 1. External component reference: emit ID directly without emitting dictionary
+        if isinstance(node, ExternalComponentBuilderNode):
+            return node.id
+
+        # 2. Determine node ID
         if is_root and root_id:
             node_id = root_id
             is_root = False

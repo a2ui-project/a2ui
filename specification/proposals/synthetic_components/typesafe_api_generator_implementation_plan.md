@@ -18,7 +18,7 @@ To guarantee stability and prevent regressions in production packages:
 
 - **`a2ui_core` (`agent_sdks/python/a2ui_core/`)**:
   - Existing core classes (`Catalog`, `ComponentApi`, `FunctionApi`, `CatalogSchemaValidator`) remain 100% untouched.
-  - Hosts the handwritten runtime base abstractions (`ComponentBuilderNode`, `DataBinding`, `Action`, `FunctionCall`, `bind`, `IdAllocator`, `flatten_component_tree`) as a clean, purely additive module (`a2ui.core.builder.base`).
+  - Hosts the handwritten runtime base abstractions (`ComponentBuilderNode`, `ExternalComponentBuilderNode` / `ComponentRef`, `DataBinding`, `Action`, `FunctionCall`, `bind`, `IdAllocator`, `flatten_component_tree`) as a clean, purely additive module (`a2ui.core.builder.base`).
   - **`base.py` is handwritten, NEVER generated**: Because `base.py` defines catalog-agnostic runtime primitives, keeping it handwritten in core ensures that all generated catalogs share identical base types. This allows custom enterprise components to nest directly inside standard containers (e.g. `Column(children=[CustomCard(...)])`) without type incompatibility.
   - All schema analysis and type extraction logic is implemented via non-invasive `AnalysedComponentApi` and `AnalysedCatalog` adapter classes located inside `a2ui_codegen`.
 - **Client Renderers (`renderers/*`)**:
@@ -99,7 +99,7 @@ Located in `agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental
   - Re-anchor the module around `@synthetic_component` (with backward-compatible alias `dynamic_template`).
   - Support programmatic Python functions that accept typed arguments and return typesafe component trees (or dictionaries).
 - **Pre-bundled Basic Catalog Typesafe Builders**:
-  - Handcrafted base runtime module (`builder/base.py` / `a2ui.core.builder.base`): `ComponentBuilderNode`, `DataBinding`, `bind`, `Action`, `FunctionCall`, `IdAllocator`, `flatten_component_tree`.
+  - Handcrafted base runtime module (`builder/base.py` / `a2ui.core.builder.base`): `ComponentBuilderNode`, `ExternalComponentBuilderNode` (`ComponentRef`), `DataBinding`, `bind`, `Action`, `FunctionCall`, `IdAllocator`, `flatten_component_tree`.
   - Generated from `basic/catalog.json` using `a2ui-codegen`:
     - `builder/components.py`: `Card`, `Column`, `Row`, `Text`, `Button`, `Divider`, `Icon`, `Image`, `TextField`, `Slider`, `Switch`, etc.
     - `builder/functions.py`: `formatString`, etc.
