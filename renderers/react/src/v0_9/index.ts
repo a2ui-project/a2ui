@@ -15,7 +15,6 @@
  */
 
 export * from './A2uiSurface';
-export * from './A2uiNodeSurface';
 export * from './adapter';
 export {useSignalValue, type NodeBuildChild, type NodeViewProps} from './node-view';
 
