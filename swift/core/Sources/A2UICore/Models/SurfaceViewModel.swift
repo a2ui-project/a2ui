@@ -33,11 +33,11 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
   // MARK: - Properties
 
   public let surfaceID: String
-  public let catalogs: [String: Catalog]
+  public let catalogs: [String: AnyCatalog]
   public let defaultCatalogID: String?
 
   /// The primary default catalog associated with this surface, if available.
-  public var catalog: Catalog {
+  public var catalog: AnyCatalog {
     if let defaultCatalogID, let catalog = catalogs[defaultCatalogID] {
       return catalog
     }
@@ -61,7 +61,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
 
   public init(
     surfaceID: String,
-    catalogs: [String: Catalog],
+    catalogs: [String: AnyCatalog],
     defaultCatalogID: String? = nil,
     theme: [String: JSONValue]? = nil,
     actionHandler: (any ActionHandling)? = nil,
@@ -81,13 +81,14 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
 
   public convenience init(
     surfaceID: String,
-    catalogs: [Catalog],
+    catalogs: [any CatalogProtocol],
     defaultCatalogID: String? = nil,
     theme: [String: JSONValue]? = nil,
     actionHandler: (any ActionHandling)? = nil,
     sendDataModel: Bool = false
   ) {
-    let dict = Dictionary(catalogs.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+    let anyCatalogs = catalogs.map { $0.eraseToAnyCatalog() }
+    let dict = Dictionary(anyCatalogs.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
     self.init(
       surfaceID: surfaceID,
       catalogs: dict,
@@ -100,15 +101,16 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
 
   public convenience init(
     surfaceID: String,
-    catalog: Catalog,
+    catalog: any CatalogProtocol,
     theme: [String: JSONValue]? = nil,
     actionHandler: (any ActionHandling)? = nil,
     sendDataModel: Bool = false
   ) {
+    let anyCatalog = catalog.eraseToAnyCatalog()
     self.init(
       surfaceID: surfaceID,
-      catalogs: [catalog.id: catalog],
-      defaultCatalogID: catalog.id,
+      catalogs: [anyCatalog.id: anyCatalog],
+      defaultCatalogID: anyCatalog.id,
       theme: theme,
       actionHandler: actionHandler,
       sendDataModel: sendDataModel
@@ -116,7 +118,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
   }
 
   /// Resolves a catalog by ID, falling back to the surface default catalog if nil.
-  public func getCatalog(id: String? = nil) -> Catalog? {
+  public func getCatalog(id: String? = nil) -> AnyCatalog? {
     let targetCatalogID = id ?? defaultCatalogID
     if let targetCatalogID, let catalog = catalogs[targetCatalogID] {
       return catalog

@@ -78,7 +78,7 @@ struct TestEmailFunction: FunctionImplementation {
   }
 }
 
-func makeTestCatalog() throws -> Catalog {
+func makeTestCatalog() throws -> AnyCatalog {
   let buttonSchema = try Schema(
     instance: """
       {
@@ -124,7 +124,7 @@ func makeTestCatalog() throws -> Catalog {
 
   return Catalog(
     id: "test-catalog",
-    components: [ComponentAPI(name: "button", schema: buttonSchema)],
+    components: [AnyComponentAPI(name: "button", schema: buttonSchema)],
     functions: [TestConcatFunction(), TestRequiredFunction(), TestEmailFunction()]
   )
 }
@@ -714,7 +714,7 @@ struct SurfaceViewModelTests {
     let handler = TestActionHandler()
     let catalog = Catalog(
       id: "custom-catalog",
-      components: [ComponentAPI(name: "customInput", schema: customSchema)],
+      components: [AnyComponentAPI(name: "customInput", schema: customSchema)],
       functions: [TestRequiredFunction(), TestEmailFunction()]
     )
     let processor = MessageProcessor(
@@ -858,7 +858,7 @@ struct SurfaceViewModelTests {
 
     let catalog = Catalog(
       id: "lookalike-catalog",
-      components: [ComponentAPI(name: "custom", schema: schema)],
+      components: [AnyComponentAPI(name: "custom", schema: schema)],
       functions: []
     )
 
