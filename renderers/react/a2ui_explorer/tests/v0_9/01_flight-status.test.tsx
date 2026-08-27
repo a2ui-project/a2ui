@@ -52,8 +52,8 @@ describe('Example: Flight Status', () => {
     )[0] as HTMLElement;
     expect(iconInnerEl).toBeInstanceOf(HTMLElement);
     expect(
-      iconInnerEl.classList.contains('material-symbols-outlined') ||
-        iconInnerEl.classList.contains('a2ui-icon'),
+      iconInnerEl?.classList?.contains('material-symbols-outlined') ||
+        iconInnerEl?.classList?.contains('a2ui-icon'),
     ).toBeTrue();
     expect((iconInnerEl.textContent || '').trim()).toBe('send');
   });

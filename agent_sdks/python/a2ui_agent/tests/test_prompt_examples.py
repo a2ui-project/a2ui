@@ -135,16 +135,20 @@ class TestPromptExamplesValidity:
                     parsed, dict
                 ), f"Atom Example {i+1} returned non-dict payload"
                 components = []
-                if (
-                    "createSurface" in parsed
-                    and "components" in parsed["createSurface"]
-                ):
-                    components.extend(parsed["createSurface"]["components"])
-                if (
-                    "updateComponents" in parsed
-                    and "components" in parsed["updateComponents"]
-                ):
-                    components.extend(parsed["updateComponents"]["components"])
+                if "createSurface" in parsed:
+                    create_surface = parsed["createSurface"]
+                    assert isinstance(
+                        create_surface, dict
+                    ), f"createSurface must be a dict in Atom Example {i+1}"
+                    if "components" in create_surface:
+                        components.extend(create_surface["components"])
+                if "updateComponents" in parsed:
+                    update_components = parsed["updateComponents"]
+                    assert isinstance(
+                        update_components, dict
+                    ), f"updateComponents must be a dict in Atom Example {i+1}"
+                    if "components" in update_components:
+                        components.extend(update_components["components"])
                 assert len(components) > 0, f"Atom Example {i+1} compiled 0 components"
                 for comp in components:
                     assert isinstance(
@@ -178,13 +182,20 @@ class TestPromptExamplesValidity:
                     assert isinstance(
                         msg, dict
                     ), f"Express Example {i+1} message is not a dict"
-                    if "createSurface" in msg and "components" in msg["createSurface"]:
-                        components.extend(msg["createSurface"]["components"])
-                    if (
-                        "updateComponents" in msg
-                        and "components" in msg["updateComponents"]
-                    ):
-                        components.extend(msg["updateComponents"]["components"])
+                    if "createSurface" in msg:
+                        create_surface = msg["createSurface"]
+                        assert isinstance(
+                            create_surface, dict
+                        ), f"createSurface must be a dict in Express Example {i+1}"
+                        if "components" in create_surface:
+                            components.extend(create_surface["components"])
+                    if "updateComponents" in msg:
+                        update_components = msg["updateComponents"]
+                        assert isinstance(
+                            update_components, dict
+                        ), f"updateComponents must be a dict in Express Example {i+1}"
+                        if "components" in update_components:
+                            components.extend(update_components["components"])
                 assert (
                     len(components) > 0
                 ), f"Express Example {i+1} compiled 0 components"

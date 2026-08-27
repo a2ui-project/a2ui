@@ -61,15 +61,19 @@ def _assert_recompiled_matches_payload(
     for msg in messages:
         assert isinstance(msg, dict), f"Message item must be dict, got {type(msg)}"
         if "createSurface" in msg:
-            found_surface_id = msg["createSurface"].get("surfaceId", found_surface_id)
-            if "components" in msg["createSurface"]:
-                recompiled_components.extend(msg["createSurface"]["components"])
+            create_surface = msg["createSurface"]
+            assert isinstance(create_surface, dict), "createSurface must be a dict"
+            found_surface_id = create_surface.get("surfaceId", found_surface_id)
+            if "components" in create_surface:
+                recompiled_components.extend(create_surface["components"])
         if "updateComponents" in msg:
-            found_surface_id = msg["updateComponents"].get(
-                "surfaceId", found_surface_id
-            )
-            if "components" in msg["updateComponents"]:
-                recompiled_components.extend(msg["updateComponents"]["components"])
+            update_components = msg["updateComponents"]
+            assert isinstance(
+                update_components, dict
+            ), "updateComponents must be a dict"
+            found_surface_id = update_components.get("surfaceId", found_surface_id)
+            if "components" in update_components:
+                recompiled_components.extend(update_components["components"])
 
     if found_surface_id is not None and found_surface_id != "main":
         assert (
