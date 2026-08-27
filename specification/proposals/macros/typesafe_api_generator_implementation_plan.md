@@ -1,13 +1,13 @@
-# Implementation Plan: A2UI Typesafe API Generator and Programmatic Synthetic Components
+# Implementation Plan: A2UI Typesafe API Generator and Programmatic Macros
 
 ## 1. Overview and Architecture Strategy
 
 This implementation plan details the steps to:
 
 1. Build the **A2UI Typesafe API Generator** as a standalone package (`agent_sdks/python/a2ui_codegen` v0.1.0) alongside the Agent SDK.
-2. Completely remove the legacy YAML format from the Python templating system in favor of **Programmatic Synthetic Components**.
+2. Completely remove the legacy YAML format from the Python templating system in favor of **Programmatic Macros**.
 3. Provide pre-bundled typesafe Basic Catalog builders and a tree flattener that guarantees root ID stitching and sub-component ID scoping.
-4. Migrate all templates in the community example app (`samples/community/templates/`) to programmatic code functions.
+4. Migrate all templates in the community example app (`samples/community/templates/`) to programmatic macro functions.
 5. Provide exhaustive unit, integration, and end-to-end test suites and documentation.
 
 ---
@@ -18,11 +18,11 @@ To guarantee stability and prevent regressions in production packages:
 
 - **`a2ui_core` (`agent_sdks/python/a2ui_core/`)**:
   - **Zero modifications required**. Existing core classes (`Catalog`, `ComponentApi`, `FunctionApi`, `CatalogSchemaValidator`) remain 100% untouched.
-  - To keep `a2ui_core` completely stable, all builder base abstractions (`ComponentBuilderNode`, `ExternalComponentBuilderNode` / `ComponentRef`, `DataBinding`, `Action`, `FunctionCall`, `CheckRule`, `DynamicChildList`, `Surface`, `bind`, `IdAllocator`, `flatten_component_tree`) are hosted directly within the experimental inference format in the Agent SDK (`a2ui.inference_formats.experimental.synthetic_catalog.builder.base`).
+  - To keep `a2ui_core` completely stable, all builder base abstractions (`ComponentBuilderNode`, `ExternalComponentBuilderNode` / `ComponentRef`, `DataBinding`, `Action`, `FunctionCall`, `CheckRule`, `DynamicChildList`, `Surface`, `bind`, `IdAllocator`, `flatten_component_tree`) are hosted directly within the experimental inference format in the Agent SDK (`a2ui.inference_formats.experimental.macros.builder.base`).
   - All schema analysis and type extraction logic is implemented via non-invasive `AnalysedComponentApi` and `AnalysedCatalog` adapter classes located inside `a2ui_codegen`.
 - **Client Renderers (`renderers/*`)**:
   - **Zero modifications required**.
-  - The synthetic component expansion pipeline produces standard A2UI primitive component dictionaries (`Text`, `Card`, `Column`, `Row`, etc.) that render identically on existing web and mobile renderers.
+  - The macro expansion pipeline produces standard A2UI primitive component dictionaries (`Text`, `Card`, `Column`, `Row`, etc.) that render identically on existing web and mobile renderers.
 - **Workspace Configuration (`pyproject.toml`)**:
   - The only change in non-experimental configuration is registering the new `agent_sdks/python/a2ui_codegen` package in root `pyproject.toml` under `[tool.uv.workspace] members`.
 
@@ -85,19 +85,19 @@ agent_sdks/python/a2ui_codegen/
 
 ---
 
-## 4. Package 2: Synthetic Catalog Inference Format & Builders (`a2ui_agent`)
+## 4. Package 2: Macros Inference Format & Builders (`a2ui_agent`)
 
-Located in `agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/synthetic_catalog/`.
+Located in `agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/macros/`.
 
 ### Directory and File Layout:
 
 ```
-agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/synthetic_catalog/
-├── __init__.py                  # Public exports: synthetic_component, Surface, ComponentBuilderNode, etc.
-├── decorator.py                 # @synthetic_component decorator (with dynamic_template alias)
-├── processor.py                 # SyntheticCatalogProcessor (function registry, expansion & flattening)
-├── format.py                    # SyntheticCatalogInferenceFormat (catalog prompt synthesis & tool routing)
-├── models.py                    # Component metadata models
+agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/macros/
+├── __init__.py                  # Public exports: macro, Surface, ComponentBuilderNode, etc.
+├── decorator.py                 # @macro decorator (with macro_component, dynamic_template aliases)
+├── processor.py                 # MacroProcessor (function registry, expansion & flattening)
+├── format.py                    # MacroInferenceFormat (catalog prompt synthesis & tool routing)
+├── models.py                    # Macro metadata models
 ├── README.md                    # Complete documentation & usage guide
 └── builder/
     ├── __init__.py              # Re-exports: Card, Column, Row, Text, Button, bind, Action, Surface, etc.
@@ -116,9 +116,9 @@ agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/synthetic_c
 - **Clean Retirement of YAML Templates**:
   - Deprecate/remove legacy `experimental/template/` YAML loaders (`StaticTemplate.from_yaml*`, `to_yaml`), YAML resolver logic, and inline loop unrolling syntax.
   - Eliminate `pyyaml` dependency from runtime imports.
-  - In `experimental/template/__init__.py`, forward exports to `synthetic_catalog` with deprecation notices to maintain backward compatibility for existing scripts.
-- **First-Class Programmatic Synthetic Components**:
-  - Re-anchor the module around `@synthetic_component` (with backward-compatible alias `dynamic_template`).
+  - In `experimental/template/__init__.py`, forward exports to `macros` with deprecation notices to maintain backward compatibility for existing scripts.
+- **First-Class Programmatic Macros**:
+  - Re-anchor the module around `@macro` (with backward-compatible aliases `@macro_component` and `@dynamic_template`).
   - Support programmatic Python functions that accept typed arguments and return typesafe component trees (`ComponentBuilderNode` or `Sequence[ComponentBuilderNode]`).
 - **Pre-bundled Basic Catalog Typesafe Builders**:
   - Handcrafted base runtime module (`builder/base.py`):
@@ -135,7 +135,7 @@ agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/synthetic_c
     - `builder/__init__.py`: Re-exports and `py.typed`.
 - **ID Management and Tree Flattening (`builder/base.py`)**:
   - **Root ID stitching**: The returned root node adopts the invocation ID (`id=invocation_id`).
-  - **Sub-component namespacing**: Internal sub-components receive scoped IDs (`f"{invocation_id}__{local_id}"`), preventing collisions when multiple instances of the same synthetic component are rendered.
+  - **Sub-component namespacing**: Internal sub-components receive scoped IDs (`f"{invocation_id}__{local_id}"`), preventing collisions when multiple instances of the same macro are rendered.
   - **Slot preservation**: Caller-provided slot nodes and `ExternalComponentBuilderNode` references are detected and exempted from namespacing.
 
 ---
@@ -148,7 +148,7 @@ Located in `samples/community/templates/`.
 
 1. **Delete all 11 YAML files** from `samples/community/templates/templates/`:
    - `feedback_item.yaml`, `goal_item.yaml`, `salary_card.yaml`, `section_card.yaml`, `team_card.yaml`, `team_feedback_board.yaml`, `team_goal_list.yaml`, `team_member_knowledge_panel.yaml`, `team_roster.yaml`, `two_column_layout.yaml`, `user_profile.yaml`.
-2. **Implement Programmatic Python Template Functions**:
+2. **Implement Programmatic Python Macro Functions**:
    - Create Python functions in `samples/community/templates/templates/` using the typesafe builder API:
      - `user_profile.py`: `user_profile(userId, userName, role) -> Card`
      - `salary_card.py`: `employee_salary_card(employeeId) -> Card` (resolves employee compensation from internal DB and constructs Card)
@@ -161,10 +161,10 @@ Located in `samples/community/templates/`.
      - `team_roster.py`: `team_roster(directoryTitle, children) -> Column`
      - `payroll_summary.py`: Existing `render_payroll_summary` refactored to use the typesafe builder API.
 3. **Update `server.py`**:
-   - Replace `StaticTemplate.from_yaml_file` calls with direct registration of the programmatic template functions.
+   - Replace `StaticTemplate.from_yaml_file` calls with direct registration of the programmatic macro functions.
    - Verify all 12 preset prompts in the demo server continue to formulate identical visual layouts.
 4. **Verify Client and E2E**:
-   - Run `node test_e2e.mjs` against the updated server to verify that all preset prompts and dynamic templates pass end-to-end verification.
+   - Run `node test_e2e.mjs` against the updated server to verify that all preset prompts and macros pass end-to-end verification.
 
 ---
 
@@ -180,7 +180,7 @@ Located in `samples/community/templates/`.
   - Proper docstrings from catalog descriptions.
 - `test_cli.py`: Invokes `a2ui-codegen` CLI via `subprocess` against official schemas and verifies exit code 0 and generated file structure.
 
-### 2. Typesafe Builders and Flattener Tests (`agent_sdks/python/a2ui_agent/tests/.../synthetic_catalog/builder/`):
+### 2. Typesafe Builders and Flattener Tests (`agent_sdks/python/a2ui_agent/tests/.../macros/builder/`):
 
 - `test_builders.py`: Verifies instantiating `Card`, `Column`, `Row`, `Text`, `Button`, `Divider`, `Icon` with keyword arguments, data bindings (`bind("/path")`), client actions (`Action.event`, `Action.client_function`), and function calls (`formatString`).
 - `test_flattener.py`:
@@ -190,13 +190,13 @@ Located in `samples/community/templates/`.
   - Verifies multi-instance collision prevention on the same surface.
   - Verifies slot boundary preservation (exempting caller slot nodes and `ExternalComponentBuilderNode` from namespacing).
 
-### 3. Synthetic Catalog Processor & Inference Tests (`agent_sdks/python/a2ui_agent/tests/.../synthetic_catalog/`):
+### 3. Macro Processor & Inference Tests (`agent_sdks/python/a2ui_agent/tests/.../macros/`):
 
 - `test_processor.py`:
-  - Tests synchronous expansion of programmatic synthetic component functions.
+  - Tests synchronous expansion of programmatic macro functions.
   - Tests error handling when required parameters are omitted or invalid types are passed.
-  - Tests programmatic data fetching and layout assembly within synthetic component functions.
-  - Tests integration with `SyntheticCatalogInferenceFormat` (prompt generation and tool interception).
+  - Tests programmatic data fetching and layout assembly within macro functions.
+  - Tests integration with `MacroInferenceFormat` (prompt generation and tool interception).
 
 ### 4. Sample App E2E Tests:
 
@@ -210,15 +210,15 @@ Located in `samples/community/templates/`.
    - Create `agent_sdks/python/a2ui_codegen/` with `pyproject.toml`, `types.py`, `analyzer.py`, `emitter/python.py`, `cli.py`, and `README.md`.
    - Add to root `pyproject.toml` workspace members.
    - Write and pass all codegen unit tests (`pytest`).
-2. **Phase 2: Build `synthetic_catalog` Inference Format and Builders**:
-   - Implement handcrafted base runtime module in `a2ui_agent/src/a2ui/inference_formats/experimental/synthetic_catalog/builder/base.py`.
+2. **Phase 2: Build `macros` Inference Format and Builders**:
+   - Implement handcrafted base runtime module in `a2ui_agent/src/a2ui/inference_formats/experimental/macros/builder/base.py`.
    - Run `a2ui-codegen` against Basic Catalog v0.9.1 to produce pre-bundled builders (`components.py`, `functions.py`, `types.py`, `__init__.py`).
-   - Implement `@synthetic_component`, `SyntheticCatalogProcessor`, and `SyntheticCatalogInferenceFormat`.
+   - Implement `@macro`, `MacroProcessor`, and `MacroInferenceFormat`.
    - Deprecate/forward legacy `template/` module.
-   - Add exhaustive unit tests in `a2ui_agent/tests/inference_formats/experimental/synthetic_catalog/`.
+   - Add exhaustive unit tests in `a2ui_agent/tests/inference_formats/experimental/macros/`.
 3. **Phase 3: Migrate Community Sample App**:
    - Delete `.yaml` files in `samples/community/templates/templates/`.
-   - Implement all 11 synthetic component functions in Python using the typesafe builder interface.
+   - Implement all 11 macro functions in Python using the typesafe builder interface.
    - Update `server.py` to register programmatic functions.
    - Run and verify `samples/community/templates/test_e2e.mjs`.
 4. **Phase 4: Format, Lint, License, and Verification**:

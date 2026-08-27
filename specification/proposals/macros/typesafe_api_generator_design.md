@@ -572,21 +572,21 @@ class Surface:
 
 ### ID management, collision prevention, and tree flattening
 
-A critical challenge during synthetic component expansion is managing component IDs across a shared surface. If a synthetic component is instantiated multiple times on the same surface (or if multiple synthetic components define internal IDs like `"header"` or `"submit_btn"`), unnamespaced IDs will collide, violating A2UI's uniqueness constraint.
+A critical challenge during macro expansion is managing component IDs across a shared surface. If a macro is instantiated multiple times on the same surface (or if multiple macros define internal IDs like `"header"` or `"submit_btn"`), unnamespaced IDs will collide, violating A2UI's uniqueness constraint.
 
 To ensure deterministic, collision-free layout expansion, the flattening engine implements four ID management principles:
 
 #### 1. Root ID anchor stitching
 
-When an LLM or parent container invokes a synthetic component, it specifies an invocation ID (for example, `id="user_card_1"`):
+When an LLM or parent container invokes a macro, it specifies an invocation ID (for example, `id="user_card_1"`):
 
 - The parent container's layout already references this ID (e.g. `Column(children=["user_card_1", "other_comp"])`).
-- When the synthetic component function executes, its returned root component (e.g. `Card`) **must assume the invocation ID as its own ID** (`id="user_card_1"`).
+- When the macro function executes, its returned root component (e.g. `Card`) **must assume the invocation ID as its own ID** (`id="user_card_1"`).
 - Even if the developer assigned an internal ID in code (e.g. `Card(id="profile_card")`), the engine overrides the root ID with the invocation ID, ensuring the parent surface stitches seamlessly.
 
 #### 2. Sub-component namespacing
 
-All sub-components inside the synthetic component are scoped to the invocation ID:
+All sub-components inside the macro are scoped to the invocation ID:
 
 - **Namespacing pattern**: `f"{invocation_id}__{local_id}"`.
 - **Explicit internal IDs**: If the developer assigned an explicit ID (e.g. `Button(id="save_btn")`), it is namespaced to `user_card_1__save_btn`.
@@ -599,9 +599,9 @@ If internal components reference one another by ID (for example, in `child` or `
 
 #### 4. Slot boundary preservation
 
-When a synthetic component accepts a child component via a slot parameter (e.g. `def modal(body: ComponentBuilderNode)`):
+When a macro accepts a child component via a slot parameter (e.g. `def modal(body: ComponentBuilderNode)`):
 
-- The `body` component was created in the **caller's scope**, not inside the synthetic component. It may be a full component tree or an `ExternalComponentBuilderNode(id="...")`.
+- The `body` component was created in the **caller's scope**, not inside the macro. It may be a full component tree or an `ExternalComponentBuilderNode(id="...")`.
 - The flattener detects slot boundaries and **does not namespace caller-provided nodes**. Caller-provided IDs remain intact, allowing the caller's outer logic and event handlers to address slot components directly.
 
 ```python
@@ -779,20 +779,24 @@ Because the base runtime types are shared from core, every generated catalog can
 
 ---
 
-## Synthetic component processor integration
+## Macro processor and inference format integration
 
-The Python SDK integrates the typesafe API with synthetic component registration and expansion:
+The Python SDK integrates the typesafe API with macro registration and expansion:
 
-### The `@synthetic_component` decorator
+### The `@macro` decorator
 
-Developers register synthetic components using a Python decorator:
+Developers register macros using the `@macro` decorator:
 
 ```python
-from a2ui.basic import Card, Column, Text
-from a2ui.core import synthetic_component
+from a2ui.inference_formats.experimental.macros import macro
+from a2ui.inference_formats.experimental.macros.builder import (
+    Card,
+    Column,
+    Text,
+)
 
 
-@synthetic_component(
+@macro(
     name="StatusCard",
     description="Displays an operation status with an icon and message.",
 )
@@ -807,20 +811,20 @@ def status_card(
             ]
         )
     )
-````
+```
 
 ### Catalog synthesis algorithm
 
 When the application boots:
 
-1. The `@synthetic_component` decorator inspects the function using `inspect.signature` and type hints.
-2. It generates a synthetic component schema:
+1. The `@macro` decorator inspects the function using `inspect.signature` and type hints.
+2. It generates a macro component schema:
    - Maps `str` $\rightarrow$ `{"type": "string"}`.
    - Maps `int` $\rightarrow$ `{"type": "integer"}`.
    - Maps `bool` $\rightarrow$ `{"type": "boolean"}`.
    - Reads defaults to populate `required` vs. optional parameter lists.
    - Extracts parameter descriptions from docstrings.
-3. The synthetic component is injected into the in-memory catalog, allowing LLM prompt generators (such as Express, Elemental, or Direct JSON) to instruct the model on its use.
+3. The macro is injected into the in-memory catalog, allowing LLM prompt generators (such as Express, Elemental, Atom, or Direct JSON) to instruct the model on its use.
 
 ### Runtime expansion pipeline
 
@@ -828,9 +832,9 @@ When the application boots:
 LLM Output: StatusCard(title="Order Placed", status="success")
                            |
                            v
-           Synthetic Component Processor
+                    Macro Processor
                            |
-           1. Lookup registered function
+           1. Lookup registered macro function
            2. Execute status_card("Order Placed", "success")
            3. Receives return value: ComponentBuilderNode (or Sequence[ComponentBuilderNode])
            4. Run flatten_component_tree(root, root_id=invocation_id)
@@ -838,10 +842,10 @@ LLM Output: StatusCard(title="Order Placed", status="success")
                            v
 Flat Component Dictionaries:
 [
-  {"id": "sc_1__text_1", "component": "Text", "text": "Status: SUCCESS", "variant": "caption"},
-  {"id": "sc_1__text_2", "component": "Text", "text": "Order Placed", "variant": "h3"},
-  {"id": "sc_1__col_1", "component": "Column", "children": ["sc_1__text_1", "sc_1__text_2"]},
-  {"id": "sc_1", "component": "Card", "child": "sc_1__col_1"}
+  {"id": "macro_1__text_1", "component": "Text", "text": "Status: SUCCESS", "variant": "caption"},
+  {"id": "macro_1__text_2", "component": "Text", "text": "Order Placed", "variant": "h3"},
+  {"id": "macro_1__col_1", "component": "Column", "children": ["macro_1__text_1", "macro_1__text_2"]},
+  {"id": "macro_1", "component": "Card", "child": "macro_1__col_1"}
 ]
                            |
                            v
@@ -1001,3 +1005,4 @@ For developers who prefer having the CLI permanently available in their local de
   ```
 - **Production deployment**: `pip install a2ui-agent-sdk` (remains lean with zero generator bloat).
 - **Local development**: `pip install "a2ui-agent-sdk[codegen]"` (installs the extra and provides the `a2ui-codegen` command).
+````
