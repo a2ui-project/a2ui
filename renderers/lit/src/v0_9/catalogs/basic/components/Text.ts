@@ -37,7 +37,8 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof Text
    * It also supports `--_a2ui-text-color` override from parent components (like Button).
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-basic-text {
       display: inline-block;
       color: var(--_a2ui-text-color, var(--a2ui-text-color-text, var(--a2ui-color-on-background)));
     }

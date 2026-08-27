@@ -49,10 +49,8 @@ struct SurfaceTests {
       surfaceID: "s1",
       catalog: catalog
     )
-    let catalogImplementation = CatalogImplementation()
     let surface = Surface(
-      viewModel: viewModel,
-      catalogImplementation: catalogImplementation
+      viewModel: viewModel
     )
     #expect(surface.surfaceID == "s1")
   }
@@ -181,39 +179,17 @@ struct ThemeEnvironmentTests {
   }
 }
 
-// MARK: - CatalogImplementation Tests
+// MARK: - SwiftUICatalogRendering Tests
 
 @MainActor
-struct CatalogImplementationTests {
+struct SwiftUICatalogRenderingTests {
 
-  @Test func componentKeyEquality() {
-    let firstKey = ComponentKey(
-      catalogID: "catalogA",
-      type: "button"
-    )
-    let secondKey = ComponentKey(
-      catalogID: "catalogA",
-      type: "button"
-    )
-    let thirdKey = ComponentKey(
-      catalogID: "catalogB",
-      type: "button"
-    )
-    #expect(firstKey == secondKey)
-    #expect(firstKey != thirdKey)
-  }
-
-  @Test func catalogImplementationResolvesUnqualifiedFallback() {
-    let catalogImplementation = CatalogImplementation()
-    catalogImplementation.register(
-      type: "button",
-      builder: { node in AnyView(Text(node.type)) }
-    )
-    let builder = catalogImplementation.builder(
-      catalogID: "catalogA",
-      type: "button"
-    )
-    #expect(builder != nil)
+  @Test func catalogResolvesUnqualifiedFallback() throws {
+    let schema = try Schema(instance: "{\"type\": \"object\"}")
+    let buttonComponent = ComponentImplementation(name: "button", schema: schema) { node in
+      AnyView(Text(node.type))
+    }
+    let catalog = Catalog(id: "catalogA", components: [buttonComponent])
 
     let node = Node(
       id: "btn1",
@@ -221,30 +197,26 @@ struct CatalogImplementationTests {
       catalogID: "catalogA",
       properties: [:]
     )
-    let renderedView = Surface.render(node: node, using: catalogImplementation)
+    let renderedView = Surface.render(node: node, using: ["catalogA": catalog])
     #expect(renderedView != nil)
   }
 
-  @Test func catalogImplementationResolvesQualifiedKeyOverFallback() {
-    let catalogImplementation = CatalogImplementation()
+  @Test func catalogResolvesQualifiedOverFallback() throws {
+    let schema = try Schema(instance: "{\"type\": \"object\"}")
     var qualifiedCalled = false
     var fallbackCalled = false
 
-    catalogImplementation.register(
-      catalogID: "catalogA",
-      type: "button",
-      builder: { _ in
-        qualifiedCalled = true
-        return AnyView(Text("Qualified"))
-      }
-    )
-    catalogImplementation.register(
-      type: "button",
-      builder: { _ in
-        fallbackCalled = true
-        return AnyView(Text("Fallback"))
-      }
-    )
+    let qualifiedButton = ComponentImplementation(name: "button", schema: schema) { _ in
+      qualifiedCalled = true
+      return AnyView(Text("Qualified"))
+    }
+    let fallbackButton = ComponentImplementation(name: "button", schema: schema) { _ in
+      fallbackCalled = true
+      return AnyView(Text("Fallback"))
+    }
+
+    let catalogA = Catalog(id: "catalogA", components: [qualifiedButton])
+    let catalogB = Catalog(id: "catalogB", components: [fallbackButton])
 
     let node = Node(
       id: "btn1",
@@ -252,12 +224,13 @@ struct CatalogImplementationTests {
       catalogID: "catalogA",
       properties: [:]
     )
-    _ = Surface.render(node: node, using: catalogImplementation)
+    _ = Surface.render(
+      node: node, using: ["catalogA": catalogA, "catalogB": catalogB], defaultCatalogID: "catalogB")
     #expect(qualifiedCalled)
     #expect(!fallbackCalled)
   }
 
-  @Test func catalogImplementationRegistersComponentImplementation() throws {
+  @Test func componentImplementationConformsToComponentAPIAndExposesBuilder() throws {
     let schema = try Schema(instance: "{\"type\": \"object\"}")
     var builderCalled = false
     let component = ComponentImplementation(
@@ -269,34 +242,39 @@ struct CatalogImplementationTests {
     }
 
     #expect(component.name == "map")
-    #expect(component.api.name == "map")
     #expect(component.schema == schema)
+    let api: any ComponentAPI = component
+    #expect(api.name == "map")
+    #expect(api.schema == schema)
 
-    let catalogImplementation = CatalogImplementation(
-      catalogID: "mapsCatalog",
-      components: [component]
-    )
-
+    let catalog = Catalog(id: "mapsCatalog", components: [component])
     let node = Node(
       id: "map1",
       type: "map",
       catalogID: "mapsCatalog",
       properties: [:]
     )
-    _ = Surface.render(node: node, using: catalogImplementation)
+    _ = Surface.render(node: node, using: ["mapsCatalog": catalog])
     #expect(builderCalled)
   }
 
-  @Test func catalogImplementationEnvironmentDefaultsToNil() {
+  @Test func catalogsEnvironmentDefaultsToEmpty() {
     let environment = EnvironmentValues()
-    #expect(environment.a2uiCatalogImplementation == nil)
+    #expect(environment.a2uiCatalogs.isEmpty)
+    #expect(environment.a2uiDefaultCatalogID == nil)
   }
 
-  @Test func catalogImplementationEnvironmentCanBeSet() {
+  @Test func catalogsEnvironmentCanBeSet() throws {
     var environment = EnvironmentValues()
-    let catalogImplementation = CatalogImplementation()
-    environment.a2uiCatalogImplementation = catalogImplementation
-    #expect(environment.a2uiCatalogImplementation != nil)
+    let schema = try Schema(instance: "{\"type\": \"object\"}")
+    let component = ComponentImplementation(name: "custom", schema: schema) { _ in
+      AnyView(EmptyView())
+    }
+    let catalog = Catalog(id: "test", components: [component])
+    environment.a2uiCatalogs = ["test": catalog]
+    environment.a2uiDefaultCatalogID = "test"
+    #expect(environment.a2uiCatalogs.count == 1)
+    #expect(environment.a2uiDefaultCatalogID == "test")
   }
 }
 
@@ -309,7 +287,7 @@ final class TestBox<T>: @unchecked Sendable {
 }
 
 /// Helper function returning a catalog with a simple text schema for rendering tests.
-func makeTestSurfaceCatalogForRendering() throws -> Catalog {
+func makeTestSurfaceCatalogForRendering() throws -> AnyCatalog {
   let textSchema = try Schema(
     instance: """
       {
@@ -327,7 +305,7 @@ func makeTestSurfaceCatalogForRendering() throws -> Catalog {
   return Catalog(
     id: "default",
     components: [
-      ComponentAPI(
+      AnyComponentAPI(
         name: "text",
         schema: textSchema
       )

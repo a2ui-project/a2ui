@@ -27,7 +27,8 @@ import {A2uiController} from '../../../a2ui-controller.js';
 @customElement('a2ui-list')
 export class A2uiListElement extends BasicCatalogA2uiLitElement<typeof ListApi> {
   static override styles = css`
-    :host {
+    :host,
+    a2ui-list {
       display: flex;
       overflow: auto;
       gap: var(--a2ui-list-gap, var(--a2ui-spacing-m, 0.5rem));

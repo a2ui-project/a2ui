@@ -42,7 +42,7 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi
       height: auto;
       border-radius: var(--a2ui-image-border-radius, 0);
     }
-    :host(.icon),
+    :is(:host(.icon), a2ui-image.icon),
     img.icon {
       width: var(--a2ui-image-icon-size, 24px);
       height: var(--a2ui-image-icon-size, 24px);
@@ -52,15 +52,15 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi
       height: var(--a2ui-image-avatar-size, 40px);
       border-radius: 50%;
     }
-    :host(.smallFeature),
+    :is(:host(.smallFeature), a2ui-image.smallFeature),
     img.smallFeature {
       max-width: var(--a2ui-image-small-feature-size, 100px);
     }
-    :host(.largeFeature),
+    :is(:host(.largeFeature), a2ui-image.largeFeature),
     img.largeFeature {
       max-height: var(--a2ui-image-large-feature-size, 400px);
     }
-    :host(.header),
+    :is(:host(.header), a2ui-image.header),
     img.header {
       height: var(--a2ui-image-header-size, 200px);
       object-fit: cover;

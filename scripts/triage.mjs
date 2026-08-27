@@ -14,47 +14,21 @@
  * limitations under the License.
  */
 
-// Reconciles the 'status: needs-triage' and 'status: waiting-for-author-response'
-// labels across all open issues and PRs.
+// Reconciles the 'status: needs-triage' and 'status:
+// waiting-for-author-response' labels across all open issues and PRs.
 //
-// 'status: needs-triage' is fully owned by this automation: it is added to every
-// item that matches a rule below and removed from every item that does not, on
-// each run.
+// For detailed rules and documentation on how the triage automation works, see:
+// docs/contributing/triage.md in the section "How the automated triage bot
+// works".
 //
-// 'status: waiting-for-author-response' is applied by hand; the automation only
-// clears it once an external contributor comments on the item after the label
-// went on — on PRs a review or inline review comment counts too. Comments from
-// maintainers never clear it. While the label is set the item is never flagged,
-// so parking an item also takes it out of triage.
-//
-// An item is flagged with 'status: needs-triage' when it does not have the label
-// 'status: waiting-for-author-response' and:
-//   1. It is an issue:
-//      a. without a priority label, or
-//      b. P0/P1 without an assignee, or
-//      c. P0 and stale for more than 1 day, or
-//      d. P1 and stale for more than 30 days.
-//   2. It is a stale PR opened by an external contributor (PRs from
-//      maintainers are managed by their authors).
-//   3. It is an issue whose latest human comment is from an external author
-//      and has gone unanswered for more than 1 day.
-//
-// "Stale" is measured from the last human contribution (a comment, or — on PRs —
-// a review or inline review comment, or the opening post if there are none)
-// rather than `updated_at`, so the bot's own label edits never reset the clock.
-// A PR is "stale" when no internal member has responded after the external
-// author's last contribution for more than a day.
-//
-// Flagged issues and PRs:
-// https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20label%3A%22status%3A%20needs-triage%22
-//
-// The job prints to console what items are flagged/unflagged and why. To see the
-// history of runs see:
-// https://github.com/a2ui-project/a2ui/actions/workflows/triage.yml
-//
-// Items are selected by query, but the query alone is not trusted: GitHub's
-// index can lag behind reality. Before changing any label the script re-reads the
-// item and confirms it still matches.
+// Implementation notes:
+// - Items are selected by query, but the query alone is not trusted: GitHub's
+//   search index can lag behind reality. Before changing any label, the script
+//   re-reads the item and confirms it still matches.
+// - Only contributions from external contributors clear
+//   'status: waiting-for-author-response'; comments from maintainers never clear
+//   it.
+// - The job prints to the console what items are flagged or unflagged and why.
 
 export const WAITING_LABEL = 'status: waiting-for-author-response';
 export const FLAG_LABEL = 'status: needs-triage';
