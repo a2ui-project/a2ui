@@ -154,7 +154,7 @@ export default function App() {
     const fetchTemplates = async () => {
       setLibraryLoading(true);
       try {
-        const res = await fetch('http://127.0.0.1:8000/templates');
+        const res = await fetch('http://127.0.0.1:8000/macros');
         if (res.ok) {
           const list: TemplateDefinition[] = await res.json();
           setTemplates(list);
@@ -252,7 +252,7 @@ export default function App() {
 
     try {
       const res = await fetch(
-        `http://127.0.0.1:8000/templates/${selectedTemplate.templateId}/resolve`,
+        `http://127.0.0.1:8000/macros/${selectedTemplate.templateId}/resolve`,
         {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
@@ -421,10 +421,10 @@ export default function App() {
           </div>
           <div>
             <h1 style={{fontSize: '16px', fontWeight: 700, margin: 0, color: '#0f172a'}}>
-              A2UI Templates
+              A2UI Macros
             </h1>
             <p style={{fontSize: '11px', color: '#64748b', margin: 0}}>
-              Static & Dynamic Server Expansion · Basic Catalog
+              Programmatic Server-Side Expansion · Basic Catalog
             </p>
           </div>
         </div>
@@ -483,7 +483,7 @@ export default function App() {
             <span className="material-symbols-outlined" style={{fontSize: '16px'}}>
               menu_book
             </span>
-            Template Library
+            Macro Library
           </button>
         </div>
       </header>
@@ -601,7 +601,7 @@ export default function App() {
                 lineHeight: 1.4,
               }}
             >
-              <strong>Template Inference Format</strong>
+              <strong>Macro Inference Format</strong>
               <br />
               Click the <span style={{color: '#2563eb', fontWeight: 600}}>ℹ️ Inspect</span> button
               on any turn to view the raw LLM Express DSL and expanded JSON.
@@ -666,7 +666,7 @@ export default function App() {
                       margin: '0 0 8px',
                     }}
                   >
-                    A2UI Templates Explorer
+                    A2UI Macros Explorer
                   </h3>
                   <p
                     style={{
@@ -676,8 +676,8 @@ export default function App() {
                       color: '#64748b',
                     }}
                   >
-                    Click a preset or select a suggested prompt below to observe static and dynamic
-                    templates expanded server-side into standard A2UI primitives.
+                    Click a preset or select a suggested prompt below to observe programmatic
+                    macros expanded server-side into standard A2UI primitives.
                   </p>
 
                   <div
@@ -716,22 +716,22 @@ export default function App() {
                         {
                           icon: 'person',
                           text: 'Show user profile for Alice Smith',
-                          badge: 'Template',
+                          badge: 'Macro',
                         },
                         {
                           icon: 'flag',
                           text: 'Show team goals for Core Protocol Engineering',
-                          badge: 'Template',
+                          badge: 'Macro',
                         },
                         {
                           icon: 'reviews',
                           text: 'Show feedback board for Frontend Guild',
-                          badge: 'Template',
+                          badge: 'Macro',
                         },
                         {
                           icon: 'groups',
                           text: 'Show team roster with Core Architecture',
-                          badge: 'Template',
+                          badge: 'Macro',
                         },
                         {
                           icon: 'monitoring',
@@ -1203,10 +1203,10 @@ export default function App() {
           >
             <div style={{padding: '0 8px 12px 8px'}}>
               <h2 style={{fontSize: '15px', fontWeight: 700, margin: '0 0 4px', color: '#0f172a'}}>
-                Registered Templates
+                Registered Macros
               </h2>
               <p style={{fontSize: '12px', color: '#64748b', margin: 0}}>
-                Inspect static declarative templates and dynamic server resolvers.
+                Inspect programmatic macros and dynamic server resolvers.
               </p>
             </div>
 

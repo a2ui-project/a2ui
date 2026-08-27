@@ -136,21 +136,22 @@ async function runE2ETest() {
     console.log('   ✓ Expanded A2UI JSON displayed in inspector drawer');
     console.log('✅ Inspector Drawer Test Passed!');
 
-    // 4. Test Template Library Screen
-    console.log('\n👉 Testing Template Library Studio...');
-    const libraryTabBtn = page.locator('button:has-text("Template Library")');
+    // 4. Test Macro Library Screen
+    console.log('\n👉 Testing Macro Library Studio...');
+    const libraryTabBtn = page.locator('button:has-text("Macro Library"), button:has-text("Template Library")');
     await libraryTabBtn.click();
     await page.waitForTimeout(1000);
 
     let libraryBody = await page.textContent('body');
     if (
-      !libraryBody.includes('Registered Templates') ||
+      (!libraryBody.includes('Registered Macros') &&
+        !libraryBody.includes('Registered Templates')) ||
       (!libraryBody.includes('Inflated UI Preview') &&
         !libraryBody.includes('Inflated Output Preview'))
     ) {
-      throw new Error(`Template Library studio failed to load:\n${libraryBody}`);
+      throw new Error(`Macro Library studio failed to load:\n${libraryBody}`);
     }
-    console.log('   ✓ Template Library screen mounted');
+    console.log('   ✓ Macro Library screen mounted');
 
     // Click EmployeeSalaryCard dynamic template in library list
     console.log('\n👉 Testing Dynamic Template 3-Stage Studio...');

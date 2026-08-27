@@ -1,8 +1,8 @@
 {
-  "name": "@a2ui/templates-community-demo",
+  "name": "@a2ui/macros-community-demo",
   "private": true,
   "version": "0.1.0",
-  "description": "A2UI Templates Community Demo Client",
+  "description": "A2UI Macros Community Demo Client",
   "type": "module",
   "scripts": {
     "dev": "vite",

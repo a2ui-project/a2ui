@@ -7,7 +7,7 @@ This implementation plan details the steps to:
 1. Build the **A2UI TypeScript CLI** (`@a2ui/cli` v0.1.0 at `javascript/a2ui_cli`) as a monorepo Yarn workspace, providing modular subcommands (`a2ui codegen`) powered by `Catalog.fromJson()` in `@a2ui/web_core`.
 2. Provide pre-bundled typesafe Basic Catalog builders in Python, generated directly by the TypeScript CLI.
 3. Completely remove the legacy YAML format from the Python templating system in favor of **Programmatic Macros** (`@macro`).
-4. Migrate all templates in the community example app (`samples/community/templates/`) to programmatic macro functions.
+4. Migrate all templates in the community example app (`samples/community/macros/`) to programmatic macro functions.
 5. Provide exhaustive unit, integration, and end-to-end test suites and documentation.
 
 ---
@@ -132,16 +132,16 @@ agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/macros/
 
 ---
 
-## 5. Package 3: Community Sample App Migration (`samples/community/templates/`)
+## 5. Package 3: Community Sample App Migration (`samples/community/macros/`)
 
-Located in `samples/community/templates/`.
+Located in `samples/community/macros/`.
 
 ### Migration Steps:
 
-1. **Delete all 11 YAML files** from `samples/community/templates/templates/`:
+1. **Delete all 11 YAML files** from `samples/community/macros/templates/`:
    - `feedback_item.yaml`, `goal_item.yaml`, `salary_card.yaml`, `section_card.yaml`, `team_card.yaml`, `team_feedback_board.yaml`, `team_goal_list.yaml`, `team_member_knowledge_panel.yaml`, `team_roster.yaml`, `two_column_layout.yaml`, `user_profile.yaml`.
 2. **Implement Programmatic Python Macro Functions**:
-   - Create Python functions in `samples/community/templates/templates/` using the typesafe builder API:
+   - Create Python functions in `samples/community/macros/macro_definitions.py` using the typesafe builder API:
      - `user_profile.py`: `user_profile(userId, userName, role) -> Card`
      - `salary_card.py`: `employee_salary_card(employeeId) -> Card` (resolves employee compensation from internal DB and constructs Card)
      - `section_card.py`: `section_card(title, description, headerAction, children) -> Card`
@@ -192,7 +192,7 @@ Located in `samples/community/templates/`.
 
 ### 4. Sample App E2E Tests:
 
-- Run `test_e2e.mjs` in `samples/community/templates/` to guarantee all 12 preset templates render correctly on the React client without regression.
+- Run `test_e2e.mjs` in `samples/community/macros/` to guarantee all 12 preset macros render correctly on the React client without regression.
 
 ---
 
@@ -208,9 +208,9 @@ Located in `samples/community/templates/`.
 3. **Phase 3: Generate Python Builders**:
    - Re-generated `builder/` in `a2ui_agent` using `node javascript/a2ui_cli/dist/src/cli.js codegen --catalog specification/v0_9_1/catalogs/basic/catalog.json --spec-version v0.9.1 --out agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/macros/builder`.
 4. **Phase 4: Migrate Community Sample App**:
-   - Migrated all 11 community templates to programmatic `@macro` functions.
+   - Migrated all 11 community templates to programmatic `@macro` functions in `samples/community/macros/`.
    - Verified demo `server.py` with `MacroInferenceFormat`.
 5. **Phase 5: Exhaustive Multi-Suite Verification**:
    - Verified Python unit tests (`test_macros.py` - 15 passed).
-   - Verified server tests (`test_server.py` - 4 passed).
-   - Verified end-to-end browser integration (`test_e2e.mjs` - all 7 presets, inspector drawer, template library, dynamic 3-stage studio, and live Gemini inference passed).
+   - Verified server tests (`test_server.py` - 5 passed).
+   - Verified end-to-end browser integration (`test_e2e.mjs` in `samples/community/macros/` - all 7 presets, inspector drawer, macro library, dynamic 3-stage studio, and live Gemini inference passed).

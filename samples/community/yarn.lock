@@ -75,6 +75,29 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@a2ui/macros-community-demo@workspace:macros/client":
+  version: 0.0.0-use.local
+  resolution: "@a2ui/macros-community-demo@workspace:macros/client"
+  dependencies:
+    "@a2ui/react": "npm:^0.10.2"
+    "@a2ui/web_core": "npm:^0.10.6"
+    "@types/node": "npm:^25.9.3"
+    "@types/react": "npm:^19.2.17"
+    "@types/react-dom": "npm:^19.2.3"
+    "@vitejs/plugin-react": "npm:^6.0.2"
+    eslint: "npm:^10.4.1"
+    eslint-config-prettier: "npm:^10.1.8"
+    eslint-plugin-react: "npm:^7.37.5"
+    eslint-plugin-react-hooks: "npm:^7.1.1"
+    react: "npm:^19.2.7"
+    react-dom: "npm:^19.2.7"
+    typescript: "npm:5.9.3"
+    typescript-eslint: "npm:^8.61.0"
+    vite: "npm:^8.0.16"
+    wireit: "npm:^0.15.0-pre.2"
+  languageName: unknown
+  linkType: soft
+
 "@a2ui/markdown-it@npm:*":
   version: 0.0.4
   resolution: "@a2ui/markdown-it@npm:0.0.4"
@@ -145,29 +168,6 @@ __metadata:
   checksum: 10c0/61db572c7f57079052d452233f58cce68e9e35b72d7b004e702741304f866960d0045d976f354c15dfac223981b1a92550bbc6870ba1002df6ca9670ed45968e
   languageName: node
   linkType: hard
-
-"@a2ui/templates-community-demo@workspace:templates/client":
-  version: 0.0.0-use.local
-  resolution: "@a2ui/templates-community-demo@workspace:templates/client"
-  dependencies:
-    "@a2ui/react": "npm:^0.10.2"
-    "@a2ui/web_core": "npm:^0.10.6"
-    "@types/node": "npm:^25.9.3"
-    "@types/react": "npm:^19.2.17"
-    "@types/react-dom": "npm:^19.2.3"
-    "@vitejs/plugin-react": "npm:^6.0.2"
-    eslint: "npm:^10.4.1"
-    eslint-config-prettier: "npm:^10.1.8"
-    eslint-plugin-react: "npm:^7.37.5"
-    eslint-plugin-react-hooks: "npm:^7.1.1"
-    react: "npm:^19.2.7"
-    react-dom: "npm:^19.2.7"
-    typescript: "npm:5.9.3"
-    typescript-eslint: "npm:^8.61.0"
-    vite: "npm:^8.0.16"
-    wireit: "npm:^0.15.0-pre.2"
-  languageName: unknown
-  linkType: soft
 
 "@a2ui/web_core@npm:^0.10.0":
   version: 0.10.0

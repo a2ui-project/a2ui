@@ -45,9 +45,9 @@ from a2ui.inference_formats.experimental.macros.builder import (
     Row,
     Text,
 )
-from template_definitions import ALL_MACROS, SalaryCard
+from macro_definitions import ALL_MACROS, SalaryCard
 
-app = FastAPI(title="A2UI Templates Community Demo Server")
+app = FastAPI(title="A2UI Macros Community Demo Server")
 
 app.add_middleware(
     CORSMiddleware,
@@ -480,9 +480,11 @@ SAMPLE_PARAMS = {
 }
 
 
+@app.get("/macros")
+@app.get("/api/macros")
 @app.get("/templates")
 @app.get("/api/templates")
-def list_templates():
+def list_macros():
     res = []
     for m in format_instance.macros:
         m_name = m.name
@@ -514,6 +516,7 @@ def list_templates():
         t_dict = {
             "version": "0.1",
             "name": m_name,
+            "macroId": m_name,
             "templateId": m_name,
             "description": m.description or "",
             "parameters": schema.get("properties", {}),
@@ -562,11 +565,13 @@ def list_templates():
     return res
 
 
+@app.post("/macros/{template_id}/resolve")
+@app.post("/api/macros/{template_id}/resolve")
 @app.post("/templates/{template_id}/resolve")
 @app.post("/api/templates/{template_id}/resolve")
-def resolve_template(template_id: str, req: DynamicResolveRequest):
+def resolve_macro(template_id: str, req: DynamicResolveRequest):
     if not format_instance.processor.has_macro(template_id):
-        raise HTTPException(status_code=404, detail="Template not found")
+        raise HTTPException(status_code=404, detail="Macro not found")
 
     try:
         expanded_components = format_instance.processor.expand(

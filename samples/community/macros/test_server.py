@@ -35,18 +35,35 @@ def client():
     return TestClient(app)
 
 
-def test_list_templates(client):
-    """Verifies that the /templates API endpoint lists all 12 typesafe templates."""
-    response = client.get("/templates")
+def test_list_macros(client):
+    """Verifies that the /macros API endpoint lists all typesafe macros."""
+    response = client.get("/macros")
     assert response.status_code == 200
     data = response.json()
     assert len(data) >= 11
-    template_ids = [t["templateId"] for t in data]
-    assert "EmployeeSalaryCard" in template_ids
-    assert "PayrollSummary" in template_ids
-    assert "UserProfile" in template_ids
-    assert "GoalItem" in template_ids
-    assert "FeedbackItem" in template_ids
+    macro_ids = [t["macroId"] for t in data]
+    assert "EmployeeSalaryCard" in macro_ids
+    assert "PayrollSummary" in macro_ids
+    assert "UserProfile" in macro_ids
+    assert "GoalItem" in macro_ids
+    assert "FeedbackItem" in macro_ids
+
+    # Verify backward compatibility on /templates
+    compat_response = client.get("/templates")
+    assert compat_response.status_code == 200
+    assert len(compat_response.json()) == len(data)
+
+
+def test_resolve_macro_endpoint(client):
+    """Verifies POST /macros/{id}/resolve endpoint."""
+    response = client.post(
+        "/macros/EmployeeSalaryCard/resolve",
+        json={"params": {"employeeId": "emp_102"}},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "expandedComponents" in data
+    assert len(data["sampleMessages"]) >= 2
 
 
 def test_payroll_summary_dynamic_builder():
