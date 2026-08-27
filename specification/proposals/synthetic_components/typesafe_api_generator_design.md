@@ -300,17 +300,46 @@ class ComponentNode(ABC):
         pass
 ```
 
-### Tree flattening and ID allocation
+### ID management, collision prevention, and tree flattening
 
-When serializing a nested component tree into the flat list of A2UI wire dictionaries:
+A critical challenge during synthetic component expansion is managing component IDs across a shared surface. If a synthetic component is instantiated multiple times on the same surface (or if multiple synthetic components define internal IDs like `"header"` or `"submit_btn"`), unnamespaced IDs will collide, violating A2UI's uniqueness constraint.
 
-1. The flattener traverses the tree recursively starting at the root node.
-2. If a node has an explicit `id`, that ID is retained. If `id` is `None`, an `IdAllocator` assigns a deterministic sequential ID (e.g. `root`, `comp_1`, `comp_2`).
-3. For container components, nested `ComponentNode` objects in `child` or `children` are replaced by their allocated string IDs in the parent dictionary.
-4. The flattener returns a flat `list[dict[str, Any]]` where every component contains an `id` and references its children by string ID.
+To ensure deterministic, collision-free layout expansion, the flattening engine implements four ID management principles:
+
+#### 1. Root ID anchor stitching
+
+When an LLM or parent container invokes a synthetic component, it specifies an invocation ID (for example, `id="user_card_1"`):
+
+- The parent container's layout already references this ID (e.g. `Column(children=["user_card_1", "other_comp"])`).
+- When the synthetic component function executes, its returned root component (e.g. `Card`) **must assume the invocation ID as its own ID** (`id="user_card_1"`).
+- Even if the developer assigned an internal ID in code (e.g. `Card(id="profile_card")`), the engine overrides the root ID with the invocation ID, ensuring the parent surface stitches seamlessly.
+
+#### 2. Sub-component namespacing
+
+All sub-components inside the synthetic component are scoped to the invocation ID:
+
+- **Namespacing pattern**: `f"{invocation_id}__{local_id}"`.
+- **Explicit internal IDs**: If the developer assigned an explicit ID (e.g. `Button(id="save_btn")`), it is namespaced to `user_card_1__save_btn`.
+- **Auto-generated IDs**: If the developer omitted the ID, the allocator assigns a deterministic name: `user_card_1__col_1`, `user_card_1__text_2`.
+- **Multi-instance isolation**: If two instances of `UserProfile` appear on the same surface (`user_card_1` and `user_card_2`), their internal buttons become `user_card_1__save_btn` and `user_card_2__save_btn`, preventing collision.
+
+#### 3. Internal reference rewriting
+
+If internal components reference one another by ID (for example, in `child` or `children` slots, action targets, or accessibility references), the flattener maintains an ID translation map (`local_id -> namespaced_id`) and rewrites internal references so they point to the namespaced IDs.
+
+#### 4. Slot boundary preservation
+
+When a synthetic component accepts a child component via a slot parameter (e.g. `def modal(body: ComponentNode)`):
+
+- The `body` component was created in the **caller's scope**, not inside the synthetic component.
+- The flattener detects slot boundaries and **does not namespace caller-provided nodes**. Caller-provided IDs remain intact, allowing the caller's outer logic and event handlers to address slot components directly.
 
 ```python
 # a2ui/core/flattener.py
+from typing import Any, Optional, Set
+from a2ui.core.ui import ComponentNode
+
+
 class IdAllocator:
 
     def __init__(self, prefix: str = ""):
@@ -320,30 +349,64 @@ class IdAllocator:
     def allocate(self, hint: str = "comp") -> str:
         self._counter += 1
         return (
-            f"{self._prefix}{hint}_{self._counter}"
+            f"{self._prefix}__{hint}_{self._counter}"
             if self._prefix
             else f"{hint}_{self._counter}"
         )
 
 
 def flatten_component_tree(
-    root: ComponentNode, id_prefix: str = ""
+    root: ComponentNode,
+    root_id: Optional[str] = None,
+    id_prefix: Optional[str] = None,
+    slot_nodes: Optional[Set[ComponentNode]] = None,
 ) -> list[dict[str, Any]]:
-    allocator = IdAllocator(prefix=id_prefix)
+    """Flattens a component tree into A2UI wire format with scoped IDs.
+
+    Args:
+        root: The root component node to flatten.
+        root_id: Explicit ID for the root node (e.g. synthetic invocation ID).
+        id_prefix: Namespace prefix for internal sub-components.
+        slot_nodes: Set of caller-provided slot nodes exempt from namespacing.
+
+    Returns:
+        Flat list of component dictionaries ready for client rendering.
+    """
+    prefix = id_prefix or (root_id if root_id else "")
+    allocator = IdAllocator(prefix=prefix)
+    slot_set = slot_nodes or set()
     flattened: list[dict[str, Any]] = []
+    is_root = True
 
     def visit(node: ComponentNode) -> str:
-        node_id = node.id or allocator.allocate(hint=node.component_name.lower())
+        nonlocal is_root
+
+        # Determine node ID
+        if is_root and root_id:
+            node_id = root_id
+            is_root = False
+        elif node in slot_set:
+            # Caller slot node: preserve original ID or allocate in caller scope
+            node_id = node.id or allocator.allocate(
+                hint=node.component_name.lower()
+            )
+        elif node.id:
+            # Explicit internal ID: namespace to avoid surface collision
+            node_id = f"{prefix}__{node.id}" if prefix else node.id
+        else:
+            # Unlabelled internal node: assign deterministic namespaced ID
+            node_id = allocator.allocate(hint=node.component_name.lower())
+
         node_dict = node.to_dict()
         node_dict["id"] = node_id
 
-        # Replace nested child node with ID string
+        # Recursively flatten child slot
         if "child" in node_dict and isinstance(
             node_dict["child"], ComponentNode
         ):
             node_dict["child"] = visit(node_dict["child"])
 
-        # Replace nested children nodes with ID strings
+        # Recursively flatten children list slot
         if "children" in node_dict and isinstance(node_dict["children"], list):
             new_children = []
             for item in node_dict["children"]:
@@ -357,13 +420,12 @@ def flatten_component_tree(
         return node_id
 
     visit(root)
-    # Reverse so children appear before parents, or maintain topological order
     return flattened
 ```
 
 ### Generated Python code structure
 
-The Python emitter turns a `CatalogIR` into four files:
+The Python emitter turns a `Catalog` into four files:
 
 1. **`types.py`**:
    - String enum unions:
