@@ -354,6 +354,139 @@ Developers and SDK maintainers who generate the typed API from catalog definitio
 
 ---
 
+## Catalog schema analysis and type extraction
+
+To generate an ergonomic, typesafe API, the generator must analyze an A2UI catalog JSON Schema file (such as `basic/catalog.json`, `minimal/catalog.json`, or custom enterprise schemas) and extract semantic component and property types.
+
+### Schema analysis pipeline
+
+A developer must be able to take an arbitrary catalog JSON schema file (from a local file path, a URL, or an installed package) and generate an API. The generator pipeline must address:
+
+- **Intermediate representation options**:
+  - _Option A: Reusing the in-memory `Catalog` model_: The generator can load the schema into the SDK's existing `Catalog` class (e.g. `a2ui.core.Catalog`), which already parses components, catalog functions, metadata, and version attributes. The generator then iterates over the indexed catalog objects to emit code.
+  - _Option B: Direct JSON Schema AST traversal_: The generator traverses and dereferences the JSON Schema directly using standard schema libraries (such as `jsonschema` / `referencing` in Python, or `@hyperjump/json-schema` in TypeScript).
+  - _Trade-off_: Option A leverages existing parser and validation logic in the SDK, but the in-memory `Catalog` object must preserve rich metadata (such as docstrings, deprecation markers, and sub-schema constraints) required for code generation.
+- **Schema structure differences across protocol versions**:
+  - _In v0.9 / v0.9.1_: Components use an `allOf` inheritance chain:
+    1. `$ref: "common_types.json#/$defs/ComponentCommon"` (defining `id`, `accessibility`).
+    2. `$ref: "#/$defs/CatalogComponentCommon"`.
+    3. An inline object schema defining component-specific `properties` and `required` fields.
+       _Requirement_: The generator must recursively resolve and merge these `allOf` branches into a single flattened property dictionary for each component.
+  - _In v1.0_: Components are defined directly as flat object schemas without `allOf` indirection, simplifying schema parsing while introducing new common attributes.
+
+### Semantic types to detect in `common_types.json`
+
+The generator must recognize specific A2UI semantic types declared in `common_types.json` and map them to idiomatic language constructs:
+
+- **`ComponentId` (`string`)**:
+  - Maps to an optional string parameter `id: Optional[str] = None`.
+- **`Child` (single child component)**:
+  - In v0.9.1, declared as `$ref: "common_types.json#/$defs/ComponentId"` on a property named `child`. In v1.0, declared formally as `$defs/Child`.
+  - Must map to a parameter accepting a component instance (`child: ComponentNode | str`), allowing natural tree nesting while still permitting explicit ID references.
+- **`ChildList` (component list or dynamic binding)**:
+  - Declared as a `oneOf` schema accepting either a static array of component IDs or a dynamic template object (`{ componentId, path }`).
+  - Must map to a parameter accepting a sequence of components or a dynamic child list (`children: Sequence[ComponentNode] | DynamicChildList`).
+- **`DynamicString`**:
+  - Declared as a `oneOf` schema accepting a literal string, a data model binding (`DataBinding`), or a function call returning a string.
+  - Must map to `str | DataBinding | FunctionCall[str]`.
+- **`DynamicNumber`**:
+  - Declared as a `oneOf` schema accepting a literal number (integer or float), a data model binding, or a function call returning a number.
+  - Must map to `int | float | DataBinding | FunctionCall[float]`.
+- **`DynamicBoolean`**:
+  - Declared as a `oneOf` schema accepting a literal boolean, a data model binding, or a function call returning a boolean.
+  - Must map to `bool | DataBinding | FunctionCall[bool]`.
+- **`DynamicStringList`**:
+  - Declared as a `oneOf` schema accepting a literal string array, a data model binding, or a function call returning a string array.
+  - Must map to `Sequence[str] | DataBinding | FunctionCall[Sequence[str]]`.
+- **`DynamicValue`**:
+  - Open dynamic value accepting any primitive literal, data binding, or function call.
+  - Must map to `Any | DataBinding | FunctionCall[Any]`.
+- **`DataBinding`**:
+  - Object schema with required `path: string` (JSON Pointer).
+  - Must map to a typed `DataBinding(path: str)` class or a concise `bind(path: str)` factory function.
+- **`FunctionCall`**:
+  - Schema defining client-side function invocation (`call: string`, `args: object`, optional `returnType` or `callId`).
+  - The generator must synthesize typed callable wrapper functions for every function declared in the catalog's `functions` section.
+- **`Action`**:
+  - Declared as a `oneOf` schema accepting a server event (`{ event: { name: str, context?: dict } }`) or a client function (`{ function: { call: str, args?: dict } }`).
+  - Must map to dedicated constructors: `Action.event(name, context=...)` and `Action.client_function(call, args=...)`.
+- **`CheckRule` and `Checkable`**:
+  - Input validation schema requiring `condition: DynamicBoolean` and `message: string`.
+  - Must map to a typed `CheckRule(condition=..., message=...)` class.
+- **String Enums**:
+  - Properties with `type: "string"` and an `enum: [...]` list (e.g. `variant`, `justify`, `align`, `fit`).
+  - Must map to host language `Literal[...]` unions or enum classes.
+- **Required vs. Optional Properties**:
+  - Properties in the schema's `required` array must be generated as mandatory arguments (no default value).
+  - Properties omitted from `required` must be generated as optional arguments defaulting to `None`.
+
+---
+
+## Developer workflow and CLI usage examples
+
+To illustrate how a developer generates and consumes a typesafe API from a custom catalog JSON file, consider the following workflow:
+
+### Step 1: Running the generator CLI
+
+A developer working with a custom catalog schema (for example, a CRM catalog `crm_catalog.json`) runs the code generator using standard package execution tools:
+
+```bash
+# Python: Generate typed API using uvx or pipx
+uvx a2ui-codegen \
+  --catalog ./catalogs/crm_catalog.json \
+  --lang python \
+  --out ./src/my_app/ui/crm
+
+# TypeScript: Generate typed API using npx
+npx @a2ui/codegen \
+  --catalog ./catalogs/crm_catalog.json \
+  --lang typescript \
+  --out ./src/generated/crm
+```
+
+### Step 2: Generated file structure
+
+The generator produces a self-contained package with clear separation between components, functions, types, and serialization:
+
+```
+src/my_app/ui/crm/
+├── __init__.py          # Re-exports all components, functions, and binding helpers
+├── components.py        # Typed component constructors (CustomerCard, DealPipeline, etc.)
+├── functions.py         # Typed catalog function wrappers (formatCurrency, calculateRisk, etc.)
+├── types.py             # String literal enums, DataBinding, ActionRef
+└── py.typed             # PEP 561 marker for mypy and pyright
+```
+
+### Step 3: Consuming the generated API in code
+
+The developer imports the generated constructors and function wrappers to author a synthetic component or a direct payload:
+
+```python
+from my_app.ui.crm import (
+    CustomerCard,
+    DealPipeline,
+    PipelineStage,
+    bind,
+    formatCurrency,
+)
+
+
+def render_deal_view(deal_id: str) -> CustomerCard:
+    return CustomerCard(
+        title=bind(f"/deals/{deal_id}/title"),
+        stage=PipelineStage.NEGOTIATION,
+        amount=formatCurrency(amount=bind(f"/deals/{deal_id}/value")),
+        child=DealPipeline(
+            current_stage=bind(f"/deals/{deal_id}/stage"),
+            stages=["Prospect", "Proposal", "Negotiation", "Closed"],
+        ),
+    )
+```
+
+Typing `CustomerCard(` in VS Code or PyCharm immediately displays parameter completions, docstrings from `crm_catalog.json`, and static type verification.
+
+---
+
 ## Protocol versioning and cross-version considerations
 
 A2UI has multiple protocol versions with ongoing evolution (v0.9, v0.9.1, and v1.0). The generator must account for versioning in both its architecture and its generated APIs.
@@ -423,6 +556,35 @@ The design must evaluate three architectural options:
 - Clear separation between raw schema data types (DTOs representing wire format) and the developer-facing ergonomic API (constructors, tree builders, auto-ID handlers).
 - Minimal runtime dependencies in the generated code. Generated libraries should avoid depending on heavy third-party frameworks.
 - Comprehensive test suites verifying that generated code compiles cleanly, runs in strict type-checking modes, and serializes to valid A2UI payloads.
+
+---
+
+## Packaging and distribution strategy
+
+The A2UI project already maintains and deploys multiple libraries across language ecosystems (`a2ui_agent`, `a2ui_core`, client renderers, etc.). Introducing a typesafe API generator requires decisions on how the generator and its supporting runtime code are packaged, installed, and distributed.
+
+### Separation of runtime infrastructure and generator tooling
+
+The design must decouple the runtime classes from the code generation tools:
+
+- **Lightweight runtime package**:
+  - Base classes (`ComponentNode`, `DataBinding`, `Action`, `FunctionCall`, the tree flattener, and the ID allocator) must reside in a lightweight runtime package (e.g. `a2ui-core` or `a2ui-runtime`).
+  - _Dependency isolation_: Generated code must depend only on this lightweight runtime package. It must have zero dependencies on LLM orchestration frameworks, agent servers, or heavy web frameworks.
+  - This guarantees that generated UI code can be deployed in resource-constrained environments such as serverless functions, lightweight MCP tool servers, or embedded microservices without pulling in the entire agent development kit.
+- **API generator CLI tool**:
+  - The generator requires schema resolvers, Jinja2/Mustache template engines, and file system utilities.
+  - _Distribution options_:
+    1. **Standalone CLI package**: Distributed as an independent tool (`a2ui-codegen` on PyPI, `@a2ui/codegen` on npm, `a2ui_codegen` on pub.dev). Developers can run it on-demand via `uvx a2ui-codegen`, `pipx run a2ui-codegen`, or `npx @a2ui/codegen` without installing generator dependencies into their application runtime.
+    2. **SDK extra**: Bundled as an optional extra in the primary agent SDK (e.g. `pip install "a2ui-agent[codegen]"`), accessible via `python -m a2ui.tools.codegen`.
+    3. **Hybrid approach**: Publish both the standalone CLI package on package registries and include the CLI entry point in the developer SDK.
+
+### Pre-bundled standard catalogs (zero-setup experience)
+
+Requiring a manual code generation step for official A2UI catalogs would introduce unnecessary adoption friction:
+
+- **Pre-bundled distribution**: Official SDKs (`a2ui-agent`, `a2ui-core`, `@a2ui/core`) must ship with pre-generated, pre-tested packages for standard catalogs (e.g. `from a2ui.basic import Card, Column, Row, Text`).
+- **Zero-setup workflow**: Developers authoring UI with standard components can import and use them immediately without running CLI commands or setting up build hooks.
+- **On-demand generation for custom catalogs**: The `a2ui-codegen` tool is used primarily when teams create domain-specific catalogs or extend official catalogs with custom components.
 
 ---
 
