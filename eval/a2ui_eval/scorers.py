@@ -95,14 +95,19 @@ def a2ui_scorer(version: str) -> Scorer:
                     ),
                 )
 
-            ver_prefix = version if version.startswith("v") else f"v{version}"
+            if version.startswith("0.9") or version.startswith("v0.9"):
+                ver_prefix = "v0.9"
+            elif version.startswith("1.0") or version.startswith("v1.0"):
+                ver_prefix = "v1.0"
+            elif version.startswith("0.8") or version.startswith("v0.8"):
+                ver_prefix = "v0.8"
+            else:
+                ver_prefix = version if version.startswith("v") else f"v{version}"
+
             target_cat_id = getattr(catalog, "catalog_id", None)
             for m in all_messages:
                 if isinstance(m, dict):
-                    if "version" in m:
-                        m_ver = str(m["version"])
-                        if not m_ver.startswith("v"):
-                            m["version"] = f"v{m_ver}"
+                    m["version"] = ver_prefix
                     if target_cat_id:
                         if "createSurface" in m and isinstance(
                             m["createSurface"], dict
