@@ -57,32 +57,37 @@ The exact output data structure of the typesafe API may differ depending on the 
 
 ---
 
-## Abstract intermediate interface and authoring layer decoupling
+## Authoring layer decoupling and the intermediate contract
 
-Developer preferences for UI authoring syntax vary widely across languages and teams. Some prefer constructor keyword arguments, others prefer fluent method chaining, and TypeScript developers often prefer TSX or declarative factories.
+Developer preferences for UI authoring syntax vary widely across programming languages and teams. Some prefer constructor keyword arguments, others prefer fluent method chaining, and TypeScript developers often prefer TSX or declarative factories. Furthermore, authoring ergonomics are likely to evolve over time.
 
-To allow different ergonomic authoring styles without duplicating flattening, ID allocation, and serialization logic, the system should define an abstract intermediate interface that all authoring styles conform to:
+The system must allow synthetic component functions to use different builder approaches without locking the runtime or synthetic component processor into a single rigid class hierarchy.
 
-### The component node contract
+### Evaluating intermediate representation options
 
-Every component instance produced by any builder or authoring syntax must conform to a shared intermediate representation (IR) or interface (e.g. `ComponentNode` or `Renderable`):
+The requirements evaluate two primary approaches for defining the contract between authoring builders and the runtime engine:
 
-- **Component metadata**:
-  - `component_type`: String identifier matching the catalog component name (e.g. `"Text"`, `"Card"`).
-  - `id`: Optional explicit component ID.
-  - `catalog_id`: Optional catalog override for multi-catalog surfaces.
-- **Property inspection**:
-  - A method or mapping to inspect the component's configured properties, distinguishing between literals, data model bindings (`bind(...)`), and catalog function calls.
-- **Child slot inspection**:
-  - A structured mechanism to identify child slots (single `child` vs. list `children`), enabling tree traversal algorithms without hardcoding component-specific property names.
-- **Flattening capability**:
-  - A standardized method (e.g. `flatten(id_allocator) -> list[ComponentDict]`) that recursively traverses the tree, assigns IDs to unnumbered nodes, converts child references to ID strings, and returns the flat component list expected by the client renderer.
+#### Approach 1: Reusing the A2UI JSON format directly (`to_json` / wire serialization)
 
-### Benefits of the decoupled contract
+Under this approach, the authoritative A2UI JSON specification serves directly as the intermediate contract. Any builder node or authoring helper simply provides a method such as `to_json()` or `to_a2ui()` that serializes the structure into standard A2UI component data:
 
-- **Pluggable authoring styles**: Teams can implement alternative ergonomic styles (e.g. fluent builders, TSX factories, functional helpers) as thin syntactic wrappers on top of the shared node contract.
-- **Isolated serialization logic**: Tree flattening, circular reference detection, ID collision prevention, and catalog validation are implemented once in the shared core rather than repeated across builder styles.
-- **Stable target for synthetic components**: The synthetic component processor accepts any object implementing the `ComponentNode` interface, ensuring backwards compatibility if the front-end builder syntax is revised.
+- **Minimal abstraction**: Avoids inventing, maintaining, and standardizing an artificial abstract AST or node object model across multiple programming languages.
+- **Broad interoperability**: Any builder style, third-party library, or even raw dictionary output can be used within synthetic components, as long as it serializes to valid A2UI JSON.
+- **Direct schema validation**: Output can be validated directly against the catalog's existing JSON Schema without an intermediate translation pass.
+- **Design questions to resolve**:
+  - _Flattening location_: Does `to_json()` produce a fully flattened list of wire component dictionaries with ID strings (e.g. `[{"id": "root", "component": "Card", "child": "col_1"}, ...]`), or does it produce a nested JSON structure (e.g. `{"component": "Card", "child": {"component": "Column", ...}}`) that a shared runtime utility flattens?
+  - _ID allocation timing_: If a developer omits explicit IDs, does `to_json()` accept an optional ID generator or prefix to ensure surface-wide uniqueness, or do builder nodes generate IDs upon construction?
+
+#### Approach 2: Abstract component node representation
+
+Under this approach, all builders must produce instances conforming to a formal node interface (e.g. `ComponentNode`) with explicit methods for inspecting component types, properties, and child slots before serialization:
+
+- **Strengths**: Enables tree inspection, transformations, or AST analysis prior to serialization.
+- **Trade-offs**: More prescriptive. Requires maintaining a standardized node object model across Python, TypeScript, Dart, and Kotlin, increasing SDK maintenance overhead.
+
+### Requirement: Flexible, non-prescriptive contract
+
+The design must avoid being overly prescriptive about the internal node format. The core requirement is that the synthetic component engine and payload emitters accept any result that cleanly converts to standard A2UI JSON (for example, through a `.to_json()` / `.to_a2ui()` protocol method, or by directly returning standard dictionaries). This allows different ergonomic builder implementations to be introduced, tested, and evolved independently over time.
 
 ---
 
