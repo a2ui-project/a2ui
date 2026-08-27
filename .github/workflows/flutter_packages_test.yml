@@ -46,7 +46,7 @@ jobs:
       - name: Generate testing matrix
         id: generate_matrix
         run: |
-          DIRS_TO_TEST=$(find samples -name pubspec.yaml -not -path "*/.dart_tool/*" -not -path "*/e2e_test/*" -exec dirname {} \;)
+          DIRS_TO_TEST=$(find samples dart -name pubspec.yaml -not -path "*/.dart_tool/*" -not -path "*/e2e_test/*" -exec dirname {} \;)
 
           JSON_MATRIX="["
           FIRST=true
@@ -84,31 +84,6 @@ jobs:
             echo "Checking cycles in $dir..."
             (cd "$dir" && dart pub get && layerlens --fail-on-cycles --except "lib/src/schema" --except "lib/src/core")
           done
-
-  dart_packages:
-    name: dart/${{ matrix.package }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        package: [a2ui_core, a2ui_agent]
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-dart
-      - name: Install dependencies
-        working-directory: dart/${{ matrix.package }}
-        run: dart pub get
-      - name: Check formatting
-        working-directory: dart/${{ matrix.package }}
-        run: dart format --output=none --set-exit-if-changed .
-      - name: Analyze code
-        working-directory: dart/${{ matrix.package }}
-        run: dart analyze --fatal-infos
-      - name: Run tests
-        working-directory: dart/${{ matrix.package }}
-        run: dart test --test-randomize-ordering-seed=random
 
   analyze_and_test:
     needs: matrix

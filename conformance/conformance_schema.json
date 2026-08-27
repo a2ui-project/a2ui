@@ -93,7 +93,8 @@
           "verify_cuttable_keys",
           "accessibility_check",
           "data_model",
-          "process_request"
+          "process_request",
+          "process_messages"
         ]
       }
     },
@@ -125,7 +126,8 @@
           {"$ref": "#/$defs/VerifyCuttableKeysTest"},
           {"$ref": "#/$defs/AccessibilityCheckTest"},
           {"$ref": "#/$defs/DataModelTest"},
-          {"$ref": "#/$defs/ProcessRequestTest"}
+          {"$ref": "#/$defs/ProcessRequestTest"},
+          {"$ref": "#/$defs/ProcessMessagesTest"}
         ]
       }
     ]
@@ -592,6 +594,67 @@
       },
       "required": ["args"]
     },
+    "ProcessMessagesTest": {
+      "type": "object",
+      "properties": {
+        "action": {"const": "process_messages"},
+        "payload": {
+          "type": "array",
+          "description": "A2UI messages to process, in order.",
+          "items": {"type": "object"}
+        },
+        "expect": {
+          "type": "object",
+          "description": "Expected state after the payload has been processed.",
+          "properties": {
+            "surfaces": {
+              "type": "object",
+              "description": "Expectations per open surface, keyed by surface id.",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "catalogId": {"type": "string"},
+                  "sendDataModel": {"type": "boolean"},
+                  "components": {
+                    "type": "object",
+                    "description": "Expected components, keyed by component id.",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "component": {"type": "string"},
+                        "properties": {"type": "object"}
+                      }
+                    }
+                  },
+                  "data_model": {
+                    "description": "Expected contents of the surface data model at the root."
+                  }
+                }
+              }
+            },
+            "absent_surfaces": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Surface ids that must not be open."
+            },
+            "client_data_model": {
+              "type": "object",
+              "description": "Expected aggregated data model sent back to the agent."
+            },
+            "client_data_model_absent": {
+              "type": "boolean",
+              "description": "Whether there is no client data model to send."
+            },
+            "client_capabilities": {
+              "type": "object",
+              "description": "Expected capabilities the renderer advertises."
+            }
+          }
+        },
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["payload"]
+    },
     "ExpectError": {
       "oneOf": [
         {
@@ -610,7 +673,8 @@
                 "IntegrityError",
                 "RecursionError",
                 "CompileError",
-                "DataError"
+                "DataError",
+                "StateError"
               ]
             },
             "message": {

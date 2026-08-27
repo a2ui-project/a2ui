@@ -1,0 +1,236 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Behaviour of the message processor: the surface lifecycle, component graph
+# mutation, per surface data model routing, and the capability and data model
+# payloads a renderer sends back to the agent.
+#
+# Cases run against an empty catalog whose id is given by
+# `catalog.catalog_schema.catalogId`. Each harness builds that catalog natively
+# rather than parsing the schema, because renderers construct catalogs from
+# code (Zod in `web_core`, `Schema` in Dart) and neither builds a renderer
+# catalog from a JSON Schema document. The suite therefore pins the processor's
+# state machine, not catalog loading; component schema validation is out of
+# scope here for the same reason.
+#
+# `payload` is the list of messages to process, in order. `expect` asserts the
+# resulting state:
+#
+#   surfaces                     map of surface id to expectations, any of
+#                                `catalogId`, `sendDataModel`, `components`
+#                                (id to `component` and `properties`), and
+#                                `data_model` (the whole model at `/`)
+#   absent_surfaces              surface ids that must not be open
+#   client_data_model            the aggregated payload sent back to the agent
+#   client_data_model_absent     there is no such payload to send
+#   client_capabilities          the capabilities the renderer advertises
+#
+# `expect_error` asserts that processing the payload raises instead. Error
+# messages differ between implementations, so `message` is matched as a regular
+# expression against a substring the implementations share.
+
+- name: test_processor_creates_surface
+  description: >-
+    A createSurface message registers a surface bound to the named catalog.
+  catalog:
+    version: "0.9"
+    catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
+  action: process_messages
+  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}]
+  expect: {"surfaces": {"s1": {"catalogId": "conformance-catalog", "sendDataModel": false}}}
+
+- name: test_processor_creates_surface_with_send_data_model
+  description: >-
+    sendDataModel is carried onto the surface it creates.
+  catalog:
+    version: "0.9"
+    catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
+  action: process_messages
+  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog", "sendDataModel": true}}]
+  expect: {"surfaces": {"s1": {"sendDataModel": true}}}
+
+- name: test_processor_deletes_surface
+  description: >-
+    A deleteSurface message removes the surface.
+  catalog:
+    version: "0.9"
+    catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
+  action: process_messages
+  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "deleteSurface": {"surfaceId": "s1"}}]
+  expect: {"absent_surfaces": ["s1"]}
+
+- name: test_processor_adds_components
+  description: >-
+    updateComponents adds components to the named surface.
+  catalog:
+    version: "0.9"
+    catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
+  action: process_messages
+  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}]
+  expect: {"surfaces": {"s1": {"components": {"root": {"component": "Text", "properties": {"text": "Hello"}}}}}}
+
+- name: test_processor_updates_existing_component_properties
+  description: >-
+    Re-sending a component of the same type replaces its properties.
+  catalog:
+    version: "0.9"
+    catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
+  action: process_messages
+  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}, {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "World"}]}}]
+  expect: {"surfaces": {"s1": {"components": {"root": {"component": "Text", "properties": {"text": "World"}}}}}}
+
+- name: test_processor_recreates_component_when_type_changes
+  description: >-
+    Re-sending a component under a different type replaces the component
+    rather than merging into it.
+  catalog:
+    version: "0.9"
+    catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
+  action: process_messages
+  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}, {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ["a"]}]}}]
+  expect: {"surfaces": {"s1": {"components": {"root": {"component": "Column", "properties": {"children": ["a"]}}}}}}
+
+- name: test_processor_updates_components_on_the_named_surface_only
+  description: >-
+    Components are added to the surface the message names, not to every open
+    surface.
+  catalog:
+    version: "0.9"
+    catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
+  action: process_messages
+  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "createSurface": {"surfaceId": "s2", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "updateComponents": {"surfaceId": "s2", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}]
+  expect: {"surfaces": {"s1": {"components": {}}, "s2": {"components": {"root": {"component": "Text", "properties": {"text": "Hello"}}}}}}
+
+- name: test_processor_routes_data_model_updates
+  description: >-
+    updateDataModel writes into the data model of the surface it names.
+  catalog:
+    version: "0.9"
+    catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
+  action: process_messages
+  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "path": "/user/name", "value": "Alice"}}]
+  expect: {"surfaces": {"s1": {"data_model": {"user": {"name": "Alice"}}}}}
+
+- name: test_processor_routes_data_model_updates_per_surface
+  description: >-
+    Each surface has its own data model.
+  catalog:
+    version: "0.9"
+    catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
+  action: process_messages
+  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "createSurface": {"surfaceId": "s2", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "path": "/value", "value": "one"}}, {"version": "v0.9", "updateDataModel": {"surfaceId": "s2", "path": "/value", "value": "two"}}]
+  expect: {"surfaces": {"s1": {"data_model": {"value": "one"}}, "s2": {"data_model": {"value": "two"}}}}
+
+- name: test_processor_client_data_model_includes_opted_in_surfaces_only
+  description: >-
+    The aggregated client data model carries only surfaces created with
+    sendDataModel enabled.
+  catalog:
+    version: "0.9"
+    catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
+  action: process_messages
+  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog", "sendDataModel": true}}, {"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "path": "/foo", "value": "bar"}}, {"version": "v0.9", "createSurface": {"surfaceId": "s2", "catalogId": "conformance-catalog", "sendDataModel": false}}, {"version": "v0.9", "updateDataModel": {"surfaceId": "s2", "path": "/secret", "value": "baz"}}]
+  expect: {"client_data_model": {"surfaces": {"s1": {"foo": "bar"}}}}
+
+- name: test_processor_client_data_model_absent_without_opt_in
+  description: >-
+    No surface opting in means there is no client data model to send.
+  catalog:
+    version: "0.9"
+    catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
+  action: process_messages
+  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "path": "/foo", "value": "bar"}}]
+  expect: {"client_data_model_absent": true}
+
+- name: test_processor_client_capabilities_list_catalog_ids
+  description: >-
+    Client capabilities advertise the ids of the catalogs the renderer holds,
+    under the protocol version key.
+  catalog:
+    version: "0.9"
+    catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
+  action: process_messages
+  payload: []
+  expect: {"client_capabilities": {"v0.9": {"supportedCatalogIds": ["conformance-catalog"]}}}
+
+- name: test_processor_rejects_unknown_catalog
+  description: >-
+    A surface cannot be created against a catalog the renderer does not hold.
+  catalog:
+    version: "0.9"
+    catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
+  action: process_messages
+  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "https://example.com/not-registered.json"}}]
+  expect_error: {"category": "StateError", "message": "Catalog not found"}
+
+- name: test_processor_rejects_duplicate_surface
+  description: >-
+    A surface id cannot be created twice.
+  catalog:
+    version: "0.9"
+    catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
+  action: process_messages
+  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}]
+  expect_error: {"category": "StateError", "message": "already exists"}
+
+- name: test_processor_rejects_components_for_unknown_surface
+  description: >-
+    Components cannot be added to a surface that was never created.
+  catalog:
+    version: "0.9"
+    catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
+  action: process_messages
+  payload: [{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}]
+  expect_error: {"category": "StateError", "message": "Surface not found"}
+
+- name: test_processor_rejects_data_model_update_for_unknown_surface
+  description: >-
+    The data model of a surface that was never created cannot be written.
+  catalog:
+    version: "0.9"
+    catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
+  action: process_messages
+  payload: [{"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "path": "/foo", "value": "bar"}}]
+  expect_error: {"category": "StateError", "message": "Surface not found"}
+
+- name: test_processor_rejects_component_without_id
+  description: >-
+    Every component in an updateComponents message needs an id.
+  catalog:
+    version: "0.9"
+    catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
+  action: process_messages
+  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"component": "Text", "text": "Hello"}]}}]
+  expect_error: {"category": "ValidationError", "message": "missing an 'id'"}
+
+- name: test_processor_rejects_new_component_without_type
+  description: >-
+    A component that does not exist yet cannot be created without naming its
+    type.
+  catalog:
+    version: "0.9"
+    catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
+  action: process_messages
+  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}}, {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "text": "Hello"}]}}]
+  expect_error: {"category": "ValidationError", "message": "Cannot create component"}
+
+- name: test_processor_rejects_message_with_multiple_bodies
+  description: >-
+    An envelope carrying more than one message body is rejected.
+  catalog:
+    version: "0.9"
+    catalog_schema: {"catalogId": "conformance-catalog", "components": {}}
+  action: process_messages
+  payload: [{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "conformance-catalog"}, "deleteSurface": {"surfaceId": "s1"}}]
+  expect_error: {"category": "ValidationError"}
