@@ -15,8 +15,8 @@
 """Unit tests for JSON payload autofixer."""
 
 import unittest
+from a2ui.core import A2uiParseError
 from a2ui.parser.payload_fixer import (
-    _fix_unescaped_backslashes,
     _remove_trailing_commas,
     parse_and_fix,
 )
@@ -25,16 +25,15 @@ from a2ui.parser.payload_fixer import (
 class TestPayloadFixer(unittest.TestCase):
     """Unit test suite for payload_fixer."""
 
-    def test_fix_unescaped_backslashes_latex(self):
-        """Verify invalid backslashes (e.g. LaTeX) are escaped while valid ones are preserved."""
-        invalid_json = (
-            r'{"formula": "\approx \Delta x", "valid": "line1\nline2", "escaped_slash":'
-            r' "path\\to\\file"}'
+    def test_unescaped_backslashes_error_hint(self):
+        """Verify invalid backslashes (e.g. LaTeX) produce an actionable error hint."""
+        invalid_json = r'{"formula": "\approx \Delta x"}'
+        with self.assertRaises(A2uiParseError) as ctx:
+            parse_and_fix(invalid_json)
+        self.assertIn('Help: Unescaped backslash found', str(ctx.exception))
+        self.assertIn(
+            'In JSON strings, all backslashes must be escaped', str(ctx.exception)
         )
-        fixed = _fix_unescaped_backslashes(invalid_json)
-        self.assertIn(r'"formula": "\\approx \\Delta x"', fixed)
-        self.assertIn(r'"valid": "line1\nline2"', fixed)
-        self.assertIn(r'"escaped_slash": "path\\to\\file"', fixed)
 
     def test_fix_trailing_commas(self):
         """Verify trailing commas in objects and arrays are cleanly removed."""
@@ -43,15 +42,15 @@ class TestPayloadFixer(unittest.TestCase):
         self.assertNotIn(', ]', fixed)
         self.assertNotIn(', }', fixed)
 
-    def test_parse_and_fix_recovers_from_corrupt_json(self):
-        """Verify parse_and_fix recovers payloads with both trailing commas and LaTeX."""
+    def test_parse_and_fix_recovers_trailing_commas(self):
+        """Verify parse_and_fix recovers payloads with trailing commas."""
         corrupt_payload = (
             r'[{"version": "v0.9", "createSurface": {"surfaceId": "default",'
             r' "components": ['
-            r'{"id": "t1", "component": "Text", "text": "Formula: \approx \Delta",},'
+            r'{"id": "t1", "component": "Text", "text": "Hello world",},'
             r']}}]'
         )
         res = parse_and_fix(corrupt_payload)
         self.assertEqual(len(res), 1)
         components = res[0]['createSurface']['components']
-        self.assertEqual(components[0]['text'], r'Formula: \approx \Delta')
+        self.assertEqual(components[0]['text'], 'Hello world')
