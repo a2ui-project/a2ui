@@ -163,6 +163,47 @@ extension Node {
     }
     return nil
   }
+
+  /// Returns the resolved accessibility attributes, falling back to implicit label inference.
+  public var accessibilityAttributes: AccessibilityAttributes? {
+    let accessibilityDictionary =
+      (properties["accessibility"] as? ResolvedDictionary)
+      ?? dictionary(for: "accessibility").map { ResolvedDictionary($0) }
+    let accessibilityJSON = properties["accessibility"] as? JSONValue
+
+    let explicitLabel =
+      accessibilityDictionary?.string(for: "label")
+      ?? accessibilityJSON?["label"]?.stringValue
+    let explicitDescription =
+      accessibilityDictionary?.string(for: "description")
+      ?? accessibilityJSON?["description"]?.stringValue
+    let explicitLive =
+      accessibilityDictionary?.string(for: "live")
+      ?? accessibilityJSON?["live"]?.stringValue
+    let explicitHidden =
+      accessibilityDictionary?.bool(for: "hidden")
+      ?? accessibilityJSON?["hidden"]?.boolValue
+
+    let inferredLabel =
+      explicitLabel
+      ?? string(for: "title")
+      ?? string(for: "text")
+      ?? string(for: "label")
+
+    if inferredLabel != nil
+      || explicitDescription != nil
+      || explicitLive != nil
+      || explicitHidden != nil
+    {
+      return AccessibilityAttributes(
+        label: inferredLabel,
+        description: explicitDescription,
+        live: explicitLive,
+        hidden: explicitHidden
+      )
+    }
+    return nil
+  }
 }
 
 extension Node: Resolved {}
