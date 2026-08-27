@@ -333,19 +333,23 @@ The ingestion engine reads catalog JSON schemas and transforms them into `Catalo
 
 ### Semantic type detection rules
 
-The normalizer inspects each property schema and maps it to a `PropertyKind`:
+The normalizer inspects each property schema and maps it to a strongly typed `TypeDescriptor`:
 
 1. **Child references**:
-   - If a property is named `child` and references `ComponentId` or `$defs/Child`, it is classified as `PropertyKind.CHILD`.
+   - If a property is named `child` and references `ComponentId` or `$defs/Child`, it is mapped to `ComponentRefType()`.
 2. **Child lists**:
-   - If a property is named `children` and has a `oneOf` accepting a `ComponentId` array or a template object (`componentId` + `path`), it is classified as `PropertyKind.CHILD_LIST`.
+   - If a property is named `children` and has a `oneOf` accepting a `ComponentId` array or a dynamic template object (`componentId` + `path`), it is mapped to `ComponentListType()`.
 3. **Dynamic values**:
-   - Properties referencing `DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`, or `DynamicValue` are classified as `PropertyKind.DYNAMIC`. The target type records the underlying primitive (`str`, `float`, `bool`, etc.).
+   - Properties referencing `DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`, or `DynamicValue` are mapped to `DynamicType(inner=...)`, where `inner` records the underlying primitive or sequence (`PrimitiveType(PrimitiveKind.STRING)`, `ListType(PrimitiveType(PrimitiveKind.STRING))`, etc.).
 4. **Actions**:
-   - Properties referencing `$defs/Action` or defining `oneOf` with `event` and `function` branches are classified as `PropertyKind.ACTION`.
-5. **Enums**:
-   - Properties with `type: "string"` and an `enum` list are classified as `PropertyKind.ENUM`. The normalizer synthesizes an enum name based on the component and property name (e.g. `TextVariant`, `FlexJustify`).
-6. **Required flags**:
+   - Properties referencing `$defs/Action` or defining `oneOf` with `event` and `function` branches are mapped to `ActionType()`.
+5. **Data model bindings**:
+   - Properties referencing `$defs/DataBinding` are mapped to `DataBindingType()`.
+6. **Enums**:
+   - Properties with `type: "string"` and an `enum` list are mapped to `EnumType(name, values)`. The normalizer synthesizes a descriptive enum name based on the component and property name (e.g. `TextVariant`, `FlexJustify`).
+7. **Validation checks**:
+   - Properties named `checks` with array of `$defs/CheckRule` are typed as `Sequence[CheckRule]`.
+8. **Required flags**:
    - Properties listed in the component's `required` array have `required=True`. All others have `required=False`.
 
 ---
@@ -461,6 +465,116 @@ class ExternalComponentBuilderNode(ComponentBuilderNode):
 
 # Ergonomic alias
 ComponentRef = ExternalComponentBuilderNode
+
+
+@dataclass(frozen=True)
+class CheckRule:
+    """Client-side validation rule for Checkable input components."""
+
+    condition: Union[bool, DataBinding, FunctionCall]
+    message: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "condition": (
+                self.condition.to_dict()
+                if hasattr(self.condition, "to_dict")
+                else self.condition
+            ),
+            "message": self.message,
+        }
+
+
+@dataclass(frozen=True)
+class DynamicChildList:
+    """Dynamic repeating template slot driven by a client data model array."""
+
+    component: Union[ComponentBuilderNode, str]
+    path: str
+
+    def to_dict(self) -> dict[str, Any]:
+        comp_id = (
+            self.component.id
+            if isinstance(self.component, ComponentBuilderNode)
+            else self.component
+        )
+        return {"componentId": comp_id, "path": self.path}
+
+
+@dataclass
+class SyntheticResult:
+    """Optional return type for synthetic components bundling layout with initial state."""
+
+    root: Union[ComponentBuilderNode, Sequence[ComponentBuilderNode]]
+    data_model: Optional[dict[str, Any]] = None
+
+
+@dataclass
+class Surface:
+    """High-level container for direct payload authoring (MCP tools, tests, backend servers)."""
+
+    surface_id: str
+    root: Union[ComponentBuilderNode, Sequence[ComponentBuilderNode]]
+    catalog_id: str = (
+        "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
+    )
+    data_model: Optional[dict[str, Any]] = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Flattens the surface into a standard dictionary holding components and data model."""
+        components = flatten_component_tree(self.root, root_id="root")
+        return {
+            "surfaceId": self.surface_id,
+            "catalogId": self.catalog_id,
+            "components": components,
+            "dataModel": self.data_model or {},
+        }
+
+    def to_messages(
+        self, version: str = "v0.9.1", strict: bool = False
+    ) -> list[dict[str, Any]]:
+        """Emits protocol lifecycle messages targeting the specified A2UI version."""
+        components = flatten_component_tree(self.root, root_id="root")
+        if version == "v1.0":
+            return [
+                {
+                    "createSurface": {
+                        "surfaceId": self.surface_id,
+                        "catalogId": self.catalog_id,
+                        "components": components,
+                        "dataModel": self.data_model or {},
+                    }
+                }
+            ]
+        else:  # Default v0.9.1
+            messages = [
+                {
+                    "beginRendering": {
+                        "surfaceId": self.surface_id,
+                        "root": components[0]["id"] if components else "root",
+                        "catalogId": self.catalog_id,
+                    }
+                },
+                {
+                    "surfaceUpdate": {
+                        "surfaceId": self.surface_id,
+                        "components": components,
+                    }
+                },
+            ]
+            if self.data_model:
+                for path, val in self.data_model.items():
+                    norm_path = path if path.startswith("/") else f"/{path}"
+                    messages.append(
+                        {
+                            "dataModelUpdate": {
+                                "surfaceId": self.surface_id,
+                                "path": norm_path,
+                                "value": val,
+                            }
+                        }
+                    )
+            return messages
 ```
 
 ### ID management, collision prevention, and tree flattening
@@ -519,15 +633,15 @@ class IdAllocator:
 
 
 def flatten_component_tree(
-    root: ComponentBuilderNode,
+    root: Union[ComponentBuilderNode, Sequence[ComponentBuilderNode]],
     root_id: Optional[str] = None,
     id_prefix: Optional[str] = None,
     slot_nodes: Optional[Set[ComponentBuilderNode]] = None,
 ) -> list[dict[str, Any]]:
-    """Flattens a component tree into A2UI wire format with scoped IDs.
+    """Flattens a component tree or sibling component list into A2UI wire format with scoped IDs.
 
     Args:
-        root: The root component node to flatten.
+        root: The root component node or sequence of sibling nodes to flatten.
         root_id: Explicit ID for the root node (e.g. synthetic invocation ID).
         id_prefix: Namespace prefix for internal sub-components.
         slot_nodes: Set of caller-provided slot nodes exempt from namespacing.
@@ -538,6 +652,22 @@ def flatten_component_tree(
     prefix = id_prefix or (root_id if root_id else "")
     allocator = IdAllocator(prefix=prefix)
     slot_set = slot_nodes or set()
+
+    # Support sibling component lists (e.g. macro layout returning list of rows)
+    if isinstance(root, Sequence) and not isinstance(root, (str, bytes)):
+        flattened_all: list[dict[str, Any]] = []
+        for idx, item in enumerate(root):
+            item_prefix = f"{prefix}__item_{idx}" if prefix else None
+            flattened_all.extend(
+                flatten_component_tree(
+                    item,
+                    root_id=item.id,
+                    id_prefix=item_prefix,
+                    slot_nodes=slot_set,
+                )
+            )
+        return flattened_all
+
     flattened: list[dict[str, Any]] = []
     is_root = True
 
@@ -710,20 +840,24 @@ LLM Output: StatusCard(title="Order Placed", status="success")
                            |
            1. Lookup registered function
            2. Execute status_card("Order Placed", "success")
-           3. Receives root Card instance
-           4. Run flatten_component_tree(root, id_prefix="sc_1_")
+           3. Receives return value:
+              - Single ComponentBuilderNode: standard root layout
+              - Sequence[ComponentBuilderNode]: sibling list (table rows / cards)
+              - SyntheticResult / (root, data_model): layout bundled with initial state
+           4. Run flatten_component_tree(root, root_id=invocation_id)
+           5. If data_model is present, merge into surface data model state
                            |
                            v
 Flat Component Dictionaries:
 [
-  {"id": "sc_1_text_1", "component": "Text", "text": "Status: SUCCESS", "variant": "caption"},
-  {"id": "sc_1_text_2", "component": "Text", "text": "Order Placed", "variant": "h3"},
-  {"id": "sc_1_col_1", "component": "Column", "children": ["sc_1_text_1", "sc_1_text_2"]},
-  {"id": "sc_1_card_1", "component": "Card", "child": "sc_1_col_1"}
+  {"id": "sc_1__text_1", "component": "Text", "text": "Status: SUCCESS", "variant": "caption"},
+  {"id": "sc_1__text_2", "component": "Text", "text": "Order Placed", "variant": "h3"},
+  {"id": "sc_1__col_1", "component": "Column", "children": ["sc_1__text_1", "sc_1__text_2"]},
+  {"id": "sc_1", "component": "Card", "child": "sc_1__col_1"}
 ]
                            |
                            v
-Emitted to Client Renderer via standard A2UI messages
+Emitted to Client Renderer via standard A2UI messages (surfaceUpdate + optional dataModelUpdate)
 ```
 
 ---
@@ -754,7 +888,7 @@ To support TypeScript, Dart, and Kotlin in the future while maximizing shared co
 | :------------------ | :---------------------------------------------------------- | :-------------------------------------------------------------------- | :---------------------------------------- | :-------------------------------------------- |
 | **Component Class** | `@dataclass(kw_only=True) class Card(ComponentBuilderNode)` | `class Card implements ComponentBuilderNode` or `interface CardProps` | `class Card extends ComponentBuilderNode` | `data class Card(...) : ComponentBuilderNode` |
 | **String Enum**     | `Literal["h1", "body"]`                                     | `"h1" \| "body"`                                                      | `enum TextVariant { h1, body }`           | `enum class TextVariant { H1, BODY }`         |
-| **Child Slot**      | `child: ComponentBuilderNode \| str`                        | `child: ComponentBuilderNode \| string`                               | `ComponentBuilderNode child`              | `val child: ComponentBuilderNode`             |
+| **Child Slot**      | `child: ComponentBuilderNode`                               | `child: ComponentBuilderNode`                                         | `ComponentBuilderNode child`              | `val child: ComponentBuilderNode`             |
 | **Dynamic String**  | `str \| DataBinding \| FunctionCall`                        | `string \| DataBinding \| FunctionCall`                               | `DynamicString text`                      | `DynamicString text`                          |
 | **Serialization**   | `.to_dict()`                                                | `.toJSON()`                                                           | `.toJson()`                               | `.toMap()`                                    |
 
