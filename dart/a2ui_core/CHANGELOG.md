@@ -22,6 +22,14 @@
   `A2uiIntegrityError` and `A2uiRecursionError` categories.
 - Fixed `DataModel.set` silently dropping a write whose parent path resolves to
   a primitive; it now throws `A2uiDataError`.
+- **Behaviour change:** `DataModel` observers no longer fire when a write leaves
+  their own value unchanged. Notifications previously bypassed the signal's
+  equality check, so an observer on a path merely related to the write was woken
+  even when nothing it observes had changed. Containers are now handed to the
+  signal as a copy, so a container mutated in place still compares unequal and
+  still notifies, while unchanged primitive and absent values no longer do. This
+  matches the `web_core` renderer, and the shared behaviour is pinned by
+  `conformance/core/data_model.yaml`.
 
 ## 0.1.1
 

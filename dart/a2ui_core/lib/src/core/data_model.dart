@@ -191,9 +191,19 @@ class DataModel {
     }
 
     final Object? newValue = get(path);
-    // Force notification even if the value is the same reference, because
-    // mutable containers (Maps/Lists) may have changed in place.
-    sig.set(newValue, force: true);
+    // A container that was mutated in place keeps its identity, so handing the
+    // signal the live object would compare equal and suppress the
+    // notification. Hand it a copy instead, so containers always compare
+    // unequal, and let the signal's own equality check suppress notifications
+    // for values that genuinely did not change.
+    //
+    // Notifying unconditionally instead would wake every observer on a related
+    // path, including those whose own value is unchanged.
+    sig.set(switch (newValue) {
+      final Map<String, Object?> map => Map<String, Object?>.of(map),
+      final List<Object?> list => List<Object?>.of(list),
+      _ => newValue,
+    });
   }
 
   void _pruneSignals() {

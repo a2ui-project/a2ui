@@ -47,12 +47,6 @@
 #   * A cap on auto-vivified list indices. Dart lists are dense, so writing
 #     `/items/999999999` must be rejected to avoid allocating the whole list;
 #     JavaScript arrays are sparse, so the same write is cheap and is allowed.
-#   * Whether an observer fires when a write leaves its value unchanged. The
-#     Dart implementation notifies unconditionally, because a mutable container
-#     can change in place without changing identity; `web_core` copies
-#     containers on read and notifies only on an actual change. This shows up
-#     when the root is replaced: every observer is visited, but only those whose
-#     value actually changed fire in `web_core`.
 
 - name: test_data_model_initializes_empty
   description: >-
@@ -341,6 +335,7 @@
     - op: "set"
       path: "/"
       value: {"newRoot": "foo"}
+      expect_notified: ["/"]
       expect_values: {"/": {"newRoot": "foo"}}
     - op: "get"
       path: ""
@@ -625,3 +620,35 @@
       path: "/foo"
       value: "bar"
       expect_notified: []
+
+- name: test_data_model_does_not_notify_unchanged_descendant
+  description: >-
+    An observer on a descendant path does not fire when an ancestor is
+    rewritten but the observer's own value is still absent.
+  catalog:
+    version: "0.9"
+  action: data_model
+  watch: ["/a/b"]
+  steps:
+    - op: "set"
+      path: "/a"
+      value: {"c": 1}
+      expect_notified: []
+
+- name: test_data_model_does_not_notify_same_value_rewrite
+  description: >-
+    Writing a path the value it already holds does not fire its observers.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"k": "v"}
+  watch: ["/k"]
+  steps:
+    - op: "set"
+      path: "/k"
+      value: "v"
+      expect_notified: []
+    - op: "set"
+      path: "/k"
+      value: "w"
+      expect_notified: ["/k"]

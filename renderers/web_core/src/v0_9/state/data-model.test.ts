@@ -41,11 +41,7 @@ import {DataModel, type DataSubscription} from './data-model.js';
  *   and the Dart implementation currently does not;
  * - unbounded list indices. Arrays here are sparse, so writing `/items/999999999`
  *   is cheap; Dart lists are dense, so the Dart implementation rejects the same
- *   write to avoid allocating the whole list;
- * - notification on an unchanged value. This implementation copies containers on
- *   read and notifies only on an actual change, so replacing the root does not
- *   wake an observer whose own value stayed `undefined`. The Dart implementation
- *   notifies unconditionally.
+ *   write to avoid allocating the whole list.
  */
 
 interface ConformanceStep {
@@ -338,18 +334,6 @@ describe('DataModel (JavaScript specific)', () => {
     // dense lists reject the same write; see conformance/core/data_model.yaml.
     model.set('/items/999999', 'x');
     assert.strictEqual(model.get('/items/999999'), 'x');
-  });
-
-  it('does not wake an observer whose value did not change', () => {
-    let unrelatedCount = 0;
-    let rootCount = 0;
-    model.subscribe('/', () => rootCount++);
-    model.subscribe('/unrelated', () => unrelatedCount++);
-
-    model.set('/', {newRoot: 'foo'});
-
-    assert.strictEqual(rootCount, 1);
-    assert.strictEqual(unrelatedCount, 0);
   });
 
   it('does not leak Object.prototype inherited properties on get', () => {
