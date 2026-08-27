@@ -44,6 +44,25 @@ void main() {
       expect(caps.inlineCatalogs.single.components.keys, ['Gauge']);
     });
 
+    test('rejects an inline catalog that is not an object', () {
+      for (final malformed in <Object?>[null, 'nope', 42, <Object?>[]]) {
+        expect(
+          () => A2uiVersionCapabilities.fromJson({
+            'supportedCatalogIds': <String>[],
+            'inlineCatalogs': [malformed],
+          }),
+          throwsA(
+            isA<A2uiValidationError>().having(
+              (e) => e.message,
+              'message',
+              contains('inlineCatalogs'),
+            ),
+          ),
+          reason: '$malformed',
+        );
+      }
+    });
+
     test('rejects missing or malformed supportedCatalogIds', () {
       expect(
         () => A2uiVersionCapabilities.fromJson(<String, Object?>{}),

@@ -61,7 +61,14 @@ class A2uiVersionCapabilities {
       inlineCatalogs: [
         if (rawInline is List)
           for (final Object? catalog in rawInline)
-            Catalog.fromJson((catalog! as Map).cast<String, Object?>()),
+            if (catalog is Map)
+              Catalog.fromJson(catalog.cast<String, Object?>())
+            else
+              throw A2uiValidationError(
+                "'inlineCatalogs' must contain only catalog objects (got "
+                '${catalog.runtimeType}).',
+                details: json,
+              ),
       ],
     );
   }

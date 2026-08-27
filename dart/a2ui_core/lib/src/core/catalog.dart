@@ -302,11 +302,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
     final Map<String, Object?> document = _deepCopy(source);
     document['catalogId'] = id;
-    if (source['components'] is Map) {
+    final Object? sourceComponents = source['components'];
+    if (sourceComponents is Map) {
       document['components'] = <String, Object?>{
         for (final String name in components.keys)
-          if ((source['components']! as Map).containsKey(name))
-            name: _deepCopyValue((source['components']! as Map)[name]),
+          if (sourceComponents.containsKey(name))
+            name: _deepCopyValue(sourceComponents[name]),
       };
     }
     final Object? sourceFunctions = source['functions'];

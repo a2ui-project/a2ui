@@ -64,7 +64,11 @@ abstract class Parser {
           parts.add(TextPart(text));
         case RawA2uiPart(:final String a2uiRaw):
           parts.add(A2uiPart(compile(a2uiRaw)));
-        case ResponsePart():
+        case A2uiPart():
+          // Unreachable: RawResponsePart rejects an already compiled part.
+          // Matching the concrete type rather than the sealed base keeps this
+          // switch exhaustive, so a new ResponsePart subtype is a compile
+          // error here rather than a silent fallthrough.
           throw StateError('Unexpected raw part: ${raw.part}');
       }
     }
