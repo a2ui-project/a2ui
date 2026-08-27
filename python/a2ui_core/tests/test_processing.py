@@ -982,3 +982,20 @@ def test_version_adapter_factory_unsupported_version_raises_validation_error():
         A2uiValidationError, match="Unsupported protocol version 'invalid_ver'"
     ):
         VersionAdapterFactory.resolve_from_payload({"version": "invalid_ver"})
+
+
+def test_message_processor_v0_9_1_version_payload(mock_catalog):
+    processor = MessageProcessor(
+        catalogs=[mock_catalog], validation_config=STRICT_VALIDATION
+    )
+    messages = [{
+        "version": "v0.9.1",
+        "createSurface": {
+            "surfaceId": "s_v091",
+            "catalogId": mock_catalog.catalog_id,
+        },
+    }]
+    processor.process_messages(messages)
+    surface = processor.model.get_surface("s_v091")
+    assert surface is not None
+    assert surface.id == "s_v091"

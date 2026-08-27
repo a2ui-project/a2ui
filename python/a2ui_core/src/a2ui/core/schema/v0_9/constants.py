@@ -17,7 +17,8 @@ from __future__ import annotations
 from typing import Final, Literal
 
 PROTOCOL_VERSION: Final[Literal["v0.9"]] = "v0.9"
-PROTOCOL_VERSION_TYPE = Literal["v0.9"]
+PROTOCOL_VERSION_TYPE = Literal["v0.9", "v0.9.1"]
+SUPPORTED_PROTOCOL_VERSIONS: Final[set[str]] = {"v0.9", "v0.9.1"}
 
 ROOT_ID = "root"
 CATALOG_COMPONENTS_KEY = "components"

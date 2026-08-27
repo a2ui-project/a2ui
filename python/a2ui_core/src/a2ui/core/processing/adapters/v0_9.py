@@ -39,6 +39,10 @@ class V0Point9Adapter(BaseVersionAdapter):
         return ProtocolVersion.V0_9
 
     @property
+    def supported_versions(self) -> Set[str]:
+        return {"v0.9", "v0.9.1"}
+
+    @property
     def schema(self) -> Any:
         return A2uiMessageListWrapper
 

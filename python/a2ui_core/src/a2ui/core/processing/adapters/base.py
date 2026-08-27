@@ -45,6 +45,14 @@ class VersionAdapter(ABC):
         """The protocol version handled by this adapter (e.g. ProtocolVersion.V1_0)."""
         pass
 
+    @property
+    def supported_versions(self) -> Set[str]:
+        """Set of version string literals accepted by this adapter."""
+        ver_str = (
+            self.version.value if hasattr(self.version, "value") else str(self.version)
+        )
+        return {ver_str}
+
     @abstractmethod
     def extract_operations(
         self, payload: AgentToRendererMessagePayload
@@ -202,10 +210,15 @@ class BaseVersionAdapter(VersionAdapter, ABC):
                         f"Invalid {self.version} message: messages.0.version: 'version'"
                         " is a required property"
                     )
-                if raw_payload["version"] != ver_str:
+                if raw_payload["version"] not in self.supported_versions:
+                    expected = (
+                        f"'{ver_str}'"
+                        if len(self.supported_versions) == 1
+                        else f"one of {sorted(self.supported_versions)}"
+                    )
                     raise A2uiValidationError(
                         f"Invalid {self.version} message: messages.0.version: Input"
-                        f" should be '{ver_str}'"
+                        f" should be {expected}"
                     )
 
             prepared_msg = self.prepare_payload_for_validation(raw_payload)
