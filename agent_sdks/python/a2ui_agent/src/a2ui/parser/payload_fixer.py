@@ -98,9 +98,14 @@ def _fix_unescaped_backslashes(json_str: str) -> str:
     Returns:
       A JSON string with invalid backslashes escaped.
     """
-    fixed_json = re.sub(r'\\(?![/"\\bfnrtu]|u[0-9a-fA-F]{4})', r"\\\\", json_str)
+    fixed_json = re.sub(
+        r'(\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})|\\',
+        lambda m: m.group(1) or r"\\",
+        json_str,
+    )
     if fixed_json != json_str:
         logger.warning(
-            "Detected invalid escape sequences in LLM output; applied backslash autofix."
+            "Detected invalid escape sequences in LLM output; applied backslash"
+            " autofix."
         )
     return fixed_json

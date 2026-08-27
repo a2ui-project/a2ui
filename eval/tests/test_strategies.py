@@ -147,9 +147,9 @@ async def test_a2ui_express_solvers() -> None:
                 ChatCompletionChoice(
                     message=ChatMessageAssistant(
                         content=(
-                            'Here is the domain research synthesis.\n\n'
+                            "Here is the domain research synthesis.\n\n"
                             '```a2ui\nroot = Text("Hello")\n```\n\n'
-                            'Additional reference notes.'
+                            "Additional reference notes."
                         )
                     )
                 )

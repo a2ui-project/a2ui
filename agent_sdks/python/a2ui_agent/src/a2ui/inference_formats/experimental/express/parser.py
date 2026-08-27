@@ -77,9 +77,7 @@ class ExpressParser(Parser):
         normalized = re.sub(
             r"`+<a2ui\b([^>]*)>`+", r"<a2ui\1>", normalized, flags=re.IGNORECASE
         )
-        normalized = re.sub(
-            r"`+</a2ui>`+", r"</a2ui>", normalized, flags=re.IGNORECASE
-        )
+        normalized = re.sub(r"`+</a2ui>`+", r"</a2ui>", normalized, flags=re.IGNORECASE)
 
         from a2ui.parser.lexer import BlockLexer
 

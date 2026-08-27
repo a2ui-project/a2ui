@@ -140,7 +140,7 @@ def _parse_and_validate_in_process(
     compiled_jsons = []
     serialized_parts = []
     for p in parts:
-        part_dict = {"text": p.text, "a2ui_json": p.a2ui_json}
+        part_dict = {"text": p.text, "a2ui_json": getattr(p, "a2ui_json", None)}
         serialized_parts.append(part_dict)
         a2ui_json = getattr(p, "a2ui_json", None)
         if a2ui_json:
