@@ -49,20 +49,28 @@ The typesafe API generator uses a three-tier architecture that separates schema 
 
 ### Component boundaries
 
-1. **Schema Ingestion Engine**: Loads catalog JSON schemas from a local file or URL, parses the schema AST, resolves `$ref` references to common types, and normalizes version-specific constructs into uniform component definitions.
-2. **CatalogIR (Intermediate Representation)**: A clean, language-agnostic data structure that holds normalized component definitions, property metadata, catalog functions, enum values, and documentation. Emitters consume only `CatalogIR`, insulating them from JSON Schema syntax details.
-3. **Language Emitters**: Pluggable code generation backends. Each backend receives a `CatalogIR` instance and emits formatted source files adhering to the idioms of the target programming language.
+1. **Catalog Ingestion Engine**: Loads catalog JSON schemas from a local file or URL, parses the schema AST, resolves `$ref` references, and instantiates the in-memory `Catalog` object. JSON Schema is treated as an ingestion format / implementation detail.
+2. **The In-Memory Catalog as Normalized IR**: The existing `Catalog` class in `a2ui_core` (containing `ComponentApi` and `FunctionApi`) serves as the normalized intermediate representation. We enhance `ComponentApi` with methods to inspect typed properties and child slots, eliminating the need for an external, duplicated IR layer.
+3. **Language Emitters**: Pluggable code generation backends. Each backend receives a `Catalog` instance and emits formatted source files adhering to the idioms of the target programming language.
 4. **Runtime Core (`a2ui-core`)**: A lightweight, zero-dependency library providing base interfaces (`ComponentNode`, `DataBinding`, `Action`, `FunctionCall`), tree flattening algorithms, and surface-level ID allocation. Generated code imports only this runtime core.
 
 ---
 
-## The normalized catalog intermediate representation (CatalogIR)
+## Unifying CatalogIR with the in-memory Catalog
 
-To share code and logic across multiple language targets, all schema dereferencing, version normalization, and semantic type detection occur in a single ingestion pass that outputs `CatalogIR`.
+Rather than inventing a separate, disconnected intermediate representation, the existing `Catalog` model in `a2ui_core` (`Catalog[ComponentApi, FunctionApi]`) serves directly as the normalized intermediate representation.
 
-### CatalogIR data structures
+### Turning JSON Schema into an implementation detail
 
-The intermediate representation consists of straightforward data classes:
+By making `Catalog` the canonical in-memory model:
+
+- **Schema as an ingestion adapter**: The `Catalog.from_json(schema)` classmethod parses and dereferences raw JSON Schema (handling draft-2020-12 `$ref` pointers and `allOf` merging) once during ingestion. The rest of the system operates strictly on typed Python objects.
+- **Schema-free programmatic catalogs**: Developers can define catalogs programmatically in Python or load them from external sources without writing or maintaining raw JSON Schema files.
+- **Clean emitter boundary**: Code generation emitters receive a `Catalog` and iterate over `ComponentApi` and `FunctionApi` objects to synthesize source files.
+
+### Enhancing ComponentApi and FunctionApi for code generation
+
+We enhance `ComponentApi` and `FunctionApi` in `a2ui_core/catalog/` with methods that extract normalized property metadata:
 
 ```python
 from dataclasses import dataclass
@@ -83,55 +91,85 @@ class PropertyKind(str, Enum):
 
 
 @dataclass
-class PropertyIR:
+class PropertyApi:
     name: str
     kind: PropertyKind
     target_type: str  # e.g. "str", "int", "bool", "Any", or enum type name
     required: bool
     description: Optional[str]
-    default_value: Optional[Any]
+    default_value: Optional[Any] = None
     enum_values: Sequence[str] = ()
 
 
-@dataclass
-class ComponentDefIR:
-    name: str
-    catalog_id: str
-    description: Optional[str]
-    properties: Sequence[PropertyIR]
-    is_container: bool
-    supports_checks: bool
+# Enhanced ComponentApi methods in a2ui.core.catalog.components:
+class ComponentApi:
+
+    def __init__(self, name: str, schema: dict[str, Any]):
+        self.name = name
+        self.schema = schema
+
+    def get_properties(self) -> Sequence[PropertyApi]:
+        """Analyzes the underlying schema and returns normalized property definitions."""
+        ...
+
+    def get_child_slots(self) -> Sequence[PropertyApi]:
+        """Returns properties representing child components or child lists."""
+        ...
+
+    @property
+    def is_container(self) -> bool:
+        """Returns True if the component accepts child or children slots."""
+        ...
+
+    @property
+    def docstring(self) -> Optional[str]:
+# Enhanced ComponentApi methods in a2ui.core.catalog.components:
+class ComponentApi:
+
+    def __init__(self, name: str, schema: dict[str, Any]):
+        self.name = name
+        self.schema = schema
+
+    def get_properties(self) -> Sequence[PropertyApi]:
+        """Analyzes the underlying schema and returns normalized property definitions."""
+        ...
+
+    def get_child_slots(self) -> Sequence[PropertyApi]:
+        """Returns properties representing child components or child lists."""
+        ...
+
+    @property
+    def is_container(self) -> bool:
+        """Returns True if the component accepts child or children slots."""
+        ...
+
+    @property
+    def docstring(self) -> Optional[str]:
+        """Returns the description of the component from the catalog schema."""
+        return self.schema.get("description")
 
 
-@dataclass
-class FunctionArgIR:
-    name: str
-    arg_type: str
-    required: bool
-    description: Optional[str]
+# Enhanced FunctionApi methods in a2ui.core.catalog.functions:
+class FunctionApi:
 
+    def __init__(self, name: str, return_type: str, schema: dict[str, Any]):
+        self.name = name
+        self.return_type = return_type
+        self.schema = schema
 
-@dataclass
-class FunctionDefIR:
-    name: str
-    description: Optional[str]
-    return_type: str  # "string", "number", "boolean", "array", "object"
-    args: Sequence[FunctionArgIR]
+    def get_args(self) -> Sequence[PropertyApi]:
+        """Returns normalized argument definitions."""
+        ...
 
-
-@dataclass
-class CatalogIR:
-    catalog_id: str
-    protocol_version: str
-    title: str
-    description: Optional[str]
-    components: Sequence[ComponentDefIR]
-    functions: Sequence[FunctionDefIR]
+    @property
+    def docstring(self) -> Optional[str]:
+        """Returns the description of the function from the catalog schema."""
+        return self.schema.get("description")
 ```
 
-### Why CatalogIR is the linchpin for cross-language sharing
+### Why this in-memory model is the linchpin for cross-language sharing
 
-Language-specific emitters do not need to implement JSON Schema parsing, reference dereferencing, draft-2020-12 validation rules, or `allOf` flattening. An emitter for TypeScript, Dart, or Kotlin receives a clean list of `ComponentDefIR` objects and simply translates types and syntax into target language constructs.
+Language-specific emitters do not need to implement JSON Schema parsing, reference dereferencing, draft-2020-12 validation rules, or `allOf` flattening. An emitter for Python, TypeScript, Dart, or Kotlin receives a clean `Catalog` instance holding normalized `ComponentApi` and `FunctionApi` objects, and simply translates their properties and syntax into target language constructs. Raw JSON Schema files are treated strictly as an ingestion format, keeping the rest of the system clean and typed.
 
 ---
 
@@ -491,49 +529,127 @@ To support TypeScript, Dart, and Kotlin in the future while maximizing shared co
 
 ---
 
-## Protocol versioning strategy
+## Protocol versioning strategy: Version-agnostic authoring with version-targeted emitters
 
-The generator handles multiple protocol versions through explicit packaging namespaces:
+A critical architectural insight is that UI components represent declarative layout intent (`Card`, `Column`, `Row`, `Text`, `Button`, `TextField`). A card wrapping a column with a text header and action button represents the same visual structure regardless of whether it is delivered over protocol v0.9.1, v1.0, or a future v1.1.
 
-### Namespacing structure
+Instead of forcing developers to choose and pin specific protocol versions when authoring UI (e.g. `from a2ui.catalogs.v0_9_1.basic import Card`), the system decouples content authoring from protocol wire serialization:
 
-- **Versioned catalog packages**:
-  - Python: `a2ui.catalogs.v0_9_1.basic`, `a2ui.catalogs.v1_0.basic`
-  - TypeScript: `@a2ui/catalogs-v0-9-1/basic`, `@a2ui/catalogs-v1-0/basic`
-- **Default alias**:
-  - The top-level import `a2ui.basic` re-exports the currently active authoritative specification (v0.9.1 currently, switching to v1.0 upon official release).
-  - This guarantees that developers wanting standard components use simple imports (`from a2ui.basic import Card`), while developers needing strict version pinning can import the explicit version.
-- **Forward compatibility**:
-  - When v1.1 or future versions are released, running the generator against the v1.1 schema produces `a2ui.catalogs.v1_1.basic`. Existing code continues running against v0.9.1 or v1.0 without breaking changes.
+### 1. Protocol-version-agnostic content authoring
+
+Developers write synthetic components and direct payloads using version-neutral builder classes:
+
+```python
+from a2ui.basic import Action, Button, Card, Column, Text
+
+
+def welcome_card(user_name: str) -> Card:
+    return Card(
+        child=Column(
+            children=[
+                Text(text=f"Welcome back, {user_name}!", variant="h3"),
+                Button(
+                    text="Open Dashboard", action=Action.event("open_dashboard")
+                ),
+            ]
+        )
+    )
+```
+
+The returned component tree expresses pure layout and data bindings, independent of message envelope formats or wire protocol versions.
+
+### 2. Version-targeted serialization at the transport boundary
+
+The target protocol version is selected when the surface or synthetic component is serialized to wire messages:
+
+```python
+# Target v0.9.1 (current web renderers):
+messages_v09 = surface.to_messages(version="v0.9.1")
+# Serializes to:
+# 1. beginRendering(surfaceId="main", root="card_1", catalogId="basic")
+# 2. surfaceUpdate(surfaceId="main", components=[...])
+# 3. dataModelUpdate(surfaceId="main", path="/...", value=...)
+
+# Target v1.0:
+messages_v10 = surface.to_messages(version="v1.0")
+# Serializes to:
+# 1. createSurface(surfaceId="main", catalogId="basic", components=[...], dataModel={...})
+```
+
+### 3. Handling protocol differences during serialization
+
+The serialization layer bridges protocol differences automatically:
+
+- **Message envelope formatting**:
+  - For v0.9.1: Emits the multi-message lifecycle sequence (`beginRendering`, `surfaceUpdate`, `dataModelUpdate`).
+  - For v1.0: Bundles components and initial data model atomically inside `createSurface`.
+- **Child collections and lists**:
+  - For v0.9.1: Emits dynamic child lists using `{ componentId, path }` on container `children`.
+  - For v1.0: Emits dynamic collections using the v1.0 `List` container or `$defs/ChildList` structure.
+- **Version-specific attributes (graceful degradation)**:
+  - When a developer uses an attribute introduced in v1.0 (such as `accessibility.live`, `metadata.extensions`, or per-component `catalogId` overrides):
+    - If serializing to **v1.0**: The attribute is included in the output JSON.
+    - If serializing to **v0.9.1**: The attribute is omitted or stripped with an optional logger warning, ensuring older v0.9.1 client renderers do not fail schema validation.
+  - An optional strict mode (`strict=True`) can be enabled in CI or conformance tests to raise a `CompatibilityError` if an author uses features unsupported by the target version.
 
 ---
 
-## Packaging, distribution, and developer workflow
+## Packaging, distribution, and installation of the Python tooling
 
-### Package boundaries
+To provide a smooth developer experience across different environments (local development, production agent servers, lightweight MCP servers, and CI/CD pipelines), the Python tooling is structured into two distinct packages:
 
-1. **`a2ui-core` (Lightweight Runtime)**:
-   - Contains `ComponentNode`, `DataBinding`, `bind`, `Action`, `FunctionCall`, and `flatten_component_tree`.
-   - Ships pre-generated bindings for standard catalogs: `a2ui.basic`.
-   - Zero external dependencies.
-2. **`a2ui-codegen` (Developer CLI Tool)**:
-   - CLI tool containing the schema ingestion engine, `CatalogIR`, and language emitters.
-   - Distributed via PyPI (`uvx a2ui-codegen`, `pipx run a2ui-codegen`) and npm (`npx @a2ui/codegen`).
-   - Used only by developers building custom catalogs.
+### 1. Runtime package (`a2ui-core` / `a2ui-agent`)
 
-### CLI invocation interface
+The runtime classes and pre-generated standard catalog modules are distributed directly in the core SDKs:
 
-```bash
-# Generate Python bindings for an enterprise catalog
-a2ui-codegen \
-  --catalog ./catalogs/custom.json \
-  --lang python \
-  --out ./src/generated/ui \
-  --package-name my_app.generated.ui
+- **Pre-bundled zero-setup modules**:
+  - `a2ui.basic`: Pre-generated, pre-tested typesafe constructors (`Card`, `Column`, `Row`, `Text`, `Button`, etc.) for the official A2UI Basic Catalog.
+  - Standard developers never need to install, configure, or run the code generator CLI. They simply install `a2ui-core` (or `a2ui-agent`) and immediately import the typed classes:
+    ```python
+    from a2ui.basic import Card, Column, Text, bind
+    ```
 
-# Generate TypeScript bindings
-a2ui-codegen \
-  --catalog ./catalogs/custom.json \
-  --lang typescript \
-  --out ./src/generated/ui
-```
+````
+* **Lightweight runtime footprint**:
+  * Contains only `ComponentNode`, `DataBinding`, `Action`, `FunctionCall`, the tree flattener, and the ID allocator.
+  * Zero dependencies on LLM orchestration frameworks, heavy HTTP servers, or CLI tools.
+  * Can be installed in minimal environments such as AWS Lambda functions, Cloudflare Workers, lightweight MCP tool servers, or microservices.
+
+### 2. Standalone code generator CLI (`a2ui-codegen`)
+
+For developers building domain-specific custom catalogs or enterprise UI component libraries:
+
+* **Distribution on PyPI**:
+  * Published as a standalone package `a2ui-codegen` on PyPI.
+  * Registered console script in `pyproject.toml`:
+    ```toml
+    [project.scripts]
+    a2ui-codegen = "a2ui.codegen.cli:main"
+````
+
+- **Installation and execution options**:
+  - **Option A (Zero-install via `uvx` - Recommended)**:
+    ```bash
+    uvx a2ui-codegen --catalog ./catalogs/custom.json --lang python --out ./src/generated/ui
+    ```
+
+````
+    `uvx` downloads and runs the tool in an ephemeral, isolated environment with zero pollution of the local virtualenv.
+  * **Option B (Zero-install via `pipx`)**:
+    ```bash
+    pipx run a2ui-codegen --catalog ./catalogs/custom.json --lang python --out ./src/generated/ui
+````
+
+- **Option C (Standard virtualenv install)**:
+  ```bash
+  pip install a2ui-codegen
+  a2ui-codegen --catalog ./catalogs/custom.json --lang python --out ./src/generated/ui
+  ```
+
+````
+  * **Option D (SDK extra)**:
+    For developers already developing agents with `a2ui-agent`, the codegen tool is also available via:
+    ```bash
+    pip install "a2ui-agent[codegen]"
+    python -m a2ui.codegen --catalog ./catalogs/custom.json --lang python --out ./src/generated/ui
+````
