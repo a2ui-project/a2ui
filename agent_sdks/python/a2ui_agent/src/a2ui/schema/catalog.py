@@ -22,7 +22,7 @@ import logging
 import os
 from dataclasses import dataclass, replace
 from functools import cached_property
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Sequence, Mapping, TYPE_CHECKING
 from urllib.parse import urlparse
 from a2ui.core.catalog import Catalog
 from a2ui.core import A2uiCatalogError
@@ -115,7 +115,7 @@ def _collect_refs(obj: Any) -> set[str]:
 
 def _prune_defs_by_reachability(
     defs: Dict[str, Any],
-    root_def_names: List[str],
+    root_def_names: Sequence[str],
     internal_ref_prefix: str = "#/$defs/",
 ) -> Dict[str, Any]:
     """Prunes definitions not reachable from the provided roots.
@@ -152,17 +152,17 @@ class A2uiCatalog:
       version: The version of the catalog.
       name: The name of the catalog.
       s2c_schema: The server-to-client schema.
-      common_types_schema: The common types schema.
       catalog_schema: The catalog schema.
+      common_types_schema: The optional common types schema.
       custom_cuttable_keys: The optional set of keys whose string values can be safely auto-closed
         (healed) if fragmented in the stream. If None, the default set is used.
     """
 
     version: str
     name: str
-    s2c_schema: Dict[str, Any]
-    common_types_schema: Dict[str, Any]
-    catalog_schema: Dict[str, Any]
+    s2c_schema: Mapping[str, Any]
+    catalog_schema: Mapping[str, Any]
+    common_types_schema: Optional[Mapping[str, Any]] = None
     custom_cuttable_keys: Optional[frozenset[str]] = None
     experiments: Optional[frozenset[str]] = None
 
@@ -194,12 +194,12 @@ class A2uiCatalog:
     @property
     def core_catalog(self) -> Catalog[Any, Any]:
         return Catalog.from_json(
-            catalog_schema=self.catalog_schema,
+            catalog_schema=dict(self.catalog_schema),
             spec_version=self.version,
             catalog_id=self.catalog_id,
         )
 
-    def _with_pruned_components(self, allowed_components: List[str]) -> A2uiCatalog:
+    def _with_pruned_components(self, allowed_components: Sequence[str]) -> A2uiCatalog:
         """Returns a new catalog with only allowed components.
 
         Args:
@@ -212,7 +212,7 @@ class A2uiCatalog:
         if not allowed_components:
             return self
 
-        schema_copy = copy.deepcopy(self.catalog_schema)
+        schema_copy: dict[str, Any] = dict(copy.deepcopy(self.catalog_schema))
 
         if CATALOG_COMPONENTS_KEY in schema_copy and isinstance(
             schema_copy[CATALOG_COMPONENTS_KEY], dict
@@ -246,7 +246,7 @@ class A2uiCatalog:
 
         return replace(self, catalog_schema=schema_copy)
 
-    def _with_pruned_messages(self, allowed_messages: List[str]) -> A2uiCatalog:
+    def _with_pruned_messages(self, allowed_messages: Sequence[str]) -> A2uiCatalog:
         """Returns a new catalog with only allowed messages.
 
         Args:
@@ -258,7 +258,7 @@ class A2uiCatalog:
         if not allowed_messages:
             return self
 
-        s2c_schema_copy = copy.deepcopy(self.s2c_schema)
+        s2c_schema_copy: dict[str, Any] = dict(copy.deepcopy(self.s2c_schema))
 
         if self.version == VERSION_0_8:
             # 0.8 style: Messages are in root properties.
@@ -296,8 +296,8 @@ class A2uiCatalog:
 
     def with_pruning(
         self,
-        allowed_components: Optional[List[str]] = None,
-        allowed_messages: Optional[List[str]] = None,
+        allowed_components: Optional[Sequence[str]] = None,
+        allowed_messages: Optional[Sequence[str]] = None,
     ) -> A2uiCatalog:
         """Returns a new catalog with pruned components and messages.
 
@@ -331,7 +331,7 @@ class A2uiCatalog:
             if "common_types.json#/$defs/" in ref:
                 root_common_types.append(ref.split("#/$defs/")[-1])
 
-        new_common_types_schema = copy.deepcopy(self.common_types_schema)
+        new_common_types_schema: dict[str, Any] = dict(copy.deepcopy(self.common_types_schema))
         new_common_types_schema["$defs"] = _prune_defs_by_reachability(
             defs=new_common_types_schema["$defs"],
             root_def_names=root_common_types,
