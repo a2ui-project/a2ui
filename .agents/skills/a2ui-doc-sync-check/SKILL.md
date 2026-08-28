@@ -31,10 +31,10 @@ This skill guides the process of auditing concrete codebase implementations to v
    - Audit inline comments and docstrings (e.g. JSDoc in TS, docstrings in Python, triple-slash comments in Dart/Swift) for public APIs.
    - Flag any mismatch where code parameter names, types, return behaviors, or exceptions thrown deviate from what the docstring claims.
 
-5. **Links**:
+5. **Links and Duplicates**:
    - When an artifact (code, document, issue, PR, comment and so on) is referenced, make sure it has a link.
    - When a glossary term is used - link the first occurrence of the term to the glossary entry if it exists.
-   - Make sure there is no duplications. If you find some, delete the duplicate and leave a reference.
+   - Make sure there is no duplications of content. If you find some, delete the duplicate and leave a reference.
 
 6. **Conciseness and Clarity**:
    - Verify that language in documentation and code comments is concise and clear:
