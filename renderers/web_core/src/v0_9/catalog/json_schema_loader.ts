@@ -28,7 +28,7 @@ import {
   CheckableSchema,
   AccessibilityAttributesSchema,
 } from '../schema/common-types.js';
-import type {ComponentApi, FunctionApi} from './types.js';
+import {Catalog, type ComponentApi, type FunctionApi} from './types.js';
 
 const COMMON_TYPE_SCHEMAS: Record<string, z.ZodTypeAny> = {
   DynamicString: DynamicStringSchema,
@@ -271,18 +271,14 @@ function parseFunctionDefinitions(rawFunctions: any): FunctionApi[] {
   return result;
 }
 
-export interface ParsedCatalogDefinition {
-  catalogId: string;
-  components: ComponentApi[];
-  functions: FunctionApi[];
-}
-
 /**
- * Parses raw A2UI catalog JSON into typed ComponentApi and FunctionApi arrays with Zod schemas.
+ * Loads raw A2UI catalog JSON directly into a typed Catalog instance.
  *
  * @param catalogJson Raw JSON catalog definition.
  */
-export function parseCatalogDefinition(catalogJson: Record<string, any>): ParsedCatalogDefinition {
+export function loadCatalogFromJson(
+  catalogJson: Record<string, any>,
+): Catalog<ComponentApi, FunctionApi> {
   const catalogId = catalogJson.catalogId ?? catalogJson.$id ?? catalogJson.id;
   if (!catalogId || typeof catalogId !== 'string') {
     throw new Error("Catalog ID must be specified via catalog metadata ('catalogId' or '$id').");
@@ -313,9 +309,5 @@ export function parseCatalogDefinition(catalogJson: Record<string, any>): Parsed
 
   const functions = parseFunctionDefinitions(catalogJson.functions);
 
-  return {
-    catalogId,
-    components,
-    functions,
-  };
+  return new Catalog(catalogId, components, functions);
 }
