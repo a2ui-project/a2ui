@@ -45,7 +45,11 @@ let package = Package(
     .package(
       url: "https://github.com/ajevans99/swift-json-schema",
       from: "0.13.1"
-    )
+    ),
+    .package(
+      url: "https://github.com/jpsim/Yams",
+      from: "6.2.2"
+    ),
   ],
   targets: [
     // ── Core ──
@@ -118,6 +122,16 @@ let package = Package(
       name: "BasicCatalogTests",
       dependencies: ["BasicCatalog"],
       path: "swift/core/Tests/BasicCatalogTests"
+    ),
+    .testTarget(
+      name: "A2UIConformanceTests",
+      dependencies: [
+        "A2UICore",
+        "A2UIJSON",
+        "BasicCatalog",
+        .product(name: "Yams", package: "Yams"),
+      ],
+      path: "swift/core/Tests/A2UIConformanceTests"
     ),
   ]
 )
