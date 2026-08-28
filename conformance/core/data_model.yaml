@@ -1,0 +1,654 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Behaviour of the reactive data model: JSON Pointer resolution, structural
+# auto-vivification, and observer notification routing.
+#
+# Migrated from `renderers/web_core/src/v0_9/state/data-model.test.ts` so that
+# every implementation of the data model is measured against one dataset.
+#
+# Each case builds a model from `initial`, attaches an observer to every path in
+# `watch`, then runs `steps` in order. A step is one of:
+#
+#   op: get      read `path`; assert `expect`, `expect_absent` or `expect_type`
+#                (`list` or `object`)
+#   op: set      write `value` at `path`
+#   op: delete   remove the value at `path` from its parent container
+#   op: dispose  detach every observer
+#
+# A `set`, `delete` or `dispose` step may assert `expect_notified` (the watched
+# paths whose observers fired for that step, with one entry per observer) and
+# `expect_values` (the value each watched path holds afterwards).
+#
+# Deliberately left out of this suite, because the behaviour does not currently
+# hold across implementations. Each is covered by a package local test instead.
+#
+#   * JavaScript prototype pollution guards (`__proto__`, `constructor`,
+#     `prototype`) and `Object.prototype` property leakage, which exist only
+#     because JavaScript objects have a prototype chain.
+#   * `null` and `undefined` path arguments, which languages with non-nullable
+#     string types cannot express.
+#   * The distinction between storing `undefined` and removing a key, which
+#     languages without `undefined` cannot express. Removal is expressed here as
+#     an explicit `delete` step.
+#   * Rejection of leading zero list indices, which `web_core` enforces and the
+#     Dart implementation does not.
+#   * A cap on auto-vivified list indices. Dart lists are dense, so writing
+#     `/items/999999999` must be rejected to avoid allocating the whole list;
+#     JavaScript arrays are sparse, so the same write is cheap and is allowed.
+
+- name: test_data_model_initializes_empty
+  description: >-
+    A model created without data starts as an empty object.
+  catalog:
+    version: "0.9"
+  action: data_model
+  steps:
+    - op: "get"
+      path: "/"
+      expect: {}
+
+- name: test_data_model_retrieves_root
+  description: >-
+    The root path returns the whole data model.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "get"
+      path: "/"
+      expect: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+
+- name: test_data_model_retrieves_nested_path
+  description: >-
+    Nested object paths resolve segment by segment.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "get"
+      path: "/user/name"
+      expect: "Alice"
+    - op: "get"
+      path: "/user/settings/theme"
+      expect: "dark"
+
+- name: test_data_model_retrieves_list_items
+  description: >-
+    List elements resolve by numeric segment.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "get"
+      path: "/items/0"
+      expect: "a"
+    - op: "get"
+      path: "/items/1"
+      expect: "b"
+
+- name: test_data_model_absent_for_missing_paths
+  description: >-
+    Paths that do not exist resolve to no value.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "get"
+      path: "/user/age"
+      expect_absent: true
+    - op: "get"
+      path: "/unknown/path"
+      expect_absent: true
+
+- name: test_data_model_absent_through_empty_segment
+  description: >-
+    Traversing through a segment that holds no value yields no value.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "set"
+      path: "/nullable/inner"
+      value: 1
+    - op: "delete"
+      path: "/nullable/inner"
+    - op: "get"
+      path: "/nullable/deep/path"
+      expect_absent: true
+
+- name: test_data_model_sets_existing_path
+  description: >-
+    Setting an existing path replaces its value.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "set"
+      path: "/user/name"
+      value: "Bob"
+    - op: "get"
+      path: "/user/name"
+      expect: "Bob"
+
+- name: test_data_model_sets_new_path
+  description: >-
+    Setting a new key on an existing object adds it.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "set"
+      path: "/user/age"
+      value: 30
+    - op: "get"
+      path: "/user/age"
+      expect: 30
+
+- name: test_data_model_creates_intermediate_objects
+  description: >-
+    Missing intermediate objects are created on write.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "set"
+      path: "/a/b/c"
+      value: "foo"
+    - op: "get"
+      path: "/a/b/c"
+      expect: "foo"
+    - op: "get"
+      path: "/a/b"
+      expect_type: "object"
+
+- name: test_data_model_delete_removes_key
+  description: >-
+    Deleting a path removes the key from its parent object.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "delete"
+      path: "/user/name"
+    - op: "get"
+      path: "/user/name"
+      expect_absent: true
+    - op: "get"
+      path: "/user"
+      expect: {"settings": {"theme": "dark"}}
+
+- name: test_data_model_list_set_and_get
+  description: >-
+    Writing a numeric segment into a missing path creates a list.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "set"
+      path: "/list/0"
+      value: "hello"
+    - op: "get"
+      path: "/list/0"
+      expect: "hello"
+    - op: "get"
+      path: "/list"
+      expect_type: "list"
+
+- name: test_data_model_list_append
+  description: >-
+    Writing successive indices appends to a list.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "set"
+      path: "/list/0"
+      value: "hello"
+    - op: "set"
+      path: "/list/1"
+      value: "world"
+    - op: "get"
+      path: "/list"
+      expect: ["hello", "world"]
+
+- name: test_data_model_list_update_index
+  description: >-
+    Writing an existing index replaces that element.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "set"
+      path: "/items/1"
+      value: "updated"
+    - op: "get"
+      path: "/items"
+      expect: ["a", "updated", "c"]
+
+- name: test_data_model_creates_nested_structures
+  description: >-
+    Auto-vivification picks a list or an object based on the next segment.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "set"
+      path: "/a/b/0/c"
+      value: 123
+    - op: "get"
+      path: "/a/b/0/c"
+      expect: 123
+    - op: "get"
+      path: "/a/b"
+      expect_type: "list"
+    - op: "get"
+      path: "/a/b/0"
+      expect_type: "object"
+    - op: "set"
+      path: "/x/y/z"
+      value: "hello"
+    - op: "get"
+      path: "/x/y/z"
+      expect: "hello"
+    - op: "set"
+      path: "/nestedList/0/0"
+      value: "inner"
+    - op: "get"
+      path: "/nestedList"
+      expect_type: "list"
+    - op: "get"
+      path: "/nestedList/0"
+      expect_type: "list"
+
+- name: test_data_model_get_out_of_range_index
+  description: >-
+    Out of range and non numeric list indices resolve to no value on read.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "get"
+      path: "/items/99"
+      expect_absent: true
+    - op: "get"
+      path: "/items/-1"
+      expect_absent: true
+    - op: "get"
+      path: "/items/invalid"
+      expect_absent: true
+
+- name: test_data_model_normalizes_trailing_slash
+  description: >-
+    A trailing slash is not a distinct path.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  watch: ["/foo"]
+  steps:
+    - op: "set"
+      path: "/foo/"
+      value: "bar"
+      expect_notified: ["/foo"]
+    - op: "get"
+      path: "/foo/"
+      expect: "bar"
+    - op: "get"
+      path: "/foo"
+      expect: "bar"
+
+- name: test_data_model_replaces_root
+  description: >-
+    Setting the root path replaces the whole model.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  watch: ["/", "/unrelated"]
+  steps:
+    - op: "set"
+      path: "/"
+      value: {"newRoot": "foo"}
+      expect_notified: ["/"]
+      expect_values: {"/": {"newRoot": "foo"}}
+    - op: "get"
+      path: ""
+      expect: {"newRoot": "foo"}
+
+- name: test_data_model_escaped_slash
+  description: >-
+    A ~1 escape addresses a key containing a slash (RFC 6901).
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "set"
+      path: "/user/detailed~1info"
+      value: "some info"
+    - op: "get"
+      path: "/user/detailed~1info"
+      expect: "some info"
+    - op: "get"
+      path: "/user"
+      expect: {"name": "Alice", "settings": {"theme": "dark"}, "detailed/info": "some info"}
+
+- name: test_data_model_escaped_tilde
+  description: >-
+    A ~0 escape addresses a key containing a tilde (RFC 6901).
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "set"
+      path: "/user/profile~0name"
+      value: "profile~name"
+    - op: "get"
+      path: "/user/profile~0name"
+      expect: "profile~name"
+    - op: "get"
+      path: "/user"
+      expect: {"name": "Alice", "settings": {"theme": "dark"}, "profile~name": "profile~name"}
+
+- name: test_data_model_escaped_mixed
+  description: >-
+    Both escapes may appear in one segment.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "set"
+      path: "/user/a~0b~1c"
+      value: "value"
+    - op: "get"
+      path: "/user/a~0b~1c"
+      expect: "value"
+    - op: "get"
+      path: "/user"
+      expect: {"name": "Alice", "settings": {"theme": "dark"}, "a~b/c": "value"}
+
+- name: test_data_model_escape_order
+  description: >-
+    A ~01 sequence decodes to ~1, not to a slash.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "set"
+      path: "/user/a~01b"
+      value: "value"
+    - op: "get"
+      path: "/user/a~01b"
+      expect: "value"
+    - op: "get"
+      path: "/user"
+      expect: {"name": "Alice", "settings": {"theme": "dark"}, "a~1b": "value"}
+
+- name: test_data_model_rejects_write_through_primitive
+  description: >-
+    Writing through a primitive intermediate segment is an error.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "set"
+      path: "/user/name"
+      value: "not an object"
+    - op: "set"
+      path: "/user/name/first"
+      value: "Alice"
+      expect_error: {"category": "DataError", "message": "Cannot set path"}
+
+- name: test_data_model_rejects_write_through_list_primitive
+  description: >-
+    Writing through a primitive list element is an error.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "set"
+      path: "/items/0/foo"
+      value: "bar"
+      expect_error: {"category": "DataError", "message": "Cannot set path"}
+
+- name: test_data_model_rejects_non_numeric_list_segment
+  description: >-
+    A non numeric segment cannot address a list element on write.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "set"
+      path: "/items/foo"
+      value: "bar"
+      expect_error: {"category": "DataError", "message": "non-numeric segment"}
+
+- name: test_data_model_rejects_non_numeric_list_segment_intermediate
+  description: >-
+    A non numeric intermediate segment cannot address a list element.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  steps:
+    - op: "set"
+      path: "/items/foo/bar"
+      value: "value"
+      expect_error: {"category": "DataError", "message": "non-numeric segment"}
+
+- name: test_data_model_notifies_exact_path
+  description: >-
+    An observer fires when its own path is written.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  watch: ["/user/name"]
+  steps:
+    - op: "set"
+      path: "/user/name"
+      value: "Charlie"
+      expect_values: {"/user/name": "Charlie"}
+      expect_notified: ["/user/name"]
+
+- name: test_data_model_notifies_ancestor
+  description: >-
+    An observer on a container fires when a descendant is written.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  watch: ["/user"]
+  steps:
+    - op: "set"
+      path: "/user/name"
+      value: "Dave"
+      expect_values: {"/user": {"name": "Dave", "settings": {"theme": "dark"}}}
+      expect_notified: ["/user"]
+
+- name: test_data_model_notifies_descendant
+  description: >-
+    An observer on a leaf fires when an ancestor is replaced.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  watch: ["/user/settings/theme"]
+  steps:
+    - op: "set"
+      path: "/user/settings"
+      value: {"theme": "light"}
+      expect_values: {"/user/settings/theme": "light"}
+      expect_notified: ["/user/settings/theme"]
+
+- name: test_data_model_notifies_root_observer
+  description: >-
+    A root observer fires on any write.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  watch: ["/"]
+  steps:
+    - op: "set"
+      path: "/newProp"
+      value: "test"
+      expect_notified: ["/"]
+
+- name: test_data_model_notifies_parent_on_child_write
+  description: >-
+    A container observer sees the updated container value.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  watch: ["/parent"]
+  steps:
+    - op: "set"
+      path: "/parent"
+      value: {"child": "initial"}
+    - op: "set"
+      path: "/parent/child"
+      value: "updated"
+      expect_values: {"/parent": {"child": "updated"}}
+
+- name: test_data_model_does_not_notify_unrelated
+  description: >-
+    An observer does not fire for an unrelated path.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"a": 1, "b": 2}
+  watch: ["/b"]
+  steps:
+    - op: "set"
+      path: "/a"
+      value: 99
+      expect_notified: []
+
+- name: test_data_model_does_not_notify_prefix_sibling
+  description: >-
+    A sibling whose name merely shares a prefix is not a descendant.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"foo": 1, "foobar": 2}
+  watch: ["/foo", "/foobar"]
+  steps:
+    - op: "set"
+      path: "/foo"
+      value: 99
+      expect_notified: ["/foo"]
+
+- name: test_data_model_multiple_observers_same_path
+  description: >-
+    Every observer on a path is notified.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  watch: ["/user/name", "/user/name"]
+  steps:
+    - op: "set"
+      path: "/user/name"
+      value: "Eve"
+      expect_values: {"/user/name": "Eve"}
+      expect_notified: ["/user/name", "/user/name"]
+
+- name: test_data_model_observe_absent_path
+  description: >-
+    Observing a path that does not exist yet starts empty and fires on
+    creation.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  watch: ["/non/existent"]
+  steps:
+    - op: "get"
+      path: "/non/existent"
+      expect_absent: true
+    - op: "set"
+      path: "/non/existent"
+      value: "exists now"
+      expect_values: {"/non/existent": "exists now"}
+      expect_notified: ["/non/existent"]
+
+- name: test_data_model_stops_notifying_after_dispose
+  description: >-
+    Disposing the model detaches every observer.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
+  watch: ["/"]
+  steps:
+    - op: "dispose"
+    - op: "set"
+      path: "/foo"
+      value: "bar"
+      expect_notified: []
+
+- name: test_data_model_does_not_notify_unchanged_descendant
+  description: >-
+    An observer on a descendant path does not fire when an ancestor is
+    rewritten but the observer's own value is still absent.
+  catalog:
+    version: "0.9"
+  action: data_model
+  watch: ["/a/b"]
+  steps:
+    - op: "set"
+      path: "/a"
+      value: {"c": 1}
+      expect_notified: []
+
+- name: test_data_model_does_not_notify_same_value_rewrite
+  description: >-
+    Writing a path the value it already holds does not fire its observers.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"k": "v"}
+  watch: ["/k"]
+  steps:
+    - op: "set"
+      path: "/k"
+      value: "v"
+      expect_notified: []
+    - op: "set"
+      path: "/k"
+      value: "w"
+      expect_notified: ["/k"]
