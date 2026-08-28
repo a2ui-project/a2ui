@@ -18,7 +18,7 @@ import inspect
 from dataclasses import dataclass
 from typing import Any, Callable, Optional, Sequence, Union, get_type_hints
 
-from a2ui.inference_formats.experimental.macros.builder.base import (
+from a2ui.builder import (
     ComponentBuilderNode,
     ComponentRef,
     ExternalComponentBuilderNode,
@@ -72,7 +72,9 @@ def _parse_docstring(doc: Optional[str]) -> tuple[Optional[str], dict[str, str]]
                 name_part = prefix.split("(")[0].strip()
                 if name_part.isidentifier():
                     if current_param:
-                        param_descriptions[current_param] = " ".join(current_desc).strip()
+                        param_descriptions[current_param] = " ".join(
+                            current_desc
+                        ).strip()
                     current_param = name_part
                     current_desc = [desc.strip()]
                     continue
@@ -140,7 +142,8 @@ class MacroMetadata:
                 # Slot parameter: LLM passes child component ID
                 prop_schema["type"] = "string"
                 prop_schema["description"] = (
-                    param.description or "ID of the child component to place in this slot."
+                    param.description
+                    or "ID of the child component to place in this slot."
                 )
             elif getattr(t, "__origin__", None) in (list, Sequence):
                 prop_schema["type"] = "array"

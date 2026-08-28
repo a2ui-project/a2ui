@@ -23,13 +23,11 @@ from __future__ import annotations
 from typing import Any, List, Sequence
 
 from a2ui.inference_formats.experimental.macros import macro
-from a2ui.inference_formats.experimental.macros.builder import (
-    Action,
+from a2ui.builder import Action, ComponentBuilderNode, ComponentRef
+from a2ui.builder.catalogs.basic import (
     Button,
     Card,
     Column,
-    ComponentBuilderNode,
-    ComponentRef,
     Divider,
     Icon,
     Row,

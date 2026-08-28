@@ -14,7 +14,7 @@
 
 """A2UI Macros (Programmatic Components and Typesafe Builders)."""
 
-from a2ui.inference_formats.experimental.macros.builder import (
+from a2ui.builder import (
     Action,
     CheckRule,
     ComponentBuilderNode,

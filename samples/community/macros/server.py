@@ -43,11 +43,11 @@ from a2ui.schema.constants import (
     SPEC_VERSION_MAP,
 )
 from a2ui.schema.utils import load_from_bundled_resource
-from a2ui.inference_formats.experimental.macros.builder import (
+from a2ui.builder import ComponentBuilderNode
+from a2ui.builder.catalogs.basic import (
     Button,
     Card,
     Column,
-    ComponentBuilderNode,
     Divider,
     Icon,
     Row,
@@ -217,9 +217,7 @@ def render_payroll_summary(
                     align="center",
                     children=[
                         Text(
-                            text=(
-                                "🔒 Computed live by server Python execution engine"
-                            ),
+                            text="🔒 Computed live by server Python execution engine",
                             variant="caption",
                         ),
                         Text(
@@ -272,8 +270,12 @@ server_catalog = A2uiCatalog(
     version="0.9.1",
     name="basic",
     catalog_schema=basic_config.provider.load(),
-    s2c_schema=load_from_bundled_resource("0.9.1", SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP),
-    common_types_schema=load_from_bundled_resource("0.9.1", COMMON_TYPES_SCHEMA_KEY, SPEC_VERSION_MAP),
+    s2c_schema=load_from_bundled_resource(
+        "0.9.1", SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
+    ),
+    common_types_schema=load_from_bundled_resource(
+        "0.9.1", COMMON_TYPES_SCHEMA_KEY, SPEC_VERSION_MAP
+    ),
 )
 
 base_format = ExpressFormat(catalog=server_catalog, surface_id="main", version="v0.9.1")
@@ -649,7 +651,9 @@ async def chat(req: ChatRequest):
     if prompt_lower in PRESET_RESPONSES:
         dsl = PRESET_RESPONSES[prompt_lower]
         target_format = MacroInferenceFormat(
-            base_format=ExpressFormat(catalog=server_catalog, surface_id=req.surfaceId, version="v0.9.1"),
+            base_format=ExpressFormat(
+                catalog=server_catalog, surface_id=req.surfaceId, version="v0.9.1"
+            ),
             macros=active_macros,
         )
         messages = target_format.parser.compile(dsl)
@@ -683,7 +687,9 @@ async def chat(req: ChatRequest):
             latency = round(time.perf_counter() - start_time, 2)
             raw_text = response.text or ""
             target_format = MacroInferenceFormat(
-                base_format=ExpressFormat(catalog=server_catalog, surface_id=req.surfaceId, version="v0.9.1"),
+                base_format=ExpressFormat(
+                    catalog=server_catalog, surface_id=req.surfaceId, version="v0.9.1"
+                ),
                 macros=active_macros,
             )
             messages = target_format.parser.parse_response(raw_text)

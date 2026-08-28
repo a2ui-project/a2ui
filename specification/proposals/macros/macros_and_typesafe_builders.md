@@ -8,14 +8,14 @@ This proposal describes the design for programmatic macros and type-safe compone
 
 The implementation spans five areas of the repository:
 
-| Component                      | Repository path                                                                                | Description                                                                                                                                          |
-| :----------------------------- | :--------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Catalog schema ingestion**   | `renderers/web_core/src/v0_9/catalog/`                                                         | Introduces `loadCatalogFromJson()` and `Catalog.fromJson()` to parse raw catalog JSON schemas into typed `ComponentApi` objects with Zod validation. |
-| **Code generation CLI**        | `javascript/a2ui_cli/`                                                                         | Implements the `@a2ui/cli` package with commands to analyze catalog schemas and emit single-file Python builder modules.                             |
-| **Fluent builder foundation**  | `agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/macros/builder/`         | Implements `ComponentBuilderNode`, data binding helpers, dynamic child lists, and tree flattening with automatic identifier assignment.              |
-| **Generated basic catalog**    | `agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/macros/builder/basic.py` | Single-file Python builder classes generated from the standard A2UI basic catalog schema.                                                            |
-| **Macro inference engine**     | `agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/macros/`                 | Implements the `@macro` decorator, `MacroInferenceFormat`, and `MacroProcessor` to augment prompts, intercept macro calls, and expand trees.         |
-| **Community demo application** | `samples/community/macros/`                                                                    | Provides an end-to-end sample application with Python backend server and client UI demonstrating macro invocation and rendering.                     |
+| Component                      | Repository path                                                                | Description                                                                                                                                                    |
+| :----------------------------- | :----------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Catalog schema ingestion**   | `renderers/web_core/src/v0_9/catalog/`                                         | Introduces `loadCatalogFromJson()` and `Catalog.fromJson()` to parse raw catalog JSON schemas into typed `ComponentApi` objects with Zod validation.           |
+| **Code generation CLI**        | `javascript/a2ui_cli/`                                                         | Implements the `@a2ui/cli` package with commands to analyze catalog schemas and emit single-file Python builder modules with prominent generated-code markers. |
+| **Fluent builder foundation**  | `agent_sdks/python/a2ui_agent/src/a2ui/builder/`                               | Implements `ComponentBuilderNode`, data binding helpers, dynamic child lists, and tree flattening with automatic identifier assignment.                        |
+| **Generated basic catalog**    | `agent_sdks/python/a2ui_agent/src/a2ui/builder/catalogs/basic/`                | Single-file Python builder classes generated from the standard A2UI basic catalog schema.                                                                      |
+| **Macro inference engine**     | `agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/macros/` | Implements the `@macro` decorator, `MacroInferenceFormat`, and `MacroProcessor` to augment prompts, intercept macro calls, and expand trees.                   |
+| **Community demo application** | `samples/community/macros/`                                                    | Provides an end-to-end sample application with Python backend server and client UI demonstrating macro invocation and rendering.                               |
 
 ---
 
@@ -54,26 +54,26 @@ The developer runs `@a2ui/cli` to generate a single-file Python module containin
 ```bash
 npx @a2ui/cli codegen \
   --catalog ./catalogs/infrastructure.json \
-  --out ./agent/builders/infrastructure.py
+  --out ./agent/builders/catalogs/infrastructure/infrastructure.py
 ```
 
-The CLI outputs a complete Python module with dataclasses for each component, `Literal` type aliases for enums, and serializer methods.
+The CLI outputs a complete Python module with dataclasses for each component, `Literal` type aliases for enums, and a clear auto-generated banner and `__a2ui_codegen__` marker at the top.
 
 ### Step 3: Author a macro using the builder classes
 
 The developer defines a macro by decorating a standard Python function with `@macro`. Inside the function, the developer uses the generated builder classes to construct the component tree:
 
 ```python
-from a2ui.inference_formats.experimental.macros import macro
-from a2ui.inference_formats.experimental.macros.builder.basic import (
-    Action,
+from a2ui.builder import Action, ComponentRef
+from a2ui.builder.catalogs.basic import (
     Button,
     Card,
     Column,
     Row,
     Text,
 )
-from agent.builders.infrastructure import ServerStatusBadge
+from a2ui.inference_formats.experimental.macros import macro
+from agent.builders.catalogs.infrastructure import ServerStatusBadge
 
 @macro
 def HostManagementCard(hostname: str, region: str = "us-central1") -> Card:
@@ -191,9 +191,10 @@ The generator consists of two stages:
 
 1. **Catalog analyzer (`src/analyzer/catalog-analyzer.ts`):** Ingests the catalog via `Catalog.fromJson()` and inspects the Zod schemas of components and functions. It extracts property types, default values, docstrings, enum options, child slots, and required property constraints into a normalized `AnalysedCatalog` data structure.
 2. **Python emitter (`src/emitters/python/python-emitter.ts`):** Converts the analyzed catalog into a standalone Python file. It emits:
-   - Header imports and module docstring.
+   - A clear banner comment identifying the file as auto-generated and displaying the catalog ID.
+   - An auto-generated docstring note and `__a2ui_codegen__ = "@a2ui/cli"` constant.
    - `Literal[...]` type aliases for string enums.
-   - Component builder classes decorated with `@dataclass(kw_only=True)`.
+   - Component builder classes decorated with `@dataclass(kw_only=True)` importing from `a2ui.builder.base`.
    - Function call factory helpers.
    - An explicit `__all__` symbol export list.
 
@@ -208,6 +209,7 @@ npx @a2ui/cli codegen --catalog <catalog_file> --out <output_path>
 - **Why implemented in TypeScript:** The authoritative definitions for A2UI schemas and components reside in `@a2ui/web_core`. Implementing the generator in TypeScript allows it to import `@a2ui/web_core` directly, avoiding duplicate JSON Schema parsers in Python or other target languages.
 - **Single-file output:** Emitting one self-contained module per catalog avoids nested package directories, simplifies imports in agent applications, and makes catalog regeneration atomic.
 - **Keyword-only arguments:** Emitting `@dataclass(kw_only=True)` prevents parameter ordering issues when components combine required properties, optional properties with defaults, and inherited fields.
+- **Clear generated code demarcation:** Adding the comment banner and `__a2ui_codegen__` marker prevents developer confusion over which modules are generated versus handwritten.
 
 ---
 
@@ -215,15 +217,18 @@ npx @a2ui/cli codegen --catalog <catalog_file> --out <output_path>
 
 #### Implementation details
 
-The fluent builder library resides in `agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/macros/builder/`:
+The fluent builder library resides in `agent_sdks/python/a2ui_agent/src/a2ui/builder/`:
 
 - **`base.py`:** Defines the foundational classes:
   - `ComponentBuilderNode`: Base class for all component builders. Implements serialization, tree traversal, and child node identification.
   - `ExternalComponentBuilderNode`: Represents a component already existing on the surface, referenced by its string ID.
-  - `DataBinding`: Encapsulates paths (`bind("/user/name")`) and expressions (`bind_expr("count + 1")`).
+  - `DataBinding`: Encapsulates paths (`bind("/user/name")`).
   - `DynamicChildList`: Binds an array path to a template component node for repeating collections.
   - `Action`: Represents interactive events with name and payload dictionaries.
   - `Surface`: Container providing `.to_messages()` to produce `createSurface` and `updateComponents` protocol envelopes.
+- **`catalogs/basic/`:** Houses the generated basic catalog classes:
+  - `basic.py`: The single-file generated dataclasses and enums.
+  - `__init__.py`: Re-exports all components for direct import from `a2ui.builder.catalogs.basic`.
 
 #### Automatic identifier assignment and tree flattening
 
@@ -247,6 +252,7 @@ card = Card(child=Text(text="Hello"))
 
 #### Rationale
 
+- **Decoupled architecture:** Moving the builder to `a2ui.builder` establishes it as a first-class SDK capability that can be used independently of macros or LLM inference formats.
 - **Type safety and autocompletion:** Developers receive instant IDE validation for component property names and enum values.
 - **Abstraction of protocol serialization:** Developers author nested UI trees in natural object notation without manually tracking string IDs or building flat component lists.
 
@@ -287,7 +293,7 @@ The macro execution engine resides in `agent_sdks/python/a2ui_agent/src/a2ui/inf
 The sample application in `samples/community/macros/` provides an end-to-end demonstration:
 
 - **`server.py`:** FastMCP server exposing macro definitions.
-- **`macro_definitions.py`:** Defines concrete macros (`EconomicIndicatorCard`, `WeatherCard`, `ServerMetricSummary`) using the generated `basic.py` catalog builder classes.
+- **`macro_definitions.py`:** Defines concrete macros (`EconomicIndicatorCard`, `WeatherCard`, `ServerMetricSummary`) using the generated `a2ui.builder.catalogs.basic` catalog builder classes.
 - **Web client:** Runs a client application with Lit and React renderers, verifying that macro expansions render correctly in the browser.
 
 #### Rationale
