@@ -55,17 +55,18 @@ describe('Catalog.fromJson & json_schema_loader', () => {
     assert.throws(() => extractCatalogMetadata(invalidJson as any), /Catalog ID must be specified/);
   });
 
-  it('respects explicit specVersion option override', () => {
+  it('extracts explicit protocolVersion or version field from JSON', () => {
     const customJson = {
       catalogId: 'https://example.com/custom_catalog.json',
+      protocolVersion: '1.0',
       components: {},
     };
-    const meta = extractCatalogMetadata(customJson, {specVersion: 'v0.9.1'});
-    assert.strictEqual(meta.specVersion, 'v0.9.1');
+    const meta = extractCatalogMetadata(customJson);
+    assert.strictEqual(meta.specVersion, 'v1.0');
   });
 
   it('loads basic catalog successfully into Catalog<ComponentApi>', () => {
-    const catalog = Catalog.fromJson(basicCatalogJson, {specVersion: 'v0.9.1'});
+    const catalog = Catalog.fromJson(basicCatalogJson);
 
     assert.strictEqual(
       catalog.id,
@@ -119,22 +120,13 @@ describe('Catalog.fromJson & json_schema_loader', () => {
   });
 
   it('parses functions from catalog into FunctionApi map', () => {
-    const catalog = Catalog.fromJson(basicCatalogJson, {specVersion: 'v0.9.1'});
+    const catalog = Catalog.fromJson(basicCatalogJson);
     assert.ok(catalog.functions.size > 0);
 
     const reqFn = catalog.functions.get('required');
     assert.ok(reqFn);
     assert.strictEqual(reqFn.name, 'required');
     assert.strictEqual(reqFn.returnType, 'boolean');
-  });
-
-  it('loads catalog without optional options argument', () => {
-    const catalog = Catalog.fromJson(basicCatalogJson);
-    assert.strictEqual(
-      catalog.id,
-      'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
-    );
-    assert.ok(catalog.components.size > 0);
   });
 
   it('merges both allOf and top-level properties and resolves required fields in two passes', () => {

@@ -19,14 +19,11 @@ import {DataContext} from '../rendering/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiExpressionError} from '../errors.js';
 import {
-  type CatalogJsonLoaderOptions,
   V0_9_COMMON_TYPES,
   convertComponentJsonSchemaToZod,
   extractCatalogMetadata,
   parseFunctionDefinitions,
 } from './json_schema_loader.js';
-
-export type {CatalogJsonLoaderOptions};
 
 export type A2uiReturnType = 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';
 
@@ -222,13 +219,9 @@ export class Catalog<
    * according to specification (specification/v1_0/json/catalog_definition.json#L14).
    *
    * @param catalogJson Raw JSON catalog or client capabilities payload.
-   * @param options Optional overrides for catalogId or specVersion.
    */
-  static fromJson(
-    catalogJson: Record<string, any>,
-    options?: CatalogJsonLoaderOptions,
-  ): Catalog<ComponentApi, FunctionApi> {
-    const {catalogId, specVersion} = extractCatalogMetadata(catalogJson, options);
+  static fromJson(catalogJson: Record<string, any>): Catalog<ComponentApi, FunctionApi> {
+    const {catalogId, specVersion} = extractCatalogMetadata(catalogJson);
 
     const registry = V0_9_COMMON_TYPES;
 
