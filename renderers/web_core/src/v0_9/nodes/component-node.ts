@@ -19,7 +19,7 @@ import type {ComponentApi} from '../catalog/types.js';
 import {Signal, signal, peekValue, setValue} from '../reactivity/signals.js';
 import {ResolvedBinding} from './resolved-binding.js';
 
-/** The `type` of a node standing in for a component it cannot resolve. */
+/** The `type` of pending and cyclic stand-in nodes. */
 export const PLACEHOLDER_TYPE = 'Placeholder';
 
 /**
@@ -29,9 +29,10 @@ export const PLACEHOLDER_TYPE = 'Placeholder';
  * - `pending`: the component definition has not arrived; upgraded in place
  *   when it does.
  * - `unknown-type`: the definition arrived but its type has no catalog
- *   entry; an `UNKNOWN_COMPONENT_TYPE` error was dispatched.
- * - `cyclic`: the reference repeats one of the node's own ancestors; a
- *   `CYCLIC_REFERENCE` error was dispatched.
+ *   entry; `UNKNOWN_COMPONENT_TYPE` is reported once per component and
+ *   data path.
+ * - `cyclic`: the reference repeats one of the node's own ancestors;
+ *   `CYCLIC_REFERENCE` is reported once per component and data path.
  */
 export type NodeState = 'resolved' | 'pending' | 'unknown-type' | 'cyclic';
 
@@ -59,9 +60,14 @@ export interface ComponentNode<
   TProps extends NodeProps = NodeProps,
 > {
   /**
-   * Identifier for this node in the rendered tree. The bare component id at
-   * the root data scope; for template-spawned items the scoped data path is
-   * appended (e.g. `item-card-[/items/0]`) so sibling keys are distinct.
+   * Identifier for this node in the rendered tree, distinct among siblings.
+   * The bare component id at the root data scope; for template-spawned items
+   * the scoped data path is appended (e.g. `item-card-[/items/0]`); when one
+   * parent references the same component at the same scope more than once,
+   * each further occurrence gains a `#n` suffix (e.g. `item-card#2`). The
+   * characters that carry meaning in this composition (`~`, `#`, `[`, `]`)
+   * are escaped in the component id and data path, so ids that mimic a
+   * suffixed or scoped form cannot collide with one.
    *
    * Until the spec provides data-derived child keys (a2ui#1745), this id
    * names a list position, not a data item: it is not stable across array
@@ -70,7 +76,10 @@ export interface ComponentNode<
   readonly instanceId: string;
   /** The component id from the payload. */
   readonly componentId: string;
-  /** The catalog component type, or `'Placeholder'`. */
+  /**
+   * The catalog component type. `'Placeholder'` for pending and cyclic
+   * stand-ins; an unknown-type node keeps its declared type.
+   */
   readonly type: string;
   /** The data model scope this node resolves against, e.g. `/items/0`. */
   readonly dataPath: string;
@@ -160,7 +169,7 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
 
   toJSON(): Record<string, unknown> {
     if (this.isPlaceholder) {
-      return {id: this.componentId, type: PLACEHOLDER_TYPE, state: this.state};
+      return {id: this.componentId, type: this.type, state: this.state};
     }
     const serialized: Record<string, unknown> = {
       id: this.componentId,
