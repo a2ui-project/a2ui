@@ -37,10 +37,7 @@ This skill guides the process of auditing concrete codebase implementations to v
    - Make sure there is no duplications of content. If you find some, delete the duplicate and leave a reference.
 
 6. **Conciseness and Clarity**:
-   - Verify that language in documentation and code comments is concise and clear:
-     - Remove words that do not have meaning like 'above all', 'first and foremost', and so on.
-     - Make sure that sentences are short and to the point.
-   - Verify that tables are not used without necessity - they are hard to read in plain text. If you see them, suggest replacement with lists or paragraphs or bullets. It is ok to use them if they make information more readable.
+   - Verify that documentation and code comments follow the [natural-writing](../natural-writing/SKILL.md) skill, and flag text that breaks its rules.
 
 7. **Format the Report**:
    - Build a Markdown report summarizing the findings:
