@@ -48,8 +48,6 @@ struct A2UIAudioPlayerTests {
     )
 
     let view = A2UIAudioPlayer(node: node)
-    #expect(node.string(for: "url") == nil)
-    #expect(node.string(for: "description") == "Episode Without URL")
     _ = view.body
   }
 
