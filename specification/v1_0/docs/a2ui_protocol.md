@@ -610,6 +610,8 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `functions`
      - `$defs`
    - No other top-level keys are permitted.
+8. **Deprecation Annotations:**
+   - Components, functions, and individual properties may declare `deprecated: true` along with an optional human-readable `x-deprecated-reason: string`. Catalogs are expected to be backward and forward compatible with different versions so should deprecate and continue to support for a time components, functions and properties rather than delete them.
 
 ##### Example Schema Template
 
@@ -639,6 +641,13 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
         "text": {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
           "description": "Text content to display.",
+        },
+        // Deprecated properties rather than just delete them for backward compatibility.
+        "rawContent": {
+          "type": "string",
+          "description": "Legacy unescaped text content.",
+          "deprecated": true,
+          "x-deprecated-reason": "Use 'text' property with Markdown formatting instead.",
         },
       },
       "required": ["component", "text"],
@@ -699,6 +708,25 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
   },
 }
 ```
+
+### Catalog Versioning
+
+A2UI catalogs should be forward and backward compatible across versions so that agents, renderers, and templates can evolve without breaking running sessions or stored transcripts.
+
+#### Catalog Schema Evolution Rules
+
+1. **Additive Only**: Adding new components, functions, or optional properties is allowed without incrementing the catalog version.
+2. **Deprecate Rather than Delete**: Never delete existing components, functions, or properties. Mark them `deprecated: true` along with an `x-deprecated-reason` instead. Renderers should retain handling logic for deprecated components and properties to maintain backward compatibility for historical transcripts, cached states, and templates.
+3. **Strict Type Invariance**: Never alter the data type of an existing field.
+4. **Open Enums**: Treat enum definitions as open so older renderers do not fail when new enum variants are introduced upstream.
+5. **Graceful Degredation**: Renderers should provide a graceful fallback for unknown components instead of failing the entire view hierarchy or surface.
+6. **Round Trip Unknown Component/Field Preservation**: Intermediary services such as orchestrators should preserve unknown properties when serializing/deserializing messages.
+7. **Major Version Bumps**: Reserve major catalog version bumps strictly for sweeping cleanups (e.g., removing long-deprecated fields) or fundamentally breaking structural changes.
+
+#### Deprecating Catalog Properties
+
+- **`deprecated`** (boolean, optional): Standard JSON Schema annotation indicating that a component, function, or property is deprecated.
+- **`x-deprecated-reason`** (string, optional): Human-readable explanation of why the entity is deprecated and what to use instead.
 
 ### UI composition: the adjacency list model
 
