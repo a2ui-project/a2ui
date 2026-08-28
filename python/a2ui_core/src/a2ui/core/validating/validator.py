@@ -82,7 +82,7 @@ class A2uiValidator:
 
     def validate_protocol_envelope(
         self,
-        messages: Any,
+        messages: List[Dict[str, Any]],
         config: ValidationConfig = STRICT_VALIDATION,
     ) -> None:
         """Validates the overall A2UI protocol payload structure using Pydantic."""
