@@ -174,7 +174,9 @@ def flatten_component_tree(
     """
     flat_list: list[dict[str, Any]] = []
 
-    if isinstance(root, Sequence) and not isinstance(root, (str, bytes, ComponentBuilderNode)):
+    if isinstance(root, Sequence) and not isinstance(
+        root, (str, bytes, ComponentBuilderNode)
+    ):
         # List of roots (e.g. table rows)
         for i, item in enumerate(root):
             item_root_id = f"{root_id}_{i}" if root_id else None
@@ -202,23 +204,32 @@ def flatten_component_tree(
             return assigned
 
         if is_root:
-            assigned = root_id if root_id else (node.id if node.id else allocator.allocate(node.component_name))
+            assigned = (
+                root_id
+                if root_id
+                else (node.id if node.id else allocator.allocate(node.component_name))
+            )
         else:
             assigned = allocator.allocate(node.component_name, preferred_id=node.id)
 
         id_map[node_key] = assigned
 
         # Recurse through children
+        def traverse(val: Any) -> None:
+            if isinstance(val, ComponentBuilderNode):
+                assign_ids(val, is_root=False)
+            elif isinstance(val, Mapping):
+                for v in val.values():
+                    traverse(v)
+            elif isinstance(val, Sequence) and not isinstance(val, (str, bytes)):
+                for item in val:
+                    traverse(item)
+            elif isinstance(val, DynamicChildList):
+                traverse(val.template)
+
         for attr_name, attr_val in vars(node).items():
-            if isinstance(attr_val, ComponentBuilderNode):
-                assign_ids(attr_val, is_root=False)
-            elif isinstance(attr_val, Sequence) and not isinstance(attr_val, (str, bytes)):
-                for elem in attr_val:
-                    if isinstance(elem, ComponentBuilderNode):
-                        assign_ids(elem, is_root=False)
-            elif isinstance(attr_val, DynamicChildList):
-                if isinstance(attr_val.template, ComponentBuilderNode):
-                    assign_ids(attr_val.template, is_root=False)
+            if attr_name not in ("component_name", "id"):
+                traverse(attr_val)
 
         return assigned
 
@@ -235,34 +246,29 @@ def flatten_component_tree(
 
         d: dict[str, Any] = {"component": node.component_name, "id": id_map[node_key]}
 
+        def traverse_and_serialize(val: Any) -> Any:
+            if isinstance(val, ComponentBuilderNode):
+                serialize_node(val)
+                return id_map[id(val)]
+            elif isinstance(val, Mapping):
+                return {k: traverse_and_serialize(v) for k, v in val.items()}
+            elif isinstance(val, Sequence) and not isinstance(val, (str, bytes)):
+                return [traverse_and_serialize(item) for item in val]
+            elif isinstance(val, DynamicChildList):
+                if isinstance(val.template, ComponentBuilderNode):
+                    serialize_node(val.template)
+                return val.to_dict()
+            elif hasattr(val, "to_dict"):
+                return val.to_dict()
+            else:
+                return val
+
         for attr_name, attr_val in vars(node).items():
             if attr_name in ("component_name", "id"):
                 continue
             if attr_val is None:
                 continue
-
-            if isinstance(attr_val, ComponentBuilderNode):
-                d[attr_name] = id_map[id(attr_val)]
-                serialize_node(attr_val)
-            elif isinstance(attr_val, Sequence) and not isinstance(attr_val, (str, bytes)):
-                serialized_list: list[Any] = []
-                for elem in attr_val:
-                    if isinstance(elem, ComponentBuilderNode):
-                        serialized_list.append(id_map[id(elem)])
-                        serialize_node(elem)
-                    elif hasattr(elem, "to_dict"):
-                        serialized_list.append(elem.to_dict())
-                    else:
-                        serialized_list.append(elem)
-                d[attr_name] = serialized_list
-            elif isinstance(attr_val, DynamicChildList):
-                d[attr_name] = attr_val.to_dict()
-                if isinstance(attr_val.template, ComponentBuilderNode):
-                    serialize_node(attr_val.template)
-            elif hasattr(attr_val, "to_dict"):
-                d[attr_name] = attr_val.to_dict()
-            else:
-                d[attr_name] = attr_val
+            d[attr_name] = traverse_and_serialize(attr_val)
 
         flat_list.append(d)
 
@@ -309,13 +315,11 @@ class Surface:
         if self.data_model:
             for path, val in self.data_model.items():
                 norm_path = path if path.startswith("/") else f"/{path}"
-                messages.append(
-                    {
-                        "dataModelUpdate": {
-                            "surfaceId": self.surface_id,
-                            "path": norm_path,
-                            "value": val,
-                        }
+                messages.append({
+                    "dataModelUpdate": {
+                        "surfaceId": self.surface_id,
+                        "path": norm_path,
+                        "value": val,
                     }
-                )
+                })
         return messages
