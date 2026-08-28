@@ -40,8 +40,9 @@ This skill guides the process of auditing concrete codebase implementations to v
    - Return this Markdown report as your final response.
 
 6. **Links**:
-   - When an artifact (code, document, issue, PR, comment and so on) is referenced, make sure it has a link. Prefer linking to duplications.
+   - When an artifact (code, document, issue, PR, comment and so on) is referenced, make sure it has a link.
    - When a glossary term is used - link the first occurrence of the term to the glossary entry if it exists.
+   - Make sure there is no duplications. If you find some, delete the duplicate and leave a reference.
 
 7. **Conciseness and Clarity**:
    - Verify that language in documentation and code comments is concise and clear:
