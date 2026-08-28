@@ -44,17 +44,32 @@ const COMMON_TYPE_SCHEMAS: Record<string, z.ZodTypeAny> = {
   AccessibilityAttributes: AccessibilityAttributesSchema,
 };
 
-const COMMON_PROPS: Record<string, z.ZodTypeAny> = {
-  accessibility: AccessibilityAttributesSchema.optional(),
-  weight: z
-    .number()
-    .describe(
-      "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property.",
-    )
-    .optional(),
-};
+/**
+ * Resolves a JSON Pointer within a root JSON document.
+ * Follows RFC 6901 pointer unescaping (~1 -> /, ~0 -> ~).
+ */
+function resolveJsonPointer(
+  rootDoc: Record<string, any>,
+  pointer: string,
+): Record<string, any> | undefined {
+  if (!pointer.startsWith('#/')) return undefined;
+  const segments = pointer
+    .slice(2)
+    .split('/')
+    .map(s => s.replace(/~1/g, '/').replace(/~0/g, '~'));
 
-function resolveRef(ref: string): z.ZodTypeAny | undefined {
+  let curr: any = rootDoc;
+  for (const seg of segments) {
+    if (curr && typeof curr === 'object' && seg in curr) {
+      curr = curr[seg];
+    } else {
+      return undefined;
+    }
+  }
+  return typeof curr === 'object' && curr !== null ? curr : undefined;
+}
+
+function resolveProtocolRef(ref: string): z.ZodTypeAny | undefined {
   const defName = ref.split(/#\/(?:\$defs|definitions)\//)[1];
   return defName ? COMMON_TYPE_SCHEMAS[defName] : undefined;
 }
@@ -78,19 +93,38 @@ function convertEnumToZod(values: unknown[]): z.ZodTypeAny {
   );
 }
 
-function convertPropertyToZod(propSchema: Record<string, any>): z.ZodTypeAny {
+function convertPropertyToZod(
+  propSchema: Record<string, any>,
+  rootDoc?: Record<string, any>,
+  visitedPointers = new Set<string>(),
+): z.ZodTypeAny {
   if (!propSchema || typeof propSchema !== 'object') {
     return z.unknown();
   }
 
   if (propSchema.$ref && typeof propSchema.$ref === 'string') {
-    const resolved = resolveRef(propSchema.$ref);
-    if (resolved) {
-      const defName = propSchema.$ref.split(/#\/(?:\$defs|definitions)\//)[1];
+    const ref = propSchema.$ref;
+    // Protocol canonical types
+    const resolvedProtocol = resolveProtocolRef(ref);
+    if (resolvedProtocol) {
+      const defName = ref.split(/#\/(?:\$defs|definitions)\//)[1];
       const desc = propSchema.description
         ? `REF:common_types.json#/$defs/${defName}|${propSchema.description}`
-        : resolved.description;
-      return desc ? resolved.describe(desc) : resolved;
+        : resolvedProtocol.description;
+      return desc ? resolvedProtocol.describe(desc) : resolvedProtocol;
+    }
+
+    // Document-local $defs reference
+    if (rootDoc && ref.startsWith('#/') && !visitedPointers.has(ref)) {
+      visitedPointers.add(ref);
+      const localTarget = resolveJsonPointer(rootDoc, ref);
+      if (localTarget) {
+        let zodType = convertPropertyToZod(localTarget, rootDoc, visitedPointers);
+        if (propSchema.description) {
+          zodType = zodType.describe(propSchema.description);
+        }
+        return zodType;
+      }
     }
   }
 
@@ -130,7 +164,9 @@ function convertPropertyToZod(propSchema: Record<string, any>): z.ZodTypeAny {
 
   // Arrays
   if (propSchema.type === 'array') {
-    const itemSchema = propSchema.items ? convertPropertyToZod(propSchema.items) : z.any();
+    const itemSchema = propSchema.items
+      ? convertPropertyToZod(propSchema.items, rootDoc, visitedPointers)
+      : z.any();
     let arr = z.array(itemSchema);
     if (propSchema.description) arr = arr.describe(propSchema.description) as any;
     return arr;
@@ -179,34 +215,72 @@ function convertPropertiesToShape(
   properties: Record<string, any>,
   requiredSet: Set<string>,
   omitEnvelopeFields = false,
+  rootDoc?: Record<string, any>,
 ): Record<string, z.ZodTypeAny> {
   const shape: Record<string, z.ZodTypeAny> = {};
   for (const [propName, propSchema] of Object.entries(properties)) {
     if (omitEnvelopeFields && (propName === 'component' || propName === 'id')) {
       continue;
     }
-    const zodField = convertPropertyToZod(propSchema as any);
+    const zodField = convertPropertyToZod(propSchema as any, rootDoc);
     shape[propName] = requiredSet.has(propName) ? zodField : zodField.optional();
   }
   return shape;
 }
 
-function convertComponentJsonSchemaToZod(rawSchema: Record<string, any>): z.ZodObject<any> {
-  const shape: Record<string, z.ZodTypeAny> = {
-    ...COMMON_PROPS,
-  };
+/**
+ * Collects all property definitions and constraints from a component schema,
+ * resolving local document $defs and canonical protocol ComponentCommon references.
+ */
+function collectComponentSubSchemas(
+  schema: Record<string, any>,
+  rootDoc: Record<string, any>,
+  visitedPointers = new Set<string>(),
+): Record<string, any>[] {
+  const result: Record<string, any>[] = [];
+  if (!schema || typeof schema !== 'object') return result;
 
-  const schemasToMerge: Record<string, any>[] = [];
-  if (Array.isArray(rawSchema.allOf)) {
-    for (const sub of rawSchema.allOf) {
-      if (sub && typeof sub === 'object' && sub.properties) {
-        schemasToMerge.push(sub);
+  if (Array.isArray(schema.allOf)) {
+    for (const sub of schema.allOf) {
+      if (!sub || typeof sub !== 'object') continue;
+
+      if (typeof sub.$ref === 'string') {
+        const ref = sub.$ref;
+        if (ref.includes('common_types.json') && ref.includes('ComponentCommon')) {
+          // Protocol common properties: accessibility attributes
+          result.push({
+            properties: {
+              accessibility: AccessibilityAttributesSchema.optional(),
+            },
+          });
+        } else if (ref.startsWith('#/')) {
+          if (!visitedPointers.has(ref)) {
+            visitedPointers.add(ref);
+            const target = resolveJsonPointer(rootDoc, ref);
+            if (target) {
+              result.push(...collectComponentSubSchemas(target, rootDoc, visitedPointers));
+            }
+          }
+        }
+      } else {
+        result.push(...collectComponentSubSchemas(sub, rootDoc, visitedPointers));
       }
     }
   }
-  if (rawSchema.properties) {
-    schemasToMerge.push(rawSchema);
+
+  if (schema.properties) {
+    result.push(schema);
   }
+
+  return result;
+}
+
+function convertComponentJsonSchemaToZod(
+  rawSchema: Record<string, any>,
+  rootDoc: Record<string, any>,
+): z.ZodObject<any> {
+  const shape: Record<string, z.ZodTypeAny> = {};
+  const schemasToMerge = collectComponentSubSchemas(rawSchema, rootDoc);
 
   const requiredSet = new Set<string>();
   for (const s of schemasToMerge) {
@@ -216,20 +290,23 @@ function convertComponentJsonSchemaToZod(rawSchema: Record<string, any>): z.ZodO
   }
 
   for (const s of schemasToMerge) {
-    const propShape = convertPropertiesToShape(s.properties || {}, requiredSet, true);
+    const propShape = convertPropertiesToShape(s.properties || {}, requiredSet, true, rootDoc);
     Object.assign(shape, propShape);
   }
 
   return z.object(shape).strict();
 }
 
-function convertFunctionArgsJsonSchemaToZod(rawSchema: Record<string, any>): z.ZodObject<any> {
+function convertFunctionArgsJsonSchemaToZod(
+  rawSchema: Record<string, any>,
+  rootDoc?: Record<string, any>,
+): z.ZodObject<any> {
   const requiredSet = new Set<string>(Array.isArray(rawSchema.required) ? rawSchema.required : []);
-  const shape = convertPropertiesToShape(rawSchema.properties || {}, requiredSet, false);
+  const shape = convertPropertiesToShape(rawSchema.properties || {}, requiredSet, false, rootDoc);
   return z.object(shape).strict();
 }
 
-function parseFunctionDefinitions(rawFunctions: any): FunctionApi[] {
+function parseFunctionDefinitions(rawFunctions: any, rootDoc?: Record<string, any>): FunctionApi[] {
   const result: FunctionApi[] = [];
   if (!rawFunctions) return result;
 
@@ -238,7 +315,7 @@ function parseFunctionDefinitions(rawFunctions: any): FunctionApi[] {
       if (fn && typeof fn.name === 'string') {
         const paramSchema =
           fn.parameters && typeof fn.parameters === 'object'
-            ? convertFunctionArgsJsonSchemaToZod(fn.parameters)
+            ? convertFunctionArgsJsonSchemaToZod(fn.parameters, rootDoc)
             : z.record(z.any());
         result.push({
           name: fn.name,
@@ -257,7 +334,7 @@ function parseFunctionDefinitions(rawFunctions: any): FunctionApi[] {
       const argsSchema = d.properties?.args ?? d.args ?? d.parameters;
       const paramSchema =
         argsSchema && typeof argsSchema === 'object'
-          ? convertFunctionArgsJsonSchemaToZod(argsSchema)
+          ? convertFunctionArgsJsonSchemaToZod(argsSchema, rootDoc)
           : z.record(z.any());
       result.push({
         name,
@@ -299,7 +376,10 @@ export function loadCatalogFromJson(
   const componentsMap = catalogJson.components ?? {};
   for (const [name, rawCompSchema] of Object.entries(componentsMap)) {
     if (permittedNames.size === 0 || permittedNames.has(name)) {
-      const zodSchema = convertComponentJsonSchemaToZod(rawCompSchema as Record<string, any>);
+      const zodSchema = convertComponentJsonSchemaToZod(
+        rawCompSchema as Record<string, any>,
+        catalogJson,
+      );
       components.push({
         name,
         schema: zodSchema,
@@ -307,7 +387,7 @@ export function loadCatalogFromJson(
     }
   }
 
-  const functions = parseFunctionDefinitions(catalogJson.functions);
+  const functions = parseFunctionDefinitions(catalogJson.functions, catalogJson);
 
   return new Catalog(catalogId, components, functions);
 }
