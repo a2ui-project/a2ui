@@ -387,7 +387,7 @@ When a surface is created with `sendDataModel: true`, the renderer is responsibl
 
 #### Capabilities Objects
 
-Both sides of the handshake advertise a capabilities object, and **both have a normative JSON Schema**. Build and parse them from that schema rather than from memory or from a neighbouring implementation:
+Both sides of the handshake (agent and renderer) advertise a capabilities object, and **both have a normative JSON Schema**. Build and parse them from that schema rather than from memory or from a neighbouring implementation:
 
 | Direction        | Object                   | Normative schema (v0.9, v0.9.1)                         | Renamed in v1.0                                      |
 | :--------------- | :----------------------- | :------------------------------------------------------ | :--------------------------------------------------- |
