@@ -219,12 +219,16 @@ npx @a2ui/cli codegen --catalog <catalog_file> --out <output_path>
 
 The fluent builder library resides in `agent_sdks/python/a2ui_agent/src/a2ui/builder/`:
 
-- **`base.py`:** Defines the foundational classes:
+- **`base.py`:** Defines the foundational classes and canonical protocol types:
   - `ComponentBuilderNode`: Base class for all component builders. Implements serialization, tree traversal, and child node identification.
-  - `ExternalComponentBuilderNode`: Represents a component already existing on the surface, referenced by its string ID.
-  - `DataBinding`: Encapsulates paths (`bind("/user/name")`).
+  - `ExternalComponentBuilderNode` / `ComponentRef`: Represents a component already existing on the surface, referenced by its string ID.
+  - `DataBinding` / `bind()`: Encapsulates two-way client data model paths (`bind("/user/name")`).
   - `DynamicChildList`: Binds an array path to a template component node for repeating collections.
   - `Action`: Represents interactive events with name and payload dictionaries.
+  - `CheckRule`: Validation condition and error message definition.
+  - `AccessibilityAttributes`: Screen reader attributes (`label`, `description`, `live`, `hidden`).
+  - `DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`, `DynamicValue`: Type aliases for reactive client values accepting literals, `DataBinding`, or `FunctionCall`.
+  - `Child`, `ChildList`: Type aliases for single and multi-child slots.
   - `Surface`: Container providing `.to_messages()` to produce `createSurface` and `updateComponents` protocol envelopes.
 - **`catalogs/basic/`:** Houses the generated basic catalog classes:
   - `basic.py`: The single-file generated dataclasses and enums.
@@ -264,24 +268,37 @@ card = Card(child=Text(text="Hello"))
 
 The macro execution engine resides in `agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/macros/`:
 
-- **`@macro` decorator (`macro.py`):** Decorates Python functions. It uses `inspect.signature()` and parses docstrings to extract:
+- **`@macro` decorator (`macro.py`):** Decorates Python functions. It inspects signatures and docstrings to extract:
   - Macro identifier (function name).
-  - Parameter names, types, and default values.
-  - Parameter descriptions from docstrings.
+  - Parameter types mapped directly to canonical protocol `$defs`:
+    - `DynamicString` -> `common_types.json#/$defs/DynamicString`
+    - `DynamicNumber` -> `common_types.json#/$defs/DynamicNumber`
+    - `DynamicBoolean` -> `common_types.json#/$defs/DynamicBoolean`
+    - `DynamicStringList` -> `common_types.json#/$defs/DynamicStringList`
+    - `DynamicValue` -> `common_types.json#/$defs/DynamicValue`
+    - `Action` -> `common_types.json#/$defs/Action`
+    - `CheckRule` -> `common_types.json#/$defs/CheckRule`
+    - `AccessibilityAttributes` -> `common_types.json#/$defs/AccessibilityAttributes`
+    - `ComponentRef` / `ComponentBuilderNode` -> `common_types.json#/$defs/ComponentId` (child slot)
+    - `ChildList` / `Sequence[ComponentBuilderNode]` -> `common_types.json#/$defs/ChildList` (multi-child slot)
+    - `Literal[...]` / `Enum` -> Enum JSON schema definitions
+  - Parameter descriptions from Google/Sphinx docstrings.
   - Return type annotations.
 - **`MacroInferenceFormat` (`format.py`):** Wraps an underlying format (such as `ExpressInferenceFormat`):
-  - Appends macro signatures and docstrings to the system prompt rules.
+  - Injects synthetic macro component schemas into the combined catalog.
+  - Appends macro signatures and docstrings to the system prompt rules, exposing typed dynamic parameters to the LLM.
   - Scans model output for macro calls (e.g. `@MacroName(arg="val")`).
   - Passes calls to `MacroProcessor`.
 - **`MacroProcessor` (`processor.py`):** Manages registered macro functions:
-  - Validates arguments against parameter signatures.
+  - Coerces incoming JSON arguments (string child IDs to `ComponentRef`, path dictionaries to `DataBinding`, event names to `Action`, and accessibility dictionaries to `AccessibilityAttributes`).
   - Invokes the Python function.
-  - Converts the returned `ComponentBuilderNode` tree into A2UI `createSurface` and `updateComponents` messages.
+  - Flattens the returned `ComponentBuilderNode` tree into standard A2UI `surfaceUpdate` / `updateComponents` messages with invocation-scoped ID namespacing.
 
 #### Rationale
 
 - **Token reduction:** Models output short macro tags instead of multi-line layout scaffolding, reducing generation latency and token usage.
 - **Sensitive data isolation:** Backend functions can perform database queries and API calls on the server, injecting confidential data into the UI without placing those values into the model context.
+- **Dynamic reactivity:** Supporting the full matrix of `common_types.json` allows LLMs to pass reactive data bindings (`{"path": "/..."}`) directly into macros, which pass them to client renderers for two-way state synchronization.
 - **Composable design:** `MacroInferenceFormat` wraps existing inference formats rather than replacing them, allowing macros to work alongside standard Express or direct JSON output.
 
 ---
