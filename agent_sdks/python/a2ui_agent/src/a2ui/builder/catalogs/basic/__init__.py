@@ -12,10 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI Typesafe Catalog builder package (legacy alias).
+"""A2UI Basic Catalog Builder package."""
 
-Prefer importing directly from `a2ui.builder` and `a2ui.builder.catalogs.basic`.
-"""
-
-from a2ui.builder import *  # noqa: F403
-from a2ui.builder.catalogs.basic import *  # noqa: F403
+from .basic import *  # noqa: F403

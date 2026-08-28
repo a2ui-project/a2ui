@@ -35,7 +35,7 @@ from a2ui.inference_formats.experimental.macros import (
     macro,
 )
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.inference_formats.experimental.macros.builder import (
+from a2ui.builder.catalogs.basic import (
     Button,
     Card,
     Column,
@@ -354,7 +354,9 @@ def test_macro_inference_format_pipeline():
 
     # Verify catalog is required and does NOT default to basic catalog
     base_no_catalog = ExpressFormat(surface_id="main")
-    with pytest.raises(ValueError, match="A catalog must be provided to MacroInferenceFormat"):
+    with pytest.raises(
+        ValueError, match="A catalog must be provided to MacroInferenceFormat"
+    ):
         MacroInferenceFormat(base_format=base_no_catalog, macros=[quick_alert])
 
     base = ExpressFormat(catalog={"components": {}}, surface_id="main")
@@ -362,24 +364,21 @@ def test_macro_inference_format_pipeline():
     assert "QuickAlert" in inf_format.combined_catalog.catalog_schema["components"]
 
     # Test parser compilation and macro expansion
-    raw_message = [
-        {
-            "surfaceUpdate": {
-                "surfaceId": "main",
-                "components": [
-                    {
-                        "component": "QuickAlert",
-                        "id": "alert_instance_1",
-                        "msg": "Payment received!",
-                    }
-                ],
-            }
+    raw_message = [{
+        "surfaceUpdate": {
+            "surfaceId": "main",
+            "components": [{
+                "component": "QuickAlert",
+                "id": "alert_instance_1",
+                "msg": "Payment received!",
+            }],
         }
-    ]
+    }]
 
     from a2ui.parser.parser import Parser
 
     class MockUnderlyingParser(Parser):
+
         def has_format_content(self, content: str, *, complete: bool = False) -> bool:
             return True
 
@@ -403,6 +402,7 @@ def test_macro_inference_format_pipeline():
             return ""
 
     from a2ui.inference_formats.experimental.macros import MacroParser
+
     macro_parser = MacroParser(MockUnderlyingParser(), processor=MacroProcessor())
     expanded = macro_parser.compile("dummy")
 
