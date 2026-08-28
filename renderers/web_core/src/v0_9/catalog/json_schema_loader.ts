@@ -81,50 +81,37 @@ export const V0_9_COMMON_TYPES: CommonTypesRegistry = {
   },
 };
 
-export interface CatalogJsonLoaderOptions {
-  catalogId?: string;
-  specVersion?: string;
-}
-
 export interface ExtractedCatalogMetadata {
   catalogId: string;
   specVersion: string;
 }
 
 /**
- * Extracts and strictly validates catalog ID and protocol specification version.
- * Does NOT default to any protocol version silently; an explicit version is required.
+ * Extracts catalog ID and protocol specification version.
+ * Defaults protocol version to 'v0.9' per specification (specification/v1_0/json/catalog_definition.json#L14)
+ * if not explicitly provided or discoverable in metadata.
  */
-export function extractCatalogMetadata(
-  data: Record<string, any>,
-  options?: CatalogJsonLoaderOptions,
-): ExtractedCatalogMetadata {
-  const catalogId = options?.catalogId ?? data.catalogId ?? data.$id;
+export function extractCatalogMetadata(data: Record<string, any>): ExtractedCatalogMetadata {
+  const catalogId = data.catalogId ?? data.$id ?? data.id;
   if (!catalogId || typeof catalogId !== 'string') {
-    throw new Error(
-      "Catalog ID must be specified via catalog metadata ('catalogId' or '$id') or options.catalogId.",
-    );
+    throw new Error("Catalog ID must be specified via catalog metadata ('catalogId' or '$id').");
   }
 
-  // 1. Explicit option override
-  if (options?.specVersion) {
-    return {catalogId, specVersion: options.specVersion};
-  }
-
-  // 2. Explicit top-level version in JSON
-  const rawVer = data.version ?? data.specVersion ?? data.target_version;
+  // 1. Explicit top-level version in JSON
+  const rawVer = data.protocolVersion ?? data.version ?? data.specVersion ?? data.target_version;
   if (typeof rawVer === 'string' && rawVer.trim() !== '') {
-    return {catalogId, specVersion: rawVer.trim()};
+    const trimmed = rawVer.trim();
+    return {catalogId, specVersion: trimmed.startsWith('v') ? trimmed : `v${trimmed}`};
   }
 
-  // 3. Extracted from URI pattern in catalogId or $id (e.g. /v0_9/, /v0_9_1/, /v1_0/)
+  // 2. Extracted from URI pattern in catalogId or $id (e.g. /v0_9/, /v0_9_1/, /v1_0/)
   const uriMatch = catalogId.match(/\/v?([0-9]+(?:[_.][0-9]+)*)\//);
   if (uriMatch && uriMatch[1]) {
     const rawMatch = uriMatch[1].replace(/_/g, '.');
     return {catalogId, specVersion: rawMatch.startsWith('v') ? rawMatch : `v${rawMatch}`};
   }
 
-  // 4. Extracted from $schema or $defs reference URI
+  // 3. Extracted from $schema or $defs reference URI
   const schemaUri = typeof data.$schema === 'string' ? data.$schema : '';
   const schemaMatch = schemaUri.match(/\/v?([0-9]+(?:[_.][0-9]+)*)\//);
   if (schemaMatch && schemaMatch[1]) {
@@ -132,8 +119,30 @@ export function extractCatalogMetadata(
     return {catalogId, specVersion: rawMatch.startsWith('v') ? rawMatch : `v${rawMatch}`};
   }
 
-  throw new Error(
-    "A2UI protocol version must be explicitly specified (e.g. 'v0.9.1', 'v1.0') in catalog metadata or via options.specVersion.",
+  // 4. Default to v0.9 per specification (specification/v1_0/json/catalog_definition.json#L14)
+  return {catalogId, specVersion: 'v0.9'};
+}
+
+/**
+ * Safely converts an array of enum values to a Zod schema.
+ * Handles strings, numbers, booleans, and mixed types without crashing z.enum.
+ */
+export function convertEnumToZod(values: unknown[]): z.ZodTypeAny {
+  if (values.length === 0) {
+    return z.unknown();
+  }
+  if (values.every(v => typeof v === 'string')) {
+    return z.enum(values as [string, ...string[]]);
+  }
+  if (values.length === 1) {
+    return z.literal(values[0] as string | number | boolean);
+  }
+  return z.union(
+    values.map(v => z.literal(v as string | number | boolean)) as unknown as [
+      z.ZodTypeAny,
+      z.ZodTypeAny,
+      ...z.ZodTypeAny[],
+    ],
   );
 }
 
@@ -144,6 +153,10 @@ export function convertPropertyToZod(
   propSchema: Record<string, any>,
   registry: CommonTypesRegistry,
 ): z.ZodTypeAny {
+  if (!propSchema || typeof propSchema !== 'object') {
+    return z.unknown();
+  }
+
   if (propSchema.$ref && typeof propSchema.$ref === 'string') {
     const resolved = registry.resolveRef(propSchema.$ref);
     if (resolved) {
@@ -163,7 +176,7 @@ export function convertPropertyToZod(
       b => typeof b.$ref === 'string' && b.$ref.includes('DataBinding'),
     );
     if (enumBranch) {
-      let enumZod: z.ZodTypeAny = z.enum(enumBranch.enum as [string, ...string[]]);
+      let enumZod = convertEnumToZod(enumBranch.enum);
       if (propSchema.default !== undefined) {
         enumZod = enumZod.default(propSchema.default);
       }
@@ -179,7 +192,7 @@ export function convertPropertyToZod(
 
   // Enums
   if (Array.isArray(propSchema.enum) && propSchema.enum.length > 0) {
-    let enumZod: z.ZodTypeAny = z.enum(propSchema.enum as [string, ...string[]]);
+    let enumZod = convertEnumToZod(propSchema.enum);
     if (propSchema.default !== undefined) {
       enumZod = enumZod.default(propSchema.default);
     }
@@ -191,7 +204,9 @@ export function convertPropertyToZod(
 
   // Arrays
   if (propSchema.type === 'array') {
-    const itemSchema = propSchema.items ? convertPropertyToZod(propSchema.items, registry) : z.any();
+    const itemSchema = propSchema.items
+      ? convertPropertyToZod(propSchema.items, registry)
+      : z.any();
     let arr = z.array(itemSchema);
     if (propSchema.description) arr = arr.describe(propSchema.description) as any;
     return arr;
@@ -205,9 +220,14 @@ export function convertPropertyToZod(
       if (propSchema.description) s = s.describe(propSchema.description) as any;
       return s;
     }
-    case 'number':
     case 'integer': {
-      let n = z.number();
+      let n: z.ZodTypeAny = z.number().int();
+      if (propSchema.default !== undefined) n = n.default(propSchema.default) as any;
+      if (propSchema.description) n = n.describe(propSchema.description) as any;
+      return n;
+    }
+    case 'number': {
+      let n: z.ZodTypeAny = z.number();
       if (propSchema.default !== undefined) n = n.default(propSchema.default) as any;
       if (propSchema.description) n = n.describe(propSchema.description) as any;
       return n;
@@ -249,15 +269,21 @@ export function convertComponentJsonSchemaToZod(
         schemasToMerge.push(sub);
       }
     }
-  } else if (rawSchema.properties) {
+  }
+  if (rawSchema.properties) {
     schemasToMerge.push(rawSchema);
   }
 
+  // First pass: collect all required fields across all schemas
   const requiredSet = new Set<string>();
   for (const s of schemasToMerge) {
     if (Array.isArray(s.required)) {
       s.required.forEach((r: string) => requiredSet.add(r));
     }
+  }
+
+  // Second pass: map property schemas to Zod
+  for (const s of schemasToMerge) {
     for (const [propName, propSchema] of Object.entries(s.properties || {})) {
       // Omit envelope-level properties handled by protocol runtime
       if (propName === 'component' || propName === 'id') {

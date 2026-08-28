@@ -11,8 +11,7 @@ Canonical replies for recurring triage cases.
 
 **Triage**: priority `P3`, action `backlog` (keeps the issue open).
 
-As agreed, this has been assigned a P3 priority. Once the current triage queue is cleared,
-we will begin reviewing AI-generated issues.
+As agreed, this has been assigned a P3 priority: we need better workflow to make it easier to follow up on the findings.
 
 ### Assigned issue without a priority
 

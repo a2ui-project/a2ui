@@ -12,16 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// A lookup key for resolving component view builders by optional catalog ID and component type.
-public struct ComponentKey: Hashable, Equatable, Sendable {
-  public let catalogID: String?
-  public let type: String
+import A2UICore
 
-  public init(
-    catalogID: String? = nil,
-    type: String
-  ) {
-    self.catalogID = catalogID
-    self.type = type
-  }
+public enum BasicFunctions: Sendable {
+  public static let allFunctions: [any FunctionImplementation] = [
+    AndFunction(),
+    EmailFunction(),
+    FormatCurrencyFunction(),
+    FormatDateFunction(),
+    FormatNumberFunction(),
+    FormatStringFunction(),
+    LengthFunction(),
+    NotFunction(),
+    NumericFunction(),
+    OpenURLFunction(),
+    OrFunction(),
+    PluralizeFunction(),
+    RegexFunction(),
+    RequiredFunction(),
+  ]
 }

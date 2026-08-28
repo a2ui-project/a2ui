@@ -33,7 +33,8 @@ export class A2uiCardElement extends BasicCatalogA2uiLitElement<typeof CardApi> 
    * - `--a2ui-card-margin`: The outer margin of the card. Defaults to `--a2ui-spacing-m`.
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-card {
       display: block;
       border: var(
         --a2ui-card-border,

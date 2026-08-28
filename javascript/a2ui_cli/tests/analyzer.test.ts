@@ -29,14 +29,14 @@ describe('CatalogAnalyzer in @a2ui/cli', () => {
   const basicCatalogJson = JSON.parse(fs.readFileSync(basicCatalogPath, 'utf-8'));
 
   it('analyzes catalog components, slots, and properties', () => {
-    const catalog = Catalog.fromJson(basicCatalogJson, {specVersion: 'v0.9.1'});
+    const catalog = Catalog.fromJson(basicCatalogJson);
     const analysed = CatalogAnalyzer.analyze(catalog);
 
     assert.strictEqual(
       analysed.catalogId,
       'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
     );
-    assert.strictEqual(analysed.specVersion, 'v0.9.1');
+    assert.strictEqual(analysed.specVersion, 'v0.9');
     assert.ok(analysed.components.size > 0);
 
     // Verify Text component
