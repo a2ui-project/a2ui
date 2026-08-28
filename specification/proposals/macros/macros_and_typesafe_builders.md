@@ -195,7 +195,6 @@ Supported options:
 * `--catalog <path>`: Path to the input A2UI catalog JSON file (required).
 * `--out <path>`: Destination `.py` file path or output directory (required). If a directory is provided, the tool emits `<catalog_name>.py` into that directory.
 * `--base-import <module>`: Custom Python module path for builder base classes (defaults to `a2ui.inference_formats.experimental.macros.builder.base`).
-* `--spec-version <version>`: Explicit protocol version (e.g. `v0.9.1`).
 
 ### Single-file catalog output
 
