@@ -1,0 +1,33 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Behaviour of the catalog providers described by
+# `blueprints/modules/a2ui_agent.blueprint.md` section 3.B: turning a catalog
+# document into a `Catalog`, whatever backing store it came from. Prompt
+# rendering and capability negotiation are covered by `inference_format.yaml`
+# and `catalog_resolver.yaml` respectively.
+#
+# These cases load the published basic catalog schema from
+# `specification/v0_9_1/catalogs/basic/catalog.json` rather than any SDK's own
+# catalog, so implementations are measured against the same document. Paths are
+# resolved relative to the `conformance/` directory.
+
+- name: test_load_basic_catalog_v0_9
+  description: Loads the published v0.9 basic catalog document from disk.
+  action: load_catalog
+  catalog_configs:
+    - name: basic
+      path: "../specification/v0_9_1/catalogs/basic/catalog.json"
+  expect:
+    supported_catalog_ids: ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]

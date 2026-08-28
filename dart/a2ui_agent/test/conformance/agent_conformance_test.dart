@@ -24,6 +24,9 @@ import 'conformance_harness.dart';
 /// reason, so the suite doubles as the implementation checklist.
 void main() {
   _runSuite('core/catalog.yaml');
+  _runSuite('agent/catalog_provider.yaml');
+  _runSuite('agent/catalog_transformer.yaml');
+  _runSuite('agent/catalog_resolver.yaml');
   _runSuite('agent/inference_format.yaml');
   _runSuite('agent/parser.yaml');
   _runSuite('agent/streaming_parser.yaml');
@@ -75,6 +78,9 @@ String? _skipReason(Map<String, Object?> testCase) {
       }
       return null;
     case 'select_catalog':
+      return 'select_catalog is the legacy single-catalog helper; this SDK '
+          'negotiates with resolveCatalogs.';
+    case 'resolve_catalogs':
       return 'resolveCatalogs is not implemented yet.';
     case 'generate_prompt':
       return 'DirectJsonPromptGenerator.generate is not implemented yet.';
@@ -99,6 +105,8 @@ void _runCase(Map<String, Object?> testCase) {
       _runPrune(testCase);
     case 'load_catalog':
       _runLoadCatalog(testCase);
+    case 'resolve_catalogs':
+      _runResolveCatalogs(testCase);
     default:
       fail('No agent harness for conformance action "$action".');
   }
@@ -161,6 +169,90 @@ void _runLoadCatalog(Map<String, Object?> testCase) {
       reason: testCase['name'] as String?,
     );
   }
+}
+
+void _runResolveCatalogs(Map<String, Object?> testCase) {
+  final args = testCase['args']! as Map<String, Object?>;
+  final configs = args['catalogs']! as List<Object?>;
+  final bool acceptsInline =
+      (args['accepts_inline_catalogs'] as bool?) ?? false;
+
+  // Capabilities are parsed inside the closure: a case may expect the
+  // rejection to come from parsing them rather than from negotiation.
+  List<Catalog<CatalogComponent, CatalogFunction>> resolve() => resolveCatalogs(
+    <SchemaCatalogConfig>[
+      for (final Object? entry in configs)
+        _catalogConfigOf(entry! as Map<String, Object?>),
+    ],
+    A2uiRendererCapabilities.fromJson(
+      args['renderer_capabilities']! as Map<String, Object?>,
+    ),
+    acceptsInlineCatalogs: acceptsInline,
+  );
+
+  final Object? expectError = testCase['expect_error'];
+  if (expectError != null) {
+    expect(
+      resolve,
+      throwsA(matchesConformanceError(expectError as Map<String, Object?>)),
+      reason: testCase['name'] as String?,
+    );
+    return;
+  }
+
+  final List<Catalog<CatalogComponent, CatalogFunction>> active = resolve();
+
+  final Object? expectedIds = testCase['expect_active_catalog_ids'];
+  if (expectedIds != null) {
+    expect(
+      active.map((c) => c.id).toList(),
+      equals(expectedIds),
+      reason: testCase['name'] as String?,
+    );
+  }
+
+  final expectedComponents =
+      testCase['expect_components'] as Map<String, Object?>?;
+  if (expectedComponents != null) {
+    for (final MapEntry<String, Object?> entry in expectedComponents.entries) {
+      final Catalog<CatalogComponent, CatalogFunction> catalog = active
+          .firstWhere(
+            (c) => c.id == entry.key,
+            orElse: () => fail('Catalog "${entry.key}" was not negotiated.'),
+          );
+      expect(
+        catalog.components.keys.toList()..sort(),
+        equals(entry.value),
+        reason: testCase['name'] as String?,
+      );
+    }
+  }
+}
+
+/// Builds a registered catalog configuration from a `catalogs` entry.
+SchemaCatalogConfig _catalogConfigOf(Map<String, Object?> entry) {
+  final Object? schema = entry['catalog_schema'];
+  final SchemaCatalog catalog = switch (schema) {
+    final String path => FileSystemCatalogProvider(
+      resolveConformancePath(path),
+    ).load(),
+    final Map<String, Object?> inline => InMemoryCatalogProvider(inline).load(),
+    _ => fail('A catalogs entry needs an inline catalog_schema or a path.'),
+  };
+
+  return SchemaCatalogConfig(
+    catalog,
+    transformers: [
+      if (entry['allowed_components'] != null)
+        ComponentPruningTransformer(
+          (entry['allowed_components']! as List<Object?>).cast<String>(),
+        ),
+      if (entry['allowed_functions'] != null)
+        FunctionPruningTransformer(
+          (entry['allowed_functions']! as List<Object?>).cast<String>(),
+        ),
+    ],
+  );
 }
 
 /// The catalog document a case runs against, inline or loaded from a path.

@@ -15,7 +15,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:path/path.dart' as p;
+import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
 /// Resolves a case's path against the `conformance/` directory, for example
@@ -92,4 +94,31 @@ String? caseVersion(Map<String, Object?> testCase) {
   final Object? catalog = testCase['catalog'];
   if (catalog is Map<String, Object?>) return catalog['version'] as String?;
   return null;
+}
+
+/// A matcher for a case's `expect_error` block: the error category, and the
+/// shared substring of the message, which differs between implementations.
+Matcher matchesConformanceError(Map<String, Object?> expectError) {
+  final category = expectError['category'] as String?;
+  final message = expectError['message'] as String?;
+  Matcher matcher = switch (category) {
+    'DataError' => isA<A2uiDataError>(),
+    'ValidationError' => isA<A2uiValidationError>(),
+    'CatalogError' => isA<A2uiCatalogError>(),
+    'IntegrityError' => isA<A2uiIntegrityError>(),
+    'RecursionError' => isA<A2uiRecursionError>(),
+    'ParseError' => isA<A2uiParseError>(),
+    'CompileError' => isA<A2uiCompileError>(),
+    _ => isA<A2uiError>(),
+  };
+  if (message != null) {
+    matcher = allOf(
+      matcher,
+      predicate<Object?>(
+        (Object? e) => RegExp(message).hasMatch(e.toString()),
+        'message matching /$message/',
+      ),
+    );
+  }
+  return matcher;
 }

@@ -60,11 +60,27 @@ class A2uiGenerator<C extends ComponentApi, F extends FunctionApi> {
 
   /// The capabilities this agent advertises, mirroring
   /// `specification/v0_9_1/json/server_capabilities.json`.
-  Map<String, Object?> get agentCapabilities => {
-    'a2uiVersions': [A2uiProtocolVersion.v0_9.jsonValue],
-    'supportedCatalogIds': [
-      for (final CatalogConfig<C, F> config in catalogs) config.catalog.id,
-    ],
-    'acceptsInlineCatalogs': acceptsInlineCatalogs,
-  };
+  ///
+  /// [catalogs] may mix protocol versions, so each catalog is advertised under
+  /// the version it declares rather than under one version assumed for all of
+  /// them. Every version this SDK implements gets an entry, even when no
+  /// catalog is registered for it, because the schema requires one.
+  Map<String, Object?> get agentCapabilities {
+    final Map<String, List<String>> idsByVersion = {
+      for (final A2uiProtocolVersion version in A2uiProtocolVersion.values)
+        version.jsonValue: <String>[],
+    };
+    for (final CatalogConfig<C, F> config in catalogs) {
+      idsByVersion[config.catalog.protocolVersion.jsonValue]!.add(
+        config.catalog.id,
+      );
+    }
+    return {
+      for (final MapEntry<String, List<String>> entry in idsByVersion.entries)
+        entry.key: <String, Object?>{
+          'supportedCatalogIds': entry.value,
+          'acceptsInlineCatalogs': acceptsInlineCatalogs,
+        },
+    };
+  }
 }

@@ -142,10 +142,12 @@ void main() {
       final generator = A2uiGenerator<CatalogComponent, CatalogFunction>(
         catalogs: [CatalogConfig(basicCatalog())],
       );
-      expect(generator.agentCapabilities['supportedCatalogIds'], <String>[
-        basicCatalogId,
-      ]);
-      expect(generator.agentCapabilities['a2uiVersions'], <String>['v0.9']);
+      expect(generator.agentCapabilities, <String, Object?>{
+        'v0.9': <String, Object?>{
+          'supportedCatalogIds': <String>[basicCatalogId],
+          'acceptsInlineCatalogs': false,
+        },
+      });
     });
 
     test('the example runs against the published basic catalog', () {

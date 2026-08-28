@@ -34,6 +34,11 @@ A2uiGenerator<CatalogComponent, CatalogFunction> generator({
   inferenceFormatFactory: factory,
 );
 
+/// The `v0.9` entry of what [g] advertises.
+Map<String, Object?> v0_9Of(
+  A2uiGenerator<CatalogComponent, CatalogFunction> g,
+) => g.agentCapabilities['v0.9']! as Map<String, Object?>;
+
 void main() {
   group('A2uiGenerator configuration', () {
     test('holds the catalog configurations it was registered with', () {
@@ -73,9 +78,31 @@ void main() {
   });
 
   group('A2uiGenerator.agentCapabilities', () {
-    test('advertises only the protocol version this SDK implements', () {
-      expect(generator().agentCapabilities['a2uiVersions'], ['v0.9']);
+    test('keys catalogs by the protocol version each one declares', () {
+      // Registered catalogs may span protocol versions, so the advertised
+      // object follows `server_capabilities.json` and groups the ids under
+      // the version key they belong to.
+      expect(generator().agentCapabilities.keys, ['v0.9']);
     });
+
+    test(
+      'declares every version this SDK implements, even with no catalog',
+      () {
+        final Map<String, Object?> capabilities = generator(
+          catalogs: const [],
+        ).agentCapabilities;
+
+        expect(capabilities.keys, [
+          for (final A2uiProtocolVersion version in A2uiProtocolVersion.values)
+            version.jsonValue,
+        ]);
+        expect(
+          (capabilities['v0.9']!
+              as Map<String, Object?>)['supportedCatalogIds'],
+          isEmpty,
+        );
+      },
+    );
 
     test('advertises every registered catalog id', () {
       final A2uiGenerator<CatalogComponent, CatalogFunction> g = generator(
@@ -85,20 +112,22 @@ void main() {
         ],
       );
 
-      expect(g.agentCapabilities['supportedCatalogIds'], [
-        basicCatalogId,
-        'https://example.com/small.json',
-      ]);
+      expect(g.agentCapabilities['v0.9'], {
+        'supportedCatalogIds': [
+          basicCatalogId,
+          'https://example.com/small.json',
+        ],
+        'acceptsInlineCatalogs': false,
+      });
     });
 
     test('advertises whether inline catalogs are accepted', () {
-      expect(generator().agentCapabilities['acceptsInlineCatalogs'], isFalse);
-      expect(
-        generator(
-          acceptsInlineCatalogs: true,
-        ).agentCapabilities['acceptsInlineCatalogs'],
-        isTrue,
-      );
+      Object? acceptsInline(
+        A2uiGenerator<CatalogComponent, CatalogFunction> g,
+      ) => v0_9Of(g)['acceptsInlineCatalogs'];
+
+      expect(acceptsInline(generator()), isFalse);
+      expect(acceptsInline(generator(acceptsInlineCatalogs: true)), isTrue);
     });
 
     test('advertises the pristine catalog id, not a transformed copy', () {
@@ -113,7 +142,7 @@ void main() {
         ],
       );
 
-      expect(g.agentCapabilities['supportedCatalogIds'], [basicCatalogId]);
+      expect(v0_9Of(g)['supportedCatalogIds'], [basicCatalogId]);
     });
   });
 

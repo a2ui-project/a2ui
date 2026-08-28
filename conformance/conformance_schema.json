@@ -94,7 +94,7 @@
           "accessibility_check",
           "data_model",
           "process_request",
-          "process_messages"
+          "resolve_catalogs"
         ]
       }
     },
@@ -127,7 +127,7 @@
           {"$ref": "#/$defs/AccessibilityCheckTest"},
           {"$ref": "#/$defs/DataModelTest"},
           {"$ref": "#/$defs/ProcessRequestTest"},
-          {"$ref": "#/$defs/ProcessMessagesTest"}
+          {"$ref": "#/$defs/ResolveCatalogsTest"}
         ]
       }
     ]
@@ -594,66 +594,64 @@
       },
       "required": ["args"]
     },
-    "ProcessMessagesTest": {
+    "ResolveCatalogsTest": {
       "type": "object",
       "properties": {
-        "action": {"const": "process_messages"},
-        "payload": {
-          "type": "array",
-          "description": "A2UI messages to process, in order.",
-          "items": {"type": "object"}
-        },
-        "expect": {
+        "action": {"const": "resolve_catalogs"},
+        "args": {
           "type": "object",
-          "description": "Expected state after the payload has been processed.",
+          "description": "Inputs to one capability negotiation.",
           "properties": {
-            "surfaces": {
-              "type": "object",
-              "description": "Expectations per open surface, keyed by surface id.",
-              "additionalProperties": {
+            "catalogs": {
+              "type": "array",
+              "description": "The catalog configurations the agent registered, in preference order.",
+              "items": {
                 "type": "object",
                 "properties": {
-                  "catalogId": {"type": "string"},
-                  "sendDataModel": {"type": "boolean"},
-                  "components": {
-                    "type": "object",
-                    "description": "Expected components, keyed by component id.",
-                    "additionalProperties": {
-                      "type": "object",
-                      "properties": {
-                        "component": {"type": "string"},
-                        "properties": {"type": "object"}
-                      }
-                    }
+                  "catalog_schema": {
+                    "description": "An inline catalog document, or a path to one relative to the conformance directory."
                   },
-                  "data_model": {
-                    "description": "Expected contents of the surface data model at the root."
+                  "allowed_components": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Component allowlist applied to this catalog before it is returned."
+                  },
+                  "allowed_functions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Function allowlist applied to this catalog before it is returned."
                   }
-                }
+                },
+                "required": ["catalog_schema"]
               }
             },
-            "absent_surfaces": {
-              "type": "array",
-              "items": {"type": "string"},
-              "description": "Surface ids that must not be open."
-            },
-            "client_data_model": {
+            "renderer_capabilities": {
               "type": "object",
-              "description": "Expected aggregated data model sent back to the agent."
+              "description": "The a2uiClientCapabilities object the renderer sent."
             },
-            "client_data_model_absent": {
+            "accepts_inline_catalogs": {
               "type": "boolean",
-              "description": "Whether there is no client data model to send."
-            },
-            "client_capabilities": {
-              "type": "object",
-              "description": "Expected capabilities the renderer advertises."
+              "description": "Whether the agent accepts catalogs supplied inline by the renderer."
             }
+          },
+          "required": ["catalogs", "renderer_capabilities"]
+        },
+        "expect_active_catalog_ids": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Ids of the negotiated catalogs, in order."
+        },
+        "expect_components": {
+          "type": "object",
+          "description": "Component names each negotiated catalog exposes after transformation, keyed by catalog id and sorted.",
+          "additionalProperties": {
+            "type": "array",
+            "items": {"type": "string"}
           }
         },
         "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
-      "required": ["payload"]
+      "required": ["args"]
     },
     "ExpectError": {
       "oneOf": [
@@ -673,8 +671,7 @@
                 "IntegrityError",
                 "RecursionError",
                 "CompileError",
-                "DataError",
-                "StateError"
+                "DataError"
               ]
             },
             "message": {
