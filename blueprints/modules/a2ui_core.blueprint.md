@@ -811,11 +811,4 @@ export class A2uiExpressionError extends A2uiError {
 
 See [Conformance README](../../conformance/README.md) for setup and schema definitions.
 
-`conformance/core/` covers this module: data model, message processor, catalog documents, validator. Agent-side behaviour goes under `conformance/agent/`, **even when the case is about a catalog** — the directory states ownership, not subject matter. Section 6 of the [a2ui_agent blueprint](./a2ui_agent.blueprint.md#6-conformance-test-plan) maps the agent side.
-
-Adding cases:
-
-1. **Check every active spec branch** (`main`, `v1_0`, …) for an existing suite and extend it. A second file with the same name and a different case shape is a merge conflict, not coverage.
-2. **Reuse the case keys** in `conformance/conformance_schema.json`; extend the schema in the same change as the suite that needs it.
-3. **`expect_error.category`** names a class from the exception hierarchy above, without the `A2ui` prefix.
-4. **Migrating an implementation's own tests will surface real disagreements.** Each is a decision: fix the implementation that is wrong, or record why the case is excluded. Language-level differences (sparse versus dense arrays, `null` versus absent, prototype pollution) stay in that implementation's own tests.
+`conformance/core/` covers this module.
