@@ -12,16 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Macro registration and metadata inspection."""
-
+import collections.abc
+from collections.abc import Iterable as AbcIterable, Sequence as AbcSequence
+from enum import Enum
 import inspect
 from dataclasses import dataclass
-from typing import Any, Callable, Optional, Sequence, Union, get_type_hints
+from typing import (
+    Any,
+    Callable,
+    Literal,
+    Optional,
+    Sequence,
+    Union,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
 from a2ui.builder import (
+    AccessibilityAttributes,
+    Action,
+    CheckRule,
     ComponentBuilderNode,
     ComponentRef,
+    DataBinding,
+    DynamicChildList,
     ExternalComponentBuilderNode,
+    FunctionCall,
 )
 
 
@@ -91,6 +108,240 @@ def _parse_docstring(doc: Optional[str]) -> tuple[Optional[str], dict[str, str]]
     return main_desc, param_descriptions
 
 
+def _map_type_hint_to_schema(
+    t: Any, param_desc: Optional[str] = None
+) -> dict[str, Any]:
+    """Maps a Python type hint to a canonical A2UI JSON schema property."""
+    COMMON_REF_PREFIX = "https://a2ui.org/specification/v0_9/common_types.json#/$defs/"
+
+    origin = get_origin(t)
+    args = get_args(t)
+
+    # Handle Optional[T] / Union[T, None] / Dynamic Unions
+    if origin is Union:
+        non_none_args = [a for a in args if a is not type(None)]
+        if len(non_none_args) == 1:
+            return _map_type_hint_to_schema(non_none_args[0], param_desc)
+
+        has_binding = any(
+            a is DataBinding or (isinstance(a, type) and issubclass(a, DataBinding))
+            for a in non_none_args
+        )
+        has_func = any(
+            a is FunctionCall or (isinstance(a, type) and issubclass(a, FunctionCall))
+            for a in non_none_args
+        )
+        types_set = set(non_none_args)
+
+        if has_binding or has_func:
+            if (
+                str in types_set
+                and len(types_set - {str, DataBinding, FunctionCall}) == 0
+            ):
+                schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicString"}
+                if param_desc:
+                    schema["description"] = param_desc
+                return schema
+            elif (int in types_set or float in types_set) and len(
+                types_set - {int, float, DataBinding, FunctionCall}
+            ) == 0:
+                schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicNumber"}
+                if param_desc:
+                    schema["description"] = param_desc
+                return schema
+            elif (
+                bool in types_set
+                and len(types_set - {bool, DataBinding, FunctionCall}) == 0
+            ):
+                schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicBoolean"}
+                if param_desc:
+                    schema["description"] = param_desc
+                return schema
+            elif any(
+                get_origin(a) in (list, Sequence, AbcSequence, tuple, set)
+                for a in types_set
+            ):
+                schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicStringList"}
+                if param_desc:
+                    schema["description"] = param_desc
+                return schema
+            elif any(
+                a
+                in (
+                    ComponentBuilderNode,
+                    ComponentRef,
+                    ExternalComponentBuilderNode,
+                )
+                or (isinstance(a, type) and issubclass(a, ComponentBuilderNode))
+                for a in types_set
+            ):
+                if any(
+                    get_origin(a) in (list, Sequence, AbcSequence, tuple, set)
+                    or a is DynamicChildList
+                    for a in types_set
+                ):
+                    schema = {"$ref": f"{COMMON_REF_PREFIX}ChildList"}
+                    if param_desc:
+                        schema["description"] = param_desc
+                    return schema
+                else:
+                    schema = {"$ref": f"{COMMON_REF_PREFIX}ComponentId"}
+                    if param_desc:
+                        schema["description"] = param_desc
+                    return schema
+            else:
+                schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicValue"}
+                if param_desc:
+                    schema["description"] = param_desc
+                return schema
+
+        if any(
+            a
+            in (
+                ComponentBuilderNode,
+                ComponentRef,
+                ExternalComponentBuilderNode,
+            )
+            or (isinstance(a, type) and issubclass(a, ComponentBuilderNode))
+            for a in types_set
+        ) and any(
+            get_origin(a) in (list, Sequence, AbcSequence, tuple, set)
+            or a is DynamicChildList
+            for a in types_set
+        ):
+            schema = {"$ref": f"{COMMON_REF_PREFIX}ChildList"}
+            if param_desc:
+                schema["description"] = param_desc
+            return schema
+
+    # Literal strings or numbers
+    if origin is Literal:
+        literal_vals = list(args)
+        if all(isinstance(v, str) for v in literal_vals):
+            schema = {"type": "string", "enum": literal_vals}
+            if param_desc:
+                schema["description"] = param_desc
+            return schema
+        elif all(isinstance(v, (int, float)) for v in literal_vals):
+            schema = {"type": "number", "enum": literal_vals}
+            if param_desc:
+                schema["description"] = param_desc
+            return schema
+        else:
+            schema = {"enum": literal_vals}
+            if param_desc:
+                schema["description"] = param_desc
+            return schema
+
+    # Enum subclasses
+    if isinstance(t, type) and issubclass(t, Enum):
+        schema = {"type": "string", "enum": [e.value for e in t]}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
+
+    # Direct Protocol References
+    if t is DataBinding:
+        schema = {"$ref": f"{COMMON_REF_PREFIX}DataBinding"}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
+    if t is Action:
+        schema = {"$ref": f"{COMMON_REF_PREFIX}Action"}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
+    if t is CheckRule:
+        schema = {"$ref": f"{COMMON_REF_PREFIX}CheckRule"}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
+    if t is AccessibilityAttributes:
+        schema = {"$ref": f"{COMMON_REF_PREFIX}AccessibilityAttributes"}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
+    if t is FunctionCall:
+        schema = {"$ref": f"{COMMON_REF_PREFIX}FunctionCall"}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
+    if t is DynamicChildList:
+        schema = {"$ref": f"{COMMON_REF_PREFIX}ChildList"}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
+
+    # Single Child Slots
+    if t in (
+        ComponentBuilderNode,
+        ExternalComponentBuilderNode,
+        ComponentRef,
+    ) or (isinstance(t, type) and issubclass(t, ComponentBuilderNode)):
+        schema = {
+            "$ref": f"{COMMON_REF_PREFIX}ComponentId",
+            "description": (
+                param_desc or "ID of the child component to place in this slot."
+            ),
+        }
+        return schema
+
+    # Child List Slots
+    if (
+        origin in (list, Sequence, AbcSequence, tuple, set)
+        and args
+        and (
+            args[0]
+            in (ComponentBuilderNode, ExternalComponentBuilderNode, ComponentRef)
+            or (
+                isinstance(args[0], type)
+                and issubclass(args[0], ComponentBuilderNode)
+            )
+        )
+    ):
+        schema = {"$ref": f"{COMMON_REF_PREFIX}ChildList"}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
+
+    # Primitives
+    if t is str:
+        schema = {"type": "string"}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
+    if t is int:
+        schema = {"type": "integer"}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
+    if t is float:
+        schema = {"type": "number"}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
+    if t is bool:
+        schema = {"type": "boolean"}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
+
+    # Arrays
+    if origin in (list, Sequence, AbcSequence, tuple, set):
+        item_schema = (
+            _map_type_hint_to_schema(args[0]) if args else {"type": "string"}
+        )
+        schema = {"type": "array", "items": item_schema}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
+
+    schema = {"type": "string"}
+    if param_desc:
+        schema["description"] = param_desc
+    return schema
+
+
 @dataclass(frozen=True)
 class MacroParameter:
     """Describes a parameter accepted by a macro."""
@@ -118,39 +369,7 @@ class MacroMetadata:
         required: list[str] = []
 
         for p_name, param in self.parameters.items():
-            prop_schema: dict[str, Any] = {}
-            if param.description:
-                prop_schema["description"] = param.description
-
-            # Map Python types to JSON Schema types
-            t = param.type_hint
-            if t in (str, Optional[str]):
-                prop_schema["type"] = "string"
-            elif t in (int, Optional[int]):
-                prop_schema["type"] = "integer"
-            elif t in (float, Optional[float]):
-                prop_schema["type"] = "number"
-            elif t in (bool, Optional[bool]):
-                prop_schema["type"] = "boolean"
-            elif t in (
-                ComponentBuilderNode,
-                ExternalComponentBuilderNode,
-                ComponentRef,
-                Optional[ComponentBuilderNode],
-                Optional[ComponentRef],
-            ):
-                # Slot parameter: LLM passes child component ID
-                prop_schema["type"] = "string"
-                prop_schema["description"] = (
-                    param.description
-                    or "ID of the child component to place in this slot."
-                )
-            elif getattr(t, "__origin__", None) in (list, Sequence):
-                prop_schema["type"] = "array"
-                prop_schema["items"] = {"type": "string"}
-            else:
-                prop_schema["type"] = "string"
-
+            prop_schema = _map_type_hint_to_schema(param.type_hint, param.description)
             props[p_name] = prop_schema
             if param.required:
                 required.append(p_name)

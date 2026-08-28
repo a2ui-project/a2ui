@@ -81,7 +81,9 @@ class AccessibilityAttributes:
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {}
         if self.label is not None:
-            d["label"] = self.label.to_dict() if hasattr(self.label, "to_dict") else self.label
+            d["label"] = (
+                self.label.to_dict() if hasattr(self.label, "to_dict") else self.label
+            )
         if self.description is not None:
             d["description"] = (
                 self.description.to_dict()
@@ -92,7 +94,9 @@ class AccessibilityAttributes:
             d["live"] = self.live
         if self.hidden is not None:
             d["hidden"] = (
-                self.hidden.to_dict() if hasattr(self.hidden, "to_dict") else self.hidden
+                self.hidden.to_dict()
+                if hasattr(self.hidden, "to_dict")
+                else self.hidden
             )
         return d
 
@@ -349,6 +353,7 @@ class Surface:
                         "path": norm_path,
                         "value": val,
                     }
+                })
         return messages
 
 
