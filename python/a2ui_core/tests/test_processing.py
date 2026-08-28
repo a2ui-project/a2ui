@@ -172,11 +172,29 @@ def test_message_processor_data_model_updates(mock_catalog):
     assert surface.data_model.get("/user/name") == "Alice"
 
 
+def test_message_processor_get_renderer_capabilities_list_of_versions(
+    mock_catalog,
+):
+    from a2ui.core.schema import ProtocolVersion
+
+    processor = MessageProcessor(catalogs=[mock_catalog])
+    caps = processor.get_renderer_capabilities(
+        versions=[ProtocolVersion.V0_8, ProtocolVersion.V0_9, ProtocolVersion.V1_0]
+    )
+    assert caps == {
+        "v0.8": {"supportedCatalogIds": ["https://a2ui.org/mock.json"]},
+        "v0.9": {"supportedCatalogIds": ["https://a2ui.org/mock.json"]},
+        "v1.0": {"supportedCatalogIds": ["https://a2ui.org/mock.json"]},
+    }
+
+
 def test_message_processor_capabilities_and_sync(mock_catalog):
+    from a2ui.core.schema import ProtocolVersion
+
     processor = MessageProcessor(catalogs=[mock_catalog])
 
     # Check Capabilities
-    caps = processor.get_client_capabilities()
+    caps = processor.get_renderer_capabilities(versions=[ProtocolVersion.V0_9])
     assert caps == {
         PROTOCOL_VERSION: {"supportedCatalogIds": ["https://a2ui.org/mock.json"]}
     }
@@ -225,7 +243,7 @@ def test_message_processor_throws_on_duplicate_surface(mock_catalog):
 def test_message_processor_throws_on_updating_non_existent_surface(mock_catalog):
     processor = MessageProcessor(catalogs=[mock_catalog])
     with pytest.raises(
-        ValueError, match="Surface 'unknown-s' not found for components update"
+        ValueError, match="Surface unknown-s not found for components update"
     ):
         processor.process_messages([{
             "version": PROTOCOL_VERSION,
@@ -279,7 +297,7 @@ def test_message_processor_throws_on_creating_component_without_type(mock_catalo
     }])
 
     with pytest.raises(
-        ValueError, match="Cannot create component 'comp_1' without a component type"
+        ValueError, match="Cannot create component comp_1 without a type"
     ):
         processor.process_messages([{
             "version": PROTOCOL_VERSION,
@@ -586,9 +604,7 @@ def test_message_processor_custom_catalog_component_validation():
 
     with pytest.raises(
         ValueError,
-        match=(
-            r"Components validation failed for surface 's1': \[value\] Field required"
-        ),
+        match=r"Validation failed for component 'Chart': \[value\] Field required",
     ):
         processor.process_messages([{
             "version": PROTOCOL_VERSION,
@@ -744,3 +760,62 @@ def test_message_processor_json_catalog_theme_validation():
                 "theme": {"primaryColor": "red"},  # Must match hex color regex!
             },
         }])
+
+
+def test_strict_mode_validates_single_message_dict(mock_catalog):
+    processor = MessageProcessor(catalogs=[mock_catalog], strict_mode=True)
+
+    # Single message dict without 'messages' key must still be validated in strict_mode
+    invalid_single_msg = {
+        "version": "v0.9",
+        "createSurface": {
+            "surfaceId": "s_invalid",
+            "catalogId": mock_catalog.catalog_id,
+            "theme": {"primaryColor": "invalid_color"},
+        },
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="Validation failed for theme on surface 's_invalid'|does not match",
+    ):
+        processor.process_messages(invalid_single_msg)
+
+
+def test_message_processor_pydantic_model_payload(mock_catalog):
+    from a2ui.core.schema.v0_9.server_to_client import (
+        CreateSurfaceMessage,
+        CreateSurface,
+    )
+
+    processor = MessageProcessor(catalogs=[mock_catalog])
+    msg = CreateSurfaceMessage(
+        create_surface=CreateSurface(
+            surface_id="surface_pydantic",
+            catalog_id=mock_catalog.catalog_id,
+            send_data_model=True,
+        )
+    )
+    processor.process_messages(msg)
+    surface = processor.model.get_surface("surface_pydantic")
+    assert surface is not None
+    assert surface.id == "surface_pydantic"
+    assert surface.send_data_model is True
+
+
+def test_version_adapter_factory_unsupported_version_raises_validation_error():
+    from a2ui.core.processing.adapters import VersionAdapterFactory
+    from a2ui.core.exceptions import A2uiValidationError
+
+    # Unparseable/unsupported version string in payload must raise A2uiValidationError
+    with pytest.raises(
+        A2uiValidationError, match="Unsupported protocol version 'v9999.0'"
+    ):
+        VersionAdapterFactory.resolve_from_payload(
+            [{"version": "v9999.0", "createSurface": {}}]
+        )
+
+    with pytest.raises(
+        A2uiValidationError, match="Unsupported protocol version 'invalid_ver'"
+    ):
+        VersionAdapterFactory.resolve_from_payload({"version": "invalid_ver"})

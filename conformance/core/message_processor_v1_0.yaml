@@ -1,0 +1,231 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# ==============================================================================
+# Protocol v1.0 MessageProcessor Conformance Test Suite (Candidate Specification)
+# ==============================================================================
+
+- name: test_v10_create_surface_inline_initialization
+  description: Tests v1.0 createSurface message with inline components and initial dataModel initialization.
+  action: process_messages
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s_v10"
+        catalogId: "test-catalog-v10"
+        sendDataModel: true
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["btn1"]
+          - id: "btn1"
+            component: "Button"
+            title: "Inline Button"
+        dataModel:
+          counter: 42
+  expect:
+    surfaces:
+      s_v10:
+        exists: true
+        sendDataModel: true
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["btn1"]
+          - id: "btn1"
+            component: "Button"
+            title: "Inline Button"
+        dataModel:
+          counter: 42
+
+- name: test_v10_create_surface_optional_catalog_id
+  description: Tests that v1.0 createSurface permits omitting catalogId.
+  action: process_messages
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s_v10_nocat"
+  expect:
+    surfaces:
+      s_v10_nocat:
+        exists: true
+
+- name: test_v10_create_surface_with_metadata_extensions
+  description: Tests v1.0 createSurface with metadata and extension descriptors.
+  action: process_messages
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s_v10_meta"
+        catalogId: "test-catalog-v10"
+        metadata:
+          extensions:
+            "a2ui:experimental":
+              streaming: true
+  expect:
+    surfaces:
+      s_v10_meta:
+        exists: true
+
+- name: test_v10_component_catalog_override
+  description: Tests that individual components in v1.0 can specify a catalogId override different from the surface default.
+  action: process_messages
+  catalogs:
+    - catalogId: main-catalog
+      protocolVersion: "v1.0"
+    - catalogId: charts-catalog
+      protocolVersion: "v1.0"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s_v10_multi"
+        catalogId: "main-catalog"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s_v10_multi"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["c1"]
+          - id: "c1"
+            component: "PieChart"
+            catalogId: "charts-catalog"
+            data: [10, 20, 30]
+  expect:
+    surfaces:
+      s_v10_multi:
+        exists: true
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["c1"]
+          - id: "c1"
+            component: "PieChart"
+            data: [10, 20, 30]
+
+- name: test_v10_update_data_model_deletion
+  description: Tests that updating a path with value null deletes the key from the data model in v1.0.
+  action: process_messages
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s_v10_del"
+        catalogId: "test-catalog-v10"
+        dataModel:
+          user:
+            name: "Alice"
+            temporaryToken: "abc123xyz"
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "s_v10_del"
+        path: "/user/temporaryToken"
+        value: null
+  expect:
+    surfaces:
+      s_v10_del:
+        dataModel:
+          user:
+            name: "Alice"
+
+- name: test_v10_get_renderer_capabilities
+  description: Tests generating v1.0 renderer capabilities structure.
+  action: get_renderer_capabilities
+  catalogs:
+    - catalogId: cat-v10
+      protocolVersion: "v1.0"
+  args:
+    includeInlineCatalogs: false
+    version: "v1.0"
+  expect:
+    v1.0:
+      supportedCatalogIds:
+        - "cat-v10"
+
+- name: test_multiple_update_types_error
+  description: Tests that sending a single message envelope containing multiple update actions raises a ValidationError.
+  action: process_messages
+  catalogPaths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog-v10"
+      deleteSurface:
+        surfaceId: "s1"
+  expectError:
+    category: "ValidationError"
+    message: "Message contains multiple update types"
+
+- name: test_batch_message_array_and_wrapper
+  description: Tests that message processor correctly processes message list arrays and wrapped container payloads.
+  action: process_messages
+  catalogPaths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  messages:
+    messages:
+      - version: "v1.0"
+        createSurface:
+          surfaceId: "s1"
+          catalogId: "test-catalog-v10"
+      - version: "v1.0"
+        createSurface:
+          surfaceId: "s2"
+          catalogId: "test-catalog-v10"
+  expect:
+    surfaces:
+      s1:
+        exists: true
+      s2:
+        exists: true
+
+- name: test_v10_rejects_v08_begin_rendering_action
+  description: Tests that v1.0 MessageProcessor ignores v0.8 beginRendering action when protocolVersion is v1.0.
+  action: process_messages
+  protocolVersion: "v1.0"
+  messages:
+    - version: "v1.0"
+      beginRendering:
+        surfaceId: "s_v10_invalid"
+        catalogId: "test-catalog-v10"
+  expect:
+    surfaces:
+      s_v10_invalid:
+        exists: false
+
+- name: test_v10_non_string_surface_id_error
+  description: Tests that a v1.0 action with a non-string surfaceId raises a ValidationError.
+  action: process_messages
+  catalogPaths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: 12345
+        catalogId: "test-catalog-v10"
+  expectError:
+    category: "ValidationError"
+    message: "surfaceId must be a string"

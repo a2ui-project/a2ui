@@ -1,0 +1,141 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# ==============================================================================
+# Protocol v0.8 MessageProcessor Conformance Test Suite (Legacy Wire Format)
+# ==============================================================================
+
+- name: test_v08_begin_rendering_styles_mapping
+  description: Tests that v0.8 VersionAdapter correctly extracts styles and root component from beginRendering.
+  action: process_messages
+  protocolVersion: "v0.8"
+  catalogPaths:
+    - "specification/v0_8/json/standard_catalog_definition.json"
+  messages:
+    - beginRendering:
+        surfaceId: "s_v08"
+        catalogId: "v08-cat"
+        root: "root"
+        styles:
+          primaryColor: "#0000ff"
+  expect:
+    surfaces:
+      s_v08:
+        exists: true
+        theme:
+          primaryColor: "#0000ff"
+
+- name: test_v08_surface_update_components
+  description: Tests that v0.8 surfaceUpdate with nested component objects is properly adapted into ComponentModels.
+  action: process_messages
+  protocolVersion: "v0.8"
+  catalogPaths:
+    - "specification/v0_8/json/standard_catalog_definition.json"
+  messages:
+    - beginRendering:
+        surfaceId: "s_v08"
+        catalogId: "v08-cat"
+        root: "btn1"
+    - surfaceUpdate:
+        surfaceId: "s_v08"
+        components:
+          - id: "btn1"
+            component:
+              Button:
+                label: "Click Me"
+  expect:
+    surfaces:
+      s_v08:
+        exists: true
+        components:
+          - id: "btn1"
+            component: "Button"
+            label: "Click Me"
+
+- name: test_v08_data_model_update
+  description: Tests that v0.8 dataModelUpdate with typed contents entries is properly adapted into the surface DataStore.
+  action: process_messages
+  protocolVersion: "v0.8"
+  catalogPaths:
+    - "specification/v0_8/json/standard_catalog_definition.json"
+  messages:
+    - beginRendering:
+        surfaceId: "s_v08"
+        catalogId: "v08-cat"
+        root: "root"
+    - dataModelUpdate:
+        surfaceId: "s_v08"
+        contents:
+          - key: "count"
+            valueNumber: 42
+  expect:
+    surfaces:
+      s_v08:
+        dataModel:
+          count: 42
+
+- name: test_v08_get_renderer_capabilities
+  description: Tests generating v0.8 renderer capabilities structure.
+  action: get_renderer_capabilities
+  catalogs:
+    - catalogId: cat-v08
+      protocolVersion: "v0.8"
+  args:
+    includeInlineCatalogs: false
+    version: "v0.8"
+  expect:
+    v0.8:
+      supportedCatalogIds:
+        - "cat-v08"
+
+- name: test_v08_rejects_v09_create_surface_action
+  description: Tests that v0.8 MessageProcessor ignores v0.9 createSurface action when protocolVersion is v0.8.
+  action: process_messages
+  protocolVersion: "v0.8"
+  messages:
+    - version: "v0.8"
+      createSurface:
+        surfaceId: "s_v08_invalid"
+        catalogId: "v08-cat"
+  expect:
+    surfaces:
+      s_v08_invalid:
+        exists: false
+
+- name: test_v08_multiple_conflicting_update_types_error
+  description: Tests that a single v0.8 message envelope containing multiple conflicting update actions raises a ValidationError.
+  action: process_messages
+  messages:
+    - beginRendering:
+        surfaceId: "s1"
+        rootComponentId: "root"
+      surfaceUpdate:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+  expectError:
+    category: "ValidationError"
+    message: "Message contains multiple conflicting update actions"
+
+- name: test_v08_non_string_surface_id_error
+  description: Tests that a v0.8 action with a non-string surfaceId raises a ValidationError.
+  action: process_messages
+  messages:
+    - beginRendering:
+        surfaceId: 12345
+        rootComponentId: "root"
+  expectError:
+    category: "ValidationError"
+    message: "surfaceId must be a string"
