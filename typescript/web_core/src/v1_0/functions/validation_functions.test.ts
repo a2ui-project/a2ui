@@ -17,33 +17,33 @@
 import {describe, it} from 'node:test';
 import assert from 'node:assert';
 import {
-  RequiredV1_0Implementation,
-  RegexV1_0Implementation,
-  LengthV1_0Implementation,
-  NumericV1_0Implementation,
-  EmailV1_0Implementation,
+  RequiredV1Point0Implementation,
+  RegexV1Point0Implementation,
+  LengthV1Point0Implementation,
+  NumericV1Point0Implementation,
+  EmailV1Point0Implementation,
 } from './validation_functions.js';
 
 describe('v1.0 Validation Functions (returnType: validationResult)', () => {
-  it('RequiredV1_0 returns valid ValidationResult object', () => {
-    const validRes = RequiredV1_0Implementation.execute({value: 'hello'}, null as any);
+  it('RequiredV1Point0 returns valid ValidationResult object', () => {
+    const validRes = RequiredV1Point0Implementation.execute({value: 'hello'}, null as any);
     assert.deepStrictEqual(validRes, {valid: true});
 
-    const invalidRes = RequiredV1_0Implementation.execute({value: ''}, null as any);
+    const invalidRes = RequiredV1Point0Implementation.execute({value: ''}, null as any);
     assert.deepStrictEqual(invalidRes, {
       valid: false,
       message: 'This field is required.',
     });
   });
 
-  it('RegexV1_0 returns valid ValidationResult object', () => {
-    const validRes = RegexV1_0Implementation.execute(
+  it('RegexV1Point0 returns valid ValidationResult object', () => {
+    const validRes = RegexV1Point0Implementation.execute(
       {value: '12345', pattern: '^\\d+$'},
       null as any,
     );
     assert.deepStrictEqual(validRes, {valid: true});
 
-    const invalidRes = RegexV1_0Implementation.execute(
+    const invalidRes = RegexV1Point0Implementation.execute(
       {value: 'abc', pattern: '^\\d+$'},
       null as any,
     );
@@ -53,42 +53,48 @@ describe('v1.0 Validation Functions (returnType: validationResult)', () => {
     });
   });
 
-  it('LengthV1_0 returns valid ValidationResult object', () => {
-    const validRes = LengthV1_0Implementation.execute(
+  it('LengthV1Point0 returns valid ValidationResult object', () => {
+    const validRes = LengthV1Point0Implementation.execute(
       {value: 'test', min: 2, max: 10},
       null as any,
     );
     assert.deepStrictEqual(validRes, {valid: true});
 
-    const tooShort = LengthV1_0Implementation.execute({value: 'a', min: 2}, null as any);
+    const tooShort = LengthV1Point0Implementation.execute({value: 'a', min: 2}, null as any);
     assert.deepStrictEqual(tooShort, {
       valid: false,
       message: 'Minimum length is 2.',
     });
 
-    const tooLong = LengthV1_0Implementation.execute({value: 'longstring', max: 5}, null as any);
+    const tooLong = LengthV1Point0Implementation.execute(
+      {value: 'longstring', max: 5},
+      null as any,
+    );
     assert.deepStrictEqual(tooLong, {
       valid: false,
       message: 'Maximum length is 5.',
     });
   });
 
-  it('NumericV1_0 returns valid ValidationResult object', () => {
-    const validRes = NumericV1_0Implementation.execute({value: 25, min: 18, max: 65}, null as any);
+  it('NumericV1Point0 returns valid ValidationResult object', () => {
+    const validRes = NumericV1Point0Implementation.execute(
+      {value: 25, min: 18, max: 65},
+      null as any,
+    );
     assert.deepStrictEqual(validRes, {valid: true});
 
-    const tooLow = NumericV1_0Implementation.execute({value: 15, min: 18}, null as any);
+    const tooLow = NumericV1Point0Implementation.execute({value: 15, min: 18}, null as any);
     assert.deepStrictEqual(tooLow, {
       valid: false,
       message: 'Minimum value is 18.',
     });
   });
 
-  it('EmailV1_0 returns valid ValidationResult object', () => {
-    const validRes = EmailV1_0Implementation.execute({value: 'user@example.com'}, null as any);
+  it('EmailV1Point0 returns valid ValidationResult object', () => {
+    const validRes = EmailV1Point0Implementation.execute({value: 'user@example.com'}, null as any);
     assert.deepStrictEqual(validRes, {valid: true});
 
-    const invalidRes = EmailV1_0Implementation.execute({value: 'invalid-email'}, null as any);
+    const invalidRes = EmailV1Point0Implementation.execute({value: 'invalid-email'}, null as any);
     assert.deepStrictEqual(invalidRes, {
       valid: false,
       message: 'Must be a valid email address.',

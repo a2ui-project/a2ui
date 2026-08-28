@@ -19,7 +19,7 @@ import {InternalComponentPayload, InternalOperation} from '../operations.js';
 import {A2uiValidationError} from '../../errors.js';
 import {A2uiMessageSchema} from '../../v0_9/schema/server-to-client.js';
 
-export class V0_9VersionAdapter extends BaseVersionAdapter {
+export class V0Point9Adapter extends BaseVersionAdapter {
   readonly version: ProtocolVersion = 'v0.9';
   protected readonly schema = A2uiMessageSchema;
 

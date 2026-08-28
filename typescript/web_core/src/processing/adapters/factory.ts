@@ -16,19 +16,19 @@
 
 import {A2uiValidationError} from '../../errors.js';
 import {ProtocolVersion, VersionAdapter} from './base.js';
-import {V0_8VersionAdapter} from './v0_8.js';
-import {V0_9VersionAdapter} from './v0_9.js';
-import {V1_0VersionAdapter} from './v1_0.js';
+import {V0Point8Adapter} from './v0_8.js';
+import {V0Point9Adapter} from './v0_9.js';
+import {V1Point0Adapter} from './v1_0.js';
 
 /**
  * Resolves version adapters for protocol specification versions.
  */
 export class VersionAdapterFactory {
   private static adapters = new Map<string, VersionAdapter>([
-    ['v0.8', new V0_8VersionAdapter()],
-    ['v0.9', new V0_9VersionAdapter()],
-    ['v0.9.1', new V0_9VersionAdapter()],
-    ['v1.0', new V1_0VersionAdapter()],
+    ['v0.8', new V0Point8Adapter()],
+    ['v0.9', new V0Point9Adapter()],
+    ['v0.9.1', new V0Point9Adapter()],
+    ['v1.0', new V1Point0Adapter()],
   ]);
 
   /**
