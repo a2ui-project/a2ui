@@ -4,350 +4,293 @@ This proposal describes the design for programmatic macros and type-safe compone
 
 ---
 
-## Concept of macros
+## Summary of codebase changes
 
-In standard A2UI workflows, a language model emits full component trees directly over the wire (either as raw JSON messages or through inference formats such as Express). While this approach provides layout control, it has limitations in production agent applications:
+The implementation spans five areas of the repository:
 
-* **Token overhead and latency:** Generating repetitive layout scaffolding (cards, rows, column containers, styling wrappers) repeatedly increases model generation latency and inference costs.
-* **Inconsistent UI quality:** Language models frequently introduce layout mistakes, missing attributes, or inconsistent spacing when constructing complex component hierarchies from scratch.
-* **Sensitive data leakage:** Displaying confidential backend data (such as employee compensation or account numbers) often requires sending that data to the model first so the model can include it in the generated UI.
-
-A macro addresses these problems. A macro is a parameterized, server-side layout function authored in code. When the language model generates an interface, it invokes the macro by name with high-level arguments rather than constructing the underlying UI tree:
-
-```python
-# Model output (compact Express invocation)
-@SalaryCard(employee_name="Marcus Vance", role="Lead Systems Architect")
-```
-
-The macro function runs on the agent server, populating the full component hierarchy programmatically before sending standard A2UI protocol messages to the client renderer. This provides three concrete benefits:
-
-1. **Reduced generation latency:** The model outputs tens of tokens instead of hundreds of tokens of layout scaffolding.
-2. **Server-side data resolution:** The macro function can query private databases or internal services directly on the server to populate sensitive fields without exposing those values to model context.
-3. **Deterministic styling:** Designers and engineers define layout structure and styling rules in code once.
-
-### Comparison with static templates
-
-Earlier designs evaluated declarative template formats such as YAML or JSON with string substitution placeholders (e.g. `{{baseSalary}}`). Programmatic code macros supersede static templates for several reasons:
-
-* **Control flow:** Code functions natively support conditionals (`if/else`), loops (`for item in items`), and arithmetic transformations without requiring a custom expression engine in the protocol.
-* **Refactoring and static analysis:** Code functions are checked by existing linters, type checkers, and IDE autocompletion tools.
-* **No protocol changes:** A macro expands into standard A2UI components on the server. The client renderer receives standard `createSurface` and `updateComponents` messages without requiring client-side template engines.
+| Component                      | Repository path                                                                                | Description                                                                                                                                          |
+| :----------------------------- | :--------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Catalog schema ingestion**   | `renderers/web_core/src/v0_9/catalog/`                                                         | Introduces `loadCatalogFromJson()` and `Catalog.fromJson()` to parse raw catalog JSON schemas into typed `ComponentApi` objects with Zod validation. |
+| **Code generation CLI**        | `javascript/a2ui_cli/`                                                                         | Implements the `@a2ui/cli` package with commands to analyze catalog schemas and emit single-file Python builder modules.                             |
+| **Fluent builder foundation**  | `agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/macros/builder/`         | Implements `ComponentBuilderNode`, data binding helpers, dynamic child lists, and tree flattening with automatic identifier assignment.              |
+| **Generated basic catalog**    | `agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/macros/builder/basic.py` | Single-file Python builder classes generated from the standard A2UI basic catalog schema.                                                            |
+| **Macro inference engine**     | `agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/macros/`                 | Implements the `@macro` decorator, `MacroInferenceFormat`, and `MacroProcessor` to augment prompts, intercept macro calls, and expand trees.         |
+| **Community demo application** | `samples/community/macros/`                                                                    | Provides an end-to-end sample application with Python backend server and client UI demonstrating macro invocation and rendering.                     |
 
 ---
 
-## Code generation architecture
+## End-to-end developer experience
 
-To author macros efficiently, developers require a type-safe way to build component trees in their backend language. The `@a2ui/cli` package generates native, typed component builder classes from A2UI catalog JSON schemas.
+The complete developer workflow consists of four steps: obtaining a catalog, generating type-safe Python builders, defining a macro function, and registering that macro with the agent.
 
-### Why code generation is implemented in TypeScript
+### Step 1: Obtain or author an A2UI catalog
 
-The code generator is implemented as a TypeScript CLI (`@a2ui/cli`) within the repository for two primary reasons:
+A catalog defines the components and functions supported by client renderers. Catalogs are stored as JSON files conforming to `catalog_definition.json`:
 
-1. **Single source of truth for validation:** The core definition of catalogs, schemas, and component interfaces in this repository resides in `@a2ui/web_core`. Implementing the generator in TypeScript allows it to import schema definitions directly from `@a2ui/web_core`, eliminating the need to maintain duplicate JSON Schema parsers in multiple SDK languages.
-2. **Standard distribution:** Distributing the tool as an npm package (`@a2ui/cli`) allows developers across different language ecosystems (Python, Go, Kotlin) to run code generation via `npx @a2ui/cli codegen` without configuring separate language runtimes for the build tool.
-
-### Adding JSON schema ingestion to web core
-
-Historically, catalog schemas in `web_core` were hardcoded TypeScript structures. However, catalogs are defined and exchanged externally as JSON schemas conforming to `specification/<version>/json/catalog.json`.
-
-To bridge this gap, `@a2ui/web_core` introduces a static factory method:
-
-```typescript
-import { Catalog } from '@a2ui/web_core';
-
-const catalog = Catalog.fromJson(rawJsonSchema);
+```json
+{
+  "catalogId": "https://example.com/catalogs/infrastructure.json",
+  "components": {
+    "ServerStatusBadge": {
+      "description": "Displays host status with a badge indicator.",
+      "properties": {
+        "hostname": {"type": "string"},
+        "status": {
+          "type": "string",
+          "enum": ["online", "degraded", "offline"],
+          "default": "online"
+        }
+      },
+      "required": ["hostname"]
+    }
+  }
+}
 ```
 
-`Catalog.fromJson()` parses the raw JSON schema, maps JSON Schema data types (`string`, `number`, `boolean`, `array`, `object`, `oneOf`) into typed `ComponentApi` objects with Zod validation schemas, and extracts enum constraints. Both the TypeScript CLI and client renderers use this method to inspect catalog definitions.
+### Step 2: Run code generation via NPM
 
----
+The developer runs `@a2ui/cli` to generate a single-file Python module containing typed builder classes:
 
-## Python fluent builder API
+```bash
+npx @a2ui/cli codegen \
+  --catalog ./catalogs/infrastructure.json \
+  --out ./agent/builders/infrastructure.py
+```
 
-The Python Agent SDK provides a fluent builder library that allows developers to construct A2UI component trees with static type checking.
+The CLI outputs a complete Python module with dataclasses for each component, `Literal` type aliases for enums, and serializer methods.
 
-### The component builder node foundation
+### Step 3: Author a macro using the builder classes
 
-All generated component classes inherit from `ComponentBuilderNode`. A `ComponentBuilderNode` represents an in-memory component definition prior to serialization. It stores component properties, tracks child nodes, and handles identifier assignment during tree flattening.
-
-### Key features and examples
-
-#### 1. Nested component hierarchies
-
-Component constructors accept child nodes directly as constructor arguments:
+The developer defines a macro by decorating a standard Python function with `@macro`. Inside the function, the developer uses the generated builder classes to construct the component tree:
 
 ```python
-from a2ui.inference_formats.experimental.macros.builder import (
+from a2ui.inference_formats.experimental.macros import macro
+from a2ui.inference_formats.experimental.macros.builder.basic import (
+    Action,
     Button,
     Card,
     Column,
     Row,
     Text,
 )
-
-layout = Card(
-    child=Column(
-        children=[
-            Text(text="Quarterly Review", variant="h2"),
-            Text(text="All performance goals have been completed.", variant="body"),
-            Row(
-                children=[
-                    Button(text="View Details", variant="primary"),
-                    Button(text="Dismiss", variant="secondary"),
-                ]
-            ),
-        ]
-    )
-)
-```
-
-#### 2. Data binding
-
-Properties can be bound to client data model paths using `bind()`, or bound to computed expressions using `bind_expr()`:
-
-```python
-from a2ui.inference_formats.experimental.macros.builder import Text, bind, bind_expr
-
-# Bind directly to a data model path
-title = Text(text=bind("/user/profile/displayName"))
-
-# Bind to an expression evaluated by the client
-status_label = Text(text=bind_expr("user.isOnline ? 'Active' : 'Offline'"))
-```
-
-#### 3. Dynamic child lists
-
-Repeating collections driven by arrays in the data model use `DynamicChildList`:
-
-```python
-from a2ui.inference_formats.experimental.macros.builder import (
-    Column,
-    DynamicChildList,
-    Row,
-    Text,
-    bind,
-)
-
-# Renders a row for each item in the /team/members array
-member_list = Column(
-    children=DynamicChildList(
-        template=Row(
-            children=[
-                Text(text=bind("/name")),
-                Text(text=bind("/role")),
-            ]
-        ),
-        binding=bind("/team/members"),
-    )
-)
-```
-
-#### 4. User actions and event payloads
-
-Interactive elements define user actions with event names and optional payloads:
-
-```python
-from a2ui.inference_formats.experimental.macros.builder import Action, Button
-
-submit_button = Button(
-    text="Approve Request",
-    action=Action(
-        event={
-            "name": "approval_submitted",
-            "payload": {"requestId": "req_8472", "decision": "approved"},
-        }
-    ),
-)
-```
-
-#### 5. External component references
-
-When referencing an existing component on the surface that was declared outside the current builder tree, developers use `ExternalComponentBuilderNode`:
-
-```python
-from a2ui.inference_formats.experimental.macros.builder import (
-    Column,
-    ExternalComponentBuilderNode,
-    Text,
-)
-
-container = Column(
-    children=[
-        Text(text="Embedded Section:"),
-        ExternalComponentBuilderNode(component_id="existing_chart_surface_1"),
-    ]
-)
-```
-
----
-
-## Code generation inputs, outputs, and usage
-
-The `@a2ui/cli` tool reads standard A2UI catalog JSON files and generates native Python builder modules.
-
-### Command-line interface
-
-```bash
-npx @a2ui/cli codegen --catalog ./catalogs/basic/catalog.json --out ./agent/builders/basic.py
-```
-
-Supported options:
-* `--catalog <path>`: Path to the input A2UI catalog JSON file (required).
-* `--out <path>`: Destination `.py` file path or output directory (required). If a directory is provided, the tool emits `<catalog_name>.py` into that directory.
-* `--base-import <module>`: Custom Python module path for builder base classes (defaults to `a2ui.inference_formats.experimental.macros.builder.base`).
-
-### Single-file catalog output
-
-Running `a2ui codegen` generates the entire catalog into a single self-contained Python module (e.g. `basic.py`). This keeps all related types, component dataclasses, helper functions, and re-exports in one cohesive file:
-
-1. **Types and Enums:** `Literal[...]` type aliases derived from catalog constraints.
-2. **Component Builders:** `@dataclass` classes inheriting from `ComponentBuilderNode`.
-3. **Function Wrappers:** Type-safe helper functions generating `FunctionCall` objects.
-4. **Re-exports:** An explicit `__all__` list exposing all components, enums, functions, and core builder utilities (`Action`, `DataBinding`, `bind`, `Surface`).
-
-### Input and output example
-
-#### Input catalog schema (`catalog.json` snippet)
-
-```json
-{
-  "catalogId": "https://a2ui.dev/catalogs/basic.json",
-  "components": {
-    "Card": {
-      "description": "Container card with optional elevation and title.",
-      "properties": {
-        "title": { "type": "string" },
-        "elevation": {
-          "type": "string",
-          "enum": ["none", "low", "high"],
-          "default": "low"
-        },
-        "child": { "$ref": "#/definitions/ComponentRef" }
-      },
-      "required": ["child"]
-    }
-  }
-}
-```
-
-#### Generated single-file module (`basic.py` snippet)
-
-```python
-from dataclasses import dataclass, field
-from typing import Any, Mapping, Literal, Optional, Sequence, Union
-
-from a2ui.inference_formats.experimental.macros.builder.base import (
-    Action,
-    ComponentBuilderNode,
-    DataBinding,
-    FunctionCall,
-    Surface,
-    bind,
-)
-
-# =============================================================================
-# Types & Enums
-# =============================================================================
-
-CardElevation = Literal["none", "low", "high"]
-
-# =============================================================================
-# Components
-# =============================================================================
-
-@dataclass(kw_only=True)
-class Card(ComponentBuilderNode):
-    """Container card with optional elevation and title."""
-    child: ComponentBuilderNode
-    title: Optional[Union[str, DataBinding]] = None
-    elevation: Optional[CardElevation] = "low"
-    id: Optional[str] = None
-    component_name: str = field(default="Card", init=False)
-
-    def to_dict(self) -> dict[str, Any]:
-        d: dict[str, Any] = {"component": self.component_name}
-        if self.child is not None:
-            d["child"] = _serialize_prop(self.child)
-        if self.title is not None:
-            d["title"] = _serialize_prop(self.title)
-        if self.elevation is not None:
-            d["elevation"] = _serialize_prop(self.elevation)
-        if self.id is not None:
-            d["id"] = self.id
-        return d
-
-# =============================================================================
-# Exports
-# =============================================================================
-
-__all__ = ["Card", "CardElevation", "Action", "DataBinding", "Surface", "bind"]
-```
-
----
-
-## Macro execution engine and identifier management
-
-The macro engine coordinates macro registration, system prompt formatting, and runtime expansion.
-
-### Authoring macros with `@macro`
-
-Developers define macros using the `@macro` decorator on pure Python functions. The decorator inspects type annotations and docstrings:
-
-```python
-from a2ui.inference_formats.experimental.macros import macro
-from a2ui.inference_formats.experimental.macros.builder import Card, Column, Text
+from agent.builders.infrastructure import ServerStatusBadge
 
 @macro
-def UserCard(username: str, role: str = "Member") -> Card:
-    """Display user profile summary.
+def HostManagementCard(hostname: str, region: str = "us-central1") -> Card:
+    """Display host status with management actions.
 
     Args:
-        username: Full name of the user.
-        role: Organizational role title.
+        hostname: Fully qualified domain name of the host.
+        region: Cloud region where the instance is running.
     """
+    # Server-side logic: fetch live status directly without exposing tokens to prompt
+    current_status = "online"
+
     return Card(
         child=Column(
             children=[
-                Text(text=username, variant="h3"),
-                Text(text=role, variant="caption"),
+                Text(text=f"Host: {hostname}", variant="h3"),
+                Text(text=f"Region: {region}", variant="caption"),
+                ServerStatusBadge(hostname=hostname, status=current_status),
+                Row(
+                    children=[
+                        Button(
+                            text="Restart",
+                            action=Action(
+                                event={
+                                    "name": "restart_host",
+                                    "payload": {"host": hostname},
+                                }
+                            ),
+                        ),
+                        Button(
+                            text="View Logs",
+                            action=Action(
+                                event={
+                                    "name": "open_logs",
+                                    "payload": {"host": hostname},
+                                }
+                            ),
+                        ),
+                    ]
+                ),
             ]
         )
     )
 ```
 
-The decorator parses the function signature and docstrings to create metadata containing:
-* The macro identifier (`UserCard`).
-* Parameter names, types, default values, and parameter descriptions.
-* A component description derived from the summary docstring.
+### Step 4: Register the macro with `MacroInferenceFormat`
 
-### Macro inference format
+The developer registers the macro with `MacroInferenceFormat`, wrapping their chosen base format (such as Express):
 
-`MacroInferenceFormat` wraps an underlying inference format (such as Express) to integrate macros into model prompts:
+```python
+from a2ui.inference_formats.experimental.macros import MacroInferenceFormat
+from a2ui.inference_formats.express import ExpressInferenceFormat
 
-1. **System prompt augmentation:** The format registers each macro as an available component in the system prompt rules. The model sees the macro signature alongside standard catalog components.
-2. **Inference interception:** When the model outputs `@UserCard(username="Marcus Vance")`, the parser identifies the macro invocation, validates supplied arguments against the macro signature, and passes the arguments to `MacroProcessor`.
+# Wrap Express format with macro support
+macro_format = MacroInferenceFormat(
+    base_format=ExpressInferenceFormat(),
+    macros=[HostManagementCard],
+)
 
-### Macro processor and execution lifecycle
+# Attach format to agent instructions or prompt generator
+system_instructions = macro_format.get_system_prompt_rules()
+```
 
-`MacroProcessor` executes the macro function and transforms the returned builder tree into standard A2UI messages:
+When the language model generates UI, it emits a compact macro call:
 
-1. **Invocation:** `MacroProcessor.expand_macro("UserCard", {"username": "Marcus Vance"})` calls the registered Python function.
-2. **Evaluation:** The Python function executes, running any server-side database lookups or conditional logic, and returns the root `ComponentBuilderNode`.
-3. **Serialization:** The processor calls `.to_dict()` or `Surface.to_messages()` on the root node to generate standard A2UI `createSurface` and `updateComponents` dictionaries.
+```text
+@HostManagementCard(hostname="prod-db-01", region="us-east1")
+```
 
-### Identifier management and tree flattening
+The runtime intercepts this tag, executes `HostManagementCard()`, assigns sequential component identifiers, flattens the node tree, and sends standard A2UI `createSurface` and `updateComponents` payloads to the client renderer.
 
-The A2UI wire protocol requires flat arrays of components with unique identifiers, where parent components reference children by string ID (e.g. `children: ["comp_1", "comp_2"]`). Manually managing string IDs in nested UI structures is error-prone.
+---
 
-The builder system automates identifier management during tree serialization:
+## Component architecture and implementation details
 
-1. **ID assignment phase:** During serialization, the builder traverses the node hierarchy depth-first. If a node has an explicit identifier set by the author (`Card(..., id="main_card")`), that identifier is preserved. If `id` is omitted, the serializer assigns a sequential deterministic identifier (`comp_0`, `comp_1`, `comp_2`).
-2. **Reference resolution phase:** Parent containers (`Column`, `Row`, `Card`) holding child builder nodes automatically replace child node instances with their assigned string identifiers in the serialized output dictionary:
-   ```json
-   {
-     "id": "comp_0",
-     "component": "Column",
-     "children": ["comp_1", "comp_2"]
-   }
-   ```
-3. **Flattening:** All component dictionaries in the tree are collected into a single flat list, producing a valid A2UI `updateComponents` message payload.
+### 1. Catalog schema ingestion (`renderers/web_core`)
+
+#### Implementation details
+
+Historically, catalog schemas in `web_core` were manually declared TypeScript objects. To support external JSON catalogs, `renderers/web_core/src/v0_9/catalog/json_schema_loader.ts` introduces a JSON schema ingestion engine.
+
+The module provides `loadCatalogFromJson(catalogJson)`:
+
+- Validates `catalogId` metadata (reading `catalogId`, `$id`, or `id`).
+- Inspects `$defs.anyComponent.oneOf` to filter permitted components when specified.
+- Maps JSON Schema types (`string`, `integer`, `number`, `boolean`, `array`, `object`) into Zod validator schemas.
+- Resolves standard references (`$ref`) against canonical common types (`DynamicString`, `ComponentId`, `Action`, `AccessibilityAttributes`).
+- Merges `allOf` schema compositions with top-level properties and performs two-pass resolution for `required` fields.
+- Parses function definitions from both array and dictionary formats.
+- Returns a complete, schema-only `Catalog<ComponentApi, FunctionApi>` instance.
+
+In `renderers/web_core/src/v0_9/catalog/types.ts`, `Catalog.fromJson` delegates directly to this loader:
+
+```typescript
+static fromJson(catalogJson: Record<string, any>): Catalog<ComponentApi, FunctionApi> {
+  return loadCatalogFromJson(catalogJson);
+}
+```
+
+#### Rationale
+
+- **Single source of truth:** Loading catalogs directly from JSON allows tools and renderers to consume official catalog files without maintaining separate hardcoded schema definitions.
+- **Separation of concerns:** All JSON Schema parsing and AST transformation resides in `json_schema_loader.ts`. The `Catalog` class in `types.ts` remains a runtime container without leaking schema transformation details.
+- **Encapsulation:** All internal AST helpers in `json_schema_loader.ts` remain module-private, exposing only `loadCatalogFromJson`.
+
+---
+
+### 2. TypeScript code generation CLI (`javascript/a2ui_cli`)
+
+#### Implementation details
+
+The `@a2ui/cli` package is a Node.js command-line application located in `javascript/a2ui_cli/`.
+
+The generator consists of two stages:
+
+1. **Catalog analyzer (`src/analyzer/catalog-analyzer.ts`):** Ingests the catalog via `Catalog.fromJson()` and inspects the Zod schemas of components and functions. It extracts property types, default values, docstrings, enum options, child slots, and required property constraints into a normalized `AnalysedCatalog` data structure.
+2. **Python emitter (`src/emitters/python/python-emitter.ts`):** Converts the analyzed catalog into a standalone Python file. It emits:
+   - Header imports and module docstring.
+   - `Literal[...]` type aliases for string enums.
+   - Component builder classes decorated with `@dataclass(kw_only=True)`.
+   - Function call factory helpers.
+   - An explicit `__all__` symbol export list.
+
+The command is executed as:
+
+```bash
+npx @a2ui/cli codegen --catalog <catalog_file> --out <output_path>
+```
+
+#### Rationale
+
+- **Why implemented in TypeScript:** The authoritative definitions for A2UI schemas and components reside in `@a2ui/web_core`. Implementing the generator in TypeScript allows it to import `@a2ui/web_core` directly, avoiding duplicate JSON Schema parsers in Python or other target languages.
+- **Single-file output:** Emitting one self-contained module per catalog avoids nested package directories, simplifies imports in agent applications, and makes catalog regeneration atomic.
+- **Keyword-only arguments:** Emitting `@dataclass(kw_only=True)` prevents parameter ordering issues when components combine required properties, optional properties with defaults, and inherited fields.
+
+---
+
+### 3. Python fluent builder API (`agent_sdks/python`)
+
+#### Implementation details
+
+The fluent builder library resides in `agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/macros/builder/`:
+
+- **`base.py`:** Defines the foundational classes:
+  - `ComponentBuilderNode`: Base class for all component builders. Implements serialization, tree traversal, and child node identification.
+  - `ExternalComponentBuilderNode`: Represents a component already existing on the surface, referenced by its string ID.
+  - `DataBinding`: Encapsulates paths (`bind("/user/name")`) and expressions (`bind_expr("count + 1")`).
+  - `DynamicChildList`: Binds an array path to a template component node for repeating collections.
+  - `Action`: Represents interactive events with name and payload dictionaries.
+  - `Surface`: Container providing `.to_messages()` to produce `createSurface` and `updateComponents` protocol envelopes.
+
+#### Automatic identifier assignment and tree flattening
+
+The A2UI protocol requires flat lists of components with explicit IDs, where parent containers reference children by string identifier. Manually managing IDs in nested Python code is verbose and error-prone.
+
+The builder system automates this in two phases:
+
+1. **ID assignment phase (`assign_ids`):** Recursively traverses the node tree. If a component has an explicit `id` set by the author, that ID is preserved. If omitted, sequential IDs (`comp_0`, `comp_1`, etc.) are assigned automatically.
+2. **Serialization and flattening phase (`traverse_and_serialize`):** Serializes each node's properties. Any child `ComponentBuilderNode` referenced by a parent container is replaced by its assigned string ID in the parent's serialized dictionary. All serialized component dictionaries are collected into a flat list.
+
+```python
+# Authoring nested structures:
+card = Card(child=Text(text="Hello"))
+
+# Automatically serializes to flat A2UI protocol components:
+# [
+#   {"id": "comp_1", "component": "Text", "text": "Hello"},
+#   {"id": "comp_0", "component": "Card", "child": "comp_1"}
+# ]
+```
+
+#### Rationale
+
+- **Type safety and autocompletion:** Developers receive instant IDE validation for component property names and enum values.
+- **Abstraction of protocol serialization:** Developers author nested UI trees in natural object notation without manually tracking string IDs or building flat component lists.
+
+---
+
+### 4. Macro inference engine and execution lifecycle (`agent_sdks/python`)
+
+#### Implementation details
+
+The macro execution engine resides in `agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/experimental/macros/`:
+
+- **`@macro` decorator (`macro.py`):** Decorates Python functions. It uses `inspect.signature()` and parses docstrings to extract:
+  - Macro identifier (function name).
+  - Parameter names, types, and default values.
+  - Parameter descriptions from docstrings.
+  - Return type annotations.
+- **`MacroInferenceFormat` (`format.py`):** Wraps an underlying format (such as `ExpressInferenceFormat`):
+  - Appends macro signatures and docstrings to the system prompt rules.
+  - Scans model output for macro calls (e.g. `@MacroName(arg="val")`).
+  - Passes calls to `MacroProcessor`.
+- **`MacroProcessor` (`processor.py`):** Manages registered macro functions:
+  - Validates arguments against parameter signatures.
+  - Invokes the Python function.
+  - Converts the returned `ComponentBuilderNode` tree into A2UI `createSurface` and `updateComponents` messages.
+
+#### Rationale
+
+- **Token reduction:** Models output short macro tags instead of multi-line layout scaffolding, reducing generation latency and token usage.
+- **Sensitive data isolation:** Backend functions can perform database queries and API calls on the server, injecting confidential data into the UI without placing those values into the model context.
+- **Composable design:** `MacroInferenceFormat` wraps existing inference formats rather than replacing them, allowing macros to work alongside standard Express or direct JSON output.
+
+---
+
+### 5. Community demo application (`samples/community/macros`)
+
+#### Implementation details
+
+The sample application in `samples/community/macros/` provides an end-to-end demonstration:
+
+- **`server.py`:** FastMCP server exposing macro definitions.
+- **`macro_definitions.py`:** Defines concrete macros (`EconomicIndicatorCard`, `WeatherCard`, `ServerMetricSummary`) using the generated `basic.py` catalog builder classes.
+- **Web client:** Runs a client application with Lit and React renderers, verifying that macro expansions render correctly in the browser.
+
+#### Rationale
+
+- Provides a verifiable testbed for macro development.
+- Serves as an executable reference implementation for developers building agents with A2UI macros.
