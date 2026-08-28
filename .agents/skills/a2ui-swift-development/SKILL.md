@@ -2,8 +2,8 @@
 name: a2ui-swift-development
 description: >-
   Grounding, coding standards, testing practices, and verification workflows for developing in the
-  A2UI Swift codebase (swift/core, swift/swiftui, and swift/sample). Use whenever implementing
-  features, modifying state logic, creating SwiftUI views, or writing tests in Swift.
+  A2UI Swift codebase (under the swift/ directory). Use whenever implementing features, modifying
+  state logic, creating SwiftUI views, or writing tests in Swift.
 ---
 
 # Swift development skill
@@ -17,41 +17,51 @@ boundaries, coding standards, testing patterns, and mandatory verification steps
 
 Before modifying or implementing Swift code, inspect the authoritative specifications:
 
-- **Protocol envelopes and schemas**: `specification/v0_9_1/json/` defines wire-format
-  types and validation schemas.
-- **Component catalog schema**: `specification/v0_9_1/catalogs/basic/catalog.json` defines
+- **Protocol envelopes and schemas**:
+  [`specification/v0_9_1/json/`](../../../specification/v0_9_1/json/) defines wire-format types
+  and validation schemas.
+- **Component catalog schema**:
+  [`basic/catalog.json`](../../../specification/v0_9_1/catalogs/basic/catalog.json) defines
   components, properties, and function signatures.
-- **Core module blueprint**: `blueprints/modules/a2ui_core.blueprint.md` specifies state
+- **Core module blueprint**:
+  [`a2ui_core.blueprint.md`](../../../blueprints/modules/a2ui_core.blueprint.md) specifies state
   handling, JSON pointer rules, auto-vivification, and error semantics.
-- **Framework adapter blueprint**: `blueprints/modules/a2ui_framework_adapter.blueprint.md`
-  specifies view mapping, reactive subscription lifecycles, and layout behavior.
-- **Reference implementation**: `renderers/web_core/` serves as the canonical behavioral
-  reference for edge-case resolution.
+- **Framework adapter blueprint**:
+  [`a2ui_framework_adapter.blueprint.md`][framework-adapter-blueprint] specifies view mapping,
+  reactive subscription lifecycles, and layout behavior.
+- **Reference implementation**: [`renderers/web_core/`](../../../renderers/web_core/) serves as
+  the canonical behavioral reference for edge-case resolution.
+
+[framework-adapter-blueprint]: ../../../blueprints/modules/a2ui_framework_adapter.blueprint.md
 
 ---
 
 ## 2. Swift target architecture
 
-The Swift implementation uses targets defined in root `Package.swift`:
+The Swift implementation uses targets defined in root [`Package.swift`](../../../Package.swift):
 
-- **`A2UIJSON`** (`swift/core/Sources/A2UIJSON`): Pure JSON Schema 2020-12 definitions and
-  remote schema registry storage.
-- **`A2UICore`** (`swift/core/Sources/A2UICore`): Stateful runtime engine managing
-  `MessageProcessor`, `DataModel`, `SurfaceGroupModel`, pointer evaluation, and action routing.
-- **`BasicCatalog`** (`swift/core/Sources/BasicCatalog`): Core schema definitions and function
-  handlers for Basic Catalog components.
-- **`A2UISwiftUI`** (`swift/swiftui/Sources/A2UISwiftUI`): SwiftUI adapter providing the root
-  `Surface` view, recursive `ComponentNodeView`, and environment keys.
-- **`BasicCatalogSwiftUI`** (`swift/swiftui/Sources/BasicCatalog`): Concrete SwiftUI view
-  implementations conforming to `ComponentImplementation`.
-- **`A2UISampleClient`** (`swift/sample`): Interactive iOS Gallery application managed via
-  Xcode project file.
+- **`A2UIJSON`** ([`core/Sources/A2UIJSON`](../../../swift/core/Sources/A2UIJSON)): Pure
+  JSON Schema 2020-12 definitions and remote schema registry storage.
+- **`A2UICore`** ([`core/Sources/A2UICore`](../../../swift/core/Sources/A2UICore)): Stateful
+  runtime engine managing `MessageProcessor`, `DataModel`, `SurfaceGroupModel`, pointer evaluation,
+  and action routing.
+- **`BasicCatalog`** ([`core/Sources/BasicCatalog`](../../../swift/core/Sources/BasicCatalog)):
+  Core schema definitions and function handlers for Basic Catalog components.
+- **`A2UISwiftUI`** ([`swiftui/Sources/A2UISwiftUI`](../../../swift/swiftui/Sources/A2UISwiftUI)):
+  SwiftUI adapter providing the root `Surface` view, recursive `ComponentNodeView`, and
+  environment keys.
+- **`BasicCatalogSwiftUI`**
+  ([`swiftui/Sources/BasicCatalog`](../../../swift/swiftui/Sources/BasicCatalog)): Concrete
+  SwiftUI view implementations conforming to `ComponentImplementation`.
+- **`A2UISampleClient`** ([`swift/sample`](../../../swift/sample)): Interactive iOS Gallery
+  application managed via Xcode project file.
 
 ---
 
 ## 3. Mandatory coding standards
 
-All Swift code must strictly follow `swift/CODING_STANDARDS.md` and the Google Swift Style Guide:
+All Swift code must strictly follow
+[`swift/CODING_STANDARDS.md`](../../../swift/CODING_STANDARDS.md) and the Google Swift Style Guide:
 
 1. **One primary type per file**: Every class, struct, enum, and protocol must live in a dedicated
    file named after the type.
@@ -124,8 +134,8 @@ After making any code changes in `swift/`, run this verification sequence from t
 ## 6. Integration with repository skills
 
 - **Blueprint compliance**: When updating models or schemas, check compliance with
-  `blueprints/skills/a2ui-blueprint-compliance/SKILL.md`.
+  [`a2ui-blueprint-compliance`](../../../blueprints/skills/a2ui-blueprint-compliance/SKILL.md).
 - **Test quality**: Verify assertion strength and boundary cases with
-  `.agents/skills/a2ui-test-quality-check/SKILL.md`.
+  [`a2ui-test-quality-check`](../a2ui-test-quality-check/SKILL.md).
 - **Documentation sync**: Ensure documentation reflects code changes using
-  `.agents/skills/a2ui-doc-sync-check/SKILL.md`.
+  [`a2ui-doc-sync-check`](../a2ui-doc-sync-check/SKILL.md).
