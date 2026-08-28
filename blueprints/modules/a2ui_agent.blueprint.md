@@ -49,7 +49,7 @@ graph TD
    - **Parsers**: Response extraction engines performing tag unwrapping (`unwrap`), streaming chunk processing (`parse_chunk`), syntax compilation (`compile`) and decompilation (`decompile`).
    - **Validation Layer**: Leverages core `A2uiValidator` capabilities directly from `a2ui_core`, natively supporting protocol version branching (`v0_8`, `v0_9`, `v0_9_1`, `v1_0`).
 2. **Encapsulated Application Processor**:
-   - `CatalogConfig`: Configuration dataclass encapsulating catalog providers (`BundledCatalogProvider`, `FileSystemCatalogProvider`, `InMemoryCatalogProvider`), custom transformers, and examples.
+   - `CatalogConfig`: Configuration dataclass encapsulating catalog providers (`FileSystemCatalogProvider`, `InMemoryCatalogProvider`), custom transformers, and examples.
    - `A2uiGenerator`: Agent-level lifecycle manager holding supported `CatalogConfig`s, generating pre-negotiated `A2uiRequestProcessor` instances per renderer capability signature.
    - `A2uiRequestProcessor`: Central processor facade object unifying multi-catalog capability resolution (`resolve_catalogs`), system prompt snippet rendering, turn-scoped parser creation, and response validation.
 
@@ -153,6 +153,14 @@ class FunctionPruningTransformer(CatalogTransformer):
         """Returns a new Catalog filtered to only include functions in allowed_functions."""
         pass
 ```
+
+#### Transformer Requirements
+
+**These transformer rules are agent SDK surface.** A `Catalog` from `a2ui_core` is immutable, and core offers the derivation any caller needs to build a narrower one: deriving a smaller catalog is not agent-only, since a renderer may need one for a given use case. What this blueprint owns is the named rules above and the `CatalogConfig` pipeline that applies them, so their conformance data belongs in `agent/catalog_transformer.yaml` (see section 6) rather than under `conformance/core/`.
+
+**Narrow the unions, not just the entries.** A catalog document declares its component and function unions under `$defs/anyComponent` and `$defs/anyFunction`, whose members `$ref` entries in `components` and `functions`. A transformer that drops an entry MUST drop the matching union member in the same pass. Leaving the `$ref` behind is not merely untidy: the pruned document still advertises to the model a component the agent has decided not to accept, and it dangles a pointer that schema resolution will fail on.
+
+**Transformers never mutate their input.** `transform` returns a new `Catalog`. The pristine catalog registered on the `CatalogConfig` stays intact, because that is the one whose `id` the agent advertises in `A2uiGenerator.agent_capabilities` — narrowing changes what the agent will emit, not which catalog contract it speaks.
 
 ---
 
@@ -395,21 +403,6 @@ class CatalogProvider(ABC):
         """Loads and returns a Catalog definition instance."""
         pass
 
-class BundledCatalogProvider(CatalogProvider):
-    """Loads catalog schemas from bundled package resources for a specified protocol version."""
-
-    def __init__(self, protocol_version: ProtocolVersion):
-        """Initializes the bundled provider.
-
-        Args:
-            protocol_version: Protocol specification version string (e.g. 'v0.9.1', 'v1.0').
-        """
-        self.protocol_version = protocol_version
-
-    def load(self) -> Catalog[TComponent, TFunction]:
-        """Loads the bundled package catalog schema for protocol_version."""
-        pass
-
 class FileSystemCatalogProvider(CatalogProvider):
     """Loads a catalog definition from a JSON file on the local filesystem."""
 
@@ -467,6 +460,10 @@ class InMemoryCatalogProvider(CatalogProvider):
         pass
 ```
 
+There is deliberately no bundled provider. An agent's catalogs come from disk, from memory, or inline from the renderer; a copy shipped inside the SDK package silently forks from `specification/<version>/catalogs/`. `BundledCatalogProvider` appears in the legacy Python and Kotlin agent SDKs and in earlier drafts of this document — it is frozen, not a pattern to copy (see [Legacy Surfaces](#legacy-surfaces)).
+
+A provider is parsing a document it did not write. Raise `A2uiCatalogError` for a missing file, malformed JSON, a non-object document, or a `catalog_id` conflict, and `A2uiValidationError` for an unsupported or conflicting protocol version — never a raw language-level cast failure.
+
 #### `CatalogConfig`
 
 ```python
@@ -517,7 +514,12 @@ class A2uiGenerator:
 
     Attributes:
         catalogs: Master list of CatalogConfig objects supported by the agent.
+            These may span protocol versions -- each Catalog carries its own
+            protocol_version, and the registry is not assumed to be uniform.
         examples: Optional mapping of few-shot example turns shared across sessions.
+        accepts_inline_catalogs: Whether the agent will accept catalogs supplied
+            inline by the renderer. Advertised in agent_capabilities and passed
+            to resolve_catalogs.
         factory: Default InferenceFormatFactory used when instantiating processors.
     """
 
@@ -525,23 +527,53 @@ class A2uiGenerator:
         self,
         catalogs: List[CatalogConfig],
         examples: Optional[Dict[str, List[AgentToRendererMessage]]] = None,
+        accepts_inline_catalogs: bool = False,
         inference_format_factory: Optional[InferenceFormatFactory] = None,
     ):
         """Initializes A2uiGenerator with supported catalog configurations and format factory.
 
         Args:
-            catalogs: List of supported CatalogConfig configurations.
+            catalogs: List of supported CatalogConfig configurations, in agent
+                preference order. May mix protocol versions.
             examples: Optional dictionary of prompt examples.
+            accepts_inline_catalogs: Whether renderer-supplied inline catalogs are accepted.
             inference_format_factory: Optional default InferenceFormatFactory (defaults to DirectJsonFormatFactory).
+        """
+        pass
+
+    @property
+    def agent_capabilities(self) -> Dict[str, Any]:
+        """Returns the capabilities this agent advertises to renderers.
+
+        Mirrors the normative server-side capabilities schema for the version
+        being implemented (`specification/v0_9_1/json/server_capabilities.json`,
+        renamed to `agent_capabilities.json` in v1.0). Build the object from
+        that schema rather than from memory. It is a map keyed by protocol version, with
+        supported_catalog_ids and accepts_inline_catalogs *inside* each version
+        entry. A flat object carrying a sibling list of version strings is a
+        different, invalid shape.
+
+        Group the registered catalogs by the protocol_version each Catalog
+        declares. Never advertise the whole registry under one version assumed
+        for all of it: catalogs may span versions, and a renderer that reads
+        this object decides what to send from it.
+
+        Emit an entry for every version this SDK implements, including a
+        version with no registered catalog, because the schema requires the
+        version key to be present.
+
+        List the pristine CatalogConfig.catalog id, not the transformed copy.
         """
         pass
 
     def create_processor(
         self,
-        renderer_capabilities: Any,
+        renderer_capabilities: A2uiRendererCapabilities,
         inference_format_factory: Optional[InferenceFormatFactory] = None,
     ) -> A2uiRequestProcessor:
         """Creates an A2uiRequestProcessor bound to the specified renderer capabilities.
+
+        Negotiates via resolve_catalogs (section 3.G) and propagates its errors.
 
         Args:
             renderer_capabilities: A2uiRendererCapabilities object sent by the client renderer.
@@ -602,15 +634,36 @@ class A2uiRequestProcessor:
 
 Negotiates renderer capabilities against a registered sequence of catalogs (`List[CatalogConfig]`) to select matching active schemas for a session.
 
+This is the negotiation entry point. It **supersedes `select_catalog`**, the pre-v1.0 helper that returned a single catalog id; a session may activate several catalogs at once, so negotiation returns a list. `select_catalog` still appears in the shipped Python and Kotlin agent SDKs and in existing conformance data — do not implement it or extend its cases (see [Legacy Surfaces](#legacy-surfaces)).
+
 ```python
 def resolve_catalogs(
     catalogs: List[CatalogConfig],
     renderer_capabilities: A2uiRendererCapabilities,
     accepts_inline_catalogs: bool = False,
 ) -> List[Catalog[TComponent, TFunction]]:
-    """Matches renderer capabilities against registered catalogs and returns active transformed Catalog objects."""
+    """Matches renderer capabilities against registered catalogs and returns active transformed Catalog objects.
+
+    Args:
+        catalogs: The catalogs the agent registered, in agent preference order.
+        renderer_capabilities: The a2uiClientCapabilities object the renderer sent.
+        accepts_inline_catalogs: Whether the agent opted in to inline catalogs.
+
+    Returns:
+        The active catalogs for the session, in agent preference order.
+    """
     pass
 ```
+
+**Required behaviour:**
+
+1. Read the entry for the protocol version this SDK implements out of `renderer_capabilities`. Raise `A2uiValidationError` if the object carries no entry for it — an absent version is a failed negotiation, not an empty catalog list.
+2. Keep every registered catalog whose id appears in the renderer's `supportedCatalogIds`, ordered by **the agent's** registration order. The renderer's ordering carries no preference.
+3. If the renderer declared no ids at all, fall back to the first registered catalog.
+4. Append the renderer's `inlineCatalogs` only when `accepts_inline_catalogs` is true. Ignore them silently otherwise: a renderer cannot know whether the agent opted in until it has read the agent's capabilities, so supplying them is not an error.
+5. Raise `A2uiCatalogError` when the result would be empty — the renderer and the agent share no catalog, or the agent registered none.
+
+Return `CatalogConfig.transformed_catalog` for each match, never the pristine catalog: prompting and validation both run against the narrowed contract. `A2uiGenerator.agent_capabilities` is the one place that advertises pristine ids.
 
 ---
 
@@ -776,27 +829,36 @@ The Express format package under `a2ui/agent/inference_formats/express/` contain
 
 ```python
 # 1. Agent Startup: Initialize long-lived A2uiGenerator with agent catalogs.
+#    Catalogs are registered in agent preference order and may span protocol
+#    versions -- each one carries its own protocol_version.
 #    Note: Prompt examples passed here are validated internally during processor creation
 #    (create_processor) against active negotiated catalogs, raising ValueError if any
 #    example uses components or structures not supported by the active catalog.
 generator = A2uiGenerator(
     catalogs=[
-        CatalogConfig(BasicCatalog("v1.0")),
+        CatalogConfig.from_path("./catalogs/basic_v0_9.json"),
         CatalogConfig.from_path("./catalogs/custom_catalog.json"),
     ],
-    examples=load_examples("./prompts/examples/**")
+    examples=load_examples("./prompts/examples/**"),
 )
 
-# 2. In Request Handler: Retrieve pre-negotiated A2uiRequestProcessor matching renderer capabilities
+# 2. Publish what the agent can do. Version-keyed, per server_capabilities.json;
+#    each catalog id sits under the version its own catalog declares:
+#      {"v0.9": {"supportedCatalogIds": [...], "acceptsInlineCatalogs": false}}
+agent_card.a2ui_server_capabilities = generator.agent_capabilities
+
+# 3. In Request Handler: Retrieve pre-negotiated A2uiRequestProcessor matching renderer
+#    capabilities. Raises A2uiCatalogError if nothing is shared with the renderer, and
+#    A2uiValidationError if the capabilities declare no entry for a supported version.
 processor = generator.create_processor(renderer_capabilities)
 
-# 3. Invoke LLM to generate the output
+# 4. Invoke LLM to generate the output
 llm_output_text = myagent.call_llm(processor.prompt_snippet, request_context)
 
-# 4. Parse and validate output using the processor
+# 5. Parse and validate output using the processor
 response_parts = processor.parse_response(llm_output_text)
 
-# 5. Deliver A2UI payloads to the renderer
+# 6. Deliver A2UI payloads to the renderer
 ```
 
 ---
@@ -806,3 +868,35 @@ response_parts = processor.parse_response(llm_output_text)
 To ensure behavioral parity across all SDK implementations (Python, Kotlin, etc.), the project maintains a language-agnostic conformance suite.
 
 For complete setup instructions, test harness requirements, suite descriptions, and schema definitions, see [Conformance README](../../conformance/README.md).
+
+### Where a case belongs
+
+A suite covers one module of this blueprint, and its path mirrors the module that owns the API under test. Agent-owned behaviour never lands under `conformance/core/`, however catalog-shaped the case looks — `core/` is `a2ui_core`'s, and a case filed there obliges every renderer to implement an agent concern.
+
+| Blueprint section         | API under test                                              | Suite                            |
+| :------------------------ | :---------------------------------------------------------- | :------------------------------- |
+| 3.A Catalog Transformers  | `ComponentPruningTransformer`, `FunctionPruningTransformer` | `agent/catalog_transformer.yaml` |
+| 3.C Common Parser         | `Parser.parse_response`, `compile`, `decompile`             | `agent/parser.yaml`              |
+| 4 Streaming               | `parse_chunk`                                               | `agent/streaming_parser.yaml`    |
+| 3.E / 4 Inference Formats | `PromptGenerator.generate`                                  | `agent/inference_format.yaml`    |
+| 3.F Catalog Providers     | `CatalogProvider.load`                                      | `agent/catalog_provider.yaml`    |
+| 3.G Catalog Resolver      | `resolve_catalogs`                                          | `agent/catalog_resolver.yaml`    |
+| 3.F Processor Facade      | one whole agent turn, end to end                            | `agent/request_processor.yaml`   |
+
+### Rules for adding cases
+
+1. **Name the `action` after an API in this blueprint.** An action that maps to no documented method means the behaviour has not been specified yet — specify it first. In particular, do not take the action name from a neighbouring case in the file you are editing: the existing suites carry cases for superseded APIs, and copying their `action` quietly re-implements the thing that replaced them.
+2. **Look for an existing suite before creating one — on every active spec branch, not just the one you are on.** The repository maintains parallel branches per protocol version (`main`, `v1_0`, …). A suite that already exists elsewhere has an established case shape; a second file with the same name and a different shape is a merge conflict, not extra coverage. Extend the existing one.
+3. **Reuse the established case keys.** `catalog`, `action`, `args`, `expect` and `expect_error` are the shared vocabulary defined by `conformance/conformance_schema.json`. When a genuinely new shape is needed, extend the schema in the same change as the suite that uses it.
+4. **`expect_error.category` names a class from the core exception hierarchy**, without the `A2ui` prefix. Add a category to the schema enum together with the first suite that asserts it, not in advance.
+5. **Reference specification data instead of copying it.** A case that needs a real catalog points at `specification/<version>/catalogs/<name>/catalog.json` by relative path, so the suite cannot drift from the published document.
+
+### Legacy Surfaces
+
+These ship in the Python and Kotlin agent SDKs and appear in existing conformance data. They are frozen. Do not implement them in a new SDK, and do not add cases for them.
+
+| Legacy surface                                         | Replaced by                                                                                                 |
+| :----------------------------------------------------- | :---------------------------------------------------------------------------------------------------------- |
+| `select_catalog`, returning one negotiated catalog id  | `resolve_catalogs`, returning a list (section 3.G)                                                          |
+| `BundledCatalogProvider`                               | `FileSystemCatalogProvider`, `InMemoryCatalogProvider`, or a renderer-supplied inline catalog (section 3.F) |
+| A flat capabilities object with an `a2uiVersions` list | The version-keyed `server_capabilities.json` shape (`A2uiGenerator.agent_capabilities`, section 3.F)        |

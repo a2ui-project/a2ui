@@ -29,6 +29,17 @@ Its core responsibilities include:
 7. **Resolution:** Resolves bound context paths and binds state variables to components for local evaluation.
 8. **Multi-Version Protocol Branching:** Supports multiple versions of the protocol.
 
+### Package Boundary & Non-Goals
+
+`a2ui_agent` depends on `a2ui_core`; the dependency never runs the other way. A change here made to unblock an agent SDK should be the smallest one that works, and land as its own reviewable unit.
+
+Not in core — specified in the [a2ui_agent blueprint](./a2ui_agent.blueprint.md), with conformance data under `conformance/agent/`:
+
+- `CatalogTransformer`, `ComponentPruningTransformer`, `FunctionPruningTransformer`, and the `CatalogConfig` pipeline that applies them
+- Prompt generation
+- Response parsing
+- Capability negotiation
+
 ---
 
 ### A. High-Level Layer Architecture
@@ -192,6 +203,12 @@ export interface Catalog<TComponent extends ComponentApi, TFunction extends Func
   readonly themeSchema?: Record<string, any>;
 }
 ```
+
+A `Catalog` is immutable once constructed. A renderer or an agent that needs a narrower contract — an agent prompting against a subset, a renderer serving a use case that calls for a smaller catalog — derives a new catalog from it rather than mutating it in place. Core provides the derivation (`copyWith`, `catalogSchema`); the named transformer rules that drive it are agent SDK surface, see below.
+
+`protocolVersion` is a property of **each catalog, not of the process**. A renderer or an agent may hold catalogs for several protocol versions at once, so anything derived from a set of catalogs, including a capabilities payload, must be grouped by each catalog's own `protocolVersion`. Reaching for a single constant because today's set happens to be uniform produces an object that is wrong the first time it is not.
+
+Parsing a catalog document is parsing untrusted input: raise `A2uiCatalogError` for a missing or non-object document or a `catalogId` conflict, and `A2uiValidationError` for an unsupported protocol version.
 
 #### `ComponentApi`
 
@@ -369,6 +386,21 @@ When a surface is created with `sendDataModel: true`, the renderer is responsibl
 
 - **Surface Lifecycle**: It is an error to receive a `createSurface` message for a `surfaceId` that is already active; `surfaceId` must be globally unique per client session. The processor MUST throw an error or report a validation failure if this occurs.
 - **Component Lifecycle**: If an `updateComponents` message provides an existing `id` but a _different_ `type`, the processor MUST remove the old component and create a fresh one to ensure framework renderers correctly reset their internal state.
+
+#### Capabilities Objects
+
+Both sides of the handshake advertise a capabilities object, and **both have a normative JSON Schema**. Build and parse them from that schema rather than from memory or from a neighbouring implementation:
+
+| Direction        | Object                   | Normative schema (v0.9, v0.9.1)                         | Renamed in v1.0                                      |
+| :--------------- | :----------------------- | :------------------------------------------------------ | :--------------------------------------------------- |
+| Renderer → agent | `a2uiClientCapabilities` | `specification/<version>/json/client_capabilities.json` | `specification/v1_0/json/renderer_capabilities.json` |
+| Agent → renderer | `a2uiServerCapabilities` | `specification/<version>/json/server_capabilities.json` | `specification/v1_0/json/agent_capabilities.json`    |
+
+Resolve the filename for the version you are implementing rather than assuming one — v0.8 uses a third spelling (`a2ui_client_capabilities_schema.json`) and publishes no server-side counterpart.
+
+The top level of each is **keyed by protocol version** — `{"v0.9": { … }}`, `{"v1.0": { … }}` — with `supportedCatalogIds`, `inlineCatalogs` and `acceptsInlineCatalogs` living _inside_ the version entry, and the version key is required. A flat object carrying a sibling list of version strings is a different, invalid shape.
+
+When parsing one: reject an object that declares no entry for any version this SDK implements, and keep the unrecognised version keys rather than failing on them, so a renderer that also speaks a newer protocol can still be served.
 
 #### Generating Renderer Capabilities and Schema Types
 
@@ -751,4 +783,50 @@ export class A2uiRecursionError extends A2uiError {
     this.name = 'A2uiRecursionError';
   }
 }
+
+/** Raised when a data model read or write cannot be satisfied at the given path. */
+export class A2uiDataError extends A2uiError {
+  /* name = 'A2uiDataError' */
+}
+
+/** Raised when the surface or component state machine is asked for an illegal transition. */
+export class A2uiStateError extends A2uiError {
+  /* name = 'A2uiStateError' */
+}
+
+/** Raised when raw model output cannot be extracted or decoded into a payload. */
+export class A2uiParseError extends A2uiError {
+  /* name = 'A2uiParseError' */
+}
+
+/** Raised when a source syntax (e.g. the EXPRESS DSL) cannot be compiled to A2UI messages. */
+export class A2uiCompileError extends A2uiError {
+  /* name = 'A2uiCompileError' */
+}
+
+/** Raised when a bound expression cannot be evaluated. */
+export class A2uiExpressionError extends A2uiError {
+  /* name = 'A2uiExpressionError' */
+}
 ```
+
+**Parsing wire JSON raises from this hierarchy, never from the language.** Every entry point that accepts a payload, a capabilities object or a catalog document from outside the process is handling untrusted input: a member may be absent, null, or the wrong type. Check the shape before casting and raise `A2uiValidationError` with the offending value attached. A raw cast failure — `TypeError`, `ClassCastException`, a null dereference — escapes the hierarchy a caller can catch, and turns a malformed message into a crash.
+
+**These categories are shared with the conformance suite.** `expect_error.category` in `conformance/conformance_schema.json` names these classes without the `A2ui` prefix, so the two must agree. Adding an error class means adding the matching category alongside the first suite that asserts it — not in advance, and not silently under a category that already exists.
+
+---
+
+## 4. Conformance Test Plan
+
+Behavioural parity across implementations is pinned by a language-agnostic conformance suite. For setup, harness requirements and schema definitions, see [Conformance README](../../conformance/README.md).
+
+### Where a case belongs
+
+Suites under `conformance/core/` cover this module: the reactive data model, the message processor's state machine, catalog documents, and the validator. Agent-side behaviour — prompt generation, response parsing, catalog narrowing, capability negotiation — belongs under `conformance/agent/`, **even when the case is about a catalog**. A case filed under `core/` obliges every renderer to implement it, so the directory is a statement about ownership, not about subject matter. Section 6 of the [a2ui_agent blueprint](./a2ui_agent.blueprint.md#6-conformance-test-plan) carries the agent-side map.
+
+### Rules for adding cases
+
+1. **Look for an existing suite before creating one — on every active spec branch, not just the one you are on.** The repository maintains parallel branches per protocol version (`main`, `v1_0`, …). A suite that already exists elsewhere has an established case shape; a second file with the same name and a different shape is a merge conflict rather than extra coverage. Extend the existing one.
+2. **Reuse the established case keys** defined by `conformance/conformance_schema.json`, and extend the schema in the same change as the suite that needs the new shape.
+3. **`expect_error.category` names a class from the exception hierarchy above**, without the `A2ui` prefix.
+4. **Migrating an implementation's own tests into the shared suite will surface real disagreements** between implementations. Each one is a decision, not a formatting problem: fix the implementation that is wrong, or record why the case is excluded. Language-level differences (sparse versus dense arrays, `null` versus absent, prototype pollution) stay out of the shared suite and remain in the implementation's own tests.

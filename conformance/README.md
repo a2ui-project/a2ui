@@ -11,12 +11,18 @@ Test suites are organized by functional domain:
 - `core/catalog.yaml`: Contains test cases for catalog operations (prune, render, load).
 - `core/accessibility.yaml`: Contains test cases for accessibility attributes and checks.
 - `core/validator.yaml`: Contains test cases for schema and structural validators, verifying structural integrity, cycle detection, and reachability.
+- `core/data_model.yaml`: Contains test cases for the reactive data model, verifying JSON Pointer reads and writes, container creation, deletion, and observer notification.
+- `core/message_processor.yaml`: Contains test cases for the message processor's state machine. Written in the case vocabulary of the `v1_0` branch, whose suite of the same name is the primary one, so the two converge rather than conflict.
 
 ### Agent (`agent/`)
 
 - `agent/streaming_parser.yaml`: Contains test cases for streaming parser implementations, verifying chunk buffering, incremental yielding, and edge cases like cut tokens.
 - `agent/parser.yaml`: Contains test cases for non-streaming parsing and payload fixing.
 - `agent/inference_format.yaml`: Contains test cases for inference formats and schema managers (select_catalog, load_catalog, generate_prompt).
+- `agent/catalog_provider.yaml`: Contains test cases for loading a catalog document into a catalog, whatever backing store it came from.
+- `agent/catalog_transformer.yaml`: Contains test cases for narrowing a catalog before prompting, including the `$defs` unions that reference the pruned entries.
+- `agent/catalog_resolver.yaml`: Contains test cases for `resolve_catalogs`, which negotiates renderer capabilities against the catalogs an agent registered. It supersedes the legacy single-catalog `select_catalog` helper.
+- `agent/request_processor.yaml`: Contains test cases for a whole agent turn: negotiate catalogs, render the prompt snippet, parse the model response.
 
 ### Extensions (`extensions/`)
 

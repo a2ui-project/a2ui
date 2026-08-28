@@ -1,0 +1,245 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# The primary use case from `blueprints/modules/a2ui_agent.blueprint.md` section
+# 5: an agent registers the catalogs it supports, negotiates them against a
+# renderer's declared capabilities, renders a system prompt snippet, and parses
+# the resulting model response into deliverable A2UI messages.
+#
+# These cases run against the published basic catalog schema
+# (`specification/v0_9_1/catalogs/basic/catalog.json`) rather than any single
+# SDK's built-in catalog, so every implementation is measured against the same
+# contract.
+
+- name: test_primary_use_case_basic_catalog_login_form
+  description: >-
+    End to end agent turn against the basic catalog: negotiate catalogs, render
+    the prompt snippet, parse a full model response into text and A2UI parts.
+  catalog:
+    version: "0.9"
+    catalog_schema: "../specification/v0_9_1/catalogs/basic/catalog.json"
+  action: process_request
+  args:
+    client_capabilities:
+      "v0.9":
+        supportedCatalogIds: ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]
+    allowed_components: [Card, Column, Text, TextField, Button]
+    allowed_functions: [required, email]
+    llm_response: |-
+      Here is the sign-in form you asked for.
+      <a2ui-json>
+      [
+        {
+          "version": "v0.9",
+          "createSurface": {
+            "surfaceId": "login-surface",
+            "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+            "sendDataModel": true
+          }
+        },
+        {
+          "version": "v0.9",
+          "updateComponents": {
+            "surfaceId": "login-surface",
+            "components": [
+              {
+                "id": "root",
+                "component": "Card",
+                "child": "form-column"
+              },
+              {
+                "id": "form-column",
+                "component": "Column",
+                "children": [
+                  "title",
+                  "email-field",
+                  "submit-button"
+                ]
+              },
+              {
+                "id": "title",
+                "component": "Text",
+                "text": "Welcome back",
+                "variant": "h2"
+              },
+              {
+                "id": "email-field",
+                "component": "TextField",
+                "value": {
+                  "path": "/email"
+                },
+                "label": "Email",
+                "checks": [
+                  {
+                    "condition": {
+                      "call": "required",
+                      "args": {
+                        "value": {
+                          "path": "/email"
+                        }
+                      }
+                    },
+                    "message": "Email is required"
+                  }
+                ]
+              },
+              {
+                "id": "submit-label",
+                "component": "Text",
+                "text": "Sign in"
+              },
+              {
+                "id": "submit-button",
+                "component": "Button",
+                "child": "submit-label",
+                "variant": "primary",
+                "action": {
+                  "event": {
+                    "name": "submitLogin",
+                    "context": {
+                      "form": "login"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": "v0.9",
+          "updateDataModel": {
+            "surfaceId": "login-surface",
+            "path": "/email",
+            "value": ""
+          }
+        }
+      ]
+      </a2ui-json>
+      Let me know if you would like a password field as well.
+  expect_active_catalog_ids: ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]
+  expect_prompt_contains:
+    - "<a2ui-json>"
+    - '"Card"'
+    - '"TextField"'
+    - '"required"'
+  expect:
+    - text: "Here is the sign-in form you asked for."
+      a2ui:
+        [
+          {
+            "version": "v0.9",
+            "createSurface":
+              {
+                "surfaceId": "login-surface",
+                "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+                "sendDataModel": true,
+              },
+          },
+          {
+            "version": "v0.9",
+            "updateComponents":
+              {
+                "surfaceId": "login-surface",
+                "components":
+                  [
+                    {"id": "root", "component": "Card", "child": "form-column"},
+                    {
+                      "id": "form-column",
+                      "component": "Column",
+                      "children": ["title", "email-field", "submit-button"],
+                    },
+                    {"id": "title", "component": "Text", "text": "Welcome back", "variant": "h2"},
+                    {
+                      "id": "email-field",
+                      "component": "TextField",
+                      "value": {"path": "/email"},
+                      "label": "Email",
+                      "checks":
+                        [
+                          {
+                            "condition":
+                              {"call": "required", "args": {"value": {"path": "/email"}}},
+                            "message": "Email is required",
+                          },
+                        ],
+                    },
+                    {"id": "submit-label", "component": "Text", "text": "Sign in"},
+                    {
+                      "id": "submit-button",
+                      "component": "Button",
+                      "child": "submit-label",
+                      "variant": "primary",
+                      "action": {"event": {"name": "submitLogin", "context": {"form": "login"}}},
+                    },
+                  ],
+              },
+          },
+          {
+            "version": "v0.9",
+            "updateDataModel": {"surfaceId": "login-surface", "path": "/email", "value": ""},
+          },
+        ]
+    - text: "Let me know if you would like a password field as well."
+
+- name: test_primary_use_case_rejects_unsupported_version
+  description: >-
+    A model response that declares a protocol version other than v0.9 is
+    rejected rather than delivered to the renderer.
+  catalog:
+    version: "0.9"
+    catalog_schema: "../specification/v0_9_1/catalogs/basic/catalog.json"
+  action: process_request
+  args:
+    client_capabilities:
+      "v0.9":
+        supportedCatalogIds: ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]
+    llm_response: |-
+      <a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"}}]</a2ui-json>
+  expect_error:
+    category: "ValidationError"
+    message: "v1.0"
+
+- name: test_primary_use_case_rejects_missing_version
+  description: >-
+    A model response whose messages omit the version field is rejected.
+  catalog:
+    version: "0.9"
+    catalog_schema: "../specification/v0_9_1/catalogs/basic/catalog.json"
+  action: process_request
+  args:
+    client_capabilities:
+      "v0.9":
+        supportedCatalogIds: ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]
+    llm_response: |-
+      <a2ui-json>[{"createSurface": {"surfaceId": "s1", "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"}}]</a2ui-json>
+  expect_error:
+    category: "ValidationError"
+    message: "version"
+
+- name: test_primary_use_case_rejects_unknown_catalog
+  description: >-
+    A renderer that supports no catalog the agent has registered cannot be
+    served.
+  catalog:
+    version: "0.9"
+    catalog_schema: "../specification/v0_9_1/catalogs/basic/catalog.json"
+  action: process_request
+  args:
+    client_capabilities:
+      "v0.9":
+        supportedCatalogIds: ["https://example.com/catalogs/unknown.json"]
+    llm_response: "unused"
+  expect_error:
+    category: "CatalogError"
+    message: "no matching catalog"

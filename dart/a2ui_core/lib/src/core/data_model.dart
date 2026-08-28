@@ -132,6 +132,14 @@ class DataModel {
             current.add(null);
           }
           current[index] = value;
+        } else {
+          // The parent resolved to a primitive, so there is nothing to
+          // write into. Dropping the write would hide a malformed path.
+          throw A2uiDataError(
+            "Cannot set path '$path': '$lastSegment' is a property of a "
+            'primitive value.',
+            path: path,
+          );
         }
       }
 
@@ -182,9 +190,15 @@ class DataModel {
     }
 
     final Object? newValue = get(path);
-    // Force notification even if the value is the same reference, because
-    // mutable containers (Maps/Lists) may have changed in place.
-    sig.set(newValue, force: true);
+    // A container mutated in place keeps its identity, so the live object
+    // would compare equal and suppress the notification. Hand over a copy,
+    // and let the signal's equality check suppress genuinely unchanged
+    // values; notifying unconditionally would wake unaffected observers.
+    sig.set(switch (newValue) {
+      final Map<String, Object?> map => Map<String, Object?>.of(map),
+      final List<Object?> list => List<Object?>.of(list),
+      _ => newValue,
+    });
   }
 
   void _pruneSignals() {

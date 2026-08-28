@@ -12,19 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_agent/a2ui_agent.dart';
-import 'package:test/test.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 
-void main() {
-  group('A group of tests', () {
-    final awesome = Awesome();
+/// A rule applied to a catalog before prompting or validation.
+///
+/// Transformers narrow a catalog; they never widen it.
+abstract class CatalogTransformer<
+  C extends ComponentApi,
+  F extends FunctionApi
+> {
+  const CatalogTransformer();
 
-    setUp(() {
-      // Additional setup goes here.
-    });
-
-    test('First Test', () {
-      expect(awesome.isAwesome, isTrue);
-    });
-  });
+  /// Narrows [catalog], preserving its component and function types.
+  Catalog<C, F> transform(Catalog<C, F> catalog);
 }
