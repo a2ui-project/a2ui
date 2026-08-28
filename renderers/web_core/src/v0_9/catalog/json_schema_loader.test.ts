@@ -38,23 +38,29 @@ describe('Catalog.fromJson & json_schema_loader', () => {
     assert.strictEqual(meta.specVersion, 'v0.9');
   });
 
-  it('throws error when protocol version cannot be determined and no default is allowed', () => {
-    const invalidJson = {
+  it('defaults protocol version to v0.9 per specification when version cannot be determined', () => {
+    const customJson = {
       catalogId: 'https://example.com/custom_catalog.json',
       components: {},
     };
-    assert.throws(
-      () => extractCatalogMetadata(invalidJson),
-      /A2UI protocol version must be explicitly specified/,
-    );
+    const meta = extractCatalogMetadata(customJson);
+    assert.strictEqual(meta.catalogId, 'https://example.com/custom_catalog.json');
+    assert.strictEqual(meta.specVersion, 'v0.9');
+  });
+
+  it('throws error when catalogId is missing', () => {
+    const invalidJson = {
+      components: {},
+    };
+    assert.throws(() => extractCatalogMetadata(invalidJson as any), /Catalog ID must be specified/);
   });
 
   it('respects explicit specVersion option override', () => {
-    const invalidJson = {
+    const customJson = {
       catalogId: 'https://example.com/custom_catalog.json',
       components: {},
     };
-    const meta = extractCatalogMetadata(invalidJson, {specVersion: 'v0.9.1'});
+    const meta = extractCatalogMetadata(customJson, {specVersion: 'v0.9.1'});
     assert.strictEqual(meta.specVersion, 'v0.9.1');
   });
 
@@ -120,5 +126,80 @@ describe('Catalog.fromJson & json_schema_loader', () => {
     assert.ok(reqFn);
     assert.strictEqual(reqFn.name, 'required');
     assert.strictEqual(reqFn.returnType, 'boolean');
+  });
+
+  it('loads catalog without optional options argument', () => {
+    const catalog = Catalog.fromJson(basicCatalogJson);
+    assert.strictEqual(
+      catalog.id,
+      'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+    );
+    assert.ok(catalog.components.size > 0);
+  });
+
+  it('merges both allOf and top-level properties and resolves required fields in two passes', () => {
+    const catalogWithAllOf = {
+      catalogId: 'https://example.com/allof_catalog.json',
+      components: {
+        TestWidget: {
+          allOf: [
+            {
+              properties: {
+                baseProp: {type: 'string'},
+              },
+            },
+          ],
+          properties: {
+            extraProp: {type: 'integer'},
+          },
+          required: ['baseProp', 'extraProp'],
+        },
+      },
+    };
+
+    const catalog = Catalog.fromJson(catalogWithAllOf);
+    const widget = catalog.components.get('TestWidget');
+    assert.ok(widget);
+
+    // Both baseProp and extraProp must exist
+    const shape = (widget.schema as z.ZodObject<any>).shape;
+    assert.ok(shape.baseProp);
+    assert.ok(shape.extraProp);
+
+    // baseProp was defined in allOf, but marked required at root: must be required
+    const missingBase = widget.schema.safeParse({extraProp: 10});
+    assert.strictEqual(missingBase.success, false);
+
+    // extraProp is an integer: must reject floats
+    const floatVal = widget.schema.safeParse({baseProp: 'hello', extraProp: 10.5});
+    assert.strictEqual(floatVal.success, false);
+
+    const intVal = widget.schema.safeParse({baseProp: 'hello', extraProp: 10});
+    assert.strictEqual(intVal.success, true);
+  });
+
+  it('safely converts non-string enums and handles defensive prop schemas', () => {
+    const catalogWithEnums = {
+      catalogId: 'https://example.com/enum_catalog.json',
+      components: {
+        EnumWidget: {
+          properties: {
+            numEnum: {enum: [1, 2, 3]},
+            singleEnum: {enum: ['only_one']},
+            invalidProp: null,
+          },
+        },
+      },
+    };
+
+    const catalog = Catalog.fromJson(catalogWithEnums);
+    const widget = catalog.components.get('EnumWidget');
+    assert.ok(widget);
+
+    const valid = widget.schema.safeParse({numEnum: 2, singleEnum: 'only_one'});
+    assert.strictEqual(valid.success, true);
+
+    const invalid = widget.schema.safeParse({numEnum: 99});
+    assert.strictEqual(invalid.success, false);
   });
 });

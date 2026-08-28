@@ -19,12 +19,14 @@ import {DataContext} from '../rendering/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiExpressionError} from '../errors.js';
 import {
-  CatalogJsonLoaderOptions,
+  type CatalogJsonLoaderOptions,
   V0_9_COMMON_TYPES,
   convertComponentJsonSchemaToZod,
   extractCatalogMetadata,
   parseFunctionDefinitions,
 } from './json_schema_loader.js';
+
+export type {CatalogJsonLoaderOptions};
 
 export type A2uiReturnType = 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';
 
@@ -216,7 +218,8 @@ export class Catalog<
 
   /**
    * Constructs a fully-typed schema-only Catalog directly from raw A2UI catalog JSON.
-   * Strictly requires explicit protocol version specification.
+   * Automatically discovers catalogId and specVersion from metadata or defaults to 'v0.9'
+   * according to specification (specification/v1_0/json/catalog_definition.json#L14).
    *
    * @param catalogJson Raw JSON catalog or client capabilities payload.
    * @param options Optional overrides for catalogId or specVersion.
