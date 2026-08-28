@@ -244,9 +244,16 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     final functions = <CatalogFunction>[];
     for (final MapEntry<Object?, Object?> entry in raw.entries) {
       final Map<String, Object?> schema = _asSchemaMap(entry.value);
-      final Map<String, Object?> properties =
-          schema['properties'] as Map<String, Object?>? ??
-          const <String, Object?>{};
+      final Object? rawProperties = schema['properties'];
+      final Map<String, Object?> properties = switch (rawProperties) {
+        null => const <String, Object?>{},
+        final Map<Object?, Object?> map => map.cast<String, Object?>(),
+        _ => throw A2uiCatalogError(
+          "Catalog function '${entry.key}' has a non-object 'properties' "
+          '(got ${rawProperties.runtimeType}).',
+          catalogId: catalogId,
+        ),
+      };
       final Object? args = properties['args'];
       final Object? returnType = properties['returnType'];
       functions.add(

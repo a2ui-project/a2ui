@@ -194,8 +194,13 @@ class DataModel {
     // would compare equal and suppress the notification. Hand over a copy,
     // and let the signal's equality check suppress genuinely unchanged
     // values; notifying unconditionally would wake unaffected observers.
+    // Match on the bare `Map` and `List` types: a caller may hand over a
+    // `Map<dynamic, dynamic>`, which a bare `{}` literal and YAML both
+    // produce, and a pattern naming the type arguments would miss it and
+    // fall through to the no-copy branch -- losing the notification.
     sig.set(switch (newValue) {
       final Map<String, Object?> map => Map<String, Object?>.of(map),
+      final Map<Object?, Object?> map => Map<Object?, Object?>.of(map),
       final List<Object?> list => List<Object?>.of(list),
       _ => newValue,
     });
