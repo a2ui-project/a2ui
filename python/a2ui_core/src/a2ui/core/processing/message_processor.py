@@ -55,9 +55,19 @@ class MessageProcessor:
 
     def process_messages(self, messages: AgentToRendererMessagePayload) -> None:
         """Accepts a list of parsed JSON messages and executes them in order."""
-        message_list = (
-            messages.get("messages", []) if isinstance(messages, dict) else messages
-        )
+        raw_payload: Any = messages
+        if hasattr(raw_payload, "model_dump"):
+            raw_payload = raw_payload.model_dump(by_alias=True, exclude_none=True)
+
+        if isinstance(raw_payload, dict):
+            if "messages" in raw_payload and isinstance(raw_payload["messages"], list):
+                message_list = raw_payload["messages"]
+            else:
+                message_list = [raw_payload]
+        elif isinstance(raw_payload, list):
+            message_list = raw_payload
+        else:
+            message_list = [raw_payload]
 
         if self.strict_mode:
             self.validator.validate_protocol_envelope(message_list)

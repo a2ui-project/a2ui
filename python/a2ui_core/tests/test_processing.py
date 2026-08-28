@@ -762,6 +762,26 @@ def test_message_processor_json_catalog_theme_validation():
         }])
 
 
+def test_strict_mode_validates_single_message_dict(mock_catalog):
+    processor = MessageProcessor(catalogs=[mock_catalog], strict_mode=True)
+
+    # Single message dict without 'messages' key must still be validated in strict_mode
+    invalid_single_msg = {
+        "version": "v0.9",
+        "createSurface": {
+            "surfaceId": "s_invalid",
+            "catalogId": mock_catalog.catalog_id,
+            "theme": {"primaryColor": "invalid_color"},
+        },
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="Validation failed for theme on surface 's_invalid'|does not match",
+    ):
+        processor.process_messages(invalid_single_msg)
+
+
 def test_message_processor_pydantic_model_payload(mock_catalog):
     from a2ui.core.schema.v0_9.server_to_client import (
         CreateSurfaceMessage,
@@ -781,3 +801,21 @@ def test_message_processor_pydantic_model_payload(mock_catalog):
     assert surface is not None
     assert surface.id == "surface_pydantic"
     assert surface.send_data_model is True
+
+
+def test_version_adapter_factory_unsupported_version_raises_validation_error():
+    from a2ui.core.processing.adapters import VersionAdapterFactory
+    from a2ui.core.exceptions import A2uiValidationError
+
+    # Unparseable/unsupported version string in payload must raise A2uiValidationError
+    with pytest.raises(
+        A2uiValidationError, match="Unsupported protocol version 'v9999.0'"
+    ):
+        VersionAdapterFactory.resolve_from_payload(
+            [{"version": "v9999.0", "createSurface": {}}]
+        )
+
+    with pytest.raises(
+        A2uiValidationError, match="Unsupported protocol version 'invalid_ver'"
+    ):
+        VersionAdapterFactory.resolve_from_payload({"version": "invalid_ver"})

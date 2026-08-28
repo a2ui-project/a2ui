@@ -30,7 +30,7 @@ from ..operations import (
 )
 
 
-class V0_9VersionAdapter(BaseVersionAdapter):
+class V0Point9Adapter(BaseVersionAdapter):
     """Protocol version adapter for specification v0.9."""
 
     @property

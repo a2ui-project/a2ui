@@ -13,16 +13,16 @@
 # limitations under the License.
 
 from .base import VersionAdapter
-from .v0_8 import V0_8VersionAdapter
-from .v0_9 import V0_9VersionAdapter
-from .v1_0 import V1_0VersionAdapter
+from .v0_8 import V0Point8Adapter
+from .v0_9 import V0Point9Adapter
+from .v1_0 import V1Point0Adapter
 from .factory import DEFAULT_PROTOCOL_VERSION, VersionAdapterFactory
 
 __all__ = [
     "DEFAULT_PROTOCOL_VERSION",
     "VersionAdapter",
-    "V0_8VersionAdapter",
-    "V0_9VersionAdapter",
-    "V1_0VersionAdapter",
+    "V0Point8Adapter",
+    "V0Point9Adapter",
+    "V1Point0Adapter",
     "VersionAdapterFactory",
 ]
