@@ -1338,5 +1338,54 @@ describe('MessageProcessor', () => {
         }),
       );
     });
+
+    it('does not treat non-reference string properties matching child component IDs as child references', () => {
+      const constraintCatalog = new Catalog('constraint-cat-2', [
+        {
+          name: 'RootContainer',
+          schema: z.object({
+            children: z.array(z.string()).describe('ChildList'),
+          }),
+        },
+        {
+          name: 'AllowedParent',
+          schema: z.object({
+            child: z.string().describe('Child'),
+          }),
+          allowedParents: ['RootContainer'],
+        },
+        {
+          name: 'RestrictedChild',
+          schema: z.object({text: z.string()}),
+          allowedParents: ['AllowedParent'],
+        },
+        {
+          name: 'TextDisplay',
+          schema: z.object({text: z.string()}),
+          allowedParents: ['RootContainer'],
+        },
+      ]);
+      const proc = new MessageProcessor([constraintCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      // TextDisplay has text: 'rc1', which matches RestrictedChild's ID 'rc1'.
+      // Because 'text' is not a schema reference property, TextDisplay must NOT be treated as a parent of rc1.
+      assert.doesNotThrow(() =>
+        proc.processMessages({
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's_text_test',
+            catalogId: 'constraint-cat-2',
+            components: [
+              {id: 'root', component: 'RootContainer', children: ['ap1', 'td1']},
+              {id: 'ap1', component: 'AllowedParent', child: 'rc1'},
+              {id: 'rc1', component: 'RestrictedChild', text: 'Hello'},
+              {id: 'td1', component: 'TextDisplay', text: 'rc1'},
+            ],
+          },
+        }),
+      );
+    });
   });
 });

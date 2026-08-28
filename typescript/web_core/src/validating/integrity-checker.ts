@@ -328,6 +328,17 @@ function* extractPointers(val: any, currentPath: string): Generator<[string, str
   }
 }
 
+const globalRefMapCache = new WeakMap<Catalog<any>, ComponentRefMap>();
+
+function getOrCreateRefMap(catalog: Catalog<any>): ComponentRefMap {
+  let map = globalRefMapCache.get(catalog);
+  if (!map) {
+    map = buildComponentRefMap(catalog);
+    globalRefMapCache.set(catalog, map);
+  }
+  return map;
+}
+
 /**
  * Extracts child component IDs referenced by a component property definition.
  *
@@ -348,7 +359,7 @@ export function* getComponentReferences(
     return;
   }
   const refFieldsMap: ComponentRefMap =
-    catalogOrRefMap instanceof Catalog ? buildComponentRefMap(catalogOrRefMap) : catalogOrRefMap;
+    catalogOrRefMap instanceof Catalog ? getOrCreateRefMap(catalogOrRefMap) : catalogOrRefMap;
 
   const compVal = component.component;
   let compType = '';
@@ -391,17 +402,6 @@ export type CatalogOrRefMapInput =
   | ComponentRefMap
   | Array<Catalog<any>>
   | Map<string, Catalog<any>>;
-
-const globalRefMapCache = new WeakMap<Catalog<any>, ComponentRefMap>();
-
-function getOrCreateRefMap(catalog: Catalog<any>): ComponentRefMap {
-  let map = globalRefMapCache.get(catalog);
-  if (!map) {
-    map = buildComponentRefMap(catalog);
-    globalRefMapCache.set(catalog, map);
-  }
-  return map;
-}
 
 function resolveRefMapForComponent(
   comp: Record<string, any>,

@@ -35,7 +35,10 @@ import {
 import {ProtocolVersion, VersionAdapter} from './adapters/base.js';
 import {RendererCapabilities} from '../v1_0/schema/index.js';
 import {ValidationConfig, STRICT_VALIDATION, RELAXED_VALIDATION} from '../validating/validator.js';
-import {validateRecursionAndPaths} from '../validating/integrity-checker.js';
+import {
+  getComponentReferences,
+  validateRecursionAndPaths,
+} from '../validating/integrity-checker.js';
 
 export type {RendererCapabilities, ValidationConfig};
 export {STRICT_VALIDATION, RELAXED_VALIDATION};
@@ -618,43 +621,6 @@ export class MessageProcessor<T extends ComponentApi> {
     surface.dataModel.set(path, value);
   }
 
-  private extractChildIds(childVal: unknown, list: string[] = []): string[] {
-    if (!childVal) return list;
-
-    if (typeof childVal === 'string') {
-      list.push(childVal);
-    } else if (Array.isArray(childVal)) {
-      for (const item of childVal) {
-        if (typeof item === 'string') {
-          list.push(item);
-        } else if (
-          item &&
-          typeof item === 'object' &&
-          'componentId' in item &&
-          typeof (item as {componentId: unknown}).componentId === 'string'
-        ) {
-          list.push((item as {componentId: string}).componentId);
-        }
-      }
-    } else if (
-      typeof childVal === 'object' &&
-      'componentId' in childVal &&
-      typeof (childVal as {componentId: unknown}).componentId === 'string'
-    ) {
-      list.push((childVal as {componentId: string}).componentId);
-    }
-    return list;
-  }
-
-  private extractChildIdsFromProps(props: Record<string, unknown>, list: string[] = []): string[] {
-    if (!props || typeof props !== 'object') return list;
-    for (const [key, val] of Object.entries(props)) {
-      if (key === 'id' || key === 'component') continue;
-      this.extractChildIds(val, list);
-    }
-    return list;
-  }
-
   private validateCompositionConstraints(
     surface: SurfaceModel<T>,
     newComponents: Array<Record<string, unknown>>,
@@ -669,36 +635,38 @@ export class MessageProcessor<T extends ComponentApi> {
       if (model.catalog) {
         compCatalogMap.set(id, model.catalog as Catalog<T>);
       }
-      const props = model.properties || {};
-      const list: string[] = [];
-      this.extractChildIdsFromProps(props, list);
-      if (list.length > 0) {
-        childMap.set(id, list);
+      const children = surface.componentsModel.getChildIds(id);
+      if (children.length > 0) {
+        childMap.set(id, children);
       }
     }
 
     for (const comp of newComponents) {
       const {id, component, ...props} = comp;
+      if (typeof id !== 'string') continue;
+
       const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
-      if (typeof id === 'string' && typeof component === 'string') {
-        typeMap.set(id, component);
+      if (typeof rawCatalogId === 'string' && rawCatalogId) {
+        const found = this.catalogs.find(c => c.id === rawCatalogId);
+        if (found) {
+          compCatalogMap.set(id, found);
+        }
       }
-      if (typeof id === 'string') {
-        if (typeof rawCatalogId === 'string' && rawCatalogId) {
-          const found = this.catalogs.find(c => c.id === rawCatalogId);
-          if (found) {
-            compCatalogMap.set(id, found);
-          }
-        }
-        const existing = surface.componentsModel.get(id);
-        const mergedProps = existing ? {...existing.properties, ...props} : props;
-        const list: string[] = [];
-        this.extractChildIdsFromProps(mergedProps, list);
-        if (list.length > 0) {
-          childMap.set(id, list);
-        } else {
-          childMap.delete(id);
-        }
+      const existing = surface.componentsModel.get(id);
+      const compType = (typeof component === 'string' ? component : existing?.type) ?? '';
+      if (compType) {
+        typeMap.set(id, compType);
+      }
+      const compCatalog = compCatalogMap.get(id) ?? existing?.catalog ?? surface.catalog;
+      const mergedProps = existing ? {...existing.properties, ...props} : props;
+      const compDef = {id, component: compType, ...mergedProps};
+      const children = Array.from(getComponentReferences(compDef, compCatalog as Catalog<any>)).map(
+        ([childId]) => childId,
+      );
+      if (children.length > 0) {
+        childMap.set(id, children);
+      } else {
+        childMap.delete(id);
       }
     }
 
