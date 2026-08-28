@@ -78,7 +78,7 @@ struct TestEmailFunction: FunctionImplementation {
   }
 }
 
-func makeTestCatalog() throws -> Catalog {
+func makeTestCatalog() throws -> AnyCatalog {
   let buttonSchema = try Schema(
     instance: """
       {
@@ -90,29 +90,47 @@ func makeTestCatalog() throws -> Catalog {
             "properties": {
               "id": { "type": "string" },
               "component": { "type": "string" },
-              "label": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString" },
-              "enabled": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicBoolean" },
-              "count": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicNumber" },
+              "label": {
+                "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString"
+              },
+              "enabled": {
+                "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicBoolean"
+              },
+              "count": {
+                "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicNumber"
+              },
               "max": { "type": "number" },
               "min": { "type": "number" },
-              "details": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicValue" },
+              "details": {
+                "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicValue"
+              },
               "icon": {
                 "oneOf": [
                   { "type": "string" },
                   { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DataBinding" }
                 ]
               },
-              "tags": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicStringList" },
+              "tags": {
+                "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicStringList"
+              },
               "config": {
                 "type": "object",
                 "properties": {
-                  "visible": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicBoolean" },
-                  "amount": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicNumber" },
+                  "visible": {
+                    "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicBoolean"
+                  },
+                  "amount": {
+                    "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicNumber"
+                  },
                   "custom": { "type": "object" }
                 }
               },
-              "onClick": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/Action" },
-              "children": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ChildList" }
+              "onClick": {
+                "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/Action"
+              },
+              "children": {
+                "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ChildList"
+              }
             },
             "required": ["id", "component"]
           }
@@ -124,7 +142,7 @@ func makeTestCatalog() throws -> Catalog {
 
   return Catalog(
     id: "test-catalog",
-    components: [ComponentAPI(name: "button", schema: buttonSchema)],
+    components: [AnyComponentAPI(name: "button", schema: buttonSchema)],
     functions: [TestConcatFunction(), TestRequiredFunction(), TestEmailFunction()]
   )
 }
@@ -714,7 +732,7 @@ struct SurfaceViewModelTests {
     let handler = TestActionHandler()
     let catalog = Catalog(
       id: "custom-catalog",
-      components: [ComponentAPI(name: "customInput", schema: customSchema)],
+      components: [AnyComponentAPI(name: "customInput", schema: customSchema)],
       functions: [TestRequiredFunction(), TestEmailFunction()]
     )
     let processor = MessageProcessor(
@@ -848,7 +866,9 @@ struct SurfaceViewModelTests {
           "properties": {
             "id": { "type": "string" },
             "component": { "type": "string" },
-            "items": { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicStringList" }
+            "items": {
+              "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicStringList"
+            }
           },
           "required": ["id", "component"]
         }
@@ -858,7 +878,7 @@ struct SurfaceViewModelTests {
 
     let catalog = Catalog(
       id: "lookalike-catalog",
-      components: [ComponentAPI(name: "custom", schema: schema)],
+      components: [AnyComponentAPI(name: "custom", schema: schema)],
       functions: []
     )
 
@@ -1132,6 +1152,7 @@ struct DataModelTests {
     #expect(announced[1]["/user/name"]?.stringValue == "Alice")
     #expect(readBack[1]?.stringValue == "Alice")
   }
+
   @Test func setsRootPathReplacesEntireData() {
     let model = DataModel(initial: ["oldKey": "oldVal", "sharedKey": "prev"])
     model.set("", value: ["newKey": "newVal"])

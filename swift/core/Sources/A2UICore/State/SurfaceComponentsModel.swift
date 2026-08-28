@@ -14,13 +14,12 @@
 
 import Combine
 import Foundation
+import OrderedJSON
 
 /// Manages a flat collection of ``ComponentModel`` instances by ID.
 ///
 /// Mirrors `SurfaceComponentsModel` in the core blueprint and
-/// `web_core`. This is a pure data container with no schema awareness
-/// or validation logic — the `MessageProcessor` handles validation
-/// before adding components here.
+/// `web_core`.
 public final class SurfaceComponentsModel: @unchecked Sendable, ObservableObject {
 
   private let lock = NSRecursiveLock()
@@ -72,5 +71,30 @@ public final class SurfaceComponentsModel: @unchecked Sendable, ObservableObject
       current.removeValue(forKey: id)
       componentsSubject.send(current)
     }
+  }
+
+  /// Validates references across the component graph
+  /// (root presence id='root', dangling references, orphan nodes).
+  ///
+  /// - Parameter config: The validation configuration.
+  /// - Throws: `A2UIIntegrityError` if graph topology validation fails.
+  public func validateReferences(config: ValidationConfig = .strict) throws {
+    let rawComponents: [[String: JSONValue]] = lock.withLock {
+      componentsSubject.value.values.map { component in
+        var dictionary: [String: JSONValue] = [
+          "id": .string(component.id),
+          "component": .string(component.type),
+        ]
+        for (key, value) in component.properties {
+          dictionary[key] = value
+        }
+        return dictionary
+      }
+    }
+    try GraphTopologyValidator.validate(
+      components: rawComponents,
+      rootID: "root",
+      config: config
+    )
   }
 }

@@ -219,6 +219,139 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     resolver.dispose();
   });
 
+  it('gives repeated references to one component distinct sibling nodes and instance ids', () => {
+    const {surface, resolver} = setup();
+    add(surface, 'root', 'Column', {children: ['a', 'a']});
+    add(surface, 'a', 'Text', {text: 'dup'});
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const children = props(root).children as ComponentNode[];
+    assert.strictEqual(children.length, 2);
+    assert.notStrictEqual(children[0], children[1]);
+    assert.strictEqual(children[0].instanceId, 'a');
+    assert.strictEqual(children[1].instanceId, 'a#2');
+    assert.strictEqual(bound(children[1], 'text'), 'dup');
+
+    // Instance ids stay distinct when a list edit shifts the ordinals.
+    add(surface, 'x', 'Text', {text: 'x'});
+    const rootModel = surface.componentsModel.get('root');
+    assert.ok(rootModel);
+    rootModel.properties = {children: ['x', 'a', 'a']};
+    const after = props(root).children as ComponentNode[];
+    assert.deepStrictEqual(
+      after.map(n => n.instanceId),
+      ['x', 'a', 'a#2'],
+    );
+    resolver.dispose();
+  });
+
+  it('resolves a plain array of component ids as a child list', () => {
+    // The intuitive third-party spelling: z.array(ComponentIdSchema) instead
+    // of the ChildList union. The marker sits on the elements.
+    const PlainListApi = {
+      name: 'PlainList',
+      schema: z.object({children: z.array(ComponentIdSchema).optional()}),
+    };
+    const catalog = new Catalog<ComponentApi>('plain-list-catalog', [TextApi, PlainListApi], []);
+    const surface = new SurfaceModel('surf-1', catalog);
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'PlainList', {children: ['a', 'b']});
+    add(surface, 'a', 'Text', {text: 'A'});
+    add(surface, 'b', 'Text', {text: 'B'});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const children = props(root).children as ComponentNode[];
+    assert.strictEqual(children.length, 2);
+    assert.ok(isComponentNode(children[0]));
+    assert.ok(isComponentNode(children[1]));
+    assert.strictEqual(bound(children[0], 'text'), 'A');
+    assert.strictEqual(bound(children[1], 'text'), 'B');
+    resolver.dispose();
+  });
+
+  it('keeps instance ids distinct when a component id mimics a suffixed or scoped form', () => {
+    const PaneApi = {
+      name: 'Pane',
+      schema: z.object({
+        main: ComponentIdSchema.optional(),
+        items: ChildListSchema.optional(),
+      }),
+    };
+    const catalog = new Catalog<ComponentApi>('mimic-catalog', [TextApi, ColumnApi, PaneApi], []);
+
+    // A sibling literally named 'a#2' next to duplicates of 'a'.
+    {
+      const surface = new SurfaceModel('surf-a', catalog);
+      const resolver = new NodeResolver(surface, catalog);
+      add(surface, 'root', 'Column', {children: ['a', 'a', 'a#2']});
+      add(surface, 'a', 'Text', {text: 'x'});
+      add(surface, 'a#2', 'Text', {text: 'y'});
+      const root = getValue(resolver.rootNode);
+      assert.ok(root);
+      const ids = (props(root).children as ComponentNode[]).map(n => n.instanceId);
+      assert.strictEqual(new Set(ids).size, ids.length, `collision in ${ids.join(', ')}`);
+      resolver.dispose();
+    }
+
+    // A root-scoped component literally named like a template instance,
+    // next to the template instance it mimics.
+    {
+      const surface = new SurfaceModel('surf-b', catalog);
+      const resolver = new NodeResolver(surface, catalog);
+      surface.dataModel.set('/items', [{v: 'row0'}]);
+      add(surface, 'root', 'Pane', {
+        main: 'a-[/items/0]',
+        items: {componentId: 'a', path: '/items'},
+      });
+      add(surface, 'a-[/items/0]', 'Text', {text: 'literal'});
+      add(surface, 'a', 'Text', {text: {path: 'v'}});
+      const root = getValue(resolver.rootNode);
+      assert.ok(root);
+      const rootProps = props(root);
+      const nodes = [rootProps.main, ...(rootProps.items as ComponentNode[])] as ComponentNode[];
+      const ids = nodes.map(n => n.instanceId);
+      assert.strictEqual(new Set(ids).size, ids.length, `collision in ${ids.join(', ')}`);
+      resolver.dispose();
+    }
+  });
+
+  it('keeps edges distinct when property names and component ids share delimiters', () => {
+    // Field 'a' referencing 'b>c' and field 'a>b' referencing 'c' would
+    // concatenate to the same edge key without escaping, disposing the
+    // first node the moment the second resolves.
+    const TrickyApi = {
+      name: 'Tricky',
+      schema: z.object({
+        'a': ComponentIdSchema.optional(),
+        'a>b': ComponentIdSchema.optional(),
+      }),
+    };
+    const catalog = new Catalog<ComponentApi>('tricky-catalog', [TextApi, TrickyApi], []);
+    const surface = new SurfaceModel('surf-1', catalog);
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'Tricky', {'a': 'b>c', 'a>b': 'c'});
+    add(surface, 'b>c', 'Text', {text: 'first'});
+    add(surface, 'c', 'Text', {text: 'second'});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const first = props(root)['a'] as ComponentNode;
+    const second = props(root)['a>b'] as ComponentNode;
+    assert.ok(isComponentNode(first) && isComponentNode(second));
+    assert.strictEqual(first.disposed, false);
+    assert.strictEqual(second.disposed, false);
+    assert.strictEqual(bound(first, 'text'), 'first');
+    assert.strictEqual(bound(second, 'text'), 'second');
+
+    // Both stay live: an update must reach the first node.
+    const model = surface.componentsModel.get('b>c');
+    assert.ok(model);
+    model.properties = {text: 'updated'};
+    assert.strictEqual(bound(props(root)['a'] as ComponentNode, 'text'), 'updated');
+    resolver.dispose();
+  });
+
   it('spawns one node per array item for a template child list', () => {
     const {surface, resolver} = setup();
     surface.dataModel.set('/items', [{name: 'A'}, {name: 'B'}]);
@@ -636,6 +769,138 @@ describe('NodeResolver malformed and unusual payloads', () => {
     resolver.dispose();
   });
 
+  it('dispatches UNKNOWN_COMPONENT_TYPE once per component, not per referencing edge', () => {
+    const {surface, resolver} = setup();
+    const errors: Array<Record<string, unknown>> = [];
+    surface.onError.subscribe(e => {
+      errors.push(e as Record<string, unknown>);
+    });
+    add(surface, 'weird', 'Bogus', {});
+    add(surface, 'root', 'Column', {children: ['weird', 'weird']});
+    assert.ok(getValue(resolver.rootNode));
+    assert.strictEqual(errors.filter(e => e.code === 'UNKNOWN_COMPONENT_TYPE').length, 1);
+
+    surface.componentsModel.removeComponent('weird');
+    add(surface, 'weird', 'Bogus', {});
+    assert.strictEqual(errors.filter(e => e.code === 'UNKNOWN_COMPONENT_TYPE').length, 2);
+    resolver.dispose();
+  });
+
+  // Both stale-root tests register async listeners ahead of the resolver, as
+  // any subscriber registered before it does in production: each event then
+  // delivers to the resolver only after an await, by which time the model
+  // has moved on.
+  function setupWithDelayedDelivery() {
+    const TextApi = {
+      name: 'Text',
+      schema: z.object({text: DynamicStringSchema.optional()}),
+    };
+    const catalog = new Catalog<ComponentApi>('stale-root-catalog', [TextApi], []);
+    const surface = new SurfaceModel('surf-1', catalog);
+    surface.componentsModel.onCreated.subscribe(async () => {
+      await Promise.resolve();
+    });
+    surface.componentsModel.onDeleted.subscribe(async () => {
+      await Promise.resolve();
+    });
+    add(surface, 'root', 'Text', {text: 'first'});
+    const resolver = new NodeResolver(surface, catalog);
+    return {surface, resolver};
+  }
+
+  it('does not rebuild the current root when a stale creation event arrives', async () => {
+    const {surface, resolver} = setupWithDelayedDelivery();
+    await flush();
+    const seen: Array<ComponentNode | undefined> = [];
+    const stop = effect(() => {
+      seen.push(getValue(resolver.rootNode));
+    });
+
+    // Replace the root twice in one synchronous block: the intermediate
+    // creation is stale by the time it delivers.
+    surface.componentsModel.removeComponent('root');
+    add(surface, 'root', 'Text', {text: 'intermediate'});
+    surface.componentsModel.removeComponent('root');
+    add(surface, 'root', 'Text', {text: 'final'});
+    await flush();
+
+    const instances = new Set(seen.filter(Boolean));
+    // The initially bound root plus one rebind to the final model; the stale
+    // creation must not add a dispose-and-rebuild of the already-current
+    // tree.
+    assert.strictEqual(
+      instances.size,
+      2,
+      `saw ${instances.size} distinct root nodes after replacement`,
+    );
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.strictEqual((root.toJSON() as {text: unknown}).text, 'final');
+    stop();
+    resolver.dispose();
+  });
+
+  it('does not create a phantom root from a stale creation after the root is gone', async () => {
+    const {surface, resolver} = setupWithDelayedDelivery();
+    await flush();
+    const seen: Array<ComponentNode | undefined> = [];
+    const stop = effect(() => {
+      seen.push(getValue(resolver.rootNode));
+    });
+
+    surface.componentsModel.removeComponent('root');
+    add(surface, 'root', 'Text', {text: 'brief'});
+    surface.componentsModel.removeComponent('root');
+    await flush();
+
+    // The stale creation delivers while the model has no root; nothing may
+    // surface a pending stand-in for a root that does not exist.
+    assert.ok(
+      seen.every(node => !node || !node.isPlaceholder),
+      'a placeholder root was surfaced for an absent root',
+    );
+    assert.strictEqual(getValue(resolver.rootNode), undefined);
+    stop();
+    resolver.dispose();
+  });
+
+  it('reports again after delete and re-add when the component id contains colons', () => {
+    const {surface, resolver} = setup();
+    const errors: Array<Record<string, unknown>> = [];
+    surface.onError.subscribe(e => {
+      errors.push(e as Record<string, unknown>);
+    });
+    add(surface, 'root', 'Column', {children: ['weird:x']});
+    add(surface, 'weird:x', 'Bogus', {});
+    assert.strictEqual(errors.filter(e => e.code === 'UNKNOWN_COMPONENT_TYPE').length, 1);
+
+    surface.componentsModel.removeComponent('weird:x');
+    add(surface, 'weird:x', 'Bogus', {});
+    assert.strictEqual(errors.filter(e => e.code === 'UNKNOWN_COMPONENT_TYPE').length, 2);
+    resolver.dispose();
+  });
+
+  it('reports a cycle again after it is fixed and reintroduced by a property update', () => {
+    const {surface, resolver} = setup();
+    const errors: Array<Record<string, unknown>> = [];
+    surface.onError.subscribe(e => {
+      errors.push(e as Record<string, unknown>);
+    });
+    add(surface, 'root', 'Card', {child: 'card'});
+    add(surface, 'card', 'Card', {child: 'card'});
+    add(surface, 'leaf', 'Text', {text: 'ok'});
+    assert.strictEqual(errors.filter(e => e.code === 'CYCLIC_REFERENCE').length, 1);
+
+    const cardModel = surface.componentsModel.get('card');
+    assert.ok(cardModel);
+    cardModel.properties = {child: 'leaf'};
+    assert.strictEqual(errors.filter(e => e.code === 'CYCLIC_REFERENCE').length, 1);
+
+    cardModel.properties = {child: 'card'};
+    assert.strictEqual(errors.filter(e => e.code === 'CYCLIC_REFERENCE').length, 2);
+    resolver.dispose();
+  });
+
   it('keeps a stable placeholder for a component whose type is not in the catalog', () => {
     const {surface, resolver} = setup();
     const errors: Array<Record<string, unknown>> = [];
@@ -648,8 +913,13 @@ describe('NodeResolver malformed and unusual payloads', () => {
     const root = getValue(resolver.rootNode);
     assert.ok(root);
     const placeholder = child(root, 'child');
-    assert.strictEqual(placeholder.type, PLACEHOLDER_TYPE);
+    assert.strictEqual(placeholder.type, 'Bogus');
     assert.strictEqual(placeholder.state, 'unknown-type');
+    assert.deepStrictEqual(placeholder.toJSON(), {
+      id: 'weird',
+      type: 'Bogus',
+      state: 'unknown-type',
+    });
     const reportsBefore = errors.filter(e => e.code === 'UNKNOWN_COMPONENT_TYPE').length;
 
     const rootModel = surface.componentsModel.get('root');
@@ -662,6 +932,106 @@ describe('NodeResolver malformed and unusual payloads', () => {
       errors.filter(e => e.code === 'UNKNOWN_COMPONENT_TYPE').length,
       reportsBefore,
     );
+    resolver.dispose();
+  });
+});
+
+describe('NodeResolver absent dynamic properties', () => {
+  it('represents omitted dynamic properties as read-only bindings at every level', () => {
+    const GroupApi = {
+      name: 'Group',
+      schema: z.object({
+        title: DynamicStringSchema.optional(),
+        group: z
+          .object({
+            value: DynamicStringSchema.optional(),
+            label: z.string().optional(),
+          })
+          .optional(),
+      }),
+    };
+    const catalog = new Catalog<ComponentApi>('group-catalog', [GroupApi], []);
+    const surface = new SurfaceModel('surf-1', catalog);
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'Group', {group: {label: 'x'}});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const rootProps = props(root);
+    const title = rootProps.title;
+    assert.ok(title instanceof ResolvedBinding && !isWritable(title));
+    assert.strictEqual(title.value, undefined);
+    const group = rootProps.group as Record<string, unknown>;
+    const value = group.value;
+    assert.ok(value instanceof ResolvedBinding && !isWritable(value), 'nested omitted dynamic');
+    assert.strictEqual(value.value, undefined);
+    assert.strictEqual(group.label, 'x');
+    resolver.dispose();
+  });
+});
+
+describe('NodeResolver child markers survive schema description', () => {
+  it('resolves a child whose componentId schema was described', () => {
+    const Api = {
+      name: 'DescribedCard',
+      schema: z.object({child: ComponentIdSchema.describe('The child to show.').optional()}),
+    };
+    const TextApi = {name: 'Text', schema: z.object({text: DynamicStringSchema.optional()})};
+    const catalog = new Catalog<ComponentApi>('described-catalog', [Api, TextApi], []);
+    const surface = new SurfaceModel('surf-1', catalog);
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'DescribedCard', {child: 'kid'});
+    add(surface, 'kid', 'Text', {text: 'child text'});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const child = props(root).child;
+    assert.ok(isComponentNode(child), 'expected a resolved child node');
+    assert.strictEqual((child as ComponentNode).componentId, 'kid');
+    resolver.dispose();
+  });
+
+  it('resolves a child list whose schema was described', () => {
+    const Api = {
+      name: 'DescribedColumn',
+      schema: z.object({children: ChildListSchema.describe('The children.').optional()}),
+    };
+    const TextApi = {name: 'Text', schema: z.object({text: DynamicStringSchema.optional()})};
+    const catalog = new Catalog<ComponentApi>('described-catalog', [Api, TextApi], []);
+    const surface = new SurfaceModel('surf-1', catalog);
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'DescribedColumn', {children: ['a', 'b']});
+    add(surface, 'a', 'Text', {text: 'one'});
+    add(surface, 'b', 'Text', {text: 'two'});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const children = props(root).children as ComponentNode[];
+    assert.strictEqual(children.length, 2);
+    assert.ok(children.every(isComponentNode));
+    resolver.dispose();
+  });
+
+  it('still recognizes a hand-authored REF description', () => {
+    const Api = {
+      name: 'HandAuthored',
+      schema: z.object({
+        child: z
+          .string()
+          .describe('REF:common_types.json#/$defs/ComponentId|Authored by hand.')
+          .optional(),
+      }),
+    };
+    const TextApi = {name: 'Text', schema: z.object({text: DynamicStringSchema.optional()})};
+    const catalog = new Catalog<ComponentApi>('hand-catalog', [Api, TextApi], []);
+    const surface = new SurfaceModel('surf-1', catalog);
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'HandAuthored', {child: 'kid'});
+    add(surface, 'kid', 'Text', {text: 'x'});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.ok(isComponentNode(props(root).child), 'expected a resolved child node');
     resolver.dispose();
   });
 });
@@ -699,6 +1069,27 @@ describe('NodeResolver resolved bindings (write path)', () => {
     resolver.dispose();
   });
 
+  it('rebinding a prop to a new path replaces the binding even when values are equal', () => {
+    const {surface, resolver} = setup();
+    surface.dataModel.set('/a', 'same');
+    surface.dataModel.set('/b', 'same');
+    add(surface, 'root', 'Text', {text: {path: '/a'}});
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+
+    surface.componentsModel.get('root')!.properties = {text: {path: '/b'}};
+
+    const binding = props(root).text as ResolvedBinding<unknown>;
+    if (!isWritable(binding)) {
+      assert.fail('expected a writable binding');
+    }
+    assert.strictEqual(binding.path, '/b');
+    binding.set('written');
+    assert.strictEqual(surface.dataModel.get('/b'), 'written');
+    assert.strictEqual(surface.dataModel.get('/a'), 'same');
+    resolver.dispose();
+  });
+
   it("writes through a template item binding to that item's scoped path", () => {
     const {surface, resolver} = setup();
     surface.dataModel.set('/items', [{name: 'A'}, {name: 'B'}]);
@@ -726,6 +1117,120 @@ describe('NodeResolver resolved bindings (write path)', () => {
     const root = getValue(resolver.rootNode);
     assert.ok(root);
     assert.deepStrictEqual(root.toJSON(), {id: 'root', type: 'Text', text: 'alice'});
+    resolver.dispose();
+  });
+});
+
+describe('NodeResolver stale event delivery', () => {
+  it('reconciles events emitted before construction but delivered after', async () => {
+    const catalog = makeCatalog();
+    const surface = new SurfaceModel('surf-1', catalog);
+    add(surface, 'root', 'Text', {text: 'original'});
+    // Model events deliver to each listener in turn, awaiting async
+    // listeners, so this delayer forces later subscribers to receive the
+    // deletion after further mutations have happened.
+    surface.componentsModel.onDeleted.subscribe(async () => {
+      await flush();
+    });
+    surface.componentsModel.removeComponent('root');
+    add(surface, 'root', 'Text', {text: 'fresh'});
+
+    const resolver = new NodeResolver(surface, catalog);
+    await flush();
+    await flush();
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.strictEqual(root.disposed, false);
+    assert.strictEqual(bound(root, 'text'), 'fresh');
+    resolver.dispose();
+  });
+
+  it('replaces an unknown-type node whose component was replaced before a delayed deletion delivery', async () => {
+    const catalog = makeCatalog();
+    const surface = new SurfaceModel('surf-1', catalog);
+    surface.componentsModel.onDeleted.subscribe(async () => {
+      await flush();
+    });
+    const resolver = new NodeResolver(surface, catalog);
+    const errors: Array<Record<string, unknown>> = [];
+    surface.onError.subscribe(e => {
+      errors.push(e as Record<string, unknown>);
+    });
+    add(surface, 'root', 'Card', {child: 'weird'});
+    add(surface, 'weird', 'Bogus', {});
+    assert.strictEqual(errors.filter(e => e.code === 'UNKNOWN_COMPONENT_TYPE').length, 1);
+
+    surface.componentsModel.removeComponent('weird');
+    add(surface, 'weird', 'Bogus2', {});
+    await flush();
+    await flush();
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const node = child(root, 'child');
+    assert.strictEqual(node.type, 'Bogus2');
+    assert.strictEqual(node.state, 'unknown-type');
+    assert.strictEqual(errors.filter(e => e.code === 'UNKNOWN_COMPONENT_TYPE').length, 2);
+    resolver.dispose();
+  });
+
+  it('keeps waiting for a component whose add and remove both preceded a delayed delivery', async () => {
+    const catalog = makeCatalog();
+    const surface = new SurfaceModel('surf-1', catalog);
+    surface.componentsModel.onCreated.subscribe(async () => {
+      await flush();
+    });
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'Column', {children: ['kid']});
+    await flush();
+    await flush();
+
+    // The delayed onCreated delivery clears the waiting registration; the
+    // deletion then reuses the pending placeholder. A later legitimate add
+    // must still upgrade it.
+    add(surface, 'kid', 'Text', {text: 'one'});
+    surface.componentsModel.removeComponent('kid');
+    await flush();
+    await flush();
+    add(surface, 'kid', 'Text', {text: 'two'});
+    await flush();
+    await flush();
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const kid = child(root, 'children', 0);
+    assert.strictEqual(kid.state, 'resolved');
+    assert.strictEqual(bound(kid, 'text'), 'two');
+    resolver.dispose();
+  });
+
+  it('rebinds a child node whose component model was replaced before a delayed deletion delivery', async () => {
+    const catalog = makeCatalog();
+    const surface = new SurfaceModel('surf-1', catalog);
+    surface.componentsModel.onDeleted.subscribe(async () => {
+      await flush();
+    });
+    const resolver = new NodeResolver(surface, catalog);
+    add(surface, 'root', 'Card', {child: 'leaf'});
+    add(surface, 'leaf', 'Text', {text: 'old'});
+
+    surface.componentsModel.removeComponent('leaf');
+    add(surface, 'leaf', 'Text', {text: 'new'});
+    await flush();
+    await flush();
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const leaf = child(root, 'child');
+    assert.strictEqual(leaf.disposed, false);
+    assert.strictEqual(bound(leaf, 'text'), 'new');
+
+    // The node must be bound to the current model, not the replaced one.
+    const leafModel = surface.componentsModel.get('leaf');
+    assert.ok(leafModel);
+    leafModel.properties = {text: 'updated'};
+    assert.strictEqual(bound(child(root, 'child'), 'text'), 'updated');
     resolver.dispose();
   });
 });
