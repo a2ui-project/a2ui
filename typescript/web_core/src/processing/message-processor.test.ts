@@ -1411,5 +1411,102 @@ describe('MessageProcessor', () => {
         }),
       );
     });
+
+    it('leaves componentsModel untouched when updateComponents fails topology validation', () => {
+      const proc = new MessageProcessor([basicCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      // 1. Initial valid surface
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's_atomic',
+          catalogId: 'https://a2ui.org/catalog',
+          components: [
+            {id: 'root', component: 'Column', children: ['c1']},
+            {id: 'c1', component: 'Text', text: 'Initial Child'},
+          ],
+        },
+      });
+
+      const surface = proc.getSurface('s_atomic')!;
+      assert.strictEqual(surface.componentsModel.size, 2);
+
+      // Track whether any update/create events are fired
+      let eventFired = false;
+      surface.componentsModel.onCreated.subscribe(() => {
+        eventFired = true;
+      });
+
+      // 2. Send update that introduces an orphan component (failing topology validation)
+      assert.throws(
+        () =>
+          proc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's_atomic',
+              components: [
+                {id: 'root', component: 'Column', children: ['c1']},
+                {id: 'c1', component: 'Text', text: 'Updated Child'},
+                {id: 'orphan_comp', component: 'Text', text: 'Unreachable'},
+              ],
+            },
+          }),
+        (err: any) => err instanceof A2uiIntegrityError && err.message.includes('not reachable'),
+      );
+
+      // 3. Verify that componentsModel was NOT mutated and no events fired
+      assert.strictEqual(surface.componentsModel.size, 2);
+      assert.strictEqual(surface.componentsModel.has('orphan_comp'), false);
+      assert.strictEqual(
+        surface.componentsModel.get('c1')?.properties.text,
+        'Initial Child', // Not updated to 'Updated Child'
+      );
+      assert.strictEqual(eventFired, false);
+    });
+
+    it('leaves componentsModel untouched when updateComponents introduces a circular reference', () => {
+      const proc = new MessageProcessor([basicCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's_cycle',
+          catalogId: 'https://a2ui.org/catalog',
+          components: [
+            {id: 'root', component: 'Column', children: ['c1']},
+            {id: 'c1', component: 'Text', text: 'Child'},
+          ],
+        },
+      });
+
+      const surface = proc.getSurface('s_cycle')!;
+
+      // Attempt to create a cycle (c1 -> c2 -> c1)
+      assert.throws(
+        () =>
+          proc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's_cycle',
+              components: [
+                {id: 'root', component: 'Column', children: ['c1']},
+                {id: 'c1', component: 'Column', children: ['c2']},
+                {id: 'c2', component: 'Column', children: ['c1']},
+              ],
+            },
+          }),
+        (err: any) =>
+          err instanceof A2uiRecursionError && err.message.includes('Circular reference'),
+      );
+
+      // Verify that componentsModel remains in the pre-update state
+      assert.strictEqual(surface.componentsModel.size, 2);
+      assert.strictEqual(surface.componentsModel.has('c2'), false);
+      assert.strictEqual(surface.componentsModel.get('c1')?.type, 'Text');
+    });
   });
 });

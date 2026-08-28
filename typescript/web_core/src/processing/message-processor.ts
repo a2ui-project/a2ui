@@ -18,6 +18,7 @@ import {SurfaceModel, ActionListener} from '../state/surface-model.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
 import {ComponentModel} from '../state/component-model.js';
+import {SurfaceComponentsModel} from '../state/surface-components-model.js';
 import {Subscription} from '../common/events.js';
 import {zodToJsonSchema} from 'zod-to-json-schema';
 import {z} from 'zod';
@@ -557,6 +558,7 @@ export class MessageProcessor<T extends ComponentApi> {
     }
 
     this.validateCompositionConstraints(surface, op.components);
+    this.validateCandidateTopology(surface, op.components);
 
     // 2. Mutation pass: apply state updates
     for (const comp of op.components) {
@@ -592,10 +594,6 @@ export class MessageProcessor<T extends ComponentApi> {
         const newComponent = new ComponentModel(id, component, properties, targetCatalog);
         surface.componentsModel.addComponent(newComponent);
       }
-    }
-
-    if (this.validationConfig) {
-      surface.componentsModel.validateTopology(this.validationConfig);
     }
   }
 
@@ -690,7 +688,6 @@ export class MessageProcessor<T extends ComponentApi> {
         }
       }
 
-      // Child constraint validation
       if (componentApi.allowedChildren && componentApi.allowedChildren.length > 0) {
         const children = childMap.get(id) || [];
         for (const childId of children) {
@@ -703,5 +700,57 @@ export class MessageProcessor<T extends ComponentApi> {
         }
       }
     }
+  }
+
+  private validateCandidateTopology(
+    surface: SurfaceModel<T>,
+    newComponents: Array<Record<string, unknown>>,
+  ): void {
+    if (!this.validationConfig) return;
+
+    const candidateModel = new SurfaceComponentsModel(surface.catalog);
+    for (const [id, comp] of surface.componentsModel.entries) {
+      candidateModel.addComponent(
+        new ComponentModel(id, comp.type, comp.properties, comp.catalog as Catalog<T>),
+      );
+    }
+
+    for (const comp of newComponents) {
+      const {id, component, ...properties} = comp;
+      if (typeof id !== 'string' || !id) continue;
+
+      const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
+      let targetCatalog = surface.catalog;
+      if (typeof rawCatalogId === 'string' && rawCatalogId) {
+        const found = this.catalogs.find(c => c.id === rawCatalogId);
+        if (found) {
+          targetCatalog = found;
+        }
+      }
+
+      const existing = candidateModel.get(id);
+      const componentType = (typeof component === 'string' ? component : existing?.type) || '';
+      if (!componentType) continue;
+
+      if (existing) {
+        if (
+          componentType !== existing.type ||
+          (rawCatalogId && existing.catalog?.id !== targetCatalog.id)
+        ) {
+          candidateModel.removeComponent(id);
+          candidateModel.addComponent(
+            new ComponentModel(id, componentType, properties, targetCatalog),
+          );
+        } else {
+          existing.properties = properties;
+        }
+      } else {
+        candidateModel.addComponent(
+          new ComponentModel(id, componentType, properties, targetCatalog),
+        );
+      }
+    }
+
+    candidateModel.validateTopology(this.validationConfig);
   }
 }
