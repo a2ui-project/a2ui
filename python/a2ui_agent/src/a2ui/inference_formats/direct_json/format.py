@@ -88,7 +88,6 @@ class DirectJsonFormat(InferenceFormat):
             default_catalog = self._supported_catalogs[0]
             self._parser = DirectJsonParser(
                 default_catalog,
-                default_catalog.validator,
             )
         return self._parser
 

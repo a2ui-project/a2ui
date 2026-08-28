@@ -33,11 +33,10 @@ from ...schema.v0_9.common_types import (
     DynamicStringList,
     DynamicValue,
     FunctionCall,
-    ListReference,
-    SingleReference,
     StrictBaseModel,
     TemplateChildList,
 )
+from ...schema.common_types import ListReference, SingleReference
 from ...catalog.components import ModelComponentApi
 
 

@@ -27,8 +27,9 @@ from a2ui.core.basic_catalog import BasicCatalog
 
 
 def test_component_context_from_surface():
-    surface = SurfaceModel("s1", BasicCatalog(), theme={"primaryColor": "#123456"})
-    c1 = ComponentModel("c1", "Button", {"label": "Click"})
+    cat = BasicCatalog()
+    surface = SurfaceModel("s1", cat, theme={"primaryColor": "#123456"})
+    c1 = ComponentModel("c1", "Button", cat, {"label": "Click"})
     surface.components_model.add_component(c1)
 
     ctx = ComponentContext.from_surface(surface, "c1")
@@ -50,7 +51,8 @@ def test_component_context_from_surface():
 
 
 def test_data_context_resolve_action():
-    surface = SurfaceModel("s1", BasicCatalog())
+    cat = BasicCatalog()
+    surface = SurfaceModel("s1", cat)
     surface.data_model.set("/username", "Alice")
 
     ctx = DataContext(surface=surface)
@@ -73,7 +75,8 @@ def test_data_context_resolve_action():
 
 
 def test_data_context_missing_binding_warning():
-    surface = SurfaceModel("s1", BasicCatalog())
+    cat = BasicCatalog()
+    surface = SurfaceModel("s1", cat)
     ctx = DataContext(surface)
     with pytest.warns(MissingDataBindingWarning, match="does not physically exist"):
         val = ctx.resolve_dynamic_value({"path": "/missing/pointer"})
@@ -81,12 +84,14 @@ def test_data_context_missing_binding_warning():
 
 
 def test_generic_binder_reactive_checks():
-    surface = SurfaceModel("s1", BasicCatalog())
+    cat = BasicCatalog()
+    surface = SurfaceModel("s1", cat)
     surface.data_model.set("/score", 50)
 
     c1 = ComponentModel(
         "c1",
         "NumberInput",
+        cat,
         {
             "value": {"path": "/score"},
             "checks": [{
@@ -119,7 +124,8 @@ def test_generic_binder_reactive_checks():
 def test_data_context_relative_scoping():
     data_model = DataModel()
     data_model.set("/users/0/name", "Alice")
-    surface = SurfaceModel("s1", BasicCatalog(), data_model=data_model)
+    cat = BasicCatalog()
+    surface = SurfaceModel("s1", cat, data_model=data_model)
 
     # Root context
     root_ctx = DataContext(surface, path="/")
@@ -134,7 +140,8 @@ def test_data_context_relative_scoping():
 
 def test_resolve_dynamic_values():
     data_model = DataModel({"user": {"name": "Bob", "age": 25}})
-    surface = SurfaceModel("s1", BasicCatalog(), data_model=data_model)
+    cat = BasicCatalog()
+    surface = SurfaceModel("s1", cat, data_model=data_model)
     ctx = DataContext(surface, path="/")
 
     # 1. Literal
@@ -159,7 +166,8 @@ def test_string_interpolation_format_string():
     from a2ui.core.basic_catalog import BasicCatalog
 
     data_model = DataModel({"user": {"name": "Charlie"}})
-    surface = SurfaceModel("s1", BasicCatalog(), data_model=data_model)
+    cat = BasicCatalog()
+    surface = SurfaceModel("s1", cat, data_model=data_model)
     ctx = DataContext(surface, path="/")
 
     # Test basic formatString execution
@@ -173,7 +181,8 @@ def test_string_interpolation_with_escapes():
     from a2ui.core.basic_catalog import BasicCatalog
 
     data_model = DataModel({"user": {"name": "Charlie"}})
-    surface = SurfaceModel("s1", BasicCatalog(), data_model=data_model)
+    cat = BasicCatalog()
+    surface = SurfaceModel("s1", cat, data_model=data_model)
     ctx = DataContext(surface, path="/")
 
     # Escaped block resolving to literal string
@@ -187,9 +196,10 @@ def test_string_interpolation_with_escapes():
 
 
 def test_generic_binder_reactive_property_changes():
+    cat = BasicCatalog()
     data_model = DataModel({"item": {"title": "Original"}})
-    comp = ComponentModel("text_1", "Text", {"text": {"path": "item/title"}})
-    surface = SurfaceModel("s1", BasicCatalog(), data_model=data_model)
+    comp = ComponentModel("text_1", "Text", cat, {"text": {"path": "item/title"}})
+    surface = SurfaceModel("s1", cat, data_model=data_model)
     ctx = DataContext(surface, path="/")
     context = ComponentContext(comp, ctx)
 
@@ -204,10 +214,12 @@ def test_generic_binder_reactive_property_changes():
 
 
 def test_generic_binder_checks_validation():
+    cat = BasicCatalog()
     data_model = DataModel({"checkbox_state": False})
     comp = ComponentModel(
         "btn_1",
         "Button",
+        cat,
         {
             "checks": [{
                 "condition": {"path": "/checkbox_state"},
@@ -215,7 +227,8 @@ def test_generic_binder_checks_validation():
             }]
         },
     )
-    surface = SurfaceModel("s1", BasicCatalog(), data_model=data_model)
+    cat = BasicCatalog()
+    surface = SurfaceModel("s1", cat, data_model=data_model)
     ctx = DataContext(surface, path="/")
     context = ComponentContext(comp, ctx)
 
@@ -289,7 +302,8 @@ def test_string_interpolation_complex_execution():
                 lambda args, context, abort_signal=None: _format_string(args, context)
             )
 
-    surface = SurfaceModel("s1", MockCatalog(), data_model=data_model)
+    cat1 = MockCatalog()
+    surface = SurfaceModel("s1", cat1, data_model=data_model)
     ctx = DataContext(surface, path="/")
     expr = {"call": "formatString", "args": {"value": "Calculated: ${add(a: 5, b: 7)}"}}
 
@@ -317,7 +331,8 @@ def test_subscribe_dynamic_value_chained_functions():
                 else args.get("value", "")
             )
 
-    surface = SurfaceModel("s1", StringFunctionsCatalog(), data_model=data_model)
+    cat2 = StringFunctionsCatalog()
+    surface = SurfaceModel("s1", cat2, data_model=data_model)
     ctx = DataContext(surface, path="/")
 
     # Chained expression: Capitalize(Trim(DataModelSubscription(path: /user/name)))
@@ -379,7 +394,8 @@ def test_subscribe_dynamic_value_streaming_function():
             return stream
 
     data_model = DataModel()
-    surface = SurfaceModel("s1", StreamingFunctionsCatalog(), data_model=data_model)
+    cat3 = StreamingFunctionsCatalog()
+    surface = SurfaceModel("s1", cat3, data_model=data_model)
     ctx = DataContext(surface, path="/")
 
     expr = {"call": "metronome", "args": {"interval": 0.01}}
@@ -415,7 +431,8 @@ def test_data_context_expression_error_dispatching():
                 return lambda args, ctx, abort: 1 / 0
             return super().get_function(name)
 
-    surface = SurfaceModel("s1", FailingCatalog())
+    cat4 = FailingCatalog()
+    surface = SurfaceModel("s1", cat4)
     surface.on_error.subscribe(lambda err: errors.append(err))
     ctx = DataContext(surface, path="/")
 

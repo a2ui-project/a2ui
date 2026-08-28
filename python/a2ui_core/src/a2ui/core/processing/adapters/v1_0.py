@@ -20,6 +20,7 @@ from ...schema.v1_0 import (
     MSG_TYPE_DELETE_SURFACE,
     MSG_TYPE_UPDATE_COMPONENTS,
     MSG_TYPE_UPDATE_DATA_MODEL,
+    AgentToRendererMessageListWrapper,
 )
 from ..operations import (
     InternalCreateSurfaceOp,
@@ -36,6 +37,10 @@ class V1Point0Adapter(BaseVersionAdapter):
     @property
     def version(self) -> ProtocolVersion:
         return ProtocolVersion.V1_0
+
+    @property
+    def schema(self) -> Any:
+        return AgentToRendererMessageListWrapper
 
     @property
     def valid_actions(self) -> Set[str]:

@@ -12,15 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union, cast
 
 from ..state import SurfaceGroupModel, SurfaceModel, ComponentModel
-from ..validating import A2uiValidator, CatalogSchemaValidator, ValidationConfig, STRICT_VALIDATION
+from ..validation import (
+    PayloadValidator,
+    ValidationConfig,
+    STRICT_VALIDATION,
+)
 from ..catalog import Catalog
 from ..catalog.catalog import TComponent, TFunction
 from ..exceptions import (
     A2uiCatalogError,
     A2uiError,
+    A2uiErrorDetail,
     A2uiIntegrityError,
     A2uiValidationError,
 )
@@ -36,42 +42,24 @@ from .operations import (
 
 
 class MessageProcessor:
-    """The central logic controller for parsing protocol updates and mutating active state trees."""
+    """Core state engine that validates payloads, manages surfaces, and applies mutation ops."""
 
     def __init__(
         self,
-        catalogs: List[Catalog[TComponent, TFunction]],
+        catalogs: Optional[List[Catalog[TComponent, TFunction]]] = None,
+        validation_config: Optional[ValidationConfig] = None,
         action_handler: Optional[Callable[[Dict[str, Any]], None]] = None,
-        strict_mode: bool = False,
-    ):
+    ) -> None:
         if not catalogs:
             raise ValueError("At least one catalog must be provided.")
         self.catalogs = catalogs
-        self.strict_mode = strict_mode
         self.model = SurfaceGroupModel()
-        self.validator = A2uiValidator()
+        self.validation_config = validation_config
         if action_handler:
             self.model.on_action.subscribe(action_handler)
 
     def process_messages(self, messages: AgentToRendererMessagePayload) -> None:
         """Accepts a list of parsed JSON messages and executes them in order."""
-        raw_payload: Any = messages
-        if hasattr(raw_payload, "model_dump"):
-            raw_payload = raw_payload.model_dump(by_alias=True, exclude_none=True)
-
-        if isinstance(raw_payload, dict):
-            if "messages" in raw_payload and isinstance(raw_payload["messages"], list):
-                message_list = raw_payload["messages"]
-            else:
-                message_list = [raw_payload]
-        elif isinstance(raw_payload, list):
-            message_list = raw_payload
-        else:
-            message_list = [raw_payload]
-
-        if self.strict_mode:
-            self.validator.validate_protocol_envelope(message_list)
-
         adapter = VersionAdapterFactory.resolve_from_payload(messages)
         operations = adapter.extract_operations(messages)
         for op in operations:
@@ -102,10 +90,10 @@ class MessageProcessor:
 
         return capabilities
 
-    def get_client_data_model(
+    def get_renderer_data_model(
         self, version: Union[str, ProtocolVersion] = ProtocolVersion.V0_9
     ) -> Optional[Dict[str, Any]]:
-        """Aggregates active client data models for sync metadata."""
+        """Aggregates active renderer data models for sync metadata."""
         surfaces = {}
         for surface in self.model.surfaces.values():
             if surface.send_data_model:
@@ -136,37 +124,43 @@ class MessageProcessor:
         theme = op.theme or {}
         send_data_model = op.send_data_model
 
-        # Find matching catalog definition
-        catalog = None
         if catalog_id:
+            matched_catalog = None
             for cat in self.catalogs:
-                if hasattr(cat, "catalog_id") and cat.catalog_id == catalog_id:
-                    catalog = cat
+                if getattr(cat, "catalog_id", None) == catalog_id:
+                    matched_catalog = cat
                     break
-            if not catalog:
+            if not matched_catalog:
                 raise A2uiCatalogError(f"Catalog not found: {catalog_id}")
+            surface_catalog = matched_catalog
         elif self.catalogs:
-            catalog = self.catalogs[0]
+            # v0.8 fallback: catalog_id is missing -> default to registered catalogs
+            surface_catalog = self.catalogs[0]
         else:
             raise A2uiCatalogError("No default catalog available for surface.")
 
         if self.model.get_surface(surface_id):
             raise A2uiIntegrityError(f"Surface {surface_id} already exists.")
 
-        if self.strict_mode and theme:
+        if theme:
             try:
-                CatalogSchemaValidator.from_catalog(catalog).validate_theme(theme)
+                PayloadValidator(
+                    catalog=surface_catalog,
+                    config=self.validation_config,
+                ).validate_theme(theme)
             except Exception as e:
                 raise A2uiValidationError(
                     f"Validation failed for theme on surface '{surface_id}': {e}"
-                )
+                ) from e
 
         new_surface = SurfaceModel(
             surface_id=surface_id,
-            catalog=catalog,
+            default_catalog=surface_catalog,
             theme=theme,
             send_data_model=send_data_model,
         )
+        if op.root:
+            new_surface.root_id = op.root
         self.model.add_surface(new_surface)
 
         if op.components is not None:
@@ -191,60 +185,85 @@ class MessageProcessor:
                 f"Surface not found for message: {surface_id}. Surface {surface_id} not"
                 " found for components update."
             )
-        catalog = surface.catalog
-        if not catalog:
-            raise A2uiCatalogError(
-                f"Catalog for surface {surface_id} not found for components update."
-            )
 
         components = op.components
         if not isinstance(components, list):
             raise A2uiValidationError("Components payload must be a list.")
 
-        if self.strict_mode:
-            try:
-                self.validator.validate_components(
-                    CatalogSchemaValidator.from_catalog(catalog),
-                    components,
-                    config=STRICT_VALIDATION,
-                )
-            except Exception as e:
-                comp_types = [
-                    c.get("component")
-                    for c in components
-                    if isinstance(c, dict) and c.get("component")
-                ]
-                comp_str = ", ".join(f"'{t}'" for t in comp_types if t)
-                raise A2uiValidationError(
-                    f"Validation failed for component {comp_str}: {e}"
-                )
-
+        component_catalogs: Dict[str, Catalog[Any, Any]] = {}
         for comp in components:
-            comp_id = comp.get("id")
+            comp_dict = (
+                comp
+                if isinstance(comp, dict)
+                else comp.model_dump(by_alias=True, exclude_none=True)
+                if hasattr(comp, "model_dump")
+                else cast(Dict[str, Any], comp)
+            )
+            comp_id = comp_dict.get("id")
             if not comp_id:
                 raise A2uiValidationError(
                     "Component update payload is missing an 'id' / missing required"
                     " 'id' field."
                 )
-            comp_type = comp.get("component")
-
-            # Strip id and component envelope to isolate properties
-            properties = {k: v for k, v in comp.items() if k not in ("id", "component")}
+            comp_cat_id = comp_dict.get("catalogId")
+            if comp_cat_id:
+                matched_catalog = None
+                for cat in self.catalogs:
+                    if getattr(cat, "catalog_id", None) == comp_cat_id:
+                        matched_catalog = cat
+                        break
+                if not matched_catalog:
+                    raise A2uiCatalogError(f"Catalog not found: {comp_cat_id}")
+                component_catalogs[comp_id] = matched_catalog
 
             existing = surface.components_model.get(comp_id)
+            comp_type = comp_dict.get("component")
+            if not existing and not comp_type:
+                raise A2uiValidationError(
+                    f"Cannot create component {comp_id} without a type."
+                )
+
+        new_component_models: List[ComponentModel] = []
+        for comp in components:
+            comp_dict = (
+                comp
+                if isinstance(comp, dict)
+                else comp.model_dump(by_alias=True, exclude_none=True)
+                if hasattr(comp, "model_dump")
+                else cast(Dict[str, Any], comp)
+            )
+            c_id = cast(str, comp_dict.get("id"))
+            existing = surface.components_model.get(c_id)
+            c_type = cast(
+                str, comp_dict.get("component") or (existing.type if existing else "")
+            )
+
+            properties = {
+                k: v
+                for k, v in comp_dict.items()
+                if k not in ("id", "component", "catalogId")
+            }
+
+            comp_catalog = component_catalogs.get(c_id, surface.default_catalog)
+            new_comp = ComponentModel(c_id, c_type, comp_catalog, properties)
+            new_component_models.append(new_comp)
+
+        surface.components_model.validate_components_update(
+            new_component_models,
+            root_id=surface.root_id or "root",
+            config=self.validation_config,
+        )
+
+        for new_comp in new_component_models:
+            existing = surface.components_model.get(new_comp.id)
             if existing:
-                if comp_type and comp_type != existing.type:
-                    surface.components_model.remove_component(comp_id)
-                    new_comp = ComponentModel(comp_id, comp_type, properties)
+                if existing.type != new_comp.type:
+                    surface.components_model.remove_component(new_comp.id)
                     surface.components_model.add_component(new_comp)
                 else:
-                    existing.properties = properties
+                    existing.catalog = new_comp.catalog
+                    existing.properties = new_comp.properties
             else:
-                if not comp_type:
-                    raise A2uiValidationError(
-                        f"Cannot create component {comp_id} without a type."
-                    )
-                new_comp = ComponentModel(comp_id, comp_type, properties)
                 surface.components_model.add_component(new_comp)
 
     def _process_update_data_model_op(self, op: InternalUpdateDataModelOp) -> None:

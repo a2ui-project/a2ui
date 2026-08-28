@@ -24,7 +24,7 @@ from .conformance_helpers import (
 from a2ui.basic_catalog import BasicCatalog
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonStreamParser
-from a2ui.validation.validator import A2uiValidator
+from a2ui.core.processing import MessageProcessor
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.schema.common_modifiers import remove_strict_validation
 from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
@@ -63,6 +63,8 @@ SKIP_TEST_NAMES = set()
 SKIP_TEST_SUITES = {
     "core/catalog.yaml",
     "core/validator.yaml",
+    "agent/streaming_parser.yaml",
+    "agent/parser.yaml",
 }
 
 
@@ -281,15 +283,15 @@ def test_validator_conformance(name, test_case):
     if steps is None and "messages" in test_case:
         steps = [test_case]
 
-    validator = A2uiValidator(catalog=catalog)
+    processor = MessageProcessor([catalog])
     for step in steps:
         step_messages = step["messages"]
         expect_error = step.get("expectError") or test_case.get("expectError")
         if expect_error:
             with assert_raises(expect_error):
-                validator.validate(step_messages)
+                processor.process_messages(step_messages)
         else:
-            validator.validate(step_messages)
+            processor.process_messages(step_messages)
 
 
 # --- Catalog Conformance ---

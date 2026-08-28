@@ -14,7 +14,7 @@
 
 import copy
 import warnings
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Generic, List, Optional, Union, cast
 from ..common.events import EventSource
 from .data_model import DataModel
 from .surface_components_model import SurfaceComponentsModel
@@ -22,24 +22,25 @@ from ..catalog import Catalog
 from ..catalog.catalog import TComponent, TFunction
 
 
-class SurfaceModel:
+class SurfaceModel(Generic[TComponent, TFunction]):
     """Represents a single active UI Surface state tree."""
 
     def __init__(
         self,
         surface_id: str,
-        catalog: Catalog[TComponent, TFunction],
+        default_catalog: Catalog[TComponent, TFunction],
         theme: Optional[Dict[str, Any]] = None,
         send_data_model: bool = False,
         data_model: Optional[DataModel] = None,
     ) -> None:
         self.id = surface_id
-        self.catalog = catalog
+        self.default_catalog = default_catalog
         self.theme = theme or {}
         self.send_data_model = send_data_model
 
         self.data_model = data_model or DataModel()
         self.components_model = SurfaceComponentsModel()
+        self.root_id: Optional[str] = None
         self.on_action = EventSource()
         self.on_error = EventSource()
 
@@ -72,8 +73,16 @@ class SurfaceModel:
     def dispatch_error(self, error: Dict[str, Any]) -> None:
         """Dispatches an error from this surface to listeners."""
         err_payload = copy.deepcopy(error)
-        err_payload["surfaceId"] = self.id
+        if "surfaceId" not in err_payload:
+            err_payload["surfaceId"] = self.id
         self.on_error.emit(err_payload)
+
+    @property
+    def catalogs(self) -> Dict[str, Catalog[TComponent, TFunction]]:
+        res: Dict[str, Catalog[TComponent, TFunction]] = {}
+        for comp in self.components_model.get_all().values():
+            res[comp.id] = cast(Catalog[TComponent, TFunction], comp.catalog)
+        return res
 
     def dispose(self) -> None:
         """Disposes of the surface and its resources."""

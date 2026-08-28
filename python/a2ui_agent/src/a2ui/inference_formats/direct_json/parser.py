@@ -18,7 +18,6 @@ from typing import List, Optional, Any
 from a2ui.parser.parser import Parser
 from a2ui.parser.response_part import ResponsePart
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.validation.validator import A2uiValidator
 from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
 from a2ui.core import A2uiParseError
 from a2ui.parser.payload_fixer import parse_and_fix
@@ -73,19 +72,13 @@ def unwrap_response(content: str) -> List[ResponsePart]:
 class DirectJsonParser(Parser):
     """Concrete parser implementation for standard A2UI JSON schema responses (Direct JSON Format)."""
 
-    def __init__(
-        self,
-        catalog: A2uiCatalog,
-        validator: Optional[A2uiValidator] = None,
-    ):
+    def __init__(self, catalog: A2uiCatalog):
         """Initializes the DirectJsonParser.
 
         Args:
             catalog: The A2uiCatalog mapping schema identifiers.
-            validator: Optional validator for payload verification.
         """
         self._catalog = catalog
-        self._validator = validator
         self._stream_parser: Optional[Any] = None
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
@@ -118,8 +111,7 @@ class DirectJsonParser(Parser):
             A list of compiled A2UI message dictionaries.
         """
         json_data = parse_and_fix(format_content)
-        if self._validator:
-            self._validator.validate(json_data)
+        # TODO: Leverage MessageProcessor to validate the json data.
         return json_data
 
     @property
