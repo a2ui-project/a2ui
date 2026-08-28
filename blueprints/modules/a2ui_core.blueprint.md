@@ -387,18 +387,18 @@ When a surface is created with `sendDataModel: true`, the renderer is responsibl
 
 #### Capabilities Objects
 
-Both sides of the handshake (agent and renderer) advertise a capabilities object, and **both have a normative JSON Schema**. Build and parse them from that schema rather than from memory or from a neighbouring implementation:
+Both sides advertise one. Build and parse it from the normative schema, not from memory:
 
 | Direction        | Object                   | Normative schema (v0.9, v0.9.1)                         | Renamed in v1.0                                      |
 | :--------------- | :----------------------- | :------------------------------------------------------ | :--------------------------------------------------- |
 | Renderer → agent | `a2uiClientCapabilities` | `specification/<version>/json/client_capabilities.json` | `specification/v1_0/json/renderer_capabilities.json` |
 | Agent → renderer | `a2uiServerCapabilities` | `specification/<version>/json/server_capabilities.json` | `specification/v1_0/json/agent_capabilities.json`    |
 
-Resolve the filename for the version you are implementing rather than assuming one — v0.8 uses a third spelling (`a2ui_client_capabilities_schema.json`) and publishes no server-side counterpart.
+v0.8 spells it differently again (`a2ui_client_capabilities_schema.json`) and publishes no server-side counterpart.
 
-The top level of each is **keyed by protocol version** — `{"v0.9": { … }}`, `{"v1.0": { … }}` — with `supportedCatalogIds`, `inlineCatalogs` and `acceptsInlineCatalogs` living _inside_ the version entry, and the version key is required. A flat object carrying a sibling list of version strings is a different, invalid shape.
+Both are **keyed by protocol version** — `{"v0.9": { … }}` — with `supportedCatalogIds`, `inlineCatalogs` and `acceptsInlineCatalogs` _inside_ the version entry. The key is required.
 
-When parsing one: reject an object that declares no entry for any version this SDK implements, and keep the unrecognised version keys rather than failing on them, so a renderer that also speaks a newer protocol can still be served.
+Parsing: reject an object with no entry for any version this SDK implements; keep unrecognised version keys rather than failing on them.
 
 #### Generating Renderer Capabilities and Schema Types
 
@@ -808,23 +808,21 @@ export class A2uiExpressionError extends A2uiError {
 }
 ```
 
-**Parsing wire JSON raises from this hierarchy, never from the language.** Every entry point that accepts a payload, a capabilities object or a catalog document from outside the process is handling untrusted input: a member may be absent, null, or the wrong type. Check the shape before casting and raise `A2uiValidationError` with the offending value attached. A raw cast failure — `TypeError`, `ClassCastException`, a null dereference — escapes the hierarchy a caller can catch, and turns a malformed message into a crash.
+**Parsing wire JSON raises from this hierarchy, never from the language.** Check the shape before casting and raise `A2uiValidationError` with the offending value attached. A raw `TypeError` or `ClassCastException` escapes the hierarchy a caller can catch.
 
-**These categories are shared with the conformance suite.** `expect_error.category` in `conformance/conformance_schema.json` names these classes without the `A2ui` prefix, so the two must agree. Adding an error class means adding the matching category alongside the first suite that asserts it — not in advance, and not silently under a category that already exists.
+**`expect_error.category` in `conformance/conformance_schema.json` names these classes** without the `A2ui` prefix. Add a category alongside the first suite that asserts it.
 
 ---
 
 ## 4. Conformance Test Plan
 
-Behavioural parity across implementations is pinned by a language-agnostic conformance suite. For setup, harness requirements and schema definitions, see [Conformance README](../../conformance/README.md).
+See [Conformance README](../../conformance/README.md) for setup and schema definitions.
 
-### Where a case belongs
+`conformance/core/` covers this module: data model, message processor, catalog documents, validator. Agent-side behaviour goes under `conformance/agent/`, **even when the case is about a catalog** — the directory states ownership, not subject matter. Section 6 of the [a2ui_agent blueprint](./a2ui_agent.blueprint.md#6-conformance-test-plan) maps the agent side.
 
-Suites under `conformance/core/` cover this module: the reactive data model, the message processor's state machine, catalog documents, and the validator. Agent-side behaviour — prompt generation, response parsing, catalog narrowing, capability negotiation — belongs under `conformance/agent/`, **even when the case is about a catalog**. A case filed under `core/` obliges every renderer to implement it, so the directory is a statement about ownership, not about subject matter. Section 6 of the [a2ui_agent blueprint](./a2ui_agent.blueprint.md#6-conformance-test-plan) carries the agent-side map.
+Adding cases:
 
-### Rules for adding cases
-
-1. **Look for an existing suite before creating one — on every active spec branch, not just the one you are on.** The repository maintains parallel branches per protocol version (`main`, `v1_0`, …). A suite that already exists elsewhere has an established case shape; a second file with the same name and a different shape is a merge conflict rather than extra coverage. Extend the existing one.
-2. **Reuse the established case keys** defined by `conformance/conformance_schema.json`, and extend the schema in the same change as the suite that needs the new shape.
-3. **`expect_error.category` names a class from the exception hierarchy above**, without the `A2ui` prefix.
-4. **Migrating an implementation's own tests into the shared suite will surface real disagreements** between implementations. Each one is a decision, not a formatting problem: fix the implementation that is wrong, or record why the case is excluded. Language-level differences (sparse versus dense arrays, `null` versus absent, prototype pollution) stay out of the shared suite and remain in the implementation's own tests.
+1. **Check every active spec branch** (`main`, `v1_0`, …) for an existing suite and extend it. A second file with the same name and a different case shape is a merge conflict, not coverage.
+2. **Reuse the case keys** in `conformance/conformance_schema.json`; extend the schema in the same change as the suite that needs it.
+3. **`expect_error.category`** names a class from the exception hierarchy above, without the `A2ui` prefix.
+4. **Migrating an implementation's own tests will surface real disagreements.** Each is a decision: fix the implementation that is wrong, or record why the case is excluded. Language-level differences (sparse versus dense arrays, `null` versus absent, prototype pollution) stay in that implementation's own tests.
