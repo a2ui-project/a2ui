@@ -142,7 +142,7 @@ export function formatZodIssue(err: z.ZodIssue): string {
  * The central processor for A2UI messages.
  * @template T The concrete type of the ComponentApi.
  */
-export class MessageProcessor<T extends ComponentApi> {
+export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
   readonly version: ProtocolVersion;
   private readonly adapterRegistry: VersionAdapterResolver;
