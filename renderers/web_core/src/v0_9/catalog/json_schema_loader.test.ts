@@ -35,7 +35,7 @@ describe('Catalog.fromJson & json_schema_loader', () => {
     assert.throws(() => Catalog.fromJson(invalidJson as any), /Catalog ID must be specified/);
   });
 
-  it('loads basic catalog successfully into Catalog<ComponentApi>', () => {
+  it('loads basic catalog successfully and dynamically resolves weight and accessibility', () => {
     const catalog = Catalog.fromJson(basicCatalogJson);
 
     assert.strictEqual(
@@ -64,6 +64,19 @@ describe('Catalog.fromJson & json_schema_loader', () => {
       text: {path: '/user/name'},
     });
     assert.strictEqual(validBinding.success, true);
+
+    // Verify weight is dynamically resolved from #/$defs/CatalogComponentCommon
+    assert.ok(textShape.weight);
+    const validWeight = textComp.schema.safeParse({text: 'Hello', weight: 2});
+    assert.strictEqual(validWeight.success, true);
+
+    // Verify accessibility is dynamically resolved from common_types.json#/$defs/ComponentCommon
+    assert.ok(textShape.accessibility);
+    const validAccessibility = textComp.schema.safeParse({
+      text: 'Hello',
+      accessibility: {label: 'Heading text'},
+    });
+    assert.strictEqual(validAccessibility.success, true);
 
     // Row component with ChildList
     const rowComp = catalog.components.get('Row');
@@ -99,45 +112,124 @@ describe('Catalog.fromJson & json_schema_loader', () => {
     assert.strictEqual(reqFn.returnType, 'boolean');
   });
 
-  it('merges both allOf and top-level properties and resolves required fields in two passes', () => {
-    const catalogWithAllOf = {
-      catalogId: 'https://example.com/allof_catalog.json',
+  it('is catalog-agnostic and does not inject weight into custom catalogs lacking weight in $defs', () => {
+    const customCatalog = {
+      catalogId: 'https://example.com/custom_catalog.json',
       components: {
-        TestWidget: {
+        CustomButton: {
+          type: 'object',
           allOf: [
             {
+              $ref: 'https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon',
+            },
+            {
               properties: {
-                baseProp: {type: 'string'},
+                label: {type: 'string'},
               },
+              required: ['label'],
             },
           ],
-          properties: {
-            extraProp: {type: 'integer'},
-          },
-          required: ['baseProp', 'extraProp'],
         },
       },
     };
 
-    const catalog = Catalog.fromJson(catalogWithAllOf);
-    const widget = catalog.components.get('TestWidget');
+    const catalog = Catalog.fromJson(customCatalog);
+    const btn = catalog.components.get('CustomButton');
+    assert.ok(btn);
+
+    const shape = (btn.schema as z.ZodObject<any>).shape;
+    // Protocol accessibility is present
+    assert.ok(shape.accessibility);
+    assert.ok(shape.label);
+    // weight is NOT present in custom catalog without CatalogComponentCommon
+    assert.strictEqual(shape.weight, undefined);
+  });
+
+  it('dynamically resolves custom local $defs in allOf and property references', () => {
+    const catalogWithDefs = {
+      catalogId: 'https://example.com/custom_defs.json',
+      $defs: {
+        CustomHeaderCommon: {
+          type: 'object',
+          properties: {
+            themeColor: {type: 'string'},
+            badgeCount: {type: 'integer'},
+          },
+        },
+        StatusEnum: {
+          type: 'string',
+          enum: ['active', 'paused', 'archived'],
+        },
+      },
+      components: {
+        HeaderWidget: {
+          allOf: [
+            {
+              $ref: '#/$defs/CustomHeaderCommon',
+            },
+            {
+              properties: {
+                title: {type: 'string'},
+                status: {$ref: '#/$defs/StatusEnum'},
+              },
+              required: ['title'],
+            },
+          ],
+        },
+      },
+    };
+
+    const catalog = Catalog.fromJson(catalogWithDefs);
+    const widget = catalog.components.get('HeaderWidget');
     assert.ok(widget);
 
-    // Both baseProp and extraProp must exist
     const shape = (widget.schema as z.ZodObject<any>).shape;
-    assert.ok(shape.baseProp);
-    assert.ok(shape.extraProp);
+    assert.ok(shape.themeColor);
+    assert.ok(shape.badgeCount);
+    assert.ok(shape.title);
+    assert.ok(shape.status);
 
-    // baseProp was defined in allOf, but marked required at root: must be required
-    const missingBase = widget.schema.safeParse({extraProp: 10});
-    assert.strictEqual(missingBase.success, false);
+    const valid = widget.schema.safeParse({
+      title: 'Dashboard',
+      themeColor: '#fff',
+      badgeCount: 5,
+      status: 'active',
+    });
+    assert.strictEqual(valid.success, true);
 
-    // extraProp is an integer: must reject floats
-    const floatVal = widget.schema.safeParse({baseProp: 'hello', extraProp: 10.5});
-    assert.strictEqual(floatVal.success, false);
+    const invalidStatus = widget.schema.safeParse({
+      title: 'Dashboard',
+      status: 'invalid_status',
+    });
+    assert.strictEqual(invalidStatus.success, false);
+  });
 
-    const intVal = widget.schema.safeParse({baseProp: 'hello', extraProp: 10});
-    assert.strictEqual(intVal.success, true);
+  it('handles v1.0 style flat component schemas without allOf', () => {
+    const v1Catalog = {
+      catalogId: 'https://example.com/v1_catalog.json',
+      components: {
+        V1Card: {
+          type: 'object',
+          properties: {
+            title: {type: 'string'},
+            elevation: {type: 'number'},
+          },
+          required: ['title'],
+        },
+      },
+    };
+
+    const catalog = Catalog.fromJson(v1Catalog);
+    const card = catalog.components.get('V1Card');
+    assert.ok(card);
+
+    const shape = (card.schema as z.ZodObject<any>).shape;
+    assert.ok(shape.title);
+    assert.ok(shape.elevation);
+    assert.strictEqual(shape.weight, undefined);
+
+    const valid = card.schema.safeParse({title: 'Card 1', elevation: 2});
+    assert.strictEqual(valid.success, true);
   });
 
   it('safely converts non-string enums and handles defensive prop schemas', () => {
