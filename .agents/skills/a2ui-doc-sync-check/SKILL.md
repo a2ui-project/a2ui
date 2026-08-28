@@ -31,20 +31,21 @@ This skill guides the process of auditing concrete codebase implementations to v
    - Audit inline comments and docstrings (e.g. JSDoc in TS, docstrings in Python, triple-slash comments in Dart/Swift) for public APIs.
    - Flag any mismatch where code parameter names, types, return behaviors, or exceptions thrown deviate from what the docstring claims.
 
-5. **Format the Report**:
+5. **Links**:
+   - When an artifact (code, document, issue, PR, comment and so on) is referenced, make sure it has a link.
+   - When a glossary term is used - link the first occurrence of the term to the glossary entry if it exists.
+   - Make sure there is no duplications. If you find some, delete the duplicate and leave a reference.
+
+6. **Conciseness and Clarity**:
+   - Verify that language in documentation and code comments is concise and clear:
+     - Remove words that do not have meaning like 'above all', 'first and foremost', and so on.
+     - Make sure that sentences are short and to the point.
+   - Verify that tables are not used without necessity - they are hard to read in plain text. If you see them, suggest replacement with lists or paragraphs or bullets. It is ok to use them if they make information more readable.
+
+7. **Format the Report**:
    - Build a Markdown report summarizing the findings:
      - Table of audited directories.
      - **Documentation Drift**: Mismatches between documentation guides (`docs/`) and codebase implementations.
      - **Readme Errors**: Invalid setup, compile, or test commands found in `README.md` files.
      - **Docstring Mismatches**: Outdated parameter names or behaviors described in inline comments.
    - Return this Markdown report as your final response.
-
-6. **Links**:
-   - When an artifact (code, document, issue, PR, comment and so on) is referenced, make sure it has a link.
-   - When a glossary term is used - link the first occurrence of the term to the glossary entry if it exists.
-   - Make sure there is no duplications. If you find some, delete the duplicate and leave a reference.
-
-7. **Conciseness and Clarity**:
-   - Verify that language in documentation and code comments is concise and clear:
-     - Remove words that do not have meaning like 'above all', 'first and foremost', and so on.
-     - Make sure that sentences are short and to the point.
