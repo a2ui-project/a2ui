@@ -188,7 +188,7 @@ describe('MessageProcessor', () => {
       comp = surface?.componentsModel.get('comp1');
       assert.strictEqual(comp?.type, 'Label');
       assert.strictEqual(comp?.properties.text, 'Lbl');
-      assert.strictEqual(comp?.properties.label, 'Btn');
+      assert.strictEqual(comp?.properties.label, undefined);
     });
 
     it('throws when creating component without type', () => {
@@ -1173,7 +1173,7 @@ describe('MessageProcessor', () => {
       assert.strictEqual(proc.getSurface('multi-surf')?.componentsModel.size, 3);
     });
 
-    it('validates merged properties on delta component updates', () => {
+    it('validates full component properties on updates', () => {
       const counterCatalog = new Catalog('counter-cat', [
         {
           name: 'Counter',
@@ -1197,13 +1197,13 @@ describe('MessageProcessor', () => {
         },
       });
 
-      // 2. Delta update with valid count (omitting label - merged from existing)
+      // 2. Full component update with new values
       assert.doesNotThrow(() =>
         proc.processMessages({
           version: 'v1.0',
           updateComponents: {
             surfaceId: 's_delta',
-            components: [{id: 'root', component: 'Counter', count: 10}],
+            components: [{id: 'root', component: 'Counter', label: 'Updated Score', count: 10}],
           },
         }),
       );
@@ -1213,30 +1213,32 @@ describe('MessageProcessor', () => {
       );
       assert.strictEqual(
         proc.getSurface('s_delta')?.componentsModel.get('root')?.properties.label,
-        'Score',
+        'Updated Score',
       );
 
-      // 3. Raw operation delta update omitting component type entirely
-      assert.doesNotThrow(() =>
-        proc.processOperation({
-          type: 'updateComponents',
-          surfaceId: 's_delta',
-          components: [{id: 'root', count: 15}],
-        }),
-      );
-      assert.strictEqual(
-        proc.getSurface('s_delta')?.componentsModel.get('root')?.properties.count,
-        15,
-      );
-
-      // 4. Delta update with invalid count (< 0) fails schema validation
+      // 3. Update missing required field 'label' fails schema validation
       assert.throws(
         () =>
           proc.processMessages({
             version: 'v1.0',
             updateComponents: {
               surfaceId: 's_delta',
-              components: [{id: 'root', component: 'Counter', count: -1}],
+              components: [{id: 'root', component: 'Counter', count: 15}],
+            },
+          }),
+        (err: any) =>
+          err instanceof A2uiValidationError &&
+          err.message.includes("Validation failed for component 'Counter'"),
+      );
+
+      // 4. Update with invalid count (< 0) fails schema validation
+      assert.throws(
+        () =>
+          proc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's_delta',
+              components: [{id: 'root', component: 'Counter', label: 'Score', count: -1}],
             },
           }),
         (err: any) =>
@@ -1245,7 +1247,7 @@ describe('MessageProcessor', () => {
       );
     });
 
-    it('merges existing properties on delta update with component type so required fields are preserved', () => {
+    it('replaces component properties on update so omitted properties are removed', () => {
       const cardCatalog = new Catalog('card-cat', [
         {
           name: 'Card',
@@ -1271,30 +1273,51 @@ describe('MessageProcessor', () => {
           surfaceId: 's_card',
           catalogId: 'card-cat',
           components: [
-            {id: 'root', component: 'Card', title: 'Initial Title', child: 'txt'},
+            {
+              id: 'root',
+              component: 'Card',
+              title: 'Initial Title',
+              subtitle: 'Initial Subtitle',
+              child: 'txt',
+            },
             {id: 'txt', component: 'Text', text: 'Hello'},
           ],
         },
       });
 
-      // 2. Partial update providing component: 'Card' but only updating subtitle
-      // Required fields (title and child) are already set on existing and should not cause validation failure
-      assert.doesNotThrow(() =>
-        proc.processMessages({
-          version: 'v1.0',
-          updateComponents: {
-            surfaceId: 's_card',
-            components: [{id: 'root', component: 'Card', subtitle: 'New Subtitle'}],
-          },
-        }),
-      );
-      const rootComp = proc.getSurface('s_card')?.componentsModel.get('root');
+      let rootComp = proc.getSurface('s_card')?.componentsModel.get('root');
       assert.strictEqual(rootComp?.properties.title, 'Initial Title');
-      assert.strictEqual(rootComp?.properties.subtitle, 'New Subtitle');
+      assert.strictEqual(rootComp?.properties.subtitle, 'Initial Subtitle');
+
+      // 2. Update providing replacement Card definition with new title, omitting subtitle
+      proc.processMessages({
+        version: 'v1.0',
+        updateComponents: {
+          surfaceId: 's_card',
+          components: [{id: 'root', component: 'Card', title: 'New Title', child: 'txt'}],
+        },
+      });
+
+      rootComp = proc.getSurface('s_card')?.componentsModel.get('root');
+      assert.strictEqual(rootComp?.properties.title, 'New Title');
+      assert.strictEqual(rootComp?.properties.subtitle, undefined); // Omitted property was removed
       assert.strictEqual(rootComp?.properties.child, 'txt');
+
+      // 3. Update missing required schema field (child) throws validation error
+      assert.throws(
+        () =>
+          proc.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's_card',
+              components: [{id: 'root', component: 'Card', title: 'Incomplete'}],
+            },
+          }),
+        /Validation failed for component 'Card'/,
+      );
     });
 
-    it('preserves container child relationships in composition constraint validation during partial updates', () => {
+    it('preserves container child relationships in composition constraint validation during updates', () => {
       const constraintCatalog = new Catalog('constraint-cat', [
         {
           name: 'StrictParent',
@@ -1326,14 +1349,15 @@ describe('MessageProcessor', () => {
         },
       });
 
-      // 2. Partial update modifying only title on StrictParent
-      // RestrictedChild must not be falsely flagged as missing an allowed parent
+      // 2. Update modifying title on StrictParent while keeping children intact
       assert.doesNotThrow(() =>
         proc.processMessages({
           version: 'v1.0',
           updateComponents: {
             surfaceId: 's_constr',
-            components: [{id: 'root', component: 'StrictParent', title: 'Updated Title'}],
+            components: [
+              {id: 'root', component: 'StrictParent', title: 'Updated Title', children: ['c1']},
+            ],
           },
         }),
       );

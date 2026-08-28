@@ -524,16 +524,10 @@ export class MessageProcessor<T extends ComponentApi> {
           );
         }
         targetCatalog = found;
-      } else {
-        const existing = surface.componentsModel.get(id);
-        if (existing?.catalog) {
-          targetCatalog = existing.catalog as Catalog<T>;
-        }
       }
 
       const existing = surface.componentsModel.get(id);
       const componentType = component || existing?.type;
-      const mergedProperties = existing ? {...existing.properties, ...properties} : properties;
       if (componentType) {
         const componentApi = targetCatalog.components.get(componentType);
         if (!componentApi) {
@@ -543,13 +537,13 @@ export class MessageProcessor<T extends ComponentApi> {
             );
           }
         } else {
-          const validationResult = componentApi.schema.safeParse(mergedProperties);
+          const validationResult = componentApi.schema.safeParse(properties);
           if (!validationResult.success) {
             const formattedErrors = validationResult.error.errors.map(formatZodIssue).join(', ');
             console.error(
               "[A2UI Validation Error] Component '" + componentType + "' (" + id + '):',
               {
-                propertyKeys: Object.keys(mergedProperties),
+                propertyKeys: Object.keys(properties),
                 issues: validationResult.error.issues,
               },
             );
@@ -569,7 +563,6 @@ export class MessageProcessor<T extends ComponentApi> {
       const {id, component, ...properties} = comp;
       const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
       const existing = surface.componentsModel.get(id);
-      const mergedProperties = existing ? {...existing.properties, ...properties} : properties;
 
       let targetCatalog = surface.catalog;
       if (typeof rawCatalogId === 'string' && rawCatalogId) {
@@ -577,22 +570,20 @@ export class MessageProcessor<T extends ComponentApi> {
         if (found) {
           targetCatalog = found;
         }
-      } else if (existing?.catalog) {
-        targetCatalog = existing.catalog as Catalog<T>;
       }
 
       if (existing) {
+        const componentType = component || existing.type;
         if (
-          component &&
-          (component !== existing.type ||
-            (rawCatalogId && existing.catalog?.id !== targetCatalog.id))
+          componentType !== existing.type ||
+          (rawCatalogId && existing.catalog?.id !== targetCatalog.id)
         ) {
           // Recreate component if type or catalog changes
           surface.componentsModel.removeComponent(id);
-          const newComponent = new ComponentModel(id, component, mergedProperties, targetCatalog);
+          const newComponent = new ComponentModel(id, componentType, properties, targetCatalog);
           surface.componentsModel.addComponent(newComponent);
         } else {
-          existing.properties = mergedProperties;
+          existing.properties = properties;
         }
       } else {
         if (!component) {
@@ -645,10 +636,12 @@ export class MessageProcessor<T extends ComponentApi> {
       const {id, component, ...props} = comp;
       if (typeof id !== 'string') continue;
 
+      let compCatalog = surface.catalog;
       const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
       if (typeof rawCatalogId === 'string' && rawCatalogId) {
         const found = this.catalogs.find(c => c.id === rawCatalogId);
         if (found) {
+          compCatalog = found;
           compCatalogMap.set(id, found);
         }
       }
@@ -657,9 +650,7 @@ export class MessageProcessor<T extends ComponentApi> {
       if (compType) {
         typeMap.set(id, compType);
       }
-      const compCatalog = compCatalogMap.get(id) ?? existing?.catalog ?? surface.catalog;
-      const mergedProps = existing ? {...existing.properties, ...props} : props;
-      const compDef = {id, component: compType, ...mergedProps};
+      const compDef = {id, component: compType, ...props};
       const children = Array.from(getComponentReferences(compDef, compCatalog as Catalog<any>)).map(
         ([childId]) => childId,
       );
