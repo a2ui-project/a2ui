@@ -35,7 +35,7 @@ Its core responsibilities include:
 
 Core does **not** own:
 
-- **Catalog narrowing.** A `Catalog` is an immutable value object. Pruning components or functions to an allowlist is prompt engineering — it belongs to the catalog transformers in the [a2ui_agent blueprint](./a2ui_agent.blueprint.md).
+- **Named catalog transformers.** Core keeps `Catalog` immutable and offers the derivation any caller needs to build a narrower one. The transformer _rules_ that drive it — `CatalogTransformer`, `ComponentPruningTransformer`, `FunctionPruningTransformer` — and the config pipeline that applies them are specified in the [a2ui_agent blueprint](./a2ui_agent.blueprint.md), so their conformance data belongs under `conformance/agent/`. Deriving a narrowed catalog is not itself agent-only: a renderer may need a smaller catalog for a given use case, and uses the same immutable derivation to get one.
 - **Prompt generation, response parsing, and capability negotiation.** All three are agent concerns, and none of them belongs here even when the type they operate on is a core type.
 
 When implementing `a2ui_agent` requires a change here — a shared type, a widened generic, a missing error class — make the smallest change that unblocks it, and land it as its own reviewable unit. Core is consumed by every renderer, so a change made for one agent SDK is a change made for all of them.
@@ -204,9 +204,9 @@ export interface Catalog<TComponent extends ComponentApi, TFunction extends Func
 }
 ```
 
-A `Catalog` is immutable once constructed. A consumer that needs a narrower contract derives a new catalog from it rather than mutating it in place.
+A `Catalog` is immutable once constructed. A renderer or an agent that needs a narrower contract — an agent prompting against a subset, a renderer serving a use case that calls for a smaller catalog — derives a new catalog from it rather than mutating it in place. Core provides the derivation (`copyWith`, `catalogSchema`); the named transformer rules that drive it are agent SDK surface, see below.
 
-`protocolVersion` is a property of **each catalog, not of the process**. One consumer may hold catalogs for several protocol versions at once, so anything derived from a set of catalogs — a capabilities payload above all — must be grouped by each catalog's own `protocolVersion`. Reaching for a single constant because today's set happens to be uniform produces an object that is wrong the first time it is not.
+`protocolVersion` is a property of **each catalog, not of the process**. A renderer or an agent may hold catalogs for several protocol versions at once, so anything derived from a set of catalogs, including a capabilities payload, must be grouped by each catalog's own `protocolVersion`. Reaching for a single constant because today's set happens to be uniform produces an object that is wrong the first time it is not.
 
 Parsing a catalog document is parsing untrusted input: raise `A2uiCatalogError` for a missing or non-object document or a `catalogId` conflict, and `A2uiValidationError` for an unsupported protocol version.
 
