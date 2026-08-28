@@ -30,6 +30,7 @@ from .functions import (
     create_function_implementation,
 )
 from .components import ComponentApi, ComponentImplementation, ModelComponentApi
+from .reference_map import ComponentRefSpec, build_component_ref_map
 
 
 def is_valid_uax31_identifier(name: str) -> bool:
@@ -109,6 +110,17 @@ class Catalog(Generic[TComponent, TFunction]):
     def get_component(self, name: str) -> Optional[TComponent]:
         """Directly retrieves a component by name."""
         return self.components.get(name)
+
+    @property
+    def component_ref_map(self) -> Dict[str, ComponentRefSpec]:
+        """Returns the pre-analyzed component reference map for all components in this catalog."""
+        if not hasattr(self, "_component_ref_map") or self._component_ref_map is None:
+            self._component_ref_map = build_component_ref_map(self)
+        return self._component_ref_map
+
+    def get_component_ref_spec(self, name: str) -> Optional[ComponentRefSpec]:
+        """Directly retrieves the pre-analyzed ComponentRefSpec for a component by name."""
+        return self.component_ref_map.get(name)
 
     def get_function(self, name: str) -> Optional[TFunction]:
         """Directly retrieves a function by name."""

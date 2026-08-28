@@ -17,7 +17,11 @@ from typing import Any, Dict, Generic, List, Optional, TYPE_CHECKING
 from ..catalog.catalog import TComponent, TFunction
 from ..common.events import Signal, Subscription
 from .component_node import ComponentNode
-from .component_model import ComponentModel, is_child_prop_key
+from .component_model import (
+    ComponentModel,
+    V0_8_LIST_REF_FIELDS,
+    is_v0_8_heuristic_child_prop_key,
+)
 from .surface_model import SurfaceModel
 
 if TYPE_CHECKING:
@@ -144,23 +148,40 @@ class NodeGraph(Generic[TComponent, TFunction]):
 
                     new_props[k] = make_action_closure
 
-            single_refs: set[str] = set()
-            list_refs: set[str] = set()
-            nested_refs: dict[str, Any] = {}
+            cat = component_model.catalog or getattr(self.surface, "catalog", None)
+            ref_spec = (
+                cat.get_component_ref_spec(component_model.type)
+                if hasattr(cat, "get_component_ref_spec")
+                else None
+            )
 
-            known_ids = set(self.surface.components_model.get_all().keys())
-            for key, val in list(new_props.items()):
-                if key in ("id", "component"):
-                    continue
-                if is_child_prop_key(key, val, known_ids):
-                    if isinstance(val, list):
-                        list_refs.add(key)
-                    elif (
-                        isinstance(val, dict) and "componentId" in val and "path" in val
-                    ):
-                        list_refs.add(key)
-                    else:
-                        single_refs.add(key)
+            if ref_spec is not None and (ref_spec.single_refs or ref_spec.list_refs):
+                single_refs = set(ref_spec.single_refs)
+                list_refs = set(ref_spec.list_refs)
+                nested_refs = dict(ref_spec.nested_refs)
+            else:
+                # Fallback for legacy v0.8 protocol support (where catalog schemas don't define formal ComponentId/ChildList refs)
+                single_refs: set[str] = set()
+                list_refs: set[str] = set()
+                nested_refs: dict[str, Any] = {}
+
+                known_ids = set(self.surface.components_model.get_all().keys())
+                for key, val in list(new_props.items()):
+                    if key in ("id", "component"):
+                        continue
+                    if is_v0_8_heuristic_child_prop_key(key, val, known_ids):
+                        if (
+                            key in V0_8_LIST_REF_FIELDS
+                            or isinstance(val, list)
+                            or (
+                                isinstance(val, dict)
+                                and "componentId" in val
+                                and "path" in val
+                            )
+                        ):
+                            list_refs.add(key)
+                        else:
+                            single_refs.add(key)
 
             # Resolve single-child references
             for single_ref in single_refs:

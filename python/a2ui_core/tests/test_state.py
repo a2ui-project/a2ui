@@ -96,6 +96,47 @@ def test_component_model_get_child_references_with_typed_references():
     assert "template1" in ref_ids
 
 
+def test_component_model_get_child_references_with_custom_schema():
+    from a2ui.core.catalog import Catalog, ComponentApi
+
+    custom_cat = Catalog(
+        catalog_id="https://a2ui.org/custom-slots",
+        protocol_version="v1.0",
+        components=[
+            ComponentApi(
+                name="SplitPane",
+                schema={
+                    "type": "object",
+                    "properties": {
+                        "leftPane": {"$ref": "common_types.json#/$defs/ComponentId"},
+                        "rightPane": {"$ref": "common_types.json#/$defs/ComponentId"},
+                        "title": {"type": "string"},
+                    },
+                },
+            )
+        ],
+        functions=[],
+    )
+
+    comp = ComponentModel(
+        "p1",
+        "SplitPane",
+        custom_cat,
+        {
+            "leftPane": "side_nav",
+            "rightPane": "main_content",
+            "title": "My Split View",
+        },
+    )
+
+    refs = list(comp.get_child_references())
+    ref_ids = [r[0] for r in refs]
+
+    assert "side_nav" in ref_ids
+    assert "main_content" in ref_ids
+    assert "My Split View" not in ref_ids
+
+
 def test_surface_components_model_duplicate_reject():
     scm = SurfaceComponentsModel()
     c1 = ComponentModel("c1", "Text", dummy_catalog, {"text": "Hello"})
