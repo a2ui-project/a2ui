@@ -36,7 +36,7 @@ describe('CatalogAnalyzer in @a2ui/cli', () => {
       analysed.catalogId,
       'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
     );
-    assert.strictEqual(analysed.specVersion, 'v0.9');
+    assert.strictEqual(analysed.specVersion, 'v0.9.1');
     assert.ok(analysed.components.size > 0);
 
     // Verify Text component
