@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Behaviour of the catalog providers described by
-# `blueprints/modules/a2ui_agent.blueprint.md` section 3.B: turning a catalog
+# `blueprints/modules/a2ui_agent.blueprint.md` section 3.F: turning a catalog
 # document into a `Catalog`, whatever backing store it came from. Prompt
 # rendering and capability negotiation are covered by `inference_format.yaml`
 # and `catalog_resolver.yaml` respectively.

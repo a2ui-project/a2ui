@@ -94,7 +94,8 @@
           "accessibility_check",
           "data_model",
           "process_request",
-          "resolve_catalogs"
+          "resolve_catalogs",
+          "process_messages"
         ]
       }
     },
@@ -127,7 +128,8 @@
           {"$ref": "#/$defs/AccessibilityCheckTest"},
           {"$ref": "#/$defs/DataModelTest"},
           {"$ref": "#/$defs/ProcessRequestTest"},
-          {"$ref": "#/$defs/ResolveCatalogsTest"}
+          {"$ref": "#/$defs/ResolveCatalogsTest"},
+          {"$ref": "#/$defs/ProcessMessagesTest"}
         ]
       }
     ]
@@ -652,6 +654,68 @@
         "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
       "required": ["args"]
+    },
+    "ProcessMessagesTest": {
+      "type": "object",
+      "description": "Behaviour of the message processor. Uses the case vocabulary of the v1_0 branch so the two suites of this name converge rather than conflict: camelCase keys, `messages` rather than `payload`, and an exhaustive `components` list per surface.",
+      "properties": {
+        "action": {"const": "process_messages"},
+        "catalogPaths": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Catalog documents the case is written against, relative to the repository root. Harnesses register a native catalog under the id the messages use, because renderers build catalogs from code rather than from a JSON Schema document."
+        },
+        "messages": {
+          "description": "A2UI messages to process, in order: either the bare list or a {messages: [...]} wrapper.",
+          "oneOf": [
+            {"type": "array", "items": {"type": "object"}},
+            {
+              "type": "object",
+              "properties": {"messages": {"type": "array", "items": {"type": "object"}}},
+              "required": ["messages"]
+            }
+          ]
+        },
+        "expect": {
+          "type": "object",
+          "description": "Expected state after the messages have been processed.",
+          "properties": {
+            "surfaces": {
+              "type": "object",
+              "description": "Expectations per surface, keyed by surface id.",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "exists": {
+                    "type": "boolean",
+                    "description": "Whether the surface is open. False asserts it is not."
+                  },
+                  "catalogId": {"type": "string"},
+                  "sendDataModel": {"type": "boolean"},
+                  "theme": {"type": "object"},
+                  "components": {
+                    "type": "array",
+                    "description": "Every component the surface holds, each entry the component's flattened properties. The list is exhaustive, so an empty one asserts the surface holds none.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {"type": "string"},
+                        "component": {"type": "string"}
+                      },
+                      "required": ["id"]
+                    }
+                  },
+                  "dataModel": {
+                    "description": "Expected contents of the surface data model at the root."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "expectError": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["messages"]
     },
     "ExpectError": {
       "oneOf": [

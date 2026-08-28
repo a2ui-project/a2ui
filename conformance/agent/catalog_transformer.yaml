@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Behaviour of the catalog transformers described by
-# `blueprints/modules/a2ui_agent.blueprint.md` section 3.C. Transformation is an
+# `blueprints/modules/a2ui_agent.blueprint.md` section 3.A. Transformation is an
 # agent concern: a renderer implements the whole catalog it advertises, while an
 # agent narrows one before prompting. The `prune` cases in
 # `conformance/core/catalog.yaml` predate that split and stay where the SDKs
