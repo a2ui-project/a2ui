@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -401,7 +401,8 @@ def test_generate_basic_catalog_styles():
     code = generate_schemas.generate_basic_catalog_styles(mock_catalog_data)
     assert "class Theme(BaseModel):" in code
     assert (
-        'primary_color: Optional[str] = Field(None, alias="primaryColor", description="Test color.")'
+        'primary_color: Optional[str] = Field(None, alias="primaryColor",'
+        ' description="Test color.")'
         in code
     )
 
@@ -472,13 +473,11 @@ def test_generate_client_to_server():
                 "required": ["name"],
             },
             "error": {
-                "oneOf": [
-                    {
-                        "title": "Validation Failed Error",
-                        "properties": {"code": {"const": "VALIDATION_FAILED"}},
-                        "required": ["code"],
-                    }
-                ]
+                "oneOf": [{
+                    "title": "Validation Failed Error",
+                    "properties": {"code": {"const": "VALIDATION_FAILED"}},
+                    "required": ["code"],
+                }]
             },
         }
     }
@@ -513,5 +512,5 @@ def test_const_keyword_mapping():
 
 def test_file_header_preamble():
     header = generate_schemas.FILE_HEADER
-    assert "Copyright 2026 Google LLC" in header
+    assert "Copyright 2024 Google LLC" in header
     assert "Auto-generated. Do not edit manually." in header

@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -57,7 +57,10 @@ class ComponentNode:
         return self.component_id
 
     def __repr__(self) -> str:
-        return f"ComponentNode(instance_id={self.instance_id!r}, component_id={self.component_id!r}, type={self.type!r})"
+        return (
+            f"ComponentNode(instance_id={self.instance_id!r},"
+            f" component_id={self.component_id!r}, type={self.type!r})"
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         """Serializes this node and its children recursively to a standard dict layout."""

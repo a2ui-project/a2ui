@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,7 +19,7 @@ import path from 'path';
 
 const SPEC_EXAMPLES_DIR = path.resolve(
   import.meta.dirname,
-  '../../../../specification/v0_9_1/catalogs/basic/examples',
+  '../../../../specification/v0_9/catalogs/basic/examples',
 );
 const OUT_FILE = path.resolve(import.meta.dirname, '../src/generated/examples-list.ts');
 
@@ -48,7 +48,7 @@ function generateExamplesBundle() {
 
   files.forEach((file, index) => {
     // Relative path from src/generated/examples-list.ts to the specification examples folder
-    const relativePath = `../../../../../specification/v0_9_1/catalogs/basic/examples/${file}`;
+    const relativePath = `../../../../../specification/v0_9/catalogs/basic/examples/${file}`;
     const variableName = `example_${index}`;
 
     imports.push(`import ${variableName} from '${relativePath}';`);

@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 # Auto-generated. Do not edit manually.
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
-from pydantic import BaseModel, Field, ConfigDict, GetCoreSchemaHandler
+from pydantic import BaseModel, Field, ConfigDict, GetCoreSchemaHandler, field_validator, ValidationInfo
 from pydantic_core import CoreSchema
 
 
@@ -43,6 +43,20 @@ class ListReference(ComponentReference):
 
 class StrictBaseModel(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    @field_validator("version", mode="after", check_fields=False)
+    @classmethod
+    def validate_version_field(cls, v: Any, info: ValidationInfo) -> Any:
+        context = info.context or {}
+        target_version = context.get("target_version")
+        if target_version is None:
+            from .constants import SPEC_VERSION
+
+            target_version = SPEC_VERSION
+
+        if v != target_version:
+            raise ValueError(f"Input should be '{target_version}'")
+        return v
 
 
 ComponentId = SingleReference
@@ -83,7 +97,9 @@ class TemplateChildList(StrictBaseModel, ListReference):
     component_id: ComponentId = Field(..., alias="componentId")
     path: str = Field(
         ...,
-        description="The path to the list of component property objects in the data model.",
+        description=(
+            "The path to the list of component property objects in the data model."
+        ),
     )
 
 
@@ -93,11 +109,36 @@ ChildList = Union[List[ComponentId], TemplateChildList]
 class AccessibilityAttributes(StrictBaseModel):
     label: Optional[DynamicString] = Field(
         None,
-        description="A short string, typically 1 to 3 words, used by assistive technologies to convey the purpose or intent of an element. For example, an input field might have an accessible label of 'User ID' or a button might be labeled 'Submit'.",
+        description=(
+            "A short string, typically 1 to 3 words, used by assistive technologies to"
+            " convey the purpose or intent of an element. For example, an input field"
+            " might have an accessible label of 'User ID' or a button might be labeled"
+            " 'Submit'."
+        ),
     )
     description: Optional[DynamicString] = Field(
         None,
-        description="Additional information provided by assistive technologies about an element such as instructions, format requirements, or result of an action. For example, a mute button might have a label of 'Mute' and a description of 'Silences notifications about this conversation'.",
+        description=(
+            "Additional information provided by assistive technologies about an element"
+            " such as instructions, format requirements, or result of an action. For"
+            " example, a mute button might have a label of 'Mute' and a description of"
+            " 'Silences notifications about this conversation'."
+        ),
+    )
+    live: Literal["off", "polite", "assertive"] = Field(
+        default="off",
+        description=(
+            "Controls screen reader announcements for dynamic updates (WAI-ARIA"
+            " aria-live). 'polite' waits for user pause; 'assertive' interrupts"
+            " immediately for alerts."
+        ),
+    )
+    hidden: Optional[DynamicBoolean] = Field(
+        None,
+        description=(
+            "Hides the element and its children from assistive technologies when set to"
+            " true."
+        ),
     )
 
 
@@ -114,7 +155,11 @@ class ActionEvent(StrictBaseModel):
     )
     context: Optional[Dict[str, Any]] = Field(
         None,
-        description="A JSON object containing the key-value pairs for the action context. Values can be literals or paths. Use literal values unless the value must be dynamically bound to the data model. Do NOT use paths for static IDs.",
+        description=(
+            "A JSON object containing the key-value pairs for the action context."
+            " Values can be literals or paths. Use literal values unless the value must"
+            " be dynamically bound to the data model. Do NOT use paths for static IDs."
+        ),
     )
 
 

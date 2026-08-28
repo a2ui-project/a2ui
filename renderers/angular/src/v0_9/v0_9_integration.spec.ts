@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -279,5 +279,78 @@ describe('v0.9 Angular Renderer Integration', () => {
       const dividerEl = fixture.nativeElement.querySelector('a2ui-v09-divider');
       expect(dividerEl).toBeTruthy();
     });
+  });
+});
+
+// TODO: Replace this by actual 0.9.1 tests by loading from the examples.
+// Note that this cannot be done now, because the v0_9_1 examples have the wrong
+// "version" field ("0.9" instead of "0.9.1").
+describe('v0.9.1 Angular Renderer Integration', () => {
+  let fixture: ComponentFixture<TestHost>;
+  let rendererService: A2uiRendererService;
+  let actionSpy: jasmine.Spy;
+
+  beforeEach(async () => {
+    actionSpy = jasmine.createSpy('actionHandler');
+
+    await TestBed.configureTestingModule({
+      imports: [TestHost],
+      providers: [
+        A2uiRendererService,
+        BasicCatalog,
+        {
+          provide: A2UI_RENDERER_CONFIG,
+          useFactory: (basicCatalog: BasicCatalog) => ({
+            catalogs: [basicCatalog],
+            actionHandler: actionSpy,
+          }),
+          deps: [BasicCatalog],
+        },
+        {
+          provide: MarkdownRenderer,
+          useValue: {
+            render: (val: string) => Promise.resolve(val),
+          },
+        },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(TestHost);
+    rendererService = TestBed.inject(A2uiRendererService);
+  });
+
+  it('should process and render v0.9.1 messages', async () => {
+    const v091Messages: A2uiMessage[] = [
+      {
+        version: 'v0.9.1',
+        createSurface: {
+          surfaceId: 'v091-surface',
+          catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+        },
+      },
+      {
+        version: 'v0.9.1',
+        updateComponents: {
+          surfaceId: 'v091-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'Text',
+              text: 'Hello from v0.9.1!',
+            },
+          ],
+        },
+      },
+    ];
+
+    rendererService.processMessages(v091Messages);
+    fixture.componentInstance.surfaceId = 'v091-surface';
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const textEl = fixture.nativeElement.querySelector('a2ui-v09-text');
+    expect(textEl).toBeTruthy();
+    expect(textEl.textContent).toContain('Hello from v0.9.1!');
   });
 });

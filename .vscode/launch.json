@@ -33,7 +33,7 @@
       "name": "fix licenses",
       "type": "node-terminal",
       "request": "launch",
-      "command": "./scripts/fix_licenses.sh",
+      "command": "./scripts/fix_licenses.py",
       "cwd": "${workspaceFolder}"
     },
     {

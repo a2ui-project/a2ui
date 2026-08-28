@@ -2,129 +2,196 @@
 
 ## Overview
 
-This extension implements the A2UI (Agent-to-Agent UI) spec v1.0, a format for agents to send streaming, interactive user interfaces to clients.
+This document is intended for developers implementing the A2UI A2A extension. The extension adds A2UI v1.0 support to A2A, a format for agents to send streaming, interactive user interfaces to renderers.
+
+Note that A2UI extension activation is optional as renderers and agents can negotiate A2UI support using A2A `message.metadata["a2uiRendererCapabilities"]` which is attached to every A2A message from the renderer and contains the supported protocol version and catalogs. Agents advertising A2UI support in their AgentCard is encouraged as renderers may rely on it to determine if they should send `message.metadata["a2uiRendererCapabilities"]`, however it is not explicitly required.
 
 ## Extension URI
 
-The URI of this extension is:
-`https://a2ui.org/a2a-extension/a2ui/v1.0`
+The URI of this extension is https://a2ui.org/a2a-extension/a2ui/v1.0
 
-This is the only URI accepted for this extension.
+This URI is the canonical way to communicate protocol versioning between renderers and agents. The extension URI explicitly encodes the version (e.g., `v1.0`). A renderer requesting this specific URI indicates it supports the v1.0 schema format.
 
-## Core concepts
+## Agent Card
 
-The A2UI extension is built on the following main concepts:
+Agents are encouraged to advertise their A2UI capabilities in their AgentCard within the `AgentCapabilities.extensions` list. This advertisement is optional, but it informs the renderer whether to send `message.metadata["a2uiRendererCapabilities"]`. The `params` object defines the agent's specific UI support and corresponds directly to the [Agent Capabilities Schema](../../../json/agent_capabilities.json).
 
-- **Surfaces**: A "Surface" is a distinct, controllable region of the client's UI. The spec uses a `surfaceId` to direct updates to specific surfaces (e.g., a main content area, a side panel, or a new chat bubble). This allows a single agent stream to manage multiple UI areas independently.
-- **Catalog Definition Document**: The A2UI extension is catalog-agnostic. All UI components (e.g., Text, Row, Button) and functions (e.g., required, email) are defined in a separate Catalog Definition Schema. This allows clients and servers to negotiate which catalog to use.
-- **Schemas**: The A2UI extension is defined by several primary JSON schemas:
-  - **Catalog Definition Schema**: A standard format for defining a library of components and functions ([catalog_definition.json](../../../json/catalog_definition.json)).
-  - **Server-to-Client Message List Schema**: The core wire format for messages sent from the agent to the client ([server_to_client_list.json](../../../json/server_to_client_list.json)).
-  - **Client-to-Server Message List Schema**: The core wire format for messages sent from the client to the agent ([client_to_server_list.json](../../../json/client_to_server_list.json)).
-  - **Server Capabilities Schema**: The schema for the `a2uiServerCapabilities` object, used by servers to declare their UI generation capabilities ([server_capabilities.json](../../../json/server_capabilities.json)).
-  - **Client Capabilities Schema**: The schema for the `a2uiClientCapabilities` object ([client_capabilities.json](../../../json/client_capabilities.json)).
-  - **Client Data Model Schema**: The schema for the `a2uiClientDataModel` object, used for two-way synchronization ([client_data_model.json](../../../json/client_data_model.json)).
-
----
-
-## Metadata and capabilities exchange
-
-In A2UI v1.0, capabilities and other session metadata are exchanged via **transport metadata** or initialization payloads rather than as first-class A2UI messages.
-
-### Server capabilities in Agent Cards
-
-Agents advertise their A2UI capabilities in their AgentCard within the `AgentCapabilities.extensions` list. The `params` object defines the agent's specific UI support and corresponds directly to the **Server Capabilities Schema** ([server_capabilities.json](../../../json/server_capabilities.json)).
-
-#### Example AgentExtension block
+Example AgentCard payload:
 
 ```json
 {
-  "uri": "https://a2ui.org/a2a-extension/a2ui/v1.0",
-  "description": "Ability to render A2UI v1.0",
-  "required": false,
-  "params": {
-    "supportedCatalogIds": [
-      "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-      "https://my-company.com/a2ui/v0_1/my_custom_catalog.json"
-    ],
-    "acceptsInlineCatalogs": true
+  "name": "Dashboard Agent",
+  "description": "Agent capable of generating dynamic UI dashboards.",
+  "capabilities": {
+    "extensions": [
+      {
+        "uri": "https://a2ui.org/a2a-extension/a2ui/v1.0",
+        "description": "Ability to render A2UI v1.0",
+        "required": false,
+        "params": {
+          "supportedCatalogIds": [
+            "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+            "https://my-company.com/a2ui/v1.0/my_custom_catalog.json"
+          ],
+          "acceptsInlineCatalogs": true
+        }
+      }
+    ]
   }
 }
 ```
 
-#### Parameter definitions
+The `params` object corresponds to the `v1.0` object in the `agent_capabilities.json` schema:
 
-The `params` object corresponds to the `v1.0` object in the `server_capabilities.json` schema:
+- `params.supportedCatalogIds` (optional): An array of strings, where each string is an ID identifying a Catalog Definition Schema that the agent can generate. This is not necessarily a resolvable URI.
+- `params.acceptsInlineCatalogs` (optional): A boolean indicating if the agent can accept an `inlineCatalogs` array in the renderer's `a2uiRendererCapabilities`. If omitted, this defaults to `false`.
 
-- `params.supportedCatalogIds` (array of strings, optional): An array of strings, where each string is an ID identifying a Catalog Definition Schema that the agent can generate. This is not necessarily a resolvable URI.
-- `params.acceptsInlineCatalogs` (boolean, optional): A boolean indicating if the agent can accept an `inlineCatalogs` array in the client's `a2uiClientCapabilities`. If omitted, this defaults to `false`.
+## A2A Extension activation
 
-### Client capabilities in message metadata
+Activating the A2UI extension is optional. Renderers and agents can negotiate A2UI support using `message.metadata["a2uiRendererCapabilities"]` A2A `DataPart.data.metadata["mimeType"] = "application/a2ui+json"`.
 
-The client sends its capabilities to the server in an `a2uiClientCapabilities` object. This object is included in the `metadata` field of every A2A `Message` sent from the client to the server, following the **Client Capabilities Schema** ([client_capabilities.json](../../../json/client_capabilities.json)).
+Specifically:
 
-#### Parameter definitions
+- If a renderer includes `message.metadata["a2uiRendererCapabilities"]`, the agent can use this object to determine the supported A2UI protocol version and catalogs.
+- If an agent returns A2A A2A `DataPart.data.metadata["mimeType"] = "application/a2ui+json"`, the renderer knows the payload contains A2UI messages.
 
-The `a2uiClientCapabilities` object contains a `v1.0` object with the following properties:
+While explicit activation is not required, renderers can still explicitly activate the extension using the transport-defined A2A extension activation mechanism. The [A2A Extensions Guide](https://a2a-protocol.org/latest/topics/extensions/) defines this process.
 
-- `v1.0.supportedCatalogIds` (array of strings, required): The string identifiers of supported component and function catalogs.
-- `v1.0.inlineCatalogs` (array, optional): An array of custom catalog definitions provided inline by the client. Functions defined within inline catalogs support declaring execution boundaries (`callableFrom: "clientOnly" | "remoteOnly" | "clientOrRemote"`) to statically specify remote invocation safety.
+Note: You should not use `accepted_output_modes: ['a2ui']` (which is not an A2UI standard) to trigger A2UI.
 
----
+### JSON-RPC and HTTP transports
 
-## Client-to-server data model synchronization
+To activate the A2UI A2A Extension, the `X-A2A-Extensions` HTTP header includes the extension URI.
 
-When `sendDataModel` is enabled for a surface (via the `createSurface` message), the client automatically appends the **entire data model** of that surface to the metadata of every message (such as an `action` or user query) sent to the server that created the surface.
+**Example HTTP `SendMessageRequest`:**
 
-In A2A transport, the data model is serialized to the `a2uiClientDataModel` format and placed in the `metadata` field of the A2A `Message` envelope, following the **Client Data Model Schema** ([client_data_model.json](../../../json/client_data_model.json)).
+```http
+POST /v1/messages HTTP/1.1
+Host: agent.example.com
+X-A2A-Extensions: https://a2ui.org/a2a-extension/a2ui/v1.0
+Content-Type: application/json
 
-### Parameter definitions
+{
+  "message": {
+    "parts": [
+      {
+        "text": "Hello, show me the dashboard"
+      }
+    ]
+  }
+}
+```
 
-The `a2uiClientDataModel` object contains:
+To see how the agent parses the extension URI, see [`extension.py`](../../../../../agent_sdks/python/a2ui_agent/src/a2ui/a2a/extension.py).
 
-- `version` (string, required): Must be the constant `"v1.0"`.
-- `surfaces` (object, required): A map of surface IDs to their current local data models.
+### GRPC transport
 
-### Synchronization rules
+To activate the A2UI A2A Extension, the renderer adds the extension URI to A2A `sendMessageParams.metadata["X-A2A-Extensions"]`.
 
-- **Targeted Delivery**: The data model is sent exclusively to the server that created the surface. Data cannot leak to other agents or servers.
-- **Trigger**: Data is sent only when a client-to-server message is triggered (e.g., by a user action like a button click). Passive data changes (like typing in a text field) do not trigger a network request on their own; they simply update the local state, which will be sent with the next action.
-- **Convergence**: The server treats the received data model as the current state of the client at the time of the action.
+**Example gRPC `SendMessageRequest`:**
 
----
+```json
+{
+  "metadata": {
+    "X-A2A-Extensions": "https://a2ui.org/a2a-extension/a2ui/v1.0"
+  },
+  "message": {
+    "parts": [
+      {
+        "text": "Hello, show me the dashboard"
+        }
+      ]
+    }
+  }
+}
+```
 
-## Extension activation
+## A2A Renderer to Agent Metadata
 
-Clients indicate their desire to use the A2UI extension by specifying it via the transport-defined A2A extension activation mechanism.
+Renderers attach `a2uiRendererCapabilities` and `a2uiRendererDataModel` to A2A messages to communicate their state and supported catalogs.
 
-- For **JSON-RPC and HTTP** transports, this is indicated via the `X-A2A-Extensions` HTTP header.
-- For **gRPC**, this is indicated via the `X-A2A-Extensions` metadata value.
+### `a2uiRendererCapabilities`
 
-Activating this extension implies that the server can send A2UI-specific messages (like `updateComponents`) and the client is expected to send A2UI-specific events (like `action`).
+The renderer sends `sendMessageRequest.message["a2uiRendererCapabilities"]` = [Renderer Capabilities Schema](../../../json/renderer_capabilities.json) to advertise which catalogs the renderer supports.
 
----
+Additionally, the renderer determines a function's execution boundary (e.g., `rendererOnly` status) at runtime by reading its configuration from the active catalog definition.
+
+**Example `SendMessageRequest` with Capabilities:**
+
+```json
+{
+  "message": {
+    "parts": [
+      {
+        "text": "Show me the dashboard."
+      }
+    ],
+    "metadata": {
+      "a2uiRendererCapabilities": {
+        "v1.0": {
+          "supportedCatalogIds": [
+            "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+            "https://my-company.com/a2ui/v1.0/my_custom_catalog.json"
+          ]
+        }
+      }
+    }
+  }
+}
+```
+
+### `a2uiRendererDataModel`
+
+When a surface enables Data Model Sync, the renderer sends `sendMessageRequest.message["a2uiRendererDataModel"]` = [Renderer Data Model Schema](../../../json/renderer_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](../../../../../docs/public/concepts/actions.md).
+
+**Example `SendMessageRequest` with Data Model:**
+
+```json
+{
+  "message": {
+    "parts": [
+      {
+        "text": "Submit the form."
+      }
+    ],
+    "metadata": {
+      "a2uiRendererDataModel": {
+        "version": "v1.0",
+        "surfaces": {
+          "main_surface_id": {
+            "user_id": "12345",
+            "email": "user@example.com"
+          }
+        }
+      }
+    }
+  }
+}
+```
 
 ## Data encoding
 
-A2UI messages are encoded as an A2A `DataPart`. To identify a `DataPart` as containing A2UI data, it must have the following metadata:
+Agents and renderers encode A2UI messages as an A2A `DataPart`.
 
-- `mimeType`: `application/a2ui+json`
+To identify a `DataPart` as containing A2UI data, it must have the following metadata:
 
-The `data` field of the `DataPart` contains a **list** of A2UI JSON messages (e.g., `createSurface`, `updateComponents`, `action`). It MUST be an array of messages.
+- `DataPart.data.metadata["mimeType"] = "application/a2ui+json"`
 
-### Processing rules
+The `data` field of the `DataPart` contains a list of A2UI JSON messages (e.g., `createSurface`, `updateComponents`, `action`). It MUST be an array of messages.
 
-The `data` field contains a list of messages. This list is **NOT** a transactional unit. Receivers (both Clients and Agents) MUST process messages in the list sequentially.
+### Processing Rules
+
+The `data` field contains a list of messages. This list is NOT a transactional unit. Receivers (both Renderers and Agents) MUST process messages in the list sequentially.
 
 If a single message in the list fails to validate or apply (e.g., due to a schema violation or invalid reference), the receiver SHOULD report/log the error for that specific message and MUST continue processing the remaining messages in the list.
 
-Atomicity is guaranteed only at the **individual message** level. However, for a better user experience, a renderer SHOULD NOT repaint the UI until all messages in the list have been processed. This prevents intermediate states from flickering to the user.
+Atomicity is guaranteed only at the individual message level. However, for a better user experience, a renderer SHOULD NOT repaint the UI until all messages in the list have been processed. This prevents intermediate states from flickering to the user.
 
-### Server-to-client messages
+### Agent-to-renderer messages
 
-When an agent sends a message to a client (or another agent acting as a client/renderer), the `data` payload must validate against the **Server-to-Client Message List Schema** ([server_to_client_list.json](../../../json/server_to_client_list.json)).
+When an agent sends a message to a renderer (or another agent acting as a renderer), the `data` payload must validate against the [Agent-to-Renderer Message List Schema](../../../json/agent_to_renderer_list.json).
 
-#### Example DataPart
+Example DataPart:
 
 ```json
 {
@@ -142,8 +209,8 @@ When an agent sends a message to a client (or another agent acting as a client/r
         "surfaceId": "example_surface",
         "components": [
           {
-            "component": "Text",
             "id": "root",
+            "component": "Text",
             "text": "Hello!"
           }
         ]
@@ -157,11 +224,11 @@ When an agent sends a message to a client (or another agent acting as a client/r
 }
 ```
 
-### Client-to-server events
+### Renderer-to-agent events
 
-When a client (or an agent forwarding an event) sends a message to an agent, it also uses a `DataPart` with the same `application/a2ui+json` MIME type. However, the `data` payload must validate against the **Client-to-Server Message List Schema** ([client_to_server_list.json](../../../json/client_to_server_list.json)).
+When a renderer (or an agent forwarding an event) sends a message to an agent, it also uses a `DataPart` with the same `application/a2ui+json` MIME type. However, the `data` payload must validate against the [Renderer-to-Agent Message List Schema](../../../json/renderer_to_agent_list.json).
 
-#### Example `action` DataPart
+Example `action` DataPart:
 
 ```json
 {

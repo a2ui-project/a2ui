@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,13 +39,13 @@ export class SurfaceUpdateSchemaMatcher extends SchemaMatcher {
     if (!schema.surfaceUpdate) {
       return {
         success: false,
-        error: `Expected a 'surfaceUpdate' message but found none.`,
+        error: "Expected a 'surfaceUpdate' message but found none.",
       };
     }
     if (!Array.isArray(schema.surfaceUpdate.components)) {
       return {
         success: false,
-        error: `'surfaceUpdate' message does not contain a 'components' array.`,
+        error: "'surfaceUpdate' message does not contain a 'components' array.",
       };
     }
 

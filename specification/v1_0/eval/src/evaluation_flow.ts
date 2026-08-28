@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ import {z} from 'genkit';
 import {ai} from './ai';
 import {rateLimiter} from './rateLimiter';
 import {logger} from './logger';
-import * as yaml from 'js-yaml';
 import {ProtocolSchemas} from './types';
 
 // Define an evaluation flow

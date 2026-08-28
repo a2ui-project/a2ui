@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#      https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,4 +26,15 @@ Additional Rules:
 2. Generate a 'updateComponents' message with surfaceId 'main' containing the requested UI.
 3. Among the 'updateComponents' messages in the output, there MUST be one root component with id: 'root'.
 4. Ensure all component children are referenced by ID, NOT nested inline as objects.
+"""
+
+FORMAT_AGNOSTIC_ROLE_DESCRIPTION = (
+    "You are an AI assistant. Based on the following request, generate a user"
+    " interface."
+)
+
+FORMAT_AGNOSTIC_WORKFLOW_DESCRIPTION = """
+Additional Rules:
+1. Construct the user interface on surfaceId 'main'.
+2. If components are defined, ensure there is one root component with id: 'root'.
 """

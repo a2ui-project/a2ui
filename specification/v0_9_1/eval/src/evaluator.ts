@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -170,7 +170,7 @@ export class Evaluator {
     // Only save if the evaluation failed
     if (evaluationResult.pass) return;
 
-    const modelDir = path.join(this.outputDir, `output-${result.modelName.replace(/[\/:]/g, '_')}`);
+    const modelDir = path.join(this.outputDir, `output-${result.modelName.replace(/[/:]/g, '_')}`);
     const detailsDir = path.join(modelDir, 'details');
     fs.writeFileSync(
       path.join(detailsDir, `${result.prompt.name}.${result.runNumber}.failed.yaml`),

@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import assert from 'node:assert';
+import * as assert from 'node:assert';
 import {after, describe, it} from 'node:test';
 import {
   signal as aSignal,
@@ -35,12 +35,12 @@ import {
   Signal,
   getValue,
   setValue,
-  PREACT_SIGNAL_IMPLEMENTATION,
+  _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
 } from './signals.js';
 
 describe('Signals abstraction', () => {
   after(() => {
-    setSignalImplementation(PREACT_SIGNAL_IMPLEMENTATION);
+    setSignalImplementation(_PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION);
   });
 
   it('uses default (preact) implementation correctly', () => {
@@ -70,7 +70,7 @@ describe('Signals abstraction', () => {
         const c = aComputed(fn);
         return c as unknown as Signal<T>;
       },
-      isSignal: (val: any): val is Signal<any> => aIsSignal(val),
+      isSignal: (val: unknown): val is Signal<unknown> => aIsSignal(val),
       signal: <T>(initialValue: T) => {
         const s = aSignal(initialValue);
         return s as unknown as Signal<T>;

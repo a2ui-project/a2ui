@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -315,28 +315,28 @@ Example A2UI JSON for quiz cards (interactive multiple choice with feedback):
 
 
 def get_system_prompt(format_type: str, context: str) -> str:
-  """
-  Generate the system prompt for A2UI generation.
+    """
+    Generate the system prompt for A2UI generation.
 
-  Args:
-      format_type: Type of content to generate (flashcards, audio, video, quiz)
-      context: The learner context data
+    Args:
+        format_type: Type of content to generate (flashcards, audio, video, quiz)
+        context: The learner context data
 
-  Returns:
-      System prompt for the LLM
-  """
-  examples = {
-      "flashcards": FLASHCARD_EXAMPLE,
-      "audio": AUDIO_EXAMPLE,
-      "podcast": AUDIO_EXAMPLE,
-      "video": VIDEO_EXAMPLE,
-      "quiz": QUIZ_EXAMPLE,
-  }
+    Returns:
+        System prompt for the LLM
+    """
+    examples = {
+        "flashcards": FLASHCARD_EXAMPLE,
+        "audio": AUDIO_EXAMPLE,
+        "podcast": AUDIO_EXAMPLE,
+        "video": VIDEO_EXAMPLE,
+        "quiz": QUIZ_EXAMPLE,
+    }
 
-  example = examples.get(format_type.lower(), FLASHCARD_EXAMPLE)
+    example = examples.get(format_type.lower(), FLASHCARD_EXAMPLE)
 
-  if format_type.lower() == "flashcards":
-    return f"""You are creating MCAT study flashcards for Maria, a pre-med student.
+    if format_type.lower() == "flashcards":
+        return f"""You are creating MCAT study flashcards for Maria, a pre-med student.
 
 ## Maria's Profile
 {context}
@@ -369,8 +369,8 @@ BAD flashcard back:
 
 Generate the flashcards JSON:"""
 
-  if format_type.lower() == "quiz":
-    return f"""You are creating MCAT practice quiz questions for Maria, a pre-med student.
+    if format_type.lower() == "quiz":
+        return f"""You are creating MCAT practice quiz questions for Maria, a pre-med student.
 
 ## Maria's Profile
 {context}
@@ -402,7 +402,7 @@ Each QuizCard must have:
 
 Generate the quiz JSON:"""
 
-  return f"""You are an A2UI content generator for personalized learning materials.
+    return f"""You are an A2UI content generator for personalized learning materials.
 
 ## Learner Context
 {context}

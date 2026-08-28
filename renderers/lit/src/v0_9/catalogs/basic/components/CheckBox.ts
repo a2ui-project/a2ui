@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +36,8 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<typeof Check
    * - `--a2ui-checkbox-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-checkbox {
       display: block;
     }
     .container {

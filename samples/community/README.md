@@ -14,4 +14,4 @@ rather than on the monorepo workspace, and the folder carries its own
   samples.
 - **python** — `uv sync` for each agent under `agent/adk`.
 
-TODO: organize samples in this folder - https://github.com/a2ui-project/a2ui/issues/1698
+TODO: move samples out of this repository - https://github.com/a2ui-project/a2ui/issues/1698

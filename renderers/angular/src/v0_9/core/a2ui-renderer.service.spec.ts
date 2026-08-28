@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,7 +15,7 @@
  */
 
 import {TestBed} from '@angular/core/testing';
-import {A2uiRendererService, A2UI_RENDERER_CONFIG} from './a2ui-renderer.service';
+import {A2uiRendererService, A2UI_RENDERER_CONFIG, provideA2Ui} from './a2ui-renderer.service';
 
 describe('A2uiRendererService', () => {
   let service: A2uiRendererService;
@@ -82,5 +82,37 @@ describe('A2uiRendererService', () => {
 
       expect(disposeSpy).toHaveBeenCalled();
     });
+  });
+});
+
+describe('provideA2Ui', () => {
+  it('should provide the configuration and allow A2uiRendererService to be instantiated', () => {
+    const mockCatalog = {
+      components: new Map(),
+      functions: new Map(),
+    };
+    TestBed.configureTestingModule({
+      providers: [provideA2Ui({catalogs: [mockCatalog as any]})],
+    });
+    const config = TestBed.inject(A2UI_RENDERER_CONFIG);
+    expect(config).toEqual({catalogs: [mockCatalog as any]});
+
+    const service = TestBed.inject(A2uiRendererService);
+    expect(service).toBeTruthy();
+  });
+
+  it('should support providing the configuration via a factory function', () => {
+    const mockCatalog = {
+      components: new Map(),
+      functions: new Map(),
+    };
+    TestBed.configureTestingModule({
+      providers: [provideA2Ui(() => ({catalogs: [mockCatalog as any]}))],
+    });
+    const config = TestBed.inject(A2UI_RENDERER_CONFIG);
+    expect(config).toEqual({catalogs: [mockCatalog as any]});
+
+    const service = TestBed.inject(A2uiRendererService);
+    expect(service).toBeTruthy();
   });
 });

@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import {SurfaceUpdateSchemaMatcher} from './surface_update_schema_matcher';
 import {SchemaMatcher} from './schema_matcher';
 
 export function validateSchema(
@@ -207,7 +206,7 @@ function validateBoundValue(
 
 function validateComponent(component: any, allIds: Set<string>, errors: string[]) {
   if (!component.id) {
-    errors.push(`Component is missing an 'id'.`);
+    errors.push("Component is missing an 'id'.");
     return;
   }
   if (!component.component) {

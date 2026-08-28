@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -292,6 +292,11 @@ export const componentSpecificStyles: string = `
   padding: 8px;
   border: 1px solid #ccc;
   width: 100%;
+  color: #333;
+}
+:where(.a2ui-surface .a2ui-datetime-input) input::-webkit-datetime-edit,
+:where(.a2ui-surface .a2ui-datetime-input) input::-webkit-datetime-edit-fields-wrapper {
+  color: #333;
 }
 
 .a2ui-surface *,

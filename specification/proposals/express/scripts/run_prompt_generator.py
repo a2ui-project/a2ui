@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -42,63 +42,72 @@ sys.path.insert(
 )
 import json
 from a2ui.core.catalog import Catalog
-from a2ui.experimental.express.prompt_generator import ExpressPromptGenerator
+from a2ui.inference_formats.experimental.express.prompt_generator import ExpressPromptGenerator
 
 
 def generate_prompt_text(catalog_path: str) -> str:
-  """Generates the A2UI Express system prompt contract.
+    """Generates the A2UI Express system prompt contract.
 
-  Args:
-      catalog_path: Path to the catalog JSON schema.
+    Args:
+        catalog_path: Path to the catalog JSON schema.
 
-  Returns:
-      The compiled system prompt text block.
+    Returns:
+        The compiled system prompt text block.
 
-  Raises:
-      FileNotFoundError: If the catalog schema file does not exist.
-  """
-  if not os.path.exists(catalog_path):
-    raise FileNotFoundError(f"Catalog schema not found: {catalog_path}")
+    Raises:
+        FileNotFoundError: If the catalog schema file does not exist.
+    """
+    if not os.path.exists(catalog_path):
+        raise FileNotFoundError(f"Catalog schema not found: {catalog_path}")
 
-  with open(catalog_path, "r", encoding="utf-8") as f:
-    catalog_dict = json.load(f)
-  catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
-  generator = ExpressPromptGenerator(catalog)
-  return generator.generate_prompt()
+    with open(catalog_path, "r", encoding="utf-8") as f:
+        catalog_dict = json.load(f)
+    catalog = Catalog.from_json(catalog_dict, spec_version="0.9.1")
+
+    from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+    express_format = ExpressFormat(catalog=catalog)
+    return express_format.prompt_generator.generate(
+        role_description=(
+            "You are a helpful UI assistant that outputs interfaces using A2UI Express"
+            " DSL."
+        ),
+        include_schema=True,
+    )
 
 
 def main():
-  """CLI entrypoint for the prompt generator."""
-  parser = argparse.ArgumentParser(
-      description=(
-          "Generate model system prompts for A2UI Express from a catalog schema."
-      )
-  )
-  parser.add_argument(
-      "--catalog",
-      default=os.path.join(
-          os.path.dirname(__file__),
-          "..",
-          "..",
-          "..",
-          "v1_0",
-          "catalogs",
-          "basic",
-          "catalog.json",
-      ),
-      help="Path to the catalog JSON schema (default: basic catalog).",
-  )
+    """CLI entrypoint for the prompt generator."""
+    parser = argparse.ArgumentParser(
+        description=(
+            "Generate model system prompts for A2UI Express from a catalog schema."
+        )
+    )
+    parser.add_argument(
+        "--catalog",
+        default=os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "..",
+            "..",
+            "v1_0",
+            "catalogs",
+            "basic",
+            "catalog.json",
+        ),
+        help="Path to the catalog JSON schema (default: basic catalog).",
+    )
 
-  args = parser.parse_args()
+    args = parser.parse_args()
 
-  try:
-    prompt_content = generate_prompt_text(args.catalog)
-    print(prompt_content)
-    sys.exit(0)
-  except Exception as e:
-    print(f"Error: {e}", file=sys.stderr)
-    sys.exit(1)
+    try:
+        prompt_content = generate_prompt_text(args.catalog)
+        print(prompt_content)
+        sys.exit(0)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-  main()
+    main()

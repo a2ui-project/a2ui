@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ import {GeneratedResult, ProtocolSchemas} from './types';
 const schemaFiles = [
   '../../json/common_types.json',
   '../../catalogs/basic/catalog.json',
-  '../../json/server_to_client.json',
+  '../../json/agent_to_renderer.json',
 ];
 
 function loadSchemas(): ProtocolSchemas {

@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,7 +14,15 @@
  * limitations under the License.
  */
 
-import {Injectable, OnDestroy, InjectionToken, Inject} from '@angular/core';
+import {
+  Injectable,
+  OnDestroy,
+  InjectionToken,
+  inject,
+  EnvironmentInjector,
+  EnvironmentProviders,
+  makeEnvironmentProviders,
+} from '@angular/core';
 import {
   MessageProcessor,
   SurfaceGroupModel,
@@ -23,6 +31,7 @@ import {
   A2uiClientAction as Action,
 } from '@a2ui/web_core/v0_9';
 import {AngularComponentImplementation, AngularCatalog} from '../catalog/types';
+import {initializeAngularReactivity} from './reactivity';
 
 /**
  * Configuration for the A2UI renderer.
@@ -47,24 +56,44 @@ export const A2UI_RENDERER_CONFIG = new InjectionToken<RendererConfiguration>(
 );
 
 /**
+ * Provides the A2UI renderer configuration.
+ *
+ * @param configOrFactory The configuration or a factory function that returns the configuration.
+ * @returns The providers for the A2UI renderer.
+ */
+export function provideA2Ui(
+  configOrFactory: RendererConfiguration | (() => RendererConfiguration),
+): EnvironmentProviders {
+  return makeEnvironmentProviders([
+    {
+      provide: A2UI_RENDERER_CONFIG,
+      ...(typeof configOrFactory === 'function'
+        ? {useFactory: configOrFactory}
+        : {useValue: configOrFactory}),
+    },
+  ]);
+}
+
+/**
  * Manages A2UI v0.9 rendering sessions by bridging the MessageProcessor to Angular.
  *
  * This service is the central entry point for the A2UI renderer. It maintains a
  * {@link MessageProcessor} that turns A2UI protocol messages into a reactive
  * {@link SurfaceGroupModel}.
  */
-@Injectable()
+@Injectable({providedIn: 'root'})
 export class A2uiRendererService implements OnDestroy {
   private _messageProcessor: MessageProcessor<AngularComponentImplementation>;
   private _catalogs: AngularCatalog[] = [];
+  private _config = inject(A2UI_RENDERER_CONFIG);
 
-  constructor(@Inject(A2UI_RENDERER_CONFIG) private config: RendererConfiguration) {
-    this._catalogs = this.config.catalogs;
-    console.log('[A2uiRendererService] constructor, config:', this.config);
-
+  constructor() {
+    initializeAngularReactivity(inject(EnvironmentInjector));
+    this._catalogs = this._config.catalogs;
+    console.log('[A2uiRendererService] constructor, config:', this._config);
     this._messageProcessor = new MessageProcessor<AngularComponentImplementation>(
       this._catalogs,
-      this.config.actionHandler as ActionHandler,
+      this._config.actionHandler as ActionHandler,
     );
   }
 

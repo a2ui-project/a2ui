@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -83,6 +83,15 @@ describe('Example: Live Invitation Builder', () => {
   it('should render date', async () => {
     expect(textContent).toContain('July 15');
     expect(textContent).toContain('2025');
+  });
+
+  it('should render date time input', async () => {
+    const dateTimeInput = querySelectorAllDeep(
+      surface,
+      '.a2ui-date-time-input',
+    )[0] as HTMLInputElement;
+    expect(dateTimeInput).withContext('Should have a date time input element').toBeTruthy();
+    expect(dateTimeInput.value).toContain('2025-07-15');
   });
 
   it('should render image', async () => {

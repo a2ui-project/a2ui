@@ -1,0 +1,14 @@
+{
+  "hypothesis": "Streamlined array bracket resolution for list item children in _compile_component.",
+  "notes": "Pytest 100% pass, 100.0% Schema Acc, 100.0% Quality Score. However, Code Output Tokens increased by +8.7% (306 vs 282) and Reasoning Tokens increased by +17.8% (6,450 vs 5,476, exceeding 15% cap). Score S_opt dropped to +0.578. Reverted per Rule 2 and Rule 3.",
+  "status": "Backtracked",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 306.0,
+    "reasoning_tokens_median": 6449.5,
+    "input_tokens_median": 4451.5,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

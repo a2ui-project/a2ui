@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,8 @@ export class A2uiVideoElement extends BasicCatalogA2uiLitElement<typeof VideoApi
    * - `--a2ui-video-border-radius`: Controls the rounded corners of the video. Defaults to `0`.
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-video {
       display: block;
       width: 100%;
     }

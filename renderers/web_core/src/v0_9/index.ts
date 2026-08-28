@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the 'License');
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,17 @@ export * from './processing/message-processor.js';
 export * from './rendering/component-context.js';
 export * from './rendering/data-context.js';
 export * from './rendering/generic-binder.js';
+// MutableComponentNode is deliberately not re-exported.
+export {
+  isComponentNode,
+  PLACEHOLDER_TYPE,
+  type ComponentNode,
+  type NodeProps,
+  type NodeState,
+} from './nodes/component-node.js';
+export * from './nodes/node-resolver.js';
+export * from './nodes/ref-fields.js';
+export * from './nodes/resolved-binding.js';
 export * from './schema/index.js';
 export * from './state/component-model.js';
 export * from './state/data-model.js';
@@ -48,6 +59,7 @@ export {
   isSignal,
   setValue,
   setSignalImplementation,
+  _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
   type SignalImplementations,
 } from './reactivity/signals.js';
 

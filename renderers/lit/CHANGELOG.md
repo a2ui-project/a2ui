@@ -1,5 +1,15 @@
 ## Unreleased
 
+- (v0_9) Migrate Basic Catalog components and surface rendering from Shadow DOM to Light DOM. [#2204](https://github.com/a2ui-project/a2ui/pull/2204)
+
+## 0.10.3
+
+- Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.
+
+## 0.10.2
+
+- (v0_9) Normalize Safari placeholder text color for `DateTimeInput` by updating CSS selectors for `.a2ui-date-time-input`.
+
 ## 0.10.1
 
 - (v0_9) Tighten resolved child list types in the basic catalog layout components.

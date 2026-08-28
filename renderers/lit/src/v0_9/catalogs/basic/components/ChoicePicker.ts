@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +36,8 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
    * - `--a2ui-choicepicker-chip-border-radius`: Border radius for chips. Defaults to `999px`.
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-choicepicker {
       display: flex;
       flex-direction: column;
       gap: var(--a2ui-choicepicker-gap, var(--a2ui-spacing-xs, 0.25rem));
@@ -51,7 +52,8 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<typeof C
       color: var(--a2ui-choicepicker-label-color, inherit);
       font-size: var(--a2ui-choicepicker-label-font-size, inherit);
     }
-    :host > label {
+    :host,
+    a2ui-choicepicker > label {
       font-size: var(
         --a2ui-choicepicker-label-font-size,
         var(--a2ui-label-font-size, var(--a2ui-font-size-s))

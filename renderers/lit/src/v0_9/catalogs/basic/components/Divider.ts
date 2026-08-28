@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +31,8 @@ export class A2uiDividerElement extends BasicCatalogA2uiLitElement<typeof Divide
    * - `--a2ui-divider-spacing`: The spacing around the divider. Defaults to `--a2ui-spacing-m`.
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-divider {
       display: block;
       align-self: stretch;
     }

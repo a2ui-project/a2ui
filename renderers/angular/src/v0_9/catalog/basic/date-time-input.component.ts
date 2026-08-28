@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -93,6 +93,10 @@ import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
         color: var(--a2ui-datetimeinput-color, var(--a2ui-color-on-input, #333));
         font-family: inherit;
         flex: 1;
+      }
+      .a2ui-date-time-input::-webkit-datetime-edit,
+      .a2ui-date-time-input::-webkit-datetime-edit-fields-wrapper {
+        color: var(--a2ui-datetimeinput-color, var(--a2ui-color-on-input, #333));
       }
     `,
   ],

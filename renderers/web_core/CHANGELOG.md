@@ -1,5 +1,28 @@
 ## Unreleased
 
+- (v0_9) The child-reference marker on `ComponentIdSchema` and `ChildListSchema` now lives in the schema's metadata, so `.describe()` and other schema-rebuilding methods no longer drop it. Hand-authored `REF:` descriptions are still recognized ([#2393](https://github.com/a2ui-project/a2ui/pull/2393)).
+
+- (v0_9) Add the node layer: `NodeResolver` resolves a surface's components and data into a live tree of read-only `ComponentNode`s, with dynamic properties resolved to `ResolvedBinding`/`WritableBinding` and distinct pending, unknown-type, and cyclic placeholder states. Sibling instance ids are always distinct, unresolvable and cyclic references are reported through `onError` once per component and data path while the condition persists, model events delivered late reconcile against current model state, and child-reference detection covers `ChildList` unions and plain arrays of component ids ([#2077](https://github.com/a2ui-project/a2ui/pull/2077), [#2393](https://github.com/a2ui-project/a2ui/pull/2393)).
+- (v0_9) Emit `$ref` in inline-catalog capabilities for the basic catalog's child-reference properties even when a per-usage description is set; new `componentId()`/`childList()` helpers compose custom descriptions without losing the `$ref` ([#2077](https://github.com/a2ui-project/a2ui/pull/2077)).
+- (v0_9) `GenericBinder` reuses action closures across identical component resends, so action-valued props keep reference identity and downstream equality checks see them as unchanged ([#2077](https://github.com/a2ui-project/a2ui/pull/2077)).
+- (v0_9) `Catalog` and `SurfaceModel` accept a function-kind type parameter (defaulting to `FunctionImplementation`); invoking a catalog function that has no implementation now throws `A2uiExpressionError` ([#2077](https://github.com/a2ui-project/a2ui/pull/2077)).
+
+## 0.10.6
+
+- (v0_9) Validate component properties against catalog schema in `MessageProcessor` to prevent malformed component actions.
+- (v0_9) Add prototype pollution protection and safe property lookup to `DataModel` (non-breaking security fix).
+- (v0_8) Export `A2uiMessageSchema` in public API.
+- Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.
+
+## 0.10.5
+
+- (v0_9) Accept both `v0.9` and `v0.9.1` versions when parsing messages. Allow `A2uiClientCapabilities` to support simultaneous version capability advertising (`'v0.9'` and `'v0.9.1'`).
+
+## 0.10.4
+
+- (v0_9) Support JSON Pointer escaping (RFC 6901) in DataModel ([#1796](https://github.com/a2ui-project/a2ui/pull/1796)).
+- (v0_8) Export `UserAction` as `ClientEventUserAction` from `types.ts` ([#1942](https://github.com/a2ui-project/a2ui/pull/1942)).
+
 ## 0.10.3
 
 - Added the ability to swap out the signals implementation through the `setSignalImplementation` function.

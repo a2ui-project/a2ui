@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,6 +40,11 @@ import type {DateTimeInputNode, StringValue} from '../types';
   styles: `
     :host {
       display: block;
+    }
+    input,
+    input::-webkit-datetime-edit,
+    input::-webkit-datetime-edit-fields-wrapper {
+      color: #333;
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,

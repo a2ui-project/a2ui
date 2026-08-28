@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * Copyright 2026 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -150,6 +150,16 @@ describe('publish_npm script integration test', () => {
     assert.ok(hasMdInstall, 'Should run yarn install in markdown-it');
   });
 
+  it('should throw an error when no packages are specified', async () => {
+    await assert.rejects(
+      () => main([]),
+      err => {
+        assert.match(err.message, /Usage: publish_npm --package=pkg1/);
+        return true;
+      },
+    );
+  });
+
   it('should output help message and return early when --help is passed', async () => {
     const executedCommands = [];
     const mocks = {
@@ -165,5 +175,34 @@ describe('publish_npm script integration test', () => {
       0,
       'Should not run any commands when help is passed',
     );
+  });
+
+  it('should throw when the auth token cannot be obtained', async () => {
+    const originalNpmToken = process.env.NPM_TOKEN;
+    delete process.env.NPM_TOKEN;
+
+    const mocks = {
+      runCommand: () => {},
+      execSync: cmd => {
+        if (cmd.includes('gcloud auth')) {
+          throw new Error('gcloud command failed');
+        }
+        return '';
+      },
+    };
+
+    try {
+      await assert.rejects(
+        () => main(['--package=web_core'], mocks),
+        err => {
+          assert.match(err.message, /Could not find access token/);
+          return true;
+        },
+      );
+    } finally {
+      if (originalNpmToken !== undefined) {
+        process.env.NPM_TOKEN = originalNpmToken;
+      }
+    }
   });
 });

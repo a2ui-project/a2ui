@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -49,14 +49,14 @@ describe('weight property is honored on basic catalog components', () => {
 
   for (const {name, impl, props} of cases) {
     it(`${name} applies flex when weight is set`, () => {
-      const {view} = renderA2uiComponent(impl, 'c1', {...props, weight: 2});
+      const {view} = renderA2uiComponent(impl, {...props, weight: 2});
       const root = view.container.firstChild as HTMLElement;
       expect(root.style.flexGrow).toBe('2');
       expect(root.style.minWidth).toBe('0px');
     });
 
     it(`${name} does not apply flex when weight is unset`, () => {
-      const {view} = renderA2uiComponent(impl, 'c1', props);
+      const {view} = renderA2uiComponent(impl, props);
       const root = view.container.firstChild as HTMLElement;
       expect(root.style.flex).toBe('');
     });

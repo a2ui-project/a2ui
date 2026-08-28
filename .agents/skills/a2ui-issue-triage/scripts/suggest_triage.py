@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,13 +30,15 @@ COMPONENT_DIRS = {
     "component: standard catalog specification": "specification",
     "component: specification": "specification",
     "component: samples": "samples",
-    "component: agent library": "agent_sdks"
+    "component: agent library": "agent_sdks",
 }
+
 
 def safe_prefix_match(s1, s2):
     if len(s1) < 3 or len(s2) < 3:
         return False
     return s1.startswith(s2) or s2.startswith(s1)
+
 
 def get_suggested_assignees(component_labels, repo_dir, valid_assignees):
     if not valid_assignees:
@@ -59,14 +61,14 @@ def get_suggested_assignees(component_labels, repo_dir, valid_assignees):
         full_path = os.path.join(repo_dir, target_dir)
         if not os.path.exists(full_path):
             continue
-        
+
         try:
             # Run: git log -n 30 --format="%an <%ae>" -- <path>
             res = subprocess.run(
                 ["git", "log", "-n", "30", "--format=%an <%ae>", "--", target_dir],
                 cwd=repo_dir,
                 capture_output=True,
-                text=True
+                text=True,
             )
             if res.returncode == 0:
                 for line in res.stdout.splitlines():
@@ -84,9 +86,9 @@ def get_suggested_assignees(component_labels, repo_dir, valid_assignees):
         author_lower = author.lower()
         if "dependabot" in author_lower or "github-actions" in author_lower:
             continue
-        
+
         # Parse name and email prefix
-        match = re.match(r'^(.*?)\s*<(.*?)>$', author)
+        match = re.match(r"^(.*?)\s*<(.*?)>$", author)
         if match:
             author_counts[author] += 1
 
@@ -99,7 +101,7 @@ def get_suggested_assignees(component_labels, repo_dir, valid_assignees):
     suggested = []
     # Map the top authors to valid GitHub assignees
     for author_info in sorted_authors:
-        match = re.match(r'^(.*?)\s*<(.*?)>$', author_info)
+        match = re.match(r"^(.*?)\s*<(.*?)>$", author_info)
         if not match:
             continue
         name = match.group(1).strip().lower().replace(" ", "")
@@ -126,20 +128,40 @@ def get_suggested_assignees(component_labels, repo_dir, valid_assignees):
                 continue
             login_lower = login.lower()
 
-            if safe_prefix_match(login_lower, email_prefix) or safe_prefix_match(login_lower, name):
+            if safe_prefix_match(login_lower, email_prefix) or safe_prefix_match(
+                login_lower, name
+            ):
                 suggested.append(login)
                 break
 
     return suggested
 
+
 def guess_triage_heuristics(title, body):
     # Default suggestions
     priority = "None"
     action = "investigate"
-    labels = []
+    labels = ["status: first-line-handled"]
     reply = ""
 
     text = (title + " " + body).lower()
+
+    # Special Case: Weekly A2UI Compliance Report
+    if "weekly a2ui compliance report" in text:
+        labels.append("type: documentation")
+        priority = "P3"
+        action = "backlog"
+        reply = (
+            "As agreed, this has been assigned a P3 priority. Once the current"
+            " triage queue is cleared, we will begin reviewing AI-generated"
+            " issues."
+        )
+        return {
+            "priority": priority,
+            "action": action,
+            "labels": list(set(labels)),
+            "reply": reply,
+        }
 
     # Guess Component Labels
     if "lit" in text:
@@ -163,39 +185,79 @@ def guess_triage_heuristics(title, body):
         reply = "Thanks. We will update the documentation."
     elif "feature" in text or "enhancement" in text or "request" in text:
         labels.append("type: feature/enhancement")
-        priority = "P3"
-        action = "investigate"
-        reply = "Thanks for the suggestion. We will evaluate this against our roadmap."
+        if "out of scope" in text or "not planned" in text:
+            priority = "P4"
+            action = "backlog"
+            reply = (
+                "Thanks for the suggestion. This falls outside the current scope"
+                " of the A2UI protocol roadmap.\n\nMarked as `P4`: we do not"
+                " plan to invest in it, and PRs against it will not be reviewed."
+                " Leaving it open as a record of the request — comment here if"
+                " you have new arguments to share."
+            )
+        else:
+            priority = "P3"
+            action = "backlog"
+            reply = (
+                "Thanks for the suggestion. We will evaluate this against our roadmap."
+            )
     else:
         # Default to bug if not documentation/feature and contains words like error, fail, crash, bug
-        if any(w in text for w in ["error", "fail", "crash", "bug", "exception", "broken", "issue"]):
+        if any(
+            w in text
+            for w in ["error", "fail", "crash", "bug", "exception", "broken", "issue"]
+        ):
             labels.append("type: bug")
             priority = "P2"
             action = "investigate"
-            reply = "Thanks for reporting. We will investigate the code and logs to diagnose this."
+            reply = (
+                "Thanks for reporting. We will investigate the code and logs to"
+                " diagnose this."
+            )
 
-    # Guess waiting-for-user-response if repro steps are obviously missing in bug reports
+    # Guess status: waiting-for-author-response if repro steps are obviously missing in bug reports
     if "type: bug" in labels:
         if not any(w in text for w in ["reproduce", "repro", "steps", "run", "how to"]):
-            labels.append("waiting-for-user-response")
+            labels.append("status: waiting-for-author-response")
             action = "needs_info"
-            reply = "Please provide a minimal reproduction schema or code snippet to help us investigate."
+            reply = (
+                "To help us diagnose this, please provide:\n\n1. Browser console logs"
+                " or exact protocol payload\n2. Minimal reproduction schema or code"
+                " snippet\n\nMarked as `status: waiting-for-author-response` for"
+                " now."
+            )
 
     return {
         "priority": priority,
         "action": action,
         "labels": list(set(labels)),
-        "reply": reply
+        "reply": reply,
     }
 
-def main():
-    default_repo_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
 
-    parser = argparse.ArgumentParser(description="Generate initial triage suggestions and data for subagents.")
+def main():
+    default_repo_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "../../../")
+    )
+
+    parser = argparse.ArgumentParser(
+        description="Generate initial triage suggestions and data for subagents."
+    )
     parser.add_argument("--input-file", required=True, help="Path to raw issues JSON.")
-    parser.add_argument("--output-file", required=True, help="Path to save enriched issues JSON.")
-    parser.add_argument("--repo-dir", default=default_repo_dir, help="Path to the local A2UI repository root.")
-    parser.add_argument("--limit", type=int, default=10, help="Maximum number of issues to review in this session.")
+    parser.add_argument(
+        "--output-file", required=True, help="Path to save enriched issues JSON."
+    )
+    parser.add_argument(
+        "--repo-dir",
+        default=default_repo_dir,
+        help="Path to the local A2UI repository root.",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+        help="Maximum number of issues to review in this session.",
+    )
     args = parser.parse_args()
 
     input_path = os.path.abspath(os.path.expanduser(args.input_file))
@@ -210,32 +272,55 @@ def main():
 
     all_issues = data["issues"]
     valid_assignees = data["assignees"]
-    
+
     total_issues_count = data["total_issues_count"]
-    issues = all_issues[:args.limit]
-    
+    issues = all_issues[: args.limit]
+
     print(f"Generating initial suggestions and data for {len(issues)} issues...")
 
     for issue in issues:
         # 1. Run heuristics for priority, action, labels, and reply
-        suggestions = guess_triage_heuristics(issue.get("title", ""), issue.get("body", ""))
-        
+        suggestions = guess_triage_heuristics(
+            issue.get("title", ""), issue.get("body", "")
+        )
+
         # 2. Run git history check to find suggested assignees dynamically sorted by likelihood
-        suggested = get_suggested_assignees(suggestions["labels"], repo_dir, valid_assignees)
+        suggested = get_suggested_assignees(
+            suggestions["labels"], repo_dir, valid_assignees
+        )
         suggestions["suggested_assignees"] = suggested
-        
+
         # If the issue already has an assignee, preserve it!
+        # Rule from triage-templates.md: Assigned issue without a priority gets P2 and assign_and_fix (unless compliance report)
         existing_assignees = issue.get("assignees", [])
         if existing_assignees:
             suggestions["assignee"] = existing_assignees[0]
-            suggestions["assignee_reason"] = f"Preserving existing assignee: {existing_assignees[0]}."
+            suggestions["assignee_reason"] = (
+                f"Preserving existing assignee: {existing_assignees[0]}."
+            )
+            text = (issue.get("title", "") + " " + issue.get("body", "")).lower()
+            if (
+                "weekly a2ui compliance report" not in text
+                and suggestions.get("action") != "needs_info"
+                and suggestions.get("priority") not in ("P0", "P1")
+            ):
+                suggestions["priority"] = "P2"
+                suggestions["action"] = "assign_and_fix"
+                suggestions["reply"] = (
+                    "I assigned a P2 priority to move this out of the triage"
+                    " queue. Please adjust the priority if needed to better"
+                    " reflect the issue's status."
+                )
         else:
             # 3. Add assignee reason
             if suggested:
-                suggestions["assignee_reason"] = f"Suggesting {suggested[0]} because they recently modified related code."
+                suggestions["assignee_reason"] = (
+                    f"Suggesting {suggested[0]} because they recently modified related"
+                    " code."
+                )
             else:
                 suggestions["assignee_reason"] = ""
-            
+
             # Only recommend assignment for P0 and P1 issues
             is_high_priority = suggestions["priority"] in ["P0", "P1"]
             if is_high_priority and suggested:
@@ -244,7 +329,9 @@ def main():
                 suggestions["assignee"] = ""
                 # For lower priority issues, add an @mention in the comment for the recommended owner
                 if suggested and suggestions["reply"]:
-                    suggestions["reply"] = suggestions["reply"].strip() + f" cc @{suggested[0]}"
+                    suggestions["reply"] = (
+                        suggestions["reply"].strip() + f" cc @{suggested[0]}"
+                    )
 
         # Ensure draft reply starts with "A2UI Triage: " prefix
         if suggestions["reply"]:
@@ -252,19 +339,20 @@ def main():
             prefix = "A2UI Triage: "
             if not reply_text.startswith(prefix):
                 suggestions["reply"] = prefix + reply_text
-        
+
         issue["suggestions"] = suggestions
 
     # Write the final compiled suggestions to the output file
     data["issues"] = issues
     data["total_issues_count"] = total_issues_count
-    
+
     output_path = os.path.abspath(os.path.expanduser(args.output_file))
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
     print(f"Successfully generated data and saved to {output_path}")
+
 
 if __name__ == "__main__":
     main()

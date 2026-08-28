@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -186,7 +186,8 @@ class MessageProcessor:
             except Exception as e:
                 err_msg = str(e)
                 raise ValueError(
-                    f"Components validation failed for surface '{surface_id}': {err_msg}"
+                    f"Components validation failed for surface '{surface_id}':"
+                    f" {err_msg}"
                 )
 
         for comp in components:

@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,7 +50,8 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<typeof RowAp
    * - `--a2ui-row-gap`: The gap between items in the row. Defaults to `--a2ui-spacing-m`.
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-basic-row {
       display: flex;
       flex-direction: row;
       gap: var(--a2ui-row-gap, var(--a2ui-spacing-m));

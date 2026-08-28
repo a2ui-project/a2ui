@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,7 +21,7 @@ requires-python = ">=3.10"
 dependencies = [
     "a2a-sdk[http-server]>=0.3.0",
     "click>=8.1.8",
-    "google-adk>=1.28.1",
+    "google-adk>=2.3.0",
     "google-genai>=1.27.0",
     "python-dotenv>=1.1.0",
     "litellm>=1.83.7",

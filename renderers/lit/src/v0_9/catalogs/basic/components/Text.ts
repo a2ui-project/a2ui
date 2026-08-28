@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,8 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<typeof Text
    * It also supports `--_a2ui-text-color` override from parent components (like Button).
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-basic-text {
       display: inline-block;
       color: var(--_a2ui-text-color, var(--a2ui-text-color-text, var(--a2ui-color-on-background)));
     }

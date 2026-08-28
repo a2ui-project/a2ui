@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,16 +24,26 @@ class Theme(BaseModel):
     primary_color: Optional[str] = Field(
         None,
         alias="primaryColor",
-        description="The primary brand color used for highlights (e.g., primary buttons, active borders). Renderers may generate variants of this color for different contexts. Format: Hexadecimal code (e.g., '#00BFFF').",
+        description=(
+            "The primary brand color used for highlights (e.g., primary buttons, active"
+            " borders). Renderers may generate variants of this color for different"
+            " contexts. Format: Hexadecimal code (e.g., '#00BFFF')."
+        ),
         pattern="^#[0-9a-fA-F]{6}$",
     )
     icon_url: Optional[str] = Field(
         None,
         alias="iconUrl",
-        description="A URL for an image that identifies the agent or tool associated with the surface.",
+        description=(
+            "A URL for an image that identifies the agent or tool associated with the"
+            " surface."
+        ),
     )
     agent_display_name: Optional[str] = Field(
         None,
         alias="agentDisplayName",
-        description="Text to be displayed next to the surface to identify the agent or tool that created it.",
+        description=(
+            "Text to be displayed next to the surface to identify the agent or tool"
+            " that created it."
+        ),
     )

@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -61,7 +61,8 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof 
    * - `--a2ui-datetimeinput-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-datetimeinput {
       display: flex;
       flex-direction: column;
       gap: var(--a2ui-spacing-xs, 0.25rem);
@@ -72,6 +73,10 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof 
       border: var(--a2ui-datetimeinput-border, var(--a2ui-border));
       border-radius: var(--a2ui-datetimeinput-border-radius, var(--a2ui-border-radius));
       padding: var(--a2ui-datetimeinput-padding, var(--a2ui-spacing-s));
+    }
+    .a2ui-date-time-input::-webkit-datetime-edit,
+    .a2ui-date-time-input::-webkit-datetime-edit-fields-wrapper {
+      color: var(--a2ui-datetimeinput-color, var(--a2ui-color-on-input, #333));
     }
     label {
       font-size: var(
@@ -99,6 +104,7 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<typeof 
     return html`
       ${props.label ? html`<label>${props.label}</label>` : nothing}
       <input
+        class="a2ui-date-time-input"
         type=${inputType}
         .value=${normalizedValue}
         @input=${(e: Event) => props.setValue?.((e.target as HTMLInputElement).value)}

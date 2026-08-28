@@ -3,7 +3,7 @@
 <!-- markdownlint-disable MD034 -->
 <div style="text-align: center;">
   <div class="centered-logo-text-group">
-    <img src="../../../assets/A2UI_dark.svg" alt="A2UI Protocol Logo" width="100">
+    <img src="../../../docs/public/assets/A2UI_dark.svg" alt="A2UI Protocol Logo" width="100">
     <h1>A2UI (Agent to UI) Protocol v0.9</h1>
   </div>
 </div>
@@ -98,7 +98,7 @@ While A2UI is agnostic, it is most commonly used with the following transports.
 #### A2A (Agent2Agent) binding
 
 [A2A (Agent-to-Agent)](https://a2a-protocol.org/latest/) is an excellent transport option for A2UI in agentic systems, extending A2A with additional payloads.
-A2A is uniquely capable of handling remote agent communication, and can also provide a secure and effecient transport between an agentic backend and front end application.
+A2A is uniquely capable of handling remote agent communication, and can also provide a secure and efficient transport between an agentic backend and front end application.
 
 - **Message mapping**: Each A2UI envelope (e.g., `updateComponents`) corresponds to the payload of a single A2A message Part.
 - **Metadata**:
@@ -315,6 +315,8 @@ The set of available UI components and functions is defined in a **Catalog**. Th
 #### Catalog Identification & Compatibility
 
 Each catalog is identified by a `catalogId` string. The `catalogId` is a string identifier used for matching catalogs between the client and server. While it is conventional to format catalog IDs as URIs (e.g., `https://mycompany.com/catalogs/v1`) to prevent naming collisions across organizations, a `catalogId` is not required to be a resolvable network resource.
+
+Because A2UI catalogs are represented as JSON Schema documents, catalog definitions should include both `$id` (used by JSON Schema tooling) and `catalogId` (used by A2UI SDKs and catalog negotiation), and both fields should be set to the same URI.
 
 It is up to client and server developers to agree on shared catalogs with well-known IDs in order to build systems that are compatible with each other.
 

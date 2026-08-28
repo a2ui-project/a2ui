@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -274,20 +274,16 @@ def test_a2ui_validator_validate_components_error():
     catalog = BasicCatalog()
     validator = A2uiValidator()
 
-    messages = [
-        {
-            "version": "v0.9",
-            "updateComponents": {
-                "surfaceId": "main",
-                "components": [
-                    {
-                        "id": "root",
-                        "component": "NonexistentComponent",
-                    }
-                ],
-            },
-        }
-    ]
+    messages = [{
+        "version": "v0.9",
+        "updateComponents": {
+            "surfaceId": "main",
+            "components": [{
+                "id": "root",
+                "component": "NonexistentComponent",
+            }],
+        },
+    }]
 
     with pytest.raises(A2uiValidatorError):
         validator.validate(CatalogSchemaValidator.from_catalog(catalog), messages)
@@ -366,41 +362,39 @@ def test_validate_recursion_and_paths_syntax_coverage():
         "version": "v0.9",
         "updateComponents": {
             "surfaceId": "s1",
-            "components": [
-                {
-                    "id": "root",
-                    "component": "Text",
-                    "text": {
-                        "call": "nestedFunctionA",
-                        "args": {
-                            "val": {
-                                "call": "nestedFunctionB",
-                                "args": {
-                                    "val": {
-                                        "call": "nestedFunctionC",
-                                        "args": {
-                                            "val": {
-                                                "call": "nestedFunctionD",
-                                                "args": {
-                                                    "val": {
-                                                        "call": "nestedFunctionE",
-                                                        "args": {
-                                                            "val": {
-                                                                "call": "nestedFunctionF",
-                                                                "args": {},
-                                                            }
-                                                        },
-                                                    }
-                                                },
-                                            }
-                                        },
-                                    }
-                                },
-                            }
-                        },
+            "components": [{
+                "id": "root",
+                "component": "Text",
+                "text": {
+                    "call": "nestedFunctionA",
+                    "args": {
+                        "val": {
+                            "call": "nestedFunctionB",
+                            "args": {
+                                "val": {
+                                    "call": "nestedFunctionC",
+                                    "args": {
+                                        "val": {
+                                            "call": "nestedFunctionD",
+                                            "args": {
+                                                "val": {
+                                                    "call": "nestedFunctionE",
+                                                    "args": {
+                                                        "val": {
+                                                            "call": "nestedFunctionF",
+                                                            "args": {},
+                                                        }
+                                                    },
+                                                }
+                                            },
+                                        }
+                                    },
+                                }
+                            },
+                        }
                     },
-                }
-            ],
+                },
+            }],
         },
     }
     with pytest.raises(ValueError, match="Recursion limit exceeded"):

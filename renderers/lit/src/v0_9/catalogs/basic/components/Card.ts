@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,7 +33,8 @@ export class A2uiCardElement extends BasicCatalogA2uiLitElement<typeof CardApi> 
    * - `--a2ui-card-margin`: The outer margin of the card. Defaults to `--a2ui-spacing-m`.
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-card {
       display: block;
       border: var(
         --a2ui-card-border,

@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -148,7 +148,7 @@ export class Generator {
     components: any[],
   ) {
     if (!this.outputDir) return;
-    const modelDir = path.join(this.outputDir, `output-${model.name.replace(/[\/:]/g, '_')}`);
+    const modelDir = path.join(this.outputDir, `output-${model.name.replace(/[/:]/g, '_')}`);
     const detailsDir = path.join(modelDir, 'details');
     fs.mkdirSync(detailsDir, {recursive: true});
 
@@ -183,7 +183,7 @@ ${prompt.promptText
     error: any,
   ) {
     if (!this.outputDir) return;
-    const modelDir = path.join(this.outputDir, `output-${model.name.replace(/[\/:]/g, '_')}`);
+    const modelDir = path.join(this.outputDir, `output-${model.name.replace(/[/:]/g, '_')}`);
     const detailsDir = path.join(modelDir, 'details');
     fs.mkdirSync(detailsDir, {recursive: true});
 

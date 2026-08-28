@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -44,7 +44,6 @@ import {SliderApi} from '@a2ui/web_core/v0_9/basic_catalog';
         type="range"
         [min]="min()"
         [max]="max()"
-        [step]="step()"
         [value]="value()"
         (input)="handleInput($event)"
         class="a2ui-slider"
@@ -85,7 +84,6 @@ export class SliderComponent extends BasicCatalogComponent<typeof SliderApi> {
   readonly value = computed(() => this.props()['value']?.value());
   readonly min = computed(() => this.props()['min']?.value() ?? 0);
   readonly max = computed(() => this.props()['max']?.value() ?? 100);
-  readonly step = computed(() => this.props()['step']?.value() ?? 1);
 
   handleInput(event: Event) {
     const val = Number((event.target as HTMLInputElement).value);

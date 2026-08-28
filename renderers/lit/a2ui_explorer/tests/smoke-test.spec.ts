@@ -1,10 +1,10 @@
-// Copyright 2026 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,8 +22,19 @@ import {test, expect} from 'vitest';
  *
  * For more details, see: https://github.com/a2ui-project/a2ui/issues/1645
  */
-test('local-gallery compiles and registers without syntax errors', async () => {
-  const mod = await import('../src/local-gallery.js');
-  expect(mod.LocalGallery).toBeDefined();
-  expect(customElements.get('local-gallery')).toBeDefined();
-});
+/**
+ * Vite dev server compilation under JSDOM can be slow during cold runs,
+ * particularly on CI environments. We use an increased timeout of 30 seconds
+ * to prevent sporadic/flaky test timeouts.
+ */
+const VITE_COMPILE_TIMEOUT = 30000;
+
+test(
+  'local-gallery compiles and registers without syntax errors',
+  async () => {
+    const mod = await import('../src/local-gallery.js');
+    expect(mod.LocalGallery).toBeDefined();
+    expect(customElements.get('local-gallery')).toBeDefined();
+  },
+  VITE_COMPILE_TIMEOUT,
+);

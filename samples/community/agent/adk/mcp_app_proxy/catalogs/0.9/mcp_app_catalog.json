@@ -1,5 +1,7 @@
 {
-  "catalogId": "a2ui.org:a2ui/v0.9/mcp_app_catalog.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/samples/community/agent/adk/mcp_app_proxy/catalogs/0.9/mcp_app_catalog.json",
+  "catalogId": "https://a2ui.org/samples/community/agent/adk/mcp_app_proxy/catalogs/0.9/mcp_app_catalog.json",
   "components": {
     "Column": {
       "type": "object",
@@ -22,14 +24,14 @@
             "children": {
               "type": "array",
               "items": {
-                "$ref": "#/$defs/anyComponent"
+                "$ref": "common_types.json#/$defs/ComponentId"
               }
             }
           },
-          "required": ["component"],
-          "additionalProperties": false
+          "required": ["component"]
         }
-      ]
+      ],
+      "unevaluatedProperties": false
     },
     "McpApp": {
       "type": "object",
@@ -43,7 +45,7 @@
             "component": {
               "const": "McpApp"
             },
-            "content": {
+            "htmlContent": {
               "$ref": "common_types.json#/$defs/DynamicString",
               "description": "The HTML content of the app."
             },
@@ -57,12 +59,151 @@
               "items": {
                 "type": "string"
               }
+            },
+            "allowedFunctions": {
+              "type": "array",
+              "description": "List of local function names the app is allowed to call.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "paths": {
+                  "type": "object",
+                  "description": "A dictionary mapping custom state keys to distinct JSON Pointer paths in the data model.",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["paths"],
+              "additionalProperties": false
             }
           },
-          "required": ["component", "content"],
-          "additionalProperties": false
+          "required": ["component", "htmlContent"]
         }
-      ]
+      ],
+      "unevaluatedProperties": false
+    },
+    "WebAppFrameUrl": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "WebAppFrameUrl",
+              "description": "The component type identifier."
+            },
+            "url": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "The external URL to load inside the iframe."
+            },
+            "height": {
+              "$ref": "common_types.json#/$defs/DynamicNumber",
+              "description": "The height of the iframe in pixels."
+            },
+            "allowedEvents": {
+              "type": "object",
+              "description": "A map of authorized action names to JSON Schemas defining the expected data payload.",
+              "additionalProperties": {"type": "object"}
+            },
+            "allowedFunctions": {
+              "type": "object",
+              "description": "A map of authorized host client functions to JSON Schemas defining their expected arguments.",
+              "additionalProperties": {"type": "object"}
+            },
+            "mutableData": {
+              "type": "object",
+              "description": "A map of data model keys that the embedded application is authorized to mutate in the parent A2UI Data Model, mapped to JSON Schemas defining their allowed values.",
+              "additionalProperties": {"type": "object"}
+            },
+            "config": {
+              "type": "object",
+              "description": "A dictionary of static key-value initialization properties passed directly to the embedded application without reactive data model binding."
+            },
+            "data": {
+              "type": "object",
+              "description": "Data binding configuration for the component.",
+              "properties": {
+                "paths": {
+                  "type": "object",
+                  "description": "A dictionary mapping custom state keys to distinct JSON Pointer paths in the data model.",
+                  "additionalProperties": {"type": "string"}
+                }
+              },
+              "required": ["paths"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["component", "url"]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "WebAppFrameSrcdoc": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "WebAppFrameSrcdoc",
+              "description": "The component type identifier."
+            },
+            "htmlContent": {
+              "type": "string",
+              "description": "The raw HTML string to render via srcdoc."
+            },
+            "height": {
+              "$ref": "common_types.json#/$defs/DynamicNumber",
+              "description": "The height of the iframe in pixels."
+            },
+            "allowedEvents": {
+              "type": "object",
+              "description": "A map of authorized action names to JSON Schemas defining the expected data payload.",
+              "additionalProperties": {"type": "object"}
+            },
+            "allowedFunctions": {
+              "type": "object",
+              "description": "A map of authorized host client functions to JSON Schemas defining their expected arguments.",
+              "additionalProperties": {"type": "object"}
+            },
+            "mutableData": {
+              "type": "object",
+              "description": "A map of data model keys that the embedded application is authorized to mutate in the parent A2UI Data Model, mapped to JSON Schemas defining their allowed values.",
+              "additionalProperties": {"type": "object"}
+            },
+            "config": {
+              "type": "object",
+              "description": "A dictionary of static key-value initialization properties passed directly to the embedded application without reactive data model binding."
+            },
+            "data": {
+              "type": "object",
+              "description": "Data binding configuration for the component.",
+              "properties": {
+                "paths": {
+                  "type": "object",
+                  "description": "A dictionary mapping custom state keys to distinct JSON Pointer paths in the data model.",
+                  "additionalProperties": {"type": "string"}
+                }
+              },
+              "required": ["paths"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["component", "htmlContent"]
+        }
+      ],
+      "unevaluatedProperties": false
     },
     "PongScoreBoard": {
       "type": "object",
@@ -83,12 +224,16 @@
             "cpuScore": {
               "$ref": "common_types.json#/$defs/DynamicNumber",
               "description": "CPU score value or path."
+            },
+            "commentary": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "AI Live commentary value or path."
             }
           },
-          "required": ["component"],
-          "additionalProperties": false
+          "required": ["component"]
         }
-      ]
+      ],
+      "unevaluatedProperties": false
     },
     "PongLayout": {
       "type": "object",
@@ -103,16 +248,16 @@
               "const": "PongLayout"
             },
             "mcpComponent": {
-              "$ref": "#/components/McpApp"
+              "$ref": "common_types.json#/$defs/ComponentId"
             },
             "scoreboardComponent": {
-              "$ref": "#/components/PongScoreBoard"
+              "$ref": "common_types.json#/$defs/ComponentId"
             }
           },
-          "required": ["component"],
-          "additionalProperties": false
+          "required": ["component"]
         }
-      ]
+      ],
+      "unevaluatedProperties": false
     }
   },
   "$defs": {
@@ -129,6 +274,12 @@
         },
         {
           "$ref": "#/components/Column"
+        },
+        {
+          "$ref": "#/components/WebAppFrameUrl"
+        },
+        {
+          "$ref": "#/components/WebAppFrameSrcdoc"
         }
       ]
     }

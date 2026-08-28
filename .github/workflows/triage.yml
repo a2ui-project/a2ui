@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,27 +32,55 @@ on:
     types: [opened, edited, labeled, unlabeled, assigned, unassigned, reopened]
   issue_comment:
     types: [created]
-  pull_request_target:
-    types: [opened, edited, reopened, ready_for_review, synchronize]
   pull_request_review:
     types: [submitted]
   pull_request_review_comment:
     types: [created]
+  # PR lifecycle events (opened/synchronize/...) are deliberately absent: the
+  # only PR rule needs a day of maintainer silence, and pushes and edits are
+  # not contributions, so none of those events can change a flag when they
+  # fire. Comments, reviews and the daily cron cover every transition.
   # Allow manual runs from the Actions tab.
   workflow_dispatch:
 
+# Every run reconciles the whole repository, so runs are interchangeable and
+# only the last one matters. A bulk triage session — relabelling or commenting
+# on dozens of issues — otherwise fires one run per event, and each walks every
+# open item, which exhausts the installation's API rate limit and fails the
+# whole burst. Collapsing them to a single trailing run keeps that cheap.
+#
+# Cancelling mid-reconciliation is safe: the script reads live state and never
+# depends on what a previous run did, so the surviving run reaches the same
+# result on its own, and the daily cron is a backstop either way.
+concurrency:
+  group: triage
+  # Not cancelling in-progress runs because otherwise some issues go unlabled
+  # when multiple issues arrive concurrently.
+  cancel-in-progress: false
+
 permissions:
   contents: read
-  issues: write
-  pull-requests: write
 
 jobs:
   triage:
+    name: Execute Triage
+    # A standard runner, not the ubuntu-latest-extra-capacity pool that
+    # https://github.com/a2ui-project/a2ui/pull/2338 set repo-wide. Jobs queue
+    # for hours on that pool. Triage events arrive every few minutes and each
+    # one cancels the queued run (see concurrency above), so a run waiting
+    # hours for a machine never gets to start: nothing has been triaged since
+    # 2026-08-21. A standard runner starts in seconds, and this job only calls
+    # the GitHub API, so it has no use for the larger pool.
     runs-on: ubuntu-latest
+    # Requires issue and PR write permissions for automated labeling and comment management
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
 

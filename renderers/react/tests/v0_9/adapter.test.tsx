@@ -1,11 +1,11 @@
-/**
- * Copyright 2026 Google LLC
+/*
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -175,12 +175,12 @@ describe('adapter', () => {
       );
     });
 
-    // 3. Child should automatically resolve through DeferredChild's subscription
+    // 3. The resolver upgrades the placeholder, so the child renders.
     expect(queryByTestId('resolved')).not.toBeNull();
     expect(getByTestId('resolved').textContent).toBe('Loaded Data');
 
-    // Crucially, the parent should NOT have re-rendered because of the child addition.
-    // The DeferredChild wrapper localized the update.
-    expect(parentRenderCount).toBe(countBeforeChild);
+    // The node layer replaces the parent's child reference when the
+    // placeholder upgrades, so the parent re-renders exactly once.
+    expect(parentRenderCount).toBe(countBeforeChild + 1);
   });
 });

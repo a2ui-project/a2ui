@@ -12,7 +12,7 @@ The Angular implementation of the A2UI framework, providing seamless integration
 ## Installation
 
 ```bash
-yarn install @a2ui/angular @a2ui/web_core
+yarn add @a2ui/angular @a2ui/web_core
 ```
 
 ## Protocol Versioning

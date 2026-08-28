@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,8 @@ export * from './types/colors.js';
 export * from './types/primitives.js';
 export * from './types/types.js';
 export * from './errors.js';
+export {A2uiMessageSchema} from './schema/server-to-client.js';
+export type {A2uiMessage} from './schema/server-to-client.js';
 
 import A2UIClientEventMessage from './schemas/server_to_client_with_standard_catalog.json' with {type: 'json'};
 

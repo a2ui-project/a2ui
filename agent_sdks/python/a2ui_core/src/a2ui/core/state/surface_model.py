@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -60,9 +60,11 @@ class SurfaceModel:
             "name": event_payload.get("name", event_payload.get("call", "")),
             "surfaceId": self.id,
             "sourceComponentId": source_component_id,
-            "timestamp": datetime.datetime.now(datetime.timezone.utc)
-            .isoformat()
-            .replace("+00:00", "Z"),
+            "timestamp": (
+                datetime.datetime.now(datetime.timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z")
+            ),
             "context": event_payload.get("context", event_payload.get("args", {})),
         }
         self.on_action.emit(action_event)

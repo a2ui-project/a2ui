@@ -1,0 +1,15 @@
+{
+  "format": "express",
+  "hypothesis": "Normalize shorthand string action bindings to event maps in compiler.py",
+  "status": "Backtracked",
+  "notes": "Reverted. 7 unit tests failed in test_compiler.py and test_integration.py due to premature event map wrapping.",
+  "metrics": {
+    "schema_acc": 0.0,
+    "quality_acc": 0.0,
+    "code_tokens_median": 0.0,
+    "reasoning_tokens_median": 0.0,
+    "input_tokens_median": 0.0,
+    "latency_seconds_median": 0.0,
+    "total_samples": 0
+  }
+}

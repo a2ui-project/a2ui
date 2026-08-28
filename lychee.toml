@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -43,15 +43,22 @@ exclude = [
   "a2ui\\.org/a2a-extension",
   # Internal Google "go/" short links — only reachable by Googlers, by design.
   "^https?://go/",
-  # Valid Google vanity domain (Opal) that rejects/blocks automated checkers.
+  # Valid Google vanity domains / services that reject or block automated checkers.
   "opal\\.google",
+  "gemini\\.google\\.com",
   # Known-dead external references (verified 404, no published replacement).
   # Excluded to keep CI green; drop the referencing content if gone for good.
-  "github\\.com/TanXudong-Vivo/A2UI-Android-Renderer",
   "github\\.com/orgs/community/discussions/187776",
   "flutter/genui/blob/main/examples/e2e/",
   # Flaky. See: https://github.com/a2ui-project/a2ui/issues/1747
   "https://ojs\\.aaai\\.org",
+  # Flaky: the host intermittently stops responding entirely (connection hangs
+  # well past our 20s timeout) while the cited paper is still published there.
+  "https://www\\.diva-portal\\.org",
+  # The page is live in a browser, but the host serves a self-referential 301
+  # (/llm-evaluation/ redirects to itself), so the checker exhausts its redirect
+  # budget and reports a failure that no URL rewrite here can resolve.
+  "arize\\.com/llm-evaluation",
 ]
 
 # Don't descend into dependency or build-output directories.
@@ -61,12 +68,11 @@ exclude_path = [
   ".git",
   "dist",
   "build",
-  # The specification/ tree is copied into docs/specification/ at build time
-  # (see the "Copy schemas" step in docs.yml). Check only the published copies:
-  # the source files use asset paths that resolve only after that copy, so
-  # checking them directly is a false positive. Anchored to the source root so
-  # the docs/specification/ copies are still verified.
-  "^specification",
+  # The specification/ tree is copied into docs/public/specification/ at build time
+  # (see the "Copy schemas" step in docs.yml). Check only the original source copies
+  # because the published copies have broken relative links due to being nested
+  # deeper inside docs/public/.
+  "^docs/public/specification",
   # Exclude Python virtual environment directories
   "\\.venv",
   "venv",

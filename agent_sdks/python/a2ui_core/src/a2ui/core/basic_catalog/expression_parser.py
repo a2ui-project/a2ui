@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -140,7 +140,8 @@ class ExpressionParser:
         result = self._parse_expression_internal(scanner, depth)
         if not scanner.is_at_end():
             raise ValueError(
-                f"Unexpected characters at end of expression: '{scanner.input[scanner.pos:]}'"
+                "Unexpected characters at end of expression:"
+                f" '{scanner.input[scanner.pos:]}'"
             )
         return result
 
@@ -203,7 +204,8 @@ class ExpressionParser:
             scanner.skip_whitespace()
             if not scanner.match(":"):
                 raise ValueError(
-                    f"Expected ':' after argument name '{arg_name}' in function '{func_name}'"
+                    f"Expected ':' after argument name '{arg_name}' in function"
+                    f" '{func_name}'"
                 )
             scanner.skip_whitespace()
 

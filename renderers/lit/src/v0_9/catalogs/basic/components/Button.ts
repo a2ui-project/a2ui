@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,11 +42,12 @@ export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<typeof Bu
    * - `--a2ui-button-margin`: The outer margin of the button. Defaults to `--a2ui-spacing-m`.
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-basic-button {
       display: inline-block;
       margin: var(--a2ui-button-margin, var(--a2ui-spacing-m));
     }
-    :where(:host) {
+    :where(:host, a2ui-basic-button) {
       --_color-primary: var(--a2ui-color-primary, #17e);
       --_button-border-radius: var(--a2ui-button-border-radius, var(--a2ui-spacing-s, 0.25rem));
       --_button-padding: var(

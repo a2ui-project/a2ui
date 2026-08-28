@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ export class Validator {
       }
     }
     this.validateFn = this.ajv.getSchema(
-      'https://a2ui.org/specification/v1_0/server_to_client.json',
+      'https://a2ui.org/specification/v1_0/agent_to_renderer.json',
     );
 
     // Populate basic functions from the catalog schema
@@ -87,7 +87,7 @@ export class Validator {
           // Smart validation: check which key is present and validate against that specific definition
           // to avoid noisy "oneOf" errors.
           let validated = false;
-          const schemaUri = 'https://a2ui.org/specification/v1_0/server_to_client.json';
+          const schemaUri = 'https://a2ui.org/specification/v1_0/agent_to_renderer.json';
 
           if (message.createSurface) {
             validated = this.ajv.validate(`${schemaUri}#/$defs/CreateSurfaceMessage`, message);
@@ -97,6 +97,16 @@ export class Validator {
             validated = this.ajv.validate(`${schemaUri}#/$defs/UpdateDataModelMessage`, message);
           } else if (message.deleteSurface) {
             validated = this.ajv.validate(`${schemaUri}#/$defs/DeleteSurfaceMessage`, message);
+          } else if (message.callRendererFunction) {
+            validated = this.ajv.validate(
+              `${schemaUri}#/$defs/CallRendererFunctionMessage`,
+              message,
+            );
+          } else if (message.agentFunctionResponse) {
+            validated = this.ajv.validate(
+              `${schemaUri}#/$defs/AgentFunctionResponseMessage`,
+              message,
+            );
           } else {
             // Fallback to top-level validation if no known key matches (or if it's empty/invalid structure)
             validated = this.validateFn(message);
@@ -141,7 +151,7 @@ export class Validator {
                   `catalogs/basic/catalog.json#/components/${componentName}`,
                   obj,
                 );
-              } catch (e) {
+              } catch {
                 // If the schema isn't found, it's a hallucinated component.
                 targetedErrors.push({
                   instancePath: path,
@@ -242,7 +252,7 @@ export class Validator {
 
   private saveFailure(result: GeneratedResult, errors: string[]) {
     if (!this.outputDir) return;
-    const modelDir = path.join(this.outputDir, `output-${result.modelName.replace(/[\/:]/g, '_')}`);
+    const modelDir = path.join(this.outputDir, `output-${result.modelName.replace(/[/:]/g, '_')}`);
     const detailsDir = path.join(modelDir, 'details');
     const failureData = {
       pass: false,
@@ -346,6 +356,13 @@ export class Validator {
           }
           activeSurfaces.delete(surfaceId);
         }
+      } else if (
+        message.callRendererFunction ||
+        message.functionResponse ||
+        message.actionResponse
+      ) {
+        // Valid v1.0 RPC messages without custom referential integrity requirements
+        continue;
       } else {
         errors.push(`Unknown message type in output: ${JSON.stringify(message)}`);
       }
@@ -401,14 +418,7 @@ export class Validator {
     if (data.catalogId === undefined) {
       errors.push("createSurface must have a 'catalogId' property.");
     }
-    const allowed = [
-      'surfaceId',
-      'catalogId',
-      'surfaceProperties',
-      'sendDataModel',
-      'components',
-      'dataModel',
-    ];
+    const allowed = ['surfaceId', 'catalogId', 'sendDataModel', 'components', 'dataModel'];
     for (const key in data) {
       if (!allowed.includes(key)) {
         errors.push(`createSurface has unexpected property: ${key}`);
@@ -485,7 +495,7 @@ export class Validator {
     this.validateDataModelUpdate(data, errors);
   }
 
-  private validateDataModelUpdate(data: any, errors: string[]) {
+  private validateDataModelUpdate(_data: any, _errors: string[]) {
     // Schema validation handles types and basic structure.
     // 'op' is removed in v1.0, so we don't need to validate it or its relationship with 'value'.
     // We strictly rely on the schema for this message type now.
@@ -496,7 +506,7 @@ export class Validator {
   private validateComponent(component: any, allIds: Set<string>, errors: string[]) {
     const id = component.id;
     if (!id) {
-      errors.push(`Component is missing an 'id'.`);
+      errors.push("Component is missing an 'id'.");
       return;
     }
 

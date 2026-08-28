@@ -1,10 +1,10 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,25 +20,27 @@ on:
     paths:
       - "agent_sdks/python/**"
       - "specification/**/json/**"
-      - "agent_sdks/conformance/**"
+      - "conformance/**"
       - "samples/agent/adk/**"
       - ".agents/skills/**"
       - "scripts/run_skills_tests.py"
+      - ".github/scripts/**"
       - ".github/workflows/python_ci.yml"
       - ".github/actions/setup-python/**"
   pull_request:
     paths:
       - "agent_sdks/python/**"
       - "specification/**/json/**"
-      - "agent_sdks/conformance/**"
+      - "conformance/**"
       - "samples/agent/adk/**"
       - ".agents/skills/**"
       - "scripts/run_skills_tests.py"
+      - ".github/scripts/**"
       - ".github/workflows/python_ci.yml"
       - ".github/actions/setup-python/**"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -48,7 +50,7 @@ jobs:
   python-ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-python
@@ -56,15 +58,10 @@ jobs:
         run: uv sync --all-packages
       - name: Check Formatting
         run: |
-          # TODO(jiahaog): Add evals here and merge into one command.
-          uv run pyink --check agent_sdks/python/a2ui_agent
-          uv run pyink --check agent_sdks/python/a2ui_core
-          uv run pyink --check agent_sdks/conformance
-          uv run pyink --check samples/agent/adk
+          uv run pyink --check .
       - name: Type Check
         run: |
-          uv run mypy -p a2ui.core
-          uv run mypy agent_sdks/python/a2ui_core/scripts
+          uv run --all-packages mypy .
       - name: Run Unit Tests
         run: uv run pytest
       - name: Verify Load Real
@@ -73,3 +70,5 @@ jobs:
         run: uv build --all
       - name: Run Skills Unit Tests
         run: uv run python3 scripts/run_skills_tests.py
+      - name: Run Workflow Script Unit Tests
+        run: python3 -m unittest discover -s .github/scripts/tests

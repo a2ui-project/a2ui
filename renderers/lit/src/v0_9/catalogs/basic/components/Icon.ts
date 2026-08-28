@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,10 +43,11 @@ export class A2uiIconElement extends BasicCatalogA2uiLitElement<typeof IconApi> 
    * - `--a2ui-icon-font-variation-settings`: Complete override for font-variation-settings.
    */
   static override styles = css`
-    :where(:host) {
+    :where(:host, a2ui-icon) {
       --_icon-size: var(--a2ui-icon-size, var(--a2ui-font-size-xl, 24px));
     }
-    :host {
+    :host,
+    a2ui-icon {
       display: inline-flex;
       align-items: center;
       justify-content: center;
