@@ -126,6 +126,24 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@a2ui/cli@workspace:javascript/a2ui_cli":
+  version: 0.0.0-use.local
+  resolution: "@a2ui/cli@workspace:javascript/a2ui_cli"
+  dependencies:
+    "@a2ui/web_core": "workspace:*"
+    "@types/node": "npm:^25.9.3"
+    commander: "npm:^12.1.0"
+    eslint: "npm:^10.4.1"
+    prettier: "npm:^3.8.1"
+    typescript: "npm:5.9.3"
+    wireit: "npm:^0.15.0-pre.2"
+    zod: "npm:^3.25.76"
+  bin:
+    a2ui: ./dist/src/cli.js
+    a2ui-cli: ./dist/src/cli.js
+  languageName: unknown
+  linkType: soft
+
 "@a2ui/editor@workspace:tools/editor":
   version: 0.0.0-use.local
   resolution: "@a2ui/editor@workspace:tools/editor"
@@ -13527,6 +13545,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"commander@npm:^12.1.0":
+  version: 12.1.0
+  resolution: "commander@npm:12.1.0"
+  checksum: 10c0/6e1996680c083b3b897bfc1cfe1c58dfbcd9842fd43e1aaf8a795fbc237f65efcc860a3ef457b318e73f29a4f4a28f6403c3d653d021d960e4632dd45bde54a9
+  languageName: node
+  linkType: hard
+
 "commander@npm:^13.1.0":
   version: 13.1.0
   resolution: "commander@npm:13.1.0"
@@ -22878,6 +22903,15 @@ __metadata:
   bin:
     prettier: bin/prettier.cjs
   checksum: 10c0/33169b594009e48f570471271be7eac7cdcf88a209eed39ac3b8d6d78984039bfa9132f82b7e6ba3b06711f3bfe0222a62a1bfb87c43f50c25a83df1b78a2c42
+  languageName: node
+  linkType: hard
+
+"prettier@npm:^3.8.1":
+  version: 3.9.6
+  resolution: "prettier@npm:3.9.6"
+  bin:
+    prettier: bin/prettier.cjs
+  checksum: 10c0/9f7ddae234035868f3daab3dc34e6de7e54622185afb017378029f0c09a9c023248ccf6f34def0b17a0538e18c47aa1b3188bab72965d1bf735919baa0747e99
   languageName: node
   linkType: hard
 

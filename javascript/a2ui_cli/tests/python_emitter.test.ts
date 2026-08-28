@@ -1,0 +1,80 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import * as assert from 'node:assert';
+import {describe, it} from 'node:test';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import {Catalog} from '@a2ui/web_core/v0_9';
+import {CatalogAnalyzer} from '../src/analyzer/catalog-analyzer.js';
+import {PythonEmitter} from '../src/emitters/python/python-emitter.js';
+
+describe('PythonEmitter in @a2ui/cli', () => {
+  const basicCatalogPath = path.resolve(
+    process.cwd(),
+    '../../specification/v0_9_1/catalogs/basic/catalog.json',
+  );
+  const basicCatalogJson = JSON.parse(fs.readFileSync(basicCatalogPath, 'utf-8'));
+
+  it('emits single-file python catalog module with dataclass components and types', () => {
+    const catalog = Catalog.fromJson(basicCatalogJson, {specVersion: 'v0.9.1'});
+    const analysed = CatalogAnalyzer.analyze(catalog);
+
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui-cli-test-'));
+    try {
+      const emitter = new PythonEmitter(analysed);
+      const written = emitter.emit(tmpDir);
+
+      assert.strictEqual(written.length, 1);
+      const filePath = written[0];
+      assert.ok(filePath.endsWith('.py'));
+
+      const content = fs.readFileSync(filePath, 'utf-8');
+      assert.ok(content.includes('class Button(ComponentBuilderNode):'));
+      assert.ok(content.includes('class Text(ComponentBuilderNode):'));
+      assert.ok(content.includes('class Row(ComponentBuilderNode):'));
+      assert.ok(content.includes('def to_dict(self) -> dict[str, Any]:'));
+      assert.ok(content.includes('TextVariant = Literal['));
+      assert.ok(content.includes('ButtonVariant = Literal['));
+      assert.ok(content.includes('def open_url('));
+      assert.ok(content.includes('__all__ = ['));
+    } finally {
+      fs.rmSync(tmpDir, {recursive: true, force: true});
+    }
+  });
+
+  it('emits directly to a specific .py file path when requested', () => {
+    const catalog = Catalog.fromJson(basicCatalogJson, {specVersion: 'v0.9.1'});
+    const analysed = CatalogAnalyzer.analyze(catalog);
+
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui-cli-test-file-'));
+    const targetFile = path.join(tmpDir, 'custom_catalog_builders.py');
+    try {
+      const emitter = new PythonEmitter(analysed);
+      const written = emitter.emit(targetFile);
+
+      assert.strictEqual(written.length, 1);
+      assert.strictEqual(written[0], targetFile);
+      assert.ok(fs.existsSync(targetFile));
+
+      const content = fs.readFileSync(targetFile, 'utf-8');
+      assert.ok(content.includes('class Card(ComponentBuilderNode):'));
+    } finally {
+      fs.rmSync(tmpDir, {recursive: true, force: true});
+    }
+  });
+});
