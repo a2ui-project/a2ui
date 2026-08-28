@@ -610,8 +610,9 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `functions`
      - `$defs`
    - No other top-level keys are permitted.
+
 8. **Deprecation Annotations:**
-   - Components, functions, and individual properties may declare `deprecated: true` along with an optional human-readable `x-deprecated-reason: string`. Catalogs are expected to be backward and forward compatible with different versions so should deprecate and continue to support for a time components, functions and properties rather than delete them.
+   - Components, functions, and individual properties may declare deprecated: true along with an optional human-readable x-deprecated-reason (string). Catalogs are expected to be backward and forward compatible with different versions, so they should deprecate and continue to support components, functions, and properties for a period of time rather than deleting them.
 
 ##### Example Schema Template
 
