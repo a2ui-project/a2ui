@@ -413,13 +413,7 @@ When deprecating an existing component, function, or property:
 }
 ```
 
-**Runtime & Tooling Guidance:**
-
-- **LLM Prompts**: Deprecated components, functions, and properties can be automatically stripped from LLM system instructions and catalog prompts to optimize the context window.
-- **Renderers**: Renderers MUST retain handling logic for deprecated components and properties to maintain backward compatibility for historical transcripts, cached states, and templates.
-- **Template Loading**: Loading templates containing deprecated fields emits a non-fatal developer warning.
-
-### Versioning with CatalogId
+### Major Version Bumps with CatalogId
 
 When introducing fundamentally breaking changes that necessitate a major version bump, include the version in the `catalogId` URI. This allows using A2UI catalog negotiation to support multiple versions simultaneously during a migration, ensuring zero downtime.
 
