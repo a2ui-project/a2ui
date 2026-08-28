@@ -95,7 +95,7 @@ function checkComponents(
 ): void {
   assert.deepStrictEqual(
     [...surface.componentsModel.entries].map(([id]) => id).sort(),
-    expected.map((entry) => entry.id).sort(),
+    expected.map(entry => entry.id).sort(),
     `${reason}: component ids`,
   );
 
