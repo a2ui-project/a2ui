@@ -13,22 +13,36 @@
 # limitations under the License.
 
 from ..common.events import EventSource, Signal
-from .component_model import ComponentModel
+from .component_model import (
+    ComponentModel,
+    is_v0_8_heuristic_child_prop_key,
+)
 from .component_node import ComponentNode
 from .data_model import DataModel
+from .node_graph import NodeGraph
 from .surface_components_model import SurfaceComponentsModel
 from .surface_group_model import SurfaceGroupModel
 from .surface_model import SurfaceModel
-from .node_graph import NodeGraph
+from .validation_helpers import (
+    analyze_topology,
+    validate_component_integrity,
+    validate_composition_constraints,
+    validate_recursion_and_paths,
+)
 
 __all__ = [
     "ComponentModel",
     "ComponentNode",
     "DataModel",
     "EventSource",
+    "NodeGraph",
     "Signal",
     "SurfaceComponentsModel",
     "SurfaceGroupModel",
     "SurfaceModel",
-    "NodeGraph",
+    "analyze_topology",
+    "is_v0_8_heuristic_child_prop_key",
+    "validate_component_integrity",
+    "validate_composition_constraints",
+    "validate_recursion_and_paths",
 ]

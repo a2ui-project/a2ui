@@ -30,6 +30,8 @@ from inspect_ai.model._model import sample_model_usage
 from a2ui.inference_formats.direct_json.format import DirectJsonFormat
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.parser.parser import parse_response
+from a2ui.core.processing import MessageProcessor
+from a2ui.core.validation import STRICT_VALIDATION
 from .shared.utils import GIT_ROOT
 
 
@@ -94,7 +96,9 @@ def a2ui_scorer(version: str) -> Scorer:
                 )
 
             answer_text = json.dumps(all_messages, indent=2)
-            validator.validate(all_messages)
+            MessageProcessor(
+                [catalog.core_catalog], validation_config=STRICT_VALIDATION
+            ).process_messages(all_messages)
             return Score(
                 value=1.0, answer=answer_text, explanation="Valid A2UI payload"
             )

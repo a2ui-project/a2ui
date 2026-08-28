@@ -19,7 +19,7 @@ from ..schema.catalog_provider import A2uiCatalogProvider
 from ..schema.utils import load_from_bundled_resource
 from ..schema.constants import BASE_SCHEMA_URL, CATALOG_ID_KEY, CATALOG_SCHEMA_KEY
 from .constants import BASIC_CATALOG_NAME, BASIC_CATALOG_PATHS
-from a2ui.core.validating.catalog_schema_validator import JSON_SCHEMA_DRAFT_2020_12
+from a2ui.core.validation.payload_validator import JSON_SCHEMA_DRAFT_2020_12
 from a2ui.core import A2uiCatalogError
 
 

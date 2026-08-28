@@ -12,9 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional, Set
 from ..common.events import EventSource
+from ..exceptions import A2uiErrorDetail, A2uiValidationError
 from .component_model import ComponentModel
+from .validation_helpers import (
+    analyze_topology,
+    validate_component_integrity,
+    validate_composition_constraints,
+)
+from ..validation.payload_validator import (
+    PayloadValidator,
+    ValidationConfig,
+)
+
+
+from ..catalog import Catalog
+from ..catalog.catalog import TComponent, TFunction
 
 
 class SurfaceComponentsModel:
@@ -29,7 +43,7 @@ class SurfaceComponentsModel:
         return self._components.get(component_id)
 
     def get_all(self) -> Dict[str, ComponentModel]:
-        return self._components
+        return dict(self._components)
 
     def add_component(self, component: ComponentModel) -> None:
         if component.id in self._components:
@@ -43,6 +57,62 @@ class SurfaceComponentsModel:
             del self._components[component_id]
             comp.dispose()
             self.on_deleted.emit(component_id)
+
+    def validate_components_update(
+        self,
+        new_components: List[ComponentModel],
+        root_id: str = "root",
+        config: Optional[ValidationConfig] = None,
+    ) -> None:
+        """Validates inbound component models schema, composition constraints, and graph completeness BEFORE updating surface state."""
+        if config is None:
+            return
+
+        seen_ids: Set[str] = set()
+        for comp_model in new_components:
+            if comp_model.id in seen_ids:
+                raise A2uiValidationError(
+                    f"Duplicate component ID '{comp_model.id}' in update payload.",
+                    details=[
+                        A2uiErrorDetail(
+                            path=f"components.{comp_model.id}",
+                            code="duplicate_id",
+                            message=(
+                                f"Duplicate component ID '{comp_model.id}' in update"
+                                " payload."
+                            ),
+                        )
+                    ],
+                )
+            seen_ids.add(comp_model.id)
+
+        all_errors: List[A2uiErrorDetail] = []
+        comp_summaries: List[str] = []
+        for comp_model in new_components:
+            errors = comp_model.validate(config=config)
+            if errors:
+                all_errors.extend(errors)
+                comp_type = comp_model.type
+                comp_str = f"'{comp_type}'" if comp_type else f"id '{comp_model.id}'"
+                comp_summary = "\n".join(f"{e.path}: {e.message}" for e in errors)
+                comp_summaries.append(f"{comp_str}: {comp_summary}")
+
+        if all_errors:
+            summary = "\n".join(comp_summaries)
+            raise A2uiValidationError(
+                f"Validation failed for component {summary}",
+                details=all_errors,
+            )
+
+        prospective_components = dict(self._components)
+        for comp_model in new_components:
+            prospective_components[comp_model.id] = comp_model
+
+        validate_composition_constraints(prospective_components)
+        validate_component_integrity(
+            prospective_components, root_id=root_id, config=config
+        )
+        analyze_topology(prospective_components, root_id=root_id, config=config)
 
     def dispose(self) -> None:
         """Disposes of the model and all its components."""

@@ -12,7 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union, cast
+import sys
+from typing import Any, Callable, Dict, Generic, List, Optional, Union, cast
+
+if sys.version_info >= (3, 13):
+    from typing import TypeVar
+else:
+    from typing_extensions import TypeVar
 from pydantic import BaseModel
 
 from ..exceptions import A2uiCatalogError
@@ -24,6 +30,7 @@ from .functions import (
     create_function_implementation,
 )
 from .components import ComponentApi, ComponentImplementation, ModelComponentApi
+from .reference_map import ComponentRefSpec, build_component_ref_map
 
 
 def is_valid_uax31_identifier(name: str) -> bool:
@@ -45,8 +52,8 @@ def _is_version_at_least_1_0(protocol_version: Union[str, Any]) -> bool:
         return False
 
 
-TComponent = TypeVar("TComponent", bound=ComponentApi)
-TFunction = TypeVar("TFunction", bound=FunctionApi)
+TComponent = TypeVar("TComponent", bound=ComponentApi, default=Any)
+TFunction = TypeVar("TFunction", bound=FunctionApi, default=Any)
 
 
 class Catalog(Generic[TComponent, TFunction]):
@@ -89,6 +96,7 @@ class Catalog(Generic[TComponent, TFunction]):
 
         self.theme_schema = theme_schema
         self._catalog_schema: Optional[Dict[str, Any]] = None
+        self._component_ref_map: Optional[Dict[str, ComponentRefSpec]] = None
 
     @property
     def id(self) -> str:
@@ -103,6 +111,17 @@ class Catalog(Generic[TComponent, TFunction]):
     def get_component(self, name: str) -> Optional[TComponent]:
         """Directly retrieves a component by name."""
         return self.components.get(name)
+
+    @property
+    def component_ref_map(self) -> Dict[str, ComponentRefSpec]:
+        """Returns the pre-analyzed component reference map for all components in this catalog."""
+        if not hasattr(self, "_component_ref_map") or self._component_ref_map is None:
+            self._component_ref_map = build_component_ref_map(self)
+        return self._component_ref_map
+
+    def get_component_ref_spec(self, name: str) -> Optional[ComponentRefSpec]:
+        """Directly retrieves the pre-analyzed ComponentRefSpec for a component by name."""
+        return self.component_ref_map.get(name)
 
     def get_function(self, name: str) -> Optional[TFunction]:
         """Directly retrieves a function by name."""
