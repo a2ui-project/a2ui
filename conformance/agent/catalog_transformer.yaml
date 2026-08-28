@@ -13,11 +13,13 @@
 # limitations under the License.
 
 # Behaviour of the catalog transformers described by
-# `blueprints/modules/a2ui_agent.blueprint.md` section 3.A. Transformation is an
-# agent concern: a renderer implements the whole catalog it advertises, while an
-# agent narrows one before prompting. The `prune` cases in
-# `conformance/core/catalog.yaml` predate that split and stay where the SDKs
-# already read them from.
+# `blueprints/modules/a2ui_agent.blueprint.md` section 3.A. Deriving a narrower
+# catalog is not agent-only -- a renderer may need a smaller one for a given
+# use case, and uses the same immutable derivation from `a2ui_core` to get it.
+# What lives in the agent SDK is the named transformer rules and the
+# `CatalogConfig` pipeline that applies them, so their cases belong here. The
+# `prune` cases in `conformance/core/catalog.yaml` predate that split and stay
+# where the SDKs already read them from.
 #
 # The `$defs/anyComponent` and `$defs/anyFunction` unions of a catalog document
 # must be narrowed alongside the entries they reference, otherwise a pruned

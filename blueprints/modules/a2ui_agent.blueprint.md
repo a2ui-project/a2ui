@@ -156,7 +156,7 @@ class FunctionPruningTransformer(CatalogTransformer):
 
 #### Transformer Requirements
 
-**Transformation is agent-owned.** A `Catalog` from `a2ui_core` is an immutable value object and core never narrows one: a renderer implements every component it advertises, so only an agent has a reason to prompt against a subset. Do not add pruning to `a2ui_core`, and do not file transformer conformance data under `conformance/core/` — it belongs in `agent/catalog_transformer.yaml` (see section 6).
+**These transformer rules are agent SDK surface.** A `Catalog` from `a2ui_core` is immutable, and core offers the derivation any caller needs to build a narrower one: deriving a smaller catalog is not agent-only, since a renderer may need one for a given use case. What this blueprint owns is the named rules above and the `CatalogConfig` pipeline that applies them, so their conformance data belongs in `agent/catalog_transformer.yaml` (see section 6) rather than under `conformance/core/`.
 
 **Narrow the unions, not just the entries.** A catalog document declares its component and function unions under `$defs/anyComponent` and `$defs/anyFunction`, whose members `$ref` entries in `components` and `functions`. A transformer that drops an entry MUST drop the matching union member in the same pass. Leaving the `$ref` behind is not merely untidy: the pruned document still advertises to the model a component the agent has decided not to accept, and it dangles a pointer that schema resolution will fail on.
 
