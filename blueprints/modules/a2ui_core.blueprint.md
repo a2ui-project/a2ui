@@ -389,14 +389,9 @@ When a surface is created with `sendDataModel: true`, the renderer is responsibl
 
 #### [Capabilities Objects](../../docs/public/concepts/glossary.md#capabilities-object)
 
-Both sides advertise one. Build and parse it from the normative schema for the target version, not from memory:
+Both sides advertise one. Build and parse it from the normative schema for the target version, not from memory.
 
-| Direction        | Object                   | Normative schema (v0.9, v0.9.1)                         | Renamed in v1.0                                      |
-| :--------------- | :----------------------- | :------------------------------------------------------ | :--------------------------------------------------- |
-| Renderer → agent | `a2uiClientCapabilities` | `specification/<version>/json/client_capabilities.json` | `specification/v1_0/json/renderer_capabilities.json` |
-| Agent → renderer | `a2uiServerCapabilities` | `specification/<version>/json/server_capabilities.json` | `specification/v1_0/json/agent_capabilities.json`    |
-
-v0.8 spells it differently again (`a2ui_client_capabilities_schema.json`) and publishes no server-side counterpart.
+Schemas live in `specification/<version>/json/`. v1.0 names the pair `renderer_capabilities.json` and `agent_capabilities.json`. v0.9 and v0.9.1 name the same pair `client_capabilities.json` and `server_capabilities.json`, carried as `a2uiClientCapabilities` and `a2uiServerCapabilities`. v0.8 spells it differently again (`a2ui_client_capabilities_schema.json`) and publishes no server-side counterpart.
 
 Parsing: reject an object with no entry for any version this SDK implements; keep unrecognised version keys rather than failing on them.
 
