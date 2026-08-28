@@ -720,7 +720,7 @@ A2UI catalogs should be forward and backward compatible across versions so that 
 2. **Deprecate Rather than Delete**: Never delete existing components, functions, or properties. Mark them `deprecated: true` along with an `x-deprecated-reason` instead. Renderers should retain handling logic for deprecated components and properties to maintain backward compatibility for historical transcripts, cached states, and templates.
 3. **Strict Type Invariance**: Never alter the data type of an existing field.
 4. **Open Enums**: Treat enum definitions as open so older renderers do not fail when new enum variants are introduced upstream.
-5. **Graceful Degredation**: Renderers should provide a graceful fallback for unknown components instead of failing the entire view hierarchy or surface.
+5. **Graceful Degradation**: Renderers should provide a graceful fallback for unknown components instead of failing the entire view hierarchy or surface.
 6. **Round Trip Unknown Component/Field Preservation**: Intermediary services such as orchestrators should preserve unknown properties when serializing/deserializing messages.
 7. **Major Version Bumps**: Reserve major catalog version bumps strictly for sweeping cleanups (e.g., removing long-deprecated fields) or fundamentally breaking structural changes.
 
