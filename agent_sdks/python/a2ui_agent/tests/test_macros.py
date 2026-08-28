@@ -15,13 +15,24 @@
 """Exhaustive unit tests for A2UI Macros and Typesafe Builders."""
 
 import pytest
+from enum import Enum
+from typing import Literal, Optional, Sequence, Union
+
 from a2ui.inference_formats.experimental.macros import (
+    AccessibilityAttributes,
     Action,
     CheckRule,
+    Child,
+    ChildList,
     ComponentBuilderNode,
     ComponentRef,
     DataBinding,
+    DynamicBoolean,
     DynamicChildList,
+    DynamicNumber,
+    DynamicString,
+    DynamicStringList,
+    DynamicValue,
     ExternalComponentBuilderNode,
     FunctionCall,
     MacroInferenceFormat,
@@ -414,3 +425,134 @@ def test_macro_inference_format_pipeline():
     text_comp = [c for c in comps if c["component"] == "Text"][0]
     assert card_comp["id"] == "alert_instance_1"
     assert text_comp["text"] == "Payment received!"
+
+
+def test_canonical_protocol_types_schema():
+    class ThemeEnum(Enum):
+        LIGHT = "light"
+        DARK = "dark"
+
+    @macro
+    def ComplexCard(
+        title: str,
+        dynamic_title: DynamicString,
+        metric: DynamicNumber,
+        is_active: DynamicBoolean,
+        tags: DynamicStringList,
+        anything: DynamicValue,
+        on_click: Action,
+        checks: Sequence[CheckRule],
+        accessibility: AccessibilityAttributes,
+        footer: ComponentRef,
+        items: Sequence[ComponentBuilderNode],
+        theme: Literal["primary", "secondary"],
+        theme_enum: ThemeEnum,
+    ) -> Card:
+        """Card testing all protocol common types."""
+        return Card(child=Text(text="hello"))
+
+    meta = get_macro("ComplexCard")
+    assert meta is not None
+    schema = meta.to_json_schema()
+    props = schema["properties"]
+
+    assert props["title"]["type"] == "string"
+    assert (
+        props["dynamic_title"]["$ref"]
+        == "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+    )
+    assert (
+        props["metric"]["$ref"]
+        == "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+    )
+    assert (
+        props["is_active"]["$ref"]
+        == "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicBoolean"
+    )
+    assert (
+        props["tags"]["$ref"]
+        == "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicStringList"
+    )
+    assert (
+        props["anything"]["$ref"]
+        == "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue"
+    )
+    assert (
+        props["on_click"]["$ref"]
+        == "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action"
+    )
+    assert props["checks"]["type"] == "array"
+    assert (
+        props["checks"]["items"]["$ref"]
+        == "https://a2ui.org/specification/v0_9/common_types.json#/$defs/CheckRule"
+    )
+    assert (
+        props["accessibility"]["$ref"]
+        == "https://a2ui.org/specification/v0_9/common_types.json#/$defs/AccessibilityAttributes"
+    )
+    assert (
+        props["footer"]["$ref"]
+        == "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId"
+    )
+    assert (
+        props["items"]["$ref"]
+        == "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+    )
+    assert props["theme"] == {
+        "type": "string",
+        "enum": ["primary", "secondary"],
+        "description": "Theme",
+    }
+    assert props["theme_enum"] == {
+        "type": "string",
+        "enum": ["light", "dark"],
+        "description": "Theme enum",
+    }
+
+
+def test_processor_argument_coercion():
+    @macro
+    def BoundCard(
+        status: DynamicString,
+        on_click: Action,
+        slot: ComponentRef,
+        accessibility: AccessibilityAttributes,
+    ) -> Card:
+        return Card(
+            child=Column(
+                children=[
+                    Text(text=status),
+                    Button(child=Text(text="Action"), action=on_click),
+                    slot,
+                ]
+            )
+        )
+
+    processor = MacroProcessor()
+    expanded = processor.expand(
+        "BoundCard",
+        {
+            "status": {"path": "/servers/primary/status"},
+            "on_click": "restart_server",
+            "slot": "child_slot_99",
+            "accessibility": {"label": "Server card"},
+        },
+        instance_id="card_1",
+    )
+
+    # Verify root Card ID
+    card = [c for c in expanded if c["component"] == "Card"][0]
+    assert card["id"] == "card_1"
+
+    # Verify Text component has DataBinding dict
+    text = [c for c in expanded if c["component"] == "Text"][0]
+    assert text["text"] == {"path": "/servers/primary/status"}
+
+    # Verify Button action was coerced from string to Action dict
+    button = [c for c in expanded if c["component"] == "Button"][0]
+    assert button["action"] == {"event": {"name": "restart_server"}}
+
+    # Verify Column has the external slot child ID untouched
+    col = [c for c in expanded if c["component"] == "Column"][0]
+    child_ids = col["children"]
+    assert "child_slot_99" in child_ids
