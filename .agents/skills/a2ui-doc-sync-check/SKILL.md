@@ -43,9 +43,7 @@ This skill guides the process of auditing concrete codebase implementations to v
    - When an artifact (code, document, issue, PR, comment and so on) is referenced, make sure it has a link. Prefer linking to duplications.
    - When a glossary term is used - link the first occurrence of the term to the glossary entry if it exists.
 
-7. **Conciseness and Clarity**: 
+7. **Conciseness and Clarity**:
    - Verify that language in documentation and code comments is concise and clear:
      - Remove words that do not have meaning like 'above all', 'first and foremost', and so on.
-     - Make sure that sentences are short and to the point.  
-   
-   
+     - Make sure that sentences are short and to the point.
