@@ -276,7 +276,7 @@ class Surface:
 
     surface_id: str
     root: ComponentBuilderNode
-    catalog_id: str = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    catalog_id: Optional[str] = None
     data_model: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -284,9 +284,10 @@ class Surface:
         components = flatten_component_tree(self.root, root_id=self.root.id or "root")
         d: dict[str, Any] = {
             "surfaceId": self.surface_id,
-            "catalogId": self.catalog_id,
             "components": components,
         }
+        if self.catalog_id is not None:
+            d["catalogId"] = self.catalog_id
         if self.data_model is not None:
             d["dataModel"] = self.data_model
         return d
@@ -298,15 +299,13 @@ class Surface:
     def to_messages(self, spec_version: str = "v0.9.1") -> list[dict[str, Any]]:
         """Emits standard A2UI protocol messages for surface rendering."""
         components = flatten_component_tree(self.root, root_id=self.root.id or "root")
-        messages: list[dict[str, Any]] = [
-            {
-                "surfaceUpdate": {
-                    "surfaceId": self.surface_id,
-                    "catalogId": self.catalog_id,
-                    "components": components,
-                }
-            }
-        ]
+        surface_update: dict[str, Any] = {
+            "surfaceId": self.surface_id,
+            "components": components,
+        }
+        if self.catalog_id is not None:
+            surface_update["catalogId"] = self.catalog_id
+        messages: list[dict[str, Any]] = [{"surfaceUpdate": surface_update}]
         if self.data_model:
             for path, val in self.data_model.items():
                 norm_path = path if path.startswith("/") else f"/{path}"

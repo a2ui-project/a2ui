@@ -243,6 +243,7 @@ class MacroInferenceFormat(InferenceFormat):
         self,
         base_format: Optional[InferenceFormat] = None,
         *,
+        catalog: Optional[Union[A2uiCatalog, dict[str, Any]]] = None,
         macros: Optional[Sequence[Union[Callable[..., Any], MacroMetadata]]] = None,
         surface_id: Optional[str] = None,
         version: Optional[str] = None,
@@ -276,25 +277,12 @@ class MacroInferenceFormat(InferenceFormat):
         else:
             self.macros = list_macros()
 
-        # 1. Resolve base catalog from base_format
-        extracted_catalog = getattr(base_format, "catalog", None)
+        # 1. Resolve base catalog from base_format or catalog parameter
+        extracted_catalog = catalog or getattr(base_format, "catalog", None)
         if extracted_catalog is None:
-            from a2ui.basic_catalog.provider import BasicCatalog
-
-            config = BasicCatalog.get_config(self.version)
-            schema = config.provider.load()
-            s2c = load_from_bundled_resource(
-                self.version, SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
-            )
-            common_types = load_from_bundled_resource(
-                self.version, COMMON_TYPES_SCHEMA_KEY, SPEC_VERSION_MAP
-            )
-            self.base_catalog = A2uiCatalog(
-                version=self.version,
-                name="basic",
-                catalog_schema=schema,
-                s2c_schema=s2c,
-                common_types_schema=common_types,
+            raise ValueError(
+                "A catalog must be provided to MacroInferenceFormat (either via base_format or as catalog=...). "
+                "Inference formats must remain catalog-agnostic."
             )
         elif isinstance(extracted_catalog, A2uiCatalog):
             self.base_catalog = extracted_catalog

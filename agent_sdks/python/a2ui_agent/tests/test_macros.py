@@ -34,6 +34,7 @@ from a2ui.inference_formats.experimental.macros import (
     list_macros,
     macro,
 )
+from a2ui.schema.catalog import A2uiCatalog
 from a2ui.inference_formats.experimental.macros.builder import (
     Button,
     Card,
@@ -351,7 +352,12 @@ def test_macro_inference_format_pipeline():
     with pytest.raises(ValueError, match="requires a base_format to be passed"):
         MacroInferenceFormat(macros=[quick_alert])  # type: ignore
 
-    base = ExpressFormat(surface_id="main")
+    # Verify catalog is required and does NOT default to basic catalog
+    base_no_catalog = ExpressFormat(surface_id="main")
+    with pytest.raises(ValueError, match="A catalog must be provided to MacroInferenceFormat"):
+        MacroInferenceFormat(base_format=base_no_catalog, macros=[quick_alert])
+
+    base = ExpressFormat(catalog={"components": {}}, surface_id="main")
     inf_format = MacroInferenceFormat(base_format=base, macros=[quick_alert])
     assert "QuickAlert" in inf_format.combined_catalog.catalog_schema["components"]
 

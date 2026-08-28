@@ -30,11 +30,19 @@ from pydantic import BaseModel
 
 import json
 
+from a2ui.basic_catalog.provider import BasicCatalog
 from a2ui.inference_formats.experimental.express.format import ExpressFormat
 from a2ui.inference_formats.experimental.macros import (
     MacroInferenceFormat,
     macro,
 )
+from a2ui.schema.catalog import A2uiCatalog
+from a2ui.schema.constants import (
+    COMMON_TYPES_SCHEMA_KEY,
+    SERVER_TO_CLIENT_SCHEMA_KEY,
+    SPEC_VERSION_MAP,
+)
+from a2ui.schema.utils import load_from_bundled_resource
 from a2ui.inference_formats.experimental.macros.builder import (
     Button,
     Card,
@@ -259,7 +267,16 @@ def PayrollSummary(
 
 active_macros = [*ALL_MACROS, EmployeeSalaryCard, PayrollSummary]
 
-base_format = ExpressFormat(surface_id="main", version="v0.9.1")
+basic_config = BasicCatalog.get_config("0.9.1")
+server_catalog = A2uiCatalog(
+    version="0.9.1",
+    name="basic",
+    catalog_schema=basic_config.provider.load(),
+    s2c_schema=load_from_bundled_resource("0.9.1", SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP),
+    common_types_schema=load_from_bundled_resource("0.9.1", COMMON_TYPES_SCHEMA_KEY, SPEC_VERSION_MAP),
+)
+
+base_format = ExpressFormat(catalog=server_catalog, surface_id="main", version="v0.9.1")
 format_instance = MacroInferenceFormat(
     base_format=base_format,
     macros=active_macros,
@@ -632,7 +649,7 @@ async def chat(req: ChatRequest):
     if prompt_lower in PRESET_RESPONSES:
         dsl = PRESET_RESPONSES[prompt_lower]
         target_format = MacroInferenceFormat(
-            base_format=ExpressFormat(surface_id=req.surfaceId, version="v0.9.1"),
+            base_format=ExpressFormat(catalog=server_catalog, surface_id=req.surfaceId, version="v0.9.1"),
             macros=active_macros,
         )
         messages = target_format.parser.compile(dsl)
@@ -666,7 +683,7 @@ async def chat(req: ChatRequest):
             latency = round(time.perf_counter() - start_time, 2)
             raw_text = response.text or ""
             target_format = MacroInferenceFormat(
-                base_format=ExpressFormat(surface_id=req.surfaceId, version="v0.9.1"),
+                base_format=ExpressFormat(catalog=server_catalog, surface_id=req.surfaceId, version="v0.9.1"),
                 macros=active_macros,
             )
             messages = target_format.parser.parse_response(raw_text)
