@@ -20,7 +20,7 @@ import OrderedJSON
 import Testing
 
 /// Helper to create a catalog with a simple text component schema for testing.
-func makeMessageProcessorTestCatalog() throws -> Catalog {
+func makeMessageProcessorTestCatalog() throws -> AnyCatalog {
   let textSchema = try Schema(
     instance: """
       {
@@ -37,7 +37,7 @@ func makeMessageProcessorTestCatalog() throws -> Catalog {
   )
   return Catalog(
     id: "default",
-    components: [ComponentAPI(name: "text", schema: textSchema)]
+    components: [AnyComponentAPI(name: "text", schema: textSchema)]
   )
 }
 

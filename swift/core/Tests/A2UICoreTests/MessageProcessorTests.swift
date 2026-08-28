@@ -164,7 +164,7 @@ struct MessageProcessorTests {
         }
         """
     )
-    let catalog = Catalog(
+    let catalog = AnyCatalog(
       id: "themed-cat",
       components: [],
       themeSchema: themeSchema
@@ -207,7 +207,7 @@ struct MessageProcessorTests {
         }
         """
     )
-    let catalog = Catalog(
+    let catalog = AnyCatalog(
       id: "themed-cat",
       components: [],
       themeSchema: themeSchema
@@ -630,7 +630,7 @@ struct MessageProcessorTests {
     )
     let catalog = Catalog(
       id: "cat-ref",
-      components: [ComponentAPI(name: "Custom", schema: customSchema)]
+      components: [AnyComponentAPI(name: "Custom", schema: customSchema)]
     )
     let processor = MessageProcessor(catalogs: [catalog])
     let caps = processor.getRendererCapabilities(
@@ -679,7 +679,7 @@ struct MessageProcessorTests {
     let textSchema = try Schema(instance: "{\"type\": \"object\"}")
     let catalog = Catalog(
       id: "cat-full",
-      components: [ComponentAPI(name: "Button", schema: textSchema)],
+      components: [AnyComponentAPI(name: "Button", schema: textSchema)],
       functions: [addFunc],
       themeSchema: themeSchema
     )

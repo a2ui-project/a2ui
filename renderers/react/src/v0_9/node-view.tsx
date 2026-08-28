@@ -15,7 +15,14 @@
  */
 
 import type React from 'react';
-import {createContext, useCallback, useContext, useMemo, useSyncExternalStore} from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+} from 'react';
 import {
   ComponentContext,
   type ComponentNode,
@@ -43,10 +50,51 @@ export type NodeViewProps = {
   buildChild: NodeBuildChild;
 };
 
-/** The surface a node view renders under, provided by `A2uiNodeSurface`. */
+/** The surface a node view renders under, provided by `A2uiSurface`. */
 export const NodeSurfaceContext = createContext<SurfaceModel<ReactComponentImplementation> | null>(
   null,
 );
+
+/** Stands in for a component that has not arrived, or has just been removed. */
+export const LoadingPlaceholder: React.FC<{componentId: string}> = ({componentId}) => (
+  <div style={{color: 'gray', padding: '4px'}}>[Loading {componentId}...]</div>
+);
+
+/** Unresolved-reference reports already dispatched, per surface. */
+const reportedUnresolved = new WeakMap<SurfaceModel<ReactComponentImplementation>, Set<string>>();
+
+/**
+ * The in-tree notice for a child reference the resolver built no node for.
+ * Also reports it through the surface's error channel once per (id, path)
+ * so agents see it too, matching how the resolver reports unknown types and
+ * cycles. The report runs in an effect: dispatching during render would
+ * invoke onError subscribers while React is rendering, and a subscriber
+ * that sets state would then warn.
+ */
+export const UnresolvedChildReference: React.FC<{
+  surface: SurfaceModel<ReactComponentImplementation> | null;
+  id: string;
+  requestedPath: string;
+  detail: string;
+}> = ({surface, id, requestedPath, detail}) => {
+  const message = `Unresolved child reference '${id}' at '${requestedPath}': ${detail}`;
+  useEffect(() => {
+    if (!surface) {
+      return;
+    }
+    let seen = reportedUnresolved.get(surface);
+    if (!seen) {
+      seen = new Set();
+      reportedUnresolved.set(surface, seen);
+    }
+    const key = JSON.stringify([id, requestedPath]);
+    if (!seen.has(key)) {
+      seen.add(key);
+      void surface.dispatchError({code: 'UNRESOLVED_CHILD_REFERENCE', message});
+    }
+  }, [surface, id, requestedPath, message]);
+  return <div style={{color: 'red'}}>{message}</div>;
+};
 
 export function useSignalValue<T>(signal: Signal<T>): T {
   const subscribe = useCallback(
@@ -61,17 +109,57 @@ export function useSignalValue<T>(signal: Signal<T>): T {
   return useSyncExternalStore(subscribe, getSnapshot);
 }
 
-/** Child nodes of one view, keyed by componentId and by componentId@dataPath. */
-type ChildIndex = Map<string, ComponentNode<ReactComponentImplementation>>;
+/** Child nodes of one view, keyed by id, then by the child's data path. */
+type ChildMap = Map<string, Map<string, ComponentNode<ReactComponentImplementation>>>;
 
+/**
+ * The two id namespaces `buildChild` callers use. Views hand back the tokens
+ * the conversion put in their props (instanceIds, distinct per position);
+ * `render`-only and binderless implementations read raw component ids from
+ * the model. The namespaces can claim the same string for different nodes
+ * (a component named `a#2` next to a second reference to `a`), so each kind
+ * of caller resolves through its own map.
+ */
+interface ChildIndex {
+  byToken: ChildMap;
+  byId: ChildMap;
+}
+
+function newChildIndex(): ChildIndex {
+  return {byToken: new Map(), byId: new Map()};
+}
+
+function setChild(
+  map: ChildMap,
+  id: string,
+  child: ComponentNode<ReactComponentImplementation>,
+  firstWins: boolean,
+): void {
+  let byPath = map.get(id);
+  if (!byPath) {
+    byPath = new Map();
+    map.set(id, byPath);
+  }
+  if (!firstWins || !byPath.has(child.dataPath)) {
+    byPath.set(child.dataPath, child);
+  }
+}
+
+/**
+ * Registers a child and returns the token views should hand back to
+ * `buildChild`: the node's `instanceId`, which is distinct per position and
+ * cannot collide with another node's token. For a component referenced once
+ * at the parent's scope, the instanceId is the component id. The raw-id map
+ * keeps the first occurrence, matching how a raw reference has no way to
+ * name a later one.
+ */
 function registerChild(
   index: ChildIndex,
   child: ComponentNode<ReactComponentImplementation>,
-): void {
-  index.set(`${child.componentId}@${child.dataPath}`, child);
-  if (!index.has(child.componentId)) {
-    index.set(child.componentId, child);
-  }
+): string {
+  setChild(index.byToken, child.instanceId, child, false);
+  setChild(index.byId, child.componentId, child, true);
+  return child.instanceId;
 }
 
 /**
@@ -85,11 +173,11 @@ function toViewValue(parent: ComponentNode, value: unknown, index: ChildIndex): 
   if (isComponentNode(value)) {
     // Every node in this surface's props came from its own resolver, whose
     // catalog carries ReactComponentImplementation entries.
-    registerChild(index, value as ComponentNode<ReactComponentImplementation>);
+    const token = registerChild(index, value as ComponentNode<ReactComponentImplementation>);
     if (value.dataPath !== parent.dataPath) {
-      return {id: value.componentId, basePath: value.dataPath};
+      return {id: token, basePath: value.dataPath};
     }
-    return value.componentId;
+    return token;
   }
   if (value instanceof ResolvedBinding) {
     return toViewValue(parent, value.value, index);
@@ -152,29 +240,70 @@ export function useNodeView(
   viewProps: NodeProps;
   context: ComponentContext | undefined;
   viewBuildChild: (id: string, basePath?: string) => React.ReactNode;
+  rawBuildChild: (id: string, basePath?: string) => React.ReactNode;
 } {
   const surface = useContext(NodeSurfaceContext);
   const resolved = useSignalValue(node.props);
 
   const {viewProps, childIndex} = useMemo(() => {
-    const index: ChildIndex = new Map();
+    const index = newChildIndex();
     return {viewProps: toViewProps(node, resolved, index) as NodeProps, childIndex: index};
   }, [node, resolved]);
 
+  // The component can be removed between the resolver's update and this
+  // render committing; ComponentContext's constructor throws on a missing
+  // model, so treat that window as not-ready rather than crashing. Callers
+  // render a LoadingPlaceholder for it.
   const context = useMemo(
-    () => (surface ? new ComponentContext(surface, node.componentId, node.dataPath) : undefined),
+    () =>
+      surface && surface.componentsModel.get(node.componentId)
+        ? new ComponentContext(surface, node.componentId, node.dataPath)
+        : undefined,
     [surface, node],
   );
 
-  const viewBuildChild = useCallback(
-    (id: string, basePath?: string): React.ReactNode => {
-      const childNode =
-        childIndex.get(basePath ? `${id}@${basePath}` : id) ??
-        childIndex.get(`${id}@${node.dataPath}`);
-      return buildChild(childNode ?? id, basePath);
+  const resolveThrough = useCallback(
+    (map: ChildMap, id: string, basePath?: string): React.ReactNode => {
+      const requested = basePath ?? node.dataPath;
+      const byPath = map.get(id);
+      const childNode = byPath?.get(requested);
+      if (childNode) {
+        return buildChild(childNode, basePath);
+      }
+      // An instance at another data path means the reference itself is fine
+      // and the requested path is not one the payload created.
+      const elsewhere = byPath ? [...byPath.keys()] : [];
+      if (elsewhere.length > 0) {
+        return (
+          <UnresolvedChildReference
+            key={JSON.stringify([id, requested])}
+            surface={surface}
+            id={id}
+            requestedPath={requested}
+            detail={
+              `instances exist at ${elsewhere.join(', ')}. Instances are created only at ` +
+              `the data paths the payload implies; buildChild selects among them.`
+            }
+          />
+        );
+      }
+      return buildChild(id, basePath);
     },
-    [childIndex, buildChild, node],
+    [buildChild, node, surface],
   );
 
-  return {viewProps, context, viewBuildChild};
+  const viewBuildChild = useCallback(
+    (id: string, basePath?: string) => resolveThrough(childIndex.byToken, id, basePath),
+    [resolveThrough, childIndex],
+  );
+
+  const rawBuildChild = useCallback(
+    (id: string, basePath?: string) => resolveThrough(childIndex.byId, id, basePath),
+    [resolveThrough, childIndex],
+  );
+
+  if (!surface) {
+    throw new Error('A2UI component views render only inside A2uiSurface.');
+  }
+  return {viewProps, context, viewBuildChild, rawBuildChild};
 }
