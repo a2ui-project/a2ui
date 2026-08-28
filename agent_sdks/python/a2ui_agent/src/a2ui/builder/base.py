@@ -70,6 +70,34 @@ def bind(path: str) -> DataBinding:
 
 
 @dataclass(kw_only=True)
+class AccessibilityAttributes:
+    """Attributes to enhance accessibility when using assistive technologies."""
+
+    label: Optional[Union[str, DataBinding]] = None
+    description: Optional[Union[str, DataBinding]] = None
+    live: Optional[str] = None
+    hidden: Optional[Union[bool, DataBinding]] = None
+
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {}
+        if self.label is not None:
+            d["label"] = self.label.to_dict() if hasattr(self.label, "to_dict") else self.label
+        if self.description is not None:
+            d["description"] = (
+                self.description.to_dict()
+                if hasattr(self.description, "to_dict")
+                else self.description
+            )
+        if self.live is not None:
+            d["live"] = self.live
+        if self.hidden is not None:
+            d["hidden"] = (
+                self.hidden.to_dict() if hasattr(self.hidden, "to_dict") else self.hidden
+            )
+        return d
+
+
+@dataclass(kw_only=True)
 class FunctionCall:
     """Invocation of a client-side catalog function."""
 
@@ -321,5 +349,16 @@ class Surface:
                         "path": norm_path,
                         "value": val,
                     }
-                })
         return messages
+
+
+# ---------------------------------------------------------------------------
+# Canonical Protocol Type Aliases
+# ---------------------------------------------------------------------------
+DynamicString = Union[str, DataBinding, FunctionCall]
+DynamicNumber = Union[int, float, DataBinding, FunctionCall]
+DynamicBoolean = Union[bool, DataBinding, FunctionCall]
+DynamicStringList = Union[Sequence[str], DataBinding, FunctionCall]
+DynamicValue = Union[Any, DataBinding, FunctionCall]
+Child = Union[ComponentBuilderNode, str]
+ChildList = Union[Sequence[Union[ComponentBuilderNode, str]], DynamicChildList]
