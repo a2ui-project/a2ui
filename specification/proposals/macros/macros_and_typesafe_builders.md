@@ -188,26 +188,23 @@ The `@a2ui/cli` tool reads standard A2UI catalog JSON files and generates native
 ### Command-line interface
 
 ```bash
-npx @a2ui/cli codegen --catalog ./catalogs/basic/catalog.json --out ./agent/builders
+npx @a2ui/cli codegen --catalog ./catalogs/basic/catalog.json --out ./agent/builders/basic.py
 ```
 
 Supported options:
 * `--catalog <path>`: Path to the input A2UI catalog JSON file (required).
-* `--out <directory>`: Target directory for generated source files (required).
+* `--out <path>`: Destination `.py` file path or output directory (required). If a directory is provided, the tool emits `<catalog_name>.py` into that directory.
 * `--base-import <module>`: Custom Python module path for builder base classes (defaults to `a2ui.inference_formats.experimental.macros.builder.base`).
+* `--spec-version <version>`: Explicit protocol version (e.g. `v0.9.1`).
 
-### Generated file structure
+### Single-file catalog output
 
-Running `a2ui codegen` produces five files in the target directory:
+Running `a2ui codegen` generates the entire catalog into a single self-contained Python module (e.g. `basic.py`). This keeps all related types, component dataclasses, helper functions, and re-exports in one cohesive file:
 
-```
-agent/builders/
-├── __init__.py       # Re-exports all components, types, and builder utilities
-├── py.typed          # PEP 561 marker indicating type annotations are present
-├── types.py          # String literal enums derived from catalog constraints
-├── components.py     # Typed dataclasses for each component definition
-└── functions.py      # Typed helper functions declared in the catalog
-```
+1. **Types and Enums:** `Literal[...]` type aliases derived from catalog constraints.
+2. **Component Builders:** `@dataclass` classes inheriting from `ComponentBuilderNode`.
+3. **Function Wrappers:** Type-safe helper functions generating `FunctionCall` objects.
+4. **Re-exports:** An explicit `__all__` list exposing all components, enums, functions, and core builder utilities (`Action`, `DataBinding`, `bind`, `Surface`).
 
 ### Input and output example
 
@@ -234,39 +231,57 @@ agent/builders/
 }
 ```
 
-#### Generated types (`types.py` snippet)
+#### Generated single-file module (`basic.py` snippet)
 
 ```python
-from typing import Literal
-
-CardElevation = Literal["none", "low", "high"]
-
-__all__ = ["CardElevation"]
-```
-
-#### Generated component builder (`components.py` snippet)
-
-```python
-from dataclasses import dataclass
-from typing import Any, Optional, Union
+from dataclasses import dataclass, field
+from typing import Any, Mapping, Literal, Optional, Sequence, Union
 
 from a2ui.inference_formats.experimental.macros.builder.base import (
     Action,
     ComponentBuilderNode,
     DataBinding,
+    FunctionCall,
+    Surface,
+    bind,
 )
-from .types import CardElevation
 
-@dataclass
+# =============================================================================
+# Types & Enums
+# =============================================================================
+
+CardElevation = Literal["none", "low", "high"]
+
+# =============================================================================
+# Components
+# =============================================================================
+
+@dataclass(kw_only=True)
 class Card(ComponentBuilderNode):
     """Container card with optional elevation and title."""
     child: ComponentBuilderNode
     title: Optional[Union[str, DataBinding]] = None
     elevation: Optional[CardElevation] = "low"
     id: Optional[str] = None
+    component_name: str = field(default="Card", init=False)
 
-    def __post_init__(self):
-        super().__init__(component_type="Card")
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {"component": self.component_name}
+        if self.child is not None:
+            d["child"] = _serialize_prop(self.child)
+        if self.title is not None:
+            d["title"] = _serialize_prop(self.title)
+        if self.elevation is not None:
+            d["elevation"] = _serialize_prop(self.elevation)
+        if self.id is not None:
+            d["id"] = self.id
+        return d
+
+# =============================================================================
+# Exports
+# =============================================================================
+
+__all__ = ["Card", "CardElevation", "Action", "DataBinding", "Surface", "bind"]
 ```
 
 ---

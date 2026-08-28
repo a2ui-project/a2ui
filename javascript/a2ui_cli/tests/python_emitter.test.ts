@@ -30,7 +30,7 @@ describe('PythonEmitter in @a2ui/cli', () => {
   );
   const basicCatalogJson = JSON.parse(fs.readFileSync(basicCatalogPath, 'utf-8'));
 
-  it('emits python builder files with dataclass components and to_dict', () => {
+  it('emits single-file python catalog module with dataclass components and types', () => {
     const catalog = Catalog.fromJson(basicCatalogJson, {specVersion: 'v0.9.1'});
     const analysed = CatalogAnalyzer.analyze(catalog);
 
@@ -39,20 +39,40 @@ describe('PythonEmitter in @a2ui/cli', () => {
       const emitter = new PythonEmitter(analysed);
       const written = emitter.emit(tmpDir);
 
-      assert.strictEqual(written.length, 5);
+      assert.strictEqual(written.length, 1);
+      const filePath = written[0];
+      assert.ok(filePath.endsWith('.py'));
 
-      const compContent = fs.readFileSync(path.join(tmpDir, 'components.py'), 'utf-8');
-      assert.ok(compContent.includes('class Button(ComponentBuilderNode):'));
-      assert.ok(compContent.includes('class Text(ComponentBuilderNode):'));
-      assert.ok(compContent.includes('class Row(ComponentBuilderNode):'));
-      assert.ok(compContent.includes('def to_dict(self) -> dict[str, Any]:'));
+      const content = fs.readFileSync(filePath, 'utf-8');
+      assert.ok(content.includes('class Button(ComponentBuilderNode):'));
+      assert.ok(content.includes('class Text(ComponentBuilderNode):'));
+      assert.ok(content.includes('class Row(ComponentBuilderNode):'));
+      assert.ok(content.includes('def to_dict(self) -> dict[str, Any]:'));
+      assert.ok(content.includes('TextVariant = Literal['));
+      assert.ok(content.includes('ButtonVariant = Literal['));
+      assert.ok(content.includes('def open_url('));
+      assert.ok(content.includes('__all__ = ['));
+    } finally {
+      fs.rmSync(tmpDir, {recursive: true, force: true});
+    }
+  });
 
-      const typesContent = fs.readFileSync(path.join(tmpDir, 'types.py'), 'utf-8');
-      assert.ok(typesContent.includes('Literal['));
+  it('emits directly to a specific .py file path when requested', () => {
+    const catalog = Catalog.fromJson(basicCatalogJson, {specVersion: 'v0.9.1'});
+    const analysed = CatalogAnalyzer.analyze(catalog);
 
-      const initContent = fs.readFileSync(path.join(tmpDir, '__init__.py'), 'utf-8');
-      assert.ok(initContent.includes('from .components import *'));
-      assert.ok(initContent.includes('from .types import *'));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui-cli-test-file-'));
+    const targetFile = path.join(tmpDir, 'custom_catalog_builders.py');
+    try {
+      const emitter = new PythonEmitter(analysed);
+      const written = emitter.emit(targetFile);
+
+      assert.strictEqual(written.length, 1);
+      assert.strictEqual(written[0], targetFile);
+      assert.ok(fs.existsSync(targetFile));
+
+      const content = fs.readFileSync(targetFile, 'utf-8');
+      assert.ok(content.includes('class Card(ComponentBuilderNode):'));
     } finally {
       fs.rmSync(tmpDir, {recursive: true, force: true});
     }

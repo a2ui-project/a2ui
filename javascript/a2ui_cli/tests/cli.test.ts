@@ -34,19 +34,20 @@ describe('a2ui CLI end-to-end command execution', () => {
     assert.ok(output.includes('codegen'));
   });
 
-  it('executes codegen and writes files into target output directory', () => {
+  it('executes codegen and writes single-file module into target output directory', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui-cli-e2e-'));
     try {
       const output = execSync(
         `node ${cliPath} codegen --catalog ${catalogPath} --spec-version v0.9.1 --out ${tmpDir}`,
         {encoding: 'utf-8'},
       );
-      assert.ok(output.includes('Successfully generated 5 files'));
-      assert.ok(fs.existsSync(path.join(tmpDir, 'components.py')));
-      assert.ok(fs.existsSync(path.join(tmpDir, 'types.py')));
-      assert.ok(fs.existsSync(path.join(tmpDir, 'functions.py')));
-      assert.ok(fs.existsSync(path.join(tmpDir, '__init__.py')));
-      assert.ok(fs.existsSync(path.join(tmpDir, 'py.typed')));
+      assert.ok(output.includes('Successfully generated 1 file(s)'));
+      assert.ok(fs.existsSync(path.join(tmpDir, 'basic.py')));
+
+      const content = fs.readFileSync(path.join(tmpDir, 'basic.py'), 'utf-8');
+      assert.ok(content.includes('class Button(ComponentBuilderNode):'));
+      assert.ok(content.includes('ButtonVariant = Literal['));
+      assert.ok(content.includes('def open_url('));
     } finally {
       fs.rmSync(tmpDir, {recursive: true, force: true});
     }

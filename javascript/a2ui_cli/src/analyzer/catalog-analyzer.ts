@@ -193,7 +193,8 @@ export class CatalogAnalyzer {
 
     // Check REF pointer in description
     const refMatch = current.description?.match(/REF:([^|]+)(?:\|(.*))?/);
-    const cleanDescription = refMatch?.[2] || description?.replace(/REF:[^|]+(\|)?/, '') || description;
+    const cleanDescription =
+      refMatch?.[2] || description?.replace(/REF:[^|]+(\|)?/, '') || description;
 
     if (refMatch) {
       const refPath = refMatch[1];

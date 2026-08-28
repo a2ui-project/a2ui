@@ -58,6 +58,14 @@ export function sanitizeIdent(name: string): string {
   return name;
 }
 
+export function toSnakeCase(name: string): string {
+  const snake = name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+  if (PYTHON_KEYWORDS.has(snake)) {
+    return `${snake}_`;
+  }
+  return snake;
+}
+
 export function typeToPython(desc: TypeDescriptor): string {
   switch (desc.kind) {
     case 'primitive': {

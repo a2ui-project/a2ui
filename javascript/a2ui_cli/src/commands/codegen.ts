@@ -64,16 +64,16 @@ export function createCodegenCommand(): Command {
       }
 
       const analysed = CatalogAnalyzer.analyze(catalog);
-      const outDir = path.resolve(process.cwd(), options.out);
+      const outPath = path.resolve(process.cwd(), options.out);
 
       if (options.lang === 'python') {
         const emitter = new PythonEmitter(analysed, {
           baseImport: options.baseImport,
         });
-        const written = emitter.emit(outDir);
-        console.log(`Successfully generated ${written.length} files into ${outDir}:`);
+        const written = emitter.emit(outPath);
+        console.log(`Successfully generated ${written.length} file(s):`);
         for (const file of written) {
-          console.log(`  - ${path.basename(file)}`);
+          console.log(`  - ${file}`);
         }
       } else {
         console.error(`Unsupported target language: ${options.lang}`);
