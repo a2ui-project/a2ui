@@ -112,7 +112,9 @@ class MacroParser(Parser):
                 new_msg["surfaceUpdate"] = new_surf
                 expanded_msgs.append(new_msg)
 
-            elif "updateComponents" in msg and isinstance(msg["updateComponents"], dict):
+            elif "updateComponents" in msg and isinstance(
+                msg["updateComponents"], dict
+            ):
                 upd = msg["updateComponents"]
                 comps = upd.get("components", [])
                 expanded_comps = []
@@ -203,7 +205,9 @@ class MacroParser(Parser):
                 comps = upd.get("components", [])
                 expanded_comps = []
                 for comp in comps:
-                    if isinstance(comp, dict) and self.processor.has_macro(comp.get("component", "")):
+                    if isinstance(comp, dict) and self.processor.has_macro(
+                        comp.get("component", "")
+                    ):
                         c_name = comp["component"]
                         c_id = comp.get("id")
                         params = {
@@ -250,8 +254,9 @@ class MacroInferenceFormat(InferenceFormat):
     ):
         if base_format is None:
             raise ValueError(
-                "MacroInferenceFormat requires a base_format to be passed (e.g. "
-                "MacroInferenceFormat(base_format=ExpressFormat(catalog=catalog, surface_id='main')))."
+                "MacroInferenceFormat requires a base_format to be passed (e.g."
+                " MacroInferenceFormat(base_format=ExpressFormat(catalog=catalog,"
+                " surface_id='main')))."
             )
 
         self.surface_id = surface_id or getattr(base_format, "surface_id", "main")
@@ -281,8 +286,9 @@ class MacroInferenceFormat(InferenceFormat):
         extracted_catalog = catalog or getattr(base_format, "catalog", None)
         if extracted_catalog is None:
             raise ValueError(
-                "A catalog must be provided to MacroInferenceFormat (either via base_format or as catalog=...). "
-                "Inference formats must remain catalog-agnostic."
+                "A catalog must be provided to MacroInferenceFormat (either via"
+                " base_format or as catalog=...). Inference formats must remain"
+                " catalog-agnostic."
             )
         elif isinstance(extracted_catalog, A2uiCatalog):
             self.base_catalog = extracted_catalog
@@ -296,7 +302,9 @@ class MacroInferenceFormat(InferenceFormat):
             self.base_catalog = A2uiCatalog(
                 version=self.version,
                 name="custom",
-                catalog_schema=extracted_catalog if isinstance(extracted_catalog, dict) else {},
+                catalog_schema=extracted_catalog
+                if isinstance(extracted_catalog, dict)
+                else {},
                 s2c_schema=s2c,
                 common_types_schema=common_types,
             )

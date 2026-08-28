@@ -31,7 +31,7 @@ export function createCodegenCommand(): Command {
     .option(
       '--base-import <module>',
       'Base module from which ComponentBuilderNode, DataBinding, etc. are imported.',
-      'a2ui.inference_formats.experimental.macros.builder.base',
+      'a2ui.builder.base',
     )
     .action(async options => {
       const catalogPath = path.resolve(process.cwd(), options.catalog);

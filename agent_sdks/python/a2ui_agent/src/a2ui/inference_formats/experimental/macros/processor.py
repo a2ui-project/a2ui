@@ -16,7 +16,7 @@
 
 from typing import Any, Optional, Sequence, Union
 
-from a2ui.inference_formats.experimental.macros.builder.base import (
+from a2ui.builder import (
     ComponentBuilderNode,
     ComponentRef,
     ExternalComponentBuilderNode,
@@ -62,7 +62,8 @@ class MacroProcessor:
                 p_meta = meta.parameters[p_name]
                 t = p_meta.type_hint
                 if isinstance(p_val, str) and (
-                    t in (
+                    t
+                    in (
                         ComponentBuilderNode,
                         ExternalComponentBuilderNode,
                         ComponentRef,
@@ -72,14 +73,14 @@ class MacroProcessor:
                 ):
                     coerced_args[p_name] = ComponentRef(id=p_val)
                 elif isinstance(p_val, (list, tuple)) and (
-                    t in (
+                    t
+                    in (
                         Sequence[ComponentBuilderNode],
                         list[ComponentBuilderNode],
                     )
                 ):
                     coerced_args[p_name] = [
-                        ComponentRef(id=x) if isinstance(x, str) else x
-                        for x in p_val
+                        ComponentRef(id=x) if isinstance(x, str) else x for x in p_val
                     ]
                 else:
                     coerced_args[p_name] = p_val
@@ -91,7 +92,8 @@ class MacroProcessor:
 
         if not isinstance(result, (ComponentBuilderNode, Sequence)):
             raise TypeError(
-                f"Macro '{macro_name}' must return a ComponentBuilderNode or Sequence of nodes, got {type(result)}."
+                f"Macro '{macro_name}' must return a ComponentBuilderNode or Sequence"
+                f" of nodes, got {type(result)}."
             )
 
         # Flatten into primitive components with ID namespacing and root stitching

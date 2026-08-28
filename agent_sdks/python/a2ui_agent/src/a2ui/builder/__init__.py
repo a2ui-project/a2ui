@@ -12,10 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI Typesafe Catalog builder package (legacy alias).
+"""A2UI Typesafe Fluent Builder package."""
 
-Prefer importing directly from `a2ui.builder` and `a2ui.builder.catalogs.basic`.
-"""
+from .base import (
+    Action,
+    CheckRule,
+    ComponentBuilderNode,
+    ComponentRef,
+    DataBinding,
+    DynamicChildList,
+    ExternalComponentBuilderNode,
+    FunctionCall,
+    IdAllocator,
+    Surface,
+    bind,
+    flatten_component_tree,
+)
 
-from a2ui.builder import *  # noqa: F403
-from a2ui.builder.catalogs.basic import *  # noqa: F403
+__all__ = [
+    "Action",
+    "CheckRule",
+    "ComponentBuilderNode",
+    "ComponentRef",
+    "DataBinding",
+    "DynamicChildList",
+    "ExternalComponentBuilderNode",
+    "FunctionCall",
+    "IdAllocator",
+    "Surface",
+    "bind",
+    "flatten_component_tree",
+]
