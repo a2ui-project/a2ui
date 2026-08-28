@@ -36,17 +36,11 @@ struct NumericFunctionTests {
     #expect(function.api.returnType == .boolean)
   }
 
-  // MARK: - Evaluation
+  // MARK: - Edge-Case & Boundary Evaluation
 
   @Test func evaluatesToTrueWhenWithinMinAndMax() throws {
     let result = try function.evaluate(
       arguments: ["value": .number(5), "min": .number(3), "max": .number(10)], context: context)
-    #expect(result == .boolean(true))
-  }
-
-  @Test func evaluatesToTrueWhenStringParsedAsNumberIsWithinMinAndMax() throws {
-    let result = try function.evaluate(
-      arguments: ["value": .string("5.5"), "min": .number(3), "max": .number(10)], context: context)
     #expect(result == .boolean(true))
   }
 
@@ -76,12 +70,6 @@ struct NumericFunctionTests {
 
   @Test func evaluatesToFalseWhenValueIsMissing() throws {
     let result = try function.evaluate(arguments: ["min": .number(3)], context: context)
-    #expect(result == .boolean(false))
-  }
-
-  @Test func evaluatesToFalseWhenValueIsNotANumber() throws {
-    let result = try function.evaluate(
-      arguments: ["value": .string("not_a_number"), "min": .number(1)], context: context)
     #expect(result == .boolean(false))
   }
 

@@ -42,6 +42,9 @@ const EMPTY_REF_FIELDS: RefFields = new Map();
 interface NodeRecord {
   readonly node: MutableComponentNode;
   readonly edgeKey: string;
+  /** The node's ordinal among same-(componentId, dataPath) siblings, baked
+   *  into its instanceId; reuse requires it to still match. */
+  readonly occurrence: number;
   /** The node whose props reference this one; undefined for the root. */
   readonly parent?: MutableComponentNode;
   readonly refFields: RefFields;
@@ -95,6 +98,8 @@ export class NodeResolver<
   private readonly nodesByComponentId = new Map<string, Set<MutableComponentNode>>();
   /** Parents holding a placeholder for a component id, awaiting its arrival. */
   private readonly pendingParents = new Map<string, Set<MutableComponentNode>>();
+  /** Errors already dispatched, keyed by component id, then data path. */
+  private readonly dispatchedErrors = new Map<string, Map<string, Set<string>>>();
   private readonly modelSubs: Subscription[] = [];
   private rootRecord?: NodeRecord;
   private _disposed = false;
@@ -121,6 +126,37 @@ export class NodeResolver<
     }
   }
 
+  /**
+   * Dispatches once per (code, component, path) for as long as the condition
+   * persists: the record is cleared when the component is deleted, when a
+   * node for the pair resolves, or when a cyclic stand-in's edge goes away,
+   * so a condition that is fixed and later reintroduced reports again.
+   */
+  private dispatchOnce(code: string, componentId: string, dataPath: string, message: string): void {
+    let byPath = this.dispatchedErrors.get(componentId);
+    if (!byPath) {
+      byPath = new Map();
+      this.dispatchedErrors.set(componentId, byPath);
+    }
+    let codes = byPath.get(dataPath);
+    if (!codes) {
+      codes = new Set();
+      byPath.set(dataPath, codes);
+    }
+    if (codes.has(code)) {
+      return;
+    }
+    codes.add(code);
+    this.surface.dispatchError({code, message});
+  }
+
+  private clearDispatched(componentId: string, dataPath: string): void {
+    const byPath = this.dispatchedErrors.get(componentId);
+    if (byPath?.delete(dataPath) && byPath.size === 0) {
+      this.dispatchedErrors.delete(componentId);
+    }
+  }
+
   /** Number of live nodes (including placeholders). Exposed for tests and devtools. */
   get activeNodeCount(): number {
     return this.records.size;
@@ -144,6 +180,7 @@ export class NodeResolver<
       this.disposeNode(node);
     }
     this.pendingParents.clear();
+    this.dispatchedErrors.clear();
     this.rootRecord = undefined;
     setValue(this.rootNode, undefined);
   }
@@ -164,7 +201,20 @@ export class NodeResolver<
       return;
     }
     if (component.id === ROOT_COMPONENT_ID) {
-      this.buildRoot();
+      // Events deliver late; reconcile against the model's current root, not
+      // the event payload. A stale creation must not rebuild a tree already
+      // bound to the current model, nor create one the model no longer has.
+      const current = this.surface.componentsModel.get(ROOT_COMPONENT_ID);
+      if (this.rootRecord && this.rootRecord.componentModel !== current) {
+        this.disposeNode(this.rootRecord.node);
+        this.rootRecord = undefined;
+        if (!current) {
+          setValue(this.rootNode, undefined);
+        }
+      }
+      if (current) {
+        this.buildRoot();
+      }
     }
     const waiting = this.pendingParents.get(component.id);
     if (waiting) {
@@ -182,12 +232,16 @@ export class NodeResolver<
     if (this._disposed) {
       return;
     }
+    // Model events deliver asynchronously, so a removal can arrive after the
+    // component is already back; reconcile against current model state.
+    this.dispatchedErrors.delete(id);
+    const model = this.surface.componentsModel.get(id);
     const affected = this.nodesByComponentId.get(id);
     if (!affected) {
       return;
     }
     const parentsToRefresh = new Set<MutableComponentNode>();
-    let rootDeleted = false;
+    let rootAffected = false;
     for (const node of [...affected]) {
       const record = this.records.get(node);
       if (!record) {
@@ -196,13 +250,19 @@ export class NodeResolver<
       if (record.parent) {
         parentsToRefresh.add(record.parent);
       } else {
-        rootDeleted = true;
+        rootAffected = true;
       }
     }
-    if (rootDeleted && this.rootRecord) {
-      this.disposeNode(this.rootRecord.node);
-      this.rootRecord = undefined;
-      setValue(this.rootNode, undefined);
+    if (rootAffected && this.rootRecord) {
+      if (!model) {
+        this.disposeNode(this.rootRecord.node);
+        this.rootRecord = undefined;
+        setValue(this.rootNode, undefined);
+      } else if (this.rootRecord.componentModel !== model) {
+        this.disposeNode(this.rootRecord.node);
+        this.rootRecord = undefined;
+        this.buildRoot();
+      }
     }
     for (const parent of parentsToRefresh) {
       const record = this.records.get(parent);
@@ -222,12 +282,13 @@ export class NodeResolver<
     dataPath: string,
     edgeKey: string,
     parent: MutableComponentNode | undefined,
+    occurrence = 1,
   ): MutableComponentNode {
     const model = this.surface.componentsModel.get(componentId);
     if (!model) {
       const record = this.registerNode(
         new MutableComponentNode(
-          instanceIdFor(componentId, dataPath),
+          instanceIdFor(componentId, dataPath, occurrence),
           componentId,
           PLACEHOLDER_TYPE,
           dataPath,
@@ -235,44 +296,42 @@ export class NodeResolver<
           undefined,
           'pending',
         ),
-        {edgeKey, parent, refFields: EMPTY_REF_FIELDS},
+        {edgeKey, parent, occurrence, refFields: EMPTY_REF_FIELDS},
       );
       if (parent) {
-        let waiting = this.pendingParents.get(componentId);
-        if (!waiting) {
-          waiting = new Set();
-          this.pendingParents.set(componentId, waiting);
-        }
-        waiting.add(parent);
+        this.registerPendingParent(componentId, parent);
       }
       return record.node;
     }
 
     const api = this.catalog.components.get(model.type);
     if (!api) {
-      this.surface.dispatchError({
-        code: 'UNKNOWN_COMPONENT_TYPE',
-        message: `Component '${componentId}' has type '${model.type}', which is not in catalog '${this.catalog.id}'.`,
-      });
+      this.dispatchOnce(
+        'UNKNOWN_COMPONENT_TYPE',
+        componentId,
+        dataPath,
+        `Component '${componentId}' has type '${model.type}', which is not in catalog '${this.catalog.id}'.`,
+      );
       return this.registerNode(
         new MutableComponentNode(
-          instanceIdFor(componentId, dataPath),
+          instanceIdFor(componentId, dataPath, occurrence),
           componentId,
-          PLACEHOLDER_TYPE,
+          model.type,
           dataPath,
           {},
           undefined,
           'unknown-type',
         ),
-        {edgeKey, parent, refFields: EMPTY_REF_FIELDS},
+        {edgeKey, parent, occurrence, refFields: EMPTY_REF_FIELDS, componentModel: model},
       ).node;
     }
 
+    this.clearDispatched(componentId, dataPath);
     const context = new ComponentContext(this.surface, componentId, dataPath);
     const binder = new GenericBinder<NodeProps>(context, api.schema);
     const record = this.registerNode(
       new MutableComponentNode(
-        instanceIdFor(componentId, dataPath),
+        instanceIdFor(componentId, dataPath, occurrence),
         componentId,
         model.type,
         dataPath,
@@ -282,6 +341,7 @@ export class NodeResolver<
       {
         edgeKey,
         parent,
+        occurrence,
         refFields: extractRefFields(api.schema),
         behavior: scrapeSchemaBehavior(api.schema),
         context,
@@ -306,6 +366,7 @@ export class NodeResolver<
     partial: {
       edgeKey: string;
       parent?: MutableComponentNode;
+      occurrence: number;
       refFields: RefFields;
       behavior?: BehaviorNode;
       context?: ComponentContext;
@@ -317,6 +378,7 @@ export class NodeResolver<
       node,
       edgeKey: partial.edgeKey,
       parent: partial.parent,
+      occurrence: partial.occurrence,
       refFields: partial.refFields,
       behavior: partial.behavior,
       context: partial.context,
@@ -345,24 +407,32 @@ export class NodeResolver<
     dataPath: string,
     edgeKey: string,
     parent: MutableComponentNode,
+    occurrence = 1,
   ): MutableComponentNode {
     const existing = this.nodesByEdge.get(edgeKey);
     if (this.isCyclic(componentId, dataPath, parent)) {
       // Node identity is parent-scoped, so a cyclic payload would otherwise
       // recurse forever; render the repeated reference as a placeholder.
-      if (existing && !existing.disposed && existing.isPlaceholder) {
+      if (
+        existing &&
+        !existing.disposed &&
+        existing.isPlaceholder &&
+        this.records.get(existing)?.occurrence === occurrence
+      ) {
         return existing;
       }
       if (existing && !existing.disposed) {
         this.disposeNode(existing);
       }
-      this.surface.dispatchError({
-        code: 'CYCLIC_REFERENCE',
-        message: `Component '${componentId}' at '${dataPath}' is referenced by one of its own descendants; rendering a placeholder instead.`,
-      });
+      this.dispatchOnce(
+        'CYCLIC_REFERENCE',
+        componentId,
+        dataPath,
+        `Component '${componentId}' at '${dataPath}' is referenced by one of its own descendants; rendering a placeholder instead.`,
+      );
       return this.registerNode(
         new MutableComponentNode(
-          instanceIdFor(componentId, dataPath),
+          instanceIdFor(componentId, dataPath, occurrence),
           componentId,
           PLACEHOLDER_TYPE,
           dataPath,
@@ -370,7 +440,7 @@ export class NodeResolver<
           undefined,
           'cyclic',
         ),
-        {edgeKey, parent, refFields: EMPTY_REF_FIELDS},
+        {edgeKey, parent, occurrence, refFields: EMPTY_REF_FIELDS},
       ).node;
     }
     if (existing && !existing.disposed) {
@@ -379,20 +449,46 @@ export class NodeResolver<
       // A placeholder stays up to date only while its own state's
       // preconditions hold, so a pending node whose definition arrives with
       // an unknown type is replaced (once) by an unknown-type node, and
-      // either kind resolves when the type gains a catalog entry.
+      // either kind resolves when the type gains a catalog entry. Resolved
+      // and unknown-type nodes must also still be bound to the current model
+      // instance. A node whose sibling ordinal changed is rebuilt so
+      // instance ids stay distinct after list edits.
+      const existingRecord = this.records.get(existing);
       const upToDate =
         existing.componentId === componentId &&
         existing.dataPath === dataPath &&
+        existingRecord?.occurrence === occurrence &&
         (existing.isPlaceholder
           ? (model === undefined && existing.state === 'pending') ||
-            (model !== undefined && api === undefined && existing.state === 'unknown-type')
-          : model !== undefined && existing.type === model.type);
+            (model !== undefined &&
+              api === undefined &&
+              existing.state === 'unknown-type' &&
+              existingRecord?.componentModel === model)
+          : model !== undefined &&
+            existing.type === model.type &&
+            existingRecord?.componentModel === model);
       if (upToDate) {
+        if (existing.state === 'pending') {
+          // A deletion delivered between this component's add and remove
+          // clears the waiting registration; reusing the placeholder without
+          // restoring it would leave a later legitimate add unnoticed.
+          this.registerPendingParent(componentId, parent);
+        }
         return existing;
       }
       this.disposeNode(existing);
     }
-    return this.createNode(componentId, dataPath, edgeKey, parent);
+    return this.createNode(componentId, dataPath, edgeKey, parent, occurrence);
+  }
+
+  /** Registers a parent to be refreshed when `componentId` arrives. */
+  private registerPendingParent(componentId: string, parent: MutableComponentNode): void {
+    let waiting = this.pendingParents.get(componentId);
+    if (!waiting) {
+      waiting = new Set();
+      this.pendingParents.set(componentId, waiting);
+    }
+    waiting.add(parent);
   }
 
   /** True when (componentId, dataPath) already appears in the parent chain. */
@@ -435,9 +531,15 @@ export class NodeResolver<
       }
     }
 
+    // Ordinal per (componentId, dataPath) within this rebuild, so repeated
+    // references to one component get distinct instance ids.
+    const occurrences = new Map<string, number>();
     const resolveChild = (slot: string, componentId: string, dataPath: string): ComponentNode => {
-      const edgeKey = `${record.edgeKey}>${slot}>${componentId}@${dataPath}`;
-      const child = this.childNode(componentId, dataPath, edgeKey, record.node);
+      const occurrenceKey = `${escapeIdPart(componentId)}@${escapeIdPart(dataPath)}`;
+      const occurrence = (occurrences.get(occurrenceKey) ?? 0) + 1;
+      occurrences.set(occurrenceKey, occurrence);
+      const edgeKey = `${record.edgeKey}>${slot}>${occurrenceKey}`;
+      const child = this.childNode(componentId, dataPath, edgeKey, record.node, occurrence);
       newEdges.set(edgeKey, child);
       return child;
     };
@@ -447,7 +549,7 @@ export class NodeResolver<
         case 'single': {
           const value = next[key];
           if (typeof value === 'string' && value) {
-            next[key] = resolveChild(key, value, record.node.dataPath);
+            next[key] = resolveChild(escapeIdPart(key), value, record.node.dataPath);
           }
           break;
         }
@@ -458,17 +560,21 @@ export class NodeResolver<
           }
           next[key] = value.map((item, index) => {
             if (typeof item === 'string' && item) {
-              return resolveChild(`${key}[${index}]`, item, record.node.dataPath);
+              return resolveChild(`${escapeIdPart(key)}[${index}]`, item, record.node.dataPath);
             }
             if (item && typeof item === 'object' && !Array.isArray(item)) {
               const entry = item as Record<string, unknown>;
               // The binder resolves a {componentId, path} template into
               // {id, basePath} pairs, one per array element.
               if (typeof entry.id === 'string' && typeof entry.basePath === 'string') {
-                return resolveChild(`${key}[${index}]`, entry.id, entry.basePath);
+                return resolveChild(`${escapeIdPart(key)}[${index}]`, entry.id, entry.basePath);
               }
               if (typeof entry.componentId === 'string' && entry.componentId) {
-                return resolveChild(`${key}[${index}]`, entry.componentId, record.node.dataPath);
+                return resolveChild(
+                  `${escapeIdPart(key)}[${index}]`,
+                  entry.componentId,
+                  record.node.dataPath,
+                );
               }
             }
             return item;
@@ -490,7 +596,7 @@ export class NodeResolver<
               const childId = entry[subKey];
               if (typeof childId === 'string' && childId) {
                 entry[subKey] = resolveChild(
-                  `${key}[${index}].${subKey}`,
+                  `${escapeIdPart(key)}[${index}].${escapeIdPart(subKey)}`,
                   childId,
                   record.node.dataPath,
                 );
@@ -574,16 +680,41 @@ export class NodeResolver<
         this.pendingParents.delete(componentId);
       }
     }
+    if (node.state === 'cyclic') {
+      // The cyclic edge is gone; a payload that reintroduces it should report.
+      this.clearDispatched(node.componentId, node.dataPath);
+    }
     node.dispose();
   }
 }
 
-function instanceIdFor(componentId: string, dataPath: string): string {
-  if (dataPath === ROOT_DATA_PATH) {
-    return componentId;
-  }
+/**
+ * Escapes the characters that carry meaning in composed instance ids and
+ * edge keys (`~`, `#`, `[`, `]`, `>`, `@`), so a component id, data path, or
+ * property name containing them cannot collide with the composed form of a
+ * different tuple. Parts without these characters are unchanged.
+ */
+const ID_PART_ESCAPES: Record<string, string> = {
+  '~': '~0',
+  '#': '~1',
+  '[': '~2',
+  ']': '~3',
+  '>': '~4',
+  '@': '~5',
+};
+
+// A single pass, so no replacement can see the output of an earlier one.
+function escapeIdPart(part: string): string {
+  return part.replace(/[~#[\]>@]/g, match => ID_PART_ESCAPES[match]);
+}
+
+function instanceIdFor(componentId: string, dataPath: string, occurrence: number): string {
   const trimmed = dataPath.replace(/\/+$/, '') || ROOT_DATA_PATH;
-  return `${componentId}-[${trimmed}]`;
+  const base =
+    dataPath === ROOT_DATA_PATH
+      ? escapeIdPart(componentId)
+      : `${escapeIdPart(componentId)}-[${escapeIdPart(trimmed)}]`;
+  return occurrence > 1 ? `${base}#${occurrence}` : base;
 }
 
 /**
@@ -613,7 +744,7 @@ function wrapDynamicValues(
       if (path === undefined) {
         return new ResolvedBinding(value);
       }
-      return new WritableBinding(value, newValue => dataContext.set(path, newValue));
+      return new WritableBinding(value, newValue => dataContext.set(path, newValue), path);
     }
     case 'ARRAY': {
       if (!Array.isArray(value)) {
@@ -650,6 +781,15 @@ function wrapDynamicValues(
           dataContext,
         );
       }
+      // The binder guarantees every dynamic property a setter even when the
+      // payload omits it. Represent an omitted one as a read-only binding of
+      // undefined, at every nesting level, so consumers synthesizing setters
+      // from bindings keep that guarantee.
+      for (const [key, childBehavior] of Object.entries(behavior.shape)) {
+        if (childBehavior.type === 'DYNAMIC' && !(key in out)) {
+          out[key] = new ResolvedBinding(undefined);
+        }
+      }
       return out;
     }
     default:
@@ -661,7 +801,7 @@ function wrapDynamicValues(
  * Returns `prev` whenever `next` is structurally identical to it, so
  * unchanged props keep reference identity across rebuilds. Child
  * `ComponentNode`s and action closures compare by identity, and
- * `ResolvedBinding`s by snapshot value and writability.
+ * `ResolvedBinding`s by `sameBinding`.
  */
 function stabilize(prev: unknown, next: unknown): unknown {
   if (Object.is(prev, next)) {
