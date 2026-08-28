@@ -48,7 +48,7 @@ class ValidationConfig(BaseModel):
     allow_dangling_references: bool = False
     allow_missing_root: bool = False
     allow_unknown_elements: bool = False
-    target_version: Optional[str] = None
+    allowed_messages: Optional[list[str]] = None
 
 
 # Presets for validation configuration

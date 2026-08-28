@@ -109,13 +109,10 @@ class SurfaceComponentsModel:
             prospective_components[comp_model.id] = comp_model
 
         validate_composition_constraints(prospective_components)
-        try:
-            validate_component_integrity(
-                prospective_components, root_id=root_id, config=config
-            )
-            analyze_topology(prospective_components, root_id=root_id, config=config)
-        except Exception as e:
-            raise A2uiValidationError(str(e)) from e
+        validate_component_integrity(
+            prospective_components, root_id=root_id, config=config
+        )
+        analyze_topology(prospective_components, root_id=root_id, config=config)
 
     def dispose(self) -> None:
         """Disposes of the model and all its components."""

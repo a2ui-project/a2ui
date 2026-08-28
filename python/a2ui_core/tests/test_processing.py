@@ -925,22 +925,27 @@ def test_message_processor_json_catalog_theme_validation():
         }])
 
 
-def test_strict_mode_validates_single_message_dict(mock_catalog):
-    processor = MessageProcessor(catalogs=[mock_catalog], strict_mode=True)
+def test_strict_mode_validates_single_message_dict(real_catalog_09):
+    processor = MessageProcessor(
+        catalogs=[real_catalog_09], validation_config=STRICT_VALIDATION
+    )
 
     # Single message dict without 'messages' key must still be validated in strict_mode
     invalid_single_msg = {
         "version": "v0.9",
         "createSurface": {
             "surfaceId": "s_invalid",
-            "catalogId": mock_catalog.catalog_id,
+            "catalogId": real_catalog_09.catalog_id,
             "theme": {"primaryColor": "invalid_color"},
         },
     }
 
     with pytest.raises(
         ValueError,
-        match="Validation failed for theme on surface 's_invalid'|does not match",
+        match=(
+            "Validation failed for theme on surface 's_invalid'|String should match"
+            " pattern"
+        ),
     ):
         processor.process_messages(invalid_single_msg)
 
