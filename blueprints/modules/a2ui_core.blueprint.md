@@ -31,14 +31,14 @@ Its core responsibilities include:
 
 ### Package Boundary & Non-Goals
 
-`a2ui_agent` depends on `a2ui_core`; the dependency never runs the other way. Core models the protocol and the renderer's state machine, and must stay useful to a renderer that will never load an agent SDK.
+`a2ui_agent` depends on `a2ui_core`; the dependency never runs the other way. A change here made to unblock an agent SDK should be the smallest one that works, and land as its own reviewable unit.
 
-Core does **not** own:
+Not in core — specified in the [a2ui_agent blueprint](./a2ui_agent.blueprint.md), with conformance data under `conformance/agent/`:
 
-- **Named catalog transformers.** Core keeps `Catalog` immutable and offers the derivation any caller needs to build a narrower one. The transformer _rules_ that drive it — `CatalogTransformer`, `ComponentPruningTransformer`, `FunctionPruningTransformer` — and the config pipeline that applies them are specified in the [a2ui_agent blueprint](./a2ui_agent.blueprint.md), so their conformance data belongs under `conformance/agent/`. Deriving a narrowed catalog is not itself agent-only: a renderer may need a smaller catalog for a given use case, and uses the same immutable derivation to get one.
-- **Prompt generation, response parsing, and capability negotiation.** All three are agent concerns, and none of them belongs here even when the type they operate on is a core type.
-
-When implementing `a2ui_agent` requires a change here — a shared type, a widened generic, a missing error class — make the smallest change that unblocks it, and land it as its own reviewable unit. Core is consumed by every renderer, so a change made for one agent SDK is a change made for all of them.
+- `CatalogTransformer`, `ComponentPruningTransformer`, `FunctionPruningTransformer`, and the `CatalogConfig` pipeline that applies them
+- Prompt generation
+- Response parsing
+- Capability negotiation
 
 ---
 
