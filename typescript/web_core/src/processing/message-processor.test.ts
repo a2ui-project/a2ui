@@ -1508,5 +1508,40 @@ describe('MessageProcessor', () => {
       assert.strictEqual(surface.componentsModel.has('c2'), false);
       assert.strictEqual(surface.componentsModel.get('c1')?.type, 'Text');
     });
+
+    it('leaves componentsModel untouched when updateComponents contains a valid component followed by an untyped new component', () => {
+      const proc = new MessageProcessor([basicCatalog]);
+
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's_untyped',
+          catalogId: 'https://a2ui.org/catalog',
+          components: [{id: 'root', component: 'Text', text: 'Initial'}],
+        },
+      });
+
+      const surface = proc.getSurface('s_untyped')!;
+
+      // Batch contains valid update to 'root' followed by an invalid new component 'new_comp' without type
+      assert.throws(
+        () =>
+          proc.processOperation({
+            type: 'updateComponents',
+            surfaceId: 's_untyped',
+            components: [
+              {id: 'root', component: 'Text', text: 'Updated Text'},
+              {id: 'new_comp', text: 'Missing component field'},
+            ],
+          }),
+        (err: any) =>
+          err instanceof A2uiValidationError &&
+          err.message.includes('Cannot create component new_comp without a type'),
+      );
+
+      // Verify that 'root' was NOT mutated
+      assert.strictEqual(surface.componentsModel.get('root')?.properties.text, 'Initial');
+      assert.strictEqual(surface.componentsModel.has('new_comp'), false);
+    });
   });
 });

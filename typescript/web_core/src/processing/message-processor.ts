@@ -529,6 +529,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
       const existing = surface.componentsModel.get(id);
       const componentType = component || existing?.type;
+      if (!existing && !component) {
+        throw new A2uiValidationError(`Cannot create component ${id} without a type.`);
+      }
       if (componentType) {
         const componentApi = targetCatalog.components.get(componentType);
         if (!componentApi) {
@@ -659,12 +662,14 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       }
     }
 
-    // Build parent map: childId -> { parentId, parentType }
-    const parentMap = new Map<string, {parentId: string; parentType: string}>();
+    // Build parent map: childId -> Array<{ parentId, parentType }>
+    const parentMap = new Map<string, Array<{parentId: string; parentType: string}>>();
     for (const [parentId, children] of childMap.entries()) {
       const parentType = typeMap.get(parentId) || 'Unknown';
       for (const childId of children) {
-        parentMap.set(childId, {parentId, parentType});
+        const parents = parentMap.get(childId) ?? [];
+        parents.push({parentId, parentType});
+        parentMap.set(childId, parents);
       }
     }
 
@@ -676,15 +681,21 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
       // Parent constraint validation
       if (componentApi.allowedParents && componentApi.allowedParents.length > 0) {
-        const parentInfo = parentMap.get(id);
-        const isRoot = !parentInfo;
-        const parentType = isRoot ? 'Surface' : parentInfo.parentType;
-        const parentId = isRoot ? 'Surface' : parentInfo.parentId;
-
-        if (!parentType || !componentApi.allowedParents.includes(parentType)) {
-          throw new A2uiValidationError(
-            `Component '${id}' (${componentType}) cannot be placed under parent '${parentId}' (${parentType || 'unknown'}). Allowed parents: ${JSON.stringify(componentApi.allowedParents)}.`,
-          );
+        const parents = parentMap.get(id);
+        if (!parents || parents.length === 0) {
+          if (!componentApi.allowedParents.includes('Surface')) {
+            throw new A2uiValidationError(
+              `Component '${id}' (${componentType}) cannot be placed under parent 'Surface' (Surface). Allowed parents: ${JSON.stringify(componentApi.allowedParents)}.`,
+            );
+          }
+        } else {
+          for (const parentInfo of parents) {
+            if (!componentApi.allowedParents.includes(parentInfo.parentType)) {
+              throw new A2uiValidationError(
+                `Component '${id}' (${componentType}) cannot be placed under parent '${parentInfo.parentId}' (${parentInfo.parentType || 'unknown'}). Allowed parents: ${JSON.stringify(componentApi.allowedParents)}.`,
+              );
+            }
+          }
         }
       }
 

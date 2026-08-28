@@ -47,6 +47,7 @@ export * from '../state/surface-group-model.js';
 export * from '../state/surface-model.js';
 export * from '../errors.js';
 export * from './basic_catalog/index.js';
+export * from '../validating/index.js';
 
 export {
   type Signal,

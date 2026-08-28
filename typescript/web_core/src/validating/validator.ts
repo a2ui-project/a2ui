@@ -17,6 +17,7 @@
 import {A2uiValidationError} from '../errors.js';
 import {ProtocolVersion} from '../processing/adapters/base.js';
 import {VersionAdapterFactory} from '../processing/adapters/factory.js';
+import {formatZodIssue} from '../processing/message-processor.js';
 import {
   CatalogOrRefMapInput,
   IntegrityOptions,
@@ -93,8 +94,10 @@ export class A2uiValidator {
 
       const parseResult = (adapter as any).schema.safeParse(msg);
       if (!parseResult.success) {
+        const formatted = parseResult.error.errors.map(formatZodIssue).join('; ');
         throw new A2uiValidationError(
-          `Validation failed for message at index ${idx}: ${parseResult.error.message}`,
+          `Validation failed for message at index ${idx}: ${formatted}`,
+          parseResult.error.issues,
         );
       }
     }

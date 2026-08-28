@@ -44,8 +44,15 @@ function unwrapZodType(type: any): any {
   let current = type;
   while (current?._def) {
     const typeName = current._def.typeName;
-    if (typeName === 'ZodOptional' || typeName === 'ZodNullable' || typeName === 'ZodDefault') {
+    if (
+      typeName === 'ZodOptional' ||
+      typeName === 'ZodNullable' ||
+      typeName === 'ZodDefault' ||
+      typeName === 'ZodReadonly'
+    ) {
       current = current._def.innerType;
+    } else if (typeName === 'ZodBranded') {
+      current = current._def.type;
     } else if (typeName === 'ZodEffects') {
       current = current._def.schema;
     } else if (typeName === 'ZodLazy') {
@@ -528,7 +535,13 @@ function traverseRecursionAndPaths(item: any, globalDepth: number, funcDepth: nu
           `Recursion limit exceeded: functionCall depth > ${MAX_FUNC_CALL_DEPTH}`,
         );
       }
-      traverseRecursionAndPaths(item.functionCall, globalDepth + 1, funcDepth + 1);
+      for (const [k, v] of Object.entries(item)) {
+        if (k === 'functionCall') {
+          traverseRecursionAndPaths(v, globalDepth + 1, funcDepth + 1);
+        } else {
+          traverseRecursionAndPaths(v, globalDepth + 1, funcDepth);
+        }
+      }
     } else if (isBareFunctionCall) {
       if (funcDepth >= MAX_FUNC_CALL_DEPTH) {
         throw new A2uiRecursionError(
