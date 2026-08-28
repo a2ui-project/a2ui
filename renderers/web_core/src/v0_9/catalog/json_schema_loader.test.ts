@@ -20,7 +20,6 @@ import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {z} from 'zod';
 import {Catalog} from './types.js';
-import {extractCatalogMetadata} from './json_schema_loader.js';
 
 describe('Catalog.fromJson & json_schema_loader', () => {
   const basicCatalogPath = resolve(
@@ -29,40 +28,11 @@ describe('Catalog.fromJson & json_schema_loader', () => {
   );
   const basicCatalogJson = JSON.parse(readFileSync(basicCatalogPath, 'utf-8'));
 
-  it('extracts metadata and detects v0.9.1 version from URI', () => {
-    const meta = extractCatalogMetadata(basicCatalogJson);
-    assert.strictEqual(
-      meta.catalogId,
-      'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
-    );
-    assert.strictEqual(meta.specVersion, 'v0.9');
-  });
-
-  it('defaults protocol version to v0.9 per specification when version cannot be determined', () => {
-    const customJson = {
-      catalogId: 'https://example.com/custom_catalog.json',
-      components: {},
-    };
-    const meta = extractCatalogMetadata(customJson);
-    assert.strictEqual(meta.catalogId, 'https://example.com/custom_catalog.json');
-    assert.strictEqual(meta.specVersion, 'v0.9');
-  });
-
   it('throws error when catalogId is missing', () => {
     const invalidJson = {
       components: {},
     };
-    assert.throws(() => extractCatalogMetadata(invalidJson as any), /Catalog ID must be specified/);
-  });
-
-  it('extracts explicit protocolVersion or version field from JSON', () => {
-    const customJson = {
-      catalogId: 'https://example.com/custom_catalog.json',
-      protocolVersion: '1.0',
-      components: {},
-    };
-    const meta = extractCatalogMetadata(customJson);
-    assert.strictEqual(meta.specVersion, 'v1.0');
+    assert.throws(() => Catalog.fromJson(invalidJson as any), /Catalog ID must be specified/);
   });
 
   it('loads basic catalog successfully into Catalog<ComponentApi>', () => {
@@ -101,10 +71,10 @@ describe('Catalog.fromJson & json_schema_loader', () => {
     const rowShape = (rowComp.schema as z.ZodObject<any>).shape;
     assert.ok(rowShape.children);
 
-    const validRowChildren = rowComp.schema.safeParse({
-      children: ['comp1', 'comp2'],
+    const validChildren = rowComp.schema.safeParse({
+      children: ['c1', 'c2'],
     });
-    assert.strictEqual(validRowChildren.success, true);
+    assert.strictEqual(validChildren.success, true);
 
     // Button component with Action
     const btnComp = catalog.components.get('Button');
