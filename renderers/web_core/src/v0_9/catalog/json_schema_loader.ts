@@ -28,106 +28,38 @@ import {
   CheckableSchema,
   AccessibilityAttributesSchema,
 } from '../schema/common-types.js';
-import {FunctionApi} from './types.js';
+import type {ComponentApi, FunctionApi} from './types.js';
 
-export interface CommonTypesRegistry {
-  resolveRef(ref: string): z.ZodTypeAny | undefined;
-  getCommonProps(): Record<string, z.ZodTypeAny>;
-}
-
-export const V0_9_COMMON_TYPES: CommonTypesRegistry = {
-  resolveRef(ref: string): z.ZodTypeAny | undefined {
-    const defName = ref.split(/#\/(?:\$defs|definitions)\//)[1];
-    if (!defName) return undefined;
-
-    switch (defName) {
-      case 'DynamicString':
-        return DynamicStringSchema;
-      case 'DynamicNumber':
-        return DynamicNumberSchema;
-      case 'DynamicBoolean':
-        return DynamicBooleanSchema;
-      case 'DynamicStringList':
-        return DynamicStringListSchema;
-      case 'DynamicValue':
-        return DynamicValueSchema;
-      case 'ComponentId':
-        return ComponentIdSchema;
-      case 'ChildList':
-        return ChildListSchema;
-      case 'Action':
-        return ActionSchema;
-      case 'CheckRule':
-        return CheckRuleSchema;
-      case 'Checkable':
-        return CheckableSchema;
-      case 'AccessibilityAttributes':
-        return AccessibilityAttributesSchema;
-      default:
-        return undefined;
-    }
-  },
-
-  getCommonProps(): Record<string, z.ZodTypeAny> {
-    return {
-      'accessibility': AccessibilityAttributesSchema.optional(),
-      'weight': z
-        .number()
-        .describe(
-          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property.",
-        )
-        .optional(),
-    };
-  },
+const COMMON_TYPE_SCHEMAS: Record<string, z.ZodTypeAny> = {
+  DynamicString: DynamicStringSchema,
+  DynamicNumber: DynamicNumberSchema,
+  DynamicBoolean: DynamicBooleanSchema,
+  DynamicStringList: DynamicStringListSchema,
+  DynamicValue: DynamicValueSchema,
+  ComponentId: ComponentIdSchema,
+  ChildList: ChildListSchema,
+  Action: ActionSchema,
+  CheckRule: CheckRuleSchema,
+  Checkable: CheckableSchema,
+  AccessibilityAttributes: AccessibilityAttributesSchema,
 };
 
-export interface ExtractedCatalogMetadata {
-  catalogId: string;
-  specVersion: string;
+const COMMON_PROPS: Record<string, z.ZodTypeAny> = {
+  accessibility: AccessibilityAttributesSchema.optional(),
+  weight: z
+    .number()
+    .describe(
+      "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property.",
+    )
+    .optional(),
+};
+
+function resolveRef(ref: string): z.ZodTypeAny | undefined {
+  const defName = ref.split(/#\/(?:\$defs|definitions)\//)[1];
+  return defName ? COMMON_TYPE_SCHEMAS[defName] : undefined;
 }
 
-/**
- * Extracts catalog ID and protocol specification version.
- * Defaults protocol version to 'v0.9' per specification (specification/v1_0/json/catalog_definition.json#L14)
- * if not explicitly provided or discoverable in metadata.
- */
-export function extractCatalogMetadata(data: Record<string, any>): ExtractedCatalogMetadata {
-  const catalogId = data.catalogId ?? data.$id ?? data.id;
-  if (!catalogId || typeof catalogId !== 'string') {
-    throw new Error("Catalog ID must be specified via catalog metadata ('catalogId' or '$id').");
-  }
-
-  // 1. Explicit top-level version in JSON
-  const rawVer = data.protocolVersion ?? data.version ?? data.specVersion ?? data.target_version;
-  if (typeof rawVer === 'string' && rawVer.trim() !== '') {
-    const trimmed = rawVer.trim();
-    return {catalogId, specVersion: trimmed.startsWith('v') ? trimmed : `v${trimmed}`};
-  }
-
-  // 2. Extracted from URI pattern in catalogId or $id (e.g. /v0_9/, /v0_9_1/, /v1_0/)
-  const uriMatch = catalogId.match(/\/v?([0-9]+(?:[_.][0-9]+)*)\//);
-  if (uriMatch && uriMatch[1]) {
-    const rawMatch = uriMatch[1].replace(/_/g, '.');
-    return {catalogId, specVersion: rawMatch.startsWith('v') ? rawMatch : `v${rawMatch}`};
-  }
-
-  // 3. Extracted from $schema or $defs reference URI
-  const schemaUri = typeof data.$schema === 'string' ? data.$schema : '';
-  const schemaMatch = schemaUri.match(/\/v?([0-9]+(?:[_.][0-9]+)*)\//);
-  if (schemaMatch && schemaMatch[1]) {
-    const rawMatch = schemaMatch[1].replace(/_/g, '.');
-    return {catalogId, specVersion: rawMatch.startsWith('v') ? rawMatch : `v${rawMatch}`};
-  }
-
-  // 4. Default to v0.9 per specification (specification/v1_0/json/catalog_definition.json#L14)
-  return {catalogId, specVersion: 'v0.9'};
-}
-
-/**
- * Safely converts an array of enum values to a Zod schema.
- * Handles strings, numbers, booleans, and mixed types without crashing z.enum.
- */
-export function convertEnumToZod(values: unknown[]): z.ZodTypeAny {
+function convertEnumToZod(values: unknown[]): z.ZodTypeAny {
   if (values.length === 0) {
     return z.unknown();
   }
@@ -146,19 +78,13 @@ export function convertEnumToZod(values: unknown[]): z.ZodTypeAny {
   );
 }
 
-/**
- * Converts a JSON schema property into a Zod schema, resolving canonical common types.
- */
-export function convertPropertyToZod(
-  propSchema: Record<string, any>,
-  registry: CommonTypesRegistry,
-): z.ZodTypeAny {
+function convertPropertyToZod(propSchema: Record<string, any>): z.ZodTypeAny {
   if (!propSchema || typeof propSchema !== 'object') {
     return z.unknown();
   }
 
   if (propSchema.$ref && typeof propSchema.$ref === 'string') {
-    const resolved = registry.resolveRef(propSchema.$ref);
+    const resolved = resolveRef(propSchema.$ref);
     if (resolved) {
       const defName = propSchema.$ref.split(/#\/(?:\$defs|definitions)\//)[1];
       const desc = propSchema.description
@@ -204,9 +130,7 @@ export function convertPropertyToZod(
 
   // Arrays
   if (propSchema.type === 'array') {
-    const itemSchema = propSchema.items
-      ? convertPropertyToZod(propSchema.items, registry)
-      : z.any();
+    const itemSchema = propSchema.items ? convertPropertyToZod(propSchema.items) : z.any();
     let arr = z.array(itemSchema);
     if (propSchema.description) arr = arr.describe(propSchema.description) as any;
     return arr;
@@ -251,15 +175,25 @@ export function convertPropertyToZod(
   }
 }
 
-/**
- * Decomposes an allOf component JSON schema into a concrete ComponentApi ZodObject.
- */
-export function convertComponentJsonSchemaToZod(
-  rawSchema: Record<string, any>,
-  registry: CommonTypesRegistry,
-): z.ZodObject<any> {
+function convertPropertiesToShape(
+  properties: Record<string, any>,
+  requiredSet: Set<string>,
+  omitEnvelopeFields = false,
+): Record<string, z.ZodTypeAny> {
+  const shape: Record<string, z.ZodTypeAny> = {};
+  for (const [propName, propSchema] of Object.entries(properties)) {
+    if (omitEnvelopeFields && (propName === 'component' || propName === 'id')) {
+      continue;
+    }
+    const zodField = convertPropertyToZod(propSchema as any);
+    shape[propName] = requiredSet.has(propName) ? zodField : zodField.optional();
+  }
+  return shape;
+}
+
+function convertComponentJsonSchemaToZod(rawSchema: Record<string, any>): z.ZodObject<any> {
   const shape: Record<string, z.ZodTypeAny> = {
-    ...registry.getCommonProps(),
+    ...COMMON_PROPS,
   };
 
   const schemasToMerge: Record<string, any>[] = [];
@@ -274,7 +208,6 @@ export function convertComponentJsonSchemaToZod(
     schemasToMerge.push(rawSchema);
   }
 
-  // First pass: collect all required fields across all schemas
   const requiredSet = new Set<string>();
   for (const s of schemasToMerge) {
     if (Array.isArray(s.required)) {
@@ -282,49 +215,21 @@ export function convertComponentJsonSchemaToZod(
     }
   }
 
-  // Second pass: map property schemas to Zod
   for (const s of schemasToMerge) {
-    for (const [propName, propSchema] of Object.entries(s.properties || {})) {
-      // Omit envelope-level properties handled by protocol runtime
-      if (propName === 'component' || propName === 'id') {
-        continue;
-      }
-
-      const zodField = convertPropertyToZod(propSchema as any, registry);
-      const isRequired = requiredSet.has(propName);
-      shape[propName] = isRequired ? zodField : zodField.optional();
-    }
+    const propShape = convertPropertiesToShape(s.properties || {}, requiredSet, true);
+    Object.assign(shape, propShape);
   }
 
   return z.object(shape).strict();
 }
 
-/**
- * Converts function args JSON schema into a ZodObject without component-level common properties.
- */
-export function convertFunctionArgsJsonSchemaToZod(
-  rawSchema: Record<string, any>,
-  registry: CommonTypesRegistry,
-): z.ZodObject<any> {
-  const shape: Record<string, z.ZodTypeAny> = {};
+function convertFunctionArgsJsonSchemaToZod(rawSchema: Record<string, any>): z.ZodObject<any> {
   const requiredSet = new Set<string>(Array.isArray(rawSchema.required) ? rawSchema.required : []);
-
-  for (const [propName, propSchema] of Object.entries(rawSchema.properties || {})) {
-    const zodField = convertPropertyToZod(propSchema as any, registry);
-    const isRequired = requiredSet.has(propName);
-    shape[propName] = isRequired ? zodField : zodField.optional();
-  }
-
+  const shape = convertPropertiesToShape(rawSchema.properties || {}, requiredSet, false);
   return z.object(shape).strict();
 }
 
-/**
- * Parses function definitions from both object map format and client capabilities array format.
- */
-export function parseFunctionDefinitions(
-  rawFunctions: any,
-  registry: CommonTypesRegistry,
-): FunctionApi[] {
+function parseFunctionDefinitions(rawFunctions: any): FunctionApi[] {
   const result: FunctionApi[] = [];
   if (!rawFunctions) return result;
 
@@ -333,7 +238,7 @@ export function parseFunctionDefinitions(
       if (fn && typeof fn.name === 'string') {
         const paramSchema =
           fn.parameters && typeof fn.parameters === 'object'
-            ? convertFunctionArgsJsonSchemaToZod(fn.parameters, registry)
+            ? convertFunctionArgsJsonSchemaToZod(fn.parameters)
             : z.record(z.any());
         result.push({
           name: fn.name,
@@ -352,7 +257,7 @@ export function parseFunctionDefinitions(
       const argsSchema = d.properties?.args ?? d.args ?? d.parameters;
       const paramSchema =
         argsSchema && typeof argsSchema === 'object'
-          ? convertFunctionArgsJsonSchemaToZod(argsSchema, registry)
+          ? convertFunctionArgsJsonSchemaToZod(argsSchema)
           : z.record(z.any());
       result.push({
         name,
@@ -364,4 +269,53 @@ export function parseFunctionDefinitions(
   }
 
   return result;
+}
+
+export interface ParsedCatalogDefinition {
+  catalogId: string;
+  components: ComponentApi[];
+  functions: FunctionApi[];
+}
+
+/**
+ * Parses raw A2UI catalog JSON into typed ComponentApi and FunctionApi arrays with Zod schemas.
+ *
+ * @param catalogJson Raw JSON catalog definition.
+ */
+export function parseCatalogDefinition(catalogJson: Record<string, any>): ParsedCatalogDefinition {
+  const catalogId = catalogJson.catalogId ?? catalogJson.$id ?? catalogJson.id;
+  if (!catalogId || typeof catalogId !== 'string') {
+    throw new Error("Catalog ID must be specified via catalog metadata ('catalogId' or '$id').");
+  }
+
+  // Filter permitted components via anyComponent.oneOf if declared
+  const permittedNames = new Set<string>();
+  const oneOf = catalogJson.$defs?.anyComponent?.oneOf;
+  if (Array.isArray(oneOf)) {
+    for (const item of oneOf) {
+      if (typeof item?.$ref === 'string' && item.$ref.startsWith('#/components/')) {
+        permittedNames.add(item.$ref.split('/').pop()!);
+      }
+    }
+  }
+
+  const components: ComponentApi[] = [];
+  const componentsMap = catalogJson.components ?? {};
+  for (const [name, rawCompSchema] of Object.entries(componentsMap)) {
+    if (permittedNames.size === 0 || permittedNames.has(name)) {
+      const zodSchema = convertComponentJsonSchemaToZod(rawCompSchema as Record<string, any>);
+      components.push({
+        name,
+        schema: zodSchema,
+      });
+    }
+  }
+
+  const functions = parseFunctionDefinitions(catalogJson.functions);
+
+  return {
+    catalogId,
+    components,
+    functions,
+  };
 }
