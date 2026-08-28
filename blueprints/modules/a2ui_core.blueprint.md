@@ -29,7 +29,7 @@ Its core responsibilities include:
 7. **Resolution:** Resolves bound context paths and binds state variables to components for local evaluation.
 8. **Multi-Version Protocol Branching:** Supports multiple versions of the protocol.
 
-### Package Boundary & Non-Goals
+#### Package Boundary & Non-Goals
 
 Not in core:
 
@@ -202,9 +202,9 @@ export interface Catalog<TComponent extends ComponentApi, TFunction extends Func
 }
 ```
 
-A `Catalog` is immutable once constructed. A renderer or an agent that needs a narrower contract — an agent prompting against a subset, a renderer serving a use case that calls for a smaller catalog — derives a new catalog from it rather than mutating it in place. Core provides the derivation (`copyWith`, `catalogSchema`); the named transformer rules that drive it are agent SDK surface, see below.
+A `Catalog` is immutable once constructed.
 
-`protocolVersion` is a property of **each catalog, not of the process**. A renderer or an agent may hold catalogs for several protocol versions at once, so anything derived from a set of catalogs, including a capabilities payload, must be grouped by each catalog's own `protocolVersion`. Reaching for a single constant because today's set happens to be uniform produces an object that is wrong the first time it is not.
+`protocolVersion` is a property of **each catalog, not of the process**. A renderer or an agent may hold catalogs for several protocol versions at once.
 
 Parsing a catalog document is parsing untrusted input: raise `A2uiCatalogError` for a missing or non-object document or a `catalogId` conflict, and `A2uiValidationError` for an unsupported protocol version.
 
