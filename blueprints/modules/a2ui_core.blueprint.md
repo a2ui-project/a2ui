@@ -389,7 +389,7 @@ When a surface is created with `sendDataModel: true`, the renderer is responsibl
 
 #### [Capabilities Objects](../../docs/public/concepts/glossary.md#capabilities-object)
 
-Both sides advertise their capabilities to each other. 
+Both sides advertise their capabilities to each other.
 
 Schemas live in `specification/<version>/json/`. v1.0 names the pair [`renderer_capabilities.json`](../../specification/v1_0/json/renderer_capabilities.json) and [`agent_capabilities.json`](../../specification/v1_0/json/agent_capabilities.json). v0.9 and v0.9.1 name the same pair [`client_capabilities.json`](../../specification/v0_9_1/json/client_capabilities.json) and [`server_capabilities.json`](../../specification/v0_9_1/json/server_capabilities.json), carried as `a2uiClientCapabilities` and `a2uiServerCapabilities`. v0.8 spells it differently again ([`a2ui_client_capabilities_schema.json`](../../specification/v0_8/json/a2ui_client_capabilities_schema.json)) and publishes no server-side counterpart.
 
