@@ -37,10 +37,9 @@ describe('a2ui CLI end-to-end command execution', () => {
   it('executes codegen and writes single-file module into target output directory', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui-cli-e2e-'));
     try {
-      const output = execSync(
-        `node ${cliPath} codegen --catalog ${catalogPath} --spec-version v0.9.1 --out ${tmpDir}`,
-        {encoding: 'utf-8'},
-      );
+      const output = execSync(`node ${cliPath} codegen --catalog ${catalogPath} --out ${tmpDir}`, {
+        encoding: 'utf-8',
+      });
       assert.ok(output.includes('Successfully generated 1 file(s)'));
       assert.ok(fs.existsSync(path.join(tmpDir, 'basic.py')));
 

@@ -33,10 +33,6 @@ export function createCodegenCommand(): Command {
       'Base module from which ComponentBuilderNode, DataBinding, etc. are imported.',
       'a2ui.inference_formats.experimental.macros.builder.base',
     )
-    .option(
-      '--spec-version <version>',
-      'Explicit A2UI protocol specification version (e.g. v0.9.1, v1.0). Required unless declared in catalog metadata.',
-    )
     .action(async options => {
       const catalogPath = path.resolve(process.cwd(), options.catalog);
       if (!fs.existsSync(catalogPath)) {
@@ -55,9 +51,7 @@ export function createCodegenCommand(): Command {
 
       let catalog: any;
       try {
-        catalog = Catalog.fromJson(catalogJson, {
-          specVersion: options.specVersion,
-        });
+        catalog = Catalog.fromJson(catalogJson);
       } catch (err: any) {
         console.error(`Error analyzing catalog schema: ${err.message}`);
         process.exit(1);
