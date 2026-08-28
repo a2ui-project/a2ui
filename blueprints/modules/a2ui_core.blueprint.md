@@ -31,9 +31,7 @@ Its core responsibilities include:
 
 ### Package Boundary & Non-Goals
 
-`a2ui_agent` depends on `a2ui_core`; the dependency never runs the other way. A change here made to unblock an agent SDK should be the smallest one that works, and land as its own reviewable unit.
-
-Not in core — specified in the [a2ui_agent blueprint](./a2ui_agent.blueprint.md), with conformance data under `conformance/agent/`:
+Not in core:
 
 - `CatalogTransformer`, `ComponentPruningTransformer`, `FunctionPruningTransformer`, and the `CatalogConfig` pipeline that applies them
 - Prompt generation
