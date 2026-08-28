@@ -98,6 +98,8 @@ export class PythonEmitter {
       '        return val.to_dict()',
       '    if isinstance(val, (list, tuple)):',
       '        return [_serialize_prop(item) for item in val]',
+      '    if isinstance(val, dict):',
+      '        return {k: _serialize_prop(v) for k, v in val.items()}',
       '    return val',
       '',
       '',
