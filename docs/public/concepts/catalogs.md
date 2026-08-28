@@ -406,7 +406,7 @@ When deprecating an existing component, function, or property:
       },
       "style": {
         "type": "string",
-        "description": "CSS properties such as color.",
+        "description": "CSS properties such as color."
       }
     }
   }
