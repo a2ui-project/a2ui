@@ -38,3 +38,13 @@ This skill guides the process of auditing concrete codebase implementations to v
      - **Readme Errors**: Invalid setup, compile, or test commands found in `README.md` files.
      - **Docstring Mismatches**: Outdated parameter names or behaviors described in inline comments.
    - Return this Markdown report as your final response.
+
+6. **Links**:
+   - When an artifact (code, document, issue, PR, comment and so on) is referenced, make sure it has a link. Prefer linking to duplications.
+
+6. **Conciseness and Clarity**: 
+   - Verify that language in documentation and code comments is concise and clear:
+     - Remove words that do not have meaning like 'above all', 'first and foremost', and so on.
+     - Make sure that sentences are short and to the point.  
+   
+   
