@@ -31,7 +31,7 @@ describe('PythonEmitter in @a2ui/cli', () => {
   const basicCatalogJson = JSON.parse(fs.readFileSync(basicCatalogPath, 'utf-8'));
 
   it('emits single-file python catalog module with dataclass components and types', () => {
-    const catalog = Catalog.fromJson(basicCatalogJson, {specVersion: 'v0.9.1'});
+    const catalog = Catalog.fromJson(basicCatalogJson);
     const analysed = CatalogAnalyzer.analyze(catalog);
 
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui-cli-test-'));
@@ -58,7 +58,7 @@ describe('PythonEmitter in @a2ui/cli', () => {
   });
 
   it('emits directly to a specific .py file path when requested', () => {
-    const catalog = Catalog.fromJson(basicCatalogJson, {specVersion: 'v0.9.1'});
+    const catalog = Catalog.fromJson(basicCatalogJson);
     const analysed = CatalogAnalyzer.analyze(catalog);
 
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui-cli-test-file-'));
