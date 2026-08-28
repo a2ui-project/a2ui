@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import copy
-from typing import Any, Dict, Iterator, List, Optional, Set, Tuple
+from typing import Any, Dict, Final, Iterator, List, Optional, Set, Tuple, Union
 from ..common.events import EventSource
 from ..catalog.catalog import Catalog, TComponent, TFunction
 from ..catalog.reference_map import (
@@ -127,6 +127,8 @@ class ComponentModel:
         from ..validation.payload_validator import PayloadValidator
 
         comp_dict = {"id": self.id, "component": self.type, **self.properties}
+        if not isinstance(self.catalog, Catalog):
+            return []
         validator = PayloadValidator(self.catalog, config=config)
         return validator.validate_component(comp_dict)
 
@@ -151,7 +153,8 @@ class ComponentModel:
 
         ref_spec = (
             self.catalog.get_component_ref_spec(self.type)
-            if hasattr(self.catalog, "get_component_ref_spec")
+            if self.catalog is not None
+            and hasattr(self.catalog, "get_component_ref_spec")
             else None
         )
 

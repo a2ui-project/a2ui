@@ -151,19 +151,22 @@ class NodeGraph(Generic[TComponent, TFunction]):
             cat = component_model.catalog or getattr(self.surface, "catalog", None)
             ref_spec = (
                 cat.get_component_ref_spec(component_model.type)
-                if hasattr(cat, "get_component_ref_spec")
+                if cat is not None and hasattr(cat, "get_component_ref_spec")
                 else None
             )
 
+            single_refs: set[str]
+            list_refs: set[str]
+            nested_refs: dict[str, Any]
             if ref_spec is not None and (ref_spec.single_refs or ref_spec.list_refs):
                 single_refs = set(ref_spec.single_refs)
                 list_refs = set(ref_spec.list_refs)
                 nested_refs = dict(ref_spec.nested_refs)
             else:
                 # Fallback for legacy v0.8 protocol support (where catalog schemas don't define formal ComponentId/ChildList refs)
-                single_refs: set[str] = set()
-                list_refs: set[str] = set()
-                nested_refs: dict[str, Any] = {}
+                single_refs = set()
+                list_refs = set()
+                nested_refs = {}
 
                 known_ids = set(self.surface.components_model.get_all().keys())
                 for key, val in list(new_props.items()):

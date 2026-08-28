@@ -96,6 +96,7 @@ class Catalog(Generic[TComponent, TFunction]):
 
         self.theme_schema = theme_schema
         self._catalog_schema: Optional[Dict[str, Any]] = None
+        self._component_ref_map: Optional[Dict[str, ComponentRefSpec]] = None
 
     @property
     def id(self) -> str:

@@ -221,7 +221,7 @@ def validate_composition_constraints(
             }
 
     for comp_id, model in components.items():
-        if not hasattr(model.catalog, "get_component"):
+        if model.catalog is None or not hasattr(model.catalog, "get_component"):
             continue
         component_api = model.catalog.get_component(model.type)
         if not component_api:
