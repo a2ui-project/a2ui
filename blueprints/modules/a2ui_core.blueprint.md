@@ -387,9 +387,9 @@ When a surface is created with `sendDataModel: true`, the renderer is responsibl
 - **Surface Lifecycle**: It is an error to receive a `createSurface` message for a `surfaceId` that is already active; `surfaceId` must be globally unique per client session. The processor MUST throw an error or report a validation failure if this occurs.
 - **Component Lifecycle**: If an `updateComponents` message provides an existing `id` but a _different_ `type`, the processor MUST remove the old component and create a fresh one to ensure framework renderers correctly reset their internal state.
 
-#### Capabilities Objects
+#### [Capabilities Objects](../../docs/public/concepts/glossary.md#capabilities-object)
 
-Both sides advertise one. Build and parse it from the normative schema, not from memory:
+Both sides advertise one. Build and parse it from the normative schema for the target version, not from memory:
 
 | Direction        | Object                   | Normative schema (v0.9, v0.9.1)                         | Renamed in v1.0                                      |
 | :--------------- | :----------------------- | :------------------------------------------------------ | :--------------------------------------------------- |
@@ -397,8 +397,6 @@ Both sides advertise one. Build and parse it from the normative schema, not from
 | Agent → renderer | `a2uiServerCapabilities` | `specification/<version>/json/server_capabilities.json` | `specification/v1_0/json/agent_capabilities.json`    |
 
 v0.8 spells it differently again (`a2ui_client_capabilities_schema.json`) and publishes no server-side counterpart.
-
-Both are **keyed by protocol version** — `{"v0.9": { … }}` — with `supportedCatalogIds`, `inlineCatalogs` and `acceptsInlineCatalogs` _inside_ the version entry. The key is required.
 
 Parsing: reject an object with no entry for any version this SDK implements; keep unrecognised version keys rather than failing on them.
 
