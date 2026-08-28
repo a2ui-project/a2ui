@@ -18,7 +18,7 @@ import {z} from 'zod';
 import {DataContext} from '../rendering/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiExpressionError} from '../errors.js';
-import {parseCatalogDefinition} from './json_schema_loader.js';
+import {loadCatalogFromJson} from './json_schema_loader.js';
 
 export type A2uiReturnType = 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';
 
@@ -214,7 +214,6 @@ export class Catalog<
    * @param catalogJson Raw JSON catalog or client capabilities payload.
    */
   static fromJson(catalogJson: Record<string, any>): Catalog<ComponentApi, FunctionApi> {
-    const {catalogId, components, functions} = parseCatalogDefinition(catalogJson);
-    return new Catalog(catalogId, components, functions);
+    return loadCatalogFromJson(catalogJson);
   }
 }
