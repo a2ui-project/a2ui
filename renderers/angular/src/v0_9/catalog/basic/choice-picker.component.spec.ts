@@ -134,11 +134,11 @@ describe('ChoicePickerComponent', () => {
     expect(onUpdateSpy).toHaveBeenCalledWith([]);
   });
 
-  it('should use a distinct radio group name per instance for equal component ids', () => {
+  it('should use distinct radio group names for equal component ids on different surfaces', () => {
     // Component ids are only surface-scoped, so two surfaces may each contain
     // a ChoicePicker with the same id. Radio `name`s are document-scoped: a
-    // group name derived from the component id merges both pickers into one
-    // radio group.
+    // group name derived from the component id alone merges both pickers into
+    // one radio group.
     const optionProps = {
       ...defaultProps,
       options: createBoundProperty<{label: DynamicString; value: string}[]>([
@@ -168,5 +168,21 @@ describe('ChoicePickerComponent', () => {
     expect(firstNames.size).toBe(1);
     expect(secondNames.size).toBe(1);
     expect([...firstNames][0]).not.toBe([...secondNames][0]);
+  });
+
+  it('should not set a name on checkbox inputs', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      options: createBoundProperty<{label: DynamicString; value: string}[]>([
+        {label: 'Opt 1', value: '1'},
+      ]),
+      variant: createBoundProperty<'multipleSelection' | 'mutuallyExclusive' | undefined>(
+        'multipleSelection',
+      ),
+    });
+    fixture.detectChanges();
+
+    const checkbox = fixture.nativeElement.querySelector('input[type="checkbox"]');
+    expect(checkbox.hasAttribute('name')).toBeFalse();
   });
 });
