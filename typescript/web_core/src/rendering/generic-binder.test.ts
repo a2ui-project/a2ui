@@ -64,18 +64,23 @@ describe('GenericBinder Checkable Trait', () => {
     const {surface, schema} = setupSurfaceAndMocks();
     surface.dataModel.set('/val', '');
 
-    const compModel = new ComponentModel('c1', 'Test', {
-      value: {path: '/val'},
-      checks: [
-        {
-          condition: {
-            call: 'required',
-            args: {value: {path: '/val'}},
+    const compModel = new ComponentModel(
+      'c1',
+      'Test',
+      {
+        value: {path: '/val'},
+        checks: [
+          {
+            condition: {
+              call: 'required',
+              args: {value: {path: '/val'}},
+            },
+            message: 'Value is required',
           },
-          message: 'Value is required',
-        },
-      ],
-    });
+        ],
+      },
+      surface.catalog,
+    );
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c1');
@@ -98,25 +103,30 @@ describe('GenericBinder Checkable Trait', () => {
     const {surface, schema} = setupSurfaceAndMocks();
     surface.dataModel.set('/val', '');
 
-    const compModel = new ComponentModel('c2', 'Test', {
-      value: {path: '/val'},
-      checks: [
-        {
-          condition: {
-            call: 'required',
-            args: {value: {path: '/val'}},
+    const compModel = new ComponentModel(
+      'c2',
+      'Test',
+      {
+        value: {path: '/val'},
+        checks: [
+          {
+            condition: {
+              call: 'required',
+              args: {value: {path: '/val'}},
+            },
+            message: 'Cannot be empty',
           },
-          message: 'Cannot be empty',
-        },
-        {
-          condition: {
-            call: 'min_length',
-            args: {value: {path: '/val'}, min: 3},
+          {
+            condition: {
+              call: 'min_length',
+              args: {value: {path: '/val'}, min: 3},
+            },
+            message: 'Must be at least 3 characters',
           },
-          message: 'Must be at least 3 characters',
-        },
-      ],
-    });
+        ],
+      },
+      surface.catalog,
+    );
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c2');
@@ -149,17 +159,22 @@ describe('GenericBinder Checkable Trait', () => {
     const {surface, schema} = setupSurfaceAndMocks();
     surface.dataModel.set('/val', '');
 
-    const compModel = new ComponentModel('c3', 'Test', {
-      value: {path: '/val'},
-      checks: [
-        {
-          condition: {
-            call: 'required',
-            args: {value: {path: '/val'}},
+    const compModel = new ComponentModel(
+      'c3',
+      'Test',
+      {
+        value: {path: '/val'},
+        checks: [
+          {
+            condition: {
+              call: 'required',
+              args: {value: {path: '/val'}},
+            },
           },
-        },
-      ] as any,
-    });
+        ] as any,
+      },
+      surface.catalog,
+    );
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c3');
@@ -172,10 +187,15 @@ describe('GenericBinder Checkable Trait', () => {
   it('should default to valid if checks array is empty', () => {
     const {surface, schema} = setupSurfaceAndMocks();
 
-    const compModel = new ComponentModel('c4', 'Test', {
-      value: 'hello',
-      checks: [],
-    });
+    const compModel = new ComponentModel(
+      'c4',
+      'Test',
+      {
+        value: 'hello',
+        checks: [],
+      },
+      surface.catalog,
+    );
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c4');
@@ -193,16 +213,21 @@ describe('GenericBinder Checkable Trait', () => {
       onTap: CommonSchemas.Action,
     });
 
-    const compModel = new ComponentModel('c5', 'Button', {
-      onTap: {
-        event: {
-          name: 'submit',
-          context: {
-            user: {path: '/user/name'},
+    const compModel = new ComponentModel(
+      'c5',
+      'Button',
+      {
+        onTap: {
+          event: {
+            name: 'submit',
+            context: {
+              user: {path: '/user/name'},
+            },
           },
         },
       },
-    });
+      surface.catalog,
+    );
     surface.componentsModel.addComponent(compModel);
 
     let dispatchedAction: any = null;
@@ -231,12 +256,17 @@ describe('GenericBinder Checkable Trait', () => {
       children: CommonSchemas.ChildList,
     });
 
-    const compModel = new ComponentModel('c6', 'Column', {
-      children: {
-        componentId: 'card-item',
-        path: '/items',
+    const compModel = new ComponentModel(
+      'c6',
+      'Column',
+      {
+        children: {
+          componentId: 'card-item',
+          path: '/items',
+        },
       },
-    });
+      surface.catalog,
+    );
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c6');
@@ -267,9 +297,14 @@ describe('GenericBinder Checkable Trait', () => {
       value: CommonSchemas.DynamicString,
     });
 
-    const compModel = new ComponentModel('c7', 'Input', {
-      value: {path: '/fieldVal'},
-    });
+    const compModel = new ComponentModel(
+      'c7',
+      'Input',
+      {
+        value: {path: '/fieldVal'},
+      },
+      surface.catalog,
+    );
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c7');
@@ -286,9 +321,14 @@ describe('GenericBinder Checkable Trait', () => {
     const {surface, schema} = setupSurfaceAndMocks();
     surface.dataModel.set('/val', 'v1');
 
-    const compModel = new ComponentModel('c8', 'Test', {
-      value: {path: '/val'},
-    });
+    const compModel = new ComponentModel(
+      'c8',
+      'Test',
+      {
+        value: {path: '/val'},
+      },
+      surface.catalog,
+    );
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c8');

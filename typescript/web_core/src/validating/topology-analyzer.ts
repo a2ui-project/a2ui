@@ -100,7 +100,9 @@ export function analyzeTopology(
       }
     }
 
-    model.addComponent(new ComponentModel(compId, compType, props, compCatalog));
+    const fallbackCatalog =
+      defaultCatalog instanceof Catalog ? defaultCatalog : new Catalog('default', []);
+    model.addComponent(new ComponentModel(compId, compType, props, compCatalog ?? fallbackCatalog));
   }
 
   const visited = model.detectCycles({

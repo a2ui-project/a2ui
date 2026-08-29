@@ -19,13 +19,15 @@ import * as assert from 'node:assert';
 import {ComponentContext} from './component-context.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {ComponentModel} from '../state/component-model.js';
+import {Catalog} from '../catalog/types.js';
 
 describe('ComponentContext', () => {
-  const mockSurface = new SurfaceModel('surface1', {} as any);
+  const mockCatalog = new Catalog('mock', []);
+  const mockSurface = new SurfaceModel('surface1', mockCatalog);
   const componentId = 'comp1';
 
   // Add a component to the surface model for testing
-  const componentModel = new ComponentModel(componentId, 'TestComponent', {});
+  const componentModel = new ComponentModel(componentId, 'TestComponent', {}, mockCatalog);
   mockSurface.componentsModel.addComponent(componentModel);
 
   it('initializes correctly', () => {
@@ -64,8 +66,8 @@ describe('ComponentContext', () => {
 
   it('exposes theme from surface', () => {
     const theme = {primaryColor: '#FF5733'};
-    const themedSurface = new SurfaceModel('themed', {} as any, theme);
-    const comp = new ComponentModel('c1', 'Text', {});
+    const themedSurface = new SurfaceModel('themed', mockCatalog, theme);
+    const comp = new ComponentModel('c1', 'Text', {}, mockCatalog);
     themedSurface.componentsModel.addComponent(comp);
 
     const context = new ComponentContext(themedSurface, 'c1');
