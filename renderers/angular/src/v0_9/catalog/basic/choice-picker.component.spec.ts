@@ -90,6 +90,25 @@ describe('ChoicePickerComponent', () => {
     expect(options[0].textContent).toContain('Opt 1');
   });
 
+  it('should scope radio group names to the surface', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      variant: createBoundProperty<string | undefined>('mutuallyExclusive'),
+      options: createBoundProperty<{label: DynamicString; value: string}[]>([
+        {label: 'Opt 1', value: '1'},
+        {label: 'Opt 2', value: '2'},
+      ]),
+      value: createBoundProperty(['1']),
+    });
+    fixture.detectChanges();
+
+    // Radio names are document-scoped while component ids are only
+    // surface-scoped: the name must combine both so that pickers with the
+    // same component id on different surfaces stay in separate groups.
+    const input = fixture.nativeElement.querySelector('input[type="radio"]');
+    expect(input.name).toBe('test-surface-test-choice-picker');
+  });
+
   it('should call onUpdate when option selected', () => {
     const onUpdateSpy = jasmine.createSpy('onUpdate');
     setComponentProps(fixture, {
