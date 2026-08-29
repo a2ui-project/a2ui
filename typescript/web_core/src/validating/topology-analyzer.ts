@@ -62,6 +62,9 @@ export function analyzeTopology(
           ? catalogOrRefMap.values().next().value
           : catalogOrRefMap;
 
+  const fallbackCatalog =
+    defaultCatalog instanceof Catalog ? defaultCatalog : new Catalog('default', []);
+
   const model = new SurfaceComponentsModel(defaultCatalog);
   for (const comp of components) {
     if (!comp || typeof comp !== 'object') continue;
@@ -100,8 +103,6 @@ export function analyzeTopology(
       }
     }
 
-    const fallbackCatalog =
-      defaultCatalog instanceof Catalog ? defaultCatalog : new Catalog('default', []);
     model.addComponent(new ComponentModel(compId, compType, props, compCatalog ?? fallbackCatalog));
   }
 
