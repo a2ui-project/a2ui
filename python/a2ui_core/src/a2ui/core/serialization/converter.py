@@ -144,7 +144,10 @@ def agent_message_to_dict(
         preserving_proto_field_name=preserving_proto_field_name,
         use_integers_for_enums=False,
     )
-    return _denormalize_payload_from_proto(raw_dict)
+    result = _denormalize_payload_from_proto(raw_dict)
+    if "version" not in result:
+        result["version"] = "v1.0"
+    return result
 
 
 def dict_to_renderer_message(

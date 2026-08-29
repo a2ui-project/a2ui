@@ -25,7 +25,7 @@ export * from './catalog/index.js';
 export * from './state/index.js';
 export * from './processing/index.js';
 export * from './rendering/index.js';
-export * from './validating/index.js';
+export * from './validating/integrity-checker.js';
 export * from './reactivity/index.js';
 export * from './expressions/index.js';
 export * from './serialization/index.js';

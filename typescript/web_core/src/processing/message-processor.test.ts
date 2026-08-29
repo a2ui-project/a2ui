@@ -17,7 +17,7 @@
 import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
 import {MessageProcessor, formatZodIssue} from './message-processor.js';
-import {STRICT_VALIDATION, RELAXED_VALIDATION} from '../validating/validator.js';
+import {STRICT_VALIDATION, RELAXED_VALIDATION} from '../validating/integrity-checker.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_components.js';
 import {BASIC_COMPONENTS} from '../v1_0/basic_catalog/components/basic_components.js';

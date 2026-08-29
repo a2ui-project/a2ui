@@ -49,7 +49,7 @@ def test_process_protobuf_message_instance(processor, test_catalog):
     assert processor.model.get_surface("surface_1") is not None
     surface = processor.model.get_surface("surface_1")
     assert surface.id == "surface_1"
-    assert surface.catalog.catalog_id == test_catalog.catalog_id
+    assert surface.default_catalog.catalog_id == test_catalog.catalog_id
 
 
 def test_process_protobuf_binary_bytes(processor, test_catalog):

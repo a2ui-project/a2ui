@@ -129,7 +129,7 @@
   },
   "wireit": {
     "generate-protos": {
-      "command": "node scripts/generate-protos.mjs",
+      "command": "node scripts/generate-protos.mjs && prettier --write src/v1_0/proto/a2ui-proto.json src/v1_0/proto/index.ts",
       "files": [
         "../../specification/v1_0/proto/*.proto",
         "../../specification/v1_0/catalogs/**/*.proto",

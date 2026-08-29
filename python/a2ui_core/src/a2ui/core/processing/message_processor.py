@@ -80,16 +80,20 @@ class MessageProcessor:
         """Accepts a list of parsed JSON messages, Protobuf instances, or binary bytes and executes them in order."""
         if isinstance(messages, (bytes, bytearray)):
             message_payload = self._decode_protobuf_bytes(bytes(messages))
+            adapter = VersionAdapterFactory.get_adapter(ProtocolVersion.V1_0)
         elif isinstance(messages, agent_to_renderer_pb2.AgentToRendererMessage):
             message_payload = [agent_message_to_dict(messages)]
+            adapter = VersionAdapterFactory.get_adapter(ProtocolVersion.V1_0)
         elif isinstance(messages, agent_to_renderer_list_wrapper_pb2.AgentToRendererListWrapper):
             message_payload = [agent_message_to_dict(m) for m in messages.messages.messages]
+            adapter = VersionAdapterFactory.get_adapter(ProtocolVersion.V1_0)
         elif isinstance(messages, agent_to_renderer_list_pb2.AgentToRendererMessageList):
             message_payload = [agent_message_to_dict(m) for m in messages.messages]
+            adapter = VersionAdapterFactory.get_adapter(ProtocolVersion.V1_0)
         else:
             message_payload = messages
+            adapter = VersionAdapterFactory.resolve_from_payload(message_payload)
 
-        adapter = VersionAdapterFactory.resolve_from_payload(message_payload)
         operations = adapter.extract_operations(message_payload)
         for op in operations:
             self._process_operation(op)
