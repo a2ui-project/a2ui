@@ -84,7 +84,7 @@
         },
         "updateDataModel": {
           "type": "object",
-          "description": "Updates the data model for an existing surface. This message can be sent multiple times to update the data model. A createSurface message MUST have been previously sent for the 'surfaceId' in this message; the surface's catalog is the one fixed by that createSurface.",
+          "description": "Updates the data model for an existing surface. This message can be sent multiple times to update the data model. A createSurface message MUST have been previously sent for the 'surfaceId' in this message; the surface's catalog is the one specified by that createSurface.",
           "properties": {
             "surfaceId": {
               "type": "string",
