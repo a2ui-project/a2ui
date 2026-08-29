@@ -1,5 +1,6 @@
 ## Unreleased
 
+- (v0_9) Fix `ChoicePicker` radio groups colliding across surfaces: the radio group `name` is now unique per rendered instance instead of derived from the surface-scoped component id. [#2447](https://github.com/a2ui-project/a2ui/issues/2447)
 - (v0_9) Implement `createComponentImplementation` helper and deprecate `extraComponents` and `functions` in `BasicCatalogOptions` to align with the core API. [#2060](https://github.com/a2ui-project/a2ui/pull/2060)
 
 ## 0.10.5

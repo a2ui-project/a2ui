@@ -18,6 +18,8 @@ import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
 import {BasicCatalogComponent} from './basic-catalog-component';
 import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
 
+let nextGroupId = 0;
+
 /**
  * Angular implementation of the A2UI ChoicePicker component (v0.9).
  *
@@ -60,7 +62,7 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
             <label class="a2ui-option-label">
               <input
                 [type]="isMultiple() ? 'checkbox' : 'radio'"
-                [name]="componentId()"
+                [name]="groupName"
                 [value]="option.value"
                 [checked]="isSelected(option.value)"
                 (change)="onCheckChange(option.value, $event)"
@@ -127,6 +129,10 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChoicePickerComponent extends BasicCatalogComponent<typeof ChoicePickerApi> {
+  // Radio group names are document-scoped while component ids are only
+  // surface-scoped, so the group name must be unique per rendered instance.
+  protected readonly groupName = `a2ui-choice-${nextGroupId++}`;
+
   readonly displayStyle = computed(() => this.props()['displayStyle']?.value());
   readonly options = computed(() => this.props()['options']?.value() || []);
   readonly variant = computed(() => this.props()['variant']?.value());
