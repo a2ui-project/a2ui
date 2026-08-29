@@ -62,7 +62,7 @@ let nextGroupId = 0;
             <label class="a2ui-option-label">
               <input
                 [type]="isMultiple() ? 'checkbox' : 'radio'"
-                [name]="groupName"
+[name]="isMultiple() ? null : groupName()"
                 [value]="option.value"
                 [checked]="isSelected(option.value)"
                 (change)="onCheckChange(option.value, $event)"
