@@ -47,14 +47,25 @@ enum A2uiProtocolVersion {
         details: details,
       );
     }
-    for (final A2uiProtocolVersion version in values) {
-      if (version.jsonValue == value) return version;
-    }
+    final A2uiProtocolVersion? version = tryParse(value);
+    if (version != null) return version;
     throw A2uiValidationError(
       "Unsupported A2UI protocol version '$value'; this SDK supports only "
       '$supportedVersions.',
       details: details,
     );
+  }
+
+  /// Parses a protocol version, returning null when [value] names one this
+  /// SDK does not implement.
+  ///
+  /// For a version that must be present and supported, use [fromJson], which
+  /// reports why it was rejected.
+  static A2uiProtocolVersion? tryParse(String value) {
+    for (final A2uiProtocolVersion version in values) {
+      if (version.jsonValue == value) return version;
+    }
+    return null;
   }
 
   /// The versions this SDK implements, for error messages.

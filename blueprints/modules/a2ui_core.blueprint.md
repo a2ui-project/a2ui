@@ -206,9 +206,7 @@ export interface Catalog<TComponent extends ComponentApi, TFunction extends Func
 
 A `Catalog` is immutable once constructed.
 
-`protocolVersion` is a property of **each catalog, not of the process**. A renderer or an agent may hold catalogs for several protocol versions at once.
-
-Parsing a catalog document is parsing untrusted input: raise `A2uiCatalogError` for a missing or non-object document or a `catalogId` conflict, and `A2uiValidationError` for an unsupported protocol version.
+Parsing a catalog document is parsing untrusted input: raise `A2uiCatalogError` for a missing or non-object document or a `catalogId` conflict.
 
 #### `ComponentApi`
 

@@ -92,7 +92,10 @@ void main() {
         },
       });
 
-      expect(caps.v0_9.supportedCatalogIds, ['basic']);
+      expect(caps.versions.keys, [A2uiProtocolVersion.v0_9]);
+      expect(caps.forVersion(A2uiProtocolVersion.v0_9)!.supportedCatalogIds, [
+        'basic',
+      ]);
       expect(caps.unsupportedVersions, isEmpty);
     });
 
@@ -120,7 +123,7 @@ void main() {
           isA<A2uiValidationError>().having(
             (e) => e.message,
             'message',
-            contains('v0.9'),
+            contains('supported version'),
           ),
         ),
       );
@@ -132,14 +135,37 @@ void main() {
 
     test('builds capabilities from a list of catalog ids', () {
       final caps = A2uiRendererCapabilities.forCatalogIds(['basic']);
-      expect(caps.v0_9.supportedCatalogIds, ['basic']);
+      expect(caps.forVersion(A2uiProtocolVersion.v0_9)!.supportedCatalogIds, [
+        'basic',
+      ]);
     });
 
     test('resolves capabilities for a supported version', () {
       final caps = A2uiRendererCapabilities.forCatalogIds(['basic']);
-      expect(caps.forVersion(A2uiProtocolVersion.v0_9).supportedCatalogIds, [
+      expect(caps.forVersion(A2uiProtocolVersion.v0_9)!.supportedCatalogIds, [
         'basic',
       ]);
+    });
+
+    test('rejects a version entry that is not an object', () {
+      expect(
+        () => A2uiRendererCapabilities.fromJson({'v0.9': 'nope'}),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('drops unimplemented version entries when serialising', () {
+      final caps = A2uiRendererCapabilities.fromJson({
+        'v0.9': {
+          'supportedCatalogIds': ['basic'],
+        },
+        'v1.0': {
+          'supportedCatalogIds': ['basic'],
+        },
+      });
+
+      expect(caps.unsupportedVersions, ['v1.0']);
+      expect(caps.toJson().keys, ['v0.9']);
     });
 
     test('round trips through JSON', () {
