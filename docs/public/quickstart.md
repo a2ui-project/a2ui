@@ -146,7 +146,7 @@ sequenceDiagram
     participant Agent@{"alias":"A2A agent (Python)"}
     participant LLM@{"alias":"Gemini API (LLM)"}
     end
-    
+
     User->>App: Interacts
     App->>Agent: ClientToServerMessage
     activate Agent
