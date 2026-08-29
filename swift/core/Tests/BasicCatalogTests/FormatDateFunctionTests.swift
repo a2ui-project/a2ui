@@ -49,7 +49,7 @@ struct FormatDateFunctionTests {
 
   @Test func formatsISO8601String() throws {
     let isoString = "2026-01-16T14:30:00Z"
-    let date = ISO8601DateFormatter().date(from: isoString)!
+    let date = try #require(ISO8601DateFormatter().date(from: isoString))
     let format = "MMM dd, yyyy"
     let expected = expectedFormat(date: date, format: format)
 
@@ -95,7 +95,7 @@ struct FormatDateFunctionTests {
     let dateString = "2026-01-16"
     let fallbackFormatter = DateFormatter()
     fallbackFormatter.dateFormat = "yyyy-MM-dd"
-    let date = fallbackFormatter.date(from: dateString)!
+    let date = try #require(fallbackFormatter.date(from: dateString))
 
     let format = "MMMM d"
     let expected = expectedFormat(date: date, format: format)

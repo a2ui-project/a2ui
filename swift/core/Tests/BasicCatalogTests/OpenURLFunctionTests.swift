@@ -74,7 +74,7 @@ struct OpenURLFunctionTests {
 
   @Test func resolvesRelativeUrlWhenBaseUrlIsProvided() throws {
     let handler = MockOpenURLHandler()
-    let baseURL = URL(string: "https://google.com/search")!
+    let baseURL = try #require(URL(string: "https://google.com/search"))
     let function = OpenURLFunction(handler: handler, baseURL: baseURL)
 
     _ = try function.evaluate(

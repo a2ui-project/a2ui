@@ -48,23 +48,17 @@ public enum BasicCatalog: Sendable {
       """
   )
 
-  /// Creates a Catalog instance with all Basic Catalog components and functions for a specified catalog ID.
-  public static func createCatalog(
-    id: String = v091CatalogURI,
-    components: [AnyComponentAPI] = BasicCatalogComponents.allComponents,
-    functions: [any FunctionImplementation] = BasicFunctions.allFunctions,
-    themeSchema: Schema? = BasicCatalog.themeSchema
-  ) -> AnyCatalog {
+  private static func makeCatalog(id: String) -> AnyCatalog {
     Catalog(
       id: id,
-      components: components,
-      functions: functions,
-      themeSchema: themeSchema
+      components: BasicCatalogComponents.allComponents,
+      functions: BasicFunctions.allFunctions,
+      themeSchema: BasicCatalog.themeSchema
     )
   }
 
-  public static let v09Catalog = createCatalog(id: v09CatalogURI)
-  public static let v091Catalog = createCatalog(id: v091CatalogURI)
+  public static let v09Catalog = makeCatalog(id: v09CatalogURI)
+  public static let v091Catalog = makeCatalog(id: v091CatalogURI)
 
   /// All supported standard Basic Catalog instances.
   public static let allCatalogs: [AnyCatalog] = [

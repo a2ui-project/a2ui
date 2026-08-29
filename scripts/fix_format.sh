@@ -101,12 +101,13 @@ fi
 
 echo "Running swift-format..."
 if command -v swift-format >/dev/null 2>&1; then
+  SWIFT_PATHS=(Package.swift swift/)
   if [ "$CHECK_ONLY" = true ]; then
     echo "Linting Swift files..."
-    swift-format lint -r Package.swift swift/
+    swift-format lint -r "${SWIFT_PATHS[@]}"
   else
     echo "Formatting Swift files..."
-    swift-format format -i -r Package.swift swift/
+    swift-format format -i -r "${SWIFT_PATHS[@]}"
   fi
 else
   echo "Warning: swift-format command not found. Skipping Swift formatting."
