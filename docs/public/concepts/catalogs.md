@@ -374,9 +374,9 @@ The `catalogId` is a unique text identifier used for negotiation between the cli
 
 A2UI catalogs should be forward and backward compatible across versions so that agents, renderers, and templates can evolve without breaking running sessions or stored transcripts.
 
-In practice, developers rarely bump catalog versions during iterative feature additions. Rather than bumping the major catalog version for every new property or component, catalogs follow safe evolution rules.
-
 #### Catalog Schema Evolution Rules
+
+The catalog should be treated like an API, and developers should expect version skew between agents and renderers. The following rules should apply to maintain forward and backward compatibility:
 
 1. **Additive Only**: Adding new components, functions, or optional properties is allowed without incrementing the catalog version.
 2. **Deprecate Rather than Delete**: Never delete existing components, functions, or properties. Mark them `deprecated: true` along with an `x-deprecated-reason` instead. Renderers should retain handling logic for deprecated components and properties to maintain backward compatibility for historical transcripts, cached states, and templates.
