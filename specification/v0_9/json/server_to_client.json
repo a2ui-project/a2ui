@@ -114,7 +114,7 @@
         },
         "deleteSurface": {
           "type": "object",
-          "description": "Signals the client to delete the surface identified by 'surfaceId'. A createSurface message MUST have been previously sent for the 'surfaceId' in this message; the surface's catalog is the one fixed by that createSurface.",
+          "description": "Signals the client to delete the surface identified by 'surfaceId'. A createSurface message MUST have been previously sent for the 'surfaceId' in this message; the surface's catalog is the one specified by that createSurface.",
           "properties": {
             "surfaceId": {
               "type": "string",
