@@ -18,6 +18,7 @@ import {SurfaceModel, ActionListener} from '../state/surface-model.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
 import {ComponentModel} from '../state/component-model.js';
+import {SurfaceComponentsModel} from '../state/surface-components-model.js';
 import {Subscription} from '../common/events.js';
 import {zodToJsonSchema} from 'zod-to-json-schema';
 import {z} from 'zod';
@@ -34,7 +35,14 @@ import {
 
 import {ProtocolVersion, VersionAdapter} from './adapters/base.js';
 import {RendererCapabilities} from '../v1_0/schema/index.js';
-export type {RendererCapabilities};
+import {ValidationConfig, STRICT_VALIDATION, RELAXED_VALIDATION} from '../validating/validator.js';
+import {
+  getComponentReferences,
+  validateRecursionAndPaths,
+} from '../validating/integrity-checker.js';
+
+export type {RendererCapabilities, ValidationConfig};
+export {STRICT_VALIDATION, RELAXED_VALIDATION};
 
 /**
  * Interface for version adapter resolution services.
@@ -55,45 +63,6 @@ export interface CapabilitiesOptions {
   /** The base schema $ref to wrap component definitions in inline catalogs. Defaults to 'common_types.json#/$defs/ComponentCommon'. */
   componentEnvelopeRef?: string;
 }
-
-/**
- * Configuration options for payload, schema, and topology validation.
- */
-export interface ValidationConfig {
-  /** Target protocol version expected for incoming messages (e.g. 'v0.8', 'v0.9', 'v1.0'). */
-  targetVersion?: ProtocolVersion | string;
-
-  /** When false, verifies all components in a surface are reachable from the root component. Default: false. */
-  allowOrphanComponents?: boolean;
-
-  /** When false, verifies all component child references point to existing components. Default: false. */
-  allowDanglingReferences?: boolean;
-
-  /** When false, verifies that a component with id 'root' exists in the surface. Default: false. */
-  allowMissingRoot?: boolean;
-
-  /** When false, verifies that all component types exist in the surface catalog. Default: false. */
-  allowUnknownElements?: boolean;
-
-  /** Allowed top-level message operation types (e.g. ['createSurface', 'updateComponents']). */
-  allowedMessages?: string[];
-}
-
-/** Strict validation preset enforcing root presence, valid references, reachability, and catalog compliance. */
-export const STRICT_VALIDATION: ValidationConfig = Object.freeze({
-  allowOrphanComponents: false,
-  allowDanglingReferences: false,
-  allowMissingRoot: false,
-  allowUnknownElements: false,
-});
-
-/** Relaxed validation preset permitting partial topologies and unknown component types. */
-export const RELAXED_VALIDATION: ValidationConfig = Object.freeze({
-  allowOrphanComponents: true,
-  allowDanglingReferences: true,
-  allowMissingRoot: true,
-  allowUnknownElements: true,
-});
 
 /**
  * Options for configuring a MessageProcessor instance.
@@ -173,7 +142,7 @@ export function formatZodIssue(err: z.ZodIssue): string {
  * The central processor for A2UI messages.
  * @template T The concrete type of the ComponentApi.
  */
-export class MessageProcessor<T extends ComponentApi> {
+export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
   readonly version: ProtocolVersion;
   private readonly adapterRegistry: VersionAdapterResolver;
@@ -187,7 +156,7 @@ export class MessageProcessor<T extends ComponentApi> {
    * @param options Configuration options for the processor.
    */
   constructor(
-    private catalogs: Catalog<T>[],
+    private catalogs: Catalog<any>[],
     private actionHandler?: ActionListener,
     options?: MessageProcessorOptions,
   ) {
@@ -399,6 +368,10 @@ export class MessageProcessor<T extends ComponentApi> {
   processMessages(messages: unknown): void {
     if (!messages) return;
 
+    if (this.validationConfig) {
+      validateRecursionAndPaths(messages);
+    }
+
     if (this.validationConfig?.targetVersion) {
       this.validateTargetVersion(messages);
     }
@@ -537,29 +510,44 @@ export class MessageProcessor<T extends ComponentApi> {
     // 1. Validation pass: validate all components before mutating state
     for (const comp of op.components) {
       const {id, component, ...properties} = comp;
+      const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
 
       if (!id) {
         throw new A2uiValidationError(`Component '${component}' is missing an 'id'.`);
       }
 
-      const componentType = component;
-      const mergedProperties = properties;
+      let targetCatalog = surface.catalog;
+      if (typeof rawCatalogId === 'string' && rawCatalogId) {
+        const found = this.catalogs.find(c => c.id === rawCatalogId);
+        if (!found) {
+          throw new A2uiValidationError(
+            `Unknown catalog ID '${rawCatalogId}' for component '${id}'. Available catalogs: ${this.catalogs.map(c => c.id).join(', ')}`,
+          );
+        }
+        targetCatalog = found;
+      }
+
+      const existing = surface.componentsModel.get(id);
+      const componentType = component || existing?.type;
+      if (!existing && !component) {
+        throw new A2uiValidationError(`Cannot create component ${id} without a type.`);
+      }
       if (componentType) {
-        const componentApi = surface.catalog.components.get(componentType);
+        const componentApi = targetCatalog.components.get(componentType);
         if (!componentApi) {
           if (this.validationConfig && !this.validationConfig.allowUnknownElements) {
             throw new A2uiValidationError(
-              `Unknown component type '${componentType}' not found in catalog '${surface.catalog.id}'.`,
+              `Unknown component type '${componentType}' not found in catalog '${targetCatalog.id}'.`,
             );
           }
         } else {
-          const validationResult = componentApi.schema.safeParse(mergedProperties);
+          const validationResult = componentApi.schema.safeParse(properties);
           if (!validationResult.success) {
             const formattedErrors = validationResult.error.errors.map(formatZodIssue).join(', ');
             console.error(
               "[A2UI Validation Error] Component '" + componentType + "' (" + id + '):',
               {
-                propertyKeys: Object.keys(mergedProperties),
+                propertyKeys: Object.keys(properties),
                 issues: validationResult.error.issues,
               },
             );
@@ -573,250 +561,41 @@ export class MessageProcessor<T extends ComponentApi> {
     }
 
     this.validateCompositionConstraints(surface, op.components);
+    this.validateCandidateTopology(surface, op.components);
 
     // 2. Mutation pass: apply state updates
     for (const comp of op.components) {
       const {id, component, ...properties} = comp;
+      const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
       const existing = surface.componentsModel.get(id);
-      const mergedProperties = existing ? {...existing.properties, ...properties} : properties;
+
+      let targetCatalog = surface.catalog;
+      if (typeof rawCatalogId === 'string' && rawCatalogId) {
+        const found = this.catalogs.find(c => c.id === rawCatalogId);
+        if (found) {
+          targetCatalog = found;
+        }
+      }
 
       if (existing) {
-        if (component && component !== existing.type) {
-          // Recreate component if type changes
+        const componentType = component || existing.type;
+        if (
+          componentType !== existing.type ||
+          (rawCatalogId && existing.catalog?.id !== targetCatalog.id)
+        ) {
+          // Recreate component if type or catalog changes
           surface.componentsModel.removeComponent(id);
-          const newComponent = new ComponentModel(id, component, mergedProperties);
+          const newComponent = new ComponentModel(id, componentType, properties, targetCatalog);
           surface.componentsModel.addComponent(newComponent);
         } else {
-          existing.properties = mergedProperties;
+          existing.properties = properties;
         }
       } else {
         if (!component) {
           throw new A2uiValidationError(`Cannot create component ${id} without a type.`);
         }
-        const newComponent = new ComponentModel(id, component, properties);
+        const newComponent = new ComponentModel(id, component, properties, targetCatalog);
         surface.componentsModel.addComponent(newComponent);
-      }
-    }
-
-    if (this.validationConfig) {
-      this.validateTopology(surface);
-    }
-  }
-
-  private validateTopology(surface: SurfaceModel<T>): void {
-    const components = surface.componentsModel;
-    if (components.size === 0) return;
-
-    const allowMissingRoot = this.validationConfig?.allowMissingRoot ?? false;
-    const allowDanglingReferences = this.validationConfig?.allowDanglingReferences ?? false;
-    const allowOrphanComponents = this.validationConfig?.allowOrphanComponents ?? false;
-
-    // Root presence check
-    const rootComponent = components.get('root');
-    if (!rootComponent) {
-      if (!allowMissingRoot) {
-        throw new A2uiValidationError('Missing root component');
-      }
-      return;
-    }
-    const rootId = 'root';
-
-    const visited = new Set<string>();
-    const visiting = new Set<string>();
-
-    const isChildRefDef = (schema: any, keyName?: string): boolean => {
-      if (!schema || typeof schema !== 'object') return false;
-      let current = schema;
-      while (current?._def) {
-        const typeName = current._def.typeName;
-        if (typeName === 'ZodOptional' || typeName === 'ZodNullable' || typeName === 'ZodDefault') {
-          current = current._def.innerType;
-        } else if (typeName === 'ZodEffects') {
-          current = current._def.schema;
-        } else {
-          break;
-        }
-      }
-
-      const desc: string = current?.description ?? current?._def?.description ?? '';
-      if (desc.includes('ChildList') || desc.includes('ComponentId') || desc.includes('Child')) {
-        return true;
-      }
-
-      if (
-        keyName &&
-        (keyName === 'child' ||
-          keyName === 'children' ||
-          keyName.endsWith('Child') ||
-          keyName === 'root')
-      ) {
-        return true;
-      }
-
-      // Check structural definition of ChildList (Union containing array and { componentId, path } template)
-      if (current?._def?.typeName === 'ZodUnion') {
-        const options = (current._def.options as any[]) ?? [];
-        const hasTemplate = options.some(
-          o =>
-            o?._def?.typeName === 'ZodObject' &&
-            typeof o._def.shape === 'function' &&
-            o._def.shape().componentId &&
-            o._def.shape().path,
-        );
-        if (hasTemplate) return true;
-      }
-
-      return false;
-    };
-
-    const findChildProperties = (schema: any): Set<string> => {
-      const childKeys = new Set<string>();
-      if (!schema || typeof schema !== 'object') return childKeys;
-
-      let current = schema;
-      while (current?._def) {
-        const typeName = current._def.typeName;
-        if (typeName === 'ZodOptional' || typeName === 'ZodNullable' || typeName === 'ZodDefault') {
-          current = current._def.innerType;
-        } else if (typeName === 'ZodEffects') {
-          current = current._def.schema;
-        } else {
-          break;
-        }
-      }
-
-      if (current?._def?.typeName === 'ZodObject' && typeof current._def.shape === 'function') {
-        const shape = current._def.shape();
-        for (const [key, fieldSchema] of Object.entries(shape)) {
-          if (isChildRefDef(fieldSchema, key)) {
-            childKeys.add(key);
-          } else {
-            let inner = fieldSchema as any;
-            while (inner?._def) {
-              const tn = inner._def.typeName;
-              if (tn === 'ZodOptional' || tn === 'ZodNullable' || tn === 'ZodDefault') {
-                inner = inner._def.innerType;
-              } else if (tn === 'ZodEffects') {
-                inner = inner._def.schema;
-              } else {
-                break;
-              }
-            }
-            if (inner?._def?.typeName === 'ZodArray') {
-              if (isChildRefDef(inner._def.type, key)) {
-                childKeys.add(key);
-              } else if (inner._def.type?._def?.typeName === 'ZodObject') {
-                const nestedKeys = findChildProperties(inner._def.type);
-                if (nestedKeys.size > 0) {
-                  childKeys.add(key);
-                }
-              }
-            } else if (inner?._def?.typeName === 'ZodObject') {
-              const nestedKeys = findChildProperties(inner);
-              if (nestedKeys.size > 0) {
-                childKeys.add(key);
-              }
-            }
-          }
-        }
-      }
-
-      return childKeys;
-    };
-
-    const getChildren = (compId: string): string[] => {
-      const comp = components.get(compId);
-      if (!comp) return [];
-      const children: string[] = [];
-
-      const addRef = (val: unknown) => {
-        if (typeof val === 'string' && val.length > 0) {
-          children.push(val);
-        }
-      };
-
-      const extractChildRefs = (val: unknown) => {
-        if (!val) return;
-        if (typeof val === 'string') {
-          addRef(val);
-        } else if (Array.isArray(val)) {
-          for (const item of val) {
-            extractChildRefs(item);
-          }
-        } else if (typeof val === 'object' && val !== null) {
-          if ('componentId' in val && typeof (val as any).componentId === 'string') {
-            addRef((val as any).componentId);
-          }
-          if ('child' in val && typeof (val as any).child === 'string') {
-            addRef((val as any).child);
-          }
-        }
-      };
-
-      const compApi = surface.catalog.components.get(comp.type);
-      if (compApi?.schema) {
-        const childPropKeys = findChildProperties(compApi.schema);
-        for (const key of childPropKeys) {
-          const val = comp.properties[key];
-          if (val !== undefined && val !== null) {
-            extractChildRefs(val);
-          }
-        }
-      } else {
-        // Fallback for catalog-less / dynamic components without schema
-        for (const [k, v] of Object.entries(comp.properties)) {
-          if (k === 'id') continue;
-          if (
-            k === 'child' ||
-            k === 'children' ||
-            k === 'items' ||
-            k === 'components' ||
-            k.endsWith('Child')
-          ) {
-            extractChildRefs(v);
-          }
-        }
-      }
-
-      return children;
-    };
-
-    const dfs = (currId: string) => {
-      visiting.add(currId);
-      visited.add(currId);
-
-      const children = getChildren(currId);
-      for (const childId of children) {
-        if (!components.get(childId)) {
-          if (!allowDanglingReferences) {
-            throw new A2uiValidationError(
-              `Dangling reference '${childId}' in component '${currId}'`,
-            );
-          }
-          continue;
-        }
-        if (visiting.has(childId)) {
-          throw new A2uiValidationError(`Circular reference detected in component hierarchy`);
-        }
-        if (!visited.has(childId)) {
-          dfs(childId);
-        }
-      }
-
-      visiting.delete(currId);
-    };
-
-    dfs(rootId);
-
-    if (visited.size < components.size) {
-      if (!allowOrphanComponents) {
-        for (const comp of components.values) {
-          if (!visited.has(comp.id)) {
-            throw new A2uiValidationError(
-              `Orphaned component '${comp.id}' is not reachable from root`,
-            );
-          }
-        }
       }
     }
   }
@@ -834,106 +613,92 @@ export class MessageProcessor<T extends ComponentApi> {
     surface.dataModel.set(path, value);
   }
 
-  private extractChildIds(childVal: unknown, list: string[] = []): string[] {
-    if (!childVal) return list;
-
-    if (typeof childVal === 'string') {
-      list.push(childVal);
-    } else if (Array.isArray(childVal)) {
-      for (const item of childVal) {
-        if (typeof item === 'string') {
-          list.push(item);
-        } else if (
-          item &&
-          typeof item === 'object' &&
-          'componentId' in item &&
-          typeof (item as {componentId: unknown}).componentId === 'string'
-        ) {
-          list.push((item as {componentId: string}).componentId);
-        }
-      }
-    } else if (
-      typeof childVal === 'object' &&
-      'componentId' in childVal &&
-      typeof (childVal as {componentId: unknown}).componentId === 'string'
-    ) {
-      list.push((childVal as {componentId: string}).componentId);
-    }
-    return list;
-  }
-
-  private extractChildIdsFromProps(props: Record<string, unknown>, list: string[] = []): string[] {
-    if (!props || typeof props !== 'object') return list;
-    for (const [key, val] of Object.entries(props)) {
-      if (key === 'id' || key === 'component') continue;
-      this.extractChildIds(val, list);
-    }
-    return list;
-  }
-
   private validateCompositionConstraints(
     surface: SurfaceModel<T>,
     newComponents: Array<Record<string, unknown>>,
   ): void {
-    // 1. Build map of all component types in the surface (combining existing & new)
+    // 1. Build map of all component types and catalogs in the surface (combining existing & new)
     const typeMap = new Map<string, string>();
+    const compCatalogMap = new Map<string, Catalog<T>>();
     const childMap = new Map<string, string[]>();
 
     for (const [id, model] of surface.componentsModel.entries) {
       typeMap.set(id, model.type);
-      const props = model.properties || {};
-      const list: string[] = [];
-      this.extractChildIdsFromProps(props, list);
-      if (list.length > 0) {
-        childMap.set(id, list);
+      if (model.catalog) {
+        compCatalogMap.set(id, model.catalog as Catalog<T>);
+      }
+      const children = surface.componentsModel.getChildIds(id);
+      if (children.length > 0) {
+        childMap.set(id, children);
       }
     }
 
     for (const comp of newComponents) {
       const {id, component, ...props} = comp;
-      if (typeof id === 'string' && typeof component === 'string') {
-        typeMap.set(id, component);
-      }
-      if (typeof id === 'string') {
-        const list: string[] = [];
-        this.extractChildIdsFromProps(props, list);
-        if (list.length > 0) {
-          childMap.set(id, list);
-        } else {
-          childMap.delete(id);
+      if (typeof id !== 'string') continue;
+
+      let compCatalog = surface.catalog;
+      const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
+      if (typeof rawCatalogId === 'string' && rawCatalogId) {
+        const found = this.catalogs.find(c => c.id === rawCatalogId);
+        if (found) {
+          compCatalog = found;
+          compCatalogMap.set(id, found);
         }
+      }
+      const existing = surface.componentsModel.get(id);
+      const compType = (typeof component === 'string' ? component : existing?.type) ?? '';
+      if (compType) {
+        typeMap.set(id, compType);
+      }
+      const compDef = {id, component: compType, ...props};
+      const children = Array.from(getComponentReferences(compDef, compCatalog as Catalog<any>)).map(
+        ([childId]) => childId,
+      );
+      if (children.length > 0) {
+        childMap.set(id, children);
+      } else {
+        childMap.delete(id);
       }
     }
 
-    // Build parent map: childId -> { parentId, parentType }
-    const parentMap = new Map<string, {parentId: string; parentType: string}>();
+    // Build parent map: childId -> Array<{ parentId, parentType }>
+    const parentMap = new Map<string, Array<{parentId: string; parentType: string}>>();
     for (const [parentId, children] of childMap.entries()) {
       const parentType = typeMap.get(parentId) || 'Unknown';
       for (const childId of children) {
-        parentMap.set(childId, {parentId, parentType});
+        const parents = parentMap.get(childId) ?? [];
+        parents.push({parentId, parentType});
+        parentMap.set(childId, parents);
       }
     }
 
     // 2. Validate constraints for each component
     for (const [id, componentType] of typeMap.entries()) {
-      const componentApi = surface.catalog.components.get(componentType);
+      const compCatalog = compCatalogMap.get(id) ?? surface.catalog;
+      const componentApi = compCatalog.components.get(componentType);
       if (!componentApi) continue;
 
       // Parent constraint validation
       if (componentApi.allowedParents && componentApi.allowedParents.length > 0) {
-        const parentInfo = parentMap.get(id);
-        const isRoot = !parentInfo;
-        const parentType = isRoot ? 'Surface' : parentInfo.parentType;
-        const parentId = isRoot ? 'Surface' : parentInfo.parentId;
-
-        if (!parentType || !componentApi.allowedParents.includes(parentType)) {
-          throw new A2uiValidationError(
-            `Component '${id}' (${componentType}) cannot be placed under parent '${parentId}' (${parentType || 'unknown'}). Allowed parents: ${JSON.stringify(componentApi.allowedParents)}.`,
-          );
+        const parents = parentMap.get(id);
+        if (!parents || parents.length === 0) {
+          if (!componentApi.allowedParents.includes('Surface')) {
+            throw new A2uiValidationError(
+              `Component '${id}' (${componentType}) cannot be placed under parent 'Surface' (Surface). Allowed parents: ${JSON.stringify(componentApi.allowedParents)}.`,
+            );
+          }
+        } else {
+          for (const parentInfo of parents) {
+            if (!componentApi.allowedParents.includes(parentInfo.parentType)) {
+              throw new A2uiValidationError(
+                `Component '${id}' (${componentType}) cannot be placed under parent '${parentInfo.parentId}' (${parentInfo.parentType || 'unknown'}). Allowed parents: ${JSON.stringify(componentApi.allowedParents)}.`,
+              );
+            }
+          }
         }
       }
 
-      // Child constraint validation
       if (componentApi.allowedChildren && componentApi.allowedChildren.length > 0) {
         const children = childMap.get(id) || [];
         for (const childId of children) {
@@ -946,5 +711,57 @@ export class MessageProcessor<T extends ComponentApi> {
         }
       }
     }
+  }
+
+  private validateCandidateTopology(
+    surface: SurfaceModel<T>,
+    newComponents: Array<Record<string, unknown>>,
+  ): void {
+    if (!this.validationConfig) return;
+
+    const candidateModel = new SurfaceComponentsModel(surface.catalog);
+    for (const [id, comp] of surface.componentsModel.entries) {
+      candidateModel.addComponent(
+        new ComponentModel(id, comp.type, comp.properties, comp.catalog as Catalog<T>),
+      );
+    }
+
+    for (const comp of newComponents) {
+      const {id, component, ...properties} = comp;
+      if (typeof id !== 'string' || !id) continue;
+
+      const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
+      let targetCatalog = surface.catalog;
+      if (typeof rawCatalogId === 'string' && rawCatalogId) {
+        const found = this.catalogs.find(c => c.id === rawCatalogId);
+        if (found) {
+          targetCatalog = found;
+        }
+      }
+
+      const existing = candidateModel.get(id);
+      const componentType = (typeof component === 'string' ? component : existing?.type) || '';
+      if (!componentType) continue;
+
+      if (existing) {
+        if (
+          componentType !== existing.type ||
+          (rawCatalogId && existing.catalog?.id !== targetCatalog.id)
+        ) {
+          candidateModel.removeComponent(id);
+          candidateModel.addComponent(
+            new ComponentModel(id, componentType, properties, targetCatalog),
+          );
+        } else {
+          existing.properties = properties;
+        }
+      } else {
+        candidateModel.addComponent(
+          new ComponentModel(id, componentType, properties, targetCatalog),
+        );
+      }
+    }
+
+    candidateModel.validateTopology(this.validationConfig);
   }
 }

@@ -21,7 +21,7 @@ import Testing
 
 struct ValidatorConformanceTests {
   @Test func validatorConformance() throws {
-    let rawYaml = try ConformanceTestHelper.loadYAML(filename: "core/validator.yaml")
+    let rawYaml = try ConformanceTestHelper.loadYAML(filename: "core/validator_v0_9.yaml")
     let testCases = ConformanceTestHelper.parseTestCases(from: rawYaml)
 
     // Filter to v0.9 and v0.9.1 test cases
@@ -32,7 +32,7 @@ struct ValidatorConformanceTests {
       return testCase.name.contains("0_9") || testCase.name.contains("v09")
     }
 
-    #expect(!v09TestCases.isEmpty, "Should find v0.9 / v0.9.1 test cases in validator.yaml")
+    #expect(!v09TestCases.isEmpty, "Should find v0.9 / v0.9.1 test cases in validator_v0_9.yaml")
 
     for testCase in v09TestCases {
       let validationConfiguration = ValidationConfig(

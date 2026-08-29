@@ -72,4 +72,13 @@ describe('ComponentModel', () => {
       label: 'Click Me',
     });
   });
+
+  it('stores and exposes an optional Catalog reference', () => {
+    assert.strictEqual(component.catalog, undefined);
+
+    const testCatalog = {id: 'custom-cat', components: new Map()} as any;
+    const customComp = new ComponentModel('c2', 'Card', {title: 'Hello'}, testCatalog);
+    assert.strictEqual(customComp.catalog, testCatalog);
+    assert.strictEqual(customComp.catalog?.id, 'custom-cat');
+  });
 });

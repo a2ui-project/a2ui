@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
-export * from './schema/index.js';
-export * from './functions/system_functions.js';
-export * from './functions/validation_functions_api.js';
-export * from './functions/validation_functions.js';
-export * from '../validating/index.js';
+/**
+ * Component integrity, path syntax, graph topology, and protocol envelope validators for A2UI.
+ */
+
+export * from './integrity-checker.js';
+export * from './topology-analyzer.js';
+export * from './validator.js';

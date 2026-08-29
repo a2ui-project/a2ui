@@ -17,11 +17,11 @@
 import {createFunctionImplementation} from '../../catalog/types.js';
 import {A2uiExpressionError} from '../../errors.js';
 import {
-  RequiredV1_0Api,
-  RegexV1_0Api,
-  LengthV1_0Api,
-  NumericV1_0Api,
-  EmailV1_0Api,
+  RequiredV1Point0Api,
+  RegexV1Point0Api,
+  LengthV1Point0Api,
+  NumericV1Point0Api,
+  EmailV1Point0Api,
 } from './validation_functions_api.js';
 import {ValidationResultInput as ValidationResult} from '../schema/catalog-definition.js';
 
@@ -29,8 +29,8 @@ import {ValidationResultInput as ValidationResult} from '../schema/catalog-defin
  * Implementation of v1.0 required validation function.
  * Returns a ValidationResult object.
  */
-export const RequiredV1_0Implementation = createFunctionImplementation(
-  RequiredV1_0Api,
+export const RequiredV1Point0Implementation = createFunctionImplementation(
+  RequiredV1Point0Api,
   (args): ValidationResult => {
     const val = args.value;
     let isValid = true;
@@ -49,8 +49,8 @@ export const RequiredV1_0Implementation = createFunctionImplementation(
  * Implementation of v1.0 regex validation function.
  * Returns a ValidationResult object.
  */
-export const RegexV1_0Implementation = createFunctionImplementation(
-  RegexV1_0Api,
+export const RegexV1Point0Implementation = createFunctionImplementation(
+  RegexV1Point0Api,
   (args): ValidationResult => {
     try {
       const isValid = new RegExp(args.pattern).test(args.value);
@@ -68,8 +68,8 @@ export const RegexV1_0Implementation = createFunctionImplementation(
  * Implementation of v1.0 length validation function.
  * Returns a ValidationResult object.
  */
-export const LengthV1_0Implementation = createFunctionImplementation(
-  LengthV1_0Api,
+export const LengthV1Point0Implementation = createFunctionImplementation(
+  LengthV1Point0Api,
   (args): ValidationResult => {
     const val = args.value;
     let len = 0;
@@ -98,8 +98,8 @@ export const LengthV1_0Implementation = createFunctionImplementation(
  * Implementation of v1.0 numeric validation function.
  * Returns a ValidationResult object.
  */
-export const NumericV1_0Implementation = createFunctionImplementation(
-  NumericV1_0Api,
+export const NumericV1Point0Implementation = createFunctionImplementation(
+  NumericV1Point0Api,
   (args): ValidationResult => {
     if (isNaN(args.value)) {
       return {valid: false, message: 'Value must be a valid number.'};
@@ -126,8 +126,8 @@ export const NumericV1_0Implementation = createFunctionImplementation(
  * Implementation of v1.0 email validation function.
  * Returns a ValidationResult object.
  */
-export const EmailV1_0Implementation = createFunctionImplementation(
-  EmailV1_0Api,
+export const EmailV1Point0Implementation = createFunctionImplementation(
+  EmailV1Point0Api,
   (args): ValidationResult => {
     const isValid = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(args.value);
     return {
@@ -138,9 +138,9 @@ export const EmailV1_0Implementation = createFunctionImplementation(
 );
 
 export const V10_VALIDATION_FUNCTION_IMPLEMENTATIONS = [
-  RequiredV1_0Implementation,
-  RegexV1_0Implementation,
-  LengthV1_0Implementation,
-  NumericV1_0Implementation,
-  EmailV1_0Implementation,
+  RequiredV1Point0Implementation,
+  RegexV1Point0Implementation,
+  LengthV1Point0Implementation,
+  NumericV1Point0Implementation,
+  EmailV1Point0Implementation,
 ];

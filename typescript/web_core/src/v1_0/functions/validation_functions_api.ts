@@ -26,7 +26,7 @@ import {
  * v1.0 required validation function.
  * Return type: 'validationResult'.
  */
-export const RequiredV1_0Api = {
+export const RequiredV1Point0Api = {
   name: 'required' as const,
   returnType: 'validationResult' as const,
   schema: RequiredV09Api.schema,
@@ -36,7 +36,7 @@ export const RequiredV1_0Api = {
  * v1.0 regex validation function.
  * Return type: 'validationResult'.
  */
-export const RegexV1_0Api = {
+export const RegexV1Point0Api = {
   name: 'regex' as const,
   returnType: 'validationResult' as const,
   schema: RegexV09Api.schema,
@@ -46,7 +46,7 @@ export const RegexV1_0Api = {
  * v1.0 length validation function.
  * Return type: 'validationResult'.
  */
-export const LengthV1_0Api = {
+export const LengthV1Point0Api = {
   name: 'length' as const,
   returnType: 'validationResult' as const,
   schema: LengthV09Api.schema,
@@ -56,7 +56,7 @@ export const LengthV1_0Api = {
  * v1.0 numeric validation function.
  * Return type: 'validationResult'.
  */
-export const NumericV1_0Api = {
+export const NumericV1Point0Api = {
   name: 'numeric' as const,
   returnType: 'validationResult' as const,
   schema: NumericV09Api.schema,
@@ -66,7 +66,7 @@ export const NumericV1_0Api = {
  * v1.0 email validation function.
  * Return type: 'validationResult'.
  */
-export const EmailV1_0Api = {
+export const EmailV1Point0Api = {
   name: 'email' as const,
   returnType: 'validationResult' as const,
   schema: EmailV09Api.schema,
@@ -76,9 +76,9 @@ export const EmailV1_0Api = {
  * v1.0 basic catalog validation APIs.
  */
 export const V10_VALIDATION_FUNCTION_APIS = [
-  RequiredV1_0Api,
-  RegexV1_0Api,
-  LengthV1_0Api,
-  NumericV1_0Api,
-  EmailV1_0Api,
+  RequiredV1Point0Api,
+  RegexV1Point0Api,
+  LengthV1Point0Api,
+  NumericV1Point0Api,
+  EmailV1Point0Api,
 ];

@@ -304,13 +304,14 @@ export class NodeResolver<
       return record.node;
     }
 
-    const api = this.catalog.components.get(model.type);
+    const compCatalog = (model.catalog as Catalog<C, F>) ?? this.catalog;
+    const api = compCatalog.components.get(model.type);
     if (!api) {
       this.dispatchOnce(
         'UNKNOWN_COMPONENT_TYPE',
         componentId,
         dataPath,
-        `Component '${componentId}' has type '${model.type}', which is not in catalog '${this.catalog.id}'.`,
+        `Component '${componentId}' has type '${model.type}', which is not in catalog '${compCatalog.id}'.`,
       );
       return this.registerNode(
         new MutableComponentNode(
@@ -445,7 +446,8 @@ export class NodeResolver<
     }
     if (existing && !existing.disposed) {
       const model = this.surface.componentsModel.get(componentId);
-      const api = model ? this.catalog.components.get(model.type) : undefined;
+      const compCatalog = (model?.catalog as Catalog<C, F>) ?? this.catalog;
+      const api = model ? compCatalog.components.get(model.type) : undefined;
       // A placeholder stays up to date only while its own state's
       // preconditions hold, so a pending node whose definition arrives with
       // an unknown type is replaced (once) by an unknown-type node, and
