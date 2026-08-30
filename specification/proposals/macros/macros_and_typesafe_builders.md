@@ -171,9 +171,6 @@ In `renderers/web_core/src/v0_9/catalog/types.ts`, `Catalog.fromSchema` delegate
 static fromSchema(catalogSchema: Record<string, any>): Catalog<ComponentApi, FunctionApi> {
   return loadCatalogFromSchema(catalogSchema);
 }
-
-// Backwards compatibility alias
-static fromJson = Catalog.fromSchema;
 ```
 
 #### Rationale
