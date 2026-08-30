@@ -51,7 +51,7 @@ export function createCodegenCommand(): Command {
 
       let catalog: any;
       try {
-        catalog = Catalog.fromJson(catalogJson);
+        catalog = Catalog.fromSchema(catalogJson);
       } catch (err: any) {
         console.error(`Error analyzing catalog schema: ${err.message}`);
         process.exit(1);

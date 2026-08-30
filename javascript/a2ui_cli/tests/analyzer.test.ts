@@ -29,7 +29,7 @@ describe('CatalogAnalyzer in @a2ui/cli', () => {
   const basicCatalogJson = JSON.parse(fs.readFileSync(basicCatalogPath, 'utf-8'));
 
   it('analyzes catalog components, slots, and properties', () => {
-    const catalog = Catalog.fromJson(basicCatalogJson);
+    const catalog = Catalog.fromSchema(basicCatalogJson);
     const analysed = CatalogAnalyzer.analyze(catalog);
 
     assert.strictEqual(
