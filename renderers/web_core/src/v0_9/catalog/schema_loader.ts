@@ -391,8 +391,3 @@ export function loadCatalogFromSchema(
 
   return new Catalog(catalogId, components, functions);
 }
-
-/**
- * Backwards compatibility alias for loadCatalogFromSchema.
- */
-export const loadCatalogFromJson = loadCatalogFromSchema;
