@@ -216,9 +216,4 @@ export class Catalog<
   static fromSchema(catalogSchema: Record<string, any>): Catalog<ComponentApi, FunctionApi> {
     return loadCatalogFromSchema(catalogSchema);
   }
-
-  /**
-   * Backwards compatibility alias for Catalog.fromSchema.
-   */
-  static fromJson = Catalog.fromSchema;
 }

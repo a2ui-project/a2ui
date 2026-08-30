@@ -256,13 +256,4 @@ describe('Catalog.fromSchema & schema_loader', () => {
     const invalid = widget.schema.safeParse({numEnum: 99});
     assert.strictEqual(invalid.success, false);
   });
-
-  it('supports Catalog.fromJson as a backwards compatibility alias', () => {
-    const catalog = Catalog.fromJson(basicCatalogJson);
-    assert.strictEqual(
-      catalog.id,
-      'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
-    );
-    assert.ok(catalog.components.has('Text'));
-  });
 });
