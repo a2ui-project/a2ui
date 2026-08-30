@@ -16,7 +16,7 @@
 set -euo pipefail
 
 # Get repo root
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "Running Swift tests on the package at the root..."
 swift test --package-path "$REPO_ROOT" --enable-swift-testing

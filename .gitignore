@@ -147,3 +147,5 @@ eval/iterative_format_optimizer/skills/inference-format-optimizer/logs/
 # Scratch & proposal development drafts
 specification/proposals/macros/.dev/
 
+# VS Code workspaces
+*.code-workspace
