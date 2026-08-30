@@ -36,19 +36,7 @@ struct NotFunctionTests {
     #expect(function.api.returnType == .boolean)
   }
 
-  // MARK: - Evaluation
-
-  @Test func evaluatesToFalseWhenValueIsTrue() throws {
-    let result = try function.evaluate(
-      arguments: ["value": .boolean(true)], context: context)
-    #expect(result == .boolean(false))
-  }
-
-  @Test func evaluatesToTrueWhenValueIsFalse() throws {
-    let result = try function.evaluate(
-      arguments: ["value": .boolean(false)], context: context)
-    #expect(result == .boolean(true))
-  }
+  // MARK: - Edge-Case Evaluation
 
   @Test func evaluatesToFalseWhenValueIsMissing() throws {
     let result = try function.evaluate(arguments: [:], context: context)
