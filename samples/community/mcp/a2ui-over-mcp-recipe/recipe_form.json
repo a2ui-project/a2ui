@@ -86,8 +86,10 @@
           "variant": "primary",
           "action": {
             "event": {
-              "name": "generate_recipe",
+              "name": "mcp:call_tool",
               "context": {
+                "_server": "a2ui-mcp-recipe-demo",
+                "_tool": "get_recipe_a2ui",
                 "cookingStyle": {
                   "path": "/cookingStyle"
                 },
