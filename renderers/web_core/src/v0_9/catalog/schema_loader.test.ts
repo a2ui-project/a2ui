@@ -21,7 +21,7 @@ import {resolve} from 'node:path';
 import {z} from 'zod';
 import {Catalog} from './types.js';
 
-describe('Catalog.fromJson & json_schema_loader', () => {
+describe('Catalog.fromSchema & schema_loader', () => {
   const basicCatalogPath = resolve(
     process.cwd(),
     '../../specification/v0_9_1/catalogs/basic/catalog.json',
@@ -32,11 +32,11 @@ describe('Catalog.fromJson & json_schema_loader', () => {
     const invalidJson = {
       components: {},
     };
-    assert.throws(() => Catalog.fromJson(invalidJson as any), /Catalog ID must be specified/);
+    assert.throws(() => Catalog.fromSchema(invalidJson as any), /Catalog ID must be specified/);
   });
 
   it('loads basic catalog successfully and dynamically resolves weight and accessibility', () => {
-    const catalog = Catalog.fromJson(basicCatalogJson);
+    const catalog = Catalog.fromSchema(basicCatalogJson);
 
     assert.strictEqual(
       catalog.id,
@@ -103,7 +103,7 @@ describe('Catalog.fromJson & json_schema_loader', () => {
   });
 
   it('parses functions from catalog into FunctionApi map', () => {
-    const catalog = Catalog.fromJson(basicCatalogJson);
+    const catalog = Catalog.fromSchema(basicCatalogJson);
     assert.ok(catalog.functions.size > 0);
 
     const reqFn = catalog.functions.get('required');
@@ -133,7 +133,7 @@ describe('Catalog.fromJson & json_schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromJson(customCatalog);
+    const catalog = Catalog.fromSchema(customCatalog);
     const btn = catalog.components.get('CustomButton');
     assert.ok(btn);
 
@@ -179,7 +179,7 @@ describe('Catalog.fromJson & json_schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromJson(catalogWithDefs);
+    const catalog = Catalog.fromSchema(catalogWithDefs);
     const widget = catalog.components.get('HeaderWidget');
     assert.ok(widget);
 
@@ -219,7 +219,7 @@ describe('Catalog.fromJson & json_schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromJson(v1Catalog);
+    const catalog = Catalog.fromSchema(v1Catalog);
     const card = catalog.components.get('V1Card');
     assert.ok(card);
 
@@ -246,7 +246,7 @@ describe('Catalog.fromJson & json_schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromJson(catalogWithEnums);
+    const catalog = Catalog.fromSchema(catalogWithEnums);
     const widget = catalog.components.get('EnumWidget');
     assert.ok(widget);
 
@@ -255,5 +255,14 @@ describe('Catalog.fromJson & json_schema_loader', () => {
 
     const invalid = widget.schema.safeParse({numEnum: 99});
     assert.strictEqual(invalid.success, false);
+  });
+
+  it('supports Catalog.fromJson as a backwards compatibility alias', () => {
+    const catalog = Catalog.fromJson(basicCatalogJson);
+    assert.strictEqual(
+      catalog.id,
+      'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+    );
+    assert.ok(catalog.components.has('Text'));
   });
 });

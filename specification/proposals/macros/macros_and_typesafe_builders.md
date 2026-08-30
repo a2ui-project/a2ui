@@ -153,9 +153,9 @@ The runtime intercepts this tag, executes `HostManagementCard()`, assigns sequen
 
 #### Implementation details
 
-Historically, catalog schemas in `web_core` were manually declared TypeScript objects. To support external JSON catalogs, `renderers/web_core/src/v0_9/catalog/json_schema_loader.ts` introduces a JSON schema ingestion engine.
+Historically, catalog schemas in `web_core` were manually declared TypeScript objects. To support external JSON catalogs and schema objects, `renderers/web_core/src/v0_9/catalog/schema_loader.ts` introduces a schema ingestion engine.
 
-The module provides `loadCatalogFromJson(catalogJson)`:
+The module provides `loadCatalogFromSchema(catalogSchema)`:
 
 - Validates `catalogId` metadata (reading `catalogId`, `$id`, or `id`).
 - Inspects `$defs.anyComponent.oneOf` to filter permitted components when specified.
@@ -165,19 +165,23 @@ The module provides `loadCatalogFromJson(catalogJson)`:
 - Parses function definitions from both array and dictionary formats.
 - Returns a complete, schema-only `Catalog<ComponentApi, FunctionApi>` instance.
 
-In `renderers/web_core/src/v0_9/catalog/types.ts`, `Catalog.fromJson` delegates directly to this loader:
+In `renderers/web_core/src/v0_9/catalog/types.ts`, `Catalog.fromSchema` delegates directly to this loader:
 
 ```typescript
-static fromJson(catalogJson: Record<string, any>): Catalog<ComponentApi, FunctionApi> {
-  return loadCatalogFromJson(catalogJson);
+static fromSchema(catalogSchema: Record<string, any>): Catalog<ComponentApi, FunctionApi> {
+  return loadCatalogFromSchema(catalogSchema);
 }
+
+// Backwards compatibility alias
+static fromJson = Catalog.fromSchema;
 ```
 
 #### Rationale
 
-- **Single source of truth:** Loading catalogs directly from JSON allows tools and renderers to consume official catalog files without maintaining separate hardcoded schema definitions.
-- **Separation of concerns:** All JSON Schema parsing and AST transformation resides in `json_schema_loader.ts`. The `Catalog` class in `types.ts` remains a runtime container without leaking schema transformation details.
-- **Encapsulation:** All internal AST helpers in `json_schema_loader.ts` remain module-private, exposing only `loadCatalogFromJson`.
+- **Single source of truth:** Loading catalogs directly from schema definitions allows tools and renderers to consume official catalog files without maintaining separate hardcoded schema definitions.
+- **Serialization format independence:** Naming the factory `fromSchema` reflects that it ingests parsed JavaScript/TypeScript schema dictionaries, remaining format-agnostic.
+- **Separation of concerns:** All JSON Schema parsing and AST transformation resides in `schema_loader.ts`. The `Catalog` class in `types.ts` remains a runtime container without leaking schema transformation details.
+- **Encapsulation:** All internal AST helpers in `schema_loader.ts` remain module-private, exposing only `loadCatalogFromSchema`.
 
 ---
 
@@ -189,7 +193,7 @@ The `@a2ui/cli` package is a Node.js command-line application located in `javasc
 
 The generator consists of two stages:
 
-1. **Catalog analyzer (`src/analyzer/catalog-analyzer.ts`):** Ingests the catalog via `Catalog.fromJson()` and inspects the Zod schemas of components and functions. It extracts property types, default values, docstrings, enum options, child slots, and required property constraints into a normalized `AnalysedCatalog` data structure.
+1. **Catalog analyzer (`src/analyzer/catalog-analyzer.ts`):** Ingests the catalog via `Catalog.fromSchema()` and inspects the Zod schemas of components and functions. It extracts property types, default values, docstrings, enum options, child slots, and required property constraints into a normalized `AnalysedCatalog` data structure.
 2. **Python emitter (`src/emitters/python/python-emitter.ts`):** Converts the analyzed catalog into a standalone Python file. It emits:
    - A clear banner comment identifying the file as auto-generated and displaying the catalog ID.
    - An auto-generated docstring note and `__a2ui_codegen__ = "@a2ui/cli"` constant.

@@ -18,7 +18,7 @@ import {z} from 'zod';
 import {DataContext} from '../rendering/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiExpressionError} from '../errors.js';
-import {loadCatalogFromJson} from './json_schema_loader.js';
+import {loadCatalogFromSchema} from './schema_loader.js';
 
 export type A2uiReturnType = 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';
 
@@ -209,11 +209,16 @@ export class Catalog<
   }
 
   /**
-   * Constructs a fully-typed schema-only Catalog directly from raw A2UI catalog JSON.
+   * Constructs a fully-typed schema-only Catalog directly from raw A2UI catalog schema.
    *
-   * @param catalogJson Raw JSON catalog or client capabilities payload.
+   * @param catalogSchema Raw catalog schema or client capabilities payload object.
    */
-  static fromJson(catalogJson: Record<string, any>): Catalog<ComponentApi, FunctionApi> {
-    return loadCatalogFromJson(catalogJson);
+  static fromSchema(catalogSchema: Record<string, any>): Catalog<ComponentApi, FunctionApi> {
+    return loadCatalogFromSchema(catalogSchema);
   }
+
+  /**
+   * Backwards compatibility alias for Catalog.fromSchema.
+   */
+  static fromJson = Catalog.fromSchema;
 }
