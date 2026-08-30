@@ -349,21 +349,21 @@ function parseFunctionDefinitions(rawFunctions: any, rootDoc?: Record<string, an
 }
 
 /**
- * Loads raw A2UI catalog JSON directly into a typed Catalog instance.
+ * Loads raw A2UI catalog schema directly into a typed Catalog instance.
  *
- * @param catalogJson Raw JSON catalog definition.
+ * @param catalogSchema Raw catalog schema or capabilities definition object.
  */
-export function loadCatalogFromJson(
-  catalogJson: Record<string, any>,
+export function loadCatalogFromSchema(
+  catalogSchema: Record<string, any>,
 ): Catalog<ComponentApi, FunctionApi> {
-  const catalogId = catalogJson.catalogId ?? catalogJson.$id ?? catalogJson.id;
+  const catalogId = catalogSchema.catalogId ?? catalogSchema.$id ?? catalogSchema.id;
   if (!catalogId || typeof catalogId !== 'string') {
     throw new Error("Catalog ID must be specified via catalog metadata ('catalogId' or '$id').");
   }
 
   // Filter permitted components via anyComponent.oneOf if declared
   const permittedNames = new Set<string>();
-  const oneOf = catalogJson.$defs?.anyComponent?.oneOf;
+  const oneOf = catalogSchema.$defs?.anyComponent?.oneOf;
   if (Array.isArray(oneOf)) {
     for (const item of oneOf) {
       if (typeof item?.$ref === 'string' && item.$ref.startsWith('#/components/')) {
@@ -373,12 +373,12 @@ export function loadCatalogFromJson(
   }
 
   const components: ComponentApi[] = [];
-  const componentsMap = catalogJson.components ?? {};
+  const componentsMap = catalogSchema.components ?? {};
   for (const [name, rawCompSchema] of Object.entries(componentsMap)) {
     if (permittedNames.size === 0 || permittedNames.has(name)) {
       const zodSchema = convertComponentJsonSchemaToZod(
         rawCompSchema as Record<string, any>,
-        catalogJson,
+        catalogSchema,
       );
       components.push({
         name,
@@ -387,7 +387,12 @@ export function loadCatalogFromJson(
     }
   }
 
-  const functions = parseFunctionDefinitions(catalogJson.functions, catalogJson);
+  const functions = parseFunctionDefinitions(catalogSchema.functions, catalogSchema);
 
   return new Catalog(catalogId, components, functions);
 }
+
+/**
+ * Backwards compatibility alias for loadCatalogFromSchema.
+ */
+export const loadCatalogFromJson = loadCatalogFromSchema;
