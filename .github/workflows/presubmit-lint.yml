@@ -78,7 +78,7 @@ jobs:
       - name: Set up Dart (Lightweight)
         uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
         with:
-          sdk: "3.12.2"
+          sdk: stable
       - name: Set up Swift
         uses: swift-actions/setup-swift@7ca6abe6b3b0e8b5421b88be48feee39cbf52c6a # v2
         with:
