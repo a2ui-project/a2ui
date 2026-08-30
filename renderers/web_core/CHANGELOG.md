@@ -6,6 +6,7 @@
 - (v0_9) Emit `$ref` in inline-catalog capabilities for the basic catalog's child-reference properties even when a per-usage description is set; new `componentId()`/`childList()` helpers compose custom descriptions without losing the `$ref` ([#2077](https://github.com/a2ui-project/a2ui/pull/2077)).
 - (v0_9) `GenericBinder` reuses action closures across identical component resends, so action-valued props keep reference identity and downstream equality checks see them as unchanged ([#2077](https://github.com/a2ui-project/a2ui/pull/2077)).
 - (v0_9) `Catalog` and `SurfaceModel` accept a function-kind type parameter (defaulting to `FunctionImplementation`); invoking a catalog function that has no implementation now throws `A2uiExpressionError` ([#2077](https://github.com/a2ui-project/a2ui/pull/2077)).
+- (v0_9) Enhance `GenericBinder` schema inference to recognize `$defs` descriptions and child reference metadata.([#2359](https://github.com/a2ui-project/a2ui/pull/2359))
 
 ## 0.10.6
 
