@@ -14,7 +14,7 @@
 
 from typing import Any
 from .base import BaseVersionAdapter
-from ...schema import ProtocolVersion, AgentToRendererMessagePayload
+from ...schema import ProtocolVersion
 from ...schema.v0_8 import (
     MSG_TYPE_BEGIN_RENDERING,
     MSG_TYPE_DATA_MODEL_UPDATE,

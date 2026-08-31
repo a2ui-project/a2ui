@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Mapping, Sequence
 import re
 from abc import ABC, abstractmethod
 from typing import Any
@@ -24,7 +25,7 @@ from ...exceptions import (
     A2uiValidationError,
 )
 from ...state.validation_helpers import validate_recursion_and_paths
-from ...schema import ProtocolVersion, AgentToRendererMessagePayload
+from ...schema import AgentToRendererMessage, ProtocolVersion
 
 
 def _clean_loc_part(x: str) -> str:
@@ -55,7 +56,13 @@ class VersionAdapter(ABC):
 
     @abstractmethod
     def extract_operations(
-        self, payload: AgentToRendererMessagePayload
+        self,
+        payload: (
+            AgentToRendererMessage
+            | Sequence[AgentToRendererMessage]
+            | Mapping[str, Any]
+            | Sequence[Mapping[str, Any]]
+        ),
     ) -> list[InternalOperation]:
         """Converts a raw message payload or payload list into canonical internal operations."""
         pass
@@ -165,7 +172,13 @@ class BaseVersionAdapter(VersionAdapter, ABC):
         return ""
 
     def extract_operations(
-        self, payload: AgentToRendererMessagePayload
+        self,
+        payload: (
+            AgentToRendererMessage
+            | Sequence[AgentToRendererMessage]
+            | Mapping[str, Any]
+            | Sequence[Mapping[str, Any]]
+        ),
     ) -> list[InternalOperation]:
         """Unwraps payloads and delegates validated action messages to action handlers."""
         if not payload:

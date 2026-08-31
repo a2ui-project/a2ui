@@ -14,7 +14,7 @@
 
 from typing import Any
 from .base import BaseVersionAdapter
-from ...schema import ProtocolVersion, AgentToRendererMessagePayload
+from ...schema import ProtocolVersion
 from ...schema.v0_9 import (
     MSG_TYPE_CREATE_SURFACE,
     MSG_TYPE_DELETE_SURFACE,

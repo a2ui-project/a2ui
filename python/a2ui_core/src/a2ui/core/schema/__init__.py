@@ -59,15 +59,6 @@ A2uiRendererAction = v0_9.A2uiRendererAction
 A2uiClientAction = A2uiRendererAction
 A2uiClientUserAction = A2uiRendererAction
 
-AgentToRendererMessagePayload = (
-    AgentToRendererMessage | list[AgentToRendererMessage] | dict[str, Any]
-)
-ServerToClientMessagePayload = AgentToRendererMessagePayload
-RendererToAgentMessagePayload = (
-    RendererToAgentMessage | list[RendererToAgentMessage] | dict[str, Any]
-)
-ClientToServerMessagePayload = RendererToAgentMessagePayload
-
 # Re-exports from primary schema namespace for backwards compatibility
 from .v0_9.common_types import *
 from .v0_9.constants import *

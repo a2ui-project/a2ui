@@ -521,11 +521,6 @@ A2uiClientMessage = RendererToAgentMessage
 A2uiClientAction = A2uiRendererAction
 A2uiClientUserAction = A2uiRendererAction
 
-AgentToRendererMessagePayload = AgentToRendererMessage | list[AgentToRendererMessage] | dict[str, Any]
-ServerToClientMessagePayload = AgentToRendererMessagePayload
-RendererToAgentMessagePayload = RendererToAgentMessage | list[RendererToAgentMessage] | dict[str, Any]
-ClientToServerMessagePayload = RendererToAgentMessagePayload
-
 {legacy_reexports}
 """
     with open(os.path.join(o_root, "schema/__init__.py"), "w", encoding="utf-8") as f:

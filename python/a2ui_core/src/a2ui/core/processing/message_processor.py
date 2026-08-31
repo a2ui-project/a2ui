@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import copy
-from typing import Any, Callable, Sequence, cast
+from collections.abc import Mapping, Sequence
+from typing import Any, Callable, cast
 
 from ..state import SurfaceGroupModel, SurfaceModel, ComponentModel
 from ..validation import (
@@ -30,7 +31,7 @@ from ..exceptions import (
     A2uiIntegrityError,
     A2uiValidationError,
 )
-from ..schema import ProtocolVersion, AgentToRendererMessagePayload
+from ..schema import AgentToRendererMessage, ProtocolVersion
 from .adapters import VersionAdapterFactory
 from .operations import (
     InternalCreateSurfaceOp,
@@ -58,7 +59,15 @@ class MessageProcessor:
         if action_handler:
             self.model.on_action.subscribe(action_handler)
 
-    def process_messages(self, messages: AgentToRendererMessagePayload) -> None:
+    def process_messages(
+        self,
+        messages: (
+            AgentToRendererMessage
+            | Sequence[AgentToRendererMessage]
+            | Mapping[str, Any]
+            | Sequence[Mapping[str, Any]]
+        ),
+    ) -> None:
         """Accepts a list of parsed JSON messages and executes them in order."""
         adapter = VersionAdapterFactory.resolve_from_payload(messages)
         operations = adapter.extract_operations(messages)

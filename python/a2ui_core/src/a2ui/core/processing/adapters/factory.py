@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Mapping, Sequence
 from typing import Any
 from .base import VersionAdapter
 from .v0_8 import V0Point8Adapter
 from .v0_9 import V0Point9Adapter
 from .v1_0 import V1Point0Adapter
 from ...exceptions import A2uiErrorDetail, A2uiValidationError
-from ...schema import ProtocolVersion, AgentToRendererMessagePayload
+from ...schema import AgentToRendererMessage, ProtocolVersion
 
 DEFAULT_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion.V0_9
 
@@ -54,7 +55,13 @@ class VersionAdapterFactory:
 
     @classmethod
     def resolve_from_payload(
-        cls, payload: AgentToRendererMessagePayload
+        cls,
+        payload: (
+            AgentToRendererMessage
+            | Sequence[AgentToRendererMessage]
+            | Mapping[str, Any]
+            | Sequence[Mapping[str, Any]]
+        ),
     ) -> VersionAdapter:
         """Resolves the version adapter directly from an incoming message payload."""
         raw_payload: Any = payload
