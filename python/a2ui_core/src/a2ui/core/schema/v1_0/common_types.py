@@ -40,7 +40,8 @@ CallId = str
 class AccessibilityAttributes(StrictBaseModel):
     """Attributes to enhance accessibility when using assistive technologies like screen readers or model understanding."""
 
-    label: Optional[DynamicString] = Field(
+    model_config = ConfigDict(populate_by_name=True)
+    label: DynamicString | None = Field(
         None,
         description=(
             "A short string, typically 1 to 3 words, used by assistive technologies to"
@@ -49,7 +50,7 @@ class AccessibilityAttributes(StrictBaseModel):
             " 'Submit'."
         ),
     )
-    description: Optional[DynamicString] = Field(
+    description: DynamicString | None = Field(
         None,
         description=(
             "Additional information provided by assistive technologies about an element"
@@ -58,7 +59,7 @@ class AccessibilityAttributes(StrictBaseModel):
             " 'Silences notifications about this conversation'."
         ),
     )
-    live: Optional[Literal["off", "polite", "assertive"]] = Field(
+    live: Literal["off", "polite", "assertive"] | None = Field(
         description=(
             "Controls screen reader announcements for dynamic updates (WAI-ARIA"
             " aria-live). 'polite' waits for user pause; 'assertive' interrupts"
@@ -66,7 +67,7 @@ class AccessibilityAttributes(StrictBaseModel):
         ),
         default="off",
     )
-    hidden: Optional[DynamicBoolean] = Field(
+    hidden: DynamicBoolean | None = Field(
         None,
         description=(
             "Hides the element and its children from assistive technologies when true."
@@ -75,15 +76,17 @@ class AccessibilityAttributes(StrictBaseModel):
     )
 
 
-class Extensions(BaseModel):
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
+class Extensions(StrictBaseModel):
     """Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions."""
+
+    model_config = ConfigDict(populate_by_name=True)
     pass
 
 
 class ComponentCommon(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     id: ComponentId = Field(...)
-    catalog_id: Optional[str] = Field(
+    catalog_id: str | None = Field(
         None,
         alias="catalogId",
         description=(
@@ -91,13 +94,13 @@ class ComponentCommon(StrictBaseModel):
             " catalogId."
         ),
     )
-    accessibility: Optional[AccessibilityAttributes] = Field(None)
-    metadata: Optional[Dict[str, Any]] = Field(
+    accessibility: AccessibilityAttributes | None = Field(None)
+    metadata: dict[str, Any] | None = Field(
         None, description="Optional component-level metadata for vendor extensions."
     )
 
 
-def _validate_literal_object(v: Any) -> Dict[str, Any]:
+def _validate_literal_object(v: Any) -> dict[str, Any]:
     if not isinstance(v, dict):
         raise ValueError("Expected a dictionary object")
     forbidden = {"call", "path"}
@@ -110,16 +113,17 @@ def _validate_literal_object(v: Any) -> Dict[str, Any]:
     return v
 
 
-LiteralObject = Annotated[Dict[str, Any], AfterValidator(_validate_literal_object)]
+LiteralObject = Annotated[dict[str, Any], AfterValidator(_validate_literal_object)]
 
 
-DynamicValue = Union[
-    str, float, bool, List[Any], DataBinding, FunctionCall, LiteralObject
-]
+DynamicValue = (
+    str | float | bool | list[Any] | DataBinding | FunctionCall | LiteralObject
+)
 
 
 class FunctionCommon(StrictBaseModel):
-    catalog_id: Optional[str] = Field(
+    model_config = ConfigDict(populate_by_name=True)
+    catalog_id: str | None = Field(
         None,
         alias="catalogId",
         description=(
@@ -130,7 +134,8 @@ class FunctionCommon(StrictBaseModel):
 
 
 class IndexSystemFunctionArgs(StrictBaseModel):
-    offset: Optional[DynamicNumber] = Field(
+    model_config = ConfigDict(populate_by_name=True)
+    offset: DynamicNumber | None = Field(
         description=(
             "Optional. An offset to add to the 0-based index (e.g., 1 for 1-based"
             " indexing). Defaults to 0."
@@ -142,26 +147,29 @@ class IndexSystemFunctionArgs(StrictBaseModel):
 class IndexSystemFunction(StrictBaseModel):
     """Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context."""
 
+    model_config = ConfigDict(populate_by_name=True)
     call: Literal["@index"] = Field("@index")
-    args: Optional[IndexSystemFunctionArgs] = Field(None)
+    args: IndexSystemFunctionArgs | None = Field(None)
 
 
 class CheckRule(StrictBaseModel):
     """A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object."""
 
-    condition: Union[DataBinding, FunctionCall] = Field(
+    model_config = ConfigDict(populate_by_name=True)
+    condition: DataBinding | FunctionCall = Field(
         ...,
         description=(
             "Path or function call evaluating to a structured validation result object."
         ),
     )
-    message: Optional[str] = Field(None, description="Optional fallback error message.")
+    message: str | None = Field(None, description="Optional fallback error message.")
 
 
 class Checkable(StrictBaseModel):
     """Properties for components that support renderer-side checks."""
 
-    checks: Optional[List[CheckRule]] = Field(
+    model_config = ConfigDict(populate_by_name=True)
+    checks: list[CheckRule] | None = Field(
         None,
         description=(
             "A list of checks to perform. These are function calls that must return a"
@@ -173,10 +181,11 @@ class Checkable(StrictBaseModel):
 class ActionEvent(StrictBaseModel):
     """The event to dispatch to the agent."""
 
+    model_config = ConfigDict(populate_by_name=True)
     name: str = Field(
         ..., description="The name of the action to be dispatched to the agent."
     )
-    user_message: Optional[DynamicString] = Field(
+    user_message: DynamicString | None = Field(
         None,
         alias="userMessage",
         description=(
@@ -184,7 +193,7 @@ class ActionEvent(StrictBaseModel):
             " user, to present in conversation history or user feedback."
         ),
     )
-    context: Optional[Dict[str, DynamicValue]] = Field(
+    context: dict[str, DynamicValue] | None = Field(
         None,
         description=(
             "A JSON object containing the key-value pairs for the action context."
@@ -197,27 +206,31 @@ class ActionEvent(StrictBaseModel):
 class ActionEventWrapper(StrictBaseModel):
     """Triggers an agent-side event."""
 
+    model_config = ConfigDict(populate_by_name=True)
     event: ActionEvent = Field(..., description="The event to dispatch to the agent.")
 
 
 class ActionFunctionCallWrapper(StrictBaseModel):
     """Executes a renderer or agent-side function."""
 
+    model_config = ConfigDict(populate_by_name=True)
     function_call: FunctionCall = Field(..., alias="functionCall")
 
 
-Action = Union[ActionEventWrapper, ActionFunctionCallWrapper]
+Action = ActionEventWrapper | ActionFunctionCallWrapper
 
 
 class Surface(StrictBaseModel):
     """The reserved canonical container component representing an A2UI surface. The Surface component is immutable and always has 'child': 'root'."""
 
-    child: Optional[Literal["root"]] = Field(default="root")
+    model_config = ConfigDict(populate_by_name=True)
+    child: Literal["root"] | None = Field(default="root")
 
 
 class FunctionResponseError(StrictBaseModel):
     """An error object indicating failure of the function execution."""
 
+    model_config = ConfigDict(populate_by_name=True)
     code: str = Field(...)
     message: str = Field(...)
 
@@ -225,13 +238,14 @@ class FunctionResponseError(StrictBaseModel):
 class FunctionResponse(StrictBaseModel):
     """The return response matching a callAgentFunction or callRendererFunction invocation."""
 
+    model_config = ConfigDict(populate_by_name=True)
     function_call_id: str = Field(
         ...,
         alias="functionCallId",
         description="The unique ID matching the initiating function call.",
     )
-    value: Optional[Any] = Field(None, description="The return value of the function.")
-    error: Optional[FunctionResponseError] = Field(
+    value: Any | None = Field(None, description="The return value of the function.")
+    error: FunctionResponseError | None = Field(
         None,
         description="An error object indicating failure of the function execution.",
     )

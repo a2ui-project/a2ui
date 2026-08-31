@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Set
+from typing import Any
 from .base import BaseVersionAdapter
 from ...schema import ProtocolVersion, AgentToRendererMessagePayload
 from ...schema.v1_0 import (
@@ -43,7 +43,7 @@ class V1Point0Adapter(BaseVersionAdapter):
         return AgentToRendererMessageListWrapper
 
     @property
-    def valid_actions(self) -> Set[str]:
+    def valid_actions(self) -> set[str]:
         return {
             MSG_TYPE_CREATE_SURFACE,
             MSG_TYPE_UPDATE_COMPONENTS,
@@ -52,9 +52,9 @@ class V1Point0Adapter(BaseVersionAdapter):
         }
 
     def _extract_operations_for_action(
-        self, action: str, message: Dict[str, Any]
-    ) -> List[InternalOperation]:
-        res: List[InternalOperation] = []
+        self, action: str, message: dict[str, Any]
+    ) -> list[InternalOperation]:
+        res: list[InternalOperation] = []
         if action == MSG_TYPE_CREATE_SURFACE:
             cs = message[MSG_TYPE_CREATE_SURFACE]
             res.append(

@@ -15,7 +15,7 @@
 """Pydantic v2 code generators for protocol schema files across A2UI versions."""
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 from engine import PydanticCodegen
 from utils import (
     FILE_HEADER,
@@ -30,10 +30,9 @@ from utils import (
     version_to_underscore,
 )
 
-
 def generate_common_types(
     version: str,
-    common_data: Dict[str, Any],
+    common_data: dict[str, Any],
 ) -> str:
     """Generates common_types.py content dynamically from $defs."""
     codegen = PydanticCodegen(version)
@@ -64,7 +63,7 @@ def generate_common_types(
     # Dynamic compilation from $defs:
     processed: set[str] = set(imports_from_common)
 
-    def _compile_def(name: str, spec: Dict[str, Any]) -> None:
+    def _compile_def(name: str, spec: dict[str, Any]) -> None:
         if name in processed:
             return
 
@@ -80,7 +79,7 @@ def generate_common_types(
                     )
                 )
                 common_blocks.append(
-                    "ChildList = Union[List[ComponentId], TemplateChildList]"
+                    "ChildList = list[ComponentId] | TemplateChildList"
                 )
             else:
                 common_blocks.append(codegen.compile_union_def("ChildList", spec))
@@ -140,7 +139,7 @@ def generate_common_types(
                         )
                     )
                 common_blocks.append(
-                    "Action = Union[ActionEventWrapper, ActionFunctionCallWrapper]"
+                    "Action = ActionEventWrapper | ActionFunctionCallWrapper"
                 )
             else:
                 common_blocks.append(codegen.compile_union_def("Action", spec))
@@ -198,7 +197,7 @@ def generate_common_types(
                 forbidden_set_repr = (
                     "{" + ", ".join(f'"{k}"' for k in sorted(forbidden_keys)) + "}"
                 )
-                validator_code = f"""def _validate_literal_object(v: Any) -> Dict[str, Any]:
+                validator_code = f"""def _validate_literal_object(v: Any) -> dict[str, Any]:
     if not isinstance(v, dict):
         raise ValueError("Expected a dictionary object")
     forbidden = {forbidden_set_repr}
@@ -209,8 +208,7 @@ def generate_common_types(
         )
     return v
 
-
-LiteralObject = Annotated[Dict[str, Any], AfterValidator(_validate_literal_object)]"""
+LiteralObject = Annotated[dict[str, Any], AfterValidator(_validate_literal_object)]"""
                 common_blocks.append(validator_code)
 
                 ref_items = []
@@ -228,7 +226,7 @@ LiteralObject = Annotated[Dict[str, Any], AfterValidator(_validate_literal_objec
                         non_ref_items.append(codegen.map_json_type_to_python("", item))
 
                 all_mapped = non_ref_items + ref_items + ["LiteralObject"]
-                common_blocks.append(f"{name} = Union[{', '.join(all_mapped)}]")
+                common_blocks.append(f"{name} = {' | '.join(all_mapped)}")
                 processed.add(name)
                 return
 
@@ -254,7 +252,7 @@ LiteralObject = Annotated[Dict[str, Any], AfterValidator(_validate_literal_objec
                 if "items" in spec
                 else "Any"
             )
-            common_blocks.append(f"{name} = List[{item_type}]")
+            common_blocks.append(f"{name} = list[{item_type}]")
         else:
             common_blocks.append(f"{name} = Any")
 
@@ -271,12 +269,11 @@ LiteralObject = Annotated[Dict[str, Any], AfterValidator(_validate_literal_objec
     all_list = ",\n".join(f'    "{s}"' for s in all_exports)
     return f"{full_code}\n__all__ = [\n{all_list},\n]\n"
 
-
 def generate_agent_to_renderer(
     version: str,
-    a2r_data: Dict[str, Any],
+    a2r_data: dict[str, Any],
     a2r_name: str = "",
-    common_data: Optional[Dict[str, Any]] = None,
+    common_data: dict[str, Any] | None = None,
 ) -> str:
     """Generates agent_to_renderer.py / server_to_client.py content."""
     codegen = PydanticCodegen(version)
@@ -301,7 +298,7 @@ def generate_agent_to_renderer(
             + a2r_imports
             + "from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE"
         ),
-        "ComponentsList = List[Dict[str, Any]]\nComponent = Dict[str, Any]",
+        "ComponentsList = list[dict[str, Any]]\nComponent = dict[str, Any]",
     ]
 
     msg_names = []
@@ -375,9 +372,9 @@ def generate_agent_to_renderer(
 
     if msg_names:
         if is_modern:
-            a2r_blocks.append(f"AgentToRendererMessage = Union[{', '.join(msg_names)}]")
+            a2r_blocks.append(f"AgentToRendererMessage = {' | '.join(msg_names)}")
             a2r_blocks.append(
-                "AgentToRendererMessageList = List[AgentToRendererMessage]"
+                "AgentToRendererMessageList = list[AgentToRendererMessage]"
             )
             a2r_blocks.append(
                 "class AgentToRendererMessageListWrapper(StrictBaseModel):\n   "
@@ -385,25 +382,24 @@ def generate_agent_to_renderer(
                 ' object wrapping a list of A2UI Agent-to-Renderer messages.")'
             )
         else:
-            a2r_blocks.append(f"ServerToClientMessage = Union[{', '.join(msg_names)}]")
+            a2r_blocks.append(f"ServerToClientMessage = {' | '.join(msg_names)}")
             a2r_blocks.append(
                 "AgentToRendererMessage = ServerToClientMessage\nA2uiMessage ="
                 " ServerToClientMessage"
             )
             a2r_blocks.append(
                 "class A2uiMessageListWrapper(StrictBaseModel):\n    messages:"
-                ' List[ServerToClientMessage] = Field(..., description="A list of'
+                ' list[ServerToClientMessage] = Field(..., description="A list of'
                 ' messages.")'
             )
 
     return "\n\n\n".join(b.strip() for b in a2r_blocks if b.strip()) + "\n"
 
-
 def generate_renderer_to_agent(
     version: str,
-    r2a_data: Dict[str, Any],
+    r2a_data: dict[str, Any],
     a2r_name: str = "",
-    common_data: Optional[Dict[str, Any]] = None,
+    common_data: dict[str, Any] | None = None,
 ) -> str:
     """Generates renderer_to_agent.py / client_to_server.py content."""
     codegen = PydanticCodegen(version)
@@ -424,8 +420,8 @@ def generate_renderer_to_agent(
         + r2a_imports
         + "from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE",
     ]
-    r2a_names: List[str] = []
-    msg_union_members: List[str] = []
+    r2a_names: list[str] = []
+    msg_union_members: list[str] = []
 
     # Process all event properties dynamically from the schema
     for prop_name, prop_spec in props.items():
@@ -518,8 +514,8 @@ def generate_renderer_to_agent(
             else:
                 r2a_blocks.append(
                     "class A2uiGenericError(StrictBaseModel):\n"
-                    "    code: Optional[str] = Field(None)\n"
-                    "    message: Optional[str] = Field(None)"
+                    "    code: str | None = Field(None)\n"
+                    "    message: str | None = Field(None)"
                 )
                 err_classes.append("A2uiGenericError")
                 r2a_names.append("A2uiGenericError")
@@ -531,7 +527,7 @@ def generate_renderer_to_agent(
                     )
                     r2a_names.append("A2uiValidationError")
                 r2a_blocks.append(
-                    f"A2uiRendererError = Union[{', '.join(err_classes)}]"
+                    f"A2uiRendererError = {' | '.join(err_classes)}"
                 )
                 r2a_names.append("A2uiRendererError")
 
@@ -566,17 +562,17 @@ def generate_renderer_to_agent(
             msg_union_members.append(msg_cls)
             r2a_names.append(msg_cls)
 
-    union_def = f"Union[{', '.join(msg_union_members)}]" if msg_union_members else "Any"
+    union_def = " | ".join(msg_union_members) if msg_union_members else "Any"
 
     if is_modern:
         r2a_blocks.append(f"RendererToAgentMessage = {union_def}")
         r2a_blocks.append(
             "class A2uiRendererDataModel(StrictBaseModel):\n    version:"
-            " PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION\n    surfaces: Dict[str,"
-            ' Dict[str, Any]] = Field(..., description="A map of surface IDs to data'
+            " PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION\n    surfaces: dict[str,"
+            ' dict[str, Any]] = Field(..., description="A map of surface IDs to data'
             ' models.")'
         )
-        r2a_blocks.append("RendererToAgentMessageList = List[RendererToAgentMessage]")
+        r2a_blocks.append("RendererToAgentMessageList = list[RendererToAgentMessage]")
         r2a_blocks.append(
             "class RendererToAgentMessageListWrapper(StrictBaseModel):\n    messages:"
             ' RendererToAgentMessageList = Field(..., description="An object'
@@ -601,11 +597,11 @@ def generate_renderer_to_agent(
         ])
         r2a_blocks.append(
             "class A2uiClientDataModel(StrictBaseModel):\n    version:"
-            " PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION\n    surfaces: Dict[str,"
-            ' Dict[str, Any]] = Field(..., description="A map of surface IDs to data'
+            " PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION\n    surfaces: dict[str,"
+            ' dict[str, Any]] = Field(..., description="A map of surface IDs to data'
             ' models.")'
         )
-        r2a_blocks.append(f"A2uiClientMessageList = List[ClientToServerMessage]")
+        r2a_blocks.append(f"A2uiClientMessageList = list[ClientToServerMessage]")
         r2a_blocks.append(
             "class A2uiClientMessageListWrapper(StrictBaseModel):\n    messages:"
             ' A2uiClientMessageList = Field(..., description="List wrapper.")'
@@ -618,11 +614,10 @@ def generate_renderer_to_agent(
 
     return "\n\n\n".join(b.strip() for b in r2a_blocks if b.strip()) + "\n"
 
-
 def generate_renderer_capabilities(
     version: str,
-    capabilities_data: Dict[str, Any],
-    is_modern: Optional[bool] = None,
+    capabilities_data: dict[str, Any],
+    is_modern: bool | None = None,
     has_catalog_definition: bool = False,
     has_common_types: bool = True,
 ) -> str:
@@ -647,8 +642,8 @@ def generate_renderer_capabilities(
     inline_catalog_defined = False
     for def_name in topological_sort_defs(defs):
         def_spec = dict(defs[def_name])
-        props: Dict[str, Any] = {}
-        req: List[str] = []
+        props: dict[str, Any] = {}
+        req: list[str] = []
         if "allOf" in def_spec:
             for item in def_spec["allOf"]:
                 if isinstance(item, dict):
@@ -739,22 +734,21 @@ def generate_renderer_capabilities(
     if is_modern:
         caps_blocks.append(
             f"class A2uiRendererCapabilities(StrictBaseModel):\n    {dir_name}:"
-            f" Optional[{cap_cls_name}] = Field(None, alias=PROTOCOL_VERSION)"
+            f" {cap_cls_name} | None = Field(None, alias=PROTOCOL_VERSION)"
         )
     else:
         caps_blocks.append(
             f"class A2uiClientCapabilities(StrictBaseModel):\n    {dir_name}:"
-            f" Optional[{cap_cls_name}] = Field(None, alias=PROTOCOL_VERSION)"
+            f" {cap_cls_name} | None = Field(None, alias=PROTOCOL_VERSION)"
         )
         caps_blocks.append("A2uiRendererCapabilities = A2uiClientCapabilities")
 
     return "\n\n\n".join(b.strip() for b in caps_blocks if b.strip()) + "\n"
 
-
 def generate_agent_capabilities(
     version: str,
-    capabilities_data: Dict[str, Any],
-    is_modern: Optional[bool] = None,
+    capabilities_data: dict[str, Any],
+    is_modern: bool | None = None,
     has_common_types: bool = True,
 ) -> str:
     """Generates agent_capabilities.py / server_capabilities.py content."""
@@ -767,7 +761,7 @@ def generate_agent_capabilities(
     caps_blocks = [
         (
             f"{FILE_HEADER}\n"
-            "from typing import Any, Dict, List, Literal, Optional\n"
+            "from typing import Any\n"
             "from pydantic import BaseModel, Field, ConfigDict\n"
             f"from {common_mod} import StrictBaseModel\n"
             "from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE"
@@ -777,8 +771,8 @@ def generate_agent_capabilities(
     defs = capabilities_data.get("$defs", {})
     for def_name in topological_sort_defs(defs):
         def_spec = dict(defs[def_name])
-        props: Dict[str, Any] = {}
-        req: List[str] = []
+        props: dict[str, Any] = {}
+        req: list[str] = []
         if "allOf" in def_spec:
             for item in def_spec["allOf"]:
                 if isinstance(item, dict):
@@ -840,7 +834,7 @@ def generate_agent_capabilities(
     if is_modern:
         caps_blocks.append(
             f"class A2uiAgentCapabilities(StrictBaseModel):\n    {dir_name}:"
-            f" Optional[{cap_cls_name}] = Field(None, alias=PROTOCOL_VERSION)"
+            f" {cap_cls_name} | None = Field(None, alias=PROTOCOL_VERSION)"
         )
     else:
         alt_prefix = "Agent"
@@ -851,17 +845,16 @@ def generate_agent_capabilities(
             caps_blocks.append(f"{cross_alt_cap_cls_name} = {cap_cls_name}")
         caps_blocks.append(
             f"class A2uiServerCapabilities(StrictBaseModel):\n    {dir_name}:"
-            f" Optional[{cap_cls_name}] = Field(None, alias=PROTOCOL_VERSION)"
+            f" {cap_cls_name} | None = Field(None, alias=PROTOCOL_VERSION)"
         )
         caps_blocks.append("A2uiAgentCapabilities = A2uiServerCapabilities")
 
     return "\n\n\n".join(b.strip() for b in caps_blocks if b.strip()) + "\n"
 
-
 def generate_catalog_definition(
     version: str,
-    cat_def_data: Dict[str, Any],
-    common_data: Optional[Dict[str, Any]] = None,
+    cat_def_data: dict[str, Any],
+    common_data: dict[str, Any] | None = None,
 ) -> str:
     """Generates catalog_definition.py content."""
     codegen = PydanticCodegen(version)
@@ -887,8 +880,8 @@ def generate_catalog_definition(
     sorted_def_names = topological_sort_defs(defs)
     for def_name in sorted_def_names:
         def_spec = dict(defs[def_name])
-        props: Dict[str, Any] = {}
-        req: List[str] = []
+        props: dict[str, Any] = {}
+        req: list[str] = []
 
         if "allOf" in def_spec:
             for item in def_spec["allOf"]:
@@ -956,10 +949,9 @@ def generate_catalog_definition(
 
     return "\n\n\n".join(b.strip() for b in blocks if b.strip()) + "\n"
 
-
 def generate_schema_init(
     version: str,
-    modules: Dict[str, str],
+    modules: dict[str, str],
 ) -> str:
     """Generates __init__.py content for a version schema directory by inspecting module symbols."""
     ver_init = [
@@ -967,7 +959,7 @@ def generate_schema_init(
         "",
         "from .constants import *",
     ]
-    all_exports: List[str] = []
+    all_exports: list[str] = []
 
     for mod_name, mod_code in modules.items():
         symbols = extract_exported_symbols(mod_code)

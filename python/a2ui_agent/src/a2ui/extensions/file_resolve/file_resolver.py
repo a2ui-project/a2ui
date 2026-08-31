@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 # "Magic numbers" (magic bytes) are distinct, standardized binary header signatures
 # at the beginning of a file used to identify its true MIME type (similar to Unix libmagic).
 # We inspect these signatures to prevent MIME-spoofing attacks before passing content to models.
-MAGIC_SIGNATURES: Dict[bytes, str] = {
+MAGIC_SIGNATURES: dict[bytes, str] = {
     b"%PDF": "application/pdf",
     b"\x89PNG\r\n\x1a\n": "image/png",
     b"\xff\xd8\xff": "image/jpeg",
@@ -65,7 +65,7 @@ MAGIC_SIGNATURES: Dict[bytes, str] = {
 }
 
 # Standard MIME type aliases to normalize common client variations.
-MIME_ALIASES: Dict[str, str] = {
+MIME_ALIASES: dict[str, str] = {
     "image/jpg": "image/jpeg",
     "image/pjpeg": "image/jpeg",
     "image/x-png": "image/png",
@@ -78,8 +78,8 @@ def _normalize_mime(mime: str) -> str:
 
 
 SchemeHandler = Callable[
-    [str, Dict[str, Any]],
-    Union[bytes, Coroutine[Any, Any, bytes], Awaitable[bytes]],
+    [str, dict[str, Any]],
+    bytes | Coroutine[Any, Any, bytes] | Awaitable[bytes],
 ]
 
 
@@ -95,11 +95,11 @@ class FileResolver:
     def __init__(
         self,
         max_file_bytes: int = 25 * 1024 * 1024,  # 25 MB limit
-        allowed_mime_types: Optional[List[str]] = None,
-        allowed_hosts: Optional[List[str]] = None,
+        allowed_mime_types: list[str] | None = None,
+        allowed_hosts: list[str] | None = None,
         max_concurrent_downloads: int = 5,
-        http_client: Optional[httpx.AsyncClient] = None,
-        custom_schemes: Optional[Dict[str, SchemeHandler]] = None,
+        http_client: httpx.AsyncClient | None = None,
+        custom_schemes: dict[str, SchemeHandler] | None = None,
     ):
         self.max_file_bytes = max_file_bytes
         self.allowed_mime_types = allowed_mime_types
@@ -107,7 +107,7 @@ class FileResolver:
         self.max_concurrent_downloads = max_concurrent_downloads
         self._owns_http_client = http_client is None
         self._http_client = http_client or httpx.AsyncClient()
-        self._custom_schemes: Dict[str, SchemeHandler] = (
+        self._custom_schemes: dict[str, SchemeHandler] = (
             dict(custom_schemes) if custom_schemes else {}
         )
         self._semaphore = asyncio.Semaphore(max_concurrent_downloads)
@@ -165,15 +165,13 @@ class FileResolver:
             )
 
     async def resolve_bytes(
-        self, file_info: Dict[str, Any], session: Optional[Any] = None
+        self, file_info: dict[str, Any], session: Any | None = None
     ) -> tuple[bytes, str]:
         """Resolves raw bytes and verified MIME type from a file pointer dictionary."""
         async with self._semaphore:
             return await self._resolve_bytes_internal(file_info, session)
 
-    def _resolve_inline(
-        self, file_id: str, session: Optional[Any]
-    ) -> tuple[bytes, str]:
+    def _resolve_inline(self, file_id: str, session: Any | None) -> tuple[bytes, str]:
         if not session:
             raise ValueError(f"Cannot resolve {file_id}: No session provided.")
 
@@ -196,7 +194,7 @@ class FileResolver:
 
         raise ValueError(f"Inline data pointer {file_id} not found in session history.")
 
-    async def _resolve_custom(self, file_id: str, file_info: Dict[str, Any]) -> bytes:
+    async def _resolve_custom(self, file_id: str, file_info: dict[str, Any]) -> bytes:
         prefix = next(p for p in self._custom_schemes if file_id.startswith(p))
         handler_res = self._custom_schemes[prefix](file_id, file_info)
         if inspect.isawaitable(handler_res):
@@ -327,7 +325,7 @@ class FileResolver:
         return bytes(buffer)
 
     async def _resolve_bytes_internal(
-        self, file_info: Dict[str, Any], session: Optional[Any] = None
+        self, file_info: dict[str, Any], session: Any | None = None
     ) -> tuple[bytes, str]:
         if not isinstance(file_info, dict):
             raise TypeError("file_info must be a dictionary")
@@ -357,15 +355,15 @@ class FileResolver:
         return raw_bytes, verified_mime
 
     async def to_genai_part(
-        self, file_info: Dict[str, Any], session: Optional[Any] = None
+        self, file_info: dict[str, Any], session: Any | None = None
     ) -> genai_types.Part:
         """Resolves pointer and constructs a ready-to-use GenAI Part."""
         raw_bytes, verified_mime = await self.resolve_bytes(file_info, session)
         return genai_types.Part.from_bytes(data=raw_bytes, mime_type=verified_mime)
 
     async def resolve_all_to_genai_parts(
-        self, files: List[Dict[str, Any]], session: Optional[Any] = None
-    ) -> List[genai_types.Part]:
+        self, files: list[dict[str, Any]], session: Any | None = None
+    ) -> list[genai_types.Part]:
         """Concurrently resolves a list of file attachments with throttling protection."""
         return await asyncio.gather(*(self.to_genai_part(f, session) for f in files))
 
@@ -373,10 +371,10 @@ class FileResolver:
         self,
         arg_name: str = "files",
         inject_name: str = "genai_parts",
-        on_error: Optional[Callable[[Exception], Any]] = None,
-        preprocess: Optional[
-            Callable[[Dict[str, Any], tuple[Any, ...], Dict[str, Any]], None]
-        ] = None,
+        on_error: Callable[[Exception], Any] | None = None,
+        preprocess: (
+            Callable[[dict[str, Any], tuple[Any, ...], dict[str, Any]], None] | None
+        ) = None,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Creates a tool decorator to automatically resolve file pointers into GenAI parts.
 

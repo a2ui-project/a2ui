@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List
+from typing import Any
 import pytest
 
 from a2ui.core.state import (
@@ -31,7 +31,7 @@ dummy_catalog = BasicCatalog()
 
 
 def test_component_model_lifecycle():
-    events: List[ComponentModel] = []
+    events: list[ComponentModel] = []
     comp = ComponentModel("c1", "Button", dummy_catalog, {"label": "Click"})
 
     comp.on_updated.subscribe(lambda c: events.append(c))
@@ -153,8 +153,8 @@ def test_surface_components_model_duplicate_reject():
 
 
 def test_surface_model_action_and_error_dispatch():
-    actions: List[Dict[str, Any]] = []
-    errors: List[Dict[str, Any]] = []
+    actions: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
 
     surface = SurfaceModel("main", dummy_catalog)
     surface.on_action.subscribe(lambda act: actions.append(act))
@@ -176,7 +176,7 @@ def test_surface_model_action_and_error_dispatch():
 
 def test_surface_group_model_unsubscription():
     group = SurfaceGroupModel()
-    actions: List[Dict[str, Any]] = []
+    actions: list[dict[str, Any]] = []
     group.on_action.subscribe(lambda act: actions.append(act))
 
     s1 = SurfaceModel("s1", dummy_catalog)

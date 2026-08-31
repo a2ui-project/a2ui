@@ -15,7 +15,7 @@
 import datetime
 import math
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 from ...rendering.data_context import DataContext
 from ...common.events import AbortSignal
 from ...catalog.functions import (
@@ -80,9 +80,9 @@ def _to_str(val: Any) -> str:
 
 # Validation (v0.9 returns boolean)
 def _required_execute(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: Any = None,
-    abort_signal: Optional[Any] = None,
+    abort_signal: Any | None = None,
 ) -> bool:
     return _to_bool(
         args.get("value") is not None
@@ -95,9 +95,9 @@ RequiredImplementation = create_function_implementation(RequiredApi, _required_e
 
 
 def _regex_execute(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: Any = None,
-    abort_signal: Optional[Any] = None,
+    abort_signal: Any | None = None,
 ) -> bool:
     return bool(
         re.search(_to_str(args.get("pattern", "")), _to_str(args.get("value", "")))
@@ -108,9 +108,9 @@ RegexImplementation = create_function_implementation(RegexApi, _regex_execute)
 
 
 def _length_execute(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: Any = None,
-    abort_signal: Optional[Any] = None,
+    abort_signal: Any | None = None,
 ) -> bool:
     return (
         args.get("min") is None
@@ -125,9 +125,9 @@ LengthImplementation = create_function_implementation(LengthApi, _length_execute
 
 
 def _numeric_execute(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: Any = None,
-    abort_signal: Optional[Any] = None,
+    abort_signal: Any | None = None,
 ) -> bool:
     return (
         args.get("min") is None or _to_float(args["value"]) >= _to_float(args["min"])
@@ -140,9 +140,9 @@ NumericImplementation = create_function_implementation(NumericApi, _numeric_exec
 
 
 def _email_execute(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: Any = None,
-    abort_signal: Optional[Any] = None,
+    abort_signal: Any | None = None,
 ) -> bool:
     return bool(
         re.match(
@@ -157,9 +157,9 @@ EmailImplementation = create_function_implementation(EmailApi, _email_execute)
 
 # Formatting
 def _format_string(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: DataContext,
-    abort_signal: Optional[AbortSignal] = None,
+    abort_signal: AbortSignal | None = None,
 ) -> str:
     template = _to_str(args.get("value", ""))
     if not template:
@@ -192,9 +192,9 @@ FormatStringImplementation = create_function_implementation(
 
 def _format_numeric_locale(
     val: float,
-    decimals: Optional[int],
+    decimals: int | None,
     grouping: bool,
-    locale: Optional[str],
+    locale: str | None,
 ) -> str:
     rules = get_locale_rules(locale)
 
@@ -215,12 +215,12 @@ def _format_numeric_locale(
 
 
 def create_format_number_implementation(
-    locale: Optional[str] = None,
+    locale: str | None = None,
 ) -> FunctionImplementation:
     def _format_number(
-        args: Dict[str, Any],
+        args: dict[str, Any],
         context: DataContext,
-        abort_signal: Optional[AbortSignal] = None,
+        abort_signal: AbortSignal | None = None,
     ) -> str:
         val = _to_float(args.get("value", 0))
         decimals = int(args["decimals"]) if args.get("decimals") is not None else None
@@ -234,12 +234,12 @@ FormatNumberImplementation = create_format_number_implementation(None)
 
 
 def create_format_currency_implementation(
-    locale: Optional[str] = None,
+    locale: str | None = None,
 ) -> FunctionImplementation:
     def _format_currency(
-        args: Dict[str, Any],
+        args: dict[str, Any],
         context: DataContext,
-        abort_signal: Optional[AbortSignal] = None,
+        abort_signal: AbortSignal | None = None,
     ) -> str:
         val = _to_float(args.get("value", 0))
         currency = str(args.get("currency", "USD")).upper()
@@ -266,17 +266,16 @@ def create_format_currency_implementation(
 
 FormatCurrencyImplementation = create_format_currency_implementation(None)
 
-
 _DATE_TOKENS = re.compile(r"yyyy|yy|MMMM|MMM|MM|M|EEEE|E|dd|d|HH|H|hh|h|mm|ss|a|%")
 
 
 def create_format_date_implementation(
-    locale: Optional[str] = None,
+    locale: str | None = None,
 ) -> FunctionImplementation:
     def _format_date(
-        args: Dict[str, Any],
+        args: dict[str, Any],
         context: DataContext,
-        abort_signal: Optional[AbortSignal] = None,
+        abort_signal: AbortSignal | None = None,
     ) -> str:
         val = args.get("value")
         fmt = str(args.get("format", "yyyy-MM-dd"))
@@ -340,12 +339,12 @@ FormatDateImplementation = create_format_date_implementation(None)
 
 
 def create_pluralize_implementation(
-    locale: Optional[str] = None,
+    locale: str | None = None,
 ) -> FunctionImplementation:
     def _pluralize(
-        args: Dict[str, Any],
+        args: dict[str, Any],
         context: DataContext,
-        abort_signal: Optional[AbortSignal] = None,
+        abort_signal: AbortSignal | None = None,
     ) -> str:
         val = _to_float(args.get("value", 0))
         rules = get_locale_rules(locale)
@@ -371,9 +370,9 @@ PluralizeImplementation = create_pluralize_implementation(None)
 
 # Actions
 def _open_url_execute(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: Any = None,
-    abort_signal: Optional[Any] = None,
+    abort_signal: Any | None = None,
 ) -> None:
     return None
 
@@ -383,9 +382,9 @@ OpenUrlImplementation = create_function_implementation(OpenUrlApi, _open_url_exe
 
 # Logical
 def _and_execute(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: Any = None,
-    abort_signal: Optional[Any] = None,
+    abort_signal: Any | None = None,
 ) -> bool:
     return all(_to_bool(v) for v in args.get("values", []))
 
@@ -394,9 +393,9 @@ AndImplementation = create_function_implementation(AndApi, _and_execute)
 
 
 def _or_execute(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: Any = None,
-    abort_signal: Optional[Any] = None,
+    abort_signal: Any | None = None,
 ) -> bool:
     return any(_to_bool(v) for v in args.get("values", []))
 
@@ -405,9 +404,9 @@ OrImplementation = create_function_implementation(OrApi, _or_execute)
 
 
 def _not_execute(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: Any = None,
-    abort_signal: Optional[Any] = None,
+    abort_signal: Any | None = None,
 ) -> bool:
     return not _to_bool(args.get("value"))
 
@@ -417,10 +416,10 @@ NotImplementation = create_function_implementation(NotApi, _not_execute)
 
 # Operators
 def _add(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: Any = None,
-    abort_signal: Optional[Any] = None,
-) -> Union[int, float]:
+    abort_signal: Any | None = None,
+) -> int | float:
     res = _to_float(args["a"]) + _to_float(args["b"])
     return int(res) if res.is_integer() else res
 
@@ -429,10 +428,10 @@ AddImplementation = create_function_implementation(AddApi, _add)
 
 
 def _subtract(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: Any = None,
-    abort_signal: Optional[Any] = None,
-) -> Union[int, float]:
+    abort_signal: Any | None = None,
+) -> int | float:
     res = _to_float(args["a"]) - _to_float(args["b"])
     return int(res) if res.is_integer() else res
 
@@ -441,10 +440,10 @@ SubtractImplementation = create_function_implementation(SubtractApi, _subtract)
 
 
 def _multiply(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: Any = None,
-    abort_signal: Optional[Any] = None,
-) -> Union[int, float]:
+    abort_signal: Any | None = None,
+) -> int | float:
     res = _to_float(args["a"]) * _to_float(args["b"])
     return int(res) if res.is_integer() else res
 
@@ -453,10 +452,10 @@ MultiplyImplementation = create_function_implementation(MultiplyApi, _multiply)
 
 
 def _divide(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: Any = None,
-    abort_signal: Optional[Any] = None,
-) -> Union[int, float]:
+    abort_signal: Any | None = None,
+) -> int | float:
     a = _to_float(args["a"])
     b = _to_float(args["b"])
     if b == 0:
@@ -474,9 +473,9 @@ DivideImplementation = create_function_implementation(DivideApi, _divide)
 
 
 def _equals_execute(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: Any = None,
-    abort_signal: Optional[Any] = None,
+    abort_signal: Any | None = None,
 ) -> bool:
     return args.get("a") == args.get("b")
 
@@ -485,9 +484,9 @@ EqualsImplementation = create_function_implementation(EqualsApi, _equals_execute
 
 
 def _not_equals_execute(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: Any = None,
-    abort_signal: Optional[Any] = None,
+    abort_signal: Any | None = None,
 ) -> bool:
     return args.get("a") != args.get("b")
 
@@ -498,9 +497,9 @@ NotEqualsImplementation = create_function_implementation(
 
 
 def _greater_than_execute(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: Any = None,
-    abort_signal: Optional[Any] = None,
+    abort_signal: Any | None = None,
 ) -> bool:
     return _to_float(args.get("a")) > _to_float(args.get("b"))
 
@@ -511,9 +510,9 @@ GreaterThanImplementation = create_function_implementation(
 
 
 def _less_than_execute(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: Any = None,
-    abort_signal: Optional[Any] = None,
+    abort_signal: Any | None = None,
 ) -> bool:
     return _to_float(args.get("a")) < _to_float(args.get("b"))
 
@@ -522,9 +521,9 @@ LessThanImplementation = create_function_implementation(LessThanApi, _less_than_
 
 
 def _contains_execute(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: Any = None,
-    abort_signal: Optional[Any] = None,
+    abort_signal: Any | None = None,
 ) -> bool:
     return _to_str(args.get("substring", "")) in _to_str(args.get("string", ""))
 
@@ -533,9 +532,9 @@ ContainsImplementation = create_function_implementation(ContainsApi, _contains_e
 
 
 def _starts_with_execute(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: Any = None,
-    abort_signal: Optional[Any] = None,
+    abort_signal: Any | None = None,
 ) -> bool:
     return _to_str(args.get("string", "")).startswith(_to_str(args.get("prefix", "")))
 
@@ -546,9 +545,9 @@ StartsWithImplementation = create_function_implementation(
 
 
 def _ends_with_execute(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     context: Any = None,
-    abort_signal: Optional[Any] = None,
+    abort_signal: Any | None = None,
 ) -> bool:
     return _to_str(args.get("string", "")).endswith(_to_str(args.get("suffix", "")))
 
@@ -557,8 +556,8 @@ EndsWithImplementation = create_function_implementation(EndsWithApi, _ends_with_
 
 
 def create_basic_catalog_functions(
-    locale: Optional[str] = None,
-) -> List[FunctionImplementation]:
+    locale: str | None = None,
+) -> list[FunctionImplementation]:
     return [
         RequiredImplementation,
         RegexImplementation,

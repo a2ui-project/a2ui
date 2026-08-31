@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from typing import Optional, List, Any, Dict
+from typing import Any
 
 from packaging.version import Version, parse as parse_version
 from a2a.server.agent_execution import RequestContext
@@ -39,7 +39,7 @@ def get_a2ui_extension_uri_version(a2ui_extension_uri: str) -> str:
 def get_a2ui_agent_extension(
     version: str,
     accepts_inline_catalogs: bool = False,
-    supported_catalog_ids: List[str] = [],
+    supported_catalog_ids: list[str] = [],
 ) -> AgentExtension:
     """Creates the A2UI AgentExtension configuration.
 
@@ -51,7 +51,7 @@ def get_a2ui_agent_extension(
     Returns:
         The configured A2UI AgentExtension.
     """
-    params: Dict[str, Any] = {}
+    params: dict[str, Any] = {}
     if accepts_inline_catalogs:
         params[AGENT_EXTENSION_ACCEPTS_INLINE_CATALOGS_KEY] = (
             True  # Only set if not default of False
@@ -67,7 +67,7 @@ def get_a2ui_agent_extension(
     )
 
 
-def _agent_extensions(agent_card: AgentCard) -> List[str]:
+def _agent_extensions(agent_card: AgentCard) -> list[str]:
     """Returns the A2UI extension URIs supported by the agent."""
     extensions = []
     if (
@@ -83,7 +83,7 @@ def _agent_extensions(agent_card: AgentCard) -> List[str]:
     return extensions
 
 
-def _requested_a2ui_extensions(context: RequestContext) -> List[str]:
+def _requested_a2ui_extensions(context: RequestContext) -> list[str]:
     """Returns the A2UI extension URIs requested by the client."""
     requested_extensions = []
     if hasattr(context, "requested_extensions") and context.requested_extensions:
@@ -109,8 +109,8 @@ def _requested_a2ui_extensions(context: RequestContext) -> List[str]:
 
 
 def _select_newest_a2ui_extension(
-    requested_extensions: List[str], agent_advertised_extensions: List[str]
-) -> Optional[str]:
+    requested_extensions: list[str], agent_advertised_extensions: list[str]
+) -> str | None:
     """Selects the newest A2UI extension URI from the matched extensions."""
     matched_extensions = [
         uri for uri in requested_extensions if uri in agent_advertised_extensions
@@ -127,7 +127,7 @@ def _select_newest_a2ui_extension(
 
 def try_activate_a2ui_extension(
     context: RequestContext, agent_card: AgentCard
-) -> Optional[str]:
+) -> str | None:
     """Activates the A2UI extension if requested.
 
     Args:

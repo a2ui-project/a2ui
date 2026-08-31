@@ -14,7 +14,7 @@
 
 """Parser utilities to extract and compile A2UI Express DSL from LLM responses."""
 
-from typing import Any, List, Union
+from typing import Any
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
@@ -31,7 +31,7 @@ class ExpressParser(Parser):
 
     def __init__(
         self,
-        catalog: Union[Catalog[Any, Any], A2uiCatalog],
+        catalog: Catalog[Any, Any] | A2uiCatalog,
         surface_id: str = "main",
         version: str = "v1.0",
     ):
@@ -63,7 +63,7 @@ class ExpressParser(Parser):
             )
         return A2UI_INFERENCE_OPEN_TAG[:-1] in content
 
-    def unwrap(self, content: str) -> List[ResponsePart]:
+    def unwrap(self, content: str) -> list[ResponsePart]:
         """Unwraps/tokenizes the response content into raw Express DSL parts."""
         from a2ui.parser.lexer import BlockLexer
 
@@ -77,7 +77,7 @@ class ExpressParser(Parser):
 
     def compile(
         self, format_content: str, *, is_final: bool = True
-    ) -> List[dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Compiles raw Express DSL to structured A2UI messages."""
         from a2ui.parser.errors import A2uiCompilationError
 
@@ -104,10 +104,10 @@ class ExpressParser(Parser):
                 help_message=help_msg,
             ) from e
 
-    def decompile(self, val: Union[dict[str, Any], List[dict[str, Any]]]) -> str:
+    def decompile(self, val: dict[str, Any] | list[dict[str, Any]]) -> str:
         """Decompiles a structured A2UI payload into this format's raw notation."""
         return _ExpressDecompiler(self.catalog).decompile(val)
 
-    def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
+    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         """Wraps multiple decompiled blocks with the format's enclosing tags/markers."""
         return _ExpressDecompiler(self.catalog).wrap_decompiled_blocks(blocks)

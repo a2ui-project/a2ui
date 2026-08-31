@@ -20,19 +20,20 @@ from ..common_types import StrictBaseModel
 from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
 
-ComponentsList = List[Dict[str, Any]]
-Component = Dict[str, Any]
+ComponentsList = list[dict[str, Any]]
+Component = dict[str, Any]
 
 
 class BeginRendering(StrictBaseModel):
     """Signals the client to begin rendering a surface with a root component and specific styles."""
 
+    model_config = ConfigDict(populate_by_name=True)
     surface_id: str = Field(
         ...,
         alias="surfaceId",
         description="The unique identifier for the UI surface to be rendered.",
     )
-    catalog_id: Optional[str] = Field(
+    catalog_id: str | None = Field(
         None,
         alias="catalogId",
         description=(
@@ -43,7 +44,7 @@ class BeginRendering(StrictBaseModel):
         ),
     )
     root: str = Field(..., description="The ID of the root component to render.")
-    styles: Optional[Dict[str, Any]] = Field(
+    styles: dict[str, Any] | None = Field(
         None, description="Styling information for the UI."
     )
 
@@ -56,6 +57,7 @@ class BeginRenderingMessage(StrictBaseModel):
 class SurfaceUpdate(StrictBaseModel):
     """Updates a surface with a new set of components."""
 
+    model_config = ConfigDict(populate_by_name=True)
     surface_id: str = Field(
         ...,
         alias="surfaceId",
@@ -65,7 +67,7 @@ class SurfaceUpdate(StrictBaseModel):
             " used for any existing surfaces shown."
         ),
     )
-    components: List[Dict[str, Any]] = Field(
+    components: list[dict[str, Any]] = Field(
         ..., description="A list containing all UI components for the surface."
     )
 
@@ -78,6 +80,7 @@ class SurfaceUpdateMessage(StrictBaseModel):
 class DataModelUpdate(StrictBaseModel):
     """Updates the data model for a surface."""
 
+    model_config = ConfigDict(populate_by_name=True)
     surface_id: str = Field(
         ...,
         alias="surfaceId",
@@ -86,14 +89,14 @@ class DataModelUpdate(StrictBaseModel):
             " applies to."
         ),
     )
-    path: Optional[str] = Field(
+    path: str | None = Field(
         None,
         description=(
             "An optional path to a location within the data model (e.g., '/user/name')."
             " If omitted, or set to '/', the entire data model will be replaced."
         ),
     )
-    contents: List[Dict[str, Any]] = Field(
+    contents: list[dict[str, Any]] = Field(
         ...,
         description=(
             "An array of data entries. Each entry must contain a 'key' and exactly one"
@@ -110,6 +113,7 @@ class DataModelUpdateMessage(StrictBaseModel):
 class DeleteSurface(StrictBaseModel):
     """Signals the client to delete the surface identified by 'surfaceId'."""
 
+    model_config = ConfigDict(populate_by_name=True)
     surface_id: str = Field(
         ...,
         alias="surfaceId",
@@ -130,12 +134,12 @@ UpdateDataModel = DataModelUpdate
 UpdateDataModelMessage = DataModelUpdateMessage
 
 
-ServerToClientMessage = Union[
-    BeginRenderingMessage,
-    SurfaceUpdateMessage,
-    DataModelUpdateMessage,
-    DeleteSurfaceMessage,
-]
+ServerToClientMessage = (
+    BeginRenderingMessage
+    | SurfaceUpdateMessage
+    | DataModelUpdateMessage
+    | DeleteSurfaceMessage
+)
 
 
 AgentToRendererMessage = ServerToClientMessage
@@ -143,6 +147,6 @@ A2uiMessage = ServerToClientMessage
 
 
 class A2uiMessageListWrapper(StrictBaseModel):
-    messages: List[ServerToClientMessage] = Field(
+    messages: list[ServerToClientMessage] = Field(
         ..., description="A list of messages."
     )

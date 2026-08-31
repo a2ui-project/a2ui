@@ -20,14 +20,14 @@ import glob
 import json
 import logging
 import os
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from functools import cached_property
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 from urllib.parse import urlparse
 from a2ui.core.catalog import Catalog
 from a2ui.core import A2uiCatalogError
 from a2ui.core.validation.payload_validator import PayloadValidator, STRICT_VALIDATION
-
 
 from .catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
 from .constants import (
@@ -58,16 +58,16 @@ class CatalogConfig:
 
     name: str
     provider: A2uiCatalogProvider
-    examples_path: Optional[str] = None
-    custom_cuttable_keys: Optional[frozenset[str]] = None
+    examples_path: str | None = None
+    custom_cuttable_keys: frozenset[str] | None = None
 
     @classmethod
     def from_path(
         cls,
         name: str,
         catalog_path: str,
-        examples_path: Optional[str] = None,
-        custom_cuttable_keys: Optional[frozenset[str]] = None,
+        examples_path: str | None = None,
+        custom_cuttable_keys: frozenset[str] | None = None,
     ) -> CatalogConfig:
         """Returns a CatalogConfig that loads from a local path or 'file://' URI."""
         parsed = urlparse(catalog_path)
@@ -86,7 +86,7 @@ class CatalogConfig:
         )
 
 
-def resolve_examples_path(path: Optional[str]) -> Optional[str]:
+def resolve_examples_path(path: str | None) -> str | None:
     if path:
         parsed = urlparse(path)
         if not parsed.scheme or parsed.scheme == "file":
@@ -112,10 +112,10 @@ def _collect_refs(obj: Any) -> set[str]:
 
 
 def _prune_defs_by_reachability(
-    defs: Dict[str, Any],
-    root_def_names: List[str],
+    defs: Mapping[str, Any],
+    root_def_names: Sequence[str],
     internal_ref_prefix: str = "#/$defs/",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Prunes definitions not reachable from the provided roots.
 
     Args:
@@ -158,11 +158,11 @@ class A2uiCatalog:
 
     version: str
     name: str
-    s2c_schema: Dict[str, Any]
-    common_types_schema: Dict[str, Any]
-    catalog_schema: Dict[str, Any]
-    custom_cuttable_keys: Optional[frozenset[str]] = None
-    experiments: Optional[frozenset[str]] = None
+    s2c_schema: Mapping[str, Any]
+    common_types_schema: Mapping[str, Any]
+    catalog_schema: Mapping[str, Any]
+    custom_cuttable_keys: frozenset[str] | None = None
+    experiments: frozenset[str] | None = None
 
     @property
     def cuttable_keys(self) -> frozenset[str]:
@@ -200,7 +200,7 @@ class A2uiCatalog:
             [self.core_catalog], validation_config=STRICT_VALIDATION
         ).process_messages(msg_list)
 
-    def _with_pruned_components(self, allowed_components: List[str]) -> A2uiCatalog:
+    def _with_pruned_components(self, allowed_components: Sequence[str]) -> A2uiCatalog:
         """Returns a new catalog with only allowed components.
 
         Args:
@@ -213,7 +213,7 @@ class A2uiCatalog:
         if not allowed_components:
             return self
 
-        schema_copy = copy.deepcopy(self.catalog_schema)
+        schema_copy = copy.deepcopy(dict(self.catalog_schema))
 
         if CATALOG_COMPONENTS_KEY in schema_copy and isinstance(
             schema_copy[CATALOG_COMPONENTS_KEY], dict
@@ -247,7 +247,7 @@ class A2uiCatalog:
 
         return replace(self, catalog_schema=schema_copy)
 
-    def _with_pruned_messages(self, allowed_messages: List[str]) -> A2uiCatalog:
+    def _with_pruned_messages(self, allowed_messages: Sequence[str]) -> A2uiCatalog:
         """Returns a new catalog with only allowed messages.
 
         Args:
@@ -259,7 +259,7 @@ class A2uiCatalog:
         if not allowed_messages:
             return self
 
-        s2c_schema_copy = copy.deepcopy(self.s2c_schema)
+        s2c_schema_copy = copy.deepcopy(dict(self.s2c_schema))
 
         if self.version == VERSION_0_8:
             # 0.8 style: Messages are in root properties.
@@ -297,8 +297,8 @@ class A2uiCatalog:
 
     def with_pruning(
         self,
-        allowed_components: Optional[List[str]] = None,
-        allowed_messages: Optional[List[str]] = None,
+        allowed_components: Sequence[str] | None = None,
+        allowed_messages: Sequence[str] | None = None,
     ) -> A2uiCatalog:
         """Returns a new catalog with pruned components and messages.
 
@@ -367,7 +367,7 @@ class A2uiCatalog:
 
         return "\n\n".join(all_schemas)
 
-    def load_examples(self, path: Optional[str], validate: bool = False) -> str:
+    def load_examples(self, path: str | None, validate: bool = False) -> str:
         """Loads and validates examples from a directory or a glob pattern."""
         if not path:
             return ""

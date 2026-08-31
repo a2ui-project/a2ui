@@ -16,7 +16,7 @@
 
 import ast
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 FILE_HEADER = """# Copyright 2024 Google LLC
 #
@@ -35,7 +35,6 @@ FILE_HEADER = """# Copyright 2024 Google LLC
 # Auto-generated. Do not edit manually.
 from __future__ import annotations"""
 
-
 def ensure_v_prefix(version: str) -> str:
     """Ensures a version string has a 'v' or 'V' prefix (e.g. '0.9' -> 'v0.9')."""
     if not version:
@@ -43,12 +42,10 @@ def ensure_v_prefix(version: str) -> str:
     v = version.strip()
     return v if v.startswith("v") or v.startswith("V") else f"v{v}"
 
-
 def version_to_underscore(version: str) -> str:
     """Converts a dotted version string (e.g. 'v0.9', '0.8') to underscore format (e.g. 'v0_9', 'v0_8')."""
     v = ensure_v_prefix(version)
     return v.lower().replace(".", "_")
-
 
 def is_modern_terminology(version: str, a2r_name: str = "") -> bool:
     """Returns True if modern A2UI terminology (agent_to_renderer / renderer_to_agent) is used."""
@@ -73,7 +70,6 @@ def is_modern_terminology(version: str, a2r_name: str = "") -> bool:
 
     return dir_name not in ("v0_8", "v0_9", "v0_9_1")
 
-
 def to_snake_case(name: str) -> str:
     """Converts a camelCase or PascalCase identifier to snake_case."""
     if name == "$schema":
@@ -89,7 +85,6 @@ def to_snake_case(name: str) -> str:
     s1 = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
     return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 
-
 def to_pascal_case(name: str) -> str:
     """Converts a camelCase or snake_case string to PascalCase preserving camelCase segments."""
     if not name:
@@ -100,14 +95,13 @@ def to_pascal_case(name: str) -> str:
     parts = clean.split("_")
     return "".join(p[0].upper() + p[1:] for p in parts if p)
 
-
-def extract_exported_symbols(code: str) -> List[str]:
+def extract_exported_symbols(code: str) -> list[str]:
     """Extracts top-level public class names, function names, and variable/alias assignments from Python code."""
     try:
         tree = ast.parse(code)
     except SyntaxError:
         return []
-    symbols: List[str] = []
+    symbols: list[str] = []
     for node in tree.body:
         if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
             if not node.name.startswith("_"):
@@ -121,8 +115,7 @@ def extract_exported_symbols(code: str) -> List[str]:
                 symbols.append(node.target.id)
     return list(dict.fromkeys(symbols))
 
-
-def get_base_common_symbols(common_types_path: Optional[str] = None) -> List[str]:
+def get_base_common_symbols(common_types_path: str | None = None) -> list[str]:
     """Extracts public symbols defined in schema/common_types.py dynamically via AST."""
     import os
 
@@ -139,8 +132,7 @@ def get_base_common_symbols(common_types_path: Optional[str] = None) -> List[str
                 return symbols
     return []
 
-
-def get_schema_dependencies(node: Any, deps: Optional[set[str]] = None) -> set[str]:
+def get_schema_dependencies(node: Any, deps: set[str] | None = None) -> set[str]:
     """Recursively extracts all local #/$defs/ references from a schema node."""
     if deps is None:
         deps = set()
@@ -161,14 +153,13 @@ def get_schema_dependencies(node: Any, deps: Optional[set[str]] = None) -> set[s
             get_schema_dependencies(v, deps)
     return deps
 
-
-def topological_sort_defs(defs: Dict[str, Any]) -> List[str]:
+def topological_sort_defs(defs: dict[str, Any]) -> list[str]:
     """Topologically sorts schema definitions by their internal $defs dependencies."""
-    graph: Dict[str, set[str]] = {}
+    graph: dict[str, set[str]] = {}
     for name, def_spec in defs.items():
         deps = get_schema_dependencies(def_spec)
         # Break cycles between dynamic values and function calls:
-        # In Python, DynamicValue/Dynamic* are type aliases (Union[..., FunctionCall])
+        # In Python, DynamicValue/Dynamic* are type aliases (... | FunctionCall)
         # evaluated at import time, so FunctionCall must precede DynamicValue.
         # The reference from FunctionCall.args to DynamicValue is an annotation
         # resolved via `from __future__ import annotations`.
@@ -178,7 +169,7 @@ def topological_sort_defs(defs: Dict[str, Any]) -> List[str]:
         graph[name] = {d for d in deps if d in defs and d != name}
 
     visited: set[str] = set()
-    order: List[str] = []
+    order: list[str] = []
 
     def visit(name: str) -> None:
         if name in visited:
@@ -200,11 +191,10 @@ def topological_sort_defs(defs: Dict[str, Any]) -> List[str]:
 
     return order
 
-
 def find_common_refs(
     node: Any,
     common_def_names: set[str],
-    common_defs: Optional[Dict[str, Any]] = None,
+    common_defs: dict[str, Any] | None = None,
 ) -> set[str]:
     """Recursively extracts all referenced common_types schema names, following common def dependencies."""
     refs: set[str] = set()

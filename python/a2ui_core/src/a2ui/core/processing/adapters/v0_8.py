@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Set
+from typing import Any
 from .base import BaseVersionAdapter
 from ...schema import ProtocolVersion, AgentToRendererMessagePayload
 from ...schema.v0_8 import (
@@ -43,7 +43,7 @@ class V0Point8Adapter(BaseVersionAdapter):
         return A2uiMessageListWrapper
 
     @property
-    def valid_actions(self) -> Set[str]:
+    def valid_actions(self) -> set[str]:
         return {
             MSG_TYPE_BEGIN_RENDERING,
             MSG_TYPE_SURFACE_UPDATE,
@@ -56,9 +56,9 @@ class V0Point8Adapter(BaseVersionAdapter):
         return False
 
     def _extract_operations_for_action(
-        self, action: str, message: Dict[str, Any]
-    ) -> List[InternalOperation]:
-        res: List[InternalOperation] = []
+        self, action: str, message: dict[str, Any]
+    ) -> list[InternalOperation]:
+        res: list[InternalOperation] = []
         if action == MSG_TYPE_BEGIN_RENDERING:
             br = message[MSG_TYPE_BEGIN_RENDERING]
             res.append(
@@ -77,12 +77,12 @@ class V0Point8Adapter(BaseVersionAdapter):
             raw_comps = su.get("components")
             if not isinstance(raw_comps, list):
                 raw_comps = []
-            norm_comps: List[Dict[str, Any]] = []
+            norm_comps: list[dict[str, Any]] = []
             for c in raw_comps:
                 if isinstance(c, dict):
                     c_id = c.get("id")
                     c_comp = c.get("component")
-                    comp_item: Dict[str, Any] = {"id": c_id}
+                    comp_item: dict[str, Any] = {"id": c_id}
                     if isinstance(c_comp, dict) and c_comp:
                         comp_type = next(iter(c_comp.keys()))
                         comp_item["component"] = comp_type

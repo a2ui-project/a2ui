@@ -18,7 +18,7 @@ Subclasses the core ExpressionParser to support JSX-style expression syntax,
 including array literals, object literals, and path bindings prefixed with '$'.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 from a2ui.core.basic_catalog.expression_parser import ExpressionParser, Scanner
 
 
@@ -69,7 +69,7 @@ class ElementalExpressionParser(ExpressionParser):
         # Delegate to parent for primitives, identifiers, and function calls
         return super()._parse_expression_internal(scanner, depth)
 
-    def parse_array_literal(self, scanner: Scanner, depth: int) -> List[Any]:
+    def parse_array_literal(self, scanner: Scanner, depth: int) -> list[Any]:
         """Parses an array literal: [expr1, expr2, ...]"""
         scanner.match("[")
         scanner.skip_whitespace()
@@ -91,7 +91,7 @@ class ElementalExpressionParser(ExpressionParser):
 
     def parse_function_call(
         self, func_name: str, scanner: Scanner, depth: int
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Parses a function call, supporting both positional and named arguments.
 
         If an argument is not followed by a colon ':', it is treated as a positional
@@ -138,7 +138,7 @@ class ElementalExpressionParser(ExpressionParser):
             return {"call": func_name, "args": positional_args, "returnType": "any"}
         return {"call": func_name, "args": args, "returnType": "any"}
 
-    def parse_object_literal(self, scanner: Scanner, depth: int) -> Dict[str, Any]:
+    def parse_object_literal(self, scanner: Scanner, depth: int) -> dict[str, Any]:
         """Parses an object literal: {key1: val1, key2: val2, ...}"""
         scanner.match("{")
         scanner.skip_whitespace()

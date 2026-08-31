@@ -21,8 +21,9 @@ from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
 
 class FunctionDefinition(BaseModel):
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
     """Describes a function's validation schema and interface metadata."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
     return_type: Literal[
         "string",
         "number",
@@ -35,14 +36,14 @@ class FunctionDefinition(BaseModel):
     ] = Field(
         ..., alias="returnType", description="The type of value this function returns."
     )
-    allowed_callers: Optional[
-        Literal["rendererOnly", "agentOnly", "rendererOrAgent"]
-    ] = Field(
-        alias="allowedCallers",
-        description="Specifies which roles are authorized to invoke this function.",
-        default="rendererOnly",
+    allowed_callers: Literal["rendererOnly", "agentOnly", "rendererOrAgent"] | None = (
+        Field(
+            alias="allowedCallers",
+            description="Specifies which roles are authorized to invoke this function.",
+            default="rendererOnly",
+        )
     )
-    requires_user_activation: Optional[bool] = Field(
+    requires_user_activation: bool | None = Field(
         alias="requiresUserActivation",
         description=(
             "Specifies whether this function requires a user activation context to"
@@ -62,9 +63,10 @@ class FunctionDefinition(BaseModel):
 
 
 class ComponentDefinition(BaseModel):
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
     """Describes a component's validation schema and composition constraints."""
-    allowed_parents: Optional[List[str]] = Field(
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+    allowed_parents: list[str] | None = Field(
         None,
         alias="allowedParents",
         description=(
@@ -77,7 +79,7 @@ class ComponentDefinition(BaseModel):
             ' "CanvasContainer"]).'
         ),
     )
-    allowed_children: Optional[List[str]] = Field(
+    allowed_children: list[str] | None = Field(
         None,
         alias="allowedChildren",
         description=(
@@ -85,23 +87,22 @@ class ComponentDefinition(BaseModel):
             " slot. If omitted, all child component types are allowed."
         ),
     )
-    metadata: Optional[Extensions] = Field(
-        None, description="Optional static metadata."
-    )
+    metadata: Extensions | None = Field(None, description="Optional static metadata.")
 
 
 class ValidationResult(StrictBaseModel):
     """Dynamic validation result object returned by a validation condition function or data binding."""
 
+    model_config = ConfigDict(populate_by_name=True)
     valid: bool = Field(..., description="Whether the check passed.")
-    code: Optional[str] = Field(
+    code: str | None = Field(
         None,
         description="Machine-readable error code (e.g. EXPIRED_CARD, OUT_OF_RANGE).",
     )
-    message: Optional[str] = Field(
+    message: str | None = Field(
         None, description="Human-readable error or warning message."
     )
-    severity: Optional[Literal["error", "warning", "info"]] = Field(
+    severity: Literal["error", "warning", "info"] | None = Field(
         description="Severity level of the validation result.", default="error"
     )
 
@@ -109,6 +110,7 @@ class ValidationResult(StrictBaseModel):
 class CatalogDefs(BaseModel):
     """Standardized schema definitions referenced from outside the catalog file."""
 
+    model_config = ConfigDict(populate_by_name=True)
     any_component: Any = Field(
         ...,
         alias="anyComponent",
@@ -124,9 +126,10 @@ class CatalogDefs(BaseModel):
 class CatalogDefinition(StrictBaseModel):
     """A collection of component and function definitions."""
 
-    schema_uri: Optional[str] = Field(None, alias="$schema")
-    schema_id: Optional[str] = Field(None, alias="$id")
-    protocol_version: Optional[str] = Field(
+    model_config = ConfigDict(populate_by_name=True)
+    schema_uri: str | None = Field(None, alias="$schema")
+    schema_id: str | None = Field(None, alias="$id")
+    protocol_version: str | None = Field(
         alias="protocolVersion",
         description=(
             "The A2UI specification version of this catalog definition (e.g. '1.0')."
@@ -135,24 +138,24 @@ class CatalogDefinition(StrictBaseModel):
         pattern=r"^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:\\.(0|[1-9][0-9]*))?(?:-((?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$",
         default="0.9",
     )
-    defs: Optional[CatalogDefs] = Field(None, alias="$defs")
-    title: Optional[str] = Field(None, description="The title of the catalog.")
-    description: Optional[str] = Field(
+    defs: CatalogDefs | None = Field(None, alias="$defs")
+    title: str | None = Field(None, description="The title of the catalog.")
+    description: str | None = Field(
         None, description="A human-readable description of the catalog."
     )
     catalog_id: str = Field(
         ..., alias="catalogId", description="Unique identifier for this catalog."
     )
-    instructions: Optional[str] = Field(
+    instructions: str | None = Field(
         None,
         description=(
             "Markdown-formatted design guidelines or instructions specific to this"
             " catalog."
         ),
     )
-    components: Optional[Dict[str, ComponentDefinition]] = Field(
+    components: dict[str, ComponentDefinition] | None = Field(
         None, description="Definitions for UI components supported by this catalog."
     )
-    functions: Optional[Dict[str, FunctionDefinition]] = Field(
+    functions: dict[str, FunctionDefinition] | None = Field(
         None, description="Definitions for functions supported by this catalog."
     )

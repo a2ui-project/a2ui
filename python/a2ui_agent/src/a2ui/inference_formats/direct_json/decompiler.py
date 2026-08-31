@@ -15,7 +15,7 @@
 """Standard Direct JSON format decompiler."""
 
 import json
-from typing import Any, List
+from typing import Any
 from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
 
 
@@ -26,7 +26,7 @@ class _DirectJsonDecompiler:
         """Decompiles a structured JSON payload to pretty-printed JSON."""
         return json.dumps(val, indent=2)
 
-    def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
+    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         """Wraps JSON string blocks within <a2ui-json> tags."""
         full_json = "\n".join(blocks)
         return f"{A2UI_OPEN_TAG}\n{full_json}\n{A2UI_CLOSE_TAG}"

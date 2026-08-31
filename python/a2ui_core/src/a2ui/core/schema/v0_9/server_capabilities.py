@@ -14,14 +14,14 @@
 
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any
 from pydantic import BaseModel, Field, ConfigDict
 from .common_types import StrictBaseModel
 from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
 
 class V09ServerCapabilities(StrictBaseModel):
-    supported_catalog_ids: Optional[List[str]] = Field(
+    supported_catalog_ids: list[str] | None = Field(
         None,
         alias="supportedCatalogIds",
         description=(
@@ -30,7 +30,7 @@ class V09ServerCapabilities(StrictBaseModel):
             " resolvable URI."
         ),
     )
-    accepts_inline_catalogs: Optional[bool] = Field(
+    accepts_inline_catalogs: bool | None = Field(
         alias="acceptsInlineCatalogs",
         description=(
             "A boolean indicating if the server can accept an 'inlineCatalogs' array in"
@@ -50,7 +50,7 @@ V0_9AgentCapabilities = V09ServerCapabilities
 
 
 class A2uiServerCapabilities(StrictBaseModel):
-    v0_9: Optional[V09ServerCapabilities] = Field(None, alias=PROTOCOL_VERSION)
+    v0_9: V09ServerCapabilities | None = Field(None, alias=PROTOCOL_VERSION)
 
 
 A2uiAgentCapabilities = A2uiServerCapabilities

@@ -87,7 +87,7 @@ def test_map_json_type_to_python():
         codegen.map_json_type_to_python(
             "comp", {"$ref": "common_types.json#/$defs/Component"}
         )
-        == "Dict[str, Any]"
+        == "dict[str, Any]"
     )
     assert (
         codegen.map_json_type_to_python(
@@ -99,12 +99,12 @@ def test_map_json_type_to_python():
         codegen.map_json_type_to_python(
             "comps", {"$ref": "common_types.json#/$defs/ComponentsList"}
         )
-        == "List[Dict[str, Any]]"
+        == "list[dict[str, Any]]"
     )
 
     # Unions
     union_prop = {"oneOf": [{"type": "string"}, {"type": "integer"}]}
-    assert codegen.map_json_type_to_python("union", union_prop) == "Union[str, int]"
+    assert codegen.map_json_type_to_python("union", union_prop) == "str | int"
 
     union_single = {"anyOf": [{"type": "boolean"}]}
     assert codegen.map_json_type_to_python("union_single", union_single) == "bool"
@@ -133,10 +133,10 @@ def test_map_json_type_to_python():
         codegen.map_json_type_to_python(
             "prop", {"type": "array", "items": {"type": "string"}}
         )
-        == "List[str]"
+        == "list[str]"
     )
     assert (
-        codegen.map_json_type_to_python("prop", {"type": "object"}) == "Dict[str, Any]"
+        codegen.map_json_type_to_python("prop", {"type": "object"}) == "dict[str, Any]"
     )
     assert codegen.map_json_type_to_python("prop", {}) == "Any"
 
@@ -154,7 +154,7 @@ def test_compile_properties_to_pydantic():
     props = {"title": {"type": "string"}}
     lines = codegen.compile_properties(props, [])
     assert len(lines) == 1
-    assert lines[0] == "    title: Optional[str] = Field(None)"
+    assert lines[0] == "    title: str | None = Field(None)"
 
     # Default values
     props = {
@@ -163,8 +163,8 @@ def test_compile_properties_to_pydantic():
     }
     lines = codegen.compile_properties(props, [])
     assert len(lines) == 2
-    assert "    num: Optional[int] = Field(default=42)" in lines
-    assert '    text: Optional[str] = Field(default="hello")' in lines
+    assert "    num: int | None = Field(default=42)" in lines
+    assert '    text: str | None = Field(default="hello")' in lines
 
     # CamelCase to snake_case alias
     props = {"surfaceId": {"type": "string"}}
@@ -199,7 +199,7 @@ def test_compile_union_def():
         "oneOf": [{"type": "string"}, {"$ref": "common_types.json#/$defs/DataBinding"}]
     }
     code = codegen.compile_union_def("StringOrBinding", spec)
-    assert code == "StringOrBinding = Union[str, DataBinding]\n"
+    assert code == "StringOrBinding = str | DataBinding\n"
 
 
 def test_extract_exported_symbols():
@@ -216,7 +216,7 @@ def helper_func():
 def _private_func():
     pass
 
-AnyComponent = Union[TextComponent, ButtonComponent]
+AnyComponent = TextComponent | ButtonComponent
 BASIC_COMPONENTS = [TextComponent, ButtonComponent]
 _PRIVATE_VAR = 123
 """
@@ -282,13 +282,11 @@ def test_generate_basic_catalog_components():
     assert (
         "class PrivateHelperComponent(CatalogComponentCommon):" in code_defs
     )  # Class is still generated!
-    assert "        TextComponent," in code_defs
-    assert (
-        "        PrivateHelperComponent," not in code_defs
-    )  # But NOT in AnyComponent union!
-    assert (
-        "        NonExistentComponent," not in code_defs
-    )  # And non-existent is not in Union!
+    assert "TextComponent" in code_defs
+    any_comp_def = code_defs.split("AnyComponent = ")[1].split("\n")[0]
+    assert "TextComponent" in any_comp_def
+    assert "PrivateHelperComponent" not in any_comp_def
+    assert "NonExistentComponent" not in any_comp_def
 
     # Scenario C: Dynamic SvgPath compilation if found inside Icon component
     mock_catalog_data_svg = {
@@ -319,7 +317,7 @@ def test_generate_basic_catalog_components():
     )
     assert "class SvgPath(StrictBaseModel):" in code_svg
     assert '    svg_path: str = Field(..., alias="svgPath")' in code_svg
-    assert 'Union[Literal["add", "close"], SvgPath]' in code_svg
+    assert 'Literal["add", "close"] | SvgPath' in code_svg
 
 
 def test_generate_basic_catalog_functions():
@@ -378,9 +376,12 @@ def test_generate_basic_catalog_styles():
     }
     code_v08 = codegen_pydantic.generate_basic_catalog_styles("v0.8", v08_catalog_data)
     assert code_v08 is not None
-    assert "class Styles(BaseModel):" in code_v08
-    assert "font: Optional[str] = Field(None" in code_v08
-    assert 'primary_color: Optional[str] = Field(None, alias="primaryColor"' in code_v08
+    assert (
+        "class Styles(StrictBaseModel):" in code_v08
+        or "class Styles(BaseModel):" in code_v08
+    )
+    assert "font: str | None = Field(None" in code_v08
+    assert 'primary_color: str | None = Field(None, alias="primaryColor"' in code_v08
     assert "Theme = Styles" in code_v08
 
     # v0.9 theme
@@ -399,7 +400,7 @@ def test_generate_basic_catalog_styles():
     assert code is not None
     assert "class Theme(BaseModel):" in code
     assert (
-        'primary_color: Optional[str] = Field(None, alias="primaryColor",'
+        'primary_color: str | None = Field(None, alias="primaryColor",'
         ' description="Test color.")'
         in code
     )
@@ -478,9 +479,7 @@ def test_generate_renderer_capabilities():
     assert "class V09Capabilities(StrictBaseModel):" in code
     assert "class A2uiClientCapabilities(StrictBaseModel):" in code
     assert "A2uiRendererCapabilities = A2uiClientCapabilities" in code
-    assert (
-        "v0_9: Optional[V09Capabilities] = Field(None, alias=PROTOCOL_VERSION)" in code
-    )
+    assert "v0_9: V09Capabilities | None = Field(None, alias=PROTOCOL_VERSION)" in code
 
 
 def test_generate_agent_capabilities():
@@ -561,13 +560,12 @@ def test_generate_renderer_to_agent():
         'code: Literal["VALIDATION_FAILED"] = Field("VALIDATION_FAILED")' in code
         or "code: Literal['VALIDATION_FAILED'] = Field(\"VALIDATION_FAILED\")" in code
     )
-    assert "A2uiRendererError = Union[A2uiValidationError]" in code
+    assert "A2uiRendererError = A2uiValidationError" in code
     assert "class A2uiClientActionMessage(StrictBaseModel):" in code
     assert "class A2uiRendererErrorMessage(StrictBaseModel):" in code
     assert (
-        "A2uiClientMessage = Union[A2uiClientActionMessage, A2uiRendererErrorMessage]"
-        in code
-        or "A2uiClientMessage = Union[A2uiRendererActionMessage, A2uiRendererErrorMessage]"
+        "A2uiClientMessage = A2uiClientActionMessage | A2uiRendererErrorMessage" in code
+        or "A2uiClientMessage = A2uiRendererActionMessage | A2uiRendererErrorMessage"
         in code
     )
 

@@ -16,7 +16,7 @@
 
 import re
 from enum import Enum
-from typing import List, Optional, Set
+
 from a2ui.parser.response_part import ResponsePart
 
 
@@ -40,8 +40,8 @@ class BlockLexer:
         self,
         open_tag: str = "<a2ui>",
         close_tag: str = "</a2ui>",
-        string_delimiters: Optional[Set[str]] = None,
-        single_line_comments: Optional[Set[str]] = None,
+        string_delimiters: set[str] | None = None,
+        single_line_comments: set[str] | None = None,
     ):
         """Initializes the block lexer with tag patterns, string delimiters, and comments.
 
@@ -84,7 +84,7 @@ class BlockLexer:
         text = re.sub(r"\s*```[a-zA-Z-]*$", "", text, flags=re.IGNORECASE)
         return text.strip()
 
-    def tokenize(self, content: str) -> List[ResponsePart]:
+    def tokenize(self, content: str) -> list[ResponsePart]:
         """Scans response content character-by-character to extract format blocks.
 
         Properly respects nested comments, strings, and escaped characters to avoid
@@ -96,7 +96,7 @@ class BlockLexer:
         Returns:
             A list of tokenized response parts.
         """
-        parts: List[ResponsePart] = []
+        parts: list[ResponsePart] = []
         n = len(content)
         i = 0
 
@@ -105,7 +105,7 @@ class BlockLexer:
         current_text: list[str] = []
         current_raw: list[str] = []
 
-        string_delim: Optional[str] = None
+        string_delim: str | None = None
         triple_quote = False
 
         while i < n:

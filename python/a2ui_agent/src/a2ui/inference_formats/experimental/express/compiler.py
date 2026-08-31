@@ -20,7 +20,7 @@ AST, compiling it directly into standard A2UI v1.0 JSON messages.
 The grammar for A2UI Express is defined in Express.g4.
 """
 
-from typing import Any, Optional, Union
+from typing import Any
 from antlr4 import InputStream, CommonTokenStream
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
@@ -165,13 +165,13 @@ class _CompileContext:
     def __init__(self):
         self.extra_components: list[dict] = []
         self.inline_counter: int = 0
-        self.active_value_path: Optional[dict] = None
+        self.active_value_path: dict | None = None
 
 
 class _SurfaceScope:
     """Holds symbols and data path assignments for a target surface scope."""
 
-    def __init__(self, surface_id: str, catalog_id: Optional[str] = None):
+    def __init__(self, surface_id: str, catalog_id: str | None = None):
         self.surface_id = surface_id
         self.catalog_id = catalog_id
         self.raw_symbols: dict[str, Any] = {}
@@ -190,7 +190,7 @@ class ExpressCompiler:
 
     def __init__(
         self,
-        catalog: Union[Catalog[Any, Any], A2uiCatalog],
+        catalog: Catalog[Any, Any] | A2uiCatalog,
         version: str = "v1.0",
     ):
         """Initializes the compiler with the specified catalog.
@@ -208,7 +208,7 @@ class ExpressCompiler:
         surface_id: str = "default_surface",
         catalog_id: str = "",
         is_final: bool = True,
-        version: Optional[str] = None,
+        version: str | None = None,
     ) -> list[dict[str, Any]]:
         """Compiles plain A2UI Express DSL into standard A2UI wire JSON.
 
@@ -286,7 +286,7 @@ class ExpressCompiler:
                 raise ValueError(f"Failed to parse expression: {e}") from e
 
         scopes: list[_SurfaceScope] = []
-        current_scope: Optional[_SurfaceScope] = None
+        current_scope: _SurfaceScope | None = None
         target_delete_surface_id = None
         standalone_function_calls = []
 
@@ -466,7 +466,7 @@ class ExpressCompiler:
 
     def _compile_ast_node(
         self, var_name: str, ast: Any, raw_symbols: dict, ctx: _CompileContext
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """Compiles a single variable's AST node into standard component format.
 
         Args:

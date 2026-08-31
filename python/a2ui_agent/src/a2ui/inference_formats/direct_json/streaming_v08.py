@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, List, Dict, Optional, Set, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.parser.response_part import ResponsePart
@@ -32,10 +32,10 @@ class DirectJsonStreamParserV08(DirectJsonStreamParser):
 
     def __init__(self, catalog: A2uiCatalog):
         super().__init__(catalog=catalog)
-        self._yielded_begin_rendering_surfaces: Set[str] = set()
+        self._yielded_begin_rendering_surfaces: set[str] = set()
 
     @property
-    def _placeholder_component(self) -> Dict[str, Any]:
+    def _placeholder_component(self) -> dict[str, Any]:
         """Returns the placeholder component."""
         return {
             'component': {
@@ -46,11 +46,11 @@ class DirectJsonStreamParserV08(DirectJsonStreamParser):
         }
 
     @property
-    def _yielded_surfaces_set(self) -> Set[str]:
+    def _yielded_surfaces_set(self) -> set[str]:
         """Provides access to version-specific yielded surfaces set."""
         return self._yielded_begin_rendering_surfaces
 
-    def is_protocol_msg(self, obj: Dict[str, Any]) -> bool:
+    def is_protocol_msg(self, obj: dict[str, Any]) -> bool:
         """Checks if the object is a recognized v0.8 message."""
         return any(
             k in obj
@@ -70,7 +70,7 @@ class DirectJsonStreamParserV08(DirectJsonStreamParser):
     def _sniff_metadata(self) -> None:
         """Sniffs for v0.8 metadata in the json_buffer."""
 
-        def get_latest_value(key: str) -> Optional[str]:
+        def get_latest_value(key: str) -> str | None:
             idx = len(self._json_buffer)
             while True:
                 idx = self._json_buffer.rfind(f'"{key}"', 0, idx)
@@ -97,9 +97,9 @@ class DirectJsonStreamParserV08(DirectJsonStreamParser):
 
     def _handle_complete_object(
         self,
-        obj: Dict[str, Any],
-        sid: Optional[str],
-        messages: List[ResponsePart],
+        obj: dict[str, Any],
+        sid: str | None,
+        messages: list[ResponsePart],
     ) -> bool:
         """Handles v0.8 specific complete objects."""
         if not isinstance(obj, dict):
@@ -191,8 +191,8 @@ class DirectJsonStreamParserV08(DirectJsonStreamParser):
         return True
 
     def _construct_partial_message(
-        self, processed_components: List[Dict[str, Any]], active_msg_type: str
-    ) -> Dict[str, Any]:
+        self, processed_components: list[dict[str, Any]], active_msg_type: str
+    ) -> dict[str, Any]:
         """Constructs a partial message for v0.8 (always surfaceUpdate)."""
         payload = {
             SURFACE_ID_KEY: self.surface_id,
@@ -200,7 +200,7 @@ class DirectJsonStreamParserV08(DirectJsonStreamParser):
         }
         return {MSG_TYPE_SURFACE_UPDATE: payload}
 
-    def _get_active_msg_type_for_components(self) -> Optional[str]:
+    def _get_active_msg_type_for_components(self) -> str | None:
         """Determines which msg_type to use when wrapping component updates."""
         if self._active_msg_type:
             return self._active_msg_type
@@ -210,7 +210,7 @@ class DirectJsonStreamParserV08(DirectJsonStreamParser):
                 return mt
         return self._msg_types[0] if self._msg_types else None
 
-    def _deduplicate_data_model(self, m: Dict[str, Any]) -> bool:
+    def _deduplicate_data_model(self, m: dict[str, Any]) -> bool:
         if MSG_TYPE_DATA_MODEL_UPDATE in m:
             dm = m[MSG_TYPE_DATA_MODEL_UPDATE]
             raw_contents = dm.get('contents', {})

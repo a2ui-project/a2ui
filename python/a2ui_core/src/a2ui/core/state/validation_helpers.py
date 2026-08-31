@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Union
+from typing import TYPE_CHECKING, Any
 
 from ..catalog import Catalog
 from ..catalog.catalog import TComponent, TFunction
@@ -41,15 +41,15 @@ RELAXED_PATH_PATTERN = re.compile(
 
 
 def validate_component_integrity(
-    components: Dict[str, ComponentModel],
+    components: dict[str, ComponentModel],
     root_id: str = ROOT_ID,
-    config: Optional[ValidationConfig] = None,
+    config: ValidationConfig | None = None,
 ) -> None:
     """Validates component ID validity, root component existence, and non-dangling references."""
     allow_dangling_references = config.allow_dangling_references if config else False
     allow_missing_root = config.allow_missing_root if config else False
 
-    ids: Set[str] = set(components.keys())
+    ids: set[str] = set(components.keys())
 
     if allow_dangling_references:
         return
@@ -130,16 +130,16 @@ def validate_recursion_and_paths(data: Any) -> None:
 
 
 def analyze_topology(
-    components: Dict[str, ComponentModel],
+    components: dict[str, ComponentModel],
     root_id: str = ROOT_ID,
-    config: Optional[ValidationConfig] = None,
-) -> Set[str]:
+    config: ValidationConfig | None = None,
+) -> set[str]:
     """Analyzes component graph topology for self-references, circular cycles, and unreachable orphans."""
     allow_orphan_components = config.allow_orphan_components if config else False
     allow_missing_root = config.allow_missing_root if config else False
 
-    adj_list: Dict[str, List[str]] = {}
-    all_ids: Set[str] = set(components.keys())
+    adj_list: dict[str, list[str]] = {}
+    all_ids: set[str] = set(components.keys())
 
     for comp_id, comp in components.items():
         if comp_id is None:
@@ -157,8 +157,8 @@ def analyze_topology(
                 )
             adj_list[comp_id].append(ref_id)
 
-    visited: Set[str] = set()
-    recursion_stack: Set[str] = set()
+    visited: set[str] = set()
+    recursion_stack: set[str] = set()
 
     def dfs(node_id: str, depth: int) -> None:
         if depth > MAX_GLOBAL_DEPTH:
@@ -199,19 +199,19 @@ def analyze_topology(
 
 
 def validate_composition_constraints(
-    components: Dict[str, ComponentModel],
+    components: dict[str, ComponentModel],
 ) -> None:
     """Validates allowed_parents and allowed_children composition constraints for component trees."""
-    type_map: Dict[str, str] = {
+    type_map: dict[str, str] = {
         comp_id: model.type for comp_id, model in components.items()
     }
-    child_map: Dict[str, List[str]] = {}
+    child_map: dict[str, list[str]] = {}
     for comp_id, model in components.items():
         children = [ref_id for ref_id, _ in model.get_child_references()]
         if children:
             child_map[comp_id] = children
 
-    parent_map: Dict[str, Dict[str, str]] = {}
+    parent_map: dict[str, dict[str, str]] = {}
     for parent_id, children in child_map.items():
         parent_type = type_map.get(parent_id, "Unknown")
         for child_id in children:

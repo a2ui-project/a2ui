@@ -17,7 +17,6 @@
 import json
 from unittest.mock import MagicMock, patch
 
-
 from a2a import types as a2a_types
 from a2ui.a2a.parts import create_a2ui_part
 from a2ui.adk.a2a.part_converter import A2uiPartConverter

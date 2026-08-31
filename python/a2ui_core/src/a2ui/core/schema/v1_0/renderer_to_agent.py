@@ -23,6 +23,7 @@ from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 class A2uiRendererAction(StrictBaseModel):
     """Reports a user-initiated action from a component."""
 
+    model_config = ConfigDict(populate_by_name=True)
     name: str = Field(
         ...,
         description=(
@@ -30,7 +31,7 @@ class A2uiRendererAction(StrictBaseModel):
             " property."
         ),
     )
-    user_message: Optional[str] = Field(
+    user_message: str | None = Field(
         None,
         alias="userMessage",
         description=(
@@ -55,14 +56,14 @@ class A2uiRendererAction(StrictBaseModel):
     timestamp: str = Field(
         ..., description="An ISO 8601 timestamp of when the event occurred."
     )
-    context: Dict[str, Any] = Field(
+    context: dict[str, Any] = Field(
         ...,
         description=(
             "A JSON object containing the key-value pairs from the component's"
             " action.event.context, after resolving all data bindings."
         ),
     )
-    metadata: Optional[Extensions] = Field(
+    metadata: Extensions | None = Field(
         None,
         description=(
             "Optional renderer-side metadata to send back to the agent with the action."
@@ -81,6 +82,7 @@ class A2uiRendererActionMessage(StrictBaseModel):
 class CallAgentFunction(StrictBaseModel):
     """Signals the agent to execute a function remotely on behalf of the renderer."""
 
+    model_config = ConfigDict(populate_by_name=True)
     surface_id: str = Field(
         ..., alias="surfaceId", description="The surface ID where the call originated."
     )
@@ -108,6 +110,7 @@ class RendererFunctionResponseMessage(StrictBaseModel):
 
 
 class A2uiValidationError(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     code: Literal["VALIDATION_FAILED", "UNALLOWED_PARENT", "UNALLOWED_CHILD"] = Field(
         ...
     )
@@ -141,7 +144,7 @@ class A2uiGenericError(BaseModel):
             "A short one or two sentence description of why the error occurred."
         ),
     )
-    surface_id: Optional[str] = Field(
+    surface_id: str | None = Field(
         None,
         alias="surfaceId",
         description=(
@@ -149,7 +152,7 @@ class A2uiGenericError(BaseModel):
             " for the renderer's lifetime."
         ),
     )
-    function_call_id: Optional[str] = Field(
+    function_call_id: str | None = Field(
         None,
         alias="functionCallId",
         description=(
@@ -159,7 +162,7 @@ class A2uiGenericError(BaseModel):
     )
 
 
-A2uiRendererError = Union[A2uiValidationError, A2uiGenericError]
+A2uiRendererError = A2uiValidationError | A2uiGenericError
 
 
 class A2uiRendererErrorMessage(StrictBaseModel):
@@ -167,22 +170,22 @@ class A2uiRendererErrorMessage(StrictBaseModel):
     error: A2uiRendererError = Field(...)
 
 
-RendererToAgentMessage = Union[
-    A2uiRendererActionMessage,
-    CallAgentFunctionMessage,
-    RendererFunctionResponseMessage,
-    A2uiRendererErrorMessage,
-]
+RendererToAgentMessage = (
+    A2uiRendererActionMessage
+    | CallAgentFunctionMessage
+    | RendererFunctionResponseMessage
+    | A2uiRendererErrorMessage
+)
 
 
 class A2uiRendererDataModel(StrictBaseModel):
     version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION
-    surfaces: Dict[str, Dict[str, Any]] = Field(
+    surfaces: dict[str, dict[str, Any]] = Field(
         ..., description="A map of surface IDs to data models."
     )
 
 
-RendererToAgentMessageList = List[RendererToAgentMessage]
+RendererToAgentMessageList = list[RendererToAgentMessage]
 
 
 class RendererToAgentMessageListWrapper(StrictBaseModel):

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Generic, Optional
+from typing import Any, Generic
 from ..catalog.catalog import TComponent, TFunction
 from ..common.events import EventSource, Subscription
 from .surface_model import SurfaceModel
@@ -22,8 +22,8 @@ class SurfaceGroupModel(Generic[TComponent, TFunction]):
     """The global manager and lifecycle container for all surfaces."""
 
     def __init__(self) -> None:
-        self.surfaces: Dict[str, SurfaceModel[TComponent, TFunction]] = {}
-        self._surface_unsubscribers: Dict[str, Subscription] = {}
+        self.surfaces: dict[str, SurfaceModel[TComponent, TFunction]] = {}
+        self._surface_unsubscribers: dict[str, Subscription] = {}
 
         self.on_surface_created = EventSource()
         self.on_surface_deleted = EventSource()
@@ -31,7 +31,7 @@ class SurfaceGroupModel(Generic[TComponent, TFunction]):
 
     def get_surface(
         self, surface_id: str
-    ) -> Optional[SurfaceModel[TComponent, TFunction]]:
+    ) -> SurfaceModel[TComponent, TFunction] | None:
         return self.surfaces.get(surface_id)
 
     def add_surface(self, surface: SurfaceModel[TComponent, TFunction]) -> None:
@@ -57,7 +57,7 @@ class SurfaceGroupModel(Generic[TComponent, TFunction]):
             self.on_surface_deleted.emit(surface_id)
 
     @property
-    def surfaces_map(self) -> Dict[str, SurfaceModel[TComponent, TFunction]]:
+    def surfaces_map(self) -> dict[str, SurfaceModel[TComponent, TFunction]]:
         """Returns the dictionary of all active surfaces."""
         return self.surfaces
 

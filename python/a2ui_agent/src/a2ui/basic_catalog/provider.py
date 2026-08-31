@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from ..schema.catalog import CatalogConfig, resolve_examples_path
 from ..schema.catalog_provider import A2uiCatalogProvider
@@ -29,7 +29,7 @@ class BundledCatalogProvider(A2uiCatalogProvider):
     def __init__(self, version: str):
         self.version = version
 
-    def load(self) -> Dict[str, Any]:
+    def load(self) -> dict[str, Any]:
         # Use load_from_bundled_resource but with the specialized basic catalog paths
         resource = load_from_bundled_resource(
             self.version, CATALOG_SCHEMA_KEY, BASIC_CATALOG_PATHS
@@ -54,7 +54,7 @@ class BasicCatalog:
     """Helper for accessing the basic A2UI catalog."""
 
     @staticmethod
-    def get_config(version: str, examples_path: Optional[str] = None) -> CatalogConfig:
+    def get_config(version: str, examples_path: str | None = None) -> CatalogConfig:
         """Returns a CatalogConfig for the basic bundled catalog."""
         return CatalogConfig(
             name=BASIC_CATALOG_NAME,

@@ -12,21 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Any, Union
+from typing import Any
 from a2ui.inference_format import InferenceFormat
+
+from a2ui.prompt.generator import PromptGenerator
 from a2ui.core.schema.v0_9.client_capabilities import V09Capabilities
 
 
-class A2uiTemplateManager(InferenceFormat):
-    """Manages prompt compilation and payload processing for template definitions."""
+class TemplateManager(ABC):
+    """Abstract base class for template managers."""
 
     @property
-    def parser(self) -> Any:
-        """The parser instance associated with the template manager."""
-        raise NotImplementedError("This method is not yet implemented.")
-
-    @property
-    def prompt_generator(self) -> Any:
+    @abstractmethod
+    def prompt_generator(self) -> PromptGenerator:
         """The prompt generator instance associated with the template manager."""
         raise NotImplementedError("This method is not yet implemented.")
 
@@ -35,9 +33,9 @@ class A2uiTemplateManager(InferenceFormat):
         role_description: str,
         workflow_description: str = "",
         ui_description: str = "",
-        client_ui_capabilities: Optional[Union[dict[str, Any], V09Capabilities]] = None,
-        allowed_components: Optional[list[str]] = None,
-        allowed_messages: Optional[list[str]] = None,
+        client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
+        allowed_components: Sequence[str] | None = None,
+        allowed_messages: Sequence[str] | None = None,
         include_schema: bool = False,
         include_examples: bool = False,
         validate_examples: bool = False,

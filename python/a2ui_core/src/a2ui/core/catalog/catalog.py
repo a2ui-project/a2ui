@@ -15,7 +15,7 @@
 import copy
 import re
 import sys
-from typing import Any, Callable, Dict, Final, Generic, List, Optional, Set, Union, cast
+from typing import Any, Callable, Final, Generic, cast
 
 if sys.version_info >= (3, 13):
     from typing import TypeVar
@@ -24,7 +24,7 @@ else:
 from pydantic import BaseModel, TypeAdapter
 
 
-def _generate_dynamic_type_def(type_cls: Any) -> Dict[str, Any]:
+def _generate_dynamic_type_def(type_cls: Any) -> dict[str, Any]:
     raw_schema = TypeAdapter(type_cls).json_schema()
     if "$defs" in raw_schema:
         del raw_schema["$defs"]
@@ -48,7 +48,7 @@ def _generate_dynamic_type_def(type_cls: Any) -> Dict[str, Any]:
     return raw_schema
 
 
-def _get_dynamic_types_defs() -> Dict[str, Any]:
+def _get_dynamic_types_defs() -> dict[str, Any]:
     from ..schema.common_types import (
         DataBinding,
         DynamicBoolean,
@@ -95,7 +95,7 @@ def is_valid_uax31_identifier(name: str) -> bool:
     return test_name.isidentifier()
 
 
-def _is_version_at_least_1_0(protocol_version: Union[str, Any]) -> bool:
+def _is_version_at_least_1_0(protocol_version: str | Any) -> bool:
     """Returns True if the protocol version is 1.0 or higher (e.g. v1.0, v1.1, v2.0)."""
     ver_str = str(protocol_version).strip().lstrip("vV").replace("_", ".")
     parts = ver_str.split(".")
@@ -106,7 +106,7 @@ def _is_version_at_least_1_0(protocol_version: Union[str, Any]) -> bool:
         return False
 
 
-def load_preserved_type_refs() -> Set[str]:
+def load_preserved_type_refs() -> set[str]:
     """Dynamically loads all common type names defined in schema/common_types.py and versioned submodules."""
     import importlib
     import a2ui.core.schema as schema_pkg
@@ -137,7 +137,7 @@ def load_preserved_type_refs() -> Set[str]:
         "Callable",
     }
 
-    modules_to_check: List[str] = ["a2ui.core.schema.common_types"]
+    modules_to_check: list[str] = ["a2ui.core.schema.common_types"]
 
     protocol_version_enum = getattr(schema_pkg, "ProtocolVersion", None) or getattr(
         schema_pkg, "A2uiProtocolVersion", None
@@ -150,7 +150,7 @@ def load_preserved_type_refs() -> Set[str]:
             if mod_name not in modules_to_check:
                 modules_to_check.append(mod_name)
 
-    type_refs: Set[str] = set()
+    type_refs: set[str] = set()
     for modname in modules_to_check:
         try:
             mod = importlib.import_module(modname)
@@ -163,10 +163,10 @@ def load_preserved_type_refs() -> Set[str]:
     return type_refs
 
 
-PRESERVED_TYPE_REFS: Final[Set[str]] = load_preserved_type_refs()
+PRESERVED_TYPE_REFS: Final[set[str]] = load_preserved_type_refs()
 
 
-def _query_json_pointer(doc: Dict[str, Any], pointer: str) -> Any:
+def _query_json_pointer(doc: dict[str, Any], pointer: str) -> Any:
     """Queries a JSON Pointer string starting with '#/' against a root dictionary."""
     if not pointer.startswith("#/"):
         return None
@@ -182,7 +182,7 @@ def _query_json_pointer(doc: Dict[str, Any], pointer: str) -> Any:
 
 
 def inline_local_refs(
-    node: Any, root_catalog: Dict[str, Any], visited: Optional[Set[str]] = None
+    node: Any, root_catalog: dict[str, Any], visited: set[str] | None = None
 ) -> Any:
     """Recursively inlines local JSON references (pointers starting with '#/') into schema objects."""
     if visited is None:
@@ -249,7 +249,7 @@ def _is_type(item: Any, target_type: str) -> bool:
 
 def _clean_schema_node(
     node: Any,
-    referenced_dynamics: Optional[Set[str]] = None,
+    referenced_dynamics: set[str] | None = None,
     is_properties_dict: bool = False,
     is_union_container: bool = False,
 ) -> Any:
@@ -377,11 +377,11 @@ class Catalog(Generic[TComponent, TFunction]):
     def __init__(
         self,
         catalog_id: str,
-        protocol_version: Optional[str] = None,
-        components: Optional[List[TComponent]] = None,
-        functions: Optional[List[TFunction]] = None,
-        theme_schema: Optional[Dict[str, Any]] = None,
-        instructions: Optional[str] = None,
+        protocol_version: str | None = None,
+        components: list[TComponent] | None = None,
+        functions: list[TFunction] | None = None,
+        theme_schema: dict[str, Any] | None = None,
+        instructions: str | None = None,
     ):
         if not protocol_version:
             raise ValueError("protocol_version must be provided.")
@@ -391,7 +391,7 @@ class Catalog(Generic[TComponent, TFunction]):
 
         validate_identifiers = _is_version_at_least_1_0(protocol_version)
 
-        self.components: Dict[str, TComponent] = {}
+        self.components: dict[str, TComponent] = {}
         for c in components or []:
             if validate_identifiers and not is_valid_uax31_identifier(c.name):
                 raise A2uiCatalogError(
@@ -399,7 +399,7 @@ class Catalog(Generic[TComponent, TFunction]):
                 )
             self.components[c.name] = c
 
-        self.functions: Dict[str, TFunction] = {}
+        self.functions: dict[str, TFunction] = {}
         for fn in functions or []:
             if validate_identifiers and not is_valid_uax31_identifier(fn.name):
                 raise A2uiCatalogError(
@@ -408,7 +408,7 @@ class Catalog(Generic[TComponent, TFunction]):
             self.functions[fn.name] = fn
 
         self.theme_schema = theme_schema or {}
-        self._component_ref_map: Optional[Dict[str, ComponentRefSpec]] = None
+        self._component_ref_map: dict[str, ComponentRefSpec] | None = None
 
     @property
     def id(self) -> str:
@@ -416,9 +416,9 @@ class Catalog(Generic[TComponent, TFunction]):
         return self.catalog_id
 
     @property
-    def catalog_schema(self) -> Dict[str, Any]:
+    def catalog_schema(self) -> dict[str, Any]:
         """Dynamically reconstructs the unified catalog JSON Schema on the fly."""
-        schema: Dict[str, Any] = {
+        schema: dict[str, Any] = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "catalogId": self.catalog_id,
         }
@@ -426,7 +426,7 @@ class Catalog(Generic[TComponent, TFunction]):
         if self.instructions:
             schema["instructions"] = self.instructions
 
-        defs: Dict[str, Any] = {}
+        defs: dict[str, Any] = {}
         if self.theme_schema:
             defs["theme"] = self.theme_schema
 
@@ -457,7 +457,7 @@ class Catalog(Generic[TComponent, TFunction]):
                             defs[def_name] = def_schema
 
         if self.components:
-            comp_schemas: Dict[str, Any] = {}
+            comp_schemas: dict[str, Any] = {}
             for name, comp in self.components.items():
                 s = comp.schema
                 if isinstance(s, dict):
@@ -483,7 +483,7 @@ class Catalog(Generic[TComponent, TFunction]):
             schema["components"] = comp_schemas
 
         if self.functions:
-            fn_schemas: Dict[str, Any] = {}
+            fn_schemas: dict[str, Any] = {}
             for name, fn in self.functions.items():
                 s = fn.schema
                 if isinstance(s, type) and hasattr(s, "model_json_schema"):
@@ -515,9 +515,9 @@ class Catalog(Generic[TComponent, TFunction]):
         if defs:
             schema["$defs"] = defs
 
-        referenced_dynamics: Set[str] = set()
+        referenced_dynamics: set[str] = set()
         cleaned_schema = cast(
-            Dict[str, Any],
+            dict[str, Any],
             _clean_schema_node(schema, referenced_dynamics=referenced_dynamics),
         )
 
@@ -550,22 +550,22 @@ class Catalog(Generic[TComponent, TFunction]):
 
         return cleaned_schema
 
-    def get_component(self, name: str) -> Optional[TComponent]:
+    def get_component(self, name: str) -> TComponent | None:
         """Directly retrieves a component by name."""
         return self.components.get(name)
 
     @property
-    def component_ref_map(self) -> Dict[str, ComponentRefSpec]:
+    def component_ref_map(self) -> dict[str, ComponentRefSpec]:
         """Returns the pre-analyzed component reference map for all components in this catalog."""
         if not hasattr(self, "_component_ref_map") or self._component_ref_map is None:
             self._component_ref_map = build_component_ref_map(self)
         return self._component_ref_map
 
-    def get_component_ref_spec(self, name: str) -> Optional[ComponentRefSpec]:
+    def get_component_ref_spec(self, name: str) -> ComponentRefSpec | None:
         """Directly retrieves the pre-analyzed ComponentRefSpec for a component by name."""
         return self.component_ref_map.get(name)
 
-    def get_function(self, name: str) -> Optional[TFunction]:
+    def get_function(self, name: str) -> TFunction | None:
         """Directly retrieves a function by name."""
         if not name:
             return None
@@ -575,15 +575,15 @@ class Catalog(Generic[TComponent, TFunction]):
             or self.functions.get(name[0].upper() + name[1:])
         )
 
-    def get_theme_schema(self) -> Dict[str, Any]:
+    def get_theme_schema(self) -> dict[str, Any]:
         return self.theme_schema
 
     @classmethod
     def from_json(
         cls,
-        catalog_schema: Dict[str, Any],
-        protocol_version: Optional[str] = None,
-        catalog_id: Optional[str] = None,
+        catalog_schema: dict[str, Any],
+        protocol_version: str | None = None,
+        catalog_id: str | None = None,
     ) -> "Catalog[ComponentApi, FunctionApi]":
         """Constructs a schema-only Catalog directly from raw JSON Schema."""
         catalog_id = catalog_id or catalog_schema.get("catalogId")

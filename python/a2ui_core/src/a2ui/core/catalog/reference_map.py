@@ -20,6 +20,7 @@ component schemas to enable O(1) reference lookups during validation and tree tr
 
 from __future__ import annotations
 
+import types
 from typing import (
     Any,
     Final,
@@ -112,7 +113,7 @@ def _is_pydantic_single_ref(typ: Any) -> bool:
     if isinstance(typ, type) and issubclass(typ, SingleReference):
         return True
     origin = get_origin(typ)
-    if origin is Union:
+    if origin is Union or origin is types.UnionType:
         return any(_is_pydantic_single_ref(arg) for arg in get_args(typ))
     return False
 
@@ -138,7 +139,7 @@ def _is_pydantic_list_ref(typ: Any) -> tuple[bool, set[str]]:
                             nested.add(alias)
                     if nested:
                         return True, nested
-    if origin is Union:
+    if origin is Union or origin is types.UnionType:
         for arg in get_args(typ):
             is_l, nested = _is_pydantic_list_ref(arg)
             if is_l:
@@ -175,9 +176,9 @@ def _is_child_list_json_schema(schema: Any) -> bool:
 def _resolve_schema_ref(
     ref: str,
     local_schema: dict[str, Any],
-    catalog_schema: Optional[dict[str, Any]],
-    visited: Optional[set[str]] = None,
-) -> Optional[dict[str, Any]]:
+    catalog_schema: dict[str, Any] | None,
+    visited: set[str] | None = None,
+) -> dict[str, Any] | None:
     """Resolves an internal JSON Pointer reference (`#/path/to/def`) within the local or catalog schema.
 
     Args:
@@ -227,9 +228,9 @@ class ComponentRefSpec:
 
     def __init__(
         self,
-        single_refs: Optional[set[str]] = None,
-        list_refs: Optional[set[str]] = None,
-        nested_refs: Optional[dict[str, set[str]]] = None,
+        single_refs: set[str] | None = None,
+        list_refs: set[str] | None = None,
+        nested_refs: dict[str, set[str]] | None = None,
     ):
         self.single_refs: set[str] = set(single_refs or set())
         self.list_refs: set[str] = set(list_refs or set())
@@ -331,7 +332,7 @@ class ComponentRefSpec:
 
 
 def analyze_child_ref_schema(
-    schema: Any, catalog_schema: Optional[dict[str, Any]] = None
+    schema: Any, catalog_schema: dict[str, Any] | None = None
 ) -> ComponentRefSpec:
     """Analyzes a component's Pydantic model or JSON Schema strictly per A2UI protocol ($ref / SingleReference / ListReference)."""
     single_refs: set[str] = set()

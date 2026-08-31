@@ -21,7 +21,7 @@ bindings and validation checks, and compiles it into standard A2UI v1.0 JSON.
 import json
 import re
 from html.parser import HTMLParser
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.inference_formats.experimental.express.schema_helper import (
@@ -57,20 +57,20 @@ def _is_action_property(prop_schema: Any) -> bool:
 class Node:
     """A simple DOM node representing an HTML element or text."""
 
-    def __init__(self, tag: str, attrs: List[tuple[str, str]]):
+    def __init__(self, tag: str, attrs: list[tuple[str, str]]):
         self.tag = tag.lower()
         self.attrs = dict(attrs)
-        self.children: List[Node] = []
+        self.children: list[Node] = []
         self.text = ""
 
 
 class DomBuilder(HTMLParser):
     """A forgiving HTML parser that builds a simple DOM tree."""
 
-    def __init__(self, container_tags: Optional[set[str]] = None):
+    def __init__(self, container_tags: set[str] | None = None):
         super().__init__()
-        self.root: Optional[Node] = None
-        self.stack: List[Node] = []
+        self.root: Node | None = None
+        self.stack: list[Node] = []
         self.container_tags = container_tags or set()
 
     def handle_starttag(self, tag, attrs):
@@ -170,7 +170,7 @@ def _schema_expects_option_objects(schema: Any) -> bool:
     return False
 
 
-def _get_enum_values(schema: Any) -> Optional[List[Any]]:
+def _get_enum_values(schema: Any) -> list[Any] | None:
     """Recursively finds and extracts enum values from a schema dict."""
     if not isinstance(schema, dict):
         return None
@@ -185,7 +185,7 @@ def _get_enum_values(schema: Any) -> Optional[List[Any]]:
     return None
 
 
-def _get_primitive_property_type(schema: Any) -> Optional[str]:
+def _get_primitive_property_type(schema: Any) -> str | None:
     """Resolves primitive type or Dynamic* reference type from a property schema."""
     if not isinstance(schema, dict):
         return None
@@ -304,7 +304,7 @@ class _CompileContext:
     """Holds mutable state during compilation."""
 
     def __init__(self):
-        self.components: List[Dict[str, Any]] = []
+        self.components: list[dict[str, Any]] = []
         self.auto_id_counter = 0
 
     def next_auto_id(self) -> str:
@@ -315,7 +315,7 @@ class _CompileContext:
 class ElementalCompiler:
     """Compilation pipeline for A2UI Elemental HTML."""
 
-    def __init__(self, catalog: Union[Catalog[Any, Any], A2uiCatalog]):
+    def __init__(self, catalog: Catalog[Any, Any] | A2uiCatalog):
         self.helper = CatalogSchemaHelper(catalog)
         self.expr_parser = ElementalExpressionParser()
 
@@ -625,7 +625,7 @@ class ElementalCompiler:
 
         return val
 
-    def _compile_node(self, node: Node, ctx: _CompileContext) -> Optional[str]:
+    def _compile_node(self, node: Node, ctx: _CompileContext) -> str | None:
         """Compiles a DOM node into a component and returns its ID."""
         if not node.tag.startswith(TAG_PREFIX):
             raise ValueError(

@@ -17,12 +17,13 @@ from __future__ import annotations
 from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field, ConfigDict
 from .common_types import StrictBaseModel
-from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE, SUPPORTED_PROTOCOL_VERSIONS
+from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
 
 class A2uiClientAction(StrictBaseModel):
     """Reports a user-initiated action from a component."""
 
+    model_config = ConfigDict(populate_by_name=True)
     name: str = Field(
         ...,
         description=(
@@ -43,7 +44,7 @@ class A2uiClientAction(StrictBaseModel):
     timestamp: str = Field(
         ..., description="An ISO 8601 timestamp of when the event occurred."
     )
-    context: Dict[str, Any] = Field(
+    context: dict[str, Any] = Field(
         ...,
         description=(
             "A JSON object containing the key-value pairs from the component's"
@@ -67,6 +68,7 @@ A2uiClientUserActionMessage = A2uiClientActionMessage
 
 
 class A2uiValidationError(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     code: Literal["VALIDATION_FAILED"] = Field("VALIDATION_FAILED")
     surface_id: str = Field(
         ...,
@@ -102,7 +104,7 @@ class A2uiGenericError(BaseModel):
     )
 
 
-A2uiRendererError = Union[A2uiValidationError, A2uiGenericError]
+A2uiRendererError = A2uiValidationError | A2uiGenericError
 
 
 class A2uiRendererErrorMessage(StrictBaseModel):
@@ -110,7 +112,7 @@ class A2uiRendererErrorMessage(StrictBaseModel):
     error: A2uiRendererError = Field(...)
 
 
-A2uiClientMessage = Union[A2uiClientActionMessage, A2uiRendererErrorMessage]
+A2uiClientMessage = A2uiClientActionMessage | A2uiRendererErrorMessage
 
 
 ClientToServerMessage = A2uiClientMessage
@@ -119,12 +121,12 @@ RendererToAgentMessage = A2uiClientMessage
 
 class A2uiClientDataModel(StrictBaseModel):
     version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION
-    surfaces: Dict[str, Dict[str, Any]] = Field(
+    surfaces: dict[str, dict[str, Any]] = Field(
         ..., description="A map of surface IDs to data models."
     )
 
 
-A2uiClientMessageList = List[ClientToServerMessage]
+A2uiClientMessageList = list[ClientToServerMessage]
 
 
 class A2uiClientMessageListWrapper(StrictBaseModel):

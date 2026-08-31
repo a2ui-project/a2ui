@@ -20,13 +20,14 @@ from .common_types import StrictBaseModel, CallId, ComponentCommon, Extensions, 
 from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
 
-ComponentsList = List[Dict[str, Any]]
-Component = Dict[str, Any]
+ComponentsList = list[dict[str, Any]]
+Component = dict[str, Any]
 
 
 class CreateSurface(StrictBaseModel):
     """Signals the renderer to create a new surface and begin rendering it. Creating a surface implicitly instantiates the canonical 'Surface' container component ('common_types.json#/$defs/Surface') with 'child': 'root'. It is an error to try to create a surface with an existing ID without first deleting it; surfaceId MUST be globally unique for the renderer's lifetime. When this message is sent, the renderer expects 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId to define the component tree."""
 
+    model_config = ConfigDict(populate_by_name=True)
     surface_id: str = Field(
         ...,
         alias="surfaceId",
@@ -35,7 +36,7 @@ class CreateSurface(StrictBaseModel):
             " globally unique for the renderer's lifetime."
         ),
     )
-    catalog_id: Optional[str] = Field(
+    catalog_id: str | None = Field(
         None,
         alias="catalogId",
         description=(
@@ -46,7 +47,7 @@ class CreateSurface(StrictBaseModel):
             " surface-level default catalogId."
         ),
     )
-    send_data_model: Optional[bool] = Field(
+    send_data_model: bool | None = Field(
         None,
         alias="sendDataModel",
         description=(
@@ -55,13 +56,13 @@ class CreateSurface(StrictBaseModel):
             " Defaults to false."
         ),
     )
-    components: Optional[List[Dict[str, Any]]] = Field(None)
-    data_model: Optional[Dict[str, Any]] = Field(
+    components: list[dict[str, Any]] | None = Field(None)
+    data_model: dict[str, Any] | None = Field(
         None,
         alias="dataModel",
         description="The initial root data model object for the surface.",
     )
-    metadata: Optional[Dict[str, Any]] = Field(
+    metadata: dict[str, Any] | None = Field(
         None, description="Optional surface-level metadata."
     )
 
@@ -74,6 +75,7 @@ class CreateSurfaceMessage(StrictBaseModel):
 class UpdateComponents(StrictBaseModel):
     """Updates a surface with a new set of components. This message can be sent multiple times to update the component tree of an existing surface. One of the components in one of the components lists MUST have an 'id' of 'root' to serve as the root of the component tree. The createSurface message MUST have been previously sent for this surfaceId."""
 
+    model_config = ConfigDict(populate_by_name=True)
     surface_id: str = Field(
         ...,
         alias="surfaceId",
@@ -82,7 +84,7 @@ class UpdateComponents(StrictBaseModel):
             " globally unique for the renderer's lifetime."
         ),
     )
-    components: List[Dict[str, Any]] = Field(...)
+    components: list[dict[str, Any]] = Field(...)
 
 
 class UpdateComponentsMessage(StrictBaseModel):
@@ -93,6 +95,7 @@ class UpdateComponentsMessage(StrictBaseModel):
 class UpdateDataModel(StrictBaseModel):
     """Updates the data model for an existing surface. This message can be sent multiple times to update the data model. The createSurface message MUST have been previously sent for this surfaceId."""
 
+    model_config = ConfigDict(populate_by_name=True)
     surface_id: str = Field(
         ...,
         alias="surfaceId",
@@ -101,7 +104,7 @@ class UpdateDataModel(StrictBaseModel):
             " to. It must be globally unique for the renderer's lifetime."
         ),
     )
-    path: Optional[str] = Field(
+    path: str | None = Field(
         None,
         description=(
             "An optional path to a location within the data model (e.g., '/user/name')."
@@ -125,6 +128,7 @@ class UpdateDataModelMessage(StrictBaseModel):
 class DeleteSurface(StrictBaseModel):
     """Signals the renderer to delete the surface identified by 'surfaceId'. The createSurface message MUST have been previously sent for this surfaceId."""
 
+    model_config = ConfigDict(populate_by_name=True)
     surface_id: str = Field(
         ...,
         alias="surfaceId",
@@ -143,6 +147,7 @@ class DeleteSurfaceMessage(StrictBaseModel):
 class CallRendererFunction(StrictBaseModel):
     """Signals the renderer to execute a function locally on behalf of the agent."""
 
+    model_config = ConfigDict(populate_by_name=True)
     function_call_id: str = Field(
         ...,
         alias="functionCallId",
@@ -162,6 +167,7 @@ class CallRendererFunctionMessage(StrictBaseModel):
 
 
 class AgentFunctionResponse(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     pass
 
 
@@ -172,17 +178,17 @@ class AgentFunctionResponseMessage(StrictBaseModel):
     )
 
 
-AgentToRendererMessage = Union[
-    CreateSurfaceMessage,
-    UpdateComponentsMessage,
-    UpdateDataModelMessage,
-    DeleteSurfaceMessage,
-    CallRendererFunctionMessage,
-    AgentFunctionResponseMessage,
-]
+AgentToRendererMessage = (
+    CreateSurfaceMessage
+    | UpdateComponentsMessage
+    | UpdateDataModelMessage
+    | DeleteSurfaceMessage
+    | CallRendererFunctionMessage
+    | AgentFunctionResponseMessage
+)
 
 
-AgentToRendererMessageList = List[AgentToRendererMessage]
+AgentToRendererMessageList = list[AgentToRendererMessage]
 
 
 class AgentToRendererMessageListWrapper(StrictBaseModel):

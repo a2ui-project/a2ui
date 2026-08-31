@@ -14,7 +14,7 @@
 
 import re
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any
 from pydantic import ValidationError
 from ..operations import InternalOperation
 from ...exceptions import (
@@ -46,7 +46,7 @@ class VersionAdapter(ABC):
         pass
 
     @property
-    def supported_versions(self) -> Set[str]:
+    def supported_versions(self) -> set[str]:
         """Set of version string literals accepted by this adapter."""
         ver_str = (
             self.version.value if hasattr(self.version, "value") else str(self.version)
@@ -56,7 +56,7 @@ class VersionAdapter(ABC):
     @abstractmethod
     def extract_operations(
         self, payload: AgentToRendererMessagePayload
-    ) -> List[InternalOperation]:
+    ) -> list[InternalOperation]:
         """Converts a raw message payload or payload list into canonical internal operations."""
         pass
 
@@ -66,7 +66,7 @@ class BaseVersionAdapter(VersionAdapter, ABC):
 
     @property
     @abstractmethod
-    def valid_actions(self) -> Set[str]:
+    def valid_actions(self) -> set[str]:
         """The set of valid message action keys supported by this protocol version."""
         pass
 
@@ -81,13 +81,13 @@ class BaseVersionAdapter(VersionAdapter, ABC):
         """Returns the Pydantic wrapper model for envelope validation of this protocol version."""
         pass
 
-    def prepare_payload_for_validation(self, msg_obj: Dict[str, Any]) -> Dict[str, Any]:
+    def prepare_payload_for_validation(self, msg_obj: dict[str, Any]) -> dict[str, Any]:
         """Normalizes the message object before running schema validation."""
         return msg_obj
 
     def _format_validation_errors(
-        self, error: ValidationError, messages: List[Dict[str, Any]]
-    ) -> List[A2uiErrorDetail]:
+        self, error: ValidationError, messages: list[dict[str, Any]]
+    ) -> list[A2uiErrorDetail]:
         """Formats Pydantic validation errors while filtering out irrelevant union branches."""
         details = []
         branch_to_action = {}
@@ -135,7 +135,7 @@ class BaseVersionAdapter(VersionAdapter, ABC):
             details.append(A2uiErrorDetail(path_str, code, msg))
         return details
 
-    def _extract_single_action(self, message: Dict[str, Any]) -> Optional[str]:
+    def _extract_single_action(self, message: dict[str, Any]) -> str | None:
         """Validates presence of exactly one action key from valid_actions."""
         update_types = [k for k in self.valid_actions if k in message]
         if len(update_types) > 1:
@@ -155,7 +155,7 @@ class BaseVersionAdapter(VersionAdapter, ABC):
             self._get_surface_id(message[action])
         return action
 
-    def _get_surface_id(self, action_dict: Dict[str, Any]) -> str:
+    def _get_surface_id(self, action_dict: dict[str, Any]) -> str:
         """Extracts surfaceId and validates that it is a string."""
         if "surfaceId" in action_dict:
             val = action_dict["surfaceId"]
@@ -166,7 +166,7 @@ class BaseVersionAdapter(VersionAdapter, ABC):
 
     def extract_operations(
         self, payload: AgentToRendererMessagePayload
-    ) -> List[InternalOperation]:
+    ) -> list[InternalOperation]:
         """Unwraps payloads and delegates validated action messages to action handlers."""
         if not payload:
             return []
@@ -181,7 +181,7 @@ class BaseVersionAdapter(VersionAdapter, ABC):
             for item in raw_payload:
                 if isinstance(item, dict):
                     self._extract_single_action(item)
-            ops: List[InternalOperation] = []
+            ops: list[InternalOperation] = []
             for item in raw_payload:
                 ops.extend(self.extract_operations(item))
             return ops
@@ -235,7 +235,7 @@ class BaseVersionAdapter(VersionAdapter, ABC):
 
     @abstractmethod
     def _extract_operations_for_action(
-        self, action: str, message: Dict[str, Any]
-    ) -> List[InternalOperation]:
+        self, action: str, message: dict[str, Any]
+    ) -> list[InternalOperation]:
         """Extracts internal operations for a validated message action."""
         pass

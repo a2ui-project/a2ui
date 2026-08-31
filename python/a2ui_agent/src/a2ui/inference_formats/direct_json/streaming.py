@@ -18,7 +18,7 @@ import copy
 import json
 import logging
 import re
-from typing import Any, List, Dict, Optional, Set, TYPE_CHECKING, Union
+from typing import Any, TYPE_CHECKING
 
 from a2ui.parser.constants import *
 from a2ui.schema.constants import (
@@ -38,7 +38,6 @@ from a2ui.core.validation import (
     ValidationConfig,
 )
 from a2ui.core import A2uiParseError, A2uiIntegrityError
-
 
 if TYPE_CHECKING:
     from a2ui.schema.catalog import A2uiCatalog
@@ -82,51 +81,51 @@ class DirectJsonStreamParser:
         self._in_string = False
         self._string_escaped = False
 
-        self._seen_components: Dict[str, Dict[str, Any]] = {}
+        self._seen_components: dict[str, dict[str, Any]] = {}
 
         # Track data model for path resolution
-        self._yielded_data_model: Dict[str, Any] = {}
-        self._deleted_surfaces: Set[str] = set()
+        self._yielded_data_model: dict[str, Any] = {}
+        self._deleted_surfaces: set[str] = set()
 
         # Set of unique component IDs yielded per surface to prevent duplicate yielding
         # surfaceId -> set of cids
-        self._yielded_ids: Dict[str, Set[str]] = {}
+        self._yielded_ids: dict[str, set[str]] = {}
         # (surfaceId, cid) -> hash of content for change detection
-        self._yielded_contents: Dict[Any, str] = {}
+        self._yielded_contents: dict[Any, str] = {}
 
-        self._root_ids: Dict[str, str] = {}  # The root component IDs mapped per surface
-        self._default_root_id: Optional[str] = (
+        self._root_ids: dict[str, str] = {}  # The root component IDs mapped per surface
+        self._default_root_id: str | None = (
             None  # Base default root ID for the protocol
         )
-        self._unbound_root_id: Optional[str] = (
+        self._unbound_root_id: str | None = (
             None  # Temporary holding variable for when root arrives before surfaceId
         )
-        self._surface_id: Optional[str] = (
+        self._surface_id: str | None = (
             None  # The active surface ID tracking the context
         )
-        self._msg_types: List[str] = (
+        self._msg_types: list[str] = (
             []
         )  # Running list of message types seen in the block
 
         # A set of surface ids for which we have already yielded a start message
         # Tracks if beginRendering or createSurface was emitted
-        self._yielded_start_messages: Set[str] = set()
+        self._yielded_start_messages: set[str] = set()
 
         # The current active message type for component grouping
-        self._active_msg_type: Optional[str] = None
+        self._active_msg_type: str | None = None
 
         # State for buffering updates until surface is ready
-        self._pending_messages: Dict[str, List[Dict[str, Any]]] = (
+        self._pending_messages: dict[str, list[dict[str, Any]]] = (
             {}
         )  # surfaceId -> list of msgs delayed until start message arrives
-        self._buffered_start_message: Optional[Dict[str, Any]] = (
+        self._buffered_start_message: dict[str, Any] | None = (
             None  # The start message to yield before any components
         )
         self._topology_dirty = False  # Set to true if components are added out of order
         self._found_valid_json_in_block = False
 
     @property
-    def _placeholder_component(self) -> Dict[str, Any]:
+    def _placeholder_component(self) -> dict[str, Any]:
         """Returns the version-specific placeholder component.
 
         This is used when a component references a child component that hasn't yet
@@ -136,18 +135,18 @@ class DirectJsonStreamParser:
         raise NotImplementedError("Subclasses must implement _placeholder_component")
 
     @property
-    def surface_id(self) -> Optional[str]:
+    def surface_id(self) -> str | None:
         return self._surface_id
 
     @surface_id.setter
-    def surface_id(self, value: Optional[str]) -> None:
+    def surface_id(self, value: str | None) -> None:
         self._surface_id = value
         if value is not None and self._unbound_root_id is not None:
             self._root_ids[value] = self._unbound_root_id
             self._unbound_root_id = None
 
     @property
-    def root_id(self) -> Optional[str]:
+    def root_id(self) -> str | None:
         if self._surface_id:
             return self._root_ids.get(self._surface_id, self._default_root_id)
         # Return unbound root ID if explicitly sniffed, otherwise use protocol default
@@ -158,7 +157,7 @@ class DirectJsonStreamParser:
         )
 
     @root_id.setter
-    def root_id(self, value: Optional[str]) -> None:
+    def root_id(self, value: str | None) -> None:
         if self._surface_id:
             if value is not None:
                 self._root_ids[self._surface_id] = value
@@ -168,7 +167,7 @@ class DirectJsonStreamParser:
             self._unbound_root_id = value
 
     @property
-    def msg_types(self) -> List[str]:
+    def msg_types(self) -> list[str]:
         return self._msg_types
 
     def add_msg_type(self, msg_type: str) -> None:
@@ -182,11 +181,11 @@ class DirectJsonStreamParser:
             self._active_msg_type = msg_type
 
     @property
-    def _yielded_surfaces_set(self) -> Set[str]:
+    def _yielded_surfaces_set(self) -> set[str]:
         """Provides access to version-specific yielded surfaces set."""
         raise NotImplementedError("Subclasses must implement _yielded_surfaces_set")
 
-    def is_protocol_msg(self, obj: Dict[str, Any]) -> bool:
+    def is_protocol_msg(self, obj: dict[str, Any]) -> bool:
         """Checks if the object is a recognized A2UI message for this version."""
         raise NotImplementedError("Subclasses must implement is_protocol_msg")
 
@@ -195,28 +194,28 @@ class DirectJsonStreamParser:
         """Returns the message type identifier for data model updates."""
         raise NotImplementedError("Subclasses must implement _data_model_msg_type")
 
-    def _get_active_msg_type_for_components(self) -> Optional[str]:
+    def _get_active_msg_type_for_components(self) -> str | None:
         """Determines which msg_type to use when wrapping component updates."""
         raise NotImplementedError(
             "Subclasses must implement _get_active_msg_type_for_components"
         )
 
     def _construct_partial_message(
-        self, components: List[Dict[str, Any]], active_msg_type: str
-    ) -> Dict[str, Any]:
+        self, components: list[dict[str, Any]], active_msg_type: str
+    ) -> dict[str, Any]:
         """Constructs a partial message of the correct type. Subclasses must implement."""
         raise NotImplementedError(
             "Subclasses must implement _construct_partial_message"
         )
 
-    def _deduplicate_data_model(self, m: Dict[str, Any]) -> bool:
+    def _deduplicate_data_model(self, m: dict[str, Any]) -> bool:
         """Returns True if message should be yielded, False if skipped."""
         return True
 
     def _yield_messages(
         self,
-        messages_to_yield: List[Dict[str, Any]],
-        messages: List[ResponsePart],
+        messages_to_yield: list[dict[str, Any]],
+        messages: list[ResponsePart],
         config: ValidationConfig = STRICT_VALIDATION,
     ) -> None:
         """Validates and appends messages to the final output list."""
@@ -260,7 +259,7 @@ class DirectJsonStreamParser:
 
         self._deleted_surfaces.add(sid)
 
-    def process_chunk(self, chunk: str) -> List[ResponsePart]:
+    def process_chunk(self, chunk: str) -> list[ResponsePart]:
         """Processes a chunk of text and returns any complete A2UI messages found.
 
         This is the primary entry point for the streaming parser. It handles the
@@ -456,7 +455,7 @@ class DirectJsonStreamParser:
 
         return fixed
 
-    def _process_json_chunk(self, chunk: str, messages: List[ResponsePart]) -> None:
+    def _process_json_chunk(self, chunk: str, messages: list[ResponsePart]) -> None:
         for char in chunk:
             char_handled = False
             if self._brace_count == 0:
@@ -614,12 +613,12 @@ class DirectJsonStreamParser:
             self._topology_dirty = False
 
     def _construct_sniffed_data_model_message(
-        self, active_msg_type: str, delta_msg_payload: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, active_msg_type: str, delta_msg_payload: dict[str, Any]
+    ) -> dict[str, Any]:
         """Returns the message to yield for a partial data model update."""
         return {active_msg_type: delta_msg_payload}
 
-    def _sniff_partial_data_model(self, messages: List[ResponsePart]) -> None:
+    def _sniff_partial_data_model(self, messages: list[ResponsePart]) -> None:
         msg_type = self._data_model_msg_type
         if f'"{msg_type}"' not in self._json_buffer:
             return
@@ -676,11 +675,9 @@ class DirectJsonStreamParser:
                                     or "default"
                                 )
                                 # Deduplicate delta_contents by only keeping the LATEST entry for each dirty key
-                                delta_contents: Union[
-                                    List[Dict[str, Any]], Dict[str, Any]
-                                ]
+                                delta_contents: list[dict[str, Any]] | dict[str, Any]
                                 if isinstance(raw_contents, list):
-                                    list_contents: List[Dict[str, Any]] = []
+                                    list_contents: list[dict[str, Any]] = []
                                     seen_keys = set()
                                     for entry in reversed(raw_contents):
                                         if not isinstance(entry, dict):
@@ -720,7 +717,7 @@ class DirectJsonStreamParser:
                                 # Update internal model for path resolution
                                 self.update_data_model(dm_obj, messages)
 
-    def _sniff_partial_component(self, messages: List[ResponsePart]) -> None:
+    def _sniff_partial_component(self, messages: list[ResponsePart]) -> None:
         """Attempts to parse a partial component from the current buffer."""
         # We only care about components if we are inside a "components" array
         if f'"{CATALOG_COMPONENTS_KEY}"' not in self._json_buffer:
@@ -787,7 +784,7 @@ class DirectJsonStreamParser:
         return pruned
 
     def _handle_partial_component(
-        self, comp: Dict[str, Any], messages: List[ResponsePart]
+        self, comp: dict[str, Any], messages: list[ResponsePart]
     ) -> None:
         """Handles a component discovered before its parent message is finished.
 
@@ -839,7 +836,7 @@ class DirectJsonStreamParser:
         self._seen_components[comp_id] = comp
         self._topology_dirty = True
 
-    def _parse_contents_to_dict(self, raw_contents: Any) -> Dict[str, Any]:
+    def _parse_contents_to_dict(self, raw_contents: Any) -> dict[str, Any]:
         """Recursively parses a list of A2UI contents into a flat dictionary."""
         if isinstance(raw_contents, dict):
             return raw_contents
@@ -865,7 +862,7 @@ class DirectJsonStreamParser:
         return res
 
     def update_data_model(
-        self, update: Dict[str, Any], messages: List[ResponsePart]
+        self, update: dict[str, Any], messages: list[ResponsePart]
     ) -> None:
         """Updates the internal data model and marks affected components as dirty."""
         # Hook method to be overridden by subclasses to handle completed data model updates.
@@ -873,16 +870,16 @@ class DirectJsonStreamParser:
 
     def _handle_complete_object(
         self,
-        obj: Dict[str, Any],
-        sid: Optional[str],
-        messages: List[ResponsePart],
+        obj: dict[str, Any],
+        sid: str | None,
+        messages: list[ResponsePart],
     ) -> bool:
         """Handles an object that has been fully parsed. To be implemented by subclasses."""
         raise NotImplementedError("Subclasses must implement _handle_complete_object")
 
     def yield_reachable(
         self,
-        messages: List[ResponsePart],
+        messages: list[ResponsePart],
         check_root: bool = False,
         raise_on_orphans: bool = False,
     ) -> None:
@@ -937,8 +934,8 @@ class DirectJsonStreamParser:
                 )
 
             # 1. Process placeholders and partial children
-            processed_components: List[Dict[str, Any]] = []
-            extra_components: List[Dict[str, Any]] = []
+            processed_components: list[dict[str, Any]] = []
+            extra_components: list[dict[str, Any]] = []
             surface_id = self.surface_id or "unknown"
             yielded_for_surface = self._yielded_ids.get(surface_id, set())
 
@@ -1019,8 +1016,8 @@ class DirectJsonStreamParser:
 
     def _process_component_topology(
         self,
-        comp: Dict[str, Any],
-        extra_components: List[Dict[str, Any]],
+        comp: dict[str, Any],
+        extra_components: list[dict[str, Any]],
     ) -> None:
         """Recursively processes path placeholders and child pruning in one pass."""
         comp_id = comp.get("id", "unknown")
@@ -1037,9 +1034,9 @@ class DirectJsonStreamParser:
     def _traverse_component_topology(
         self,
         obj: Any,
-        extra_components: List[Dict[str, Any]],
+        extra_components: list[dict[str, Any]],
         comp_id: str,
-        parent_key: Optional[str] = None,
+        parent_key: str | None = None,
     ) -> None:
         """Internal recursive helper to traverse and process component properties."""
         if isinstance(obj, dict):

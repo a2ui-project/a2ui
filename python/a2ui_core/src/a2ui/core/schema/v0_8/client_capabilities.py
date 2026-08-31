@@ -27,7 +27,7 @@ Catalog = InlineCatalog
 
 
 class V08Capabilities(StrictBaseModel):
-    supported_catalog_ids: List[str] = Field(
+    supported_catalog_ids: list[str] = Field(
         ...,
         alias="supportedCatalogIds",
         description=(
@@ -36,7 +36,7 @@ class V08Capabilities(StrictBaseModel):
             " 'https://a2ui.org/specification/v0_8/standard_catalog_definition.json'."
         ),
     )
-    inline_catalogs: Optional[List[CatalogDefinition]] = Field(
+    inline_catalogs: list[CatalogDefinition] | None = Field(
         None,
         alias="inlineCatalogs",
         description=(
@@ -50,7 +50,7 @@ V0_8Capabilities = V08Capabilities
 
 
 class A2uiClientCapabilities(StrictBaseModel):
-    v0_8: Optional[V08Capabilities] = Field(None, alias=PROTOCOL_VERSION)
+    v0_8: V08Capabilities | None = Field(None, alias=PROTOCOL_VERSION)
 
 
 A2uiRendererCapabilities = A2uiClientCapabilities

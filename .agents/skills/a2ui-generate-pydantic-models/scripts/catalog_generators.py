@@ -15,7 +15,7 @@
 """Pydantic v2 code generators for Basic Catalog definitions (components, function_apis, styles)."""
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 from engine import PydanticCodegen
 from utils import (
     FILE_HEADER,
@@ -27,11 +27,10 @@ from utils import (
     version_to_underscore,
 )
 
-
 def generate_basic_catalog_components(
     version: str,
-    catalog_data: Dict[str, Any],
-    common_data: Optional[Dict[str, Any]] = None,
+    catalog_data: dict[str, Any],
+    common_data: dict[str, Any] | None = None,
 ) -> str:
     """Generates components.py content."""
     codegen = PydanticCodegen(version)
@@ -170,15 +169,10 @@ def generate_basic_catalog_components(
         for c in comp_names
         if not allowed_union_components or c in allowed_union_components
     ]
+    union_str = " | ".join(union_comp_names) if union_comp_names else "Any"
     any_comp_lines = [
-        "AnyComponent = Annotated[",
-        "    Union[",
+        f'AnyComponent = Annotated[{union_str}, Field(..., discriminator="component")]'
     ]
-    for cname in union_comp_names:
-        any_comp_lines.append(f"        {cname},")
-    any_comp_lines.append("    ],")
-    any_comp_lines.append('    Field(..., discriminator="component")')
-    any_comp_lines.append("]")
     names.append("AnyComponent")
 
     api_names = []
@@ -204,11 +198,10 @@ def generate_basic_catalog_components(
     comp_blocks.append("\n\n".join(tail_sections))
     return "\n\n\n".join(b.strip() for b in comp_blocks if b.strip()) + "\n"
 
-
 def generate_basic_catalog_functions(
     version: str,
-    catalog_data: Dict[str, Any],
-    common_data: Optional[Dict[str, Any]] = None,
+    catalog_data: dict[str, Any],
+    common_data: dict[str, Any] | None = None,
 ) -> str:
     """Generates function_apis.py content."""
     codegen = PydanticCodegen(version)
@@ -301,11 +294,10 @@ def generate_basic_catalog_functions(
 
     return header + body_text + "\n"
 
-
 def generate_basic_catalog_styles(
     version: str,
-    catalog_data: Dict[str, Any],
-) -> Optional[str]:
+    catalog_data: dict[str, Any],
+) -> str | None:
     """Generates styles.py content if the catalog defines styles or theme."""
     defs = catalog_data.get("$defs", {})
     styles_spec = catalog_data.get("styles")
@@ -316,8 +308,10 @@ def generate_basic_catalog_styles(
     codegen = PydanticCodegen(version)
     style_blocks = [
         (
-            f"{FILE_HEADER}\nfrom typing import Any, Dict, Optional\nfrom"
-            " pydantic import BaseModel, Field, ConfigDict"
+            f"{FILE_HEADER}\n"
+            "from typing import Any\n"
+            "from pydantic import BaseModel, Field, ConfigDict\n"
+            "from ...schema.common_types import StrictBaseModel"
         ),
     ]
 
@@ -345,13 +339,12 @@ def generate_basic_catalog_styles(
 
     return "\n\n\n".join(b.strip() for b in style_blocks if b.strip()) + "\n"
 
-
 def generate_basic_catalog_index(
     version: str,
     out_dir: str,
     comp_code: str,
     func_code: str,
-    style_code: Optional[str],
+    style_code: str | None,
 ) -> str:
     """Generates __init__.py content for a version basic_catalog directory."""
     dir_name = version_to_underscore(version)
@@ -483,7 +476,7 @@ def generate_basic_catalog_index(
         "",
         "class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):",
         "",
-        "    def __init__(self, locale: Optional[str] = None):",
+        "    def __init__(self, locale: str | None = None):",
         f"{lazy_func_import}        super().__init__(",
         "            catalog_id=_basic_catalog_id(PROTOCOL_VERSION),",
         "            protocol_version=PROTOCOL_VERSION,",

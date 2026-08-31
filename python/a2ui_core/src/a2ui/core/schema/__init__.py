@@ -14,8 +14,9 @@
 
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
+from __future__ import annotations
 from enum import Enum
-from typing import Any, Dict, List, Union
+from typing import Any
 
 # Versioned schema namespaces
 from . import v0_8
@@ -35,41 +36,35 @@ ProtocolVersion = A2uiProtocolVersion
 
 
 # Multi-version envelope unions (v1.0+ primary terminology)
-AgentToRendererMessage = Union[
-    v0_8.ServerToClientMessage,
-    v0_9.ServerToClientMessage,
-    v1_0.AgentToRendererMessage,
-]
+AgentToRendererMessage = (
+    v0_8.ServerToClientMessage
+    | v0_9.ServerToClientMessage
+    | v1_0.AgentToRendererMessage
+)
 
-AgentToRendererMessageListWrapper = Union[
-    v0_8.A2uiMessageListWrapper,
-    v0_9.A2uiMessageListWrapper,
-    v1_0.AgentToRendererMessageListWrapper,
-]
-
-AgentToRendererMessagePayload = Union[
-    AgentToRendererMessageListWrapper,
-    List[AgentToRendererMessage],
-    AgentToRendererMessage,
-    Dict[str, Any],
-    List[Dict[str, Any]],
-]
-
-RendererToAgentMessage = Union[
-    v0_8.ClientToServerMessage,
-    v0_9.ClientToServerMessage,
-    v1_0.RendererToAgentMessage,
-]
+RendererToAgentMessage = (
+    v0_8.ClientToServerMessage
+    | v0_9.ClientToServerMessage
+    | v1_0.RendererToAgentMessage
+)
 
 # Aliases for cross-version consistency
 ServerToClientMessage = AgentToRendererMessage
 ClientToServerMessage = RendererToAgentMessage
 A2uiMessage = AgentToRendererMessage
 A2uiClientMessage = RendererToAgentMessage
-A2uiMessageListWrapper = AgentToRendererMessageListWrapper
 A2uiRendererAction = v0_9.A2uiRendererAction
 A2uiClientAction = A2uiRendererAction
 A2uiClientUserAction = A2uiRendererAction
+
+AgentToRendererMessagePayload = (
+    AgentToRendererMessage | list[AgentToRendererMessage] | dict[str, Any]
+)
+ServerToClientMessagePayload = AgentToRendererMessagePayload
+RendererToAgentMessagePayload = (
+    RendererToAgentMessage | list[RendererToAgentMessage] | dict[str, Any]
+)
+ClientToServerMessagePayload = RendererToAgentMessagePayload
 
 # Re-exports from primary schema namespace for backwards compatibility
 from .v0_9.common_types import *

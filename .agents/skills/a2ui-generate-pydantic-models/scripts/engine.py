@@ -14,14 +14,13 @@
 
 """Core Pydantic v2 code generation engine for converting JSON Schemas to Python types."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 from utils import (
     ensure_v_prefix,
     to_pascal_case,
     to_snake_case,
     version_to_underscore,
 )
-
 
 class PydanticCodegen:
     """Deterministic Pydantic v2 code generator from JSON Schema."""
@@ -30,10 +29,10 @@ class PydanticCodegen:
         self.version = ensure_v_prefix(version)
         self.dir_name = version_to_underscore(self.version)
         self.spec_dot = self.version
-        self.inline_objects: Dict[str, Dict[str, Any]] = {}
+        self.inline_objects: dict[str, dict[str, Any]] = {}
         self.allow_inline = True
 
-    def map_json_type_to_python(self, prop_name: str, prop: Dict[str, Any]) -> str:
+    def map_json_type_to_python(self, prop_name: str, prop: dict[str, Any]) -> str:
         """Maps JSON Schema property type to Python typing string."""
         if "const" in prop:
             cval = prop["const"]
@@ -45,9 +44,9 @@ class PydanticCodegen:
             ref = prop["$ref"]
             if isinstance(ref, str):
                 if ref.endswith("/ComponentsList"):
-                    return "List[Dict[str, Any]]"
+                    return "list[dict[str, Any]]"
                 if ref.endswith("/Component") or ref.endswith("/anyComponent"):
-                    return "Dict[str, Any]"
+                    return "dict[str, Any]"
                 if ref.endswith("/CallId"):
                     return "str"
                 if ref.endswith("/Child"):
@@ -74,7 +73,7 @@ class PydanticCodegen:
                         mapped_items.append(mapped)
                 if len(mapped_items) == 1:
                     return mapped_items[0]
-                return f"Union[{', '.join(mapped_items)}]"
+                return f"{' | '.join(mapped_items)}"
 
         if "allOf" in prop:
             allOf_items = prop["allOf"]
@@ -102,9 +101,9 @@ class PydanticCodegen:
                 item_types = [
                     self.map_json_type_to_python(prop_name, it) for it in items
                 ]
-                return f"Tuple[{', '.join(item_types)}]"
+                return f"tuple[{', '.join(item_types)}]"
             item_type = self.map_json_type_to_python(prop_name, items)
-            return f"List[{item_type}]"
+            return f"list[{item_type}]"
         elif t == "object":
             if self.allow_inline and "properties" in prop:
                 if len(prop["properties"]) == 1:
@@ -126,14 +125,14 @@ class PydanticCodegen:
             add_props = prop.get("additionalProperties")
             if isinstance(add_props, dict):
                 val_type = self.map_json_type_to_python(prop_name, add_props)
-                return f"Dict[str, {val_type}]"
-            return "Dict[str, Any]"
+                return f"dict[str, {val_type}]"
+            return "dict[str, Any]"
 
         return "Any"
 
     def compile_properties(
-        self, props: Dict[str, Any], required: List[str]
-    ) -> List[str]:
+        self, props: dict[str, Any], required: list[str]
+    ) -> list[str]:
         """Compiles JSON Schema properties into Pydantic v2 field declarations."""
         lines = []
         for prop_name, prop_desc in props.items():
@@ -199,48 +198,43 @@ class PydanticCodegen:
                 if has_default:
                     clean_field_str = field_str.lstrip(", ")
                     lines.append(
-                        f"    {snake_name}: Optional[{py_type}] ="
+                        f"    {snake_name}: {py_type} | None ="
                         f" Field({clean_field_str})"
                     )
                 else:
                     lines.append(
-                        f"    {snake_name}: Optional[{py_type}] ="
-                        f" Field(None{field_str})"
+                        f"    {snake_name}: {py_type} | None = Field(None{field_str})"
                     )
 
         return lines
 
     def compile_object_def(
-        self, class_name: str, spec: Dict[str, Any], base_class: Optional[str] = None
+        self, class_name: str, spec: dict[str, Any], base_class: str | None = None
     ) -> str:
-        """Compiles a single object schema definition into a Pydantic class."""
-        add_props = spec.get("additionalProperties", False)
-        has_pattern_props = bool(spec.get("patternProperties"))
-        if has_pattern_props or add_props is True or isinstance(add_props, dict):
-            bcls = base_class or "BaseModel"
-            lines = [
-                f"class {class_name}({bcls}):",
-                '    model_config = ConfigDict(extra="allow", populate_by_name=True)',
-            ]
-        else:
-            bcls = base_class or "StrictBaseModel"
-            lines = [f"class {class_name}({bcls}):"]
+        """Compiles an object schema definition into a Pydantic BaseModel class."""
+        add_props = spec.get("additionalProperties")
+        base = base_class or ("BaseModel" if add_props else "StrictBaseModel")
+        doc = spec.get("description", "").replace("\n", " ")
 
-        raw_desc = spec.get("description", "").replace("\n", " ")
-        if raw_desc:
-            lines.append(f'    """{raw_desc}"""')
+        lines = [f"class {class_name}({base}):"]
+        if doc:
+            lines.append(f'    """{doc}"""')
+        if add_props is True:
+            lines.append('    model_config = ConfigDict(extra="allow", populate_by_name=True)')
+        else:
+            lines.append('    model_config = ConfigDict(populate_by_name=True)')
 
         props = spec.get("properties", {})
         required = spec.get("required", [])
+
         prop_lines = self.compile_properties(props, required)
         if not prop_lines:
             lines.append("    pass")
-            return "\n".join(lines) + "\n"
-
-        lines.extend(prop_lines)
+        else:
+            lines.extend(prop_lines)
         return "\n".join(lines) + "\n"
 
-    def compile_union_def(self, class_name: str, spec: Dict[str, Any]) -> str:
+    def compile_union_def(self, class_name: str, spec: dict[str, Any]) -> str:
         """Compiles a union schema into a type alias."""
         union_items = spec.get("oneOf") or spec.get("anyOf") or spec.get("allOf")
         if not union_items:
@@ -255,4 +249,4 @@ class PydanticCodegen:
             if mapped not in mapped_items:
                 mapped_items.append(mapped)
 
-        return f"{class_name} = Union[{', '.join(mapped_items)}]\n"
+        return f"{class_name} = {' | '.join(mapped_items)}\n"

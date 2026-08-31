@@ -18,15 +18,15 @@ Compiles A2UI catalog schemas into compact plain-text signatures and
 instruction blocks.
 """
 
+from collections.abc import Mapping, Sequence
 import json
 import re
-from typing import Any, Optional, TYPE_CHECKING, Union
+from typing import Any, TYPE_CHECKING
 from a2ui.prompt import PromptGenerator
 from a2ui.core.schema.v0_9.client_capabilities import V09Capabilities
 
 from .parser import ExpressParser
 from .schema_helper import CatalogSchemaHelper
-
 
 if TYPE_CHECKING:
     from .format import ExpressFormat
@@ -113,7 +113,7 @@ def _schema_allows_databinding(prop_schema: Any) -> bool:
     return False
 
 
-def _get_schema_enum(prop_schema: Any) -> Optional[list[str]]:
+def _get_schema_enum(prop_schema: Any) -> list[str] | None:
     """Helper to recursively find enum definitions inside a JSON schema."""
     if not isinstance(prop_schema, dict):
         return None
@@ -144,7 +144,7 @@ class ExpressPromptGenerator(PromptGenerator):
         self._format = format_inst
         self.catalog = format_inst.catalog
         self.helper = CatalogSchemaHelper(format_inst.catalog)
-        self.parser: Optional[ExpressParser] = None
+        self.parser: ExpressParser | None = None
 
     def generate_component_signatures(self) -> str:
         """Compiles component definitions into clean function-like signatures.
@@ -455,9 +455,9 @@ class ExpressPromptGenerator(PromptGenerator):
         role_description: str,
         workflow_description: str = "",
         ui_description: str = "",
-        client_ui_capabilities: Optional[Union[dict[str, Any], V09Capabilities]] = None,
-        allowed_components: Optional[list[str]] = None,
-        allowed_messages: Optional[list[str]] = None,
+        client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
+        allowed_components: Sequence[str] | None = None,
+        allowed_messages: Sequence[str] | None = None,
         include_schema: bool = False,
         include_examples: bool = False,
         validate_examples: bool = False,

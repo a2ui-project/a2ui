@@ -33,15 +33,17 @@ from ...schema.v0_9.common_types import (
     DynamicStringList,
     DynamicValue,
     FunctionCall,
+    ListReference,
+    SingleReference,
     StrictBaseModel,
     TemplateChildList,
 )
-from ...schema.common_types import ListReference, SingleReference
 from ...catalog.components import ModelComponentApi
 
 
 class CatalogComponentCommon(ComponentCommon):
-    weight: Optional[float] = Field(
+    model_config = ConfigDict(populate_by_name=True)
+    weight: float | None = Field(
         None,
         description=(
             "The relative weight of this component within a Row or Column. This is"
@@ -52,15 +54,18 @@ class CatalogComponentCommon(ComponentCommon):
 
 
 class SvgPath(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     svg_path: str = Field(..., alias="svgPath")
 
 
 class TabItem(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     title: DynamicString = Field(..., description="The tab title.")
     child: ComponentId = Field(..., description="The ID of the child component.")
 
 
 class OptionItem(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     label: DynamicString = Field(
         ..., description="The text to display for this option."
     )
@@ -77,7 +82,7 @@ class TextComponent(CatalogComponentCommon):
             " is generally preferred for a richer and more structured presentation."
         ),
     )
-    variant: Optional[Literal["h1", "h2", "h3", "h4", "h5", "caption", "body"]] = Field(
+    variant: Literal["h1", "h2", "h3", "h4", "h5", "caption", "body"] | None = Field(
         description="A hint for the base text style.", default="body"
     )
 
@@ -85,28 +90,29 @@ class TextComponent(CatalogComponentCommon):
 class ImageComponent(CatalogComponentCommon):
     component: Literal["Image"] = "Image"
     url: DynamicString = Field(..., description="The URL of the image to display.")
-    description: Optional[DynamicString] = Field(
+    description: DynamicString | None = Field(
         None, description="Accessibility text for the image."
     )
-    fit: Optional[Literal["contain", "cover", "fill", "none", "scaleDown"]] = Field(
+    fit: Literal["contain", "cover", "fill", "none", "scaleDown"] | None = Field(
         description=(
             "Specifies how the image should be resized to fit its container. This"
             " corresponds to the CSS 'object-fit' property."
         ),
         default="fill",
     )
-    variant: Optional[
+    variant: (
         Literal[
             "icon", "avatar", "smallFeature", "mediumFeature", "largeFeature", "header"
         ]
-    ] = Field(
+        | None
+    ) = Field(
         description="A hint for the image size and style.", default="mediumFeature"
     )
 
 
 class IconComponent(CatalogComponentCommon):
     component: Literal["Icon"] = "Icon"
-    name: Union[
+    name: (
         Literal[
             "accountCircle",
             "add",
@@ -167,10 +173,10 @@ class IconComponent(CatalogComponentCommon):
             "volumeOff",
             "volumeUp",
             "warning",
-        ],
-        SvgPath,
-        DataBinding,
-    ] = Field(..., description="The name of the icon to display.")
+        ]
+        | SvgPath
+        | DataBinding
+    ) = Field(..., description="The name of the icon to display.")
 
 
 class VideoComponent(CatalogComponentCommon):
@@ -181,7 +187,7 @@ class VideoComponent(CatalogComponentCommon):
 class AudioPlayerComponent(CatalogComponentCommon):
     component: Literal["AudioPlayer"] = "AudioPlayer"
     url: DynamicString = Field(..., description="The URL of the audio to be played.")
-    description: Optional[DynamicString] = Field(
+    description: DynamicString | None = Field(
         None, description="A description of the audio, such as a title or summary."
     )
 
@@ -196,7 +202,7 @@ class RowComponent(CatalogComponentCommon):
             " cannot be defined inline, they must be referred to by ID."
         ),
     )
-    justify: Optional[
+    justify: (
         Literal[
             "center",
             "end",
@@ -206,7 +212,8 @@ class RowComponent(CatalogComponentCommon):
             "start",
             "stretch",
         ]
-    ] = Field(
+        | None
+    ) = Field(
         description=(
             "Defines the arrangement of children along the main axis (horizontally)."
             " Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center'"
@@ -214,7 +221,7 @@ class RowComponent(CatalogComponentCommon):
         ),
         default="start",
     )
-    align: Optional[Literal["start", "center", "end", "stretch"]] = Field(
+    align: Literal["start", "center", "end", "stretch"] | None = Field(
         description=(
             "Defines the alignment of children along the cross axis (vertically). This"
             " is similar to the CSS 'align-items' property, but uses camelCase values"
@@ -234,7 +241,7 @@ class ColumnComponent(CatalogComponentCommon):
             " cannot be defined inline, they must be referred to by ID."
         ),
     )
-    justify: Optional[
+    justify: (
         Literal[
             "start",
             "center",
@@ -244,7 +251,8 @@ class ColumnComponent(CatalogComponentCommon):
             "spaceEvenly",
             "stretch",
         ]
-    ] = Field(
+        | None
+    ) = Field(
         description=(
             "Defines the arrangement of children along the main axis (vertically). Use"
             " 'spaceBetween' to push items to the edges (e.g. header at top, footer at"
@@ -252,7 +260,7 @@ class ColumnComponent(CatalogComponentCommon):
         ),
         default="start",
     )
-    align: Optional[Literal["center", "end", "start", "stretch"]] = Field(
+    align: Literal["center", "end", "start", "stretch"] | None = Field(
         description=(
             "Defines the alignment of children along the cross axis (horizontally)."
             " This is similar to the CSS 'align-items' property."
@@ -270,11 +278,11 @@ class ListComponent(CatalogComponentCommon):
             " or a template object to generate children from a data list."
         ),
     )
-    direction: Optional[Literal["vertical", "horizontal"]] = Field(
+    direction: Literal["vertical", "horizontal"] | None = Field(
         description="The direction in which the list items are laid out.",
         default="vertical",
     )
-    align: Optional[Literal["start", "center", "end", "stretch"]] = Field(
+    align: Literal["start", "center", "end", "stretch"] | None = Field(
         description="Defines the alignment of children along the cross axis.",
         default="stretch",
     )
@@ -295,7 +303,7 @@ class CardComponent(CatalogComponentCommon):
 
 class TabsComponent(CatalogComponentCommon):
     component: Literal["Tabs"] = "Tabs"
-    tabs: List[TabItem] = Field(
+    tabs: list[TabItem] = Field(
         ...,
         description=(
             "An array of objects, where each object defines a tab with a title and a"
@@ -320,14 +328,14 @@ class ModalComponent(CatalogComponentCommon):
 
 class DividerComponent(CatalogComponentCommon):
     component: Literal["Divider"] = "Divider"
-    axis: Optional[Literal["horizontal", "vertical"]] = Field(
+    axis: Literal["horizontal", "vertical"] | None = Field(
         description="The orientation of the divider.", default="horizontal"
     )
 
 
 class ButtonComponent(CatalogComponentCommon):
     component: Literal["Button"] = "Button"
-    checks: Optional[List[CheckRule]] = Field(
+    checks: list[CheckRule] | None = Field(
         None,
         description=(
             "A list of checks to perform. These are function calls that must return a"
@@ -342,7 +350,7 @@ class ButtonComponent(CatalogComponentCommon):
             " icon-only button."
         ),
     )
-    variant: Optional[Literal["default", "primary", "borderless"]] = Field(
+    variant: Literal["default", "primary", "borderless"] | None = Field(
         description=(
             "A hint for the button style. If omitted, a default button style is used."
             " 'primary' indicates this is the main call-to-action button. 'borderless'"
@@ -356,7 +364,7 @@ class ButtonComponent(CatalogComponentCommon):
 
 class TextFieldComponent(CatalogComponentCommon):
     component: Literal["TextField"] = "TextField"
-    checks: Optional[List[CheckRule]] = Field(
+    checks: list[CheckRule] | None = Field(
         None,
         description=(
             "A list of checks to perform. These are function calls that must return a"
@@ -364,13 +372,13 @@ class TextFieldComponent(CatalogComponentCommon):
         ),
     )
     label: DynamicString = Field(..., description="The text label for the input field.")
-    value: Optional[DynamicString] = Field(
+    value: DynamicString | None = Field(
         None, description="The value of the text field."
     )
-    variant: Optional[Literal["longText", "number", "shortText", "obscured"]] = Field(
+    variant: Literal["longText", "number", "shortText", "obscured"] | None = Field(
         description="The type of input field to display.", default="shortText"
     )
-    validation_regexp: Optional[str] = Field(
+    validation_regexp: str | None = Field(
         None,
         alias="validationRegexp",
         description=(
@@ -381,7 +389,7 @@ class TextFieldComponent(CatalogComponentCommon):
 
 class CheckBoxComponent(CatalogComponentCommon):
     component: Literal["CheckBox"] = "CheckBox"
-    checks: Optional[List[CheckRule]] = Field(
+    checks: list[CheckRule] | None = Field(
         None,
         description=(
             "A list of checks to perform. These are function calls that must return a"
@@ -401,21 +409,21 @@ class CheckBoxComponent(CatalogComponentCommon):
 
 class ChoicePickerComponent(CatalogComponentCommon):
     component: Literal["ChoicePicker"] = "ChoicePicker"
-    checks: Optional[List[CheckRule]] = Field(
+    checks: list[CheckRule] | None = Field(
         None,
         description=(
             "A list of checks to perform. These are function calls that must return a"
             " boolean indicating validity."
         ),
     )
-    label: Optional[DynamicString] = Field(
+    label: DynamicString | None = Field(
         None, description="The label for the group of options."
     )
-    variant: Optional[Literal["multipleSelection", "mutuallyExclusive"]] = Field(
+    variant: Literal["multipleSelection", "mutuallyExclusive"] | None = Field(
         description="A hint for how the choice picker should be displayed and behave.",
         default="mutuallyExclusive",
     )
-    options: List[OptionItem] = Field(
+    options: list[OptionItem] = Field(
         ..., description="The list of available options to choose from."
     )
     value: DynamicStringList = Field(
@@ -425,12 +433,12 @@ class ChoicePickerComponent(CatalogComponentCommon):
             " array in the data model."
         ),
     )
-    display_style: Optional[Literal["checkbox", "chips"]] = Field(
+    display_style: Literal["checkbox", "chips"] | None = Field(
         alias="displayStyle",
         description="The display style of the component.",
         default="checkbox",
     )
-    filterable: Optional[bool] = Field(
+    filterable: bool | None = Field(
         description="If true, displays a search input to filter the options.",
         default=False,
     )
@@ -438,26 +446,22 @@ class ChoicePickerComponent(CatalogComponentCommon):
 
 class SliderComponent(CatalogComponentCommon):
     component: Literal["Slider"] = "Slider"
-    checks: Optional[List[CheckRule]] = Field(
+    checks: list[CheckRule] | None = Field(
         None,
         description=(
             "A list of checks to perform. These are function calls that must return a"
             " boolean indicating validity."
         ),
     )
-    label: Optional[DynamicString] = Field(
-        None, description="The label for the slider."
-    )
-    min: Optional[float] = Field(
-        description="The minimum value of the slider.", default=0
-    )
+    label: DynamicString | None = Field(None, description="The label for the slider.")
+    min: float | None = Field(description="The minimum value of the slider.", default=0)
     max: float = Field(..., description="The maximum value of the slider.")
     value: DynamicNumber = Field(..., description="The current value of the slider.")
 
 
 class DateTimeInputComponent(CatalogComponentCommon):
     component: Literal["DateTimeInput"] = "DateTimeInput"
-    checks: Optional[List[CheckRule]] = Field(
+    checks: list[CheckRule] | None = Field(
         None,
         description=(
             "A list of checks to perform. These are function calls that must return a"
@@ -471,48 +475,46 @@ class DateTimeInputComponent(CatalogComponentCommon):
             " initialize with an empty string."
         ),
     )
-    enable_date: Optional[bool] = Field(
+    enable_date: bool | None = Field(
         alias="enableDate",
         description="If true, allows the user to select a date.",
         default=False,
     )
-    enable_time: Optional[bool] = Field(
+    enable_time: bool | None = Field(
         alias="enableTime",
         description="If true, allows the user to select a time.",
         default=False,
     )
-    min: Optional[DynamicString] = Field(
+    min: DynamicString | None = Field(
         None, description="The minimum allowed date/time in ISO 8601 format."
     )
-    max: Optional[DynamicString] = Field(
+    max: DynamicString | None = Field(
         None, description="The maximum allowed date/time in ISO 8601 format."
     )
-    label: Optional[DynamicString] = Field(
+    label: DynamicString | None = Field(
         None, description="The text label for the input field."
     )
 
 
 AnyComponent = Annotated[
-    Union[
-        TextComponent,
-        ImageComponent,
-        IconComponent,
-        VideoComponent,
-        AudioPlayerComponent,
-        RowComponent,
-        ColumnComponent,
-        ListComponent,
-        CardComponent,
-        TabsComponent,
-        ModalComponent,
-        DividerComponent,
-        ButtonComponent,
-        TextFieldComponent,
-        CheckBoxComponent,
-        ChoicePickerComponent,
-        SliderComponent,
-        DateTimeInputComponent,
-    ],
+    TextComponent
+    | ImageComponent
+    | IconComponent
+    | VideoComponent
+    | AudioPlayerComponent
+    | RowComponent
+    | ColumnComponent
+    | ListComponent
+    | CardComponent
+    | TabsComponent
+    | ModalComponent
+    | DividerComponent
+    | ButtonComponent
+    | TextFieldComponent
+    | CheckBoxComponent
+    | ChoicePickerComponent
+    | SliderComponent
+    | DateTimeInputComponent,
     Field(..., discriminator="component"),
 ]
 

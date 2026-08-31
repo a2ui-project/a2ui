@@ -18,7 +18,7 @@ import argparse
 import json
 import os
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Allow intra-package imports when run directly as a script
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -66,11 +66,10 @@ REPO_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, "../../../.."))
 SPEC_ROOT = os.path.join(REPO_ROOT, "specification")
 CORE_SRC_ROOT = os.path.join(REPO_ROOT, "python/a2ui_core/src/a2ui/core")
 
-
 def _generate_constants_code(
     version: str,
-    a2r_data: Dict[str, Any],
-    r2a_data: Dict[str, Any],
+    a2r_data: dict[str, Any],
+    r2a_data: dict[str, Any],
 ) -> str:
     """Dynamically generates constants.py based on the version's schema definitions."""
     dir_name = version_to_underscore(version)
@@ -117,7 +116,7 @@ def _generate_constants_code(
 
     # Outbound message type constants
     lines.append("# Outbound message types")
-    outbound_keys: List[str] = []
+    outbound_keys: list[str] = []
     if defs:
         for mname, mschema in defs.items():
             if mname.endswith("Message"):
@@ -158,11 +157,10 @@ def _generate_constants_code(
     lines.append("")
     return "\n".join(lines)
 
-
 def generate_version_schemas(
     version: str,
-    spec_root: Optional[str] = None,
-    out_root: Optional[str] = None,
+    spec_root: str | None = None,
+    out_root: str | None = None,
 ) -> None:
     """Generates all Pydantic schema files for a given protocol version."""
     codegen = PydanticCodegen(version)
@@ -203,7 +201,7 @@ def generate_version_schemas(
             r2a_data = json.load(f)
 
     is_modern = is_modern_terminology(version, a2r_name)
-    modules: Dict[str, str] = {}
+    modules: dict[str, str] = {}
 
     # 1. Generate constants.py
     constants_code = _generate_constants_code(version, a2r_data, r2a_data)
@@ -212,7 +210,7 @@ def generate_version_schemas(
 
     # 2. Generate common_types.py
     common_types_path = os.path.join(json_dir, "common_types.json")
-    common_data: Optional[Dict[str, Any]] = None
+    common_data: dict[str, Any] | None = None
     if os.path.exists(common_types_path):
         with open(common_types_path, "r", encoding="utf-8") as f:
             common_data = json.load(f)
@@ -324,11 +322,10 @@ def generate_version_schemas(
     with open(os.path.join(out_dir, "__init__.py"), "w", encoding="utf-8") as f:
         f.write(schema_init_code)
 
-
 def generate_basic_catalog(
     version: str,
-    spec_root: Optional[str] = None,
-    out_root: Optional[str] = None,
+    spec_root: str | None = None,
+    out_root: str | None = None,
 ) -> None:
     """Generates basic catalog components, functions, styles, and catalog classes for a given version."""
     dir_name = version_to_underscore(version)
@@ -359,7 +356,7 @@ def generate_basic_catalog(
     common_types_json_path = next(
         (p for p in common_types_possible if os.path.exists(p)), None
     )
-    common_data: Optional[Dict[str, Any]] = None
+    common_data: dict[str, Any] | None = None
     if common_types_json_path:
         with open(common_types_json_path, "r", encoding="utf-8") as f:
             common_data = json.load(f)
@@ -397,10 +394,9 @@ def generate_basic_catalog(
     with open(os.path.join(out_dir, "__init__.py"), "w", encoding="utf-8") as f:
         f.write(cat_init_code)
 
-
 def update_root_schema_init(
-    known_versions: List[str],
-    out_root: Optional[str] = None,
+    known_versions: list[str],
+    out_root: str | None = None,
 ) -> None:
     """Dynamically regenerates src/a2ui/core/schema/__init__.py with all known versions."""
     o_root = out_root or CORE_SRC_ROOT
@@ -416,6 +412,8 @@ def update_root_schema_init(
     enum_members = []
     for _, s_dot, e_name in version_triples:
         enum_members.append(f'    {e_name} = "{s_dot}"')
+        if e_name == "V0_9":
+            enum_members.append('    V0_9_1 = "v0.9.1"')
 
     agent_union_items = []
     renderer_union_items = []
@@ -482,9 +480,13 @@ from .common_types import (
 )
 """
 
+    agent_union_str = " | ".join([x.strip().rstrip(",") for x in agent_union_items])
+    renderer_union_str = " | ".join([x.strip().rstrip(",") for x in renderer_union_items])
+
     content = f"""{FILE_HEADER}
+from __future__ import annotations
 from enum import Enum
-from typing import Any, Union
+from typing import Any
 
 # Versioned schema namespaces
 {chr(10).join(imports_lines)}
@@ -493,15 +495,13 @@ from typing import Any, Union
 class A2uiProtocolVersion(str, Enum):
 {chr(10).join(enum_members)}
 
+ProtocolVersion = A2uiProtocolVersion
+
 
 # Multi-version envelope unions (v1.0+ primary terminology)
-AgentToRendererMessage = Union[
-{chr(10).join(agent_union_items)}
-]
+AgentToRendererMessage = {agent_union_str}
 
-RendererToAgentMessage = Union[
-{chr(10).join(renderer_union_items)}
-]
+RendererToAgentMessage = {renderer_union_str}
 
 # Aliases for cross-version consistency
 ServerToClientMessage = AgentToRendererMessage
@@ -512,11 +512,15 @@ A2uiClientMessage = RendererToAgentMessage
 A2uiClientAction = A2uiRendererAction
 A2uiClientUserAction = A2uiRendererAction
 
+AgentToRendererMessagePayload = AgentToRendererMessage | list[AgentToRendererMessage] | dict[str, Any]
+ServerToClientMessagePayload = AgentToRendererMessagePayload
+RendererToAgentMessagePayload = RendererToAgentMessage | list[RendererToAgentMessage] | dict[str, Any]
+ClientToServerMessagePayload = RendererToAgentMessagePayload
+
 {legacy_reexports}
 """
     with open(os.path.join(o_root, "schema/__init__.py"), "w", encoding="utf-8") as f:
         f.write(content)
-
 
 def main():
     parser = argparse.ArgumentParser(
@@ -559,7 +563,6 @@ def main():
         update_root_schema_init(all_schema_dirs)
 
     print("Schema codegen completed successfully.")
-
 
 if __name__ == "__main__":
     main()

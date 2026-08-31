@@ -39,28 +39,32 @@ from ...catalog.components import ModelComponentApi
 class TextItem(StrictBaseModel):
     """The value of the text field. This can be a literal string or a reference to a value in the data model ('path', e.g. '/user/name')."""
 
-    literal_string: Optional[str] = Field(None, alias="literalString")
-    path: Optional[str] = Field(None)
+    model_config = ConfigDict(populate_by_name=True)
+    literal_string: str | None = Field(None, alias="literalString")
+    path: str | None = Field(None)
 
 
 class UrlItem(StrictBaseModel):
     """The URL of the audio to be played. This can be a literal string ('literal') or a reference to a value in the data model ('path', e.g. '/song/url')."""
 
-    literal_string: Optional[str] = Field(None, alias="literalString")
-    path: Optional[str] = Field(None)
+    model_config = ConfigDict(populate_by_name=True)
+    literal_string: str | None = Field(None, alias="literalString")
+    path: str | None = Field(None)
 
 
 class AltTextItem(StrictBaseModel):
     """The alt text for the image. This can be a literal string ('literal') or a reference to a value in the data model ('path', e.g. '/thumbnail/altText')."""
 
-    literal_string: Optional[str] = Field(None, alias="literalString")
-    path: Optional[str] = Field(None)
+    model_config = ConfigDict(populate_by_name=True)
+    literal_string: str | None = Field(None, alias="literalString")
+    path: str | None = Field(None)
 
 
 class NameItem(StrictBaseModel):
     """The name of the icon to display. This can be a literal string or a reference to a value in the data model ('path', e.g. '/form/submit')."""
 
-    literal_string: Optional[
+    model_config = ConfigDict(populate_by_name=True)
+    literal_string: (
         Literal[
             "accountCircle",
             "add",
@@ -111,22 +115,25 @@ class NameItem(StrictBaseModel):
             "visibilityOff",
             "warning",
         ]
-    ] = Field(None, alias="literalString")
-    path: Optional[str] = Field(None)
+        | None
+    ) = Field(None, alias="literalString")
+    path: str | None = Field(None)
 
 
 class DescriptionItem(StrictBaseModel):
     """A description of the audio, such as a title or summary. This can be a literal string or a reference to a value in the data model ('path', e.g. '/song/title')."""
 
-    literal_string: Optional[str] = Field(None, alias="literalString")
-    path: Optional[str] = Field(None)
+    model_config = ConfigDict(populate_by_name=True)
+    literal_string: str | None = Field(None, alias="literalString")
+    path: str | None = Field(None)
 
 
 class ChildrenItem(StrictBaseModel):
     """Defines the children. Use 'explicitList' for a fixed set of children, or 'template' to generate children from a data list."""
 
-    explicit_list: Optional[List[str]] = Field(None, alias="explicitList")
-    template: Optional[TemplateItem] = Field(
+    model_config = ConfigDict(populate_by_name=True)
+    explicit_list: list[str] | None = Field(None, alias="explicitList")
+    template: TemplateItem | None = Field(
         None,
         description=(
             "A template for generating a dynamic list of children from a data model"
@@ -138,6 +145,7 @@ class ChildrenItem(StrictBaseModel):
 
 
 class TabItemItem(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     title: TitleItem = Field(
         ...,
         description=(
@@ -151,32 +159,37 @@ class TabItemItem(StrictBaseModel):
 class ActionItem(StrictBaseModel):
     """The client-side action to be dispatched when the button is clicked. It includes the action's name and an optional context payload."""
 
+    model_config = ConfigDict(populate_by_name=True)
     name: str = Field(...)
-    context: Optional[List[ContextItem]] = Field(None)
+    context: list[ContextItem] | None = Field(None)
 
 
 class LabelItem(StrictBaseModel):
     """The label for the slider. This can be a literal string or a reference to a value in the data model ('path')."""
 
-    literal_string: Optional[str] = Field(None, alias="literalString")
-    path: Optional[str] = Field(None)
+    model_config = ConfigDict(populate_by_name=True)
+    literal_string: str | None = Field(None, alias="literalString")
+    path: str | None = Field(None)
 
 
 class ValueItem(StrictBaseModel):
     """The current value of the slider. This can be a literal number ('literalNumber') or a reference to a value in the data model ('path', e.g. '/restaurant/cost')."""
 
-    literal_number: Optional[float] = Field(None, alias="literalNumber")
-    path: Optional[str] = Field(None)
+    model_config = ConfigDict(populate_by_name=True)
+    literal_number: float | None = Field(None, alias="literalNumber")
+    path: str | None = Field(None)
 
 
 class SelectionItem(StrictBaseModel):
     """The currently selected values for the component. This can be a literal array of strings or a path to an array in the data model('path', e.g. '/hotel/options')."""
 
-    literal_array: Optional[List[str]] = Field(None, alias="literalArray")
-    path: Optional[str] = Field(None)
+    model_config = ConfigDict(populate_by_name=True)
+    literal_array: list[str] | None = Field(None, alias="literalArray")
+    path: str | None = Field(None)
 
 
 class OptionItem(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     label: LabelItem = Field(
         ...,
         description=(
@@ -192,6 +205,7 @@ class OptionItem(StrictBaseModel):
 class TemplateItem(StrictBaseModel):
     """A template for generating a dynamic list of children from a data model list. `componentId` is the component to use as a template, and `dataBinding` is the path to the map of components in the data model. Values in the map will define the list of children."""
 
+    model_config = ConfigDict(populate_by_name=True)
     component_id: str = Field(..., alias="componentId")
     data_binding: str = Field(..., alias="dataBinding")
 
@@ -199,11 +213,13 @@ class TemplateItem(StrictBaseModel):
 class TitleItem(StrictBaseModel):
     """The tab title. Defines the value as either a literal value or a path to data model value (e.g. '/options/title')."""
 
-    literal_string: Optional[str] = Field(None, alias="literalString")
-    path: Optional[str] = Field(None)
+    model_config = ConfigDict(populate_by_name=True)
+    literal_string: str | None = Field(None, alias="literalString")
+    path: str | None = Field(None)
 
 
 class ContextItem(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     key: str = Field(...)
     value: ValueItem = Field(
         ...,
@@ -226,17 +242,15 @@ class TextComponent(ComponentCommon):
             " more structured presentation."
         ),
     )
-    usage_hint: Optional[Literal["h1", "h2", "h3", "h4", "h5", "caption", "body"]] = (
-        Field(
-            None,
-            alias="usageHint",
-            description=(
-                "A hint for the base text style. One of: - `h1`: Largest heading. -"
-                " `h2`: Second largest heading. - `h3`: Third largest heading. - `h4`:"
-                " Fourth largest heading. - `h5`: Fifth largest heading. - `caption`:"
-                " Small text for captions. - `body`: Standard body text."
-            ),
-        )
+    usage_hint: Literal["h1", "h2", "h3", "h4", "h5", "caption", "body"] | None = Field(
+        None,
+        alias="usageHint",
+        description=(
+            "A hint for the base text style. One of: - `h1`: Largest heading. - `h2`:"
+            " Second largest heading. - `h3`: Third largest heading. - `h4`: Fourth"
+            " largest heading. - `h5`: Fifth largest heading. - `caption`: Small text"
+            " for captions. - `body`: Standard body text."
+        ),
     )
 
 
@@ -250,7 +264,7 @@ class ImageComponent(ComponentCommon):
             " '/thumbnail/url')."
         ),
     )
-    alt_text: Optional[AltTextItem] = Field(
+    alt_text: AltTextItem | None = Field(
         None,
         alias="altText",
         description=(
@@ -259,18 +273,19 @@ class ImageComponent(ComponentCommon):
             " '/thumbnail/altText')."
         ),
     )
-    fit: Optional[Literal["contain", "cover", "fill", "none", "scale-down"]] = Field(
+    fit: Literal["contain", "cover", "fill", "none", "scale-down"] | None = Field(
         None,
         description=(
             "Specifies how the image should be resized to fit its container. This"
             " corresponds to the CSS 'object-fit' property."
         ),
     )
-    usage_hint: Optional[
+    usage_hint: (
         Literal[
             "icon", "avatar", "smallFeature", "mediumFeature", "largeFeature", "header"
         ]
-    ] = Field(
+        | None
+    ) = Field(
         None,
         alias="usageHint",
         description=(
@@ -314,7 +329,7 @@ class AudioPlayerComponent(ComponentCommon):
             " '/song/url')."
         ),
     )
-    description: Optional[DescriptionItem] = Field(
+    description: DescriptionItem | None = Field(
         None,
         description=(
             "A description of the audio, such as a title or summary. This can be a"
@@ -333,16 +348,17 @@ class RowComponent(ComponentCommon):
             " 'template' to generate children from a data list."
         ),
     )
-    distribution: Optional[
+    distribution: (
         Literal["center", "end", "spaceAround", "spaceBetween", "spaceEvenly", "start"]
-    ] = Field(
+        | None
+    ) = Field(
         None,
         description=(
             "Defines the arrangement of children along the main axis (horizontally)."
             " This corresponds to the CSS 'justify-content' property."
         ),
     )
-    alignment: Optional[Literal["start", "center", "end", "stretch"]] = Field(
+    alignment: Literal["start", "center", "end", "stretch"] | None = Field(
         None,
         description=(
             "Defines the alignment of children along the cross axis (vertically). This"
@@ -360,16 +376,17 @@ class ColumnComponent(ComponentCommon):
             " 'template' to generate children from a data list."
         ),
     )
-    distribution: Optional[
+    distribution: (
         Literal["start", "center", "end", "spaceBetween", "spaceAround", "spaceEvenly"]
-    ] = Field(
+        | None
+    ) = Field(
         None,
         description=(
             "Defines the arrangement of children along the main axis (vertically). This"
             " corresponds to the CSS 'justify-content' property."
         ),
     )
-    alignment: Optional[Literal["center", "end", "start", "stretch"]] = Field(
+    alignment: Literal["center", "end", "start", "stretch"] | None = Field(
         None,
         description=(
             "Defines the alignment of children along the cross axis (horizontally)."
@@ -387,10 +404,10 @@ class ListComponent(ComponentCommon):
             " 'template' to generate children from a data list."
         ),
     )
-    direction: Optional[Literal["vertical", "horizontal"]] = Field(
+    direction: Literal["vertical", "horizontal"] | None = Field(
         None, description="The direction in which the list items are laid out."
     )
-    alignment: Optional[Literal["start", "center", "end", "stretch"]] = Field(
+    alignment: Literal["start", "center", "end", "stretch"] | None = Field(
         None, description="Defines the alignment of children along the cross axis."
     )
 
@@ -404,7 +421,7 @@ class CardComponent(ComponentCommon):
 
 class TabsComponent(ComponentCommon):
     component: Literal["Tabs"] = "Tabs"
-    tab_items: List[TabItemItem] = Field(
+    tab_items: list[TabItemItem] = Field(
         ...,
         alias="tabItems",
         description=(
@@ -416,7 +433,7 @@ class TabsComponent(ComponentCommon):
 
 class DividerComponent(ComponentCommon):
     component: Literal["Divider"] = "Divider"
-    axis: Optional[Literal["horizontal", "vertical"]] = Field(
+    axis: Literal["horizontal", "vertical"] | None = Field(
         None, description="The orientation of the divider."
     )
 
@@ -447,7 +464,7 @@ class ButtonComponent(ComponentCommon):
             " component."
         ),
     )
-    primary: Optional[bool] = Field(
+    primary: bool | None = Field(
         None,
         description="Indicates if this button should be styled as the primary action.",
     )
@@ -488,19 +505,19 @@ class TextFieldComponent(ComponentCommon):
             " reference to a value in the data model ('path, e.g. '/user/name')."
         ),
     )
-    text: Optional[TextItem] = Field(
+    text: TextItem | None = Field(
         None,
         description=(
             "The value of the text field. This can be a literal string or a reference"
             " to a value in the data model ('path', e.g. '/user/name')."
         ),
     )
-    text_field_type: Optional[
-        Literal["date", "longText", "number", "shortText", "obscured"]
-    ] = Field(
+    text_field_type: (
+        Literal["date", "longText", "number", "shortText", "obscured"] | None
+    ) = Field(
         None, alias="textFieldType", description="The type of input field to display."
     )
-    validation_regexp: Optional[str] = Field(
+    validation_regexp: str | None = Field(
         None,
         alias="validationRegexp",
         description=(
@@ -519,12 +536,12 @@ class DateTimeInputComponent(ComponentCommon):
             " model ('path', e.g. '/user/dob')."
         ),
     )
-    enable_date: Optional[bool] = Field(
+    enable_date: bool | None = Field(
         None,
         alias="enableDate",
         description="If true, allows the user to select a date.",
     )
-    enable_time: Optional[bool] = Field(
+    enable_time: bool | None = Field(
         None,
         alias="enableTime",
         description="If true, allows the user to select a time.",
@@ -541,25 +558,25 @@ class MultipleChoiceComponent(ComponentCommon):
             " '/hotel/options')."
         ),
     )
-    options: List[OptionItem] = Field(
+    options: list[OptionItem] = Field(
         ..., description="An array of available options for the user to choose from."
     )
-    max_allowed_selections: Optional[int] = Field(
+    max_allowed_selections: int | None = Field(
         None,
         alias="maxAllowedSelections",
         description="The maximum number of options that the user is allowed to select.",
     )
-    variant: Optional[Literal["checkbox", "chips"]] = Field(
+    variant: Literal["checkbox", "chips"] | None = Field(
         None, description="The display style of the component."
     )
-    filterable: Optional[bool] = Field(
+    filterable: bool | None = Field(
         None, description="If true, displays a search input to filter the options."
     )
 
 
 class SliderComponent(ComponentCommon):
     component: Literal["Slider"] = "Slider"
-    label: Optional[LabelItem] = Field(
+    label: LabelItem | None = Field(
         None,
         description=(
             "The label for the slider. This can be a literal string or a reference to a"
@@ -574,35 +591,33 @@ class SliderComponent(ComponentCommon):
             " e.g. '/restaurant/cost')."
         ),
     )
-    min_value: Optional[float] = Field(
+    min_value: float | None = Field(
         None, alias="minValue", description="The minimum value of the slider."
     )
-    max_value: Optional[float] = Field(
+    max_value: float | None = Field(
         None, alias="maxValue", description="The maximum value of the slider."
     )
 
 
 AnyComponent = Annotated[
-    Union[
-        TextComponent,
-        ImageComponent,
-        IconComponent,
-        VideoComponent,
-        AudioPlayerComponent,
-        RowComponent,
-        ColumnComponent,
-        ListComponent,
-        CardComponent,
-        TabsComponent,
-        DividerComponent,
-        ModalComponent,
-        ButtonComponent,
-        CheckBoxComponent,
-        TextFieldComponent,
-        DateTimeInputComponent,
-        MultipleChoiceComponent,
-        SliderComponent,
-    ],
+    TextComponent
+    | ImageComponent
+    | IconComponent
+    | VideoComponent
+    | AudioPlayerComponent
+    | RowComponent
+    | ColumnComponent
+    | ListComponent
+    | CardComponent
+    | TabsComponent
+    | DividerComponent
+    | ModalComponent
+    | ButtonComponent
+    | CheckBoxComponent
+    | TextFieldComponent
+    | DateTimeInputComponent
+    | MultipleChoiceComponent
+    | SliderComponent,
     Field(..., discriminator="component"),
 ]
 

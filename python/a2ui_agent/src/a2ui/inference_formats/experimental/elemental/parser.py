@@ -14,7 +14,7 @@
 
 """Parser utilities to extract and compile A2UI Elemental HTML from LLM responses."""
 
-from typing import Any, List, Union
+from typing import Any
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
@@ -30,7 +30,7 @@ class ElementalParser(Parser):
     """Concrete parser implementation for A2UI Elemental TSX/HTML5 responses."""
 
     def __init__(
-        self, catalog: Union[Catalog[Any, Any], A2uiCatalog], surface_id: str = "main"
+        self, catalog: Catalog[Any, Any] | A2uiCatalog, surface_id: str = "main"
     ):
         """Initializes the parser with a component catalog and target surface ID.
 
@@ -58,7 +58,7 @@ class ElementalParser(Parser):
             )
         return A2UI_INFERENCE_OPEN_TAG[:-1] in content
 
-    def unwrap(self, content: str) -> List[ResponsePart]:
+    def unwrap(self, content: str) -> list[ResponsePart]:
         """Unwraps and tokenizes response content into raw Elemental HTML parts.
 
         Args:
@@ -79,7 +79,7 @@ class ElementalParser(Parser):
 
     def compile(
         self, format_content: str, *, is_final: bool = True
-    ) -> List[dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Compiles raw Elemental HTML into structured A2UI layout operation messages.
 
         For partial streams (when `is_final` is False), missing trailing tags (like
@@ -122,6 +122,6 @@ class ElementalParser(Parser):
         """Decompiles a structured A2UI payload into this format's raw notation."""
         return _ElementalDecompiler(self.catalog).decompile(val)
 
-    def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
+    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         """Wraps multiple decompiled blocks with the format's enclosing tags/markers."""
         return _ElementalDecompiler(self.catalog).wrap_decompiled_blocks(blocks)

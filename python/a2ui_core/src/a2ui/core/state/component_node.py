@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable
 from ..common.events import EventSource, Signal
 
 
@@ -25,15 +25,15 @@ class ComponentNode:
         component_id: str,
         node_type: str,
         data_path: str,
-        props: Signal[Dict[str, Any]],
+        props: Signal[dict[str, Any]],
     ):
         self.instance_id: str = instance_id
         self.component_id: str = component_id
         self.type: str = node_type
         self.data_path: str = data_path
-        self.props: Signal[Dict[str, Any]] = props
+        self.props: Signal[dict[str, Any]] = props
         self.on_destroyed: EventSource = EventSource()
-        self._cleanup_callbacks: List[Callable[[], None]] = []
+        self._cleanup_callbacks: list[Callable[[], None]] = []
         self._disposed: bool = False
 
     def add_cleanup(self, callback: Callable[[], None]) -> None:
@@ -62,7 +62,7 @@ class ComponentNode:
             f" component_id={self.component_id!r}, type={self.type!r})"
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serializes this node and its children recursively to a standard dict layout."""
         if self.type == "Placeholder":
             return {

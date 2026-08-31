@@ -23,6 +23,7 @@ from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 class CatalogDefinition(StrictBaseModel):
     """A schema for a custom Catalog Description including A2UI components and styles."""
 
+    model_config = ConfigDict(populate_by_name=True)
     catalog_id: str = Field(
         ...,
         alias="catalogId",
@@ -32,7 +33,7 @@ class CatalogDefinition(StrictBaseModel):
             " mycompany.com:somecatalog'."
         ),
     )
-    components: Dict[str, Any] = Field(
+    components: dict[str, Any] = Field(
         ...,
         description=(
             "A schema that defines a catalog of A2UI components. Each key is a"
@@ -40,7 +41,7 @@ class CatalogDefinition(StrictBaseModel):
             " properties."
         ),
     )
-    styles: Dict[str, Any] = Field(
+    styles: dict[str, Any] = Field(
         ...,
         description=(
             "A schema that defines a catalog of A2UI styles. Each key is a style name,"

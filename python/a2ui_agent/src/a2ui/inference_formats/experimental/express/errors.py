@@ -14,13 +14,11 @@
 
 """Custom exception types raised by the A2UI Express compiler."""
 
-from typing import Optional, List
-
 
 class ExpressCompilerError(ValueError):
     """Base class for all Express DSL compilation errors."""
 
-    def __init__(self, message: str, help_message: Optional[str] = None):
+    def __init__(self, message: str, help_message: str | None = None):
         """Initializes an Express compiler error with a message and optional help hint.
 
         Args:
@@ -34,7 +32,7 @@ class ExpressCompilerError(ValueError):
 class ExpressUnknownPropertyError(ExpressCompilerError):
     """Raised when a component argument is not a valid property in the catalog schema."""
 
-    def __init__(self, comp_name: str, prop_name: str, valid_props: List[str]):
+    def __init__(self, comp_name: str, prop_name: str, valid_props: list[str]):
         """Initializes an unknown property error.
 
         Args:
@@ -84,7 +82,7 @@ class ExpressDuplicatePropertyError(ExpressCompilerError):
 class ExpressInvalidParamError(ExpressCompilerError):
     """Raised when a function argument is not a valid parameter in the function schema."""
 
-    def __init__(self, fn_name: str, param_name: str, valid_params: List[str]):
+    def __init__(self, fn_name: str, param_name: str, valid_params: list[str]):
         """Initializes an invalid function parameter error.
 
         Args:

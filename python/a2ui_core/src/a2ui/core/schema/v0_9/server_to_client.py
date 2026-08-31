@@ -17,16 +17,17 @@ from __future__ import annotations
 from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field, ConfigDict
 from .common_types import StrictBaseModel
-from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE, SUPPORTED_PROTOCOL_VERSIONS
+from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
 
-ComponentsList = List[Dict[str, Any]]
-Component = Dict[str, Any]
+ComponentsList = list[dict[str, Any]]
+Component = dict[str, Any]
 
 
 class CreateSurface(StrictBaseModel):
     """Signals the client to create a new surface and begin rendering it. It is an error to send 'createSurface' for a surfaceId that already exists without first deleting it. When this message is sent, the client will expect 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId that define the component tree."""
 
+    model_config = ConfigDict(populate_by_name=True)
     surface_id: str = Field(
         ...,
         alias="surfaceId",
@@ -41,14 +42,14 @@ class CreateSurface(StrictBaseModel):
             " mycompany.com:somecatalog'."
         ),
     )
-    theme: Optional[Any] = Field(
+    theme: Any | None = Field(
         None,
         description=(
             "Theme parameters for the surface (e.g., {'primaryColor': '#FF0000'})."
             " These must validate against the 'theme' schema defined in the catalog."
         ),
     )
-    send_data_model: Optional[bool] = Field(
+    send_data_model: bool | None = Field(
         None,
         alias="sendDataModel",
         description=(
@@ -67,12 +68,13 @@ class CreateSurfaceMessage(StrictBaseModel):
 class UpdateComponents(StrictBaseModel):
     """Updates a surface with a new set of components. This message can be sent multiple times to update the component tree of an existing surface. One of the components in one of the components lists MUST have an 'id' of 'root' to serve as the root of the component tree. The createSurface message MUST have been previously sent with the 'catalogId' that is in this message."""
 
+    model_config = ConfigDict(populate_by_name=True)
     surface_id: str = Field(
         ...,
         alias="surfaceId",
         description="The unique identifier for the UI surface to be updated.",
     )
-    components: List[Dict[str, Any]] = Field(
+    components: list[dict[str, Any]] = Field(
         ..., description="A list containing all UI components for the surface."
     )
 
@@ -85,6 +87,7 @@ class UpdateComponentsMessage(StrictBaseModel):
 class UpdateDataModel(StrictBaseModel):
     """Updates the data model for an existing surface. This message can be sent multiple times to update the data model. The createSurface message MUST have been previously sent with the 'catalogId' that is in this message."""
 
+    model_config = ConfigDict(populate_by_name=True)
     surface_id: str = Field(
         ...,
         alias="surfaceId",
@@ -93,14 +96,14 @@ class UpdateDataModel(StrictBaseModel):
             " applies to."
         ),
     )
-    path: Optional[str] = Field(
+    path: str | None = Field(
         None,
         description=(
             "An optional path to a location within the data model (e.g., '/user/name')."
             " If omitted, or set to '/', refers to the entire data model."
         ),
     )
-    value: Optional[Any] = Field(
+    value: Any | None = Field(
         None,
         description=(
             "The data to be updated in the data model. If present, the value at 'path'"
@@ -117,6 +120,7 @@ class UpdateDataModelMessage(StrictBaseModel):
 class DeleteSurface(StrictBaseModel):
     """Signals the client to delete the surface identified by 'surfaceId'. The createSurface message MUST have been previously sent with the 'catalogId' that is in this message."""
 
+    model_config = ConfigDict(populate_by_name=True)
     surface_id: str = Field(
         ...,
         alias="surfaceId",
@@ -129,12 +133,12 @@ class DeleteSurfaceMessage(StrictBaseModel):
     delete_surface: DeleteSurface = Field(..., alias="deleteSurface")
 
 
-ServerToClientMessage = Union[
-    CreateSurfaceMessage,
-    UpdateComponentsMessage,
-    UpdateDataModelMessage,
-    DeleteSurfaceMessage,
-]
+ServerToClientMessage = (
+    CreateSurfaceMessage
+    | UpdateComponentsMessage
+    | UpdateDataModelMessage
+    | DeleteSurfaceMessage
+)
 
 
 AgentToRendererMessage = ServerToClientMessage
@@ -142,6 +146,6 @@ A2uiMessage = ServerToClientMessage
 
 
 class A2uiMessageListWrapper(StrictBaseModel):
-    messages: List[ServerToClientMessage] = Field(
+    messages: list[ServerToClientMessage] = Field(
         ..., description="A list of messages."
     )

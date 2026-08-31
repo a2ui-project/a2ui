@@ -37,7 +37,8 @@ from ..common_types import (
 class AccessibilityAttributes(StrictBaseModel):
     """Attributes to enhance accessibility when using assistive technologies like screen readers."""
 
-    label: Optional[DynamicString] = Field(
+    model_config = ConfigDict(populate_by_name=True)
+    label: DynamicString | None = Field(
         None,
         description=(
             "A short string, typically 1 to 3 words, used by assistive technologies to"
@@ -46,7 +47,7 @@ class AccessibilityAttributes(StrictBaseModel):
             " 'Submit'."
         ),
     )
-    description: Optional[DynamicString] = Field(
+    description: DynamicString | None = Field(
         None,
         description=(
             "Additional information provided by assistive technologies about an element"
@@ -58,16 +59,18 @@ class AccessibilityAttributes(StrictBaseModel):
 
 
 class ComponentCommon(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     id: ComponentId = Field(...)
-    accessibility: Optional[AccessibilityAttributes] = Field(None)
+    accessibility: AccessibilityAttributes | None = Field(None)
 
 
-DynamicValue = Union[str, float, bool, List[Any], DataBinding, FunctionCall]
+DynamicValue = str | float | bool | list[Any] | DataBinding | FunctionCall
 
 
 class CheckRule(StrictBaseModel):
     """A single validation rule applied to an input component."""
 
+    model_config = ConfigDict(populate_by_name=True)
     condition: DynamicBoolean = Field(...)
     message: str = Field(
         ..., description="The error message to display if the check fails."
@@ -77,7 +80,8 @@ class CheckRule(StrictBaseModel):
 class Checkable(StrictBaseModel):
     """Properties for components that support client-side checks."""
 
-    checks: Optional[List[CheckRule]] = Field(
+    model_config = ConfigDict(populate_by_name=True)
+    checks: list[CheckRule] | None = Field(
         None,
         description=(
             "A list of checks to perform. These are function calls that must return a"
@@ -89,10 +93,11 @@ class Checkable(StrictBaseModel):
 class ActionEvent(StrictBaseModel):
     """The event to dispatch to the server."""
 
+    model_config = ConfigDict(populate_by_name=True)
     name: str = Field(
         ..., description="The name of the action to be dispatched to the server."
     )
-    context: Optional[Dict[str, DynamicValue]] = Field(
+    context: dict[str, DynamicValue] | None = Field(
         None,
         description=(
             "A JSON object containing the key-value pairs for the action context."
@@ -105,16 +110,18 @@ class ActionEvent(StrictBaseModel):
 class ActionEventWrapper(StrictBaseModel):
     """Triggers a server-side event."""
 
+    model_config = ConfigDict(populate_by_name=True)
     event: ActionEvent = Field(..., description="The event to dispatch to the server.")
 
 
 class ActionFunctionCallWrapper(StrictBaseModel):
     """Executes a local client-side function."""
 
+    model_config = ConfigDict(populate_by_name=True)
     function_call: FunctionCall = Field(..., alias="functionCall")
 
 
-Action = Union[ActionEventWrapper, ActionFunctionCallWrapper]
+Action = ActionEventWrapper | ActionFunctionCallWrapper
 
 __all__ = [
     "AccessibilityAttributes",

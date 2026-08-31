@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 import pytest
 
 from a2ui.core.state import ComponentModel, SurfaceModel, DataModel
@@ -36,7 +36,7 @@ def test_component_context_from_surface():
     assert ctx.theme == {"primaryColor": "#123456"}
     assert ctx.component_model.id == "c1"
 
-    actions: List[Dict[str, Any]] = []
+    actions: list[dict[str, Any]] = []
     surface.on_action.subscribe(lambda act: actions.append(act))
 
     ctx.dispatch_action({"name": "submit"})
@@ -105,7 +105,7 @@ def test_generic_binder_reactive_checks():
     ctx = ComponentContext.from_surface(surface, "c1")
     binder = GenericBinder(ctx)
 
-    props_history: List[Dict[str, Any]] = []
+    props_history: list[dict[str, Any]] = []
     binder.subscribe(lambda p: props_history.append(p))
 
     assert binder.current_props["value"] == 50
@@ -341,7 +341,7 @@ def test_subscribe_dynamic_value_chained_functions():
         "args": {"value": {"call": "trim", "args": {"value": {"path": "/user/name"}}}},
     }
 
-    changes: List[str] = []
+    changes: list[str] = []
     sub = ctx.subscribe_dynamic_value(
         chained_expr, lambda new_val: changes.append(new_val)
     )
@@ -366,9 +366,9 @@ def test_subscribe_dynamic_value_streaming_function():
 
         def _metronome(
             self,
-            args: Dict[str, Any],
+            args: dict[str, Any],
             context: Any,
-            abort_signal: Optional[AbortSignal] = None,
+            abort_signal: AbortSignal | None = None,
         ) -> Any:
             interval = args.get("interval", 0.01)
             stream = Signal("tick 0")
@@ -400,7 +400,7 @@ def test_subscribe_dynamic_value_streaming_function():
 
     expr = {"call": "metronome", "args": {"interval": 0.01}}
 
-    emitted: List[str] = []
+    emitted: list[str] = []
     received_event = threading.Event()
 
     def _on_change(val: str) -> None:
@@ -422,7 +422,7 @@ def test_subscribe_dynamic_value_streaming_function():
 
 
 def test_data_context_expression_error_dispatching():
-    errors: List[Dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
 
     class FailingCatalog(BasicCatalog):
 

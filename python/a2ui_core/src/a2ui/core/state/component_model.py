@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import copy
-from typing import Any, Dict, Final, Iterator, List, Optional, Set, Tuple, Union
+from typing import Any, Final, Iterator
 from ..common.events import EventSource
 from ..catalog.catalog import Catalog, TComponent, TFunction
 from ..catalog.reference_map import (
@@ -31,15 +31,14 @@ from ..schema.common_types import (
     TemplateChildList,
 )
 
-
 # Legacy v0.8 fallback field names for component child reference identification
-V0_8_SINGLE_REF_FIELDS: Final[Set[str]] = {
+V0_8_SINGLE_REF_FIELDS: Final[set[str]] = {
     "child",
     "contentChild",
     "entryPointChild",
 }
 
-V0_8_LIST_REF_FIELDS: Final[Set[str]] = {
+V0_8_LIST_REF_FIELDS: Final[set[str]] = {
     "children",
     "explicitList",
     "template",
@@ -50,7 +49,7 @@ V0_8_LIST_REF_FIELDS: Final[Set[str]] = {
 def is_v0_8_heuristic_child_prop_key(
     key: str,
     val: Any = None,
-    known_ids: Optional[Set[str]] = None,
+    known_ids: set[str] | None = None,
 ) -> bool:
     """Heuristically checks if a property key represents a child component reference for legacy v0.8 components.
 
@@ -93,8 +92,8 @@ class ComponentModel:
         self,
         component_id: str,
         component_type: str,
-        catalog: Optional[Union[Catalog[TComponent, TFunction], Dict[str, Any]]] = None,
-        properties: Optional[Dict[str, Any]] = None,
+        catalog: Catalog[TComponent, TFunction] | dict[str, Any] | None = None,
+        properties: dict[str, Any] | None = None,
     ):
         self.id = component_id
         self.type = component_type
@@ -107,22 +106,22 @@ class ComponentModel:
         self.on_updated = EventSource()
 
     @property
-    def properties(self) -> Dict[str, Any]:
+    def properties(self) -> dict[str, Any]:
         return self._properties
 
     @properties.setter
-    def properties(self, new_props: Dict[str, Any]) -> None:
+    def properties(self, new_props: dict[str, Any]) -> None:
         self._properties = copy.deepcopy(new_props)
         self.on_updated.emit(self)
 
     @property
-    def component_tree(self) -> Dict[str, Any]:
+    def component_tree(self) -> dict[str, Any]:
         """Returns a dictionary representation of the component tree."""
         tree = {"id": self.id, "type": self.type}
         tree.update(self._properties)
         return tree
 
-    def validate(self, config: Optional[Any] = None) -> List[A2uiErrorDetail]:
+    def validate(self, config: Any | None = None) -> list[A2uiErrorDetail]:
         """Validates this component instance against its bound catalog using PayloadValidator."""
         from ..validation.payload_validator import PayloadValidator
 
@@ -133,8 +132,8 @@ class ComponentModel:
         return validator.validate_component(comp_dict)
 
     def get_child_references(
-        self, known_component_ids: Optional[Set[str]] = None
-    ) -> Iterator[Tuple[str, str]]:
+        self, known_component_ids: set[str] | None = None
+    ) -> Iterator[tuple[str, str]]:
         """Recursively extracts referenced child ComponentIds and their property paths from properties.
 
         Args:

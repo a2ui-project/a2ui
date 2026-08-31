@@ -16,7 +16,7 @@
 
 from pathlib import Path
 import unittest
-from typing import Any, Dict
+from typing import Any
 from a2ui.inference_formats.experimental.atom.compiler import AtomCompiler
 from a2ui.inference_formats.experimental.atom.decompiler import AtomDecompiler
 

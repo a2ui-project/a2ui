@@ -107,7 +107,7 @@ def _basic_catalog_id(protocol_version: str) -> str:
 
 class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
 
-    def __init__(self, locale: Optional[str] = None):
+    def __init__(self, locale: str | None = None):
         super().__init__(
             catalog_id=_basic_catalog_id(PROTOCOL_VERSION),
             protocol_version=PROTOCOL_VERSION,

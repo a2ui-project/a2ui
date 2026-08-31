@@ -39,15 +39,7 @@ FunctionReturnType = Literal[
 ]
 
 # InferA2uiReturnType mapping in Python: maps FunctionReturnType to concrete Python return types
-InferA2uiReturnType = Union[
-    str,
-    Union[int, float],
-    bool,
-    List[Any],
-    Dict[str, Any],
-    None,
-    Any,
-]
+InferA2uiReturnType = str | int | float | bool | list[Any] | dict[str, Any] | None | Any
 
 TReturn = TypeVar("TReturn", bound=InferA2uiReturnType, default=Any)
 
@@ -58,10 +50,10 @@ class FunctionApi:
     def __init__(
         self,
         name: str,
-        return_type: Optional[FunctionReturnType] = "any",
+        return_type: FunctionReturnType | None = "any",
         schema: Any = None,
-        allowed_callers: Optional[AllowedCallers] = "rendererOnly",
-        requires_user_activation: Optional[bool] = False,
+        allowed_callers: AllowedCallers | None = "rendererOnly",
+        requires_user_activation: bool | None = False,
     ):
         self.name = name
         self.return_type = return_type or "any"
@@ -76,13 +68,11 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
     def __init__(
         self,
         name: str,
-        return_type: Optional[FunctionReturnType] = "any",
+        return_type: FunctionReturnType | None = "any",
         schema: Any = None,
-        execute: Optional[
-            Callable[[Dict[str, Any], Any, Optional[Any]], TReturn]
-        ] = None,
-        allowed_callers: Optional[AllowedCallers] = "rendererOnly",
-        requires_user_activation: Optional[bool] = False,
+        execute: Callable[[dict[str, Any], Any, Any | None], TReturn] | None = None,
+        allowed_callers: AllowedCallers | None = "rendererOnly",
+        requires_user_activation: bool | None = False,
     ):
         super().__init__(
             name=name,
@@ -95,9 +85,9 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
 
     def execute(
         self,
-        args: Dict[str, Any],
+        args: dict[str, Any],
         context: Any = None,
-        abort_signal: Optional[Any] = None,
+        abort_signal: Any | None = None,
     ) -> TReturn:
         if self.execute_func is None:
             raise ValueError(f"Function {self.name} has no executable logic.")
@@ -109,8 +99,8 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
 
 
 def create_function_implementation(
-    api: Union[FunctionApi, Type[FunctionApi]],
-    execute: Callable[[Dict[str, Any], Any, Optional[Any]], TReturn],
+    api: FunctionApi | Type[FunctionApi],
+    execute: Callable[[dict[str, Any], Any, Any | None], TReturn],
 ) -> FunctionImplementation[TReturn]:
     """Creates a FunctionImplementation from a FunctionApi specification and an executable closure."""
     return FunctionImplementation[TReturn](
@@ -135,4 +125,4 @@ Parameters:
 Returns:
     The result of the function call (e.g. literal, list, dict, or None).
 """
-FunctionInvoker = Callable[[str, Dict[str, Any], Any, Optional[Any]], Any]
+FunctionInvoker = Callable[[str, dict[str, Any], Any, Any | None], Any]

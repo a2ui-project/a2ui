@@ -21,6 +21,7 @@ from ...catalog.functions import FunctionApi
 
 
 class RequiredArgs(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     value: Any = Field(..., description="The value to check.")
 
 
@@ -31,6 +32,7 @@ class RequiredApi(FunctionApi):
 
 
 class RegexArgs(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     value: DynamicString = Field(...)
     pattern: str = Field(..., description="The regex pattern to match against.")
 
@@ -42,9 +44,10 @@ class RegexApi(FunctionApi):
 
 
 class LengthArgs(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     value: DynamicString = Field(...)
-    min: Optional[int] = Field(None, description="The minimum allowed length.")
-    max: Optional[int] = Field(None, description="The maximum allowed length.")
+    min: int | None = Field(None, description="The minimum allowed length.")
+    max: int | None = Field(None, description="The maximum allowed length.")
 
 
 class LengthApi(FunctionApi):
@@ -54,9 +57,10 @@ class LengthApi(FunctionApi):
 
 
 class NumericArgs(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     value: DynamicNumber = Field(...)
-    min: Optional[float] = Field(None, description="The minimum allowed value.")
-    max: Optional[float] = Field(None, description="The maximum allowed value.")
+    min: float | None = Field(None, description="The minimum allowed value.")
+    max: float | None = Field(None, description="The maximum allowed value.")
 
 
 class NumericApi(FunctionApi):
@@ -66,6 +70,7 @@ class NumericApi(FunctionApi):
 
 
 class EmailArgs(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     value: DynamicString = Field(...)
 
 
@@ -76,6 +81,7 @@ class EmailApi(FunctionApi):
 
 
 class FormatStringArgs(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     value: DynamicString = Field(...)
 
 
@@ -86,15 +92,16 @@ class FormatStringApi(FunctionApi):
 
 
 class FormatNumberArgs(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     value: DynamicNumber = Field(..., description="The number to format.")
-    decimals: Optional[DynamicNumber] = Field(
+    decimals: DynamicNumber | None = Field(
         None,
         description=(
             "Optional. The number of decimal places to show. Defaults to 0 or 2"
             " depending on locale."
         ),
     )
-    grouping: Optional[DynamicBoolean] = Field(
+    grouping: DynamicBoolean | None = Field(
         None,
         description=(
             "Optional. If true, uses locale-specific grouping separators (e.g."
@@ -110,18 +117,19 @@ class FormatNumberApi(FunctionApi):
 
 
 class FormatCurrencyArgs(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     value: DynamicNumber = Field(..., description="The monetary amount.")
     currency: DynamicString = Field(
         ..., description="The ISO 4217 currency code (e.g., 'USD', 'EUR')."
     )
-    decimals: Optional[DynamicNumber] = Field(
+    decimals: DynamicNumber | None = Field(
         None,
         description=(
             "Optional. The number of decimal places to show. Defaults to 0 or 2"
             " depending on locale."
         ),
     )
-    grouping: Optional[DynamicBoolean] = Field(
+    grouping: DynamicBoolean | None = Field(
         None,
         description=(
             "Optional. If true, uses locale-specific grouping separators (e.g."
@@ -137,6 +145,7 @@ class FormatCurrencyApi(FunctionApi):
 
 
 class FormatDateArgs(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     value: DynamicValue = Field(..., description="The date to format.")
     format: DynamicString = Field(
         ...,
@@ -160,25 +169,26 @@ class FormatDateApi(FunctionApi):
 
 
 class PluralizeArgs(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     value: DynamicNumber = Field(
         ..., description="The numeric value used to determine the plural category."
     )
-    zero: Optional[DynamicString] = Field(
+    zero: DynamicString | None = Field(
         None, description="String for the 'zero' category (e.g., 0 items)."
     )
-    one: Optional[DynamicString] = Field(
+    one: DynamicString | None = Field(
         None, description="String for the 'one' category (e.g., 1 item)."
     )
-    two: Optional[DynamicString] = Field(
+    two: DynamicString | None = Field(
         None, description="String for the 'two' category (used in Arabic, Welsh, etc.)."
     )
-    few: Optional[DynamicString] = Field(
+    few: DynamicString | None = Field(
         None,
         description=(
             "String for the 'few' category (e.g., small groups in Slavic languages)."
         ),
     )
-    many: Optional[DynamicString] = Field(
+    many: DynamicString | None = Field(
         None,
         description=(
             "String for the 'many' category (e.g., large groups in various languages)."
@@ -196,9 +206,8 @@ class PluralizeApi(FunctionApi):
 
 
 class OpenUrlArgs(StrictBaseModel):
-    url: Union[str, DataBinding, FunctionCall] = Field(
-        ..., description="The URL to open."
-    )
+    model_config = ConfigDict(populate_by_name=True)
+    url: str | DataBinding | FunctionCall = Field(..., description="The URL to open.")
 
 
 class OpenUrlApi(FunctionApi):
@@ -208,7 +217,8 @@ class OpenUrlApi(FunctionApi):
 
 
 class AndArgs(StrictBaseModel):
-    values: List[DynamicBoolean] = Field(
+    model_config = ConfigDict(populate_by_name=True)
+    values: list[DynamicBoolean] = Field(
         ..., description="The list of boolean values to evaluate."
     )
 
@@ -220,7 +230,8 @@ class AndApi(FunctionApi):
 
 
 class OrArgs(StrictBaseModel):
-    values: List[DynamicBoolean] = Field(
+    model_config = ConfigDict(populate_by_name=True)
+    values: list[DynamicBoolean] = Field(
         ..., description="The list of boolean values to evaluate."
     )
 
@@ -232,6 +243,7 @@ class OrApi(FunctionApi):
 
 
 class NotArgs(StrictBaseModel):
+    model_config = ConfigDict(populate_by_name=True)
     value: DynamicBoolean = Field(..., description="The boolean value to negate.")
 
 
