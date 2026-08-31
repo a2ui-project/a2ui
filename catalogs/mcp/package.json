@@ -1,0 +1,15 @@
+{
+  "name": "a2ui-mcp-catalog",
+  "private": true,
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --import tsx --test v0_9/src/functions/callMcpTool.test.ts",
+    "lint": "echo \"Workspace has no lint configuration.\"",
+    "lint:fix": "echo \"Workspace has no lint configuration.\""
+  },
+  "devDependencies": {
+    "prettier": "^3.8.4",
+    "typescript": "5.9.3"
+  }
+}

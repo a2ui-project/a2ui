@@ -11848,6 +11848,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"a2ui-mcp-catalog@workspace:catalogs/mcp":
+  version: 0.0.0-use.local
+  resolution: "a2ui-mcp-catalog@workspace:catalogs/mcp"
+  dependencies:
+    prettier: "npm:^3.8.4"
+    typescript: "npm:5.9.3"
+  languageName: unknown
+  linkType: soft
+
 "a2ui-workspace@workspace:.":
   version: 0.0.0-use.local
   resolution: "a2ui-workspace@workspace:."
