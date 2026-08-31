@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import re
 import sys
 from typing import Any, Callable, Dict, Final, Generic, List, Optional, Set, Union, cast
 
@@ -172,7 +173,7 @@ def _query_json_pointer(doc: Dict[str, Any], pointer: str) -> Any:
     parts = pointer[2:].split("/")
     curr: Any = doc
     for part in parts:
-        part = part.replace("~1", "/").replace("~0", "~")
+        part = re.sub(r"~([01])", lambda m: "/" if m.group(1) == "1" else "~", part)
         if isinstance(curr, dict) and part in curr:
             curr = curr[part]
         else:

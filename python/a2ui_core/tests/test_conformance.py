@@ -59,13 +59,6 @@ SKIP_TEST_NAMES: Set[str] = {
     "test_index_function_outside_loop_error",
     "test_validation_result_dynamic_object_return",
     "test_validation_result_boolean_fallback",
-    "test_pointer_escape_characters",
-    "test_pointer_array_indexing",
-    "test_pointer_auto_vivification",
-    "test_data_deletion_value_null",
-    "test_data_deletion_nested_pointer_sibling_preservation",
-    "test_data_deletion_top_level_key",
-    "test_data_deletion_parent_object_recursive",
 }
 
 # Transition skip list containing specific test suite files or basenames to skip entirely.
@@ -405,6 +398,15 @@ def assert_raises(expect_error: Any):
         assert (
             match
         ), f"Expected error '{message}' not found in exception '{excinfo.value}'"
+
+    if isinstance(expect_error, dict) and expect_error.get("code"):
+        expected_code = expect_error["code"]
+        err_details = getattr(excinfo.value, "details", [])
+        detail_codes = [d.code for d in err_details] if err_details else []
+        assert expected_code in detail_codes or expected_code in str(excinfo.value), (
+            f"Expected error code '{expected_code}' not found in exception details"
+            f" ({detail_codes}) or message ('{excinfo.value}')"
+        )
 
 
 CONFORMANCE_CASES = load_conformance_cases()

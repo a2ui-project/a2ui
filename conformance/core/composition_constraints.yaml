@@ -67,6 +67,7 @@
                 component: ColumnHeader
   expectError:
     category: "ValidationError"
+    code: "UNALLOWED_PARENT"
     message: "Component 'invalid_header' (ColumnHeader) cannot be placed under parent 'root' (Row). Allowed parents: ['Column']."
 
 - name: test_composition_unallowed_child_error
@@ -95,4 +96,5 @@
                 component: Video
   expectError:
     category: "ValidationError"
+    code: "UNALLOWED_CHILD"
     message: "Container 'root' (RestrictedBox) cannot contain child 'v1' (Video). Allowed children: ['Text', 'Button']."
