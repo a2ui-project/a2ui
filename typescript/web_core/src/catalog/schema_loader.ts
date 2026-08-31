@@ -294,7 +294,8 @@ function convertComponentJsonSchemaToZod(
     Object.assign(shape, propShape);
   }
 
-  return z.object(shape).strict();
+  const obj = z.object(shape);
+  return rawSchema.additionalProperties === true ? obj.passthrough() : obj.strict();
 }
 
 function convertFunctionArgsJsonSchemaToZod(
@@ -306,13 +307,20 @@ function convertFunctionArgsJsonSchemaToZod(
   return z.object(shape).strict();
 }
 
-function parseFunctionDefinitions(rawFunctions: any, rootDoc?: Record<string, any>): FunctionApi[] {
+function parseFunctionDefinitions(
+  rawFunctions: any,
+  rootDoc?: Record<string, any>,
+  permittedNames?: Set<string>,
+): FunctionApi[] {
   const result: FunctionApi[] = [];
   if (!rawFunctions) return result;
 
   if (Array.isArray(rawFunctions)) {
     for (const fn of rawFunctions) {
       if (fn && typeof fn.name === 'string') {
+        if (permittedNames && permittedNames.size > 0 && !permittedNames.has(fn.name)) {
+          continue;
+        }
         const paramSchema =
           fn.parameters && typeof fn.parameters === 'object'
             ? convertFunctionArgsJsonSchemaToZod(fn.parameters, rootDoc)
@@ -321,6 +329,8 @@ function parseFunctionDefinitions(rawFunctions: any, rootDoc?: Record<string, an
           name: fn.name,
           description: fn.description,
           returnType: fn.returnType ?? 'any',
+          allowedCallers: fn.allowedCallers,
+          requiresUserActivation: fn.requiresUserActivation,
           schema: paramSchema,
         });
       }
@@ -330,6 +340,9 @@ function parseFunctionDefinitions(rawFunctions: any, rootDoc?: Record<string, an
 
   if (typeof rawFunctions === 'object') {
     for (const [name, defn] of Object.entries(rawFunctions)) {
+      if (permittedNames && permittedNames.size > 0 && !permittedNames.has(name)) {
+        continue;
+      }
       const d = defn as any;
       const argsSchema = d.properties?.args ?? d.args ?? d.parameters;
       const paramSchema =
@@ -340,6 +353,8 @@ function parseFunctionDefinitions(rawFunctions: any, rootDoc?: Record<string, an
         name,
         description: d.description,
         returnType: d.returnType ?? d.properties?.returnType?.const ?? 'any',
+        allowedCallers: d.allowedCallers,
+        requiresUserActivation: d.requiresUserActivation,
         schema: paramSchema,
       });
     }
@@ -376,18 +391,43 @@ export function loadCatalogFromSchema(
   const componentsMap = catalogSchema.components ?? {};
   for (const [name, rawCompSchema] of Object.entries(componentsMap)) {
     if (permittedNames.size === 0 || permittedNames.has(name)) {
-      const zodSchema = convertComponentJsonSchemaToZod(
-        rawCompSchema as Record<string, any>,
-        catalogSchema,
-      );
+      const rawComp = rawCompSchema as Record<string, any>;
+      const zodSchema = convertComponentJsonSchemaToZod(rawComp, catalogSchema);
       components.push({
         name,
         schema: zodSchema,
+        allowedParents: Array.isArray(rawComp.allowedParents) ? rawComp.allowedParents : undefined,
+        allowedChildren: Array.isArray(rawComp.allowedChildren)
+          ? rawComp.allowedChildren
+          : undefined,
       });
     }
   }
 
-  const functions = parseFunctionDefinitions(catalogSchema.functions, catalogSchema);
+  // Filter permitted functions via anyFunction.oneOf if declared
+  const permittedFunctionNames = new Set<string>();
+  const anyFunctionOneOf = catalogSchema.$defs?.anyFunction?.oneOf;
+  if (Array.isArray(anyFunctionOneOf)) {
+    for (const item of anyFunctionOneOf) {
+      if (typeof item?.$ref === 'string' && item.$ref.startsWith('#/functions/')) {
+        permittedFunctionNames.add(item.$ref.split('/').pop()!);
+      }
+    }
+  }
 
-  return new Catalog(catalogId, components, functions);
+  const functions = parseFunctionDefinitions(
+    catalogSchema.functions,
+    catalogSchema,
+    permittedFunctionNames,
+  );
+
+  const rawTheme = catalogSchema.theme ?? catalogSchema.themeSchema ?? catalogSchema.$defs?.theme;
+  const themeSchema =
+    rawTheme && typeof rawTheme === 'object'
+      ? convertComponentJsonSchemaToZod(rawTheme, catalogSchema)
+      : undefined;
+  const instructions =
+    typeof catalogSchema.instructions === 'string' ? catalogSchema.instructions : undefined;
+
+  return new Catalog(catalogId, components, functions, themeSchema, instructions);
 }

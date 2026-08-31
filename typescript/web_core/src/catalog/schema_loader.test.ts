@@ -256,4 +256,93 @@ describe('Catalog.fromSchema & schema_loader', () => {
     const invalid = widget.schema.safeParse({numEnum: 99});
     assert.strictEqual(invalid.success, false);
   });
+
+  it('extracts allowedParents and allowedChildren on components', () => {
+    const catalogJson = {
+      catalogId: 'https://example.com/hierarchy_catalog.json',
+      components: {
+        ParentContainer: {
+          properties: {title: {type: 'string'}},
+          allowedChildren: ['ChildWidget', 'Text'],
+        },
+        ChildWidget: {
+          properties: {value: {type: 'string'}},
+          allowedParents: ['ParentContainer'],
+        },
+      },
+    };
+
+    const catalog = Catalog.fromSchema(catalogJson);
+    const parentComp = catalog.components.get('ParentContainer');
+    const childComp = catalog.components.get('ChildWidget');
+
+    assert.ok(parentComp);
+    assert.deepStrictEqual(parentComp.allowedChildren, ['ChildWidget', 'Text']);
+    assert.strictEqual(parentComp.allowedParents, undefined);
+
+    assert.ok(childComp);
+    assert.deepStrictEqual(childComp.allowedParents, ['ParentContainer']);
+    assert.strictEqual(childComp.allowedChildren, undefined);
+  });
+
+  it('filters permitted functions via anyFunction.oneOf when declared', () => {
+    const catalogJson = {
+      catalogId: 'https://example.com/filtered_functions_catalog.json',
+      $defs: {
+        anyFunction: {
+          oneOf: [{$ref: '#/functions/allowedFunc'}],
+        },
+      },
+      components: {},
+      functions: {
+        allowedFunc: {
+          description: 'Permitted function',
+          returnType: 'string',
+          parameters: {
+            properties: {arg1: {type: 'string'}},
+          },
+        },
+        disallowedFunc: {
+          description: 'Excluded function',
+          returnType: 'number',
+        },
+      },
+    };
+
+    const catalog = Catalog.fromSchema(catalogJson);
+    assert.strictEqual(catalog.functions.size, 1);
+    assert.ok(catalog.functions.has('allowedFunc'));
+    assert.strictEqual(catalog.functions.has('disallowedFunc'), false);
+  });
+
+  it('loads themeSchema and instructions correctly', () => {
+    const catalogJson = {
+      catalogId: 'https://example.com/theme_catalog.json',
+      instructions: 'Use minimal styling and concise copy.',
+      theme: {
+        type: 'object',
+        properties: {
+          primaryColor: {type: 'string'},
+          borderRadius: {type: 'number'},
+        },
+        required: ['primaryColor'],
+      },
+      components: {},
+    };
+
+    const catalog = Catalog.fromSchema(catalogJson);
+    assert.strictEqual(catalog.instructions, 'Use minimal styling and concise copy.');
+    assert.ok(catalog.themeSchema instanceof z.ZodObject);
+
+    const validTheme = catalog.themeSchema.safeParse({
+      primaryColor: '#ff0000',
+      borderRadius: 8,
+    });
+    assert.strictEqual(validTheme.success, true);
+
+    const invalidTheme = catalog.themeSchema.safeParse({
+      borderRadius: 8,
+    });
+    assert.strictEqual(invalidTheme.success, false);
+  });
 });
