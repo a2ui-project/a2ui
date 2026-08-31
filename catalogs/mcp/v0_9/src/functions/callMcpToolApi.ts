@@ -29,7 +29,7 @@ export const CallMcpToolApi = {
   schema: z.object({
     name: z.string().describe('The name of the MCP tool to execute.'),
     arguments: z
-      .preprocess(v => (v === undefined || v === null ? {} : v), z.record(z.any()))
+      .record(z.any())
       .optional()
       .default({})
       .describe('The arguments to pass to the MCP tool.'),
