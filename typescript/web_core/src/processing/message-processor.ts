@@ -16,11 +16,11 @@
 
 import {SurfaceModel, ActionListener} from '../state/surface-model.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
+import {generateCatalogSchema} from '../catalog/schema_generator.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
 import {ComponentModel} from '../state/component-model.js';
 import {SurfaceComponentsModel} from '../state/surface-components-model.js';
 import {Subscription} from '../common/events.js';
-import {zodToJsonSchema} from 'zod-to-json-schema';
 import {z} from 'zod';
 
 import {A2uiStateError, A2uiValidationError} from '../errors.js';
@@ -192,121 +192,59 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       supportedCatalogIds: this.catalogs.map(c => c.id),
     };
 
-    if (options?.includeInlineCatalogs) {
-      versionCaps.inlineCatalogs = this.catalogs.map(c =>
-        this.generateInlineCatalog(c, options?.componentEnvelopeRef),
-      );
+    const inlineCatalogs = options?.includeInlineCatalogs
+      ? this.catalogs.map(c => {
+          if (version === 'v1.0') {
+            return generateCatalogSchema(c, {
+              componentEnvelopeRef: options?.componentEnvelopeRef,
+            });
+          }
+          return this.generateLegacyInlineCatalog(
+            c,
+            options?.componentEnvelopeRef ?? 'common_types.json#/$defs/ComponentCommon',
+          );
+        })
+      : undefined;
+
+    if (inlineCatalogs) {
+      versionCaps.inlineCatalogs = inlineCatalogs;
     }
 
     return {
       supportedCatalogIds: this.catalogs.map(c => c.id),
-      ...(options?.includeInlineCatalogs
-        ? {
-            inlineCatalogs: this.catalogs.map(c =>
-              this.generateInlineCatalog(c, options?.componentEnvelopeRef),
-            ),
-          }
-        : {}),
+      ...(inlineCatalogs ? {inlineCatalogs} : {}),
       [version]: versionCaps,
     };
   }
 
-  private generateInlineCatalog(
+  private generateLegacyInlineCatalog(
     catalog: Catalog<T>,
     componentEnvelopeRef = 'common_types.json#/$defs/ComponentCommon',
   ): Record<string, unknown> {
-    const components: Record<string, unknown> = {};
-
-    for (const [name, api] of catalog.components.entries()) {
-      const zodSchema = zodToJsonSchema(api.schema, {
-        target: 'jsonSchema2019-09',
-      }) as Record<string, unknown>;
-
-      // Clean up Zod-specific artifacts and process REF: tags
-      this.processRefs(zodSchema);
-
-      // Wrap in standard A2UI component envelope (ComponentCommon)
-      components[name] = {
-        allOf: [
-          {$ref: componentEnvelopeRef},
-          {
-            properties: {
-              component: {const: name},
-              ...((zodSchema.properties as Record<string, unknown>) || {}),
-            },
-            required: ['component', ...((zodSchema.required as string[]) || [])],
-          },
-        ],
-      };
-    }
+    const rawSchema = generateCatalogSchema(catalog, {componentEnvelopeRef});
+    const components = (rawSchema.components as Record<string, unknown>) || {};
 
     const functions: Array<Record<string, unknown>> = [];
-    for (const api of catalog.functions.values()) {
-      const zodSchema = zodToJsonSchema(api.schema, {
-        target: 'jsonSchema2019-09',
-      }) as Record<string, unknown>;
-
-      this.processRefs(zodSchema);
-
+    for (const fn of catalog.functions.values()) {
+      const fnDef = (rawSchema.functions as Record<string, any>)?.[fn.name];
       functions.push({
-        name: api.name,
-        description: api.schema.description,
-        returnType: api.returnType,
-        parameters: zodSchema,
+        name: fn.name,
+        description: fn.description,
+        returnType: fn.returnType,
+        parameters: fnDef?.properties?.args ?? {type: 'object', properties: {}},
       });
     }
 
-    let theme: Record<string, unknown> | undefined;
-    if (catalog.themeSchema) {
-      const zodSchema = zodToJsonSchema(catalog.themeSchema, {
-        target: 'jsonSchema2019-09',
-      }) as Record<string, unknown>;
-
-      this.processRefs(zodSchema);
-      theme = zodSchema.properties as Record<string, unknown>;
-    }
+    const theme = (rawSchema.$defs as Record<string, any>)?.theme?.properties as
+      | Record<string, unknown>
+      | undefined;
 
     return {
       catalogId: catalog.id,
       components,
-      functions: functions.length > 0 ? functions : undefined,
-      theme,
+      ...(functions.length > 0 ? {functions} : {}),
+      ...(theme ? {theme} : {}),
     };
-  }
-
-  private processRefs(node: unknown): void {
-    if (typeof node !== 'object' || node === null) return;
-    const obj = node as Record<string, unknown>;
-
-    // If the node itself is a REF target, transform it and stop recursion.
-    if (typeof obj.description === 'string' && obj.description.startsWith('REF:')) {
-      const parts = obj.description.substring(4).split('|');
-      const ref = parts[0];
-      const desc = parts[1] || '';
-
-      // Clear the node of all other properties.
-      for (const k of Object.keys(obj)) {
-        delete obj[k];
-      }
-
-      // Re-add only the $ref and an optional description.
-      obj['$ref'] = ref;
-      if (desc) {
-        obj['description'] = desc;
-      }
-      return;
-    }
-
-    // If not a REF target, recurse into its children.
-    if (Array.isArray(node)) {
-      for (const item of node) {
-        this.processRefs(item);
-      }
-    } else {
-      for (const key of Object.keys(obj)) {
-        this.processRefs(obj[key]);
-      }
-    }
   }
 
   getRendererDataModel(

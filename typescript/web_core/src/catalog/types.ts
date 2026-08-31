@@ -19,6 +19,7 @@ import {DataContext} from '../rendering/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiExpressionError} from '../errors.js';
 import {loadCatalogFromSchema} from './schema_loader.js';
+import {generateCatalogSchema} from './schema_generator.js';
 
 export type A2uiReturnType =
   | 'string'
@@ -138,7 +139,7 @@ export type InferredComponentApiSchemaType<Api extends ComponentApi> = z.infer<A
  * This must declare all publicly accessed properties of Catalog.
  */
 export declare interface CatalogInterface<
-  T extends ComponentApi,
+  T extends ComponentApi = ComponentApi,
   F extends FunctionApi = FunctionImplementation,
 > {
   readonly id: string;
@@ -147,6 +148,7 @@ export declare interface CatalogInterface<
   readonly themeSchema?: z.ZodObject<any>;
   readonly instructions?: string;
   readonly invoker: FunctionInvoker;
+  readonly catalogSchema: Record<string, unknown>;
 }
 
 /**
@@ -192,6 +194,18 @@ export class Catalog<
    * Can be passed directly to a DataContext.
    */
   readonly invoker: FunctionInvoker;
+
+  private cachedCatalogSchema?: Record<string, unknown>;
+
+  /**
+   * Dynamically reconstructs and memoizes the unified standard A2UI catalog JSON Schema on the fly.
+   */
+  get catalogSchema(): Record<string, unknown> {
+    if (!this.cachedCatalogSchema) {
+      this.cachedCatalogSchema = generateCatalogSchema(this);
+    }
+    return this.cachedCatalogSchema;
+  }
 
   constructor(
     id: string,

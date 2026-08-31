@@ -22,7 +22,7 @@ import {
   STRICT_VALIDATION,
   RELAXED_VALIDATION,
 } from './message-processor.js';
-import {Catalog, ComponentApi} from '../catalog/types.js';
+import {Catalog, ComponentApi, FunctionImplementation} from '../catalog/types.js';
 import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_components.js';
 import {BASIC_COMPONENTS} from '../v1_0/basic_catalog/components/basic_components.js';
 import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
@@ -89,6 +89,32 @@ describe('MessageProcessor', () => {
 
       const tabChild = components.Tabs.allOf[1].properties.tabs.items.properties.child;
       assert.strictEqual(tabChild.$ref, 'common_types.json#/$defs/ComponentId');
+    });
+
+    it('generates v1.0 inline catalog schemas with dictionary functions and top-level defs', () => {
+      const greetFunc: FunctionImplementation = {
+        name: 'greet',
+        description: 'Greets user',
+        returnType: 'string',
+        schema: z.object({name: z.string()}),
+        execute: async (args: any) => `Hello, ${args.name}!`,
+      };
+      const cat = new Catalog('cat-v1', [CardApi], [greetFunc]);
+      const proc = new MessageProcessor([cat], undefined, {version: 'v1.0'});
+
+      const caps = proc.getRendererCapabilities({
+        version: 'v1.0',
+        includeInlineCatalogs: true,
+      });
+
+      const inlineCat = (caps['v1.0'] as any)?.inlineCatalogs?.[0];
+      assert.ok(inlineCat);
+      assert.strictEqual(inlineCat.catalogId, 'cat-v1');
+      assert.ok(inlineCat.components.Card);
+      assert.ok(inlineCat.functions.greet);
+      assert.strictEqual(inlineCat.functions.greet.returnType, 'string');
+      assert.strictEqual(typeof inlineCat.functions, 'object');
+      assert.ok(!Array.isArray(inlineCat.functions));
     });
   });
 
