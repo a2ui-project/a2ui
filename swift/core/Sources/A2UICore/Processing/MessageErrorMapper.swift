@@ -14,7 +14,7 @@
 
 import Foundation
 
-/// Converts internal Swift errors (e.g. `DecodingError`) into
+/// Converts internal Swift errors (e.g. `A2UIError`, `DecodingError`) into
 /// spec-compliant `ClientServerError` values suitable for sending
 /// to the server.
 ///
@@ -43,6 +43,62 @@ public struct MessageErrorMapper: Sendable {
       )
     }
 
+    if let validationError = error as? A2UIValidationError {
+      let detail = validationError.details.first
+      let path = detail?.path ?? "/"
+      let formattedPath = formatErrorPath(path)
+      return .validationFailed(
+        ValidationFailedError(
+          surfaceID: surfaceID,
+          path: formattedPath,
+          message: detail?.message ?? validationError.message
+        )
+      )
+    }
+
+    if let integrityError = error as? A2UIIntegrityError {
+      let detail = integrityError.details.first
+      let code = detail?.code ?? "INTEGRITY_ERROR"
+      return .generic(
+        GenericError(
+          code: code,
+          surfaceID: surfaceID,
+          message: detail?.message ?? integrityError.message
+        )
+      )
+    }
+
+    if let recursionError = error as? A2UIRecursionError {
+      return .generic(
+        GenericError(
+          code: "RECURSION_LIMIT_EXCEEDED",
+          surfaceID: surfaceID,
+          message: recursionError.message
+        )
+      )
+    }
+
+    if let catalogError = error as? A2UICatalogError {
+      return .generic(
+        GenericError(
+          code: "CATALOG_NOT_FOUND",
+          surfaceID: surfaceID,
+          message: catalogError.message
+        )
+      )
+    }
+
+    if let a2uiError = error as? (any A2UIError) {
+      let detail = a2uiError.details.first
+      return .generic(
+        GenericError(
+          code: detail?.code ?? "INTERNAL_ERROR",
+          surfaceID: surfaceID,
+          message: detail?.message ?? a2uiError.message
+        )
+      )
+    }
+
     if let genericError = error as? GenericError {
       return .generic(genericError)
     }
@@ -62,6 +118,23 @@ public struct MessageErrorMapper: Sendable {
         message: error.localizedDescription
       )
     )
+  }
+
+  private func formatErrorPath(_ rawPath: String) -> String {
+    if rawPath.isEmpty { return "/" }
+    if rawPath.hasPrefix("/") { return rawPath }
+    // Convert dot syntax (e.g. messages.0.updateComponents.components.0.id)
+    // to JSON Pointer if needed
+    if rawPath.contains(".") {
+      let components = rawPath.split(separator: ".")
+      if let lastIndex = components.lastIndex(where: {
+        $0 == "theme" || $0 == "components" || $0 == "id" || $0 == "component"
+      }) {
+        let relevant = components[lastIndex...].joined(separator: "/")
+        return "/\(relevant)"
+      }
+    }
+    return "/\(rawPath)"
   }
 
   // MARK: - DecodingError Mapping
