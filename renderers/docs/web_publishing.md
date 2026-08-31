@@ -25,25 +25,15 @@ publishing from the `main` branch.
 
 ### 1. Increment Versions (in a Pull Request)
 
-`increment_version.mjs` can be run on a local branch to bump package versions
-and synchronize locks:
+Package versions are updated directly in each package's `package.json` file (e.g. `renderers/web_core/package.json`). Because all packages use Yarn workspace links (`"workspace:*"`), dependent `package.json` files do not need modification (they are dynamically transformed to exact caret ranges at publish time by `prepare-publish.mjs`).
+
+After updating `package.json` versions and changelogs, run `yarn install` at the repository root once to update workspace lockfiles cleanly:
 
 ```sh
-# Increment patch version automatically (e.g., 0.9.5 -> 0.9.6)
-./renderers/scripts/increment_version.mjs web_core
-
-# Set an explicit version
-./renderers/scripts/increment_version.mjs lit 0.10.0-beta.1
+yarn install
 ```
 
-This branch should be merged into `main` through a PR as with any other change
-to the repo.
-
-**CLI parameters for `increment_version.mjs`:**
-
-- `<package-name>`: The name of the package to update (e.g., `web_core` or `@a2ui/web_core`).
-- `[new-version]`: The specific new version to set (e.g., `1.0.1`). If omitted, increments the patch version automatically.
-- `--skip-sync`: Skip synchronizing dependent packages (running `yarn install` in dependents). **Not recommended.**
+This branch should be merged into `main` through a PR as with any other change to the repo.
 
 ### 2. Publish to Staging (from `main`)
 
@@ -119,7 +109,7 @@ A2UI web packages depend on each other via `workspace:*` links during developmen
 
 ## What are valid values for the `--package` argument?
 
-The `increment_version.mjs`, `publish_npm.mjs` and `upload_manifest.mjs` scripts
+The `publish_npm.mjs` and `upload_manifest.mjs` scripts
 work with all packages in the `renderers` directory of the monorepo:
 
 - `web_core`
