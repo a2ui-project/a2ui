@@ -143,13 +143,21 @@ export declare interface CatalogInterface<
   T extends ComponentApi = ComponentApi,
   F extends FunctionApi = FunctionImplementation,
 > {
+  /** Unique identifier for the catalog (usually a URI). */
   readonly id: string;
+  /** Map of registered component definitions. */
   readonly components: ReadonlyMap<string, T>;
+  /** Map of registered function definitions. */
   readonly functions: ReadonlyMap<string, F>;
+  /** Schema for theme parameters used by this catalog. */
   readonly themeSchema?: z.ZodObject<any>;
+  /** System instructions or usage guidelines for this catalog. */
   readonly instructions?: string;
+  /** Invoker callback that delegates to this catalog's registered functions. */
   readonly invoker: FunctionInvoker;
+  /** Dynamically reconstructed standard A2UI catalog JSON Schema document. */
   readonly catalogSchema: Record<string, unknown>;
+  /** Component reference map for child reference extraction and topology validation. */
   readonly componentRefMap: ComponentRefMap;
 }
 
@@ -200,7 +208,7 @@ export class Catalog<
   private cachedCatalogSchema?: Record<string, unknown>;
 
   /**
-   * Dynamically reconstructs and memoizes the unified standard A2UI catalog JSON Schema on the fly.
+   * Dynamically reconstructs and memoizes the unified standard A2UI catalog JSON Schema document.
    */
   get catalogSchema(): Record<string, unknown> {
     if (!this.cachedCatalogSchema) {

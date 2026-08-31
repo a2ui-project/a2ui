@@ -1,12 +1,12 @@
-/**
+/*
  * @license
- * Copyright 2026 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *   https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,8 +19,12 @@ import {zodToJsonSchema} from 'zod-to-json-schema';
 import {ComponentApi, FunctionApi, CatalogInterface} from './types.js';
 
 /**
- * Cleans auto-generated Zod schema artifacts (such as nested $schema keys)
- * and transforms REF: description markers into explicit $ref objects.
+ * Cleans auto-generated Zod schema artifacts and transforms REF markers into explicit `$ref` objects.
+ *
+ * Removes schema metadata and converts `REF:<url>|<desc>` description markers into `$ref` references.
+ *
+ * @param node The schema object or array node to sanitize in place.
+ * @param visited Set of visited objects to prevent infinite recursion on cyclic structures.
  */
 export function cleanSchemaNode(node: unknown, visited = new Set<unknown>()): void {
   if (typeof node !== 'object' || node === null) return;
@@ -60,7 +64,11 @@ export function cleanSchemaNode(node: unknown, visited = new Set<unknown>()): vo
   }
 }
 
+/**
+ * Configuration options for catalog JSON schema generation.
+ */
 export interface GenerateCatalogSchemaOptions {
+  /** Optional reference URI to a base component schema envelope (e.g. `common_types.json#/$defs/ComponentCommon`). */
   componentEnvelopeRef?: string;
 }
 
@@ -257,12 +265,14 @@ function processFunctions(
 }
 
 /**
- * Dynamically reconstructs a unified standard A2UI catalog JSON Schema document on the fly
- * from a Catalog instance.
+ * Reconstructs a specification-compliant A2UI catalog JSON Schema document from a Catalog instance.
+ *
+ * Converts component and function Zod schemas into standardized JSON Schema definitions,
+ * merging sub-definitions, resolving common type references, and building union schemas.
  *
  * @param catalog The catalog instance to serialize.
- * @param options Optional configuration options (e.g. legacy component envelope reference).
- * @returns Specification-compliant A2UI Catalog JSON Schema.
+ * @param options Optional configuration options such as component envelope wrapping.
+ * @returns Specification-compliant A2UI Catalog JSON Schema object.
  */
 export function generateCatalogSchema<
   T extends ComponentApi = ComponentApi,

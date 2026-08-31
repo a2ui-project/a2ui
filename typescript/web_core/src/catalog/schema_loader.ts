@@ -380,9 +380,13 @@ function extractPermittedNames(oneOf: unknown, prefix: string): Set<string> | un
 }
 
 /**
- * Loads raw A2UI catalog schema directly into a typed Catalog instance.
+ * Loads a raw A2UI catalog schema into a typed Catalog instance.
+ *
+ * Parses component and function definitions, extracts hierarchy constraints (`allowedParents`,
+ * `allowedChildren`), unescapes RFC 6901 JSON pointers, and builds runtime Zod validators.
  *
  * @param catalogSchema Raw catalog schema or capabilities definition object.
+ * @returns Fully-typed Catalog instance configured with components, functions, and metadata.
  */
 export function loadCatalogFromSchema(
   catalogSchema: Record<string, any>,

@@ -219,6 +219,13 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     };
   }
 
+  /**
+   * Generates a backwards-compatible inline catalog representation for v0.8/v0.9/v0.9.1.
+   *
+   * @param catalog The catalog instance to serialize.
+   * @param componentEnvelopeRef Reference URI for the component base envelope.
+   * @returns Legacy inline catalog object with array-based functions and flat theme properties.
+   */
   private generateLegacyInlineCatalog(
     catalog: Catalog<T>,
     componentEnvelopeRef = 'common_types.json#/$defs/ComponentCommon',
