@@ -2,7 +2,7 @@
 
 This document is the authoritative, language-agnostic guide for releasing A2UI SDK and renderer packages. It applies to all maintained packages in this repository (Python, TypeScript/Web, and future language targets).
 
-For codebase-specific publishing instructions, consult:
+For codebase-specific technical guides:
 
 - **Python SDKs**: [agent_sdks/python/docs/python_publishing.md](../../agent_sdks/python/docs/python_publishing.md)
 - **TypeScript/Web Packages**: [renderers/docs/web_publishing.md](../../renderers/docs/web_publishing.md)
@@ -10,28 +10,41 @@ For codebase-specific publishing instructions, consult:
 
 ---
 
-## 1. Core Release Philosophy
+## 1. Core Release Philosophy & State Machine
 
-Releases in A2UI follow a **two-stage release pipeline**:
+Releases in A2UI follow a **two-stage state machine**:
+
+```mermaid
+stateDiagram-v2
+    [*] --> StateInspection: Run Inspection Commands
+    StateInspection --> Idle: Registry == Repo & No Unreleased Entries
+    StateInspection --> UnreleasedChangesExist: Unreleased Entries in CHANGELOG
+    StateInspection --> ReleasePRPending: Open Release PR Exists on GitHub
+    StateInspection --> MainReadyForPublishing: Merged to main & Repo Version > Registry Version
+
+    UnreleasedChangesExist --> ReleasePRPending: Create Branch, Update Changelog, Bump Version, Open PR
+    ReleasePRPending --> MainReadyForPublishing: Peer Review & Merge PR to main
+    MainReadyForPublishing --> Idle: Run Staging & Manifest Upload Scripts
+```
 
 1. **Stage 1: Version Bump & Release Notes (Pull Request)**:
-    - Increments the version string in the codebase (`package.json`, `version.py`, etc.).
-    - Transforms `CHANGELOG.md` entries under `## Unreleased` into `## <version>`.
-    - Runs pre-flight unit and integration test suites.
-    - Opens a GitHub Pull Request targeting upstream (`a2ui-project/a2ui`) for peer review and CI validation.
+    - Evaluates `CHANGELOG.md` unreleased items across packages.
+    - Increments the version string in `package.json` / `version.py`.
+    - Moves `CHANGELOG.md` `## Unreleased` entries to `## <new_version>`.
+    - Runs pre-flight unit tests and opens a GitHub PR targeting `a2ui-project/a2ui`.
 2. **Stage 2: Staging & Manifest Upload (Post-Merge)**:
-    - Once the Version Bump PR is merged into `main`, the release artifacts are built and published to staging/internal registries.
-    - A release manifest is uploaded to trigger public publishing (via the Exit Gate proxy pipeline to PyPI / NPM).
+    - Once the Version Bump PR is merged into `main`, release artifacts are published to staging/internal registries.
+    - Release manifests are uploaded to trigger public distribution (via Exit Gate to PyPI / NPM).
 
 ---
 
 ## 2. Prerequisites & Authentication
 
-Before triggering a package release, ensure your local development environment has the necessary authentication:
+Before triggering a package release, ensure your local development environment has authentication configured:
 
 ### 1. Google Cloud Authentication
 
-Googlers publishing artifacts to the internal staging registry or Exit Gate buckets must authenticate via `gcloud`:
+Googlers publishing artifacts to internal staging registries or Exit Gate buckets must authenticate via `gcloud`:
 
 ```bash
 # General gcloud login
@@ -43,7 +56,7 @@ gcloud auth application-default login
 
 ### 2. GitHub Credentials
 
-Ensure the GitHub CLI (`gh`) is authenticated to interact with the repository:
+Ensure GitHub CLI (`gh`) is authenticated to interact with the repository:
 
 ```bash
 gh auth login
@@ -51,9 +64,9 @@ gh auth login
 
 ---
 
-## 3. Changelog Management (`CHANGELOG.md`)
+## 3. Changelog & SemVer Rules
 
-Every publishable package maintains a `CHANGELOG.md` file in its package root directory (e.g. `renderers/web_core/CHANGELOG.md`, `agent_sdks/python/a2ui_agent/CHANGELOG.md`).
+Every publishable package maintains a `CHANGELOG.md` file in its package root directory (e.g., `renderers/web_core/CHANGELOG.md`, `agent_sdks/python/a2ui_agent/CHANGELOG.md`).
 
 ### Structure & Conventions
 
@@ -70,73 +83,26 @@ Every publishable package maintains a `CHANGELOG.md` file in its package root di
 
 ### Protocol During Feature Development
 
-When adding features or fixing bugs in feature PRs, developers append bullet points directly under the top-level `## Unreleased` header.
+When adding features or fixing bugs in feature PRs, developers append bullet points directly under `## Unreleased`.
 
 ### Protocol During Package Release
 
 When preparing a package version release:
 
-1. Rename `## Unreleased` to `## <new_version>` (e.g., `## 0.10.7`).
-2. Insert a fresh, empty `## Unreleased` section at the top of the file above `## <new_version>`.
+1. Rename `## Unreleased` to `## <new_version>`.
+2. Insert a fresh, empty `## Unreleased` header above `## <new_version>`.
 
-### Handling Empty Unreleased Sections
+### Empty Unreleased Policy
 
-If a release is requested but a package's `CHANGELOG.md` has no entries under `## Unreleased`:
+If a release is requested but `CHANGELOG.md` has no entries under `## Unreleased`:
 
 - Check git history (`git log -n 20 <pkg_dir>`) to see if unreleased commits exist.
-- If unreleased commits exist, ask the maintainer or document them under `## Unreleased`.
+- If unreleased commits exist, document them under `## Unreleased`.
 - If no unreleased commits exist, **skip releasing that package**.
 
 ### Version Bump Selection Rules (SemVer)
 
 When choosing `<new_version>`:
 
-- **Breaking Changes in Pre-1.0 (`0.x.y`)**: If `CHANGELOG.md` includes `BREAKING CHANGE` or breaking API changes while in pre-1.0 (`0.x.y`), bump the **MINOR** version (e.g., `0.10.2` -> `0.11.0`). If post-1.0 (`X.y.z`), bump the **MAJOR** version (`1.x.y` -> `2.0.0`).
+- **Breaking Changes in Pre-1.0 (`0.x.y`)**: If `CHANGELOG.md` contains entries marked `BREAKING CHANGE` or breaking API modifications while pre-1.0 (`0.x.y`), bump the **MINOR** version (e.g., `0.10.2` -> `0.11.0`). If post-1.0 (`X.y.z`), bump the **MAJOR** version (`1.x.y` -> `2.0.0`).
 - **Backward-Compatible Changes**: If changes contain only non-breaking features or bug fixes, bump the **PATCH** version (e.g., `0.10.6` -> `0.10.7`).
-
----
-
-## 4. Release Lifecycle States
-
-When releasing packages, maintainers and AI agents evaluate the repository state across three distinct phases:
-
-```
-                  ┌────────────────────────────────────────┐
-                  │ Evaluate State (PyPI/NPM vs Git/PRs)   │
-                  └───────────────────┬────────────────────┘
-                                      │
-         ┌────────────────────────────┼────────────────────────────┐
-         ▼                            ▼                            ▼
-  [State 1: Unreleased        [State 2: Version           [State 3: Version Bumped
-   Changes Exist]              Bump PR Pending]            on main Branch]
-         │                            │                            │
-  ┌──────┴───────────────┐     ┌──────┴───────────────┐     ┌──────┴───────────────┐
-  │ 1. Create branch     │     │ 1. Report PR status  │     │ 1. Run test suite    │
-  │ 2. Update CHANGELOG  │     │ 2. Provide URL link  │     │ 2. Run release script│
-  │ 3. Bump version     │     │ 3. Prompt user to    │     │ 3. Upload manifest   │
-  │ 4. Run tests        │     │    merge before      │     └──────────────────────┘
-  │ 5. Open GitHub PR   │     │    continuing        │
-  └──────────────────────┘     └──────────────────────┘
-```
-
----
-
-## 5. Summary Checklist
-
-### Phase 1: Version Bump PR (Local Branch)
-
-- [ ] Inspect qualified packages (`## Unreleased` entries in `CHANGELOG.md`).
-- [ ] Create branch `release/sdks-YYYY-MM-DD`.
-- [ ] Update `CHANGELOG.md` headings (`## <new_version>` + fresh `## Unreleased`).
-- [ ] Bump versions (edit `"version"` in `package.json` for TS; edit `version.py` for Python).
-- [ ] Run `yarn install` at workspace root.
-- [ ] Run test suite (`yarn test:all`, `uv run pytest`).
-- [ ] Open PR targeting upstream (`a2ui-project/a2ui`).
-
-### Phase 2: Staging & Publishing (Post-Merge on `main`)
-
-- [ ] Switch to `main` (`git pull upstream main`).
-- [ ] Run `./renderers/scripts/publish_npm.mjs -p <pkgs> --no-dry-run`.
-- [ ] Run `./renderers/scripts/upload_manifest.mjs -p <pkgs> --no-dry-run`.
-- [ ] Run `./agent_sdks/python/release.sh <a2ui_agent|a2ui_core>`.
-- [ ] Verify staging artifacts in Google Artifact Registry & Exit Gate deployment.
