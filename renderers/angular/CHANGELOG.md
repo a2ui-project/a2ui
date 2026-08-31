@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.10.6
+
 - (v0_9) Implement `createComponentImplementation` helper and deprecate `extraComponents` and `functions` in `BasicCatalogOptions` to align with the core API. [#2060](https://github.com/a2ui-project/a2ui/pull/2060)
 
 ## 0.10.5
