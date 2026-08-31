@@ -22,7 +22,12 @@ from ...schema.common_types import StrictBaseModel
 class Styles(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     font: str | None = Field(None, description="The primary font for the UI.")
-    primary_color: str | None = Field(None, alias="primaryColor", description="The primary UI color as a hexadecimal code (e.g., '#00BFFF').", pattern=r"^#[0-9a-fA-F]{6}$")
+    primary_color: str | None = Field(
+        None,
+        alias="primaryColor",
+        description="The primary UI color as a hexadecimal code (e.g., '#00BFFF').",
+        pattern=r"^#[0-9a-fA-F]{6}$",
+    )
 
 
 Theme = Styles

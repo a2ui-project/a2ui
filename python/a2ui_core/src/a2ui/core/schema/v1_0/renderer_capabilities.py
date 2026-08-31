@@ -27,8 +27,24 @@ Catalog = InlineCatalog
 
 
 class V10Capabilities(StrictBaseModel):
-    supported_catalog_ids: list[str] = Field(..., alias="supportedCatalogIds", description="An array of string identifiers for each of the component and function catalogs supported by the renderer. Multiple catalogs can be mixed in a single surface.")
-    inline_catalogs: list[CatalogDefinition] | None = Field(None, alias="inlineCatalogs", description="An array of inline catalog definitions, which can contain both components and functions. This should only be provided if the agent declares 'acceptsInlineCatalogs: true' in its capabilities.")
+    supported_catalog_ids: list[str] = Field(
+        ...,
+        alias="supportedCatalogIds",
+        description=(
+            "An array of string identifiers for each of the component and function"
+            " catalogs supported by the renderer. Multiple catalogs can be mixed in a"
+            " single surface."
+        ),
+    )
+    inline_catalogs: list[CatalogDefinition] | None = Field(
+        None,
+        alias="inlineCatalogs",
+        description=(
+            "An array of inline catalog definitions, which can contain both components"
+            " and functions. This should only be provided if the agent declares"
+            " 'acceptsInlineCatalogs: true' in its capabilities."
+        ),
+    )
 
 
 V1_0Capabilities = V10Capabilities

@@ -27,8 +27,23 @@ Catalog = InlineCatalog
 
 
 class V08Capabilities(StrictBaseModel):
-    supported_catalog_ids: list[str] = Field(..., alias="supportedCatalogIds", description="The URI of each of the catalogs that is supported by the client. The standard catalog for v0.8 is 'https://a2ui.org/specification/v0_8/standard_catalog_definition.json'.")
-    inline_catalogs: list[CatalogDefinition] | None = Field(None, alias="inlineCatalogs", description="An array of inline catalog definitions. This should only be provided if the agent declares 'acceptsInlineCatalogs: true' in its capabilities.")
+    supported_catalog_ids: list[str] = Field(
+        ...,
+        alias="supportedCatalogIds",
+        description=(
+            "The URI of each of the catalogs that is supported by the client. The"
+            " standard catalog for v0.8 is"
+            " 'https://a2ui.org/specification/v0_8/standard_catalog_definition.json'."
+        ),
+    )
+    inline_catalogs: list[CatalogDefinition] | None = Field(
+        None,
+        alias="inlineCatalogs",
+        description=(
+            "An array of inline catalog definitions. This should only be provided if"
+            " the agent declares 'acceptsInlineCatalogs: true' in its capabilities."
+        ),
+    )
 
 
 V0_8Capabilities = V08Capabilities

@@ -22,12 +22,35 @@ from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
 class A2uiClientAction(StrictBaseModel):
     """Reports a user-initiated action from a component."""
+
     model_config = ConfigDict(populate_by_name=True)
-    name: str = Field(..., description="The name of the action, taken from the component's action.event.name property.")
-    surface_id: str = Field(..., alias="surfaceId", description="The id of the surface where the event originated.")
-    source_component_id: str = Field(..., alias="sourceComponentId", description="The id of the component that triggered the event.")
-    timestamp: str = Field(..., description="An ISO 8601 timestamp of when the event occurred.")
-    context: dict[str, Any] = Field(..., description="A JSON object containing the key-value pairs from the component's action.event.context, after resolving all data bindings.")
+    name: str = Field(
+        ...,
+        description=(
+            "The name of the action, taken from the component's action.event.name"
+            " property."
+        ),
+    )
+    surface_id: str = Field(
+        ...,
+        alias="surfaceId",
+        description="The id of the surface where the event originated.",
+    )
+    source_component_id: str = Field(
+        ...,
+        alias="sourceComponentId",
+        description="The id of the component that triggered the event.",
+    )
+    timestamp: str = Field(
+        ..., description="An ISO 8601 timestamp of when the event occurred."
+    )
+    context: dict[str, Any] = Field(
+        ...,
+        description=(
+            "A JSON object containing the key-value pairs from the component's"
+            " action.event.context, after resolving all data bindings."
+        ),
+    )
 
 
 A2uiRendererAction = A2uiClientAction
@@ -46,17 +69,39 @@ A2uiClientUserActionMessage = A2uiClientActionMessage
 
 class A2uiValidationError(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
-    code: Literal['VALIDATION_FAILED'] = Field("VALIDATION_FAILED")
-    surface_id: str = Field(..., alias="surfaceId", description="The id of the surface where the error occurred.")
-    path: str = Field(..., description="The JSON pointer to the field that failed validation (e.g. '/components/0/text').")
-    message: str = Field(..., description="A short one or two sentence description of why validation failed.")
+    code: Literal["VALIDATION_FAILED"] = Field("VALIDATION_FAILED")
+    surface_id: str = Field(
+        ...,
+        alias="surfaceId",
+        description="The id of the surface where the error occurred.",
+    )
+    path: str = Field(
+        ...,
+        description=(
+            "The JSON pointer to the field that failed validation (e.g."
+            " '/components/0/text')."
+        ),
+    )
+    message: str = Field(
+        ...,
+        description="A short one or two sentence description of why validation failed.",
+    )
 
 
 class A2uiGenericError(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
     code: Any = Field(...)
-    message: str = Field(..., description="A short one or two sentence description of why the error occurred.")
-    surface_id: str = Field(..., alias="surfaceId", description="The id of the surface where the error occurred.")
+    message: str = Field(
+        ...,
+        description=(
+            "A short one or two sentence description of why the error occurred."
+        ),
+    )
+    surface_id: str = Field(
+        ...,
+        alias="surfaceId",
+        description="The id of the surface where the error occurred.",
+    )
 
 
 A2uiRendererError = A2uiValidationError | A2uiGenericError
@@ -76,7 +121,9 @@ RendererToAgentMessage = A2uiClientMessage
 
 class A2uiClientDataModel(StrictBaseModel):
     version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION
-    surfaces: dict[str, dict[str, Any]] = Field(..., description="A map of surface IDs to data models.")
+    surfaces: dict[str, dict[str, Any]] = Field(
+        ..., description="A map of surface IDs to data models."
+    )
 
 
 A2uiClientMessageList = list[ClientToServerMessage]

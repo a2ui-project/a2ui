@@ -94,8 +94,20 @@ class FormatStringApi(FunctionApi):
 class FormatNumberArgs(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
     value: DynamicNumber = Field(..., description="The number to format.")
-    decimals: DynamicNumber | None = Field(None, description="Optional. The number of decimal places to show. Defaults to 0 or 2 depending on locale.")
-    grouping: DynamicBoolean | None = Field(None, description="Optional. If true, uses locale-specific grouping separators (e.g. '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true.")
+    decimals: DynamicNumber | None = Field(
+        None,
+        description=(
+            "Optional. The number of decimal places to show. Defaults to 0 or 2"
+            " depending on locale."
+        ),
+    )
+    grouping: DynamicBoolean | None = Field(
+        None,
+        description=(
+            "Optional. If true, uses locale-specific grouping separators (e.g."
+            " '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true."
+        ),
+    )
 
 
 class FormatNumberApi(FunctionApi):
@@ -107,9 +119,23 @@ class FormatNumberApi(FunctionApi):
 class FormatCurrencyArgs(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
     value: DynamicNumber = Field(..., description="The monetary amount.")
-    currency: DynamicString = Field(..., description="The ISO 4217 currency code (e.g., 'USD', 'EUR').")
-    decimals: DynamicNumber | None = Field(None, description="Optional. The number of decimal places to show. Defaults to 0 or 2 depending on locale.")
-    grouping: DynamicBoolean | None = Field(None, description="Optional. If true, uses locale-specific grouping separators (e.g. '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true.")
+    currency: DynamicString = Field(
+        ..., description="The ISO 4217 currency code (e.g., 'USD', 'EUR')."
+    )
+    decimals: DynamicNumber | None = Field(
+        None,
+        description=(
+            "Optional. The number of decimal places to show. Defaults to 0 or 2"
+            " depending on locale."
+        ),
+    )
+    grouping: DynamicBoolean | None = Field(
+        None,
+        description=(
+            "Optional. If true, uses locale-specific grouping separators (e.g."
+            " '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true."
+        ),
+    )
 
 
 class FormatCurrencyApi(FunctionApi):
@@ -121,7 +147,19 @@ class FormatCurrencyApi(FunctionApi):
 class FormatDateArgs(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
     value: DynamicValue = Field(..., description="The date to format.")
-    format: DynamicString = Field(..., description="A Unicode TR35 date pattern string.  Token Reference: - Year: 'yy' (26), 'yyyy' (2026) - Month: 'M' (1), 'MM' (01), 'MMM' (Jan), 'MMMM' (January) - Day: 'd' (1), 'dd' (01), 'E' (Tue), 'EEEE' (Tuesday) - Hour (12h): 'h' (1-12), 'hh' (01-12) - requires 'a' for AM/PM - Hour (24h): 'H' (0-23), 'HH' (00-23) - Military Time - Minute: 'mm' (00-59) - Second: 'ss' (00-59) - Period: 'a' (AM/PM)  Examples: - 'MMM dd, yyyy' -> 'Jan 16, 2026' - 'HH:mm' -> '14:30' (Military) - 'h:mm a' -> '2:30 PM' - 'EEEE, d MMMM' -> 'Friday, 16 January'")
+    format: DynamicString = Field(
+        ...,
+        description=(
+            "A Unicode TR35 date pattern string.  Token Reference: - Year: 'yy' (26),"
+            " 'yyyy' (2026) - Month: 'M' (1), 'MM' (01), 'MMM' (Jan), 'MMMM' (January)"
+            " - Day: 'd' (1), 'dd' (01), 'E' (Tue), 'EEEE' (Tuesday) - Hour (12h): 'h'"
+            " (1-12), 'hh' (01-12) - requires 'a' for AM/PM - Hour (24h): 'H' (0-23),"
+            " 'HH' (00-23) - Military Time - Minute: 'mm' (00-59) - Second: 'ss'"
+            " (00-59) - Period: 'a' (AM/PM)  Examples: - 'MMM dd, yyyy' -> 'Jan 16,"
+            " 2026' - 'HH:mm' -> '14:30' (Military) - 'h:mm a' -> '2:30 PM' - 'EEEE, d"
+            " MMMM' -> 'Friday, 16 January'"
+        ),
+    )
 
 
 class FormatDateApi(FunctionApi):
@@ -132,13 +170,33 @@ class FormatDateApi(FunctionApi):
 
 class PluralizeArgs(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
-    value: DynamicNumber = Field(..., description="The numeric value used to determine the plural category.")
-    zero: DynamicString | None = Field(None, description="String for the 'zero' category (e.g., 0 items).")
-    one: DynamicString | None = Field(None, description="String for the 'one' category (e.g., 1 item).")
-    two: DynamicString | None = Field(None, description="String for the 'two' category (used in Arabic, Welsh, etc.).")
-    few: DynamicString | None = Field(None, description="String for the 'few' category (e.g., small groups in Slavic languages).")
-    many: DynamicString | None = Field(None, description="String for the 'many' category (e.g., large groups in various languages).")
-    other: DynamicString = Field(..., description="The default/fallback string (used for general plural cases).")
+    value: DynamicNumber = Field(
+        ..., description="The numeric value used to determine the plural category."
+    )
+    zero: DynamicString | None = Field(
+        None, description="String for the 'zero' category (e.g., 0 items)."
+    )
+    one: DynamicString | None = Field(
+        None, description="String for the 'one' category (e.g., 1 item)."
+    )
+    two: DynamicString | None = Field(
+        None, description="String for the 'two' category (used in Arabic, Welsh, etc.)."
+    )
+    few: DynamicString | None = Field(
+        None,
+        description=(
+            "String for the 'few' category (e.g., small groups in Slavic languages)."
+        ),
+    )
+    many: DynamicString | None = Field(
+        None,
+        description=(
+            "String for the 'many' category (e.g., large groups in various languages)."
+        ),
+    )
+    other: DynamicString = Field(
+        ..., description="The default/fallback string (used for general plural cases)."
+    )
 
 
 class PluralizeApi(FunctionApi):
@@ -160,7 +218,9 @@ class OpenUrlApi(FunctionApi):
 
 class AndArgs(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
-    values: list[DynamicBoolean] = Field(..., description="The list of boolean values to evaluate.")
+    values: list[DynamicBoolean] = Field(
+        ..., description="The list of boolean values to evaluate."
+    )
 
 
 class AndApi(FunctionApi):
@@ -171,7 +231,9 @@ class AndApi(FunctionApi):
 
 class OrArgs(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
-    values: list[DynamicBoolean] = Field(..., description="The list of boolean values to evaluate.")
+    values: list[DynamicBoolean] = Field(
+        ..., description="The list of boolean values to evaluate."
+    )
 
 
 class OrApi(FunctionApi):
