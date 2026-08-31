@@ -130,3 +130,29 @@
         dataModel:
           settings:
             theme: "dark"
+
+- name: test_data_deletion_all_keys_empty_data_model
+  description: Verifies deleting the only top-level key via value=null results in an empty dataModel.
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "basic"
+            dataModel:
+              user:
+                profile:
+                  name: "Alice"
+    - payload:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "/user"
+            value: null
+  expect:
+    surfaces:
+      s1:
+        dataModel: {}
