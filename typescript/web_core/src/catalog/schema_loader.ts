@@ -318,7 +318,7 @@ function parseFunctionDefinitions(
   if (Array.isArray(rawFunctions)) {
     for (const fn of rawFunctions) {
       if (fn && typeof fn.name === 'string') {
-        if (permittedNames && permittedNames.size > 0 && !permittedNames.has(fn.name)) {
+        if (permittedNames && !permittedNames.has(fn.name)) {
           continue;
         }
         const paramSchema =
@@ -340,7 +340,7 @@ function parseFunctionDefinitions(
 
   if (typeof rawFunctions === 'object') {
     for (const [name, defn] of Object.entries(rawFunctions)) {
-      if (permittedNames && permittedNames.size > 0 && !permittedNames.has(name)) {
+      if (permittedNames && !permittedNames.has(name)) {
         continue;
       }
       const d = defn as any;
@@ -377,12 +377,17 @@ export function loadCatalogFromSchema(
   }
 
   // Filter permitted components via anyComponent.oneOf if declared
-  const permittedNames = new Set<string>();
+  let permittedNames: Set<string> | undefined = undefined;
   const oneOf = catalogSchema.$defs?.anyComponent?.oneOf;
   if (Array.isArray(oneOf)) {
+    permittedNames = new Set<string>();
     for (const item of oneOf) {
       if (typeof item?.$ref === 'string' && item.$ref.startsWith('#/components/')) {
-        permittedNames.add(item.$ref.split('/').pop()!);
+        const rawName = item.$ref.split('/').pop() ?? '';
+        const unescapedName = rawName.replace(/~([01])/g, (_: string, p1: string) =>
+          p1 === '1' ? '/' : '~',
+        );
+        permittedNames.add(unescapedName);
       }
     }
   }
@@ -390,7 +395,7 @@ export function loadCatalogFromSchema(
   const components: ComponentApi[] = [];
   const componentsMap = catalogSchema.components ?? {};
   for (const [name, rawCompSchema] of Object.entries(componentsMap)) {
-    if (permittedNames.size === 0 || permittedNames.has(name)) {
+    if (!permittedNames || permittedNames.has(name)) {
       const rawComp = rawCompSchema as Record<string, any>;
       const zodSchema = convertComponentJsonSchemaToZod(rawComp, catalogSchema);
       components.push({
@@ -405,12 +410,17 @@ export function loadCatalogFromSchema(
   }
 
   // Filter permitted functions via anyFunction.oneOf if declared
-  const permittedFunctionNames = new Set<string>();
+  let permittedFunctionNames: Set<string> | undefined = undefined;
   const anyFunctionOneOf = catalogSchema.$defs?.anyFunction?.oneOf;
   if (Array.isArray(anyFunctionOneOf)) {
+    permittedFunctionNames = new Set<string>();
     for (const item of anyFunctionOneOf) {
       if (typeof item?.$ref === 'string' && item.$ref.startsWith('#/functions/')) {
-        permittedFunctionNames.add(item.$ref.split('/').pop()!);
+        const rawName = item.$ref.split('/').pop() ?? '';
+        const unescapedName = rawName.replace(/~([01])/g, (_: string, p1: string) =>
+          p1 === '1' ? '/' : '~',
+        );
+        permittedFunctionNames.add(unescapedName);
       }
     }
   }

@@ -345,4 +345,57 @@ describe('Catalog.fromSchema & schema_loader', () => {
     });
     assert.strictEqual(invalidTheme.success, false);
   });
+
+  it('filters out all functions when anyFunction.oneOf is declared but empty', () => {
+    const catalogJson = {
+      catalogId: 'https://example.com/empty_filtered_functions_catalog.json',
+      $defs: {
+        anyFunction: {
+          oneOf: [],
+        },
+      },
+      components: {},
+      functions: {
+        allowedFunc: {
+          description: 'Permitted function',
+          returnType: 'string',
+        },
+      },
+    };
+
+    const catalog = Catalog.fromSchema(catalogJson);
+    assert.strictEqual(catalog.functions.size, 0);
+  });
+
+  it('correctly unescapes JSON Pointer sequences in anyFunction.oneOf references', () => {
+    const catalogJson = {
+      catalogId: 'https://example.com/escaped_functions_catalog.json',
+      $defs: {
+        anyFunction: {
+          oneOf: [{$ref: '#/functions/my~1slash'}, {$ref: '#/functions/my~0tilde'}],
+        },
+      },
+      components: {},
+      functions: {
+        'my/slash': {
+          description: 'Function with slash',
+          returnType: 'string',
+        },
+        'my~tilde': {
+          description: 'Function with tilde',
+          returnType: 'string',
+        },
+        'otherFunc': {
+          description: 'Other function',
+          returnType: 'string',
+        },
+      },
+    };
+
+    const catalog = Catalog.fromSchema(catalogJson);
+    assert.strictEqual(catalog.functions.size, 2);
+    assert.ok(catalog.functions.has('my/slash'));
+    assert.ok(catalog.functions.has('my~tilde'));
+    assert.strictEqual(catalog.functions.has('otherFunc'), false);
+  });
 });
