@@ -26,6 +26,7 @@ import {createFunctionImplementation, FunctionImplementation} from '../../catalo
 export const IndexApi = {
   name: '@index' as const,
   returnType: 'number' as const,
+  allowedCallers: 'rendererOnly' as const,
   schema: z.object({
     'offset': z.coerce.number().optional(),
   }),

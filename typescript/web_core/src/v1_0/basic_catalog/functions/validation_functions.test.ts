@@ -100,4 +100,38 @@ describe('v1.0 Validation Functions (returnType: validationResult)', () => {
       message: 'Must be a valid email address.',
     });
   });
+
+  it('RequiredV1Point0 schema accepts undefined value without throwing and returns invalid result', () => {
+    const parsedArgs = RequiredV1Point0Implementation.schema.parse({});
+    const res = RequiredV1Point0Implementation.execute(parsedArgs, null as any);
+    assert.deepStrictEqual(res, {
+      valid: false,
+      message: 'This field is required.',
+    });
+  });
+
+  it('NumericV1Point0 schema parses empty string and null as NaN and returns invalid result', () => {
+    const parsedEmpty = NumericV1Point0Implementation.schema.parse({value: '', min: 0});
+    const emptyRes = NumericV1Point0Implementation.execute(parsedEmpty, null as any);
+    assert.deepStrictEqual(emptyRes, {
+      valid: false,
+      message: 'Value must be a valid number.',
+    });
+
+    const parsedNull = NumericV1Point0Implementation.schema.parse({value: null, min: 0});
+    const nullRes = NumericV1Point0Implementation.execute(parsedNull, null as any);
+    assert.deepStrictEqual(nullRes, {
+      valid: false,
+      message: 'Value must be a valid number.',
+    });
+  });
+
+  it('RegexV1Point0 schema coerces null value safely to empty string', () => {
+    const parsed = RegexV1Point0Implementation.schema.parse({value: null, pattern: '^.+$'});
+    const res = RegexV1Point0Implementation.execute(parsed, null as any);
+    assert.deepStrictEqual(res, {
+      valid: false,
+      message: 'Value does not match required pattern.',
+    });
+  });
 });

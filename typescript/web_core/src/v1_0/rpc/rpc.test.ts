@@ -21,6 +21,7 @@ import {RpcHandler, RpcError, RpcErrorCode} from './rpc-handler.js';
 import {Catalog, createFunctionImplementation} from '../../catalog/types.js';
 import {DataContext} from '../../rendering/data-context.js';
 import {SurfaceModel} from '../../state/surface-model.js';
+import {signal} from '../../reactivity/signals.js';
 import {IndexImplementation} from '../functions/system_functions.js';
 
 describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', () => {
@@ -52,10 +53,44 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
   };
   const restrictedImpl = createFunctionImplementation(restrictedApi, () => true);
 
+  const agentOnlyApi = {
+    name: 'agentOnlyFunc',
+    returnType: 'string' as const,
+    schema: z.object({}),
+    allowedCallers: 'agentOnly' as const,
+  };
+  const agentOnlyImpl = createFunctionImplementation(agentOnlyApi, () => 'agent-result');
+
+  const throwingApi = {
+    name: 'throwingFunc',
+    returnType: 'string' as const,
+    schema: z.object({}),
+    allowedCallers: 'rendererOrAgent' as const,
+  };
+  const throwingImpl = createFunctionImplementation(throwingApi, () => {
+    throw new Error('Execution boom');
+  });
+
+  const signalApi = {
+    name: 'signalFunc',
+    returnType: 'number' as const,
+    schema: z.object({}),
+    allowedCallers: 'rendererOrAgent' as const,
+  };
+  const signalImpl = createFunctionImplementation(signalApi, () => signal(42) as any);
+
   const mockCatalog = new Catalog(
     'basic',
     [],
-    [customRpcImpl, rendererOnlyImpl, restrictedImpl, IndexImplementation],
+    [
+      customRpcImpl,
+      rendererOnlyImpl,
+      restrictedImpl,
+      agentOnlyImpl,
+      throwingImpl,
+      signalImpl,
+      IndexImplementation,
+    ],
   );
 
   it('instantiates via options bag RpcHandlerOptions', () => {
@@ -377,5 +412,133 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
   it('handles null/undefined options in RpcHandler constructor', () => {
     const handler = new RpcHandler(null as any);
     assert.strictEqual(handler.disposed, false);
+  });
+
+  it('rejects callAgentFunction promise when agentFunctionResponse contains error', async () => {
+    const handler = new RpcHandler({catalogs: [mockCatalog], outboundListener: () => {}});
+    const promise = handler.callAgentFunction('s1', 'err-call-1', {call: 'remoteFunc'});
+    handler.handleAgentFunctionResponse({
+      version: 'v1.0',
+      agentFunctionResponse: {
+        functionCallId: 'err-call-1',
+        error: {code: 'SERVER_FAULT', message: 'Internal server failure'},
+      },
+    });
+    await assert.rejects(promise, (err: RpcError) => {
+      assert.ok(err instanceof RpcError);
+      assert.strictEqual(err.code, 'SERVER_FAULT');
+      assert.strictEqual(err.functionCallId, 'err-call-1');
+      return true;
+    });
+  });
+
+  it('rejects duplicate pending functionCallId with DUPLICATE error code', async () => {
+    const handler = new RpcHandler({catalogs: [mockCatalog], outboundListener: () => {}});
+    const promise1 = handler.callAgentFunction('s1', 'dup-1', {call: 'func1'});
+    await assert.rejects(
+      handler.callAgentFunction('s1', 'dup-1', {call: 'func2'}),
+      (err: RpcError) => err.code === RpcErrorCode.DUPLICATE,
+    );
+    handler.dispose();
+    await assert.rejects(promise1, (err: RpcError) => err.code === RpcErrorCode.CANCELLED);
+  });
+
+  it('invokes callAgentFunction using modern options bag overload', async () => {
+    let emittedMsg: any;
+    const handler = new RpcHandler({
+      catalogs: [mockCatalog],
+      outboundListener: msg => {
+        emittedMsg = msg;
+      },
+    });
+
+    const promise = handler.callAgentFunction<{data: string}>(
+      's1',
+      {call: 'fetchData', catalogId: 'basic'},
+      {functionCallId: 'custom-id-99', timeoutMs: 10000},
+    );
+
+    assert.strictEqual(emittedMsg.callAgentFunction.functionCallId, 'custom-id-99');
+    handler.handleAgentFunctionResponse({
+      version: 'v1.0',
+      agentFunctionResponse: {
+        functionCallId: 'custom-id-99',
+        value: {data: 'payload'},
+      },
+    });
+
+    const res = await promise;
+    assert.deepStrictEqual(res, {data: 'payload'});
+  });
+
+  it('unwraps signal value returned by renderer function', async () => {
+    const handler = new RpcHandler([mockCatalog]);
+    const surface = new SurfaceModel('s1', mockCatalog);
+    const dataContext = new DataContext(surface, '/');
+
+    const res = await handler.handleCallRendererFunction(
+      {
+        version: 'v1.0',
+        callRendererFunction: {
+          functionCallId: 'call-signal-1',
+          callFunction: {
+            call: 'signalFunc',
+            catalogId: 'basic',
+          },
+        },
+      },
+      dataContext,
+      true,
+    );
+
+    assert.strictEqual(res.rendererFunctionResponse.value, 42);
+  });
+
+  it('allows agent to call function marked as allowedCallers: agentOnly', async () => {
+    const handler = new RpcHandler([mockCatalog]);
+    const surface = new SurfaceModel('s1', mockCatalog);
+    const dataContext = new DataContext(surface, '/');
+
+    const res = await handler.handleCallRendererFunction(
+      {
+        version: 'v1.0',
+        callRendererFunction: {
+          functionCallId: 'call-agent-only-1',
+          callFunction: {
+            call: 'agentOnlyFunc',
+            catalogId: 'basic',
+          },
+        },
+      },
+      dataContext,
+      true,
+    );
+
+    assert.strictEqual(res.rendererFunctionResponse.value, 'agent-result');
+  });
+
+  it('returns EXECUTION_ERROR when renderer function execution throws', async () => {
+    const handler = new RpcHandler([mockCatalog]);
+    const surface = new SurfaceModel('s1', mockCatalog);
+    const dataContext = new DataContext(surface, '/');
+
+    const res = await handler.handleCallRendererFunction(
+      {
+        version: 'v1.0',
+        callRendererFunction: {
+          functionCallId: 'call-throwing-1',
+          callFunction: {
+            call: 'throwingFunc',
+            catalogId: 'basic',
+          },
+        },
+      },
+      dataContext,
+      true,
+    );
+
+    assert.ok(res.rendererFunctionResponse.error);
+    assert.strictEqual(res.rendererFunctionResponse.error.code, RpcErrorCode.EXECUTION_ERROR);
+    assert.ok(res.rendererFunctionResponse.error.message.includes('Execution boom'));
   });
 });

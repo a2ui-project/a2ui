@@ -96,7 +96,7 @@
   },
   "wireit": {
     "generate-zod-schemas": {
-      "command": "node scripts/generate-zod-schemas.mjs",
+      "command": "node scripts/generate-zod-schemas.mjs && prettier --write src/v1_0/schema/*.ts",
       "files": [
         "../../specification/v1_0/json/*.json",
         "scripts/generate-zod-schemas.mjs"

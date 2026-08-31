@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {Catalog} from '../../catalog/types.js';
+import {Catalog, FunctionImplementation} from '../../catalog/types.js';
 import {DataContext} from '../../rendering/data-context.js';
 import {isSignal, getValue} from '../../reactivity/signals.js';
 import {FunctionCall} from '../schema/common-types.js';
@@ -67,11 +67,21 @@ export type OutboundMessageListener = (
  */
 export interface RpcHandlerOptions {
   /** Catalogs available for function resolution. */
-  catalogs: Catalog<any>[];
+  readonly catalogs: Catalog<any>[];
   /** Listener receiving outbound renderer messages. Required for callAgentFunction. */
   outboundListener?: OutboundMessageListener;
   /** Default timeout in milliseconds for callAgentFunction requests (default: 30000ms). */
   defaultTimeoutMs?: number;
+}
+
+/**
+ * Options for configuring an outbound callAgentFunction request.
+ */
+export interface CallOptions {
+  /** Explicit identifier for the function call. */
+  functionCallId?: string;
+  /** Timeout in milliseconds before rejecting with TIMEOUT. */
+  timeoutMs?: number;
 }
 
 /**
@@ -80,6 +90,15 @@ export interface RpcHandlerOptions {
 interface PendingAgentCall {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
+}
+
+/**
+ * Normalized arguments for outbound agent function invocation.
+ */
+interface NormalizedAgentCall {
+  functionCallId: string;
+  call: FunctionCall;
+  effectiveTimeoutMs: number;
 }
 
 /**
@@ -129,118 +148,47 @@ export class RpcHandler {
     context: DataContext,
     isUserActivated: boolean = false,
   ): Promise<RendererFunctionResponseMessage> {
-    if (!message) {
-      return this.createResponseError(
-        'unknown',
-        RpcErrorCode.INVALID_FUNCTION_CALL,
-        'Inbound message is null or undefined.',
-      );
+    const validationError = this.validateInboundMessage(message);
+    if (validationError) {
+      return validationError;
     }
 
-    if (this.isDisposed) {
-      return this.createResponseError(
-        message.callRendererFunction?.functionCallId ?? 'unknown',
-        RpcErrorCode.DISPOSED,
-        'RpcHandler has been disposed.',
-      );
-    }
-
-    if (!message.callRendererFunction?.callFunction) {
-      return this.createResponseError(
-        message.callRendererFunction?.functionCallId ?? 'unknown',
-        RpcErrorCode.INVALID_FUNCTION_CALL,
-        'Malformed message: missing callRendererFunction or callFunction.',
-      );
-    }
     const {functionCallId, callFunction} = message.callRendererFunction;
     const {call, catalogId, args} = callFunction;
 
-    // 1. Resolve catalog (fallback to surface default catalog if catalogId is omitted)
-    const targetCatalogId = catalogId || context?.surface?.catalog?.id;
-    if (!targetCatalogId) {
+    const resolved = this.resolveFunctionImplementation(catalogId, call, context);
+    if ('error' in resolved) {
       return this.createResponseError(
         functionCallId,
         RpcErrorCode.INVALID_FUNCTION_CALL,
-        'No catalogId provided and surface catalog is unavailable.',
-      );
-    }
-    const catalog = this.catalogs.find(c => c.id === targetCatalogId);
-    if (!catalog) {
-      return this.createResponseError(
-        functionCallId,
-        RpcErrorCode.INVALID_FUNCTION_CALL,
-        `Catalog '${targetCatalogId}' not found.`,
+        resolved.error,
       );
     }
 
-    // 2. Resolve function implementation
-    const funcImpl = catalog.functions?.get(call);
-    if (!funcImpl) {
+    const accessError = this.checkExecutionPermissions(resolved.funcImpl, call, isUserActivated);
+    if (accessError) {
       return this.createResponseError(
         functionCallId,
         RpcErrorCode.INVALID_FUNCTION_CALL,
-        `Function '${call}' not found in catalog '${targetCatalogId}'.`,
+        accessError,
       );
     }
 
-    // 3. Validate boundary execution constraint (allowedCallers)
-    const boundary = funcImpl.allowedCallers ?? 'rendererOnly';
-    if (boundary !== 'rendererOrAgent' && boundary !== 'agentOnly') {
+    const parsedArgsResult = this.parseArguments(resolved.funcImpl, args, call);
+    if ('error' in parsedArgsResult) {
       return this.createResponseError(
         functionCallId,
         RpcErrorCode.INVALID_FUNCTION_CALL,
-        `Function '${call}' cannot be called by agent (allowedCallers is ${boundary}).`,
+        parsedArgsResult.error,
       );
     }
 
-    // 4. Validate user activation constraint
-    if (funcImpl.requiresUserActivation && !isUserActivated) {
-      return this.createResponseError(
-        functionCallId,
-        RpcErrorCode.INVALID_FUNCTION_CALL,
-        `Function '${call}' requires user activation context to execute.`,
-      );
-    }
-
-    // 5. Enforce argument schema parsing
-    let safeArgs: Record<string, unknown>;
-    try {
-      safeArgs = funcImpl.schema
-        ? (funcImpl.schema.parse(args ?? {}) as Record<string, unknown>)
-        : (args ?? {});
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      return this.createResponseError(
-        functionCallId,
-        RpcErrorCode.INVALID_FUNCTION_CALL,
-        `Invalid function arguments for '${call}': ${errMsg}`,
-      );
-    }
-
-    // 6. Execute function safely
-    try {
-      const rawResult = await Promise.resolve(funcImpl.execute(safeArgs, context));
-      const result = isSignal(rawResult) ? getValue(rawResult) : rawResult;
-      return {
-        version: 'v1.0',
-        rendererFunctionResponse: {
-          functionCallId,
-          value: result !== undefined ? result : null,
-        },
-      };
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      return {
-        version: 'v1.0',
-        rendererFunctionResponse: {
-          functionCallId,
-          error: {
-            code: RpcErrorCode.EXECUTION_ERROR,
-            message: errMsg || 'An error occurred during function execution.',
-          },
-        },
-      };
-    }
+    return this.executeFunctionSafely(
+      resolved.funcImpl,
+      parsedArgsResult.args,
+      context,
+      functionCallId,
+    );
   }
 
   /**
@@ -263,20 +211,42 @@ export class RpcHandler {
   }
 
   /**
-   * Invokes a remote function on the server agent from the renderer.
+   * Invokes a remote function on the server agent using an options bag.
    *
    * @param surfaceId The ID of the surface requesting execution.
-   * @param functionCallIdOrCall The unique ID or function call details.
-   * @param callOrOptions The function call details or invocation options.
-   * @param timeoutMs Optional timeout duration in milliseconds (legacy signature).
+   * @param call The function call details.
+   * @param options Optional invocation options (custom functionCallId, timeoutMs).
    * @returns A promise resolving to the agent function return value.
    */
-  callAgentFunction(
+  callAgentFunction<T = unknown>(
+    surfaceId: string,
+    call: FunctionCall,
+    options?: CallOptions,
+  ): Promise<T>;
+
+  /**
+   * Invokes a remote function on the server agent using positional parameters.
+   *
+   * @deprecated Prefer the options-bag overload: `callAgentFunction(surfaceId, call, options)`.
+   * @param surfaceId The ID of the surface requesting execution.
+   * @param functionCallId The unique ID for this invocation instance.
+   * @param call The function call details.
+   * @param timeoutMs Optional timeout duration in milliseconds.
+   * @returns A promise resolving to the agent function return value.
+   */
+  callAgentFunction<T = unknown>(
+    surfaceId: string,
+    functionCallId: string,
+    call: FunctionCall,
+    timeoutMs?: number,
+  ): Promise<T>;
+
+  callAgentFunction<T = unknown>(
     surfaceId: string,
     functionCallIdOrCall: string | FunctionCall,
-    callOrOptions?: FunctionCall | {functionCallId?: string; timeoutMs?: number},
+    callOrOptions?: FunctionCall | CallOptions,
     timeoutMs?: number,
-  ): Promise<unknown> {
+  ): Promise<T> {
     if (this.isDisposed) {
       return Promise.reject(new RpcError(RpcErrorCode.DISPOSED, 'RpcHandler has been disposed.'));
     }
@@ -289,93 +259,24 @@ export class RpcHandler {
       );
     }
 
-    let functionCallId: string;
-    let call: FunctionCall;
-    let effectiveTimeoutMs: number;
-
-    if (typeof functionCallIdOrCall === 'string') {
-      functionCallId = functionCallIdOrCall;
-      call = callOrOptions as FunctionCall;
-      effectiveTimeoutMs = timeoutMs ?? this.defaultTimeoutMs;
-    } else {
-      call = functionCallIdOrCall;
-      const opts = (callOrOptions as {functionCallId?: string; timeoutMs?: number}) ?? {};
-      functionCallId =
-        opts.functionCallId ??
-        (typeof globalThis.crypto?.randomUUID === 'function'
-          ? globalThis.crypto.randomUUID()
-          : `call-${Date.now()}-${Math.random().toString(36).substring(2, 15).padEnd(13, '0')}`);
-      effectiveTimeoutMs = opts.timeoutMs ?? this.defaultTimeoutMs;
-    }
-
-    if (!call || !call.call) {
+    const normalized = this.normalizeAgentCallArgs(functionCallIdOrCall, callOrOptions, timeoutMs);
+    if (!normalized.call || !normalized.call.call) {
       return Promise.reject(
         new RpcError(RpcErrorCode.INVALID_FUNCTION_CALL, 'Missing or invalid function call name.'),
       );
     }
 
-    return new Promise((resolve, reject) => {
-      if (this.pendingAgentCalls.has(functionCallId)) {
-        reject(
-          new RpcError(
-            RpcErrorCode.DUPLICATE,
-            `A call with functionCallId '${functionCallId}' is already pending.`,
-            functionCallId,
-          ),
-        );
-        return;
-      }
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      if (effectiveTimeoutMs > 0) {
-        timer = setTimeout(() => {
-          if (this.pendingAgentCalls.has(functionCallId)) {
-            this.pendingAgentCalls.delete(functionCallId);
-            reject(
-              new RpcError(
-                RpcErrorCode.TIMEOUT,
-                `Agent function call '${call.call}' timed out after ${effectiveTimeoutMs}ms.`,
-                functionCallId,
-              ),
-            );
-          }
-        }, effectiveTimeoutMs);
-      }
+    if (this.pendingAgentCalls.has(normalized.functionCallId)) {
+      return Promise.reject(
+        new RpcError(
+          RpcErrorCode.DUPLICATE,
+          `A call with functionCallId '${normalized.functionCallId}' is already pending.`,
+          normalized.functionCallId,
+        ),
+      );
+    }
 
-      this.pendingAgentCalls.set(functionCallId, {
-        resolve: val => {
-          if (timer) clearTimeout(timer);
-          resolve(val);
-        },
-        reject: err => {
-          if (timer) clearTimeout(timer);
-          reject(err);
-        },
-      });
-
-      const outboundMsg: CallAgentFunctionMessage = {
-        version: 'v1.0',
-        callAgentFunction: {
-          surfaceId,
-          functionCallId,
-          callFunction: call,
-        },
-      };
-
-      try {
-        const result = this.outboundListener!(outboundMsg);
-        if (result && typeof (result as any).catch === 'function') {
-          (result as Promise<void>).catch(err => {
-            if (timer) clearTimeout(timer);
-            this.pendingAgentCalls.delete(functionCallId);
-            reject(err);
-          });
-        }
-      } catch (err) {
-        if (timer) clearTimeout(timer);
-        this.pendingAgentCalls.delete(functionCallId);
-        reject(err);
-      }
-    });
+    return this.dispatchAgentCall<T>(surfaceId, normalized);
   }
 
   /**
@@ -394,6 +295,241 @@ export class RpcHandler {
       );
     }
     this.pendingAgentCalls.clear();
+  }
+
+  private validateInboundMessage(
+    message: CallRendererFunctionMessage,
+  ): RendererFunctionResponseMessage | null {
+    if (!message) {
+      return this.createResponseError(
+        'unknown',
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+        'Inbound message is null or undefined.',
+      );
+    }
+    if (this.isDisposed) {
+      return this.createResponseError(
+        message.callRendererFunction?.functionCallId ?? 'unknown',
+        RpcErrorCode.DISPOSED,
+        'RpcHandler has been disposed.',
+      );
+    }
+    if (!message.callRendererFunction?.callFunction) {
+      return this.createResponseError(
+        message.callRendererFunction?.functionCallId ?? 'unknown',
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+        'Malformed message: missing callRendererFunction or callFunction.',
+      );
+    }
+    return null;
+  }
+
+  private resolveFunctionImplementation(
+    catalogId: string | undefined,
+    call: string,
+    context: DataContext,
+  ): {funcImpl: FunctionImplementation} | {error: string} {
+    const targetCatalogId = catalogId || context?.surface?.catalog?.id;
+    if (!targetCatalogId) {
+      return {error: 'No catalogId provided and surface catalog is unavailable.'};
+    }
+    const catalog = this.catalogs.find(c => c.id === targetCatalogId);
+    if (!catalog) {
+      return {error: `Catalog '${targetCatalogId}' not found.`};
+    }
+    const funcImpl = catalog.functions?.get(call);
+    if (!funcImpl) {
+      return {error: `Function '${call}' not found in catalog '${targetCatalogId}'.`};
+    }
+    return {funcImpl};
+  }
+
+  private checkExecutionPermissions(
+    funcImpl: FunctionImplementation,
+    call: string,
+    isUserActivated: boolean,
+  ): string | null {
+    const boundary = funcImpl.allowedCallers ?? 'rendererOnly';
+    const isAllowedCaller = boundary === 'rendererOrAgent' || boundary === 'agentOnly';
+    if (!isAllowedCaller) {
+      return `Function '${call}' cannot be called by agent (allowedCallers is ${boundary}).`;
+    }
+    if (funcImpl.requiresUserActivation && !isUserActivated) {
+      return `Function '${call}' requires user activation context to execute.`;
+    }
+    return null;
+  }
+
+  private parseArguments(
+    funcImpl: FunctionImplementation,
+    args: Record<string, unknown> | undefined,
+    call: string,
+  ): {args: Record<string, unknown>} | {error: string} {
+    if (!funcImpl.schema) {
+      return {args: args ?? {}};
+    }
+    try {
+      const parsed = funcImpl.schema.parse(args ?? {}) as Record<string, unknown>;
+      return {args: parsed};
+    } catch (err: unknown) {
+      const errMsg = this.extractErrorMessage(err);
+      return {error: `Invalid function arguments for '${call}': ${errMsg}`};
+    }
+  }
+
+  private async executeFunctionSafely(
+    funcImpl: FunctionImplementation,
+    args: Record<string, unknown>,
+    context: DataContext,
+    functionCallId: string,
+  ): Promise<RendererFunctionResponseMessage> {
+    try {
+      const rawResult = await Promise.resolve(funcImpl.execute(args, context));
+      const unwrapped = isSignal(rawResult) ? getValue(rawResult) : rawResult;
+      const value = unwrapped !== undefined ? unwrapped : null;
+      return {
+        version: 'v1.0',
+        rendererFunctionResponse: {
+          functionCallId,
+          value,
+        },
+      };
+    } catch (err: unknown) {
+      const errMsg = this.extractErrorMessage(err);
+      return {
+        version: 'v1.0',
+        rendererFunctionResponse: {
+          functionCallId,
+          error: {
+            code: RpcErrorCode.EXECUTION_ERROR,
+            message: errMsg || 'An error occurred during function execution.',
+          },
+        },
+      };
+    }
+  }
+
+  private normalizeAgentCallArgs(
+    functionCallIdOrCall: string | FunctionCall,
+    callOrOptions?: FunctionCall | CallOptions,
+    timeoutMs?: number,
+  ): NormalizedAgentCall {
+    if (typeof functionCallIdOrCall === 'string') {
+      return {
+        functionCallId: functionCallIdOrCall,
+        call: callOrOptions as FunctionCall,
+        effectiveTimeoutMs: timeoutMs ?? this.defaultTimeoutMs,
+      };
+    }
+    const opts = (callOrOptions as CallOptions) ?? {};
+    return {
+      functionCallId: opts.functionCallId ?? this.generateFunctionCallId(),
+      call: functionCallIdOrCall,
+      effectiveTimeoutMs: opts.timeoutMs ?? this.defaultTimeoutMs,
+    };
+  }
+
+  private generateFunctionCallId(): string {
+    if (typeof globalThis.crypto?.randomUUID === 'function') {
+      return globalThis.crypto.randomUUID();
+    }
+    const randSuffix = Math.random().toString(36).substring(2, 15).padEnd(13, '0');
+    return `call-${Date.now()}-${randSuffix}`;
+  }
+
+  private dispatchAgentCall<T = unknown>(
+    surfaceId: string,
+    callInfo: NormalizedAgentCall,
+  ): Promise<T> {
+    const {functionCallId, call, effectiveTimeoutMs} = callInfo;
+
+    return new Promise<T>((resolve, reject) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const cleanup = () => {
+        if (timer) {
+          clearTimeout(timer);
+          timer = undefined;
+        }
+        this.pendingAgentCalls.delete(functionCallId);
+      };
+
+      timer = this.createTimeoutTimer(
+        functionCallId,
+        call.call,
+        effectiveTimeoutMs,
+        cleanup,
+        reject,
+      );
+
+      this.pendingAgentCalls.set(functionCallId, {
+        resolve: val => {
+          cleanup();
+          resolve(val as T);
+        },
+        reject: err => {
+          cleanup();
+          reject(err);
+        },
+      });
+
+      this.sendOutboundMessage(surfaceId, functionCallId, call, cleanup, reject);
+    });
+  }
+
+  private createTimeoutTimer(
+    functionCallId: string,
+    callName: string,
+    timeoutMs: number,
+    cleanup: () => void,
+    reject: (err: Error) => void,
+  ): ReturnType<typeof setTimeout> | undefined {
+    if (timeoutMs <= 0) return undefined;
+    return setTimeout(() => {
+      if (this.pendingAgentCalls.delete(functionCallId)) {
+        cleanup();
+        reject(
+          new RpcError(
+            RpcErrorCode.TIMEOUT,
+            `Agent function call '${callName}' timed out after ${timeoutMs}ms.`,
+            functionCallId,
+          ),
+        );
+      }
+    }, timeoutMs);
+  }
+
+  private sendOutboundMessage(
+    surfaceId: string,
+    functionCallId: string,
+    call: FunctionCall,
+    cleanup: () => void,
+    reject: (reason?: any) => void,
+  ): void {
+    const outboundMsg: CallAgentFunctionMessage = {
+      version: 'v1.0',
+      callAgentFunction: {
+        surfaceId,
+        functionCallId,
+        callFunction: call,
+      },
+    };
+
+    try {
+      const result = this.outboundListener!(outboundMsg);
+      if (result && typeof (result as any).catch === 'function') {
+        (result as Promise<void>).catch(err => {
+          cleanup();
+          reject(err);
+        });
+      }
+    } catch (err) {
+      cleanup();
+      reject(err);
+    }
+  }
+
+  private extractErrorMessage(err: unknown): string {
+    return err instanceof Error ? err.message : String(err);
   }
 
   private createResponseError(

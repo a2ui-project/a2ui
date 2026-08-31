@@ -23,8 +23,9 @@ import {z} from 'zod';
 export const RequiredV1Point0Api = {
   name: 'required' as const,
   returnType: 'validationResult' as const,
+  allowedCallers: 'rendererOnly' as const,
   schema: z.object({
-    value: z.any().refine(v => v !== undefined, 'Required'),
+    value: z.any().optional(),
   }),
 };
 
@@ -35,9 +36,10 @@ export const RequiredV1Point0Api = {
 export const RegexV1Point0Api = {
   name: 'regex' as const,
   returnType: 'validationResult' as const,
+  allowedCallers: 'rendererOnly' as const,
   schema: z.object({
-    value: z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
-    pattern: z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
+    value: z.preprocess(v => (v === undefined || v === null ? '' : String(v)), z.string()),
+    pattern: z.preprocess(v => (v === undefined || v === null ? '' : String(v)), z.string()),
   }),
 };
 
@@ -48,6 +50,7 @@ export const RegexV1Point0Api = {
 export const LengthV1Point0Api = {
   name: 'length' as const,
   returnType: 'validationResult' as const,
+  allowedCallers: 'rendererOnly' as const,
   schema: z.object({
     value: z.any(),
     min: z.preprocess(v => (v === undefined ? undefined : Number(v)), z.number().optional()),
@@ -62,10 +65,22 @@ export const LengthV1Point0Api = {
 export const NumericV1Point0Api = {
   name: 'numeric' as const,
   returnType: 'validationResult' as const,
+  allowedCallers: 'rendererOnly' as const,
   schema: z.object({
-    value: z.preprocess(v => (v === undefined ? undefined : Number(v)), z.number()),
-    min: z.preprocess(v => (v === undefined ? undefined : Number(v)), z.number().optional()),
-    max: z.preprocess(v => (v === undefined ? undefined : Number(v)), z.number().optional()),
+    value: z.any().transform(v => {
+      if (v === undefined || v === null || (typeof v === 'string' && v.trim() === '')) {
+        return NaN;
+      }
+      return Number(v);
+    }),
+    min: z.preprocess(
+      v => (v === undefined || v === null ? undefined : Number(v)),
+      z.number().optional(),
+    ),
+    max: z.preprocess(
+      v => (v === undefined || v === null ? undefined : Number(v)),
+      z.number().optional(),
+    ),
   }),
 };
 
@@ -76,8 +91,9 @@ export const NumericV1Point0Api = {
 export const EmailV1Point0Api = {
   name: 'email' as const,
   returnType: 'validationResult' as const,
+  allowedCallers: 'rendererOnly' as const,
   schema: z.object({
-    value: z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
+    value: z.preprocess(v => (v === undefined || v === null ? '' : String(v)), z.string()),
   }),
 };
 
