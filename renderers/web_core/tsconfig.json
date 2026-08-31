@@ -41,4 +41,5 @@
     "strictPropertyInitialization": false
   },
   "include": ["src/**/*.ts", "src/**/*.json", "tests/**/*.ts"]
+  "exclude": ["node_modules", "dist"]
 }
