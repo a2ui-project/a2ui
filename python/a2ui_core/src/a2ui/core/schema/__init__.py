@@ -14,6 +14,7 @@
 
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
+from collections.abc import Mapping, Sequence
 from enum import Enum
 from typing import Any
 
@@ -41,10 +42,38 @@ AgentToRendererMessage = (
     | v1_0.AgentToRendererMessage
 )
 
+AgentToRendererMessageListWrapper = (
+    v0_8.A2uiMessageListWrapper
+    | v0_9.A2uiMessageListWrapper
+    | v1_0.AgentToRendererMessageListWrapper
+)
+
+AgentToRendererMessagePayload = (
+    AgentToRendererMessageListWrapper
+    | Sequence[AgentToRendererMessage]
+    | AgentToRendererMessage
+    | Mapping[str, Any]
+    | Sequence[Mapping[str, Any]]
+)
+
 RendererToAgentMessage = (
     v0_8.ClientToServerMessage
     | v0_9.ClientToServerMessage
     | v1_0.RendererToAgentMessage
+)
+
+RendererToAgentMessageListWrapper = (
+    v0_8.A2uiClientMessageListWrapper
+    | v0_9.A2uiClientMessageListWrapper
+    | v1_0.RendererToAgentMessageListWrapper
+)
+
+RendererToAgentMessagePayload = (
+    RendererToAgentMessageListWrapper
+    | Sequence[RendererToAgentMessage]
+    | RendererToAgentMessage
+    | Mapping[str, Any]
+    | Sequence[Mapping[str, Any]]
 )
 
 # Aliases for cross-version consistency
@@ -52,6 +81,10 @@ ServerToClientMessage = AgentToRendererMessage
 ClientToServerMessage = RendererToAgentMessage
 A2uiMessage = AgentToRendererMessage
 A2uiClientMessage = RendererToAgentMessage
+ServerToClientMessageListWrapper = AgentToRendererMessageListWrapper
+ClientToServerMessageListWrapper = RendererToAgentMessageListWrapper
+ServerToClientMessagePayload = AgentToRendererMessagePayload
+ClientToServerMessagePayload = RendererToAgentMessagePayload
 A2uiRendererAction = v0_9.A2uiRendererAction
 A2uiClientAction = A2uiRendererAction
 A2uiClientUserAction = A2uiRendererAction

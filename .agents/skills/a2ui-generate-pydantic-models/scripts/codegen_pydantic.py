@@ -75,12 +75,20 @@ def _generate_constants_code(
     """Dynamically generates constants.py based on the version's schema definitions."""
     dir_name = version_to_underscore(version)
     spec_dot = ensure_v_prefix(version)
+    if dir_name == "v0_9":
+        ver_type_str = 'Literal["v0.9", "v0.9.1"]'
+        sup_vers_str = 'Final[set[str]] = {"v0.9", "v0.9.1"}'
+    else:
+        ver_type_str = f'Literal["{spec_dot}"]'
+        sup_vers_str = f'Final[set[str]] = {{"{spec_dot}"}}'
+
     lines = [
         FILE_HEADER,
         "from typing import Final, Literal",
         "",
         f'PROTOCOL_VERSION: Final[Literal["{spec_dot}"]] = "{spec_dot}"',
-        f'PROTOCOL_VERSION_TYPE = Literal["{spec_dot}"]',
+        f"PROTOCOL_VERSION_TYPE = {ver_type_str}",
+        f"SUPPORTED_PROTOCOL_VERSIONS: {sup_vers_str}",
         "",
         'ROOT_ID = "root"',
         'CATALOG_COMPONENTS_KEY = "components"',
@@ -498,6 +506,7 @@ from .common_types import (
     )
 
     content = f"""{FILE_HEADER}
+from collections.abc import Mapping, Sequence
 from enum import Enum
 from typing import Any
 
@@ -514,13 +523,45 @@ ProtocolVersion = A2uiProtocolVersion
 # Multi-version envelope unions (v1.0+ primary terminology)
 AgentToRendererMessage = {agent_union_str}
 
+AgentToRendererMessageListWrapper = (
+    v0_8.A2uiMessageListWrapper
+    | v0_9.A2uiMessageListWrapper
+    | v1_0.AgentToRendererMessageListWrapper
+)
+
+AgentToRendererMessagePayload = (
+    AgentToRendererMessageListWrapper
+    | Sequence[AgentToRendererMessage]
+    | AgentToRendererMessage
+    | Mapping[str, Any]
+    | Sequence[Mapping[str, Any]]
+)
+
 RendererToAgentMessage = {renderer_union_str}
+
+RendererToAgentMessageListWrapper = (
+    v0_8.A2uiClientMessageListWrapper
+    | v0_9.A2uiClientMessageListWrapper
+    | v1_0.RendererToAgentMessageListWrapper
+)
+
+RendererToAgentMessagePayload = (
+    RendererToAgentMessageListWrapper
+    | Sequence[RendererToAgentMessage]
+    | RendererToAgentMessage
+    | Mapping[str, Any]
+    | Sequence[Mapping[str, Any]]
+)
 
 # Aliases for cross-version consistency
 ServerToClientMessage = AgentToRendererMessage
 ClientToServerMessage = RendererToAgentMessage
 A2uiMessage = AgentToRendererMessage
 A2uiClientMessage = RendererToAgentMessage
+ServerToClientMessageListWrapper = AgentToRendererMessageListWrapper
+ClientToServerMessageListWrapper = RendererToAgentMessageListWrapper
+ServerToClientMessagePayload = AgentToRendererMessagePayload
+ClientToServerMessagePayload = RendererToAgentMessagePayload
 {primary_action}
 A2uiClientAction = A2uiRendererAction
 A2uiClientUserAction = A2uiRendererAction
