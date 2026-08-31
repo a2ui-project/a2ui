@@ -153,29 +153,23 @@ export class A2uiMcpEngine {
    */
   async handleMcpCallTool(context: Record<string, any> = {}) {
     const ctx = context || {};
-    const targetServer: string | undefined = ctx.server || ctx._server;
-    const targetTool: string | undefined = ctx.tool || ctx._tool;
+    const targetServer: string | undefined = ctx.server;
+    const targetTool: string | undefined = ctx.tool;
 
     if (!targetServer) {
-      console.error(
-        `'${MCP_CALL_TOOL_ACTION}' action missing required 'server' (or '_server') in context:`,
-        ctx,
-      );
+      console.error(`'${MCP_CALL_TOOL_ACTION}' action missing required 'server' in context:`, ctx);
       return;
     }
 
     if (!targetTool) {
-      console.error(
-        `'${MCP_CALL_TOOL_ACTION}' action missing required 'tool' (or '_tool') in context:`,
-        ctx,
-      );
+      console.error(`'${MCP_CALL_TOOL_ACTION}' action missing required 'tool' in context:`, ctx);
       return;
     }
 
     // Filter out routing metadata keys from tool arguments
     const toolArgs: Record<string, any> = {};
     for (const [key, value] of Object.entries(ctx)) {
-      if (key !== 'server' && key !== '_server' && key !== 'tool' && key !== '_tool') {
+      if (key !== 'server' && key !== 'tool') {
         toolArgs[key] = value;
       }
     }

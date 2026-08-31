@@ -88,8 +88,8 @@
             "event": {
               "name": "callMcpTool",
               "context": {
-                "_server": "a2ui-mcp-recipe-demo",
-                "_tool": "get_recipe_a2ui",
+                "server": "a2ui-mcp-recipe-demo",
+                "tool": "get_recipe_a2ui",
                 "cookingStyle": {
                   "path": "/cookingStyle"
                 },

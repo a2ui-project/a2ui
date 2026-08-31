@@ -241,7 +241,7 @@ describe('A2uiMcpEngine', () => {
       await expect(engine.handleMcpCallTool(null as any)).resolves.not.toThrow();
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        `'${MCP_CALL_TOOL_ACTION}' action missing required 'server' (or '_server') in context:`,
+        `'${MCP_CALL_TOOL_ACTION}' action missing required 'server' in context:`,
         {},
       );
       consoleErrorSpy.mockRestore();
@@ -253,8 +253,20 @@ describe('A2uiMcpEngine', () => {
       await expect(engine.handleMcpCallTool(undefined as any)).resolves.not.toThrow();
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        `'${MCP_CALL_TOOL_ACTION}' action missing required 'server' (or '_server') in context:`,
+        `'${MCP_CALL_TOOL_ACTION}' action missing required 'server' in context:`,
         {},
+      );
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('logs error if server is missing from context', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await engine.handleMcpCallTool({tool: 'get_sample_data'});
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        `'${MCP_CALL_TOOL_ACTION}' action missing required 'server' in context:`,
+        {tool: 'get_sample_data'},
       );
       consoleErrorSpy.mockRestore();
     });
@@ -265,39 +277,25 @@ describe('A2uiMcpEngine', () => {
       await engine.handleMcpCallTool({server: 'test-server'});
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        `'${MCP_CALL_TOOL_ACTION}' action missing required 'tool' (or '_tool') in context:`,
+        `'${MCP_CALL_TOOL_ACTION}' action missing required 'tool' in context:`,
         {server: 'test-server'},
       );
       consoleErrorSpy.mockRestore();
     });
 
-    it('filters routing metadata keys (_server, _tool, server, tool) from tool arguments', async () => {
-      const executeToolSpy = vi.spyOn(engine, 'executeTool').mockResolvedValue(undefined);
-
-      await engine.handleMcpCallTool({
-        _server: 'test-server',
-        _tool: 'get_sample_data',
-        category: 'italian',
-        difficulty: 'easy',
-      });
-
-      expect(executeToolSpy).toHaveBeenCalledWith('test-server', 'get_sample_data', {
-        category: 'italian',
-        difficulty: 'easy',
-      });
-    });
-
-    it('supports un-prefixed server and tool keys in context', async () => {
+    it('filters routing metadata keys (server, tool) from tool arguments', async () => {
       const executeToolSpy = vi.spyOn(engine, 'executeTool').mockResolvedValue(undefined);
 
       await engine.handleMcpCallTool({
         server: 'test-server',
         tool: 'get_sample_data',
-        param1: 123,
+        category: 'italian',
+        difficulty: 'easy',
       });
 
       expect(executeToolSpy).toHaveBeenCalledWith('test-server', 'get_sample_data', {
-        param1: 123,
+        category: 'italian',
+        difficulty: 'easy',
       });
     });
   });
