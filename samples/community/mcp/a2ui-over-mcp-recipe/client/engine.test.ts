@@ -21,6 +21,7 @@ import {
   DEFAULT_MCP_CLIENT_NAME,
   DEFAULT_MCP_CLIENT_VERSION,
   A2UI_MIME_TYPE,
+  MCP_CALL_TOOL_ACTION,
 } from './engine';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
@@ -135,6 +136,10 @@ describe('A2uiMcpEngine', () => {
       (engine.processor.model.onAction as any).emit(dummyAction);
       expect(onAction).toHaveBeenCalledWith(dummyAction);
     });
+
+    it('defines MCP_CALL_TOOL_ACTION as callMcpTool', () => {
+      expect(MCP_CALL_TOOL_ACTION).toBe('callMcpTool');
+    });
   });
 
   describe('connectServer', () => {
@@ -236,7 +241,7 @@ describe('A2uiMcpEngine', () => {
       await expect(engine.handleMcpCallTool(null as any)).resolves.not.toThrow();
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "'mcp:call_tool' action missing required 'server' (or '_server') in context:",
+        `'${MCP_CALL_TOOL_ACTION}' action missing required 'server' (or '_server') in context:`,
         {},
       );
       consoleErrorSpy.mockRestore();
@@ -248,7 +253,7 @@ describe('A2uiMcpEngine', () => {
       await expect(engine.handleMcpCallTool(undefined as any)).resolves.not.toThrow();
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "'mcp:call_tool' action missing required 'server' (or '_server') in context:",
+        `'${MCP_CALL_TOOL_ACTION}' action missing required 'server' (or '_server') in context:`,
         {},
       );
       consoleErrorSpy.mockRestore();
@@ -260,7 +265,7 @@ describe('A2uiMcpEngine', () => {
       await engine.handleMcpCallTool({server: 'test-server'});
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "'mcp:call_tool' action missing required 'tool' (or '_tool') in context:",
+        `'${MCP_CALL_TOOL_ACTION}' action missing required 'tool' (or '_tool') in context:`,
         {server: 'test-server'},
       );
       consoleErrorSpy.mockRestore();

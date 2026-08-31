@@ -86,7 +86,7 @@
           "variant": "primary",
           "action": {
             "event": {
-              "name": "mcp:call_tool",
+              "name": "callMcpTool",
               "context": {
                 "_server": "a2ui-mcp-recipe-demo",
                 "_tool": "get_recipe_a2ui",

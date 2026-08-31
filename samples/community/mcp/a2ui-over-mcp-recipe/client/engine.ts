@@ -22,7 +22,7 @@ import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 export const BASIC_CATALOG_ID = 'https://a2ui.org/specification/v0_9/basic_catalog.json';
 export const A2UI_MIME_TYPE = 'application/a2ui+json';
 
-export const MCP_CALL_TOOL_ACTION = 'mcp:call_tool';
+export const MCP_CALL_TOOL_ACTION = 'callMcpTool';
 
 /**
  * Default client name sent in `clientInfo` during the MCP initialization handshake.
@@ -158,14 +158,17 @@ export class A2uiMcpEngine {
 
     if (!targetServer) {
       console.error(
-        "'mcp:call_tool' action missing required 'server' (or '_server') in context:",
+        `'${MCP_CALL_TOOL_ACTION}' action missing required 'server' (or '_server') in context:`,
         ctx,
       );
       return;
     }
 
     if (!targetTool) {
-      console.error("'mcp:call_tool' action missing required 'tool' (or '_tool') in context:", ctx);
+      console.error(
+        `'${MCP_CALL_TOOL_ACTION}' action missing required 'tool' (or '_tool') in context:`,
+        ctx,
+      );
       return;
     }
 
