@@ -131,7 +131,10 @@ struct MessageProcessorTests {
           }
         }
         """))
-    #expect(processor.surfaceGroupModel.surfacesMap["s1"] != nil)
+    let surface = try #require(processor.surfaceGroupModel.surfacesMap["s1"])
+    #expect(surface.surfaceID == "s1")
+    #expect(surface.defaultCatalogID == "default")
+    #expect(surface.componentsModel.components.isEmpty)
   }
 
   @Test func processCreateSurfaceWithUnknownCatalogDispatchesError() throws {
@@ -188,10 +191,10 @@ struct MessageProcessorTests {
         }
         """))
 
-    let surface = processor.surfaceGroupModel.surfacesMap["s1"]
-    #expect(surface != nil)
-    #expect(surface?.theme?["primaryColor"]?.stringValue == "#00BFFF")
-    #expect(surface?.theme?["fontSize"]?.doubleValue == 14.0)
+    let surface = try #require(processor.surfaceGroupModel.surfacesMap["s1"])
+    #expect(surface.surfaceID == "s1")
+    #expect(surface.theme?["primaryColor"]?.stringValue == "#00BFFF")
+    #expect(surface.theme?["fontSize"]?.doubleValue == 14.0)
     #expect(handler.capturedErrors.isEmpty)
   }
 
@@ -257,9 +260,9 @@ struct MessageProcessorTests {
           }
         }
         """))
-    let surface = processor.surfaceGroupModel.surfacesMap["s1"]
-    #expect(surface != nil)
-    #expect(surface?.theme?["color"]?.stringValue == "blue")
+    let surface = try #require(processor.surfaceGroupModel.surfacesMap["s1"])
+    #expect(surface.surfaceID == "s1")
+    #expect(surface.theme?["color"]?.stringValue == "blue")
     #expect(handler.capturedErrors.isEmpty)
   }
 
@@ -295,9 +298,11 @@ struct MessageProcessorTests {
           }
         }
         """))
-    let vm = processor.surfaceGroupModel.surfacesMap["s1"]
-    let components = vm?.componentsModel.components
-    #expect(components?["root"] != nil)
+    let vm = try #require(processor.surfaceGroupModel.surfacesMap["s1"])
+    let root = try #require(vm.componentsModel.components["root"])
+    #expect(root.id == "root")
+    #expect(root.type == "text")
+    #expect(root.properties["text"]?.stringValue == "Hello")
   }
 
   @Test func processUpdateComponentsValidBatch() throws {
@@ -518,7 +523,9 @@ struct MessageProcessorTests {
       """)
     processor.process(messages: [msg1, msg2])
     #expect(handler.capturedErrors.count == 1)
-    #expect(processor.surfaceGroupModel.surfacesMap["s2"] != nil)
+    let s2 = try #require(processor.surfaceGroupModel.surfacesMap["s2"])
+    #expect(s2.surfaceID == "s2")
+    #expect(processor.surfaceGroupModel.surfacesMap["s1"] == nil)
   }
 
   // MARK: - Surface Management
@@ -549,8 +556,8 @@ struct MessageProcessorTests {
         """))
     let surfaces = processor.surfaceGroupModel.surfacesMap
     #expect(surfaces.count == 2)
-    #expect(surfaces["s1"] != nil)
-    #expect(surfaces["s2"] != nil)
+    #expect(surfaces["s1"]?.surfaceID == "s1")
+    #expect(surfaces["s2"]?.surfaceID == "s2")
   }
 
   @Test func groupSurfaceReturnsNilForUnknownID() throws {
@@ -574,8 +581,8 @@ struct MessageProcessorTests {
           }
         }
         """))
-    let dataModel = processor.getRendererDataModel()
-    #expect(dataModel != nil)
+    let dataModel = try #require(processor.getRendererDataModel())
+    #expect(dataModel["s1"]?.objectValue != nil)
   }
 
   @Test func processCreateSurfaceWithoutSendDataModelDoesNotSetFlag() throws {
@@ -609,9 +616,10 @@ struct MessageProcessorTests {
     )
     let inlineCatalogs = caps["v0.9.1"]?["inlineCatalogs"]?.arrayValue
     #expect(inlineCatalogs?.count == 1)
-    let firstCatalog = inlineCatalogs?.first
-    #expect(firstCatalog?["catalogId"]?.stringValue == "default")
-    #expect(firstCatalog?["components"]?["text"] != nil)
+    let firstCatalog = try #require(inlineCatalogs?.first)
+    #expect(firstCatalog["catalogId"]?.stringValue == "default")
+    let textComponent = try #require(firstCatalog["components"]?["text"])
+    #expect(textComponent.objectValue != nil)
   }
 
   @Test func getRendererCapabilitiesTransformsRefDescriptions() throws {

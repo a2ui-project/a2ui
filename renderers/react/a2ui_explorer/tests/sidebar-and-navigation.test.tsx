@@ -33,7 +33,7 @@ describe('React Explorer Sidebars & Navigation', () => {
     const collapseBtn = container.querySelector('[class*="collapseLeftBtn"]') as HTMLButtonElement;
 
     expect(navPane.className).not.toContain('collapsed');
-    expect(collapseBtn).toBeTruthy();
+    expect(collapseBtn).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
       collapseBtn.click();
@@ -43,7 +43,7 @@ describe('React Explorer Sidebars & Navigation', () => {
     expect(navPane.className).toContain('collapsed');
 
     const expandBtn = container.querySelector('[class*="expandLeftBtn"]') as HTMLButtonElement;
-    expect(expandBtn).toBeTruthy();
+    expect(expandBtn).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
       expandBtn.click();
@@ -58,7 +58,7 @@ describe('React Explorer Sidebars & Navigation', () => {
     const collapseBtn = container.querySelector('[class*="collapseRightBtn"]') as HTMLButtonElement;
 
     expect(inspectorPane.className).not.toContain('collapsed');
-    expect(collapseBtn).toBeTruthy();
+    expect(collapseBtn).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
       collapseBtn.click();
@@ -68,7 +68,7 @@ describe('React Explorer Sidebars & Navigation', () => {
     expect(inspectorPane.className).toContain('collapsed');
 
     const expandBtn = container.querySelector('[class*="expandRightBtn"]') as HTMLButtonElement;
-    expect(expandBtn).toBeTruthy();
+    expect(expandBtn).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
       expandBtn.click();

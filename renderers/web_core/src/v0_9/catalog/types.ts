@@ -18,6 +18,7 @@ import {z} from 'zod';
 import {DataContext} from '../rendering/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiExpressionError} from '../errors.js';
+import {loadCatalogFromSchema} from './schema_loader.js';
 
 export type A2uiReturnType = 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';
 
@@ -42,6 +43,7 @@ export interface FunctionApi {
   readonly name: string;
   readonly returnType: A2uiReturnType;
   readonly schema: z.ZodTypeAny;
+  readonly description?: string;
 }
 
 /**
@@ -204,5 +206,14 @@ export class Catalog<
         throw e;
       }
     };
+  }
+
+  /**
+   * Constructs a fully-typed schema-only Catalog directly from raw A2UI catalog schema.
+   *
+   * @param catalogSchema Raw catalog schema or client capabilities payload object.
+   */
+  static fromSchema(catalogSchema: Record<string, any>): Catalog<ComponentApi, FunctionApi> {
+    return loadCatalogFromSchema(catalogSchema);
   }
 }

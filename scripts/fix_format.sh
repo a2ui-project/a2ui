@@ -84,16 +84,25 @@ if command -v dart >/dev/null 2>&1; then
   # a Flutter SDK directory, "dart pub get" will give errors about the monorepo
   # depending on Flutter and not running "flutter pub get", so we want to
   # suppress that failure here so it doesn't cause the fix_format.sh script to
-  # exit. The dart format run will still have warnings because pub get wasn't
-  # run, but it won't affect the CI build outcome.
+  # exit.
+  #
+  # Whether that resolution succeeded DOES change the formatting, so we pin the
+  # language version below rather than letting it vary. With a package config,
+  # "dart format" uses the language version the pubspec declares; without one it
+  # falls back to the newest version the SDK supports, and the two disagree on
+  # constructs like method chains. That is how CI and a contributor on the same
+  # SDK can reach opposite conclusions about the same file. Every package in the
+  # formatted paths declares sdk ">=3.10.0", matching the monorepo workspace, so
+  # 3.10 reproduces a resolved local run. Bump it when those pubspecs raise
+  # their floor.
   if [ ! -f ".dart_tool/package_config.json" ]; then
     dart pub get >/dev/null 2>&1 || true
   fi
 
   if [ "$CHECK_ONLY" = true ]; then
-    dart format --output=none --set-exit-if-changed samples/client/flutter renderers/flutter
+    dart format --language-version=3.10 --output=none --set-exit-if-changed samples/client/flutter renderers/flutter
   else
-    dart format samples/client/flutter renderers/flutter
+    dart format --language-version=3.10 samples/client/flutter renderers/flutter
   fi
 else
   echo "Warning: dart command not found. Skipping Dart formatting."
