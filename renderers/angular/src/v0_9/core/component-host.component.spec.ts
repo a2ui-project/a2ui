@@ -54,7 +54,7 @@ describe('ComponentHostComponent', () => {
 
     const mockSurfaceComponentsModel = new SurfaceComponentsModel();
     mockSurfaceComponentsModel.addComponent(
-      new ComponentModel('comp1', 'TestType', {text: 'Hello'}),
+      new ComponentModel('comp1', 'TestType', {text: 'Hello'}, mockCatalog),
     );
 
     mockSurface = {

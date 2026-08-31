@@ -45,7 +45,7 @@ describe('SurfaceModel', () => {
   });
 
   it('exposes components model', () => {
-    surface.componentsModel.addComponent(new ComponentModel('c1', 'Button', {}));
+    surface.componentsModel.addComponent(new ComponentModel('c1', 'Button', {}, surface.catalog));
     assert.ok(surface.componentsModel.get('c1'));
   });
 
@@ -79,7 +79,7 @@ describe('SurfaceModel', () => {
   });
 
   it('creates a component context', () => {
-    surface.componentsModel.addComponent(new ComponentModel('root', 'Box', {}));
+    surface.componentsModel.addComponent(new ComponentModel('root', 'Box', {}, surface.catalog));
     const ctx = new ComponentContext(surface, 'root', '/mydata');
     assert.ok(ctx);
     assert.strictEqual(ctx.dataContext.path, '/mydata');

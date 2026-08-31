@@ -32,35 +32,37 @@ describe('ButtonComponent', () => {
   let defaultProps: ComponentToProps<ButtonComponent>;
 
   beforeEach(async () => {
+    const mockCatalog = {
+      id: 'test-catalog',
+      components: new Map([
+        [
+          'Text',
+          {
+            component: (() => {
+              @Component({
+                standalone: true,
+                selector: 'dummy-text',
+                template: 'Dummy Text',
+              })
+              class DummyText {
+                props = input<any>();
+                surfaceId = input<string>();
+                componentId = input<string>();
+                dataContextPath = input<string>();
+              }
+              return DummyText;
+            })(),
+          },
+        ],
+      ]),
+    } as any;
+
     mockSurface = {
       dispatchAction: jasmine.createSpy('dispatchAction'),
       componentsModel: new Map([
-        ['child1', new ComponentModel('child1', 'Text', {text: 'Child Content'})],
+        ['child1', new ComponentModel('child1', 'Text', {text: 'Child Content'}, mockCatalog)],
       ]),
-      catalog: {
-        id: 'test-catalog',
-        components: new Map([
-          [
-            'Text',
-            {
-              component: (() => {
-                @Component({
-                  standalone: true,
-                  selector: 'dummy-text',
-                  template: 'Dummy Text',
-                })
-                class DummyText {
-                  props = input<any>();
-                  surfaceId = input<string>();
-                  componentId = input<string>();
-                  dataContextPath = input<string>();
-                }
-                return DummyText;
-              })(),
-            },
-          ],
-        ]),
-      },
+      catalog: mockCatalog,
     };
 
     mockSurfaceGroup = {

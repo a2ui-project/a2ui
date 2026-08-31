@@ -42,17 +42,25 @@ describe('TabsComponent', () => {
   let defaultProps: ComponentToProps<TabsComponent>;
 
   beforeEach(async () => {
+    const mockCatalog = {
+      id: 'mock-catalog',
+      components: new Map([['Text', {type: 'Text', component: DummyTextComponent}]]),
+    } as any;
+
     const mockRendererService = {
       surfaceGroup: {
         getSurface: jasmine.createSpy('getSurface').and.returnValue({
           componentsModel: new Map([
-            ['content-1', new ComponentModel('content-1', 'Text', {text: {value: 'Content 1'}})],
-            ['content-2', new ComponentModel('content-2', 'Text', {text: {value: 'Content 2'}})],
+            [
+              'content-1',
+              new ComponentModel('content-1', 'Text', {text: {value: 'Content 1'}}, mockCatalog),
+            ],
+            [
+              'content-2',
+              new ComponentModel('content-2', 'Text', {text: {value: 'Content 2'}}, mockCatalog),
+            ],
           ]),
-          catalog: {
-            id: 'mock-catalog',
-            components: new Map([['Text', {type: 'Text', component: DummyTextComponent}]]),
-          },
+          catalog: mockCatalog,
         }),
       },
     };

@@ -17,4 +17,4 @@
 export * from './schema/index.js';
 export * from './functions/system_functions.js';
 export * from './rpc/rpc-handler.js';
-export * from '../validating/index.js';
+export * from '../validating/integrity-checker.js';

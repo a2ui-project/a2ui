@@ -34,11 +34,10 @@ from ...schema.v1_0.common_types import (
     FunctionCall,
     FunctionCommon,
     IndexSystemFunction,
-    ListReference,
-    SingleReference,
     StrictBaseModel,
     TemplateChildList,
 )
+from ...schema.common_types import ListReference, SingleReference
 from ...catalog.components import ModelComponentApi
 
 

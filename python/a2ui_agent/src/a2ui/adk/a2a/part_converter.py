@@ -76,9 +76,7 @@ class A2uiPartConverter:
         self._bypass_tool_check = bypass_tool_check
         self._fallback_text = fallback_text
         self._version = version
-        self._parser = parser or DirectJsonParser(
-            a2ui_catalog, validator=a2ui_catalog.validator
-        )
+        self._parser = parser or DirectJsonParser(a2ui_catalog)
 
     def convert(self, part: genai_types.Part) -> list[a2a_types.Part]:
         """Converts a GenAI part to A2A parts, with A2UI validation.

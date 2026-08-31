@@ -26,7 +26,24 @@ import {renderMarkdown} from '@a2ui/markdown-it';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 
+// A2UI Protocol & Catalog Constants
 const BASIC_CATALOG_ID = 'https://a2ui.org/specification/v0_9/basic_catalog.json';
+const A2UI_MIME_TYPES = [
+  'application/a2ui+json',
+  'application/json+a2ui',
+  'application/json;profile=a2ui',
+];
+
+// MCP Tool Names
+const TOOL_GET_RECIPE_FORM = 'get_recipe_form_a2ui';
+const TOOL_GET_RECIPE = 'get_recipe_a2ui';
+
+// A2UI Surface IDs
+const RECIPE_FORM_SURFACE_ID = 'recipe-form';
+const RECIPE_CARD_SURFACE_ID = 'recipe-card';
+
+// A2UI Client Action Events
+const ACTION_GENERATE_RECIPE = 'generate_recipe';
 
 @customElement('a2ui-recipe-app')
 export class A2uiRecipeApp extends LitElement {
@@ -51,6 +68,11 @@ export class A2uiRecipeApp extends LitElement {
 
   @state() private accessor formSurface: any = null;
   @state() private accessor recipeSurface: any = null;
+
+  // Cache for loaded presentation templates keyed by resource URI
+  private templateCache = new Map<string, any[]>();
+  // Mapping of tool names to declared UI template resource URIs from tool definitions
+  private toolUiResources = new Map<string, string>();
 
   static styles = css`
     :host {
@@ -299,7 +321,7 @@ export class A2uiRecipeApp extends LitElement {
     // 1. Form Processor Setup
     this.formProcessor = new MessageProcessor([basicCatalog], async action => {
       console.log('Form Action Received:', action);
-      if (action.name === 'generate_recipe') {
+      if (action.name === ACTION_GENERATE_RECIPE) {
         await this.generateRecipe(action.context);
       }
     });
@@ -351,7 +373,20 @@ export class A2uiRecipeApp extends LitElement {
       this.connectionStatus = 'connected';
       this.statusMessage = `Connected to MCP Server (${sseUrl})`;
 
-      await this.loadFormResource();
+      // Discover UI templates declared on tools ahead of invocation
+      try {
+        const toolsResult = await this.mcpClient.listTools();
+        for (const tool of toolsResult.tools) {
+          const uiUri = (tool as any)._meta?.ui?.resourceUri;
+          if (uiUri) {
+            this.toolUiResources.set(tool.name, uiUri);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not query tool UI resources:', err);
+      }
+
+      await this.loadForm();
     } catch (error: any) {
       console.error('MCP Connection Error:', error);
       this.connectionStatus = 'error';
@@ -359,69 +394,144 @@ export class A2uiRecipeApp extends LitElement {
     }
   }
 
-  private async loadFormResource() {
+  private async loadForm() {
     if (!this.mcpClient) return;
 
     try {
-      this.statusMessage = 'Fetching recipe form...';
-      const result = await this.mcpClient.readResource({
-        uri: 'a2ui://recipe-form',
+      this.statusMessage = `Initializing recipe form via ${TOOL_GET_RECIPE_FORM}...`;
+
+      // 1. Make MCP Tool Call to initialize the form
+      const result = await this.mcpClient.callTool({
+        name: TOOL_GET_RECIPE_FORM,
+        arguments: {},
       });
 
-      const a2uiContent = result.contents.find(
-        (c: any) =>
-          c.mimeType === 'application/a2ui+json' || c.mimeType === 'application/json+a2ui',
-      );
+      // 2. Discover UI template resource URI from tool response _meta or tool definition
+      const resourceUri =
+        (result as any)._meta?.ui?.resourceUri || this.toolUiResources.get(TOOL_GET_RECIPE_FORM);
 
-      if (!a2uiContent || !('text' in a2uiContent)) {
-        throw new Error('Resource does not contain valid A2UI JSON data.');
+      // 3. Fetch presentation template from server if not already cached
+      const template = await this.getOrFetchTemplate(resourceUri);
+
+      // 4. Ensure form surface exists with the presentation template layout
+      if (!this.formProcessor.model.getSurface(RECIPE_FORM_SURFACE_ID)) {
+        this.formProcessor.processMessages(template);
       }
 
-      const parsed = JSON.parse(a2uiContent.text);
+      // 5. Extract A2UI dataModel update message from tool response content
+      const contentArray = (result.content as any[]) || [];
+      let dataMessages: any[] | null = null;
 
-      // Process form messages into the surface model
-      this.formProcessor.processMessages(parsed);
-      this.formSurface = this.formProcessor.model.getSurface('recipe-form');
+      for (const item of contentArray) {
+        if (item.type === 'resource' && item.resource?.text) {
+          try {
+            dataMessages = JSON.parse(item.resource.text);
+            break;
+          } catch {}
+        } else if (item.type === 'text' && typeof item.text === 'string') {
+          try {
+            const parsed = JSON.parse(item.text);
+            if (Array.isArray(parsed) || parsed.updateDataModel) {
+              dataMessages = Array.isArray(parsed) ? parsed : [parsed];
+              break;
+            }
+          } catch {}
+        }
+      }
+
+      // 6. Apply dynamic data model update
+      if (dataMessages) {
+        this.formProcessor.processMessages(dataMessages);
+      }
+
+      this.formSurface = this.formProcessor.model.getSurface(RECIPE_FORM_SURFACE_ID);
       this.statusMessage = 'Form loaded successfully';
     } catch (error: any) {
-      console.error('Failed to load resource recipe form:', error);
+      console.error('Failed to load recipe form:', error);
       this.connectionStatus = 'error';
       this.statusMessage = `Form load failed: ${error.message || error}`;
     }
+  }
+
+  private async getOrFetchTemplate(uri: string): Promise<any[]> {
+    if (this.templateCache.has(uri)) {
+      return this.templateCache.get(uri)!;
+    }
+
+    if (!this.mcpClient) {
+      throw new Error('MCP client is not connected.');
+    }
+
+    this.statusMessage = `Fetching UI template (${uri})...`;
+    const resourceResult = await this.mcpClient.readResource({uri});
+    const a2uiContent = resourceResult.contents.find((c: any) =>
+      A2UI_MIME_TYPES.includes(c.mimeType),
+    );
+
+    if (!a2uiContent || !('text' in a2uiContent)) {
+      throw new Error(`Resource ${uri} does not contain valid A2UI JSON template data.`);
+    }
+
+    const template = JSON.parse(a2uiContent.text);
+    this.templateCache.set(uri, template);
+    return template;
   }
 
   private async generateRecipe(context: any) {
     if (!this.mcpClient) return;
 
     this.recipeLoading = true;
-    this.statusMessage = 'Generating dynamic recipe card...';
+    this.statusMessage = `Executing ${TOOL_GET_RECIPE}...`;
 
     try {
-      // Make MCP Tool Call
+      // 1. Make MCP Tool Call
       const result = await this.mcpClient.callTool({
-        name: 'get_recipe_a2ui',
+        name: TOOL_GET_RECIPE,
         arguments: context || {},
       });
 
-      const contentArray = result.content as any[];
+      // 2. Discover UI template resource URI from tool response _meta or tool definition
+      const resourceUri =
+        (result as any)._meta?.ui?.resourceUri || this.toolUiResources.get(TOOL_GET_RECIPE);
 
-      // Extract the returned A2UI embedded resource
-      const embedded = contentArray.find((c: any) => c.type === 'resource');
-      if (!embedded || !embedded.resource || !embedded.resource.text) {
-        throw new Error('Tool did not return a valid recipe A2UI payload.');
+      // 3. Fetch presentation template from server if not already cached
+      const template = await this.getOrFetchTemplate(resourceUri);
+
+      // 4. Ensure recipe surface exists with the presentation template layout
+      if (!this.recipeProcessor.model.getSurface(RECIPE_CARD_SURFACE_ID)) {
+        this.recipeProcessor.processMessages(template);
       }
 
-      const parsed = JSON.parse(embedded.resource.text);
+      // 5. Extract A2UI dataModel update message from tool response content
+      const contentArray = (result.content as any[]) || [];
+      let dataMessages: any[] | null = null;
 
-      // Clear previous recipe surfaces
-      for (const surfaceId of Array.from(this.recipeProcessor.model.surfacesMap.keys())) {
-        this.recipeProcessor.model.deleteSurface(surfaceId);
+      for (const item of contentArray) {
+        if (item.type === 'resource' && item.resource?.text) {
+          try {
+            dataMessages = JSON.parse(item.resource.text);
+            break;
+          } catch {}
+        } else if (item.type === 'text' && typeof item.text === 'string') {
+          try {
+            const parsed = JSON.parse(item.text);
+            if (Array.isArray(parsed) || parsed.updateDataModel) {
+              dataMessages = Array.isArray(parsed) ? parsed : [parsed];
+              break;
+            }
+          } catch {}
+        }
       }
 
-      // Process the new recipe card
-      this.recipeProcessor.processMessages(parsed);
-      this.recipeSurface = this.recipeProcessor.model.getSurface('recipe-card');
-      this.statusMessage = 'Recipe card generated!';
+      if (!dataMessages) {
+        throw new Error('Tool response did not contain valid A2UI data update messages.');
+      }
+
+      // 6. Apply dynamic data model update
+      this.recipeProcessor.processMessages(dataMessages);
+      this.recipeSurface = this.recipeProcessor.model.getSurface(RECIPE_CARD_SURFACE_ID);
+      this.statusMessage = 'Recipe card loaded successfully!';
+      this.requestUpdate();
     } catch (error: any) {
       console.error('Error generating recipe:', error);
       this.statusMessage = `Generation failed: ${error.message || error}`;

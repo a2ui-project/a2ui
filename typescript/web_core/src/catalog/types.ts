@@ -18,6 +18,7 @@ import {z} from 'zod';
 import {DataContext} from '../rendering/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiExpressionError} from '../errors.js';
+import {loadCatalogFromSchema} from './schema_loader.js';
 
 export type A2uiReturnType =
   | 'string'
@@ -54,6 +55,7 @@ export interface FunctionApi {
   readonly schema: z.ZodTypeAny;
   readonly allowedCallers?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
   readonly requiresUserActivation?: boolean;
+  readonly description?: string;
 }
 
 /**
@@ -95,6 +97,7 @@ export function createFunctionImplementation<
 }
 
 import {FunctionInvoker} from './function_invoker.js';
+import {buildComponentRefMap, ComponentRefMap} from './reference-map.js';
 
 /**
  * A definition of a UI component's API.
@@ -144,6 +147,7 @@ export declare interface CatalogInterface<
   readonly functions: ReadonlyMap<string, F>;
   readonly themeSchema?: z.ZodObject<any>;
   readonly invoker: FunctionInvoker;
+  readonly componentRefMap: ComponentRefMap;
 }
 
 /**
@@ -184,6 +188,18 @@ export class Catalog<
    * Can be passed directly to a DataContext.
    */
   readonly invoker: FunctionInvoker;
+
+  private _componentRefMap?: ComponentRefMap;
+
+  /**
+   * Lazily computed component reference map for child reference extraction and topology validation.
+   */
+  get componentRefMap(): ComponentRefMap {
+    if (!this._componentRefMap) {
+      this._componentRefMap = buildComponentRefMap(this);
+    }
+    return this._componentRefMap;
+  }
 
   constructor(id: string, components: T[], functions: F[] = [], themeSchema?: z.ZodObject<any>) {
     this.id = id;
@@ -230,5 +246,14 @@ export class Catalog<
         throw e;
       }
     };
+  }
+
+  /**
+   * Constructs a fully-typed schema-only Catalog directly from raw A2UI catalog schema.
+   *
+   * @param catalogSchema Raw catalog schema or client capabilities payload object.
+   */
+  static fromSchema(catalogSchema: Record<string, any>): Catalog<ComponentApi, FunctionApi> {
+    return loadCatalogFromSchema(catalogSchema);
   }
 }

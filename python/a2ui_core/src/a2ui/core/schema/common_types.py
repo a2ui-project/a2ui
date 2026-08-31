@@ -33,7 +33,7 @@ class SingleReference(str, ComponentReference):
 
         return core_schema.no_info_after_validator_function(
             cls,
-            core_schema.str_schema(),
+            core_schema.str_schema(ref="ComponentId"),
             serialization=core_schema.plain_serializer_function_ser_schema(str),
         )
 
@@ -65,8 +65,32 @@ class StrictBaseModel(BaseModel):
                 mod = sys.modules.get(cls.__module__)
                 if mod:
                     target_version = getattr(mod, "PROTOCOL_VERSION", None)
-        if target_version is not None and v != target_version:
-            raise ValueError(f"Input should be '{target_version}'")
+        if target_version is not None:
+            mod = sys.modules.get(cls.__module__) if cls.__module__ else None
+            valid_versions = None
+            if mod:
+                valid_versions = getattr(mod, "SUPPORTED_PROTOCOL_VERSIONS", None)
+                if (
+                    valid_versions is None
+                    and hasattr(mod, "__package__")
+                    and mod.__package__
+                ):
+                    try:
+                        constants_mod = sys.modules.get(f"{mod.__package__}.constants")
+                        if constants_mod:
+                            valid_versions = getattr(
+                                constants_mod, "SUPPORTED_PROTOCOL_VERSIONS", None
+                            )
+                    except Exception:
+                        pass
+            if valid_versions is None:
+                valid_versions = (
+                    {target_version}
+                    if isinstance(target_version, str)
+                    else set(target_version)
+                )
+            if v not in valid_versions:
+                raise ValueError(f"Input should be '{target_version}'")
         return v
 
 

@@ -16,13 +16,15 @@
 
 import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
+import {Catalog} from '../catalog/types.js';
 import {ComponentModel} from './component-model.js';
 
 describe('ComponentModel', () => {
   let component: ComponentModel;
+  const defaultCatalog = new Catalog('default', []);
 
   beforeEach(() => {
-    component = new ComponentModel('c1', 'Button', {label: 'Click Me'});
+    component = new ComponentModel('c1', 'Button', {label: 'Click Me'}, defaultCatalog);
   });
 
   it('initializes properties', () => {
@@ -73,12 +75,13 @@ describe('ComponentModel', () => {
     });
   });
 
-  it('stores and exposes an optional Catalog reference', () => {
-    assert.strictEqual(component.catalog, undefined);
+  it('stores and exposes a Catalog reference', () => {
+    assert.strictEqual(component.catalog, defaultCatalog);
+    assert.strictEqual(component.catalog.id, 'default');
 
-    const testCatalog = {id: 'custom-cat', components: new Map()} as any;
+    const testCatalog = new Catalog('custom-cat', []);
     const customComp = new ComponentModel('c2', 'Card', {title: 'Hello'}, testCatalog);
     assert.strictEqual(customComp.catalog, testCatalog);
-    assert.strictEqual(customComp.catalog?.id, 'custom-cat');
+    assert.strictEqual(customComp.catalog.id, 'custom-cat');
   });
 });

@@ -184,17 +184,26 @@ async def test_scorer_duplicate_ids() -> None:
     scorer = a2ui_scorer(version="0.9")
     payload = """
     <a2ui-json>
-    {
-      "version": "v0.9",
-      "updateComponents": {
-        "surfaceId": "main",
-        "components": [
-          {"id": "root", "component": "Column", "children": ["child1", "child2"]},
-          {"id": "child1", "component": "Text", "text": "1"},
-          {"id": "child1", "component": "Text", "text": "2"}
-        ]
+    [
+      {
+        "version": "v0.9",
+        "createSurface": {
+          "surfaceId": "main",
+          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+        }
+      },
+      {
+        "version": "v0.9",
+        "updateComponents": {
+          "surfaceId": "main",
+          "components": [
+            {"id": "root", "component": "Column", "children": ["child1", "child2"]},
+            {"id": "child1", "component": "Text", "text": "1"},
+            {"id": "child1", "component": "Text", "text": "2"}
+          ]
+        }
       }
-    }
+    ]
     </a2ui-json>
     """
     state = TaskState(
@@ -260,17 +269,26 @@ async def test_scorer_circular_reference() -> None:
     scorer = a2ui_scorer(version="0.9")
     payload = """
     <a2ui-json>
-    {
-      "version": "v0.9",
-      "updateComponents": {
-        "surfaceId": "main",
-        "components": [
-          {"id": "root", "component": "Column", "children": ["nodeA"]},
-          {"id": "nodeA", "component": "Row", "children": ["nodeB"]},
-          {"id": "nodeB", "component": "Row", "children": ["nodeA"]}
-        ]
+    [
+      {
+        "version": "v0.9",
+        "createSurface": {
+          "surfaceId": "main",
+          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+        }
+      },
+      {
+        "version": "v0.9",
+        "updateComponents": {
+          "surfaceId": "main",
+          "components": [
+            {"id": "root", "component": "Column", "children": ["nodeA"]},
+            {"id": "nodeA", "component": "Row", "children": ["nodeB"]},
+            {"id": "nodeB", "component": "Row", "children": ["nodeA"]}
+          ]
+        }
       }
-    }
+    ]
     </a2ui-json>
     """
     state = TaskState(

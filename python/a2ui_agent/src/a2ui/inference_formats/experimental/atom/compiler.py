@@ -524,7 +524,11 @@ class AtomCompiler:
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": surface_id,
-                "catalogId": getattr(self.catalog, "id", "basic"),
+                "catalogId": getattr(
+                    self.catalog,
+                    "catalog_id",
+                    getattr(self.catalog, "id", "basic"),
+                ),
                 "components": components,
                 "dataModel": data_model,
             },

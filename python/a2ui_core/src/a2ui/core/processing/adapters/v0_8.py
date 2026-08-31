@@ -20,6 +20,7 @@ from ...schema.v0_8 import (
     MSG_TYPE_DATA_MODEL_UPDATE,
     MSG_TYPE_DELETE_SURFACE,
     MSG_TYPE_SURFACE_UPDATE,
+    A2uiMessageListWrapper,
 )
 from ..operations import (
     InternalCreateSurfaceOp,
@@ -36,6 +37,10 @@ class V0Point8Adapter(BaseVersionAdapter):
     @property
     def version(self) -> ProtocolVersion:
         return ProtocolVersion.V0_8
+
+    @property
+    def schema(self) -> Any:
+        return A2uiMessageListWrapper
 
     @property
     def valid_actions(self) -> Set[str]:
@@ -64,6 +69,7 @@ class V0Point8Adapter(BaseVersionAdapter):
                     send_data_model=bool(br.get("sendDataModel", False)),
                     components=br.get("components"),
                     data_model=br.get("dataModel"),
+                    root=br.get("root"),
                 )
             )
         elif action == MSG_TYPE_SURFACE_UPDATE:

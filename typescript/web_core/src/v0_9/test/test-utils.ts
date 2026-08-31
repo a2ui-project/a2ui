@@ -28,7 +28,7 @@ export class TestSurfaceModel extends SurfaceModel<ComponentApi> {
 
 export function createTestContext(properties: any, actionHandler: any = async () => {}) {
   const surface = new TestSurfaceModel(actionHandler);
-  const component = new ComponentModel('test-id', 'TestComponent', properties);
+  const component = new ComponentModel('test-id', 'TestComponent', properties, surface.catalog);
   surface.componentsModel.addComponent(component);
 
   const context = new ComponentContext(surface, 'test-id', '/');

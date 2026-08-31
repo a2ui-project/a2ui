@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field, ConfigDict
 from .common_types import StrictBaseModel
-from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
+from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE, SUPPORTED_PROTOCOL_VERSIONS
 
 
 ComponentsList = List[Dict[str, Any]]

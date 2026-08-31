@@ -1,0 +1,327 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# ==============================================================================
+# A2UI Conformance Suite: Envelope, Schema, and Topology Validation (v0.8)
+# ==============================================================================
+
+- name: test_validator_0_8
+  description: Tests schema validation of v0.8 message envelopes against the standard v0.8 catalog schema.
+  action: validate
+  protocolVersion: "v0.8"
+  catalogPaths:
+    - "specification/v0_8/json/standard_catalog_definition.json"
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: test-id
+            root: root
+            styles:
+              primaryColor: "#ff0000"
+    - messages:
+        - beginRendering:
+            surfaceId: 123
+            root: root
+      expectError: "123 is not of type 'string'"
+    - messages:
+        - beginRendering:
+            surfaceId: id
+            root: root
+            styles: not-an-object
+      expectError: "'not-an-object' is not of type 'object'"
+    - messages:
+        - beginRendering:
+            surfaceId: id
+      expectError: "'root' is a required property"
+
+- name: test_custom_catalog_0_8
+  description: Tests component property schema validation in v0.8 against custom catalog schema.
+  action: validate
+  protocolVersion: "v0.8"
+  catalog:
+    catalogId: "custom"
+    components:
+      Canvas:
+        type: object
+        properties:
+          children:
+            type: object
+            properties:
+              explicitList:
+                type: array
+                items:
+                  type: string
+            required:
+              - explicitList
+        required:
+          - children
+        additionalProperties: false
+      Chart:
+        type: object
+        properties:
+          type:
+            type: string
+            enum:
+              - doughnut
+              - pie
+          chartData:
+            type: object
+            properties:
+              path:
+                type: string
+            required:
+              - path
+        required:
+          - type
+          - chartData
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: s1
+            root: root
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: root
+                component:
+                  Canvas:
+                    children:
+                      explicitList:
+                        - c1
+                        - c2
+              - id: c1
+                component:
+                  Canvas:
+                    children:
+                      explicitList: []
+              - id: c2
+                component:
+                  Chart:
+                    type: pie
+                    chartData:
+                      path: /chart
+    - messages:
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: c1
+                component:
+                  Chart:
+                    type: line
+                    chartData:
+                      path: /chart
+      expectError: "'line' is not one of ['doughnut', 'pie']"
+    - messages:
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: c1
+                component:
+                  Canvas:
+                    children:
+                      explicitList: 123
+      expectError: "123 is not of type 'array'"
+    - messages:
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: c1
+                component:
+                  Canvas:
+                    children: {}
+      expectError: "'explicitList' is a required property"
+    - messages:
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: c1
+                component:
+                  Canvas:
+                    children:
+                      explicitList: []
+                    extraProperty: should-fail
+      expectError: "Additional properties are not allowed"
+    - messages:
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: c1
+                component:
+                  UnknownComponent:
+                    foo: "bar"
+      expectError: "'UnknownComponent' was unexpected"
+
+- name: test_v08_topology_circular_reference_error
+  description: Tests that circular component references fail validation in v0.8 strict mode.
+  action: validate
+  protocolVersion: "v0.8"
+  catalogPaths:
+    - "specification/v0_8/json/standard_catalog_definition.json"
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: "s1"
+            root: "c1"
+        - surfaceUpdate:
+            surfaceId: "s1"
+            components:
+              - id: "c1"
+                component:
+                  Column:
+                    children:
+                      explicitList: ["c2"]
+              - id: "c2"
+                component:
+                  Column:
+                    children:
+                      explicitList: ["c1"]
+      expectError: "Circular component reference"
+
+- name: test_v08_topology_dangling_child_reference_error
+  description: Tests that dangling child references fail validation in v0.8 strict mode.
+  action: validate
+  protocolVersion: "v0.8"
+  catalogPaths:
+    - "specification/v0_8/json/standard_catalog_definition.json"
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: "s1"
+            root: "c1"
+        - surfaceUpdate:
+            surfaceId: "s1"
+            components:
+              - id: "c1"
+                component:
+                  Column:
+                    children:
+                      explicitList: ["missing_child"]
+      expectError: "Dangling reference"
+
+- name: test_v08_topology_self_reference_error
+  description: Tests that a component referencing itself fails validation in v0.8 strict mode.
+  action: validate
+  protocolVersion: "v0.8"
+  catalogPaths:
+    - "specification/v0_8/json/standard_catalog_definition.json"
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: "s1"
+            root: "c1"
+        - surfaceUpdate:
+            surfaceId: "s1"
+            components:
+              - id: "c1"
+                component:
+                  Column:
+                    children:
+                      explicitList: ["c1"]
+      expectError: "Self-reference detected"
+
+- name: test_v08_topology_orphaned_component_error
+  description: Tests that components unreachable from the root component fail validation in v0.8 strict mode.
+  action: validate
+  protocolVersion: "v0.8"
+  catalogPaths:
+    - "specification/v0_8/json/standard_catalog_definition.json"
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: "s1"
+            root: "c1"
+        - surfaceUpdate:
+            surfaceId: "s1"
+            components:
+              - id: "c1"
+                component:
+                  Column:
+                    children:
+                      explicitList: []
+              - id: "orphan"
+                component:
+                  Column:
+                    children:
+                      explicitList: []
+      expectError: "is not reachable from"
+
+- name: test_v08_topology_missing_root_component_error
+  description: Tests that updates missing the designated root component fail validation in v0.8 strict mode.
+  action: validate
+  protocolVersion: "v0.8"
+  catalogPaths:
+    - "specification/v0_8/json/standard_catalog_definition.json"
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: "s1"
+            root: "missing_root"
+        - surfaceUpdate:
+            surfaceId: "s1"
+            components:
+              - id: "c1"
+                component:
+                  Column:
+                    children:
+                      explicitList: []
+      expectError: "Missing root component"
+
+- name: test_v08_unknown_component_type
+  description: Tests that unknown component types fail schema validation in v0.8.
+  action: validate
+  protocolVersion: "v0.8"
+  catalogPaths:
+    - "specification/v0_8/json/standard_catalog_definition.json"
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: "s1"
+            root: "root"
+        - surfaceUpdate:
+            surfaceId: "s1"
+            components:
+              - id: "root"
+                component:
+                  UnknownWidget:
+                    foo: "bar"
+      expectError:
+        category: "ValidationError"
+
+- name: test_v08_unknown_component_property
+  description: Tests that extra unknown component properties fail schema validation in v0.8.
+  action: validate
+  protocolVersion: "v0.8"
+  catalogPaths:
+    - "specification/v0_8/json/standard_catalog_definition.json"
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: "s1"
+            root: "root"
+        - surfaceUpdate:
+            surfaceId: "s1"
+            components:
+              - id: "root"
+                component:
+                  Button:
+                    label:
+                      literalString: "Click Me"
+                    unknownAttribute: "someValue"
+      expectError:
+        category: "ValidationError"
