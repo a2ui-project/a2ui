@@ -238,10 +238,20 @@ def validate_composition_constraints(
                 parent_id = parent_info["parent_id"]
 
             if parent_type not in allowed_parents:
-                raise A2uiValidationError(
+                msg = (
                     f"Component '{comp_id}' ({model.type}) cannot be placed"
                     f" under parent '{parent_id}' ({parent_type}). Allowed parents:"
                     f" {allowed_parents}."
+                )
+                raise A2uiValidationError(
+                    msg,
+                    details=[
+                        A2uiErrorDetail(
+                            path=f"components.{comp_id}",
+                            code="UNALLOWED_PARENT",
+                            message=msg,
+                        )
+                    ],
                 )
 
         allowed_children = getattr(component_api, "allowed_children", None)
@@ -250,8 +260,18 @@ def validate_composition_constraints(
             for child_id in children:
                 child_type = type_map.get(child_id)
                 if child_type and child_type not in allowed_children:
-                    raise A2uiValidationError(
+                    msg = (
                         f"Component '{comp_id}' ({model.type}) cannot contain child"
                         f" '{child_id}' ({child_type}). Allowed children:"
                         f" {allowed_children}."
+                    )
+                    raise A2uiValidationError(
+                        msg,
+                        details=[
+                            A2uiErrorDetail(
+                                path=f"components.{comp_id}",
+                                code="UNALLOWED_CHILD",
+                                message=msg,
+                            )
+                        ],
                     )
