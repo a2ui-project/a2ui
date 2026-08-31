@@ -63,8 +63,10 @@ export class A2uiMcpEngine {
   private readonly events: A2uiMcpEngineEvents;
 
   constructor(catalogs: any[] = [basicCatalog], events: A2uiMcpEngineEvents = {}) {
-    this.events = events;
-    this.processor = new MessageProcessor(catalogs, action => this.events.onAction?.(action));
+    this.events = events || {};
+    this.processor = new MessageProcessor(catalogs || [basicCatalog], action =>
+      this.events.onAction?.(action),
+    );
   }
 
   /**
@@ -150,28 +152,26 @@ export class A2uiMcpEngine {
    * Extracts server/tool routing metadata and dispatches execution.
    */
   async handleMcpCallTool(context: Record<string, any> = {}) {
-    const targetServer: string | undefined = context.server || context._server;
-    const targetTool: string | undefined = context.tool || context._tool;
+    const ctx = context || {};
+    const targetServer: string | undefined = ctx.server || ctx._server;
+    const targetTool: string | undefined = ctx.tool || ctx._tool;
 
     if (!targetServer) {
       console.error(
         "'mcp:call_tool' action missing required 'server' (or '_server') in context:",
-        context,
+        ctx,
       );
       return;
     }
 
     if (!targetTool) {
-      console.error(
-        "'mcp:call_tool' action missing required 'tool' (or '_tool') in context:",
-        context,
-      );
+      console.error("'mcp:call_tool' action missing required 'tool' (or '_tool') in context:", ctx);
       return;
     }
 
     // Filter out routing metadata keys from tool arguments
     const toolArgs: Record<string, any> = {};
-    for (const [key, value] of Object.entries(context)) {
+    for (const [key, value] of Object.entries(ctx)) {
       if (key !== 'server' && key !== '_server' && key !== 'tool' && key !== '_tool') {
         toolArgs[key] = value;
       }
@@ -185,6 +185,7 @@ export class A2uiMcpEngine {
    * Routes strictly to the specified targetServer.
    */
   async executeTool(targetServer: string, toolName: string, args: Record<string, any> = {}) {
+    const toolArgs = args || {};
     const client = this.mcpClients.get(targetServer);
 
     if (!client) {
@@ -199,7 +200,7 @@ export class A2uiMcpEngine {
       // 1. Call MCP Tool on targeted client
       const result = await client.callTool({
         name: toolName,
-        arguments: args,
+        arguments: toolArgs,
       });
 
       // 2. Discover UI template resource URI from tool response _meta or cached tool definitions
