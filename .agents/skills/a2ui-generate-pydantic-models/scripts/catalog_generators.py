@@ -63,7 +63,7 @@ def generate_basic_catalog_components(
     comp_blocks = [
         (
             f"{FILE_HEADER}\n"
-            "from typing import Any, Dict, List, Literal, Optional, Union, Annotated\n"
+            "from typing import Annotated, Any, Literal\n"
             "from pydantic import BaseModel, Field, ConfigDict\n"
             f"{common_import_stmt}\n"
             "from ...catalog.components import ModelComponentApi"
@@ -288,9 +288,8 @@ def generate_basic_catalog_functions(
         else "...schema.common_types"
     )
     header = (
-        f"{FILE_HEADER}\nfrom typing import Any, Dict, List, Literal, Optional,"
-        " Union\nfrom pydantic import BaseModel, Field, ConfigDict\nfrom"
-        f" {common_module_path} import {', '.join(used_imports)}\nfrom"
+        f"{FILE_HEADER}\nfrom typing import Any\nfrom pydantic import BaseModel, Field,"
+        f" ConfigDict\nfrom {common_module_path} import {', '.join(used_imports)}\nfrom"
         " ...catalog.functions import FunctionApi\n\n\n"
     )
 
@@ -411,16 +410,11 @@ def generate_basic_catalog_index(
         os.path.join(out_dir, "function_impls.py")
     ) and os.path.exists(os.path.join(os.path.dirname(out_dir), "function_impls.py"))
 
-    typing_types = ["Optional"]
+    cat_init = [FILE_HEADER]
     if shared_impls and has_func_impls:
-        typing_types.insert(0, "Any")
-    typing_line = f"from typing import {', '.join(typing_types)}"
-
-    cat_init = [
-        FILE_HEADER,
-        typing_line,
-        "",
-    ]
+        cat_init.extend(["from typing import Any", ""])
+    else:
+        cat_init.append("")
     if comp_import_lines:
         cat_init.extend([
             "from .components import (",

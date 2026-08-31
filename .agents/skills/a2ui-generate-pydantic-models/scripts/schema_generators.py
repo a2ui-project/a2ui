@@ -54,10 +54,9 @@ def generate_common_types(
 
     common_blocks = [
         (
-            f"{FILE_HEADER}\nfrom typing import Annotated, Any, Dict, List,"
-            " Literal, Optional, Union\nfrom pydantic import AfterValidator,"
-            " BaseModel, Field, ConfigDict\nfrom ..common_types import"
-            f" (\n{import_list_str}\n)"
+            f"{FILE_HEADER}\nfrom typing import Annotated, Any, Literal\nfrom"
+            " pydantic import AfterValidator, BaseModel, Field,"
+            f" ConfigDict\nfrom ..common_types import (\n{import_list_str}\n)"
         ),
     ]
 
@@ -295,7 +294,7 @@ def generate_agent_to_renderer(
     a2r_blocks = [
         (
             f"{FILE_HEADER}\n"
-            "from typing import Any, Dict, List, Literal, Optional, Union\n"
+            "from typing import Any, Literal\n"
             "from pydantic import BaseModel, Field, ConfigDict\n"
             + a2r_imports
             + "from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE"
@@ -418,7 +417,7 @@ def generate_renderer_to_agent(
 
     r2a_blocks = [
         f"{FILE_HEADER}\n"
-        "from typing import Any, Dict, List, Literal, Optional, Union\n"
+        "from typing import Any, Literal\n"
         "from pydantic import BaseModel, Field, ConfigDict\n"
         + r2a_imports
         + "from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE",
@@ -633,7 +632,7 @@ def generate_renderer_capabilities(
     caps_blocks = [
         (
             f"{FILE_HEADER}\n"
-            "from typing import Any, Dict, List, Literal, Optional\n"
+            "from typing import Any, Literal\n"
             "from pydantic import BaseModel, Field, ConfigDict\n"
             f"from {common_mod} import StrictBaseModel\n"
             "from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE"
@@ -873,7 +872,7 @@ def generate_catalog_definition(
 
     import_header = (
         f"{FILE_HEADER}\n"
-        "from typing import Any, Dict, List, Literal, Optional, Union\n"
+        "from typing import Any, Literal\n"
         "from pydantic import BaseModel, Field, ConfigDict, model_validator\n"
         f"from {common_mod} import {common_imports_str}\n"
         "from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE"

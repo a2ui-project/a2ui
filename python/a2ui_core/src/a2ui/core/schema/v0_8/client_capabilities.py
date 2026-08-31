@@ -14,7 +14,7 @@
 
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal
 from pydantic import BaseModel, Field, ConfigDict
 from ..common_types import StrictBaseModel
 from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE

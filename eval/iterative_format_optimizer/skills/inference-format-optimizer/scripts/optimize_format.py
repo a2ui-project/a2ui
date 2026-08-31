@@ -22,7 +22,7 @@ import os
 import shutil
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Ensure rate limiter connections limit (matches max_tasks=10)
 os.environ["INSPECT_MAX_CONNECTIONS"] = "10"
@@ -101,7 +101,7 @@ def regenerate_master_index(target_dir: str) -> None:
             notes = "-"
             status = "-"
 
-            meta_data: Dict[str, Any] = {}
+            meta_data: dict[str, Any] = {}
             meta_metrics = None
             detected_format = fmt_name if fmt_name != "default" else "-"
             if os.path.exists(meta_path):
@@ -201,7 +201,7 @@ def regenerate_master_index(target_dir: str) -> None:
     print(f"Regenerated master index: {master_index_file}")
 
 
-def main(argv: Optional[List[str]] = None) -> None:
+def main(argv: list[str] | None = None) -> None:
     """Executes the orchestrator CLI for running and analyzing format optimizations.
 
     Args:

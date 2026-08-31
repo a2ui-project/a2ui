@@ -15,12 +15,12 @@
 """Markdown report generation and evaluation log metric extraction."""
 
 import statistics
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from compare_results import format_delta_pct  # type: ignore[import-not-found]
 
 
-def extract_metrics_from_log(log_data: Dict[str, Any]) -> Dict[str, Any]:
+def extract_metrics_from_log(log_data: dict[str, Any]) -> dict[str, Any]:
     """Extracts summary metrics from an inspect log dictionary or run metadata dictionary.
 
     Args:
@@ -33,7 +33,7 @@ def extract_metrics_from_log(log_data: Dict[str, Any]) -> Dict[str, Any]:
         m = log_data["metrics"]
 
         def _get_first_not_none(
-            d: Dict[str, Any], keys: List[str], default: float = 0.0
+            d: dict[str, Any], keys: list[str], default: float = 0.0
         ) -> float:
             for k in keys:
                 val = d.get(k)
@@ -88,10 +88,10 @@ def extract_metrics_from_log(log_data: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(samples, dict):
         samples = list(samples.values())
 
-    durations: List[float] = []
-    input_toks: List[float] = []
-    output_toks: List[float] = []
-    reasoning_toks: List[float] = []
+    durations: list[float] = []
+    input_toks: list[float] = []
+    output_toks: list[float] = []
+    reasoning_toks: list[float] = []
 
     for sample in samples:
         meta = sample.get("metadata") or {}
@@ -188,9 +188,9 @@ def extract_metrics_from_log(log_data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def generate_optimization_report(
-    log_data: Dict[str, Any],
-    pytest_results: Dict[str, Any],
-    baseline_data: Optional[Dict[str, Any]],
+    log_data: dict[str, Any],
+    pytest_results: dict[str, Any],
+    baseline_data: dict[str, Any] | None,
     git_diff: str,
     format_name: str,
     model: str,
