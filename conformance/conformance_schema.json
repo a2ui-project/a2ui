@@ -152,6 +152,14 @@
         "assertions": {
           "$ref": "#/$defs/AccessibilityAssertions",
           "description": "Accessibility assertions to verify."
+        },
+        "useBasicCatalog": {
+          "type": "boolean",
+          "description": "Whether to use the standard basic catalog implementation."
+        },
+        "expectFile": {
+          "type": "string",
+          "description": "File path to JSON file containing expected outcome object."
         }
       },
       "additionalProperties": false

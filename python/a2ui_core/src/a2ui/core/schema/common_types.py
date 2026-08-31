@@ -33,7 +33,7 @@ class SingleReference(str, ComponentReference):
 
         return core_schema.no_info_after_validator_function(
             cls,
-            core_schema.str_schema(),
+            core_schema.str_schema(ref="ComponentId"),
             serialization=core_schema.plain_serializer_function_ser_schema(str),
         )
 
