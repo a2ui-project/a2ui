@@ -1,6 +1,6 @@
 ## Unreleased
 
-## 0.10.3
+## 0.11.0
 
 - (v0_9) Component implementations may supply a `view` that renders from a resolved `ComponentNode` (see `NodeViewProps` and `useSignalValue`) ([#2077](https://github.com/a2ui-project/a2ui/pull/2077)).
 - (v0_9) `A2uiSurface` renders through the node layer: each component re-renders only when its own data changes. Implementations without a `view` keep rendering through `render` ([#2393](https://github.com/a2ui-project/a2ui/pull/2393)).
