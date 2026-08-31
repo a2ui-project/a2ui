@@ -51,7 +51,7 @@ def test_accessibility_attributes_component_common_integration():
         ),
     )
     assert comp.id == "btn1"
-    assert comp.accessibility is not None
+    assert isinstance(comp.accessibility, AccessibilityAttributes)
     assert comp.accessibility.label == "Mute Notifications"
     assert comp.accessibility.description == "Mutes audio"
 
