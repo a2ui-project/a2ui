@@ -41,17 +41,25 @@ describe('ListComponent', () => {
   let defaultProps: ComponentToProps<ListComponent>;
 
   beforeEach(async () => {
+    const mockCatalog = {
+      id: 'mock-catalog',
+      components: new Map([['Text', {type: 'Text', component: DummyTextComponent}]]),
+    } as any;
+
     const mockRendererService = {
       surfaceGroup: {
         getSurface: jasmine.createSpy('getSurface').and.returnValue({
           componentsModel: new Map([
-            ['child-1', new ComponentModel('child-1', 'Text', {text: {value: 'Child 1'}})],
-            ['child-2', new ComponentModel('child-2', 'Text', {text: {value: 'Child 2'}})],
+            [
+              'child-1',
+              new ComponentModel('child-1', 'Text', {text: {value: 'Child 1'}}, mockCatalog),
+            ],
+            [
+              'child-2',
+              new ComponentModel('child-2', 'Text', {text: {value: 'Child 2'}}, mockCatalog),
+            ],
           ]),
-          catalog: {
-            id: 'mock-catalog',
-            components: new Map([['Text', {type: 'Text', component: DummyTextComponent}]]),
-          },
+          catalog: mockCatalog,
         }),
       },
     };

@@ -39,7 +39,7 @@ function createComponentContext({
     surface.dataModel.set(path, val);
   }
 
-  const componentModel = new ComponentModel(componentId, componentType, properties);
+  const componentModel = new ComponentModel(componentId, componentType, properties, catalog);
   surface.componentsModel.addComponent(componentModel);
 
   const context = new ComponentContext(surface, componentId);

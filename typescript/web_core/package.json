@@ -55,8 +55,8 @@
       "default": "./dist/src/processing/adapters/index.js"
     },
     "./validating": {
-      "types": "./dist/src/validating/index.d.ts",
-      "default": "./dist/src/validating/index.js"
+      "types": "./dist/src/validating/integrity-checker.d.ts",
+      "default": "./dist/src/validating/integrity-checker.js"
     },
     "./data/*": {
       "types": "./dist/src/v0_8/data/*.d.ts",

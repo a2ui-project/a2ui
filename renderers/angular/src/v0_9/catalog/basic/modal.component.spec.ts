@@ -42,20 +42,25 @@ describe('ModalComponent', () => {
   let defaultProps: ComponentToProps<ModalComponent>;
 
   beforeEach(async () => {
+    const mockCatalog = {
+      id: 'mock-catalog',
+      components: new Map([['Text', {type: 'Text', component: DummyTextComponent}]]),
+    } as any;
+
     const mockRendererService = {
       surfaceGroup: {
         getSurface: jasmine.createSpy('getSurface').and.returnValue({
           componentsModel: new Map([
-            ['trigger-btn', new ComponentModel('trigger-btn', 'Text', {text: {value: 'Open'}})],
+            [
+              'trigger-btn',
+              new ComponentModel('trigger-btn', 'Text', {text: {value: 'Open'}}, mockCatalog),
+            ],
             [
               'modal-content',
-              new ComponentModel('modal-content', 'Text', {text: {value: 'Modal'}}),
+              new ComponentModel('modal-content', 'Text', {text: {value: 'Modal'}}, mockCatalog),
             ],
           ]),
-          catalog: {
-            id: 'mock-catalog',
-            components: new Map([['Text', {type: 'Text', component: DummyTextComponent}]]),
-          },
+          catalog: mockCatalog,
         }),
       },
     };

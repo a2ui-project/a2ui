@@ -23,6 +23,7 @@ import {ComponentModel} from './component-model.js';
 
 describe('SurfaceComponentsModel', () => {
   let model: SurfaceComponentsModel;
+  const defaultCatalog = new Catalog('default', []);
 
   beforeEach(() => {
     model = new SurfaceComponentsModel();
@@ -33,7 +34,7 @@ describe('SurfaceComponentsModel', () => {
   });
 
   it('adds a new component', () => {
-    const c1 = new ComponentModel('c1', 'Button', {label: 'Click'});
+    const c1 = new ComponentModel('c1', 'Button', {label: 'Click'}, defaultCatalog);
     model.addComponent(c1);
     const retrieved = model.get('c1');
     assert.ok(retrieved);
@@ -43,7 +44,7 @@ describe('SurfaceComponentsModel', () => {
   });
 
   it('updates an existing component', () => {
-    const c1 = new ComponentModel('c1', 'Button', {label: 'Initial'});
+    const c1 = new ComponentModel('c1', 'Button', {label: 'Initial'}, defaultCatalog);
     model.addComponent(c1);
 
     // Track update on component itself
@@ -64,22 +65,22 @@ describe('SurfaceComponentsModel', () => {
       createdComponent = c;
     });
 
-    model.addComponent(new ComponentModel('c1', 'Button', {}));
+    model.addComponent(new ComponentModel('c1', 'Button', {}, defaultCatalog));
     assert.ok(createdComponent);
     assert.strictEqual(createdComponent?.id, 'c1');
   });
 
   it('throws when adding duplicate component', () => {
-    const c1 = new ComponentModel('c1', 'Button', {});
+    const c1 = new ComponentModel('c1', 'Button', {}, defaultCatalog);
     model.addComponent(c1);
     assert.throws(() => {
-      model.addComponent(new ComponentModel('c1', 'Button', {}));
+      model.addComponent(new ComponentModel('c1', 'Button', {}, defaultCatalog));
     }, /already exists/);
   });
 
   it('returns entries iterator', () => {
-    const c1 = new ComponentModel('c1', 'Button', {});
-    const c2 = new ComponentModel('c2', 'Text', {});
+    const c1 = new ComponentModel('c1', 'Button', {}, defaultCatalog);
+    const c2 = new ComponentModel('c2', 'Text', {}, defaultCatalog);
     model.addComponent(c1);
     model.addComponent(c2);
 
@@ -90,7 +91,7 @@ describe('SurfaceComponentsModel', () => {
   });
 
   it('disposes components during model dispose', () => {
-    const c1 = new ComponentModel('c1', 'Button', {});
+    const c1 = new ComponentModel('c1', 'Button', {}, defaultCatalog);
     model.addComponent(c1);
 
     let childDisposed = false;
@@ -110,6 +111,8 @@ describe('SurfaceComponentsModel', () => {
   });
 
   describe('inlined topology & cycle detection', () => {
+    let testCatalog: Catalog<any>;
+
     beforeEach(() => {
       const boxApi = {
         name: 'Box',
@@ -131,16 +134,21 @@ describe('SurfaceComponentsModel', () => {
         name: 'Text',
         schema: z.object({text: z.string()}),
       };
-      const testCatalog = new Catalog('test-cat', [boxApi, containerApi, textApi]);
+      testCatalog = new Catalog('test-cat', [boxApi, containerApi, textApi]);
       model.setCatalog(testCatalog);
     });
 
     it('extracts child references using schema-driven inspection', () => {
-      const root = new ComponentModel('root', 'Container', {
-        singleChild: 'c1',
-        childrenList: ['c2', 'c3'],
-        dynamicChild: {componentId: 'c4', path: '/items'},
-      });
+      const root = new ComponentModel(
+        'root',
+        'Container',
+        {
+          singleChild: 'c1',
+          childrenList: ['c2', 'c3'],
+          dynamicChild: {componentId: 'c4', path: '/items'},
+        },
+        testCatalog,
+      );
       model.addComponent(root);
 
       const childIds = model.getChildIds('root');
@@ -151,7 +159,7 @@ describe('SurfaceComponentsModel', () => {
     });
 
     it('detects immediate self-reference', () => {
-      const root = new ComponentModel('root', 'Box', {child: 'root'});
+      const root = new ComponentModel('root', 'Box', {child: 'root'}, testCatalog);
       model.addComponent(root);
 
       assert.throws(
@@ -163,9 +171,9 @@ describe('SurfaceComponentsModel', () => {
     });
 
     it('detects circular reference in component hierarchy', () => {
-      const root = new ComponentModel('root', 'Box', {child: 'c1'});
-      const c1 = new ComponentModel('c1', 'Box', {child: 'c2'});
-      const c2 = new ComponentModel('c2', 'Box', {child: 'root'});
+      const root = new ComponentModel('root', 'Box', {child: 'c1'}, testCatalog);
+      const c1 = new ComponentModel('c1', 'Box', {child: 'c2'}, testCatalog);
+      const c2 = new ComponentModel('c2', 'Box', {child: 'root'}, testCatalog);
       model.addComponent(root);
       model.addComponent(c1);
       model.addComponent(c2);
@@ -179,10 +187,10 @@ describe('SurfaceComponentsModel', () => {
 
     it('detects recursion depth limit exceeded', () => {
       // Build a chain of 52 components
-      model.addComponent(new ComponentModel('root', 'Box', {child: 'node_1'}));
+      model.addComponent(new ComponentModel('root', 'Box', {child: 'node_1'}, testCatalog));
       for (let i = 1; i <= 52; i++) {
         const nextId = i === 52 ? undefined : `node_${i + 1}`;
-        model.addComponent(new ComponentModel(`node_${i}`, 'Box', {child: nextId}));
+        model.addComponent(new ComponentModel(`node_${i}`, 'Box', {child: nextId}, testCatalog));
       }
 
       assert.throws(
@@ -194,7 +202,7 @@ describe('SurfaceComponentsModel', () => {
     });
 
     it('validates surface topology and detects missing root', () => {
-      model.addComponent(new ComponentModel('leaf', 'Text', {text: 'hi'}));
+      model.addComponent(new ComponentModel('leaf', 'Text', {text: 'hi'}, testCatalog));
 
       assert.throws(
         () => model.validateTopology({allowMissingRoot: false}),
@@ -206,7 +214,7 @@ describe('SurfaceComponentsModel', () => {
     });
 
     it('validates surface topology and detects dangling references', () => {
-      model.addComponent(new ComponentModel('root', 'Box', {child: 'missing_child'}));
+      model.addComponent(new ComponentModel('root', 'Box', {child: 'missing_child'}, testCatalog));
 
       assert.throws(
         () => model.validateTopology({allowDanglingReferences: false}),
@@ -221,9 +229,9 @@ describe('SurfaceComponentsModel', () => {
     });
 
     it('validates surface topology and detects orphan components', () => {
-      model.addComponent(new ComponentModel('root', 'Box', {child: 'c1'}));
-      model.addComponent(new ComponentModel('c1', 'Text', {text: 'hi'}));
-      model.addComponent(new ComponentModel('orphan', 'Text', {text: 'unused'}));
+      model.addComponent(new ComponentModel('root', 'Box', {child: 'c1'}, testCatalog));
+      model.addComponent(new ComponentModel('c1', 'Text', {text: 'hi'}, testCatalog));
+      model.addComponent(new ComponentModel('orphan', 'Text', {text: 'unused'}, testCatalog));
 
       assert.throws(
         () => model.validateTopology({allowOrphanComponents: false}),
@@ -235,7 +243,7 @@ describe('SurfaceComponentsModel', () => {
     });
 
     it('returns validation errors list via validateReferences without throwing', () => {
-      model.addComponent(new ComponentModel('orphan', 'Text', {text: 'unused'}));
+      model.addComponent(new ComponentModel('orphan', 'Text', {text: 'unused'}, testCatalog));
 
       const errors = model.validateReferences({allowMissingRoot: false});
       assert.strictEqual(errors.length, 1);
@@ -265,9 +273,9 @@ describe('SurfaceComponentsModel', () => {
         customCatalog,
       );
       // c1 is a standard Box from testCatalog pointing to c3 (CustomChart)
-      const c1 = new ComponentModel('c1', 'Box', {child: 'c3'});
+      const c1 = new ComponentModel('c1', 'Box', {child: 'c3'}, testCatalog);
       // c2 is a standard Text from testCatalog
-      const c2 = new ComponentModel('c2', 'Text', {text: 'Footer'});
+      const c2 = new ComponentModel('c2', 'Text', {text: 'Footer'}, testCatalog);
       // c3 is a CustomChart from customCatalog
       const c3 = new ComponentModel('c3', 'CustomChart', {title: 'Sales'}, customCatalog);
 
@@ -299,7 +307,7 @@ describe('SurfaceComponentsModel', () => {
 
       // root (CustomContainer from customCatalog) -> c1 (Box from testCatalog) -> root (cycle!)
       const root = new ComponentModel('root', 'CustomContainer', {contentId: 'c1'}, customCatalog);
-      const c1 = new ComponentModel('c1', 'Box', {child: 'root'});
+      const c1 = new ComponentModel('c1', 'Box', {child: 'root'}, testCatalog);
 
       model.addComponent(root);
       model.addComponent(c1);
@@ -313,11 +321,11 @@ describe('SurfaceComponentsModel', () => {
 
     it('respects maxDepth configured via ValidationConfig in validateTopology', () => {
       // Chain of 5 components: root -> c1 -> c2 -> c3 -> c4
-      model.addComponent(new ComponentModel('root', 'Box', {child: 'c1'}));
-      model.addComponent(new ComponentModel('c1', 'Box', {child: 'c2'}));
-      model.addComponent(new ComponentModel('c2', 'Box', {child: 'c3'}));
-      model.addComponent(new ComponentModel('c3', 'Box', {child: 'c4'}));
-      model.addComponent(new ComponentModel('c4', 'Text', {text: 'end'}));
+      model.addComponent(new ComponentModel('root', 'Box', {child: 'c1'}, testCatalog));
+      model.addComponent(new ComponentModel('c1', 'Box', {child: 'c2'}, testCatalog));
+      model.addComponent(new ComponentModel('c2', 'Box', {child: 'c3'}, testCatalog));
+      model.addComponent(new ComponentModel('c3', 'Box', {child: 'c4'}, testCatalog));
+      model.addComponent(new ComponentModel('c4', 'Text', {text: 'end'}, testCatalog));
 
       // Max depth 3 should fail
       assert.throws(

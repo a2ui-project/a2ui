@@ -224,7 +224,7 @@ function setup() {
 }
 
 function add(surface: SurfaceModel, id: string, type: string, props: Record<string, unknown>) {
-  surface.componentsModel.addComponent(new ComponentModel(id, type, props));
+  surface.componentsModel.addComponent(new ComponentModel(id, type, props, surface.catalog));
 }
 
 beforeEach(() => {
