@@ -32,6 +32,7 @@ Furthermore, catalog versions are not updated synchronously across agents, clien
 2. **Strict authoring validation:** Direct instantiation in Python (such as `Button(...)`) must reject typos (such as `lable="Submit"`) at edit time via IDE type checkers and at runtime via Pydantic validation.
 3. **Schema-aware slot resolution:** The deserializer must distinguish child component slots from plain string properties using the schema's type annotations. A plain string whose value happens to match a component ID (such as `Text(text="col1")`) must never be mistakenly expanded as a child slot.
 4. **Single-pass deserialization:** Deserialization, component linking, and model validation must occur in a single continuous traversal without building temporary nested dictionaries or mutating models after construction.
+5. **Strongly-typed unlinked subtrees:** When an unknown component acts as an intermediate container (for which slot schemas are unavailable), any disconnected child components must still be deserialized into strongly-typed models where known, rather than degrading into untyped dictionaries.
 
 ---
 
@@ -52,8 +53,8 @@ A compliance tool inspects an existing UI tree to verify that all interactive co
 ### Use case 5: Macro sub-tree injection
 A macro accepts a child component sub-tree from an LLM and inserts it into a container template before serialization.
 
-### Use case 6: Cross-version fallback
-An agent receives a component type introduced in a newer catalog. It parses the unknown element into an `UnknownComponent` node and continues execution without crashing.
+### Use case 6: Unrecognized container with typed child subtrees
+An agent receives an unknown container component (`VideoPlayer`) holding known children (`Column`, `Text`). The agent parses `VideoPlayer` as `UnknownComponent`, parses `Column` and `Text` into typed models, preserves the full hierarchy, and re-emits all components losslessly.
 
 ---
 
@@ -61,7 +62,7 @@ An agent receives a component type introduced in a newer catalog. It parses the 
 
 ### A. The slot resolution validator (`a2ui.builder.base`)
 
-To enable single-pass deserialization, child component references use a Pydantic `WrapValidator`. When deserializing flat wire JSON, the validator receives the string ID, retrieves the raw component dictionary from the validation context (`info.context["components"]`), and validates it recursively into the target component class.
+To enable single-pass deserialization, child component references use a Pydantic `WrapValidator`. When deserializing flat wire JSON, the validator receives the string ID, retrieves the raw component dictionary from the validation context (`info.context["components"]`), records the ID in `info.context["_visited"]`, and validates it recursively into the target component class.
 
 ```python
 from typing import Annotated, Any, Sequence, TypeAlias
@@ -185,14 +186,56 @@ Component = Annotated[
 
 ---
 
-### C. Single-call deserialization utility (`deserialize_surface`)
+### C. Surface model and unified serialization
 
-The `deserialize_surface` function takes raw wire messages or component lists, finds the root component, and invokes Pydantic validation with the component lookup table in `context`:
+The `Surface` model manages both the primary AST root and any typed unlinked subtrees discovered during deserialization:
+
+```python
+from typing import Any, Sequence
+from a2ui.builder.base import ComponentBuilderNode, traverse_and_serialize
+
+
+class Surface:
+    """Container representing an active A2UI surface with its component hierarchies."""
+
+    def __init__(
+        self,
+        root: ComponentBuilderNode,
+        surface_id: str = "main",
+        unlinked_roots: Sequence[ComponentBuilderNode] | None = None,
+    ):
+        self.root = root
+        self.surface_id = surface_id
+        self.unlinked_roots = list(unlinked_roots or [])
+
+    def to_messages(self) -> list[dict[str, Any]]:
+        """Serializes the primary tree and all unlinked subtrees into protocol messages."""
+        all_components = traverse_and_serialize(self.root)
+
+        for sub_tree in self.unlinked_roots:
+            all_components.extend(traverse_and_serialize(sub_tree))
+
+        return [
+            {"createSurface": {"surfaceId": self.surface_id}},
+            {
+                "updateComponents": {
+                    "surfaceId": self.surface_id,
+                    "components": all_components,
+                }
+            },
+        ]
+```
+
+---
+
+### D. Single-call deserialization utility (`deserialize_surface`)
+
+The `deserialize_surface` function takes raw wire messages or component lists, builds the primary AST root, and builds strongly-typed subtrees for any unlinked components:
 
 ```python
 from typing import Any, Mapping, Sequence
 from pydantic import TypeAdapter
-from a2ui.builder.base import Surface
+from a2ui.builder.base import ComponentBuilderNode, Surface
 from a2ui.builder.catalogs.basic import Component
 
 
@@ -225,6 +268,7 @@ def deserialize_surface(
 
     # Index raw components by ID
     by_id = {c["id"]: dict(c) for c in components if "id" in c}
+    context = {"components": by_id, "_visited": set()}
 
     # Find root if not explicitly provided
     if not root_id:
@@ -240,11 +284,43 @@ def deserialize_surface(
         candidates = [cid for cid in by_id if cid not in referenced]
         root_id = candidates[0] if candidates else components[0]["id"]
 
-    # Single recursive Pydantic validation pass
-    context = {"components": by_id}
-    root_node = adapter.validate_python(by_id[root_id], context=context)
+    # 1. Primary AST validation pass
+    context["_visited"].add(root_id)
+    root_node: ComponentBuilderNode = adapter.validate_python(
+        by_id[root_id], context=context
+    )
 
-    return Surface(root=root_node, surface_id=surface_id)
+    # 2. Build strongly-typed trees for any unlinked components
+    unlinked_roots: list[ComponentBuilderNode] = []
+    unvisited_ids = set(by_id.keys()) - context["_visited"]
+
+    while unvisited_ids:
+        # Find subroot among unvisited IDs
+        sub_referenced = set()
+        for cid in unvisited_ids:
+            c = by_id[cid]
+            for v in c.values():
+                if isinstance(v, str) and v in unvisited_ids:
+                    sub_referenced.add(v)
+                elif isinstance(v, list):
+                    for item in v:
+                        if isinstance(item, str) and item in unvisited_ids:
+                            sub_referenced.add(item)
+        sub_candidates = [cid for cid in unvisited_ids if cid not in sub_referenced]
+        sub_root_id = sub_candidates[0] if sub_candidates else next(iter(unvisited_ids))
+
+        context["_visited"].add(sub_root_id)
+        sub_node: ComponentBuilderNode = adapter.validate_python(
+            by_id[sub_root_id], context=context
+        )
+        unlinked_roots.append(sub_node)
+        unvisited_ids -= context["_visited"]
+
+    return Surface(
+        root=root_node,
+        surface_id=surface_id,
+        unlinked_roots=unlinked_roots,
+    )
 ```
 
 ---
@@ -282,34 +358,42 @@ layout = Card(
 messages = Surface(root=layout, surface_id="dashboard").to_messages()
 ```
 
-### Example 2: Deserializing, mutating, and re-serializing
+### Example 2: Deserializing and mutating unlinked subtrees
 
 ```python
 from a2ui.builder import deserialize_surface
-from a2ui.builder.catalogs.basic import Card, Column, Text
+from a2ui.builder.catalogs.basic import Card, Column, Text, UnknownComponent
 
 raw_payload = {
-    "surfaceId": "dashboard",
+    "surfaceId": "media_dashboard",
     "components": [
-        {"id": "card_0", "component": "Card", "child": "col_0"},
+        # Card contains an unknown VideoPlayer container
+        {"id": "card_0", "component": "Card", "child": "player_0"},
+        {"id": "player_0", "component": "VideoPlayer", "src": "video.mp4", "overlay": "col_0"},
+        # Overlay points to a standard Column container with Text
         {"id": "col_0", "component": "Column", "children": ["txt_0"]},
-        {"id": "txt_0", "component": "Text", "text": "Old Status"},
+        {"id": "txt_0", "component": "Text", "text": "Play Video"},
     ],
 }
 
 # 1. Rebuild hierarchy in a single function call
 surface = deserialize_surface(raw_payload)
 
-# 2. Inspect and mutate
-root = surface.root
-assert isinstance(root, Card)
-assert isinstance(root.child, Column)
+# 2. Primary tree is typed
+assert isinstance(surface.root, Card)
+assert isinstance(surface.root.child, UnknownComponent)
 
-first_child = root.child.children[0]
-if isinstance(first_child, Text):
-    first_child.text = "New Status: Operational"
+# 3. Disconnected subtrees are also strongly typed
+assert len(surface.unlinked_roots) == 1
+overlay_col = surface.unlinked_roots[0]
+assert isinstance(overlay_col, Column)
 
-# 3. Output updated protocol messages (preserves existing IDs)
+# Mutate unlinked subtrees with full IDE autocomplete
+overlay_text = overlay_col.children[0]
+if isinstance(overlay_text, Text):
+    overlay_text.text = "Resume Video"
+
+# 4. Output updated protocol messages: all components and IDs are preserved losslessly
 updated_messages = surface.to_messages()
 ```
 
@@ -320,3 +404,4 @@ updated_messages = surface.to_messages()
 1. **Why Pydantic v2:** Pydantic is already the schema foundation of `a2ui_core` and the broader agent ecosystem (`google-genai`, LangChain). Using Pydantic avoids maintaining separate parsing engines while offering C/Rust performance.
 2. **Why `WrapValidator` over pre-expansion:** Pre-expanding dictionaries into temporary JSON trees creates unnecessary Python dictionary overhead and relies on string-matching heuristics. `WrapValidator` operates directly during Pydantic's native type validation pass, ensuring only fields explicitly declared as slots are resolved.
 3. **Why `extra="forbid"` for authoring and `extra="allow"` for unknown components:** Strict validation on standard models prevents typo bugs when writing code, while permissive parsing on `UnknownComponent` ensures unknown wire elements are preserved during round-trips.
+4. **Why typed unlinked subtrees:** When an unknown container obscures slot relationships, parsing disconnected components into typed Pydantic models preserves developer ergonomics, inspection tooling, and unified serialization without degrading to raw untyped dictionaries.
