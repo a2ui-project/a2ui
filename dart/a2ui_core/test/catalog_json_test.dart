@@ -39,7 +39,6 @@ void main() {
       final SchemaCatalog catalog = Catalog.fromJson(loadBasicCatalogJson());
 
       expect(catalog.id, basicCatalogId);
-      expect(catalog.protocolVersion, A2uiProtocolVersion.v0_9);
       expect(
         catalog.components.keys,
         containsAll(<String>['Text', 'Card', 'Column', 'Button', 'TextField']),
@@ -134,18 +133,12 @@ void main() {
       );
     });
 
-    test('rejects a document declaring an unsupported protocol version', () {
+    test('ignores any protocol version the document declares', () {
+      // Catalogs are version-agnostic: the document's `protocolVersion` is
+      // not checked against the version this SDK implements.
       expect(
-        () => Catalog.fromJson({'catalogId': 'c', 'protocolVersion': 'v1.0'}),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-
-    test('treats an undeclared protocol version as v0.9', () {
-      // Catalog documents do not carry a protocol version before v1.0.
-      expect(
-        Catalog.fromJson({'catalogId': 'c'}).protocolVersion,
-        A2uiProtocolVersion.v0_9,
+        Catalog.fromJson({'catalogId': 'c', 'protocolVersion': 'v1.0'}).id,
+        'c',
       );
     });
 

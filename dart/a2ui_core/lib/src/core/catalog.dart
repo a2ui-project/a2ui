@@ -15,7 +15,6 @@
 import 'package:json_schema_builder/json_schema_builder.dart';
 import '../primitives/cancellation.dart';
 import '../primitives/errors.dart';
-import '../primitives/protocol_version.dart';
 import '../primitives/reactivity.dart';
 import 'contexts.dart';
 
@@ -118,9 +117,6 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// The catalog id, from the document's `catalogId` field.
   final String id;
 
-  /// The protocol version this catalog conforms to.
-  final A2uiProtocolVersion protocolVersion;
-
   final Map<String, C> components;
   final Map<String, F> functions;
   final Schema? themeSchema;
@@ -133,7 +129,6 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     required List<C> components,
     List<F> functions = const [],
     this.themeSchema,
-    this.protocolVersion = A2uiProtocolVersion.v0_9,
     Map<String, Object?>? sourceSchema,
   }) : components = {for (final c in components) c.name: c},
        functions = {for (final f in functions) f.name: f},
@@ -145,12 +140,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// published catalog documents, and the list of definitions used by inline
   /// catalogs in renderer capabilities.
   ///
+  /// A catalog document is version-agnostic: any `protocolVersion` it
+  /// declares is ignored rather than checked against this SDK.
+  ///
   /// Throws [A2uiCatalogError] if the document is malformed or conflicts with
-  /// [expectedCatalogId], and [A2uiValidationError] if its version is
-  /// unsupported or conflicts with [expectedProtocolVersion].
+  /// [expectedCatalogId].
   static SchemaCatalog fromJson(
     Map<String, Object?> json, {
-    A2uiProtocolVersion? expectedProtocolVersion,
     String? expectedCatalogId,
   }) {
     final Object? rawId = json['catalogId'];
@@ -167,23 +163,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       );
     }
 
-    // Catalog documents before v1.0 do not declare `protocolVersion`, so an
-    // absent value means the version this SDK implements.
-    final A2uiProtocolVersion version = json.containsKey('protocolVersion')
-        ? A2uiProtocolVersion.fromJson(json['protocolVersion'], details: json)
-        : A2uiProtocolVersion.v0_9;
-    if (expectedProtocolVersion != null && expectedProtocolVersion != version) {
-      throw A2uiValidationError(
-        'Catalog protocol version mismatch: expected '
-        "'${expectedProtocolVersion.jsonValue}' but the document declares "
-        "'${version.jsonValue}'.",
-        details: json,
-      );
-    }
-
     return SchemaCatalog(
       id: rawId,
-      protocolVersion: version,
       components: _parseComponents(json['components'], rawId),
       functions: _parseFunctions(json['functions'], rawId),
       themeSchema: _parseTheme(json),
@@ -378,7 +359,6 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     Schema? themeSchema,
   }) => Catalog<C, F>(
     id: id,
-    protocolVersion: protocolVersion,
     components: (components ?? this.components.values).toList(),
     functions: (functions ?? this.functions.values).toList(),
     themeSchema: themeSchema ?? this.themeSchema,
