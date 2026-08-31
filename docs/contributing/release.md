@@ -128,7 +128,7 @@ When releasing packages, maintainers and AI agents evaluate the repository state
 - [ ] Inspect qualified packages (`## Unreleased` entries in `CHANGELOG.md`).
 - [ ] Create branch `release/sdks-YYYY-MM-DD`.
 - [ ] Update `CHANGELOG.md` headings (`## <new_version>` + fresh `## Unreleased`).
-- [ ] Bump versions (`./renderers/scripts/increment_version.mjs <pkg> <ver> --skip-sync` for TS; edit `version.py` for Python).
+- [ ] Bump versions (edit `"version"` in `package.json` for TS; edit `version.py` for Python).
 - [ ] Run `yarn install` at workspace root.
 - [ ] Run test suite (`yarn test:all`, `uv run pytest`).
 - [ ] Open PR targeting upstream (`a2ui-project/a2ui`).

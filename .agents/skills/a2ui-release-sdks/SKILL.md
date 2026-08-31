@@ -86,15 +86,10 @@ Check the top `## Unreleased` section of each package's `CHANGELOG.md`:
 3. **Format `CHANGELOG.md` Headers**:
    - For each qualified package, rename `## Unreleased` to `## <new_version>` and insert a fresh `## Unreleased` header above it.
 4. **Bump Version Strings**:
-   - **TypeScript**: Use `--skip-sync` when bumping multiple packages to avoid monorepo lock collisions:
+   - **TypeScript**: Edit the `"version"` field directly in each qualified package's `package.json` (e.g. `renderers/web_core/package.json`). Because all packages use Yarn workspace links (`"workspace:*"`), dependent `package.json` files do not require modification (they are dynamically transformed to exact caret ranges at publish time by `prepare-publish.mjs`).
 
      ```bash
-     ./renderers/scripts/increment_version.mjs web_core <new_version> --skip-sync
-     ./renderers/scripts/increment_version.mjs lit <new_version> --skip-sync
-     ./renderers/scripts/increment_version.mjs angular <new_version> --skip-sync
-     ./renderers/scripts/increment_version.mjs react <new_version> --skip-sync
-
-     # Run root yarn install once at the end to update lockfiles cleanly
+     # After updating version fields in package.json files, run root yarn install once to update lockfiles cleanly
      yarn install
      ```
 
