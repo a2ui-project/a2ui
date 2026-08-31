@@ -12,14 +12,67 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import sys
-from typing import Any, Callable, Dict, Generic, List, Optional, Union, cast
+from typing import Any, Callable, Dict, Final, Generic, List, Optional, Set, Union, cast
 
 if sys.version_info >= (3, 13):
     from typing import TypeVar
 else:
     from typing_extensions import TypeVar
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
+
+
+def _generate_dynamic_type_def(type_cls: Any) -> Dict[str, Any]:
+    raw_schema = TypeAdapter(type_cls).json_schema()
+    if "$defs" in raw_schema:
+        del raw_schema["$defs"]
+    if "title" in raw_schema:
+        del raw_schema["title"]
+    if "description" in raw_schema:
+        del raw_schema["description"]
+    if "anyOf" in raw_schema:
+        items = raw_schema["anyOf"]
+        has_num = any(
+            isinstance(it, dict) and it.get("type") == "number" for it in items
+        )
+        if has_num:
+            items = [
+                it
+                for it in items
+                if not (isinstance(it, dict) and it.get("type") == "integer")
+            ]
+        raw_schema["oneOf"] = items
+        del raw_schema["anyOf"]
+    return raw_schema
+
+
+def _get_dynamic_types_defs() -> Dict[str, Any]:
+    from ..schema.common_types import (
+        DataBinding,
+        DynamicBoolean,
+        DynamicNumber,
+        DynamicString,
+        FunctionCall,
+    )
+    from ..schema.v1_0.common_types import DynamicValue
+
+    return {
+        "ComponentId": {
+            "description": (
+                "The unique identifier for a component, used for both"
+                " definitions and references within the same surface."
+            ),
+            "type": "string",
+        },
+        "DynamicString": _generate_dynamic_type_def(DynamicString),
+        "DynamicNumber": _generate_dynamic_type_def(DynamicNumber),
+        "DynamicBoolean": _generate_dynamic_type_def(DynamicBoolean),
+        "DynamicValue": _generate_dynamic_type_def(DynamicValue),
+        "DataBinding": _generate_dynamic_type_def(DataBinding),
+        "FunctionCall": _generate_dynamic_type_def(FunctionCall),
+    }
+
 
 from ..exceptions import A2uiCatalogError
 from .functions import (
@@ -52,12 +105,273 @@ def _is_version_at_least_1_0(protocol_version: Union[str, Any]) -> bool:
         return False
 
 
+def load_preserved_type_refs() -> Set[str]:
+    """Dynamically loads all common type names defined in schema/common_types.py and versioned submodules."""
+    import importlib
+    import a2ui.core.schema as schema_pkg
+
+    excluded = {
+        "sys",
+        "annotations",
+        "Any",
+        "Dict",
+        "List",
+        "Optional",
+        "Union",
+        "Tuple",
+        "Set",
+        "Literal",
+        "Annotated",
+        "BaseModel",
+        "ConfigDict",
+        "Field",
+        "AfterValidator",
+        "GetCoreSchemaHandler",
+        "ValidationInfo",
+        "CoreSchema",
+        "PydanticUndefined",
+        "field_validator",
+        "TypeVar",
+        "Generic",
+        "Callable",
+    }
+
+    modules_to_check: List[str] = ["a2ui.core.schema.common_types"]
+
+    protocol_version_enum = getattr(schema_pkg, "ProtocolVersion", None) or getattr(
+        schema_pkg, "A2uiProtocolVersion", None
+    )
+    if protocol_version_enum:
+        for ver_enum in protocol_version_enum:
+            raw_ver = str(ver_enum.value).lstrip("vV")
+            major_minor = "_".join(raw_ver.split(".")[:2])
+            mod_name = f"{schema_pkg.__name__}.v{major_minor}.common_types"
+            if mod_name not in modules_to_check:
+                modules_to_check.append(mod_name)
+
+    type_refs: Set[str] = set()
+    for modname in modules_to_check:
+        try:
+            mod = importlib.import_module(modname)
+            for attr in dir(mod):
+                if not attr.startswith("_") and attr not in excluded:
+                    type_refs.add(attr)
+        except ImportError:
+            pass
+
+    return type_refs
+
+
+PRESERVED_TYPE_REFS: Final[Set[str]] = load_preserved_type_refs()
+
+
+def _query_json_pointer(doc: Dict[str, Any], pointer: str) -> Any:
+    """Queries a JSON Pointer string starting with '#/' against a root dictionary."""
+    if not pointer.startswith("#/"):
+        return None
+    parts = pointer[2:].split("/")
+    curr: Any = doc
+    for part in parts:
+        part = part.replace("~1", "/").replace("~0", "~")
+        if isinstance(curr, dict) and part in curr:
+            curr = curr[part]
+        else:
+            return None
+    return curr
+
+
+def inline_local_refs(
+    node: Any, root_catalog: Dict[str, Any], visited: Optional[Set[str]] = None
+) -> Any:
+    """Recursively inlines local JSON references (pointers starting with '#/') into schema objects."""
+    if visited is None:
+        visited = set()
+
+    if isinstance(node, dict):
+        if (
+            "$ref" in node
+            and isinstance(node["$ref"], str)
+            and node["$ref"].startswith("#/")
+        ):
+            ref_path = node["$ref"]
+            ref_name = ref_path.split("/")[-1]
+            if ref_name in PRESERVED_TYPE_REFS:
+                return node
+
+            if ref_path in visited:
+                return node  # Prevent stack overflow on circular references
+
+            new_visited = set(visited)
+            new_visited.add(ref_path)
+
+            resolved_node = _query_json_pointer(root_catalog, ref_path)
+            if resolved_node is not None:
+                resolved_node = inline_local_refs(
+                    resolved_node, root_catalog, new_visited
+                )
+                merged = {k: v for k, v in node.items() if k != "$ref"}
+                if isinstance(resolved_node, dict):
+                    res = dict(resolved_node)
+                    for k, v in merged.items():
+                        if (
+                            k in res
+                            and isinstance(res[k], dict)
+                            and isinstance(v, dict)
+                        ):
+                            res[k] = {**res[k], **v}
+                        elif (
+                            k in res
+                            and isinstance(res[k], list)
+                            and isinstance(v, list)
+                        ):
+                            res[k] = res[k] + [x for x in v if x not in res[k]]
+                        else:
+                            res[k] = v
+                    return res
+                return resolved_node
+
+        return {k: inline_local_refs(v, root_catalog, visited) for k, v in node.items()}
+
+    elif isinstance(node, list):
+        return [inline_local_refs(item, root_catalog, visited) for item in node]
+
+    return node
+
+
+def _is_ref(item: Any, target_ref: str) -> bool:
+    return isinstance(item, dict) and item.get("$ref") == target_ref
+
+
+def _is_type(item: Any, target_type: str) -> bool:
+    return isinstance(item, dict) and item.get("type") == target_type
+
+
+def _clean_schema_node(
+    node: Any,
+    referenced_dynamics: Optional[Set[str]] = None,
+    is_properties_dict: bool = False,
+    is_union_container: bool = False,
+) -> Any:
+    """Recursively cleans auto-generated Pydantic schema attributes (titles, null types, redundant anyOf wrappers, dynamic value expansions)."""
+    if referenced_dynamics is None:
+        referenced_dynamics = set()
+
+    if isinstance(node, dict):
+        cleaned = {}
+        for k, v in node.items():
+            if k == "title" and not is_properties_dict:
+                continue
+            cleaned[k] = _clean_schema_node(
+                v,
+                referenced_dynamics=referenced_dynamics,
+                is_properties_dict=(k == "properties"),
+                is_union_container=(k in ("anyComponent", "anyFunction")),
+            )
+
+        if (
+            "$ref" in cleaned
+            and isinstance(cleaned["$ref"], str)
+            and cleaned["$ref"].startswith("#/$defs/")
+        ):
+            ref_target = cleaned["$ref"].split("/")[-1]
+            referenced_dynamics.add(ref_target)
+
+        if "default" in cleaned and cleaned["default"] is None:
+            del cleaned["default"]
+
+        union_key = (
+            "anyOf" if "anyOf" in cleaned else ("oneOf" if "oneOf" in cleaned else None)
+        )
+        if union_key and isinstance(cleaned[union_key], list):
+            items = [
+                item
+                for item in cleaned[union_key]
+                if not (isinstance(item, dict) and item.get("type") == "null")
+            ]
+            if len(items) == 1 and not is_union_container:
+                single_item = items[0]
+                parent_attrs = {k: v for k, v in cleaned.items() if k != union_key}
+                if isinstance(single_item, dict):
+                    merged = dict(single_item)
+                    for k, v in parent_attrs.items():
+                        if k not in merged:
+                            merged[k] = v
+                    return _clean_schema_node(
+                        merged,
+                        referenced_dynamics=referenced_dynamics,
+                        is_properties_dict=False,
+                    )
+                else:
+                    return single_item
+            else:
+                has_databinding = any(
+                    _is_ref(it, "#/$defs/DataBinding") for it in items
+                )
+                has_func_call = any(_is_ref(it, "#/$defs/FunctionCall") for it in items)
+                if has_databinding and has_func_call:
+                    str_type = any(_is_type(it, "string") for it in items)
+                    num_type = any(
+                        _is_type(it, "number") or _is_type(it, "integer")
+                        for it in items
+                    )
+                    bool_type = any(_is_type(it, "boolean") for it in items)
+                    array_or_obj = any(
+                        isinstance(it, dict)
+                        and (
+                            it.get("type") in ("array", "object")
+                            or "additionalProperties" in it
+                        )
+                        for it in items
+                    )
+
+                    types_count = sum([str_type, num_type, bool_type, array_or_obj])
+
+                    target_def = None
+                    if types_count > 1:
+                        target_def = "DynamicValue"
+                    elif str_type:
+                        target_def = "DynamicString"
+                    elif num_type:
+                        target_def = "DynamicNumber"
+                    elif bool_type:
+                        target_def = "DynamicBoolean"
+                    else:
+                        target_def = "DynamicValue"
+
+                    if target_def:
+                        referenced_dynamics.add(target_def)
+                        parent_attrs = {
+                            k: v for k, v in cleaned.items() if k != union_key
+                        }
+                        res = {"$ref": f"#/$defs/{target_def}"}
+                        res.update(parent_attrs)
+                        return res
+
+                if union_key == "anyOf":
+                    del cleaned["anyOf"]
+                    cleaned["oneOf"] = items
+                else:
+                    cleaned["oneOf"] = items
+
+        return cleaned
+    elif isinstance(node, list):
+        return [
+            _clean_schema_node(
+                item,
+                referenced_dynamics=referenced_dynamics,
+                is_properties_dict=False,
+            )
+            for item in node
+        ]
+    return node
+
+
 TComponent = TypeVar("TComponent", bound=ComponentApi, default=Any)
 TFunction = TypeVar("TFunction", bound=FunctionApi, default=Any)
 
 
 class Catalog(Generic[TComponent, TFunction]):
-    """A unified collection of available components and functions."""
+    """A versioned set of component and function API definitions."""
 
     def __init__(
         self,
@@ -65,14 +379,12 @@ class Catalog(Generic[TComponent, TFunction]):
         protocol_version: Optional[str] = None,
         components: Optional[List[TComponent]] = None,
         functions: Optional[List[TFunction]] = None,
-        theme_schema: Dict[str, Any] = {},
+        theme_schema: Optional[Dict[str, Any]] = None,
         instructions: Optional[str] = None,
     ):
-        if not catalog_id:
-            raise ValueError("catalog_id must be provided.")
-        self.catalog_id = catalog_id
         if not protocol_version:
             raise ValueError("protocol_version must be provided.")
+        self.catalog_id = catalog_id
         self.protocol_version = protocol_version
         self.instructions = instructions
 
@@ -94,8 +406,7 @@ class Catalog(Generic[TComponent, TFunction]):
                 )
             self.functions[fn.name] = fn
 
-        self.theme_schema = theme_schema
-        self._catalog_schema: Optional[Dict[str, Any]] = None
+        self.theme_schema = theme_schema or {}
         self._component_ref_map: Optional[Dict[str, ComponentRefSpec]] = None
 
     @property
@@ -104,9 +415,139 @@ class Catalog(Generic[TComponent, TFunction]):
         return self.catalog_id
 
     @property
-    def catalog_schema(self) -> Optional[Dict[str, Any]]:
-        """Returns the raw JSON Schema if loaded via from_json(), else None."""
-        return self._catalog_schema
+    def catalog_schema(self) -> Dict[str, Any]:
+        """Dynamically reconstructs the unified catalog JSON Schema on the fly."""
+        schema: Dict[str, Any] = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "catalogId": self.catalog_id,
+        }
+
+        if self.instructions:
+            schema["instructions"] = self.instructions
+
+        defs: Dict[str, Any] = {}
+        if self.theme_schema:
+            defs["theme"] = self.theme_schema
+
+        if self.components:
+            for comp in self.components.values():
+                s = comp.schema
+                if (
+                    isinstance(s, dict)
+                    and "$defs" in s
+                    and isinstance(s["$defs"], dict)
+                ):
+                    for def_name, def_schema in s["$defs"].items():
+                        if def_name not in defs:
+                            defs[def_name] = def_schema
+
+        if self.functions:
+            for fn in self.functions.values():
+                s = fn.schema
+                if isinstance(s, type) and hasattr(s, "model_json_schema"):
+                    s = s.model_json_schema()
+                if (
+                    isinstance(s, dict)
+                    and "$defs" in s
+                    and isinstance(s["$defs"], dict)
+                ):
+                    for def_name, def_schema in s["$defs"].items():
+                        if def_name not in defs:
+                            defs[def_name] = def_schema
+
+        if self.components:
+            comp_schemas: Dict[str, Any] = {}
+            for name, comp in self.components.items():
+                s = comp.schema
+                if isinstance(s, dict):
+                    s = copy.deepcopy(s)
+                    if "$defs" in s:
+                        del s["$defs"]
+                    if "properties" in s and "component" in s["properties"]:
+                        comp_const = name
+                        if (
+                            isinstance(s["properties"]["component"], dict)
+                            and "const" in s["properties"]["component"]
+                        ):
+                            comp_const = s["properties"]["component"]["const"]
+                        s["properties"]["component"] = {"const": comp_const}
+                        if "required" not in s or not isinstance(s["required"], list):
+                            s["required"] = []
+                        if "component" not in s["required"]:
+                            s["required"].append("component")
+                    if "unevaluatedProperties" not in s:
+                        if "additionalProperties" in s:
+                            s["unevaluatedProperties"] = s.pop("additionalProperties")
+                comp_schemas[name] = s
+            schema["components"] = comp_schemas
+
+        if self.functions:
+            fn_schemas: Dict[str, Any] = {}
+            for name, fn in self.functions.items():
+                s = fn.schema
+                if isinstance(s, type) and hasattr(s, "model_json_schema"):
+                    s = s.model_json_schema()
+                if isinstance(s, dict):
+                    s = copy.deepcopy(s)
+                    if "$defs" in s:
+                        del s["$defs"]
+                fn_schemas[name] = s
+            schema["functions"] = fn_schemas
+
+        if self.components:
+            any_comp_refs = [
+                {"$ref": f"#/components/{name}"} for name in self.components.keys()
+            ]
+            defs["anyComponent"] = {
+                "oneOf": any_comp_refs,
+                "discriminator": {"propertyName": "component"},
+            }
+
+        if self.functions:
+            any_fn_refs = [
+                {"$ref": f"#/functions/{name}"} for name in self.functions.keys()
+            ]
+            defs["anyFunction"] = {
+                "oneOf": any_fn_refs,
+            }
+
+        if defs:
+            schema["$defs"] = defs
+
+        referenced_dynamics: Set[str] = set()
+        cleaned_schema = cast(
+            Dict[str, Any],
+            _clean_schema_node(schema, referenced_dynamics=referenced_dynamics),
+        )
+
+        if referenced_dynamics:
+            if "$defs" not in cleaned_schema:
+                cleaned_schema["$defs"] = {}
+            if any(
+                d in referenced_dynamics
+                for d in (
+                    "DynamicString",
+                    "DynamicNumber",
+                    "DynamicBoolean",
+                    "DynamicValue",
+                )
+            ):
+                referenced_dynamics.add("DataBinding")
+                referenced_dynamics.add("FunctionCall")
+            dynamic_defs = _get_dynamic_types_defs()
+            for dyn in sorted(referenced_dynamics):
+                if dyn in dynamic_defs:
+                    if dyn not in cleaned_schema["$defs"]:
+                        cleaned_schema["$defs"][dyn] = dynamic_defs[dyn]
+                    elif isinstance(cleaned_schema["$defs"][dyn], dict) and isinstance(
+                        dynamic_defs[dyn], dict
+                    ):
+                        cleaned_schema["$defs"][dyn] = {
+                            **dynamic_defs[dyn],
+                            **cleaned_schema["$defs"][dyn],
+                        }
+
+        return cleaned_schema
 
     def get_component(self, name: str) -> Optional[TComponent]:
         """Directly retrieves a component by name."""
@@ -154,9 +595,13 @@ class Catalog(Generic[TComponent, TFunction]):
         if not p_ver:
             raise ValueError("protocol_version must be provided.")
 
-        components_map = catalog_schema.get("components", {})
+        inlined_catalog_schema = inline_local_refs(catalog_schema, catalog_schema)
+
+        components_map = inlined_catalog_schema.get("components", {})
         any_comp_refs = (
-            catalog_schema.get("$defs", {}).get("anyComponent", {}).get("oneOf", [])
+            inlined_catalog_schema.get("$defs", {})
+            .get("anyComponent", {})
+            .get("oneOf", [])
         )
         permitted_names = set()
         for item in any_comp_refs:
@@ -184,15 +629,18 @@ class Catalog(Generic[TComponent, TFunction]):
                 )
 
         functions = []
-        raw_functions = catalog_schema.get("functions", {})
+        raw_functions = inlined_catalog_schema.get("functions", {})
         any_func_refs = (
-            catalog_schema.get("$defs", {}).get("anyFunction", {}).get("oneOf", [])
+            inlined_catalog_schema.get("$defs", {})
+            .get("anyFunction", {})
+            .get("oneOf", [])
         )
         permitted_func_names = set()
         for item in any_func_refs:
-            ref = item.get("$ref", "")
-            if ref.startswith("#/functions/"):
-                permitted_func_names.add(ref.split("/")[-1])
+            if isinstance(item, dict):
+                ref = item.get("$ref", "")
+                if isinstance(ref, str) and ref.startswith("#/functions/"):
+                    permitted_func_names.add(ref.split("/")[-1])
 
         if isinstance(raw_functions, dict):
             for name, spec in raw_functions.items():
@@ -215,8 +663,9 @@ class Catalog(Generic[TComponent, TFunction]):
             protocol_version=p_ver,
             components=components,
             functions=functions,
-            theme_schema=catalog_schema.get("theme") or {},
-            instructions=catalog_schema.get("instructions"),
+            theme_schema=inlined_catalog_schema.get("theme")
+            or inlined_catalog_schema.get("$defs", {}).get("theme")
+            or {},
+            instructions=inlined_catalog_schema.get("instructions"),
         )
-        cat._catalog_schema = catalog_schema
         return cat

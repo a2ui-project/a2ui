@@ -495,6 +495,7 @@
   action: catalog_schema
   protocolVersion: "v0.8"
   catalog:
+    catalogId: "https://a2ui.org/catalogs/v08/basic"
     components:
       Text:
         type: object
@@ -505,20 +506,32 @@
         properties:
           label: {type: string}
     theme:
-      primaryColor: {type: string}
+      type: object
+      properties:
+        primaryColor: {type: string}
   expect:
-    protocolVersion: "v0.8"
+    $schema: "https://json-schema.org/draft/2020-12/schema"
+    catalogId: "https://a2ui.org/catalogs/v08/basic"
     components:
-      Button:
-        type: object
-        properties:
-          label: {type: string}
       Text:
         type: object
         properties:
           text: {type: string}
-    styles:
-      primaryColor: {type: string}
+      Button:
+        type: object
+        properties:
+          label: {type: string}
+    $defs:
+      theme:
+        type: object
+        properties:
+          primaryColor: {type: string}
+      anyComponent:
+        oneOf:
+          - $ref: "#/components/Text"
+          - $ref: "#/components/Button"
+        discriminator:
+          propertyName: "component"
 
 - name: test_v09_catalog_schema_with_defs
   description: Tests serializing a v0.9 Catalog into JSON schema with generated $defs.anyComponent and $defs.theme.
@@ -554,8 +567,8 @@
       properties:
         primaryColor: {type: string}
   expect:
+    $schema: "https://json-schema.org/draft/2020-12/schema"
     catalogId: "https://a2ui.org/catalogs/v09/basic"
-    protocolVersion: "v0.9"
     components:
       Button:
         type: object
@@ -580,19 +593,20 @@
               amount: {type: number}
             required: [amount]
         required: [call, args]
-    theme:
-      type: object
-      properties:
-        primaryColor: {type: string}
     $defs:
-      anyComponent:
-        oneOf:
-          - $ref: "#/components/Button"
-          - $ref: "#/components/Card"
       theme:
         type: object
         properties:
           primaryColor: {type: string}
+      anyComponent:
+        oneOf:
+          - $ref: "#/components/Button"
+          - $ref: "#/components/Card"
+        discriminator:
+          propertyName: "component"
+      anyFunction:
+        oneOf:
+          - $ref: "#/functions/formatCurrency"
 
 - name: test_v09_catalog_schema_no_theme
   description: Tests serializing a v0.9 Catalog without theme (omits $defs.theme).
@@ -607,6 +621,7 @@
           text: {type: string}
         required: [component, text]
   expect:
+    $schema: "https://json-schema.org/draft/2020-12/schema"
     catalogId: "https://a2ui.org/catalogs/v09/simple"
     components:
       Text:
@@ -619,6 +634,8 @@
       anyComponent:
         oneOf:
           - $ref: "#/components/Text"
+        discriminator:
+          propertyName: "component"
 
 - name: test_v10_catalog_schema_basic
   description: Tests serializing a v1.0 Catalog into JSON schema with protocolVersion and $defs.anyComponent.
@@ -635,7 +652,7 @@
           text: {type: string}
         required: [id, component, text]
   expect:
-    protocolVersion: "v1.0"
+    $schema: "https://json-schema.org/draft/2020-12/schema"
     catalogId: "https://a2ui.org/catalogs/v10/basic"
     components:
       Text:
@@ -649,3 +666,26 @@
       anyComponent:
         oneOf:
           - $ref: "#/components/Text"
+        discriminator:
+          propertyName: "component"
+
+- name: test_v08_basic_catalog_schema
+  description: Tests serializing the v0.8 Python BasicCatalog class into JSON schema and verifying cat.catalog_schema matches converted_basic_catalog_v08.json.
+  action: catalog_schema
+  protocolVersion: "v0.8"
+  useBasicCatalog: true
+  expectFile: "conformance/test_data/converted_basic_catalog_v08.json"
+
+- name: test_v09_basic_catalog_schema
+  description: Tests serializing the v0.9 Python BasicCatalog class into JSON schema and verifying cat.catalog_schema matches converted_basic_catalog_v09.json.
+  action: catalog_schema
+  protocolVersion: "v0.9"
+  useBasicCatalog: true
+  expectFile: "conformance/test_data/converted_basic_catalog_v09.json"
+
+- name: test_v10_basic_catalog_schema
+  description: Tests serializing the v1.0 Python BasicCatalog class into JSON schema and verifying cat.catalog_schema matches converted_basic_catalog_v10.json.
+  action: catalog_schema
+  protocolVersion: "v1.0"
+  useBasicCatalog: true
+  expectFile: "conformance/test_data/converted_basic_catalog_v10.json"

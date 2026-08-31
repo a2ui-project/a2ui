@@ -597,3 +597,98 @@ def test_mixed_catalog_validation():
         root_id="c1",
         config=ValidationConfig(allow_orphan_components=True),
     )
+
+
+# ==============================================================================
+# 9. Dynamic Schema & Reference Inlining Tests
+# ==============================================================================
+
+
+def test_query_json_pointer():
+    from a2ui.core.catalog.catalog import _query_json_pointer
+
+    doc = {
+        "$defs": {
+            "Item": {"type": "string"},
+            "escaped/name~prop": "value",
+        }
+    }
+    assert _query_json_pointer(doc, "#/$defs/Item") == {"type": "string"}
+    assert _query_json_pointer(doc, "#/$defs/escaped~1name~0prop") == "value"
+    assert _query_json_pointer(doc, "#/$defs/NonExistent") is None
+    assert _query_json_pointer(doc, "invalid_pointer") is None
+
+
+def test_inline_local_refs():
+    from a2ui.core.catalog.catalog import inline_local_refs
+
+    root_catalog = {
+        "$defs": {
+            "CatalogComponentCommon": {"properties": {"weight": {"type": "number"}}},
+            "CircularRef": {"$ref": "#/$defs/CircularRef"},
+        }
+    }
+
+    schema = {
+        "$ref": "#/$defs/CatalogComponentCommon",
+        "properties": {"text": {"type": "string"}},
+        "preserved": {"$ref": "#/$defs/ComponentId"},
+    }
+
+    inlined = inline_local_refs(schema, root_catalog)
+
+    # CatalogComponentCommon properties should be merged into inlined schema
+    assert inlined["properties"]["weight"] == {"type": "number"}
+    assert inlined["properties"]["text"] == {"type": "string"}
+    # Preserved type refs should not be resolved
+    assert inlined["preserved"] == {"$ref": "#/$defs/ComponentId"}
+
+    # Circular ref should not stack overflow
+    circular_inlined = inline_local_refs({"$ref": "#/$defs/CircularRef"}, root_catalog)
+    assert circular_inlined == {"$ref": "#/$defs/CircularRef"}
+
+
+def test_load_preserved_type_refs():
+    from a2ui.core.catalog.catalog import load_preserved_type_refs, PRESERVED_TYPE_REFS
+
+    type_refs = load_preserved_type_refs()
+    assert isinstance(type_refs, set)
+    assert "ComponentId" in type_refs
+    assert "ChildList" in type_refs
+    assert "Action" in type_refs
+    assert "DataBinding" in type_refs
+    assert PRESERVED_TYPE_REFS == type_refs
+
+
+def test_computed_catalog_schema():
+    from a2ui.core.catalog import Catalog, ComponentApi, FunctionApi
+
+    comp = ComponentApi(
+        "Text", {"type": "object", "properties": {"text": {"type": "string"}}}
+    )
+    fn = FunctionApi("openUrl", return_type="any", schema={"type": "object"})
+
+    cat = Catalog(
+        catalog_id="https://a2ui.org/computed-catalog",
+        protocol_version="v1.0",
+        components=[comp],
+        functions=[fn],
+        theme_schema={"primaryColor": "#000"},
+        instructions="Sample instructions",
+    )
+
+    schema = cat.catalog_schema
+
+    assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+    assert schema["catalogId"] == "https://a2ui.org/computed-catalog"
+    assert schema["instructions"] == "Sample instructions"
+    assert "Text" in schema["components"]
+    assert "openUrl" in schema["functions"]
+    assert schema["$defs"]["theme"] == {"primaryColor": "#000"}
+    assert schema["$defs"]["anyComponent"] == {
+        "oneOf": [{"$ref": "#/components/Text"}],
+        "discriminator": {"propertyName": "component"},
+    }
+    assert schema["$defs"]["anyFunction"] == {
+        "oneOf": [{"$ref": "#/functions/openUrl"}],
+    }
