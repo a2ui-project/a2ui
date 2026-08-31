@@ -21,24 +21,8 @@ from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
 
 class V10AgentCapabilities(StrictBaseModel):
-    supported_catalog_ids: list[str] | None = Field(
-        None,
-        alias="supportedCatalogIds",
-        description=(
-            "An array of strings, where each is an ID identifying a Catalog for which"
-            " the agent can generate content. This is not a resolvable URI. Multiple"
-            " catalogs can be mixed in a single surface."
-        ),
-    )
-    accepts_inline_catalogs: bool | None = Field(
-        alias="acceptsInlineCatalogs",
-        description=(
-            "A boolean indicating if the agent can accept an 'inlineCatalogs' array in"
-            " the renderer's a2uiRendererCapabilities. If omitted, this defaults to"
-            " false."
-        ),
-        default=False,
-    )
+    supported_catalog_ids: list[str] | None = Field(None, alias="supportedCatalogIds", description="An array of strings, where each is an ID identifying a Catalog for which the agent can generate content. This is not a resolvable URI. Multiple catalogs can be mixed in a single surface.")
+    accepts_inline_catalogs: bool | None = Field(alias="acceptsInlineCatalogs", description="A boolean indicating if the agent can accept an 'inlineCatalogs' array in the renderer's a2uiRendererCapabilities. If omitted, this defaults to false.", default=False)
 
 
 V1_0AgentCapabilities = V10AgentCapabilities

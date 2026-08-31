@@ -41,16 +41,16 @@ class InlineCatalog(BaseModel):
 Catalog = InlineCatalog
 
 
-class V09Capabilities(StrictBaseModel):
+class V091Capabilities(StrictBaseModel):
     supported_catalog_ids: list[str] = Field(..., alias="supportedCatalogIds", description="An array of string identifiers for each of the component and function catalogs supported by the client.")
     inline_catalogs: list[Catalog] | None = Field(None, alias="inlineCatalogs", description="An array of inline catalog definitions, which can contain both components and functions. This should only be provided if the agent declares 'acceptsInlineCatalogs: true' in its capabilities.")
 
 
-V0_9Capabilities = V09Capabilities
+V0_9_1Capabilities = V091Capabilities
 
 
 class A2uiClientCapabilities(StrictBaseModel):
-    v0_9: V09Capabilities | None = Field(None, alias=PROTOCOL_VERSION)
+    v0_9_1: V091Capabilities | None = Field(None, alias=PROTOCOL_VERSION)
 
 
 A2uiRendererCapabilities = A2uiClientCapabilities

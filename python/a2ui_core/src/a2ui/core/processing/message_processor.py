@@ -46,7 +46,7 @@ class MessageProcessor:
 
     def __init__(
         self,
-        catalogs: list[Catalog[TComponent, TFunction]] | None = None,
+        catalogs: Sequence[Catalog[TComponent, TFunction]] | None = None,
         validation_config: ValidationConfig | None = None,
         action_handler: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:

@@ -16,7 +16,7 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Literal, Optional, Union, Annotated
 from pydantic import BaseModel, Field, ConfigDict
-from ...schema.v0_9.common_types import (
+from ...schema.v0_9_1.common_types import (
     AccessibilityAttributes,
     Action,
     CheckRule,

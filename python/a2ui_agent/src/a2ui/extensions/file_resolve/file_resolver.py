@@ -28,6 +28,7 @@ GenAI Helpers:
 - Exports a powerful `as_tool_decorator` factory, enabling developers to seamlessly wrap agent tools so that incoming A2UI file pointer dictionaries are automatically downloaded, verified, and injected as GenAI parts, while gracefully handling UI error payloads.
 """
 
+from collections.abc import Mapping, Sequence
 import asyncio
 import base64
 import fnmatch
@@ -95,11 +96,11 @@ class FileResolver:
     def __init__(
         self,
         max_file_bytes: int = 25 * 1024 * 1024,  # 25 MB limit
-        allowed_mime_types: list[str] | None = None,
-        allowed_hosts: list[str] | None = None,
+        allowed_mime_types: Sequence[str] | None = None,
+        allowed_hosts: Sequence[str] | None = None,
         max_concurrent_downloads: int = 5,
         http_client: httpx.AsyncClient | None = None,
-        custom_schemes: dict[str, SchemeHandler] | None = None,
+        custom_schemes: Mapping[str, SchemeHandler] | None = None,
     ):
         self.max_file_bytes = max_file_bytes
         self.allowed_mime_types = allowed_mime_types

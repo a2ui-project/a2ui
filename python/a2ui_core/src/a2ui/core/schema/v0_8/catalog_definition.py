@@ -22,29 +22,7 @@ from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
 class CatalogDefinition(StrictBaseModel):
     """A schema for a custom Catalog Description including A2UI components and styles."""
-
     model_config = ConfigDict(populate_by_name=True)
-    catalog_id: str = Field(
-        ...,
-        alias="catalogId",
-        description=(
-            "A string that uniquely identifies this catalog. It is recommended to"
-            " prefix this with an internet domain that you own, to avoid conflicts e.g."
-            " mycompany.com:somecatalog'."
-        ),
-    )
-    components: dict[str, Any] = Field(
-        ...,
-        description=(
-            "A schema that defines a catalog of A2UI components. Each key is a"
-            " component name, and each value is the JSON schema for that component's"
-            " properties."
-        ),
-    )
-    styles: dict[str, Any] = Field(
-        ...,
-        description=(
-            "A schema that defines a catalog of A2UI styles. Each key is a style name,"
-            " and each value is the JSON schema for that style's properties."
-        ),
-    )
+    catalog_id: str = Field(..., alias="catalogId", description="A string that uniquely identifies this catalog. It is recommended to prefix this with an internet domain that you own, to avoid conflicts e.g. mycompany.com:somecatalog'.")
+    components: dict[str, Any] = Field(..., description="A schema that defines a catalog of A2UI components. Each key is a component name, and each value is the JSON schema for that component's properties.")
+    styles: dict[str, Any] = Field(..., description="A schema that defines a catalog of A2UI styles. Each key is a style name, and each value is the JSON schema for that style's properties.")

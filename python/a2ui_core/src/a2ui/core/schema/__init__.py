@@ -14,15 +14,14 @@
 
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
-from __future__ import annotations
 from enum import Enum
 from typing import Any
 
 # Versioned schema namespaces
 from . import v0_8
 from . import v0_9
+from . import v0_9_1
 from . import v1_0
-
 
 # Multi-version Protocol Version Enum
 class A2uiProtocolVersion(str, Enum):
@@ -31,22 +30,13 @@ class A2uiProtocolVersion(str, Enum):
     V0_9_1 = "v0.9.1"
     V1_0 = "v1.0"
 
-
 ProtocolVersion = A2uiProtocolVersion
 
 
 # Multi-version envelope unions (v1.0+ primary terminology)
-AgentToRendererMessage = (
-    v0_8.ServerToClientMessage
-    | v0_9.ServerToClientMessage
-    | v1_0.AgentToRendererMessage
-)
+AgentToRendererMessage = v0_8.ServerToClientMessage | v0_9.ServerToClientMessage | v0_9_1.ServerToClientMessage | v1_0.AgentToRendererMessage
 
-RendererToAgentMessage = (
-    v0_8.ClientToServerMessage
-    | v0_9.ClientToServerMessage
-    | v1_0.RendererToAgentMessage
-)
+RendererToAgentMessage = v0_8.ClientToServerMessage | v0_9.ClientToServerMessage | v0_9_1.ClientToServerMessage | v1_0.RendererToAgentMessage
 
 # Aliases for cross-version consistency
 ServerToClientMessage = AgentToRendererMessage
@@ -57,13 +47,9 @@ A2uiRendererAction = v0_9.A2uiRendererAction
 A2uiClientAction = A2uiRendererAction
 A2uiClientUserAction = A2uiRendererAction
 
-AgentToRendererMessagePayload = (
-    AgentToRendererMessage | list[AgentToRendererMessage] | dict[str, Any]
-)
+AgentToRendererMessagePayload = AgentToRendererMessage | list[AgentToRendererMessage] | dict[str, Any]
 ServerToClientMessagePayload = AgentToRendererMessagePayload
-RendererToAgentMessagePayload = (
-    RendererToAgentMessage | list[RendererToAgentMessage] | dict[str, Any]
-)
+RendererToAgentMessagePayload = RendererToAgentMessage | list[RendererToAgentMessage] | dict[str, Any]
 ClientToServerMessagePayload = RendererToAgentMessagePayload
 
 # Re-exports from primary schema namespace for backwards compatibility
@@ -72,3 +58,4 @@ from .v0_9.constants import *
 from .v0_9.server_to_client import *
 from .v0_9.client_to_server import *
 from .v0_9.client_capabilities import *
+

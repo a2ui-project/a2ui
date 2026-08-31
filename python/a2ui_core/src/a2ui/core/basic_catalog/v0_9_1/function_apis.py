@@ -16,7 +16,7 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field, ConfigDict
-from ...schema.v0_9.common_types import StrictBaseModel, DataBinding, DynamicBoolean, DynamicNumber, DynamicString, DynamicValue, FunctionCall
+from ...schema.v0_9_1.common_types import StrictBaseModel, DataBinding, DynamicBoolean, DynamicNumber, DynamicString, DynamicValue, FunctionCall
 from ...catalog.functions import FunctionApi
 
 

@@ -416,7 +416,7 @@ def update_root_schema_init(
     enum_members = []
     for _, s_dot, e_name in version_triples:
         enum_members.append(f'    {e_name} = "{s_dot}"')
-        if e_name == "V0_9":
+        if e_name == "V0_9" and not any(e == "V0_9_1" for _, _, e in version_triples):
             enum_members.append('    V0_9_1 = "v0.9.1"')
 
     agent_union_items = []
@@ -439,7 +439,11 @@ def update_root_schema_init(
         if os.path.exists(os.path.join(o_root, "schema", d, "server_to_client.py"))
         and os.path.exists(os.path.join(o_root, "schema", d, "common_types.py"))
     ]
-    preferred_reexport = s2c_compat_dirs[-1] if s2c_compat_dirs else latest_dir
+    preferred_reexport = (
+        "v0_9"
+        if "v0_9" in s2c_compat_dirs
+        else (s2c_compat_dirs[-1] if s2c_compat_dirs else latest_dir)
+    )
     legacy_reexports = f"""# Re-exports from primary schema namespace for backwards compatibility
 from .{preferred_reexport}.common_types import *
 from .{preferred_reexport}.constants import *
@@ -490,7 +494,6 @@ from .common_types import (
     )
 
     content = f"""{FILE_HEADER}
-from __future__ import annotations
 from enum import Enum
 from typing import Any
 
