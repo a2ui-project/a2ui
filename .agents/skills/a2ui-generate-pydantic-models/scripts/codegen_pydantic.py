@@ -164,7 +164,9 @@ def generate_version_schemas(
     spec_root: str | None = None,
     out_root: str | None = None,
 ) -> None:
-    """Generates all Pydantic schema files for a given protocol version."""
+    dir_name = version_to_underscore(version)
+    if dir_name == "v0_9_1":
+        return
     codegen = PydanticCodegen(version)
     codegen.allow_inline = False
     dir_name = version_to_underscore(version)
@@ -332,6 +334,8 @@ def generate_basic_catalog(
 ) -> None:
     """Generates basic catalog components, functions, styles, and catalog classes for a given version."""
     dir_name = version_to_underscore(version)
+    if dir_name == "v0_9_1":
+        return
     s_root = spec_root or SPEC_ROOT
     o_root = out_root or CORE_SRC_ROOT
 

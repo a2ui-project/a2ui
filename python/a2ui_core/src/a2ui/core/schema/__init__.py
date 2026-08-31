@@ -20,7 +20,6 @@ from typing import Any
 # Versioned schema namespaces
 from . import v0_8
 from . import v0_9
-from . import v0_9_1
 from . import v1_0
 
 
@@ -39,14 +38,12 @@ ProtocolVersion = A2uiProtocolVersion
 AgentToRendererMessage = (
     v0_8.ServerToClientMessage
     | v0_9.ServerToClientMessage
-    | v0_9_1.ServerToClientMessage
     | v1_0.AgentToRendererMessage
 )
 
 RendererToAgentMessage = (
     v0_8.ClientToServerMessage
     | v0_9.ClientToServerMessage
-    | v0_9_1.ClientToServerMessage
     | v1_0.RendererToAgentMessage
 )
 
