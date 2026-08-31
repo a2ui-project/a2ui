@@ -48,6 +48,7 @@ The release workflow operates across three distinct phases. An agent must first 
 Execute the following steps to determine target release packages:
 
 #### 1. Inspect `CHANGELOG.md` Files & Version Identifiers
+
 Check the top `## Unreleased` section of each package's `CHANGELOG.md`:
 
 - **Python Packages**:
@@ -61,6 +62,7 @@ Check the top `## Unreleased` section of each package's `CHANGELOG.md`:
   - `renderers/react/CHANGELOG.md`
 
 #### 2. Apply Release Qualification Rules:
+
 - **Rule A (Package Qualification)**: If `## Unreleased` has entries, the package qualifies for a version bump and release.
 - **Rule B (Empty Unreleased Policy)**: If `## Unreleased` is empty, check git history (`git log -n 20 <pkg_dir>`) to see if unreleased commits exist. If unreleased commits exist, ask the maintainer or document them under `## Unreleased`. If no unreleased commits exist, **skip releasing that package**.
 - **Rule C (Open PR Check)**: Run `gh pr list --search "release"` to see if a version bump PR is currently open. If open, report the PR link to the user.
@@ -82,6 +84,7 @@ Check the top `## Unreleased` section of each package's `CHANGELOG.md`:
    - For each qualified package, rename `## Unreleased` to `## <new_version>` and insert a fresh `## Unreleased` header above it.
 4. **Bump Version Strings**:
    - **TypeScript**: Use `--skip-sync` when bumping multiple packages to avoid monorepo lock collisions:
+
      ```bash
      ./renderers/scripts/increment_version.mjs web_core <new_version> --skip-sync
      ./renderers/scripts/increment_version.mjs lit <new_version> --skip-sync
@@ -91,7 +94,9 @@ Check the top `## Unreleased` section of each package's `CHANGELOG.md`:
      # Run root yarn install once at the end to update lockfiles cleanly
      yarn install
      ```
+
    - **Python**: Edit `src/a2ui/version.py` or `src/a2ui/core/version.py`.
+
 5. **Run Pre-flight Tests**:
    - Python: `cd agent_sdks/python && uv run pytest`
    - TypeScript: `yarn build:all && yarn test:all`
@@ -116,6 +121,7 @@ Run this phase once the Version Bump PR has landed in `main`:
    ```
 2. **Execute Staging & Manifest Upload Scripts**:
    - **TypeScript (NPM)**:
+
      ```bash
      # 1. Publish to internal Artifact Registry staging repository
      ./renderers/scripts/publish_npm.mjs -p web_core -p lit -p angular -p react --no-dry-run
@@ -123,12 +129,14 @@ Run this phase once the Version Bump PR has landed in `main`:
      # 2. Upload release manifest to trigger public NPM release via Exit Gate
      ./renderers/scripts/upload_manifest.mjs -p web_core -p lit -p angular -p react --no-dry-run
      ```
+
    - **Python (PyPI)**:
      ```bash
      cd agent_sdks/python
      ./release.sh a2ui_core
      ./release.sh a2ui_agent
      ```
+
 3. **Post-Release Verification**:
    - Verify artifacts in Google Artifact Registry staging repository.
    - Confirm publication on public registries (`npmjs.com` / `pypi.org`).

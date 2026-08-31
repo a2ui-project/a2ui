@@ -8,10 +8,10 @@ For generic release principles, authentication prerequisites, and changelog rule
 
 ## 1. Package Structure & Version Files
 
-| Package | Directory | Version Source File | PyPI Package Name |
-| :--- | :--- | :--- | :--- |
-| **`a2ui_agent`** | `agent_sdks/python/a2ui_agent` | `src/a2ui/version.py` | `a2ui-agent-sdk` |
-| **`a2ui_core`** | `agent_sdks/python/a2ui_core` | `src/a2ui/core/version.py` | `a2ui-core` |
+| Package          | Directory                      | Version Source File        | PyPI Package Name |
+| :--------------- | :----------------------------- | :------------------------- | :---------------- |
+| **`a2ui_agent`** | `agent_sdks/python/a2ui_agent` | `src/a2ui/version.py`      | `a2ui-agent-sdk`  |
+| **`a2ui_core`**  | `agent_sdks/python/a2ui_core`  | `src/a2ui/core/version.py` | `a2ui-core`       |
 
 Version numbers follow Semantic Versioning (`MAJOR.MINOR.PATCH`).
 

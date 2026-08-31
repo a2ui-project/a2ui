@@ -15,13 +15,13 @@ For codebase-specific publishing instructions, consult:
 Releases in A2UI follow a **two-stage release pipeline**:
 
 1. **Stage 1: Version Bump & Release Notes (Pull Request)**:
-   - Increments the version string in the codebase (`package.json`, `version.py`, etc.).
-   - Transforms `CHANGELOG.md` entries under `## Unreleased` into `## <version>`.
-   - Runs pre-flight unit and integration test suites.
-   - Opens a GitHub Pull Request targeting upstream (`a2ui-project/a2ui`) for peer review and CI validation.
+    - Increments the version string in the codebase (`package.json`, `version.py`, etc.).
+    - Transforms `CHANGELOG.md` entries under `## Unreleased` into `## <version>`.
+    - Runs pre-flight unit and integration test suites.
+    - Opens a GitHub Pull Request targeting upstream (`a2ui-project/a2ui`) for peer review and CI validation.
 2. **Stage 2: Staging & Manifest Upload (Post-Merge)**:
-   - Once the Version Bump PR is merged into `main`, the release artifacts are built and published to staging/internal registries.
-   - A release manifest is uploaded to trigger public publishing (via the Exit Gate proxy pipeline to PyPI / NPM).
+    - Once the Version Bump PR is merged into `main`, the release artifacts are built and published to staging/internal registries.
+    - A release manifest is uploaded to trigger public publishing (via the Exit Gate proxy pipeline to PyPI / NPM).
 
 ---
 
@@ -30,6 +30,7 @@ Releases in A2UI follow a **two-stage release pipeline**:
 Before triggering a package release, ensure your local development environment has the necessary authentication:
 
 ### 1. Google Cloud Authentication
+
 Googlers publishing artifacts to the internal staging registry or Exit Gate buckets must authenticate via `gcloud`:
 
 ```bash
@@ -41,6 +42,7 @@ gcloud auth application-default login
 ```
 
 ### 2. GitHub Credentials
+
 Ensure the GitHub CLI (`gh`) is authenticated to interact with the repository:
 
 ```bash
@@ -67,15 +69,18 @@ Every publishable package maintains a `CHANGELOG.md` file in its package root di
 ```
 
 ### Protocol During Feature Development
+
 When adding features or fixing bugs in feature PRs, developers append bullet points directly under the top-level `## Unreleased` header.
 
 ### Protocol During Package Release
+
 When preparing a package version release:
 
 1. Rename `## Unreleased` to `## <new_version>` (e.g., `## 0.10.7`).
 2. Insert a fresh, empty `## Unreleased` section at the top of the file above `## <new_version>`.
 
 ### Handling Empty Unreleased Sections
+
 If a release is requested but a package's `CHANGELOG.md` has no entries under `## Unreleased`:
 
 - Check git history (`git log -n 20 <pkg_dir>`) to see if unreleased commits exist.
@@ -112,6 +117,7 @@ When releasing packages, maintainers and AI agents evaluate the repository state
 ## 5. Summary Checklist
 
 ### Phase 1: Version Bump PR (Local Branch)
+
 - [ ] Inspect qualified packages (`## Unreleased` entries in `CHANGELOG.md`).
 - [ ] Create branch `release/sdks-YYYY-MM-DD`.
 - [ ] Update `CHANGELOG.md` headings (`## <new_version>` + fresh `## Unreleased`).
@@ -121,6 +127,7 @@ When releasing packages, maintainers and AI agents evaluate the repository state
 - [ ] Open PR targeting upstream (`a2ui-project/a2ui`).
 
 ### Phase 2: Staging & Publishing (Post-Merge on `main`)
+
 - [ ] Switch to `main` (`git pull upstream main`).
 - [ ] Run `./renderers/scripts/publish_npm.mjs -p <pkgs> --no-dry-run`.
 - [ ] Run `./renderers/scripts/upload_manifest.mjs -p <pkgs> --no-dry-run`.
