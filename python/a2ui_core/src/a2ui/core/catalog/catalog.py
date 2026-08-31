@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Mapping, Sequence
 import copy
 import re
 import sys
@@ -166,23 +167,26 @@ def load_preserved_type_refs() -> set[str]:
 PRESERVED_TYPE_REFS: Final[set[str]] = load_preserved_type_refs()
 
 
-def _query_json_pointer(doc: dict[str, Any], pointer: str) -> Any:
+def _query_json_pointer(doc: Mapping[str, Any], pointer: str) -> Any:
     """Queries a JSON Pointer string starting with '#/' against a root dictionary."""
     if not pointer.startswith("#/"):
         return None
     parts = pointer[2:].split("/")
     curr: Any = doc
-    for part in parts:
-        part = re.sub(r"~([01])", lambda m: "/" if m.group(1) == "1" else "~", part)
-        if isinstance(curr, dict) and part in curr:
-            curr = curr[part]
+    for p in parts:
+        p = re.sub(r"~([01])", lambda m: "/" if m.group(1) == "1" else "~", p)
+        if isinstance(curr, (dict, Mapping)):
+            if p in curr:
+                curr = curr[p]
+            else:
+                return None
         else:
             return None
     return curr
 
 
 def inline_local_refs(
-    node: Any, root_catalog: dict[str, Any], visited: set[str] | None = None
+    node: Any, root_catalog: Mapping[str, Any], visited: set[str] | None = None
 ) -> Any:
     """Recursively inlines local JSON references (pointers starting with '#/') into schema objects."""
     if visited is None:
@@ -581,7 +585,7 @@ class Catalog(Generic[TComponent, TFunction]):
     @classmethod
     def from_json(
         cls,
-        catalog_schema: dict[str, Any],
+        catalog_schema: Mapping[str, Any],
         protocol_version: str | None = None,
         catalog_id: str | None = None,
     ) -> "Catalog[ComponentApi, FunctionApi]":

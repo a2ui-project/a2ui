@@ -332,7 +332,7 @@ class A2uiCatalog:
             if "common_types.json#/$defs/" in ref:
                 root_common_types.append(ref.split("#/$defs/")[-1])
 
-        new_common_types_schema = copy.deepcopy(self.common_types_schema)
+        new_common_types_schema = copy.deepcopy(dict(self.common_types_schema))
         new_common_types_schema["$defs"] = _prune_defs_by_reachability(
             defs=new_common_types_schema["$defs"],
             root_def_names=root_common_types,

@@ -111,7 +111,7 @@ class DirectJsonFormat(InferenceFormat):
     def _load_schemas(
         self,
         version: str,
-        catalogs: list[CatalogConfig] | None = None,
+        catalogs: Sequence[CatalogConfig] | None = None,
     ) -> None:
         """Loads separate schema components and processes catalogs."""
         catalogs = catalogs or []
@@ -152,7 +152,7 @@ class DirectJsonFormat(InferenceFormat):
 
     def _select_catalog(
         self,
-        client_ui_capabilities: dict[str, Any] | V09Capabilities | None = None,
+        client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
     ) -> A2uiCatalog:
         """Selects the component catalog for the prompt based on client capabilities.
 
@@ -182,7 +182,7 @@ class DirectJsonFormat(InferenceFormat):
         if not client_ui_capabilities:
             return self._supported_catalogs[0]
 
-        if isinstance(client_ui_capabilities, dict):
+        if isinstance(client_ui_capabilities, Mapping):
             # Inject default supportedCatalogIds if missing to pass validation
             data = dict(client_ui_capabilities)
             if (
