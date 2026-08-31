@@ -197,7 +197,6 @@ export enum A2uiProtocolVersion {
 
 export interface Catalog<TComponent extends ComponentApi, TFunction extends FunctionApi> {
   readonly id: string;
-  readonly protocolVersion: A2uiProtocolVersion;
   readonly components: ReadonlyMap<string, TComponent>;
   readonly functions?: ReadonlyMap<string, TFunction>;
   readonly themeSchema?: Record<string, any>;
@@ -205,6 +204,8 @@ export interface Catalog<TComponent extends ComponentApi, TFunction extends Func
 ```
 
 A `Catalog` is immutable once constructed.
+
+A catalog is **version-agnostic**: it declares no protocol version, and a [`protocolVersion` field](../../specification/v1_0/json/catalog_definition.json) in a catalog document is ignored rather than checked against the version the SDK implements. The version comes from the party using the catalog, never from the catalog itself — a validator is constructed for a version, and capabilities objects are keyed by version — so one catalog can serve several protocol versions.
 
 Parsing a catalog document is parsing untrusted input: raise `A2uiCatalogError` for a missing or non-object document or a `catalogId` conflict.
 
