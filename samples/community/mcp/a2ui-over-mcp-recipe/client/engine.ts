@@ -64,7 +64,7 @@ export class A2uiMcpEngine {
 
   constructor(catalogs: any[] = [basicCatalog], events: A2uiMcpEngineEvents = {}) {
     this.events = events;
-    this.processor = new MessageProcessor(catalogs, (action) => this.events.onAction?.(action));
+    this.processor = new MessageProcessor(catalogs, action => this.events.onAction?.(action));
   }
 
   /**
@@ -145,7 +145,6 @@ export class A2uiMcpEngine {
     }
   }
 
-
   /**
    * Handles MCP tool invocation from an A2UI action context.
    * Extracts server/tool routing metadata and dispatches execution.
@@ -185,11 +184,7 @@ export class A2uiMcpEngine {
    * Generic executor for any MCP tool returning A2UI presentation templates or data updates.
    * Routes strictly to the specified targetServer.
    */
-  async executeTool(
-    targetServer: string,
-    toolName: string,
-    args: Record<string, any> = {},
-  ) {
+  async executeTool(targetServer: string, toolName: string, args: Record<string, any> = {}) {
     const client = this.mcpClients.get(targetServer);
 
     if (!client) {
@@ -262,9 +257,7 @@ export class A2uiMcpEngine {
 
     this.events.onStatusChange?.(`Fetching UI template (${uri})...`);
     const resourceResult = await client.readResource({uri});
-    const a2uiContent = resourceResult.contents.find(
-      (c: any) => c.mimeType === A2UI_MIME_TYPE,
-    );
+    const a2uiContent = resourceResult.contents.find((c: any) => c.mimeType === A2UI_MIME_TYPE);
 
     if (!a2uiContent || !('text' in a2uiContent)) {
       throw new Error(`Resource ${uri} does not contain valid A2UI JSON template data.`);

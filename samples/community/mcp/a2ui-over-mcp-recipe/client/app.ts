@@ -38,11 +38,11 @@ export class A2uiRecipeApp extends LitElement {
 
   // Generic A2UI-over-MCP host runtime engine
   private mcpEngine = new A2uiMcpEngine([basicCatalog], {
-    onAction: (action) => this.handleAction(action),
-    onStatusChange: (msg) => {
+    onAction: action => this.handleAction(action),
+    onStatusChange: msg => {
       this.statusMessage = msg;
     },
-    onConnectionChange: (status) => {
+    onConnectionChange: status => {
       this.connectionStatus = status;
     },
     onSurfaceChange: () => {
