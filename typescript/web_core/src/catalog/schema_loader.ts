@@ -278,6 +278,7 @@ function collectComponentSubSchemas(
 function convertComponentJsonSchemaToZod(
   rawSchema: Record<string, any>,
   rootDoc: Record<string, any>,
+  omitEnvelopeFields = true,
 ): z.ZodObject<any> {
   const shape: Record<string, z.ZodTypeAny> = {};
   const schemasToMerge = collectComponentSubSchemas(rawSchema, rootDoc);
@@ -290,11 +291,20 @@ function convertComponentJsonSchemaToZod(
   }
 
   for (const s of schemasToMerge) {
-    const propShape = convertPropertiesToShape(s.properties || {}, requiredSet, true, rootDoc);
+    const propShape = convertPropertiesToShape(
+      s.properties || {},
+      requiredSet,
+      omitEnvelopeFields,
+      rootDoc,
+    );
     Object.assign(shape, propShape);
   }
 
-  return z.object(shape).strict();
+  const obj = z.object(shape);
+  return rawSchema.additionalProperties === true ||
+    (typeof rawSchema.additionalProperties === 'object' && rawSchema.additionalProperties !== null)
+    ? obj.passthrough()
+    : obj.strict();
 }
 
 function convertFunctionArgsJsonSchemaToZod(
@@ -306,13 +316,20 @@ function convertFunctionArgsJsonSchemaToZod(
   return z.object(shape).strict();
 }
 
-function parseFunctionDefinitions(rawFunctions: any, rootDoc?: Record<string, any>): FunctionApi[] {
+function parseFunctionDefinitions(
+  rawFunctions: any,
+  rootDoc?: Record<string, any>,
+  permittedNames?: Set<string>,
+): FunctionApi[] {
   const result: FunctionApi[] = [];
   if (!rawFunctions) return result;
 
   if (Array.isArray(rawFunctions)) {
     for (const fn of rawFunctions) {
       if (fn && typeof fn.name === 'string') {
+        if (permittedNames && !permittedNames.has(fn.name)) {
+          continue;
+        }
         const paramSchema =
           fn.parameters && typeof fn.parameters === 'object'
             ? convertFunctionArgsJsonSchemaToZod(fn.parameters, rootDoc)
@@ -321,6 +338,8 @@ function parseFunctionDefinitions(rawFunctions: any, rootDoc?: Record<string, an
           name: fn.name,
           description: fn.description,
           returnType: fn.returnType ?? 'any',
+          allowedCallers: fn.allowedCallers,
+          requiresUserActivation: fn.requiresUserActivation,
           schema: paramSchema,
         });
       }
@@ -330,6 +349,9 @@ function parseFunctionDefinitions(rawFunctions: any, rootDoc?: Record<string, an
 
   if (typeof rawFunctions === 'object') {
     for (const [name, defn] of Object.entries(rawFunctions)) {
+      if (permittedNames && !permittedNames.has(name)) {
+        continue;
+      }
       const d = defn as any;
       const argsSchema = d.properties?.args ?? d.args ?? d.parameters;
       const paramSchema =
@@ -340,6 +362,9 @@ function parseFunctionDefinitions(rawFunctions: any, rootDoc?: Record<string, an
         name,
         description: d.description,
         returnType: d.returnType ?? d.properties?.returnType?.const ?? 'any',
+        allowedCallers: d.allowedCallers ?? d.properties?.allowedCallers?.const,
+        requiresUserActivation:
+          d.requiresUserActivation ?? d.properties?.requiresUserActivation?.const,
         schema: paramSchema,
       });
     }
@@ -348,10 +373,29 @@ function parseFunctionDefinitions(rawFunctions: any, rootDoc?: Record<string, an
   return result;
 }
 
+function extractPermittedNames(oneOf: unknown, prefix: string): Set<string> | undefined {
+  if (!Array.isArray(oneOf)) return undefined;
+  const permitted = new Set<string>();
+  for (const item of oneOf) {
+    if (typeof item?.$ref === 'string' && item.$ref.startsWith(prefix)) {
+      const rawName = item.$ref.slice(prefix.length);
+      const unescapedName = rawName.replace(/~([01])/g, (_: string, p1: string) =>
+        p1 === '1' ? '/' : '~',
+      );
+      permitted.add(unescapedName);
+    }
+  }
+  return permitted;
+}
+
 /**
- * Loads raw A2UI catalog schema directly into a typed Catalog instance.
+ * Loads a raw A2UI catalog schema into a typed Catalog instance.
+ *
+ * Parses component and function definitions, extracts hierarchy constraints (`allowedParents`,
+ * `allowedChildren`), unescapes RFC 6901 JSON pointers, and builds runtime Zod validators.
  *
  * @param catalogSchema Raw catalog schema or capabilities definition object.
+ * @returns Fully-typed Catalog instance configured with components, functions, and metadata.
  */
 export function loadCatalogFromSchema(
   catalogSchema: Record<string, any>,
@@ -362,32 +406,49 @@ export function loadCatalogFromSchema(
   }
 
   // Filter permitted components via anyComponent.oneOf if declared
-  const permittedNames = new Set<string>();
-  const oneOf = catalogSchema.$defs?.anyComponent?.oneOf;
-  if (Array.isArray(oneOf)) {
-    for (const item of oneOf) {
-      if (typeof item?.$ref === 'string' && item.$ref.startsWith('#/components/')) {
-        permittedNames.add(item.$ref.split('/').pop()!);
-      }
-    }
-  }
+  const permittedNames = extractPermittedNames(
+    catalogSchema.$defs?.anyComponent?.oneOf,
+    '#/components/',
+  );
 
   const components: ComponentApi[] = [];
   const componentsMap = catalogSchema.components ?? {};
   for (const [name, rawCompSchema] of Object.entries(componentsMap)) {
-    if (permittedNames.size === 0 || permittedNames.has(name)) {
-      const zodSchema = convertComponentJsonSchemaToZod(
-        rawCompSchema as Record<string, any>,
-        catalogSchema,
-      );
+    if (!permittedNames || permittedNames.has(name)) {
+      const rawComp = rawCompSchema as Record<string, any>;
+      const zodSchema = convertComponentJsonSchemaToZod(rawComp, catalogSchema);
       components.push({
         name,
         schema: zodSchema,
+        allowedParents: Array.isArray(rawComp.allowedParents)
+          ? rawComp.allowedParents.filter((p: unknown): p is string => typeof p === 'string')
+          : undefined,
+        allowedChildren: Array.isArray(rawComp.allowedChildren)
+          ? rawComp.allowedChildren.filter((c: unknown): c is string => typeof c === 'string')
+          : undefined,
       });
     }
   }
 
-  const functions = parseFunctionDefinitions(catalogSchema.functions, catalogSchema);
+  // Filter permitted functions via anyFunction.oneOf if declared
+  const permittedFunctionNames = extractPermittedNames(
+    catalogSchema.$defs?.anyFunction?.oneOf,
+    '#/functions/',
+  );
 
-  return new Catalog(catalogId, components, functions);
+  const functions = parseFunctionDefinitions(
+    catalogSchema.functions,
+    catalogSchema,
+    permittedFunctionNames,
+  );
+
+  const rawTheme = catalogSchema.theme ?? catalogSchema.themeSchema ?? catalogSchema.$defs?.theme;
+  const themeSchema =
+    rawTheme && typeof rawTheme === 'object'
+      ? convertComponentJsonSchemaToZod(rawTheme, catalogSchema, false)
+      : undefined;
+  const instructions =
+    typeof catalogSchema.instructions === 'string' ? catalogSchema.instructions : undefined;
+
+  return new Catalog(catalogId, components, functions, themeSchema, instructions);
 }

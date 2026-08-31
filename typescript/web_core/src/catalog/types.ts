@@ -19,6 +19,7 @@ import {DataContext} from '../rendering/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiExpressionError} from '../errors.js';
 import {loadCatalogFromSchema} from './schema_loader.js';
+import {generateCatalogSchema} from './schema_generator.js';
 
 export type A2uiReturnType =
   | 'string'
@@ -139,14 +140,24 @@ export type InferredComponentApiSchemaType<Api extends ComponentApi> = z.infer<A
  * This must declare all publicly accessed properties of Catalog.
  */
 export declare interface CatalogInterface<
-  T extends ComponentApi,
+  T extends ComponentApi = ComponentApi,
   F extends FunctionApi = FunctionImplementation,
 > {
+  /** Unique identifier for the catalog (usually a URI). */
   readonly id: string;
+  /** Map of registered component definitions. */
   readonly components: ReadonlyMap<string, T>;
+  /** Map of registered function definitions. */
   readonly functions: ReadonlyMap<string, F>;
+  /** Schema for theme parameters used by this catalog. */
   readonly themeSchema?: z.ZodObject<any>;
+  /** System instructions or usage guidelines for this catalog. */
+  readonly instructions?: string;
+  /** Invoker callback that delegates to this catalog's registered functions. */
   readonly invoker: FunctionInvoker;
+  /** Dynamically reconstructed standard A2UI catalog JSON Schema document. */
+  readonly catalogSchema: Record<string, unknown>;
+  /** Component reference map for child reference extraction and topology validation. */
   readonly componentRefMap: ComponentRefMap;
 }
 
@@ -184,10 +195,27 @@ export class Catalog<
   readonly themeSchema?: z.ZodObject<any>;
 
   /**
+   * Optional system instructions or usage guidelines for this catalog.
+   */
+  readonly instructions?: string;
+
+  /**
    * A ready-to-use FunctionInvoker callback that delegates to this catalog's functions.
    * Can be passed directly to a DataContext.
    */
   readonly invoker: FunctionInvoker;
+
+  private cachedCatalogSchema?: Record<string, unknown>;
+
+  /**
+   * Dynamically reconstructs and memoizes the unified standard A2UI catalog JSON Schema document.
+   */
+  get catalogSchema(): Record<string, unknown> {
+    if (!this.cachedCatalogSchema) {
+      this.cachedCatalogSchema = generateCatalogSchema(this);
+    }
+    return this.cachedCatalogSchema;
+  }
 
   private _componentRefMap?: ComponentRefMap;
 
@@ -201,7 +229,13 @@ export class Catalog<
     return this._componentRefMap;
   }
 
-  constructor(id: string, components: T[], functions: F[] = [], themeSchema?: z.ZodObject<any>) {
+  constructor(
+    id: string,
+    components: T[],
+    functions: F[] = [],
+    themeSchema?: z.ZodObject<any>,
+    instructions?: string,
+  ) {
     this.id = id;
 
     const compMap = new Map<string, T>();
@@ -217,6 +251,7 @@ export class Catalog<
     this.functions = funcMap;
 
     this.themeSchema = themeSchema;
+    this.instructions = instructions;
 
     this.invoker = (name, rawArgs, ctx, abortSignal) => {
       const fn = this.functions.get(name);

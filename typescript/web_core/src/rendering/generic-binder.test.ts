@@ -415,16 +415,21 @@ describe('GenericBinder Checkable Trait', () => {
         handleClick: z.any(),
       });
 
-      const compModel = new ComponentModel('c10', 'Custom', {
-        customProp: {path: '/rawTitle'},
-        items: {componentId: 'card-view', path: '/cards'},
-        handleClick: {
-          event: {
-            name: 'custom_click',
-            context: {userId: {path: '/user/id'}},
+      const compModel = new ComponentModel(
+        'c10',
+        'Custom',
+        {
+          customProp: {path: '/rawTitle'},
+          items: {componentId: 'card-view', path: '/cards'},
+          handleClick: {
+            event: {
+              name: 'custom_click',
+              context: {userId: {path: '/user/id'}},
+            },
           },
         },
-      });
+        surface.catalog,
+      );
       surface.componentsModel.addComponent(compModel);
 
       const context = new ComponentContext(surface, 'c10');
