@@ -68,6 +68,7 @@ dependencies = [
     { name = "google-genai" },
     { name = "httpx" },
     { name = "jsonschema" },
+    { name = "mcp" },
 ]
 
 [package.dev-dependencies]
@@ -86,6 +87,7 @@ requires-dist = [
     { name = "google-genai", specifier = ">=1.27.0" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "jsonschema", specifier = ">=4.0.0" },
+    { name = "mcp", specifier = ">=1.0.0" },
 ]
 
 [package.metadata.requires-dev]

@@ -2,6 +2,8 @@
 
 This guide shows you how to serve **rich, interactive A2UI interfaces** from an **MCP server** using Tools and Embedded Resources. By the end, you'll have a working MCP server that returns A2UI components to any MCP-compatible client.
 
+See the formal [A2UI over MCP Apps Protocol Specification (v1.0)](../../../specification/v1_0/extensions/mcp_apps/docs/a2ui_mcp_apps_specification.md) for full protocol details and capability negotiation rules.
+
 <video width="100%" height="auto" controls playsinline style="display: block; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px; margin-bottom: 24px;">
   <source src="../assets/guides-a2ui-over-mcp-tour.mp4" type="video/mp4">
   Your browser does not support the video tag.
