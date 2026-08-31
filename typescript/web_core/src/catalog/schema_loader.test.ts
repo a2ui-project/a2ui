@@ -498,4 +498,54 @@ describe('Catalog.fromSchema & schema_loader', () => {
     assert.strictEqual(fn2.allowedCallers, 'agentOnly');
     assert.strictEqual(fn2.requiresUserActivation, false);
   });
+
+  it('applies passthrough when additionalProperties is a schema object', () => {
+    const catalogJson = {
+      catalogId: 'https://example.com/add_props_catalog.json',
+      components: {
+        FlexibleCard: {
+          type: 'object',
+          properties: {
+            title: {type: 'string'},
+          },
+          required: ['title'],
+          additionalProperties: {type: 'string'},
+        },
+      },
+    };
+
+    const catalog = Catalog.fromSchema(catalogJson);
+    const card = catalog.components.get('FlexibleCard');
+    assert.ok(card);
+    const result = card.schema.safeParse({
+      title: 'Valid title',
+      extraField: 'any string value',
+    });
+    assert.strictEqual(result.success, true);
+  });
+
+  it('preserves component and id properties in theme schemas', () => {
+    const catalogJson = {
+      catalogId: 'https://example.com/theme_props_catalog.json',
+      components: {},
+      theme: {
+        type: 'object',
+        properties: {
+          id: {type: 'string'},
+          component: {type: 'string'},
+          primaryColor: {type: 'string'},
+        },
+        required: ['id', 'component', 'primaryColor'],
+      },
+    };
+
+    const catalog = Catalog.fromSchema(catalogJson);
+    assert.ok(catalog.themeSchema);
+    const result = catalog.themeSchema.safeParse({
+      id: 'theme-1',
+      component: 'DarkTheme',
+      primaryColor: '#000',
+    });
+    assert.strictEqual(result.success, true);
+  });
 });

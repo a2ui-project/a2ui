@@ -80,6 +80,14 @@ function processTheme(catalog: CatalogInterface<any, any>, defs: Record<string, 
   }) as Record<string, unknown>;
   cleanSchemaNode(themeRaw);
 
+  if (themeRaw.definitions && typeof themeRaw.definitions === 'object') {
+    Object.assign(defs, themeRaw.definitions);
+    delete themeRaw.definitions;
+  } else if (themeRaw.$defs && typeof themeRaw.$defs === 'object') {
+    Object.assign(defs, themeRaw.$defs);
+    delete themeRaw.$defs;
+  }
+
   const themeObj: Record<string, unknown> = {
     type: 'object',
     properties: (themeRaw.properties as Record<string, unknown>) || {},
@@ -207,8 +215,10 @@ function processSingleFunction(
 
     if (rawZod.definitions && typeof rawZod.definitions === 'object') {
       Object.assign(defs, rawZod.definitions);
+      delete rawZod.definitions;
     } else if (rawZod.$defs && typeof rawZod.$defs === 'object') {
       Object.assign(defs, rawZod.$defs);
+      delete rawZod.$defs;
     }
 
     paramSchemaObj = rawZod;

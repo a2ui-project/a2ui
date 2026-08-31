@@ -257,4 +257,45 @@ describe('Catalog.catalogSchema & schema_generator', () => {
     assert.strictEqual(schema['functions'], undefined);
     assert.strictEqual(schema['$defs'], undefined);
   });
+
+  it('lifts theme sub-definitions to root $defs and removes them from theme object', () => {
+    const ColorPalette = z.object({
+      primary: z.string(),
+      secondary: z.string(),
+    });
+    const ThemeWithSubDefs = z.object({
+      palette: ColorPalette,
+    });
+
+    const catalog = new Catalog('https://example.com/theme-defs.json', [], [], ThemeWithSubDefs);
+    const schema = catalog.catalogSchema;
+    const defs = schema['$defs'] as Record<string, any>;
+    assert.ok(defs);
+    assert.ok(defs['theme']);
+    assert.strictEqual(defs['theme'].definitions, undefined);
+    assert.strictEqual(defs['theme'].$defs, undefined);
+  });
+
+  it('lifts function sub-definitions to root $defs and removes them from args object', () => {
+    const Address = z.object({
+      city: z.string(),
+      country: z.string(),
+    });
+    const updateAddressFunc: FunctionImplementation = {
+      name: 'updateAddress',
+      description: 'Updates user address',
+      returnType: 'void',
+      schema: z.object({
+        address: Address,
+      }),
+      execute: async () => {},
+    };
+
+    const catalog = new Catalog('https://example.com/fn-defs.json', [], [updateAddressFunc]);
+    const schema = catalog.catalogSchema;
+    const functions = schema['functions'] as Record<string, any>;
+    assert.ok(functions['updateAddress']);
+    assert.strictEqual(functions['updateAddress'].properties.args.definitions, undefined);
+    assert.strictEqual(functions['updateAddress'].properties.args.$defs, undefined);
+  });
 });

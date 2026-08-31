@@ -278,6 +278,7 @@ function collectComponentSubSchemas(
 function convertComponentJsonSchemaToZod(
   rawSchema: Record<string, any>,
   rootDoc: Record<string, any>,
+  omitEnvelopeFields = true,
 ): z.ZodObject<any> {
   const shape: Record<string, z.ZodTypeAny> = {};
   const schemasToMerge = collectComponentSubSchemas(rawSchema, rootDoc);
@@ -290,12 +291,20 @@ function convertComponentJsonSchemaToZod(
   }
 
   for (const s of schemasToMerge) {
-    const propShape = convertPropertiesToShape(s.properties || {}, requiredSet, true, rootDoc);
+    const propShape = convertPropertiesToShape(
+      s.properties || {},
+      requiredSet,
+      omitEnvelopeFields,
+      rootDoc,
+    );
     Object.assign(shape, propShape);
   }
 
   const obj = z.object(shape);
-  return rawSchema.additionalProperties === true ? obj.passthrough() : obj.strict();
+  return rawSchema.additionalProperties === true ||
+    (typeof rawSchema.additionalProperties === 'object' && rawSchema.additionalProperties !== null)
+    ? obj.passthrough()
+    : obj.strict();
 }
 
 function convertFunctionArgsJsonSchemaToZod(
@@ -436,7 +445,7 @@ export function loadCatalogFromSchema(
   const rawTheme = catalogSchema.theme ?? catalogSchema.themeSchema ?? catalogSchema.$defs?.theme;
   const themeSchema =
     rawTheme && typeof rawTheme === 'object'
-      ? convertComponentJsonSchemaToZod(rawTheme, catalogSchema)
+      ? convertComponentJsonSchemaToZod(rawTheme, catalogSchema, false)
       : undefined;
   const instructions =
     typeof catalogSchema.instructions === 'string' ? catalogSchema.instructions : undefined;
