@@ -399,7 +399,92 @@ updated_messages = surface.to_messages()
 
 ---
 
-## 6. Design decisions and rationale
+## 6. Complexity costs, trade-offs, and edge cases
+
+Supporting bidirectional deserialization expands the scope of what was originally a write-only layout generator. This section outlines the architectural complexity costs, trade-offs, and specific edge cases where deserialization encounters limitations.
+
+### A. Architectural complexity cost
+
+1. **Model annotation overhead:** In a write-only builder, models are simple Python dataclasses with standard constructors. Supporting deserialization requires Pydantic `WrapValidator` hooks on every slot, polymorphic discriminated unions across all catalog components, and `__pydantic_extra__` handlers.
+2. **Contextual state management:** Deserialization is no longer a stateless dictionary mapping. It requires passing validation contexts (`context={"components": by_id, "_visited": set()}`) to track visited IDs, prevent infinite recursion loops, and discover unlinked subtrees.
+3. **Dual ID lifecycle:** Authors creating new layouts omit component IDs to let the serializer generate sequential identifiers (`comp_0`, `comp_1`). Deserialized layouts retain explicit wire IDs. The serializer must manage both modes without ID collisions.
+4. **Third-party dependency:** Deserialization relies on Pydantic v2. While standard across Python AI libraries (`google-genai`, LangChain), it introduces a formal dependency compared to standard library dataclasses.
+
+---
+
+### B. Pros and cons of supporting deserialization
+
+| Advantages (Pros) | Trade-offs & Costs (Cons) |
+| :--- | :--- |
+| **Enables read-modify-write workflows:** Agents can ingest existing templates, update specific properties, and emit updated surfaces without starting from scratch. | **Higher cognitive surface area:** Developers must understand the relationship between the primary AST root, component IDs, and `unlinked_roots`. |
+| **Enables middleware & proxies:** Intermediary services can inspect, filter, or decorate A2UI payloads without losing unrecognized properties. | **Memory overhead during deserialization:** Maintaining the wire dictionary index and constructing Pydantic models uses more memory than raw JSON pass-through. |
+| **Consistent developer ergonomics:** Reconstructed ASTs look and behave identically to hand-crafted Python object trees. | **ID mutation subtleties:** Modifying child relationships manually in Python requires care when re-assigning IDs. |
+| **Automated validation of incoming payloads:** Malformed structures or missing required properties are rejected immediately during deserialization. | **Catalog synchronization requirements:** Deserializing into typed classes requires maintaining generated catalog packages in sync with deployed catalogs. |
+
+---
+
+### C. Edge cases and limitations where deserialization struggles
+
+#### 1. Shared child references (DAG topologies vs. pure trees)
+The flat A2UI wire format allows multiple parent components to reference the same child ID (forming a Directed Acyclic Graph). For example, a header and a footer might both reference an action button ID:
+```json
+[
+  {"id": "card", "component": "Card", "child": "btn_1"},
+  {"id": "drawer", "component": "Drawer", "child": "btn_1"},
+  {"id": "btn_1", "component": "Button", "child": "txt_1", "action": {"event": "submit"}},
+  {"id": "txt_1", "component": "Text", "text": "Submit"}
+]
+```
+In a hierarchical Python object tree, components are expected to have a single parent. When deserializing:
+* If `btn_1` is shared by reference (`card.child is drawer.child`), mutating properties on one affects both, but tree traversals must avoid serializing `btn_1` twice.
+* If `btn_1` is cloned, mutating `card.child` leaves `drawer.child` unchanged, breaking the shared wire reference.
+
+#### 2. The "ghost component" problem on unknown container deletion
+If a wire payload contains an unknown container holding known children:
+```
+Card -> VideoPlayer (unknown) -> Column -> Text
+```
+During deserialization, `Column -> Text` is preserved in `surface.unlinked_roots`.
+
+If a developer subsequently replaces the card's child in Python:
+```python
+card.child = Text(text="Replaced Video")
+```
+The deserializer cannot know whether the subtrees in `surface.unlinked_roots` were children of the deleted `VideoPlayer` or independent disconnected widgets. If the developer does not clear `surface.unlinked_roots`, calling `surface.to_messages()` will still output `Column` and `Text` as unused "ghost components" on the wire.
+
+#### 3. Dynamic template loops (`DynamicChildList`)
+In A2UI, repeating lists use `DynamicChildList` to bind an array data path to a template component ID:
+```json
+{
+  "id": "list_1",
+  "component": "List",
+  "children": {
+    "path": "/users",
+    "template": "user_card_template"
+  }
+}
+```
+During deserialization, `user_card_template` is a prototype definition, not a concrete rendered child list. The deserializer must recognize `template` as a template slot rather than expecting a flat list of concrete components.
+
+#### 4. Malformed cyclic wire graphs
+Corrupted or hostile wire payloads can define circular parent-child references:
+```json
+[
+  {"id": "comp_A", "component": "Card", "child": "comp_B"},
+  {"id": "comp_B", "component": "Card", "child": "comp_A"}
+]
+```
+Without cycle tracking (`context["_visited"]`), recursive validation causes an unrecoverable `RecursionError` (stack overflow). The deserializer must explicitly catch repeated IDs in the current branch and raise an `A2UIValidationError`.
+
+#### 5. String literal vs. path binding ambiguity
+If an un-annotated or loosely typed field receives a string value like `"/user/name"`, the deserializer must determine whether it is a plain text literal or an un-enveloped data binding path. Strict schema typing is required to prevent incorrect coercions.
+
+#### 6. Cross-version property renaming
+If an upstream catalog renames a property (such as `label` to `title`), deserializing older payloads into newer Pydantic models will store `label` in `__pydantic_extra__` and leave `title` as `None`. Code expecting `node.title` will not find the value unless custom schema migration hooks are provided.
+
+---
+
+## 7. Design decisions and rationale
 
 1. **Why Pydantic v2:** Pydantic is already the schema foundation of `a2ui_core` and the broader agent ecosystem (`google-genai`, LangChain). Using Pydantic avoids maintaining separate parsing engines while offering C/Rust performance.
 2. **Why `WrapValidator` over pre-expansion:** Pre-expanding dictionaries into temporary JSON trees creates unnecessary Python dictionary overhead and relies on string-matching heuristics. `WrapValidator` operates directly during Pydantic's native type validation pass, ensuring only fields explicitly declared as slots are resolved.
