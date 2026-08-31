@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import json
 import pathlib
 from typing import Any
@@ -29,6 +28,7 @@ from starlette.requests import Request
 
 from recipes import RECIPES
 
+# Static MIME type for A2UI JSON payloads
 A2UI_MIME_TYPE = "application/a2ui+json"
 BASIC_CATALOG_ID = "https://a2ui.org/specification/v0_9/basic_catalog.json"
 
@@ -94,7 +94,15 @@ def main(port: int, transport: str, bypass_verification: bool) -> int:
                 name="Recipe Form",
                 mimeType=A2UI_MIME_TYPE,
                 description="Form allowing users to pick cuisine and protein.",
-            )
+            ),
+            types.Resource(
+                uri="a2ui://recipe-card",
+                name="Recipe Card Template",
+                mimeType=A2UI_MIME_TYPE,
+                description=(
+                    "A2UI presentation template for displaying a customized recipe."
+                ),
+            ),
         ]
 
     @app.read_resource()
@@ -109,12 +117,69 @@ def main(port: int, transport: str, bypass_verification: bool) -> int:
                     mime_type=A2UI_MIME_TYPE,
                 )
             ]
+        if str(uri) == "a2ui://recipe-card":
+            return [
+                ReadResourceContents(
+                    content=json.dumps(recipe_a2ui_json),
+                    mime_type=A2UI_MIME_TYPE,
+                )
+            ]
         raise ValueError(f"Unknown resource: {uri}")
 
     @app.call_tool()
     async def handle_call_tool(
         name: str, arguments: dict[str, Any]
     ) -> types.CallToolResult:
+        if name == "get_recipe_form_a2ui":
+            if not verify_a2ui_capability():
+                return types.CallToolResult(
+                    isError=True,
+                    content=[
+                        types.TextContent(
+                            type="text",
+                            text=(
+                                "Error: Client does not support A2UI Basic Catalog"
+                                " (v0.9) capability."
+                            ),
+                        )
+                    ],
+                )
+
+            form_update_data_model = [{
+                "version": "v0.9",
+                "updateDataModel": {
+                    "surfaceId": "recipe-form",
+                    "path": "/",
+                    "value": {
+                        "cookingStyle": ["Grilled"],
+                        "protein": ["Chicken"],
+                    },
+                },
+            }]
+
+            return types.CallToolResult(
+                content=[
+                    types.TextContent(
+                        type="text",
+                        text="Initialized recipe form data.",
+                    ),
+                    types.EmbeddedResource(
+                        type="resource",
+                        resource=types.TextResourceContents(
+                            uri="a2ui://recipe-form/data",
+                            mimeType=A2UI_MIME_TYPE,
+                            text=json.dumps(form_update_data_model),
+                        ),
+                    ),
+                ],
+                _meta={
+                    "ui": {
+                        "resourceUri": "a2ui://recipe-form",
+                        "mimeType": A2UI_MIME_TYPE,
+                    }
+                },
+            )
+
         if name == "get_recipe_a2ui":
             if not verify_a2ui_capability():
                 return types.CallToolResult(
@@ -142,13 +207,13 @@ def main(port: int, transport: str, bypass_verification: bool) -> int:
                 (selected_style, selected_protein), RECIPES[("Baked", "Salmon")]
             )
 
-            # Make a deep copy of the base schema so we don't mutate global state
-            custom_recipe_json = copy.deepcopy(recipe_a2ui_json)
-
-            # Inject custom values into updateDataModel action
-            for action in custom_recipe_json:
-                if "updateDataModel" in action:
-                    action["updateDataModel"]["value"] = {
+            # Build A2UI updateDataModel message containing only dynamic recipe data
+            recipe_update_data_model = [{
+                "version": "v0.9",
+                "updateDataModel": {
+                    "surfaceId": "recipe-card",
+                    "path": "/",
+                    "value": {
                         "image": recipe_data["image"],
                         "title": recipe_data["title"],
                         "rating": recipe_data["rating"],
@@ -156,23 +221,32 @@ def main(port: int, transport: str, bypass_verification: bool) -> int:
                         "prepTime": recipe_data["prepTime"],
                         "cookTime": recipe_data["cookTime"],
                         "servings": recipe_data["servings"],
-                    }
+                    },
+                },
+            }]
 
-            # Return the customized recipe card
+            # Return dynamic recipe data alongside _meta referencing the presentation template
             return types.CallToolResult(
                 content=[
                     types.TextContent(
-                        type="text", text=f"Generated custom {recipe_data['title']}."
+                        type="text",
+                        text=f"Generated custom {recipe_data['title']} recipe data.",
                     ),
                     types.EmbeddedResource(
                         type="resource",
                         resource=types.TextResourceContents(
-                            uri="a2ui://recipe-card",
+                            uri="a2ui://recipe-card/data",
                             mimeType=A2UI_MIME_TYPE,
-                            text=json.dumps(custom_recipe_json),
+                            text=json.dumps(recipe_update_data_model),
                         ),
                     ),
-                ]
+                ],
+                _meta={
+                    "ui": {
+                        "resourceUri": "a2ui://recipe-card",
+                        "mimeType": A2UI_MIME_TYPE,
+                    }
+                },
             )
 
         if name == "action":
@@ -207,10 +281,30 @@ def main(port: int, transport: str, bypass_verification: bool) -> int:
     async def list_tools() -> list[types.Tool]:
         return [
             types.Tool(
+                name="get_recipe_form_a2ui",
+                title="Get Recipe Form A2UI",
+                description=(
+                    "Returns initial form data and links to the A2UI"
+                    " recipe-form presentation template."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": True,
+                },
+                _meta={
+                    "ui": {
+                        "resourceUri": "a2ui://recipe-form",
+                        "mimeType": A2UI_MIME_TYPE,
+                    }
+                },
+            ),
+            types.Tool(
                 name="get_recipe_a2ui",
                 title="Get Recipe A2UI",
                 description=(
-                    "Returns the A2UI JSON to show a recipe as an Embedded Resource"
+                    "Returns recipe data and links to the A2UI recipe-card"
+                    " presentation template."
                 ),
                 inputSchema={
                     "type": "object",
@@ -227,6 +321,12 @@ def main(port: int, transport: str, bypass_verification: bool) -> int:
                         },
                     },
                     "additionalProperties": True,
+                },
+                _meta={
+                    "ui": {
+                        "resourceUri": "a2ui://recipe-card",
+                        "mimeType": A2UI_MIME_TYPE,
+                    }
                 },
             ),
             types.Tool(
@@ -308,3 +408,9 @@ def main(port: int, transport: str, bypass_verification: bool) -> int:
         anyio.run(arun)
 
     return 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(main())  # type: ignore[call-arg]

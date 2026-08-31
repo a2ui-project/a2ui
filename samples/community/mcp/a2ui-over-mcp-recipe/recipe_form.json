@@ -105,16 +105,5 @@
         }
       ]
     }
-  },
-  {
-    "version": "v0.9",
-    "updateDataModel": {
-      "surfaceId": "recipe-form",
-      "path": "/",
-      "value": {
-        "cookingStyle": ["Grilled"],
-        "protein": ["Chicken"]
-      }
-    }
   }
 ]
