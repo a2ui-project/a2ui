@@ -43,16 +43,18 @@ describe('SurfaceComponent', () => {
   let mockBinder: any;
 
   beforeEach(async () => {
+    const mockCatalog = {
+      id: 'mock-catalog',
+      components: new Map([['Text', {type: 'Text', component: TestTextComponent}]]),
+    } as any;
+
     mockRendererService = {
       surfaceGroup: {
         getSurface: jasmine.createSpy('getSurface').and.returnValue({
           componentsModel: new Map([
-            ['root', new ComponentModel('root', 'Text', {text: {value: 'Hello'}})],
+            ['root', new ComponentModel('root', 'Text', {text: {value: 'Hello'}}, mockCatalog)],
           ]),
-          catalog: {
-            id: 'mock-catalog',
-            components: new Map([['Text', {type: 'Text', component: TestTextComponent}]]),
-          },
+          catalog: mockCatalog,
         }),
       },
     };

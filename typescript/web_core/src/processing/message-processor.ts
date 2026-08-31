@@ -35,10 +35,12 @@ import {
 
 import {ProtocolVersion, VersionAdapter} from './adapters/base.js';
 import {RendererCapabilities} from '../v1_0/schema/index.js';
-import {ValidationConfig, STRICT_VALIDATION, RELAXED_VALIDATION} from '../validating/validator.js';
 import {
   getComponentReferences,
+  RELAXED_VALIDATION,
+  STRICT_VALIDATION,
   validateRecursionAndPaths,
+  ValidationConfig,
 } from '../validating/integrity-checker.js';
 
 export type {RendererCapabilities, ValidationConfig};

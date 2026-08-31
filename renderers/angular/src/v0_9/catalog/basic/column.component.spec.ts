@@ -45,16 +45,18 @@ describe('ColumnComponent', () => {
   let defaultProps: ComponentToProps<ColumnComponent>;
 
   beforeEach(async () => {
+    const mockCatalog = {
+      id: 'test-catalog',
+      components: new Map([['Child', {component: DummyChild}]]),
+    } as any;
+
     mockSurface = {
       componentsModel: new Map([
-        ['child1', new ComponentModel('child1', 'Child', {})],
-        ['child2', new ComponentModel('child2', 'Child', {})],
-        ['template1', new ComponentModel('template1', 'Child', {})],
+        ['child1', new ComponentModel('child1', 'Child', {}, mockCatalog)],
+        ['child2', new ComponentModel('child2', 'Child', {}, mockCatalog)],
+        ['template1', new ComponentModel('template1', 'Child', {}, mockCatalog)],
       ]),
-      catalog: {
-        id: 'test-catalog',
-        components: new Map([['Child', {component: DummyChild}]]),
-      },
+      catalog: mockCatalog,
     };
 
     mockSurfaceGroup = {

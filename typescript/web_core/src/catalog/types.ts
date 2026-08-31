@@ -95,6 +95,7 @@ export function createFunctionImplementation<
 }
 
 import {FunctionInvoker} from './function_invoker.js';
+import {buildComponentRefMap, ComponentRefMap} from './reference-map.js';
 
 /**
  * A definition of a UI component's API.
@@ -144,6 +145,7 @@ export declare interface CatalogInterface<
   readonly functions: ReadonlyMap<string, F>;
   readonly themeSchema?: z.ZodObject<any>;
   readonly invoker: FunctionInvoker;
+  readonly componentRefMap: ComponentRefMap;
 }
 
 /**
@@ -184,6 +186,18 @@ export class Catalog<
    * Can be passed directly to a DataContext.
    */
   readonly invoker: FunctionInvoker;
+
+  private _componentRefMap?: ComponentRefMap;
+
+  /**
+   * Lazily computed component reference map for child reference extraction and topology validation.
+   */
+  get componentRefMap(): ComponentRefMap {
+    if (!this._componentRefMap) {
+      this._componentRefMap = buildComponentRefMap(this);
+    }
+    return this._componentRefMap;
+  }
 
   constructor(id: string, components: T[], functions: F[] = [], themeSchema?: z.ZodObject<any>) {
     this.id = id;
