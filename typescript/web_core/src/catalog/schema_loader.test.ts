@@ -398,4 +398,104 @@ describe('Catalog.fromSchema & schema_loader', () => {
     assert.ok(catalog.functions.has('my~tilde'));
     assert.strictEqual(catalog.functions.has('otherFunc'), false);
   });
+
+  it('filters out all components when anyComponent.oneOf is declared but empty', () => {
+    const catalogJson = {
+      catalogId: 'https://example.com/empty_components_catalog.json',
+      $defs: {
+        anyComponent: {
+          oneOf: [],
+        },
+      },
+      components: {
+        Button: {
+          properties: {label: {type: 'string'}},
+        },
+      },
+    };
+
+    const catalog = Catalog.fromSchema(catalogJson);
+    assert.strictEqual(catalog.components.size, 0);
+  });
+
+  it('correctly unescapes JSON Pointer sequences in anyComponent.oneOf references', () => {
+    const catalogJson = {
+      catalogId: 'https://example.com/escaped_components_catalog.json',
+      $defs: {
+        anyComponent: {
+          oneOf: [{$ref: '#/components/my~1comp'}, {$ref: '#/components/my~0comp'}],
+        },
+      },
+      components: {
+        'my/comp': {
+          properties: {title: {type: 'string'}},
+        },
+        'my~comp': {
+          properties: {title: {type: 'string'}},
+        },
+        'otherComp': {
+          properties: {title: {type: 'string'}},
+        },
+      },
+    };
+
+    const catalog = Catalog.fromSchema(catalogJson);
+    assert.strictEqual(catalog.components.size, 2);
+    assert.ok(catalog.components.has('my/comp'));
+    assert.ok(catalog.components.has('my~comp'));
+    assert.strictEqual(catalog.components.has('otherComp'), false);
+  });
+
+  it('filters non-string elements from allowedParents and allowedChildren', () => {
+    const catalogJson = {
+      catalogId: 'https://example.com/sanitized_hierarchy_catalog.json',
+      components: {
+        StrictNode: {
+          properties: {id: {type: 'string'}},
+          allowedParents: ['ParentValid', 123, null],
+          allowedChildren: ['ChildValid', false, {}],
+        },
+      },
+    };
+
+    const catalog = Catalog.fromSchema(catalogJson);
+    const comp = catalog.components.get('StrictNode');
+    assert.ok(comp);
+    assert.deepStrictEqual(comp.allowedParents, ['ParentValid']);
+    assert.deepStrictEqual(comp.allowedChildren, ['ChildValid']);
+  });
+
+  it('correctly parses allowedCallers and requiresUserActivation on functions', () => {
+    const catalogJson = {
+      catalogId: 'https://example.com/func_metadata_catalog.json',
+      components: {},
+      functions: {
+        secureAction: {
+          returnType: 'void',
+          allowedCallers: 'rendererOnly',
+          requiresUserActivation: true,
+        },
+        schemaConstAction: {
+          properties: {
+            returnType: {const: 'string'},
+            allowedCallers: {const: 'agentOnly'},
+            requiresUserActivation: {const: false},
+          },
+        },
+      },
+    };
+
+    const catalog = Catalog.fromSchema(catalogJson);
+    const fn1 = catalog.functions.get('secureAction');
+    assert.ok(fn1);
+    assert.strictEqual(fn1.returnType, 'void');
+    assert.strictEqual(fn1.allowedCallers, 'rendererOnly');
+    assert.strictEqual(fn1.requiresUserActivation, true);
+
+    const fn2 = catalog.functions.get('schemaConstAction');
+    assert.ok(fn2);
+    assert.strictEqual(fn2.returnType, 'string');
+    assert.strictEqual(fn2.allowedCallers, 'agentOnly');
+    assert.strictEqual(fn2.requiresUserActivation, false);
+  });
 });

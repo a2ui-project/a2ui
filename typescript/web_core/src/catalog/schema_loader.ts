@@ -353,14 +353,30 @@ function parseFunctionDefinitions(
         name,
         description: d.description,
         returnType: d.returnType ?? d.properties?.returnType?.const ?? 'any',
-        allowedCallers: d.allowedCallers,
-        requiresUserActivation: d.requiresUserActivation,
+        allowedCallers: d.allowedCallers ?? d.properties?.allowedCallers?.const,
+        requiresUserActivation:
+          d.requiresUserActivation ?? d.properties?.requiresUserActivation?.const,
         schema: paramSchema,
       });
     }
   }
 
   return result;
+}
+
+function extractPermittedNames(oneOf: unknown, prefix: string): Set<string> | undefined {
+  if (!Array.isArray(oneOf)) return undefined;
+  const permitted = new Set<string>();
+  for (const item of oneOf) {
+    if (typeof item?.$ref === 'string' && item.$ref.startsWith(prefix)) {
+      const rawName = item.$ref.slice(prefix.length);
+      const unescapedName = rawName.replace(/~([01])/g, (_: string, p1: string) =>
+        p1 === '1' ? '/' : '~',
+      );
+      permitted.add(unescapedName);
+    }
+  }
+  return permitted;
 }
 
 /**
@@ -377,20 +393,10 @@ export function loadCatalogFromSchema(
   }
 
   // Filter permitted components via anyComponent.oneOf if declared
-  let permittedNames: Set<string> | undefined = undefined;
-  const oneOf = catalogSchema.$defs?.anyComponent?.oneOf;
-  if (Array.isArray(oneOf)) {
-    permittedNames = new Set<string>();
-    for (const item of oneOf) {
-      if (typeof item?.$ref === 'string' && item.$ref.startsWith('#/components/')) {
-        const rawName = item.$ref.split('/').pop() ?? '';
-        const unescapedName = rawName.replace(/~([01])/g, (_: string, p1: string) =>
-          p1 === '1' ? '/' : '~',
-        );
-        permittedNames.add(unescapedName);
-      }
-    }
-  }
+  const permittedNames = extractPermittedNames(
+    catalogSchema.$defs?.anyComponent?.oneOf,
+    '#/components/',
+  );
 
   const components: ComponentApi[] = [];
   const componentsMap = catalogSchema.components ?? {};
@@ -401,29 +407,21 @@ export function loadCatalogFromSchema(
       components.push({
         name,
         schema: zodSchema,
-        allowedParents: Array.isArray(rawComp.allowedParents) ? rawComp.allowedParents : undefined,
+        allowedParents: Array.isArray(rawComp.allowedParents)
+          ? rawComp.allowedParents.filter((p: unknown): p is string => typeof p === 'string')
+          : undefined,
         allowedChildren: Array.isArray(rawComp.allowedChildren)
-          ? rawComp.allowedChildren
+          ? rawComp.allowedChildren.filter((c: unknown): c is string => typeof c === 'string')
           : undefined,
       });
     }
   }
 
   // Filter permitted functions via anyFunction.oneOf if declared
-  let permittedFunctionNames: Set<string> | undefined = undefined;
-  const anyFunctionOneOf = catalogSchema.$defs?.anyFunction?.oneOf;
-  if (Array.isArray(anyFunctionOneOf)) {
-    permittedFunctionNames = new Set<string>();
-    for (const item of anyFunctionOneOf) {
-      if (typeof item?.$ref === 'string' && item.$ref.startsWith('#/functions/')) {
-        const rawName = item.$ref.split('/').pop() ?? '';
-        const unescapedName = rawName.replace(/~([01])/g, (_: string, p1: string) =>
-          p1 === '1' ? '/' : '~',
-        );
-        permittedFunctionNames.add(unescapedName);
-      }
-    }
-  }
+  const permittedFunctionNames = extractPermittedNames(
+    catalogSchema.$defs?.anyFunction?.oneOf,
+    '#/functions/',
+  );
 
   const functions = parseFunctionDefinitions(
     catalogSchema.functions,
