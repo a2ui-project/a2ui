@@ -87,6 +87,13 @@ If a release is requested but a package's `CHANGELOG.md` has no entries under `#
 - If unreleased commits exist, ask the maintainer or document them under `## Unreleased`.
 - If no unreleased commits exist, **skip releasing that package**.
 
+### Version Bump Selection Rules (SemVer)
+
+When choosing `<new_version>`:
+
+- **Breaking Changes in Pre-1.0 (`0.x.y`)**: If `CHANGELOG.md` includes `BREAKING CHANGE` or breaking API changes while in pre-1.0 (`0.x.y`), bump the **MINOR** version (e.g., `0.10.2` -> `0.11.0`). If post-1.0 (`X.y.z`), bump the **MAJOR** version (`1.x.y` -> `2.0.0`).
+- **Backward-Compatible Changes**: If changes contain only non-breaking features or bug fixes, bump the **PATCH** version (e.g., `0.10.6` -> `0.10.7`).
+
 ---
 
 ## 4. Release Lifecycle States

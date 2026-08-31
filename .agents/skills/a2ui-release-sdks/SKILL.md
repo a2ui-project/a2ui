@@ -66,6 +66,9 @@ Check the top `## Unreleased` section of each package's `CHANGELOG.md`:
 - **Rule A (Package Qualification)**: If `## Unreleased` has entries, the package qualifies for a version bump and release.
 - **Rule B (Empty Unreleased Policy)**: If `## Unreleased` is empty, check git history (`git log -n 20 <pkg_dir>`) to see if unreleased commits exist. If unreleased commits exist, ask the maintainer or document them under `## Unreleased`. If no unreleased commits exist, **skip releasing that package**.
 - **Rule C (Open PR Check)**: Run `gh pr list --search "release"` to see if a version bump PR is currently open. If open, report the PR link to the user.
+- **Rule D (SemVer Version Bump Selection)**:
+  - **Breaking Changes in Pre-1.0 (`0.x.y`)**: If `CHANGELOG.md` contains entries marked `BREAKING CHANGE` or breaking API changes while in pre-1.0 (`0.x.y`), bump the **MINOR** version (e.g. `0.10.2` -> `0.11.0`). If post-1.0 (`X.y.z`), bump the **MAJOR** version (`1.x.y` -> `2.0.0`).
+  - **Backward-Compatible Changes**: If changes contain only non-breaking features or bug fixes, bump the **PATCH** version (e.g. `0.10.6` -> `0.10.7`).
 
 ---
 
