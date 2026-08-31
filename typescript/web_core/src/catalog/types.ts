@@ -98,6 +98,7 @@ export function createFunctionImplementation<
 }
 
 import {FunctionInvoker} from './function_invoker.js';
+import {buildComponentRefMap, ComponentRefMap} from './reference-map.js';
 
 /**
  * A definition of a UI component's API.
@@ -149,6 +150,7 @@ export declare interface CatalogInterface<
   readonly instructions?: string;
   readonly invoker: FunctionInvoker;
   readonly catalogSchema: Record<string, unknown>;
+  readonly componentRefMap: ComponentRefMap;
 }
 
 /**
@@ -205,6 +207,18 @@ export class Catalog<
       this.cachedCatalogSchema = generateCatalogSchema(this);
     }
     return this.cachedCatalogSchema;
+  }
+
+  private _componentRefMap?: ComponentRefMap;
+
+  /**
+   * Lazily computed component reference map for child reference extraction and topology validation.
+   */
+  get componentRefMap(): ComponentRefMap {
+    if (!this._componentRefMap) {
+      this._componentRefMap = buildComponentRefMap(this);
+    }
+    return this._componentRefMap;
   }
 
   constructor(

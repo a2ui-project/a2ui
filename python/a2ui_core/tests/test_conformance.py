@@ -598,19 +598,61 @@ def validate_from_json_case(case: Dict[str, Any]) -> None:
 
 
 def validate_catalog_schema_case(case: Dict[str, Any]) -> None:
-    c_schema = (
-        case.get("catalogSchema") or case.get("catalog") or case.get("schema") or case
-    )
-    c_id = resolve_catalog_id(case) or "https://a2ui.org/catalogs/basic"
     p_ver = resolve_protocol_version(case)
-    expect_err = case.get("expectError")
+    if case.get("useBasicCatalog") or case.get("catalog") == "BasicCatalog":
+        if p_ver == "v1.0":
+            from a2ui.core.basic_catalog.v1_0 import BasicCatalog
 
-    if expect_err:
-        with assert_raises(expect_err):
-            Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
+            cat: Catalog[Any, Any] = BasicCatalog()
+        elif p_ver == "v0.9":
+            from a2ui.core.basic_catalog.v0_9 import BasicCatalog
+
+            cat = BasicCatalog()
+        elif p_ver == "v0.8":
+            from a2ui.core.basic_catalog.v0_8 import BasicCatalog
+
+            cat = BasicCatalog()
+        else:
+            raise ValueError(f"BasicCatalog not supported for version {p_ver}")
     else:
-        cat = Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
-        assert cat is not None
+        c_path = case.get("catalogPath") or case.get("catalogFile")
+        if c_path:
+            full_p = os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", c_path))
+            with open(full_p, "r", encoding="utf-8") as f:
+                c_schema = json.load(f)
+        else:
+            c_schema = (
+                case.get("catalogSchema")
+                or case.get("catalog")
+                or case.get("schema")
+                or case
+            )
+        c_id = (
+            resolve_catalog_id(case)
+            or (c_schema.get("catalogId") if isinstance(c_schema, dict) else None)
+            or "https://a2ui.org/catalogs/basic"
+        )
+        expect_err = case.get("expectError")
+
+        if expect_err:
+            with assert_raises(expect_err):
+                Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
+            return
+        else:
+            cat = Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
+
+    assert cat is not None
+
+    exp_path = case.get("expectPath") or case.get("expectFile")
+    if exp_path:
+        full_exp_p = os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", exp_path))
+        with open(full_exp_p, "r", encoding="utf-8") as f:
+            expected = json.load(f)
+    else:
+        expected = case.get("expect")
+
+    if expected is not None:
+        assert cat.catalog_schema == expected
 
 
 def validate_resolve_path_case(case: Dict[str, Any]) -> None:

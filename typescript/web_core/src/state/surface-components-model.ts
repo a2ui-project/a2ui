@@ -24,12 +24,11 @@ import {
 } from '../errors.js';
 import {Catalog} from '../catalog/types.js';
 import {
-  buildComponentRefMap,
   ComponentRefMap,
   getComponentReferences,
   MAX_GLOBAL_DEPTH,
+  ValidationConfig,
 } from '../validating/integrity-checker.js';
-import {ValidationConfig} from '../validating/validator.js';
 
 /**
  * Manages the collection of components for a specific surface and performs
@@ -38,16 +37,6 @@ import {ValidationConfig} from '../validating/validator.js';
 export class SurfaceComponentsModel {
   private components: Map<string, ComponentModel> = new Map();
   private refMap?: ComponentRefMap;
-  private static readonly refMapCache = new WeakMap<Catalog<any, any>, ComponentRefMap>();
-
-  private static getOrCreateRefMap(catalog: Catalog<any, any>): ComponentRefMap {
-    let map = SurfaceComponentsModel.refMapCache.get(catalog);
-    if (!map) {
-      map = buildComponentRefMap(catalog);
-      SurfaceComponentsModel.refMapCache.set(catalog, map);
-    }
-    return map;
-  }
 
   private readonly _onCreated = new EventEmitter<ComponentModel>();
   private readonly _onDeleted = new EventEmitter<string>();
@@ -75,9 +64,7 @@ export class SurfaceComponentsModel {
    */
   setCatalog(catalogOrRefMap: Catalog<any, any> | ComponentRefMap): void {
     this.refMap =
-      catalogOrRefMap instanceof Catalog
-        ? SurfaceComponentsModel.getOrCreateRefMap(catalogOrRefMap)
-        : catalogOrRefMap;
+      catalogOrRefMap instanceof Catalog ? catalogOrRefMap.componentRefMap : catalogOrRefMap;
   }
 
   /**
@@ -164,7 +151,9 @@ export class SurfaceComponentsModel {
     if (!comp) return [];
 
     const refMap: ComponentRefMap =
-      (comp.catalog ? SurfaceComponentsModel.getOrCreateRefMap(comp.catalog) : this.refMap) ?? {};
+      comp.catalog.components.size > 0
+        ? comp.catalog.componentRefMap
+        : (this.refMap ?? comp.catalog.componentRefMap);
 
     return Array.from(
       getComponentReferences({id: comp.id, component: comp.type, ...comp.properties}, refMap),

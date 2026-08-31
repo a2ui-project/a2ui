@@ -82,7 +82,7 @@ export function renderA2uiComponent(
 
   surface.dataModel.set('/', initialData);
 
-  const mainModel = new ComponentModel(ROOT_ID, impl.name, initialProperties);
+  const mainModel = new ComponentModel(ROOT_ID, impl.name, initialProperties, catalog);
   surface.componentsModel.addComponent(mainModel);
 
   for (const childModel of additionalComponents) {
@@ -91,7 +91,7 @@ export function renderA2uiComponent(
 
   for (const id of referencedChildIds(impl.schema, initialProperties)) {
     if (!surface.componentsModel.get(id)) {
-      surface.componentsModel.addComponent(new ComponentModel(id, STUB_TYPE, {}));
+      surface.componentsModel.addComponent(new ComponentModel(id, STUB_TYPE, {}, catalog));
     }
   }
 
