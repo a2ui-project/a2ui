@@ -66,6 +66,7 @@ REPO_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, "../../../.."))
 SPEC_ROOT = os.path.join(REPO_ROOT, "specification")
 CORE_SRC_ROOT = os.path.join(REPO_ROOT, "python/a2ui_core/src/a2ui/core")
 
+
 def _generate_constants_code(
     version: str,
     a2r_data: dict[str, Any],
@@ -156,6 +157,7 @@ def _generate_constants_code(
 
     lines.append("")
     return "\n".join(lines)
+
 
 def generate_version_schemas(
     version: str,
@@ -322,6 +324,7 @@ def generate_version_schemas(
     with open(os.path.join(out_dir, "__init__.py"), "w", encoding="utf-8") as f:
         f.write(schema_init_code)
 
+
 def generate_basic_catalog(
     version: str,
     spec_root: str | None = None,
@@ -393,6 +396,7 @@ def generate_basic_catalog(
     )
     with open(os.path.join(out_dir, "__init__.py"), "w", encoding="utf-8") as f:
         f.write(cat_init_code)
+
 
 def update_root_schema_init(
     known_versions: list[str],
@@ -481,7 +485,9 @@ from .common_types import (
 """
 
     agent_union_str = " | ".join([x.strip().rstrip(",") for x in agent_union_items])
-    renderer_union_str = " | ".join([x.strip().rstrip(",") for x in renderer_union_items])
+    renderer_union_str = " | ".join(
+        [x.strip().rstrip(",") for x in renderer_union_items]
+    )
 
     content = f"""{FILE_HEADER}
 from __future__ import annotations
@@ -521,6 +527,7 @@ ClientToServerMessagePayload = RendererToAgentMessagePayload
 """
     with open(os.path.join(o_root, "schema/__init__.py"), "w", encoding="utf-8") as f:
         f.write(content)
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -563,6 +570,7 @@ def main():
         update_root_schema_init(all_schema_dirs)
 
     print("Schema codegen completed successfully.")
+
 
 if __name__ == "__main__":
     main()

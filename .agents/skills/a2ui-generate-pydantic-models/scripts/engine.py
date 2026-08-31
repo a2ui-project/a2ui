@@ -22,6 +22,7 @@ from utils import (
     version_to_underscore,
 )
 
+
 class PydanticCodegen:
     """Deterministic Pydantic v2 code generator from JSON Schema."""
 
@@ -198,8 +199,7 @@ class PydanticCodegen:
                 if has_default:
                     clean_field_str = field_str.lstrip(", ")
                     lines.append(
-                        f"    {snake_name}: {py_type} | None ="
-                        f" Field({clean_field_str})"
+                        f"    {snake_name}: {py_type} | None = Field({clean_field_str})"
                     )
                 else:
                     lines.append(
@@ -220,9 +220,11 @@ class PydanticCodegen:
         if doc:
             lines.append(f'    """{doc}"""')
         if add_props is True:
-            lines.append('    model_config = ConfigDict(extra="allow", populate_by_name=True)')
+            lines.append(
+                '    model_config = ConfigDict(extra="allow", populate_by_name=True)'
+            )
         else:
-            lines.append('    model_config = ConfigDict(populate_by_name=True)')
+            lines.append("    model_config = ConfigDict(populate_by_name=True)")
 
         props = spec.get("properties", {})
         required = spec.get("required", [])

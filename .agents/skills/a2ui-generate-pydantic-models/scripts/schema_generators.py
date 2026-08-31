@@ -30,6 +30,7 @@ from utils import (
     version_to_underscore,
 )
 
+
 def generate_common_types(
     version: str,
     common_data: dict[str, Any],
@@ -269,6 +270,7 @@ LiteralObject = Annotated[dict[str, Any], AfterValidator(_validate_literal_objec
     all_list = ",\n".join(f'    "{s}"' for s in all_exports)
     return f"{full_code}\n__all__ = [\n{all_list},\n]\n"
 
+
 def generate_agent_to_renderer(
     version: str,
     a2r_data: dict[str, Any],
@@ -394,6 +396,7 @@ def generate_agent_to_renderer(
             )
 
     return "\n\n\n".join(b.strip() for b in a2r_blocks if b.strip()) + "\n"
+
 
 def generate_renderer_to_agent(
     version: str,
@@ -526,9 +529,7 @@ def generate_renderer_to_agent(
                         "class A2uiValidationError(StrictBaseModel):\n    pass"
                     )
                     r2a_names.append("A2uiValidationError")
-                r2a_blocks.append(
-                    f"A2uiRendererError = {' | '.join(err_classes)}"
-                )
+                r2a_blocks.append(f"A2uiRendererError = {' | '.join(err_classes)}")
                 r2a_names.append("A2uiRendererError")
 
             msg_cls = "A2uiRendererErrorMessage"
@@ -613,6 +614,7 @@ def generate_renderer_to_agent(
         ])
 
     return "\n\n\n".join(b.strip() for b in r2a_blocks if b.strip()) + "\n"
+
 
 def generate_renderer_capabilities(
     version: str,
@@ -745,6 +747,7 @@ def generate_renderer_capabilities(
 
     return "\n\n\n".join(b.strip() for b in caps_blocks if b.strip()) + "\n"
 
+
 def generate_agent_capabilities(
     version: str,
     capabilities_data: dict[str, Any],
@@ -851,6 +854,7 @@ def generate_agent_capabilities(
 
     return "\n\n\n".join(b.strip() for b in caps_blocks if b.strip()) + "\n"
 
+
 def generate_catalog_definition(
     version: str,
     cat_def_data: dict[str, Any],
@@ -948,6 +952,7 @@ def generate_catalog_definition(
     blocks.append(codegen.compile_object_def("CatalogDefinition", root_spec))
 
     return "\n\n\n".join(b.strip() for b in blocks if b.strip()) + "\n"
+
 
 def generate_schema_init(
     version: str,

@@ -27,6 +27,7 @@ from utils import (
     version_to_underscore,
 )
 
+
 def generate_basic_catalog_components(
     version: str,
     catalog_data: dict[str, Any],
@@ -198,6 +199,7 @@ def generate_basic_catalog_components(
     comp_blocks.append("\n\n".join(tail_sections))
     return "\n\n\n".join(b.strip() for b in comp_blocks if b.strip()) + "\n"
 
+
 def generate_basic_catalog_functions(
     version: str,
     catalog_data: dict[str, Any],
@@ -294,6 +296,7 @@ def generate_basic_catalog_functions(
 
     return header + body_text + "\n"
 
+
 def generate_basic_catalog_styles(
     version: str,
     catalog_data: dict[str, Any],
@@ -338,6 +341,7 @@ def generate_basic_catalog_styles(
         style_blocks.append(codegen.compile_object_def("Theme", defs["Theme"]))
 
     return "\n\n\n".join(b.strip() for b in style_blocks if b.strip()) + "\n"
+
 
 def generate_basic_catalog_index(
     version: str,
