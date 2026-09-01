@@ -90,6 +90,14 @@ function cleanSchemaProperties(obj: Record<string, unknown>): void {
     obj.additionalProperties = true;
   }
 
+  if (
+    obj.unevaluatedProperties &&
+    typeof obj.unevaluatedProperties === 'object' &&
+    Object.keys(obj.unevaluatedProperties).length === 0
+  ) {
+    obj.unevaluatedProperties = true;
+  }
+
   if ('$schema' in obj) {
     delete obj['$schema'];
   }
@@ -324,12 +332,18 @@ function processSingleFunction(
     paramSchemaObj.description = fn.description;
   }
 
-  if (
-    paramSchemaObj.type === 'object' &&
-    paramSchemaObj.additionalProperties === undefined &&
-    paramSchemaObj.unevaluatedProperties === undefined
-  ) {
-    paramSchemaObj.additionalProperties = false;
+  if (paramSchemaObj.type === 'object') {
+    const rawExtra =
+      (paramSchemaObj as any).unevaluatedProperties ?? (paramSchemaObj as any).additionalProperties;
+    const additionalProps =
+      typeof rawExtra === 'boolean' || (typeof rawExtra === 'object' && rawExtra !== null)
+        ? (rawExtra as boolean | Record<string, unknown>)
+        : undefined;
+
+    if (paramSchemaObj.additionalProperties !== undefined) {
+      delete paramSchemaObj.additionalProperties;
+    }
+    paramSchemaObj.unevaluatedProperties = additionalProps !== undefined ? additionalProps : false;
   }
 
   return paramSchemaObj;

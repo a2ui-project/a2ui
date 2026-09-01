@@ -333,7 +333,14 @@ function convertFunctionArgsJsonSchemaToZod(
 ): z.ZodObject<any> {
   const requiredSet = new Set<string>(Array.isArray(rawSchema.required) ? rawSchema.required : []);
   const shape = convertPropertiesToShape(rawSchema.properties || {}, requiredSet, false, rootDoc);
-  return z.object(shape).strict();
+  const obj = z.object(shape);
+  const allowExtra =
+    rawSchema.unevaluatedProperties === true ||
+    (typeof rawSchema.unevaluatedProperties === 'object' &&
+      rawSchema.unevaluatedProperties !== null) ||
+    rawSchema.additionalProperties === true ||
+    (typeof rawSchema.additionalProperties === 'object' && rawSchema.additionalProperties !== null);
+  return allowExtra ? obj.passthrough() : obj.strict();
 }
 
 function parseFunctionDefinitions(

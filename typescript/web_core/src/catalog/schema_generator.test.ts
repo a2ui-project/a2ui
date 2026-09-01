@@ -18,7 +18,7 @@
 import {describe, it} from 'node:test';
 import assert from 'node:assert';
 import {z} from 'zod';
-import {Catalog, ComponentApi, FunctionImplementation} from './types.js';
+import {Catalog, ComponentApi, FunctionApi, FunctionImplementation} from './types.js';
 import {generateCatalogSchema, cleanSchemaNode} from './schema_generator.js';
 
 describe('Catalog.catalogSchema & schema_generator', () => {
@@ -381,5 +381,38 @@ describe('Catalog.catalogSchema & schema_generator', () => {
     const defs = schema['$defs'] as Record<string, any>;
     assert.ok(defs);
     assert.deepStrictEqual(defs.CustomType, customDefs.CustomType);
+  });
+
+  it('emits unevaluatedProperties on function argument schemas', () => {
+    const strictFunction: FunctionApi = {
+      name: 'strictFn',
+      returnType: 'string',
+      schema: z.object({
+        query: z.string(),
+      }),
+    };
+    const openFunction: FunctionApi = {
+      name: 'openFn',
+      returnType: 'string',
+      schema: z
+        .object({
+          tag: z.string(),
+        })
+        .passthrough(),
+    };
+
+    const catalog = new Catalog(
+      'https://example.com/functions-unevaluated.json',
+      [],
+      [strictFunction as any, openFunction as any],
+    );
+    const schema = catalog.catalogSchema;
+    const functions = schema['functions'] as Record<string, any>;
+
+    assert.ok(functions);
+    assert.strictEqual(functions['strictFn'].unevaluatedProperties, false);
+    assert.strictEqual(functions['strictFn'].additionalProperties, undefined);
+    assert.strictEqual(functions['openFn'].unevaluatedProperties, true);
+    assert.strictEqual(functions['openFn'].additionalProperties, undefined);
   });
 });

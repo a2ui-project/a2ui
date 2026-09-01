@@ -617,4 +617,58 @@ describe('Catalog.fromSchema & schema_loader', () => {
     assert.strictEqual(inputComp.schema.safeParse({value: true}).success, true);
     assert.strictEqual(inputComp.schema.safeParse({value: {invalid: 'obj'}}).success, false);
   });
+
+  it('applies passthrough on function argument schemas when unevaluatedProperties is true or a schema object', () => {
+    const catalogJson = {
+      catalogId: 'https://example.com/fn_uneval_props_catalog.json',
+      functions: {
+        openFn: {
+          properties: {
+            args: {
+              type: 'object',
+              properties: {
+                target: {type: 'string'},
+              },
+              unevaluatedProperties: true,
+            },
+          },
+        },
+        schemaFn: {
+          properties: {
+            args: {
+              type: 'object',
+              properties: {
+                target: {type: 'string'},
+              },
+              unevaluatedProperties: {type: 'number'},
+            },
+          },
+        },
+        strictFn: {
+          properties: {
+            args: {
+              type: 'object',
+              properties: {
+                target: {type: 'string'},
+              },
+              unevaluatedProperties: false,
+            },
+          },
+        },
+      },
+    };
+
+    const catalog = Catalog.fromSchema(catalogJson);
+    const openFn = catalog.functions.get('openFn');
+    const schemaFn = catalog.functions.get('schemaFn');
+    const strictFn = catalog.functions.get('strictFn');
+
+    assert.ok(openFn);
+    assert.ok(schemaFn);
+    assert.ok(strictFn);
+
+    assert.strictEqual(openFn.schema.safeParse({target: 'A', extra: 'allowed'}).success, true);
+    assert.strictEqual(schemaFn.schema.safeParse({target: 'B', extra: 123}).success, true);
+    assert.strictEqual(strictFn.schema.safeParse({target: 'C', extra: 'rejected'}).success, false);
+  });
 });
