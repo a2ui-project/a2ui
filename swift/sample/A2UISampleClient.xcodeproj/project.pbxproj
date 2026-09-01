@@ -10,7 +10,6 @@
 		A20000000000000000000001 /* A2UISampleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000101 /* A2UISampleApp.swift */; };
 		A20000000000000000000002 /* SampleStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000102 /* SampleStream.swift */; };
 		A20000000000000000000003 /* SampleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000103 /* SampleLoader.swift */; };
-		A20000000000000000000004 /* EmptyBasicCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000104 /* EmptyBasicCatalog.swift */; };
 		A20000000000000000000005 /* GalleryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000105 /* GalleryViewModel.swift */; };
 		A20000000000000000000006 /* SurfacePreviewPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000106 /* SurfacePreviewPane.swift */; };
 		A20000000000000000000007 /* InspectorPanes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000107 /* InspectorPanes.swift */; };
@@ -20,13 +19,14 @@
 		A20000000000000000000011 /* cases in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000202 /* cases */; };
 		A20000000000000000000012 /* A2UISwiftCore in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000302 /* A2UISwiftCore */; };
 		A20000000000000000000013 /* A2UISwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000303 /* A2UISwiftUI */; };
+		A20000000000000000000014 /* BasicCatalog in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000304 /* BasicCatalog */; };
+		A20000000000000000000015 /* BasicCatalogSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000305 /* BasicCatalogSwiftUI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		A20000000000000000000101 /* A2UISampleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = A2UISampleApp.swift; sourceTree = "<group>"; };
 		A20000000000000000000102 /* SampleStream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleStream.swift; sourceTree = "<group>"; };
 		A20000000000000000000103 /* SampleLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleLoader.swift; sourceTree = "<group>"; };
-		A20000000000000000000104 /* EmptyBasicCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyBasicCatalog.swift; sourceTree = "<group>"; };
 		A20000000000000000000105 /* GalleryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryViewModel.swift; sourceTree = "<group>"; };
 		A20000000000000000000106 /* SurfacePreviewPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurfacePreviewPane.swift; sourceTree = "<group>"; };
 		A20000000000000000000107 /* InspectorPanes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorPanes.swift; sourceTree = "<group>"; };
@@ -44,6 +44,8 @@
 			files = (
 				A20000000000000000000012 /* A2UISwiftCore in Frameworks */,
 				A20000000000000000000013 /* A2UISwiftUI in Frameworks */,
+				A20000000000000000000014 /* BasicCatalog in Frameworks */,
+				A20000000000000000000015 /* BasicCatalogSwiftUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -91,7 +93,6 @@
 		A20000000000000000000505 /* Catalog */ = {
 			isa = PBXGroup;
 			children = (
-				A20000000000000000000104 /* EmptyBasicCatalog.swift */,
 			);
 			path = Catalog;
 			sourceTree = "<group>";
@@ -151,6 +152,8 @@
 			packageProductDependencies = (
 				A20000000000000000000302 /* A2UISwiftCore */,
 				A20000000000000000000303 /* A2UISwiftUI */,
+				A20000000000000000000304 /* BasicCatalog */,
+				A20000000000000000000305 /* BasicCatalogSwiftUI */,
 			);
 			productName = A2UISampleClient;
 			productReference = A20000000000000000000300 /* A2UISampleClient.app */;
@@ -211,7 +214,6 @@
 				A20000000000000000000001 /* A2UISampleApp.swift in Sources */,
 				A20000000000000000000002 /* SampleStream.swift in Sources */,
 				A20000000000000000000003 /* SampleLoader.swift in Sources */,
-				A20000000000000000000004 /* EmptyBasicCatalog.swift in Sources */,
 				A20000000000000000000005 /* GalleryViewModel.swift in Sources */,
 				A20000000000000000000006 /* SurfacePreviewPane.swift in Sources */,
 				A20000000000000000000007 /* InspectorPanes.swift in Sources */,
@@ -365,6 +367,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A20000000000000000000301 /* XCLocalSwiftPackageReference */;
 			productName = A2UISwiftUI;
+		};
+		A20000000000000000000304 /* BasicCatalog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A20000000000000000000301 /* XCLocalSwiftPackageReference */;
+			productName = BasicCatalog;
+		};
+		A20000000000000000000305 /* BasicCatalogSwiftUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A20000000000000000000301 /* XCLocalSwiftPackageReference */;
+			productName = BasicCatalogSwiftUI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
