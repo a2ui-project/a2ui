@@ -1,7 +1,7 @@
 # Publishing Guide for A2UI Web Packages
 
 This guide outlines the workflow for project maintainers publishing web packages
-(`@a2ui/*`) to npm through Google's internal Artifact Registry.
+(`@a2ui/*`) to npm through Google's internal Artifact Registry and Exit Gate.
 
 ## Prerequisites: Authentication
 
@@ -35,65 +35,44 @@ yarn install
 
 This branch should be merged into `main` through a PR as with any other change to the repo.
 
-### 2. Publish to Staging (from `main`)
+### 2. Automated Release Script (`renderers/release.sh`)
 
-Once the new versions land in `main` and it is checked out locally,
-`publish_npm.mjs` can be used to build, test, and upload the packages to
-Google's internal Artifact Registry:
+Once version bump changes land in `main` and it is checked out locally, a TypeScript package can be published and its release manifest uploaded in a single step using `./renderers/release.sh <package_path>`:
 
 ```sh
-./renderers/scripts/publish_npm.mjs --package=lit --package=web_core
+# Release a specific package by path or short name
+./renderers/release.sh renderers/web_core
+./renderers/release.sh renderers/lit
 ```
 
-This script publishes requested packages in the correct dependency order (e.g.,
-ensuring `web_core` is published before `lit`), runs unit tests, and verifies
-that required core packages exist on the registry.
+This script:
 
-By default, the script runs in dry-run mode to prevent accidental uploads; the
-`--no-dry-run` flag can be passed to actually upload the packages:
+1. Builds production distributions without re-running unit tests (tests are verified by CI prior to merging).
+2. Publishes built artifacts to Google Artifact Registry staging.
+3. Uploads the Exit Gate release manifest to GCS to trigger npm distribution.
+
+---
+
+## Under the Hood: Low-Level Scripts
+
+If low-level control or dry-run inspection is required, the underlying scripts can be executed manually:
+
+### Staging Upload (`publish_npm.mjs`)
 
 ```sh
-./renderers/scripts/publish_npm.mjs --package=lit --package=web_core --no-dry-run
+./renderers/scripts/publish_npm.mjs --package=web_core --no-dry-run
 ```
 
-Artifacts are uploaded to: [go/a2ui-oss-exit-gate-artifacts](https://go/a2ui-oss-exit-gate-artifacts).
-This URL points to a web app that allows verifying that the packages have been uploaded correctly.
+**CLI parameters:**
 
-For each package it should be checked:
+- `-p, --package=<name>`: Package(s) to publish.
+- `--no-dry-run`: Actually publish packages.
 
-- That it has been uploaded at the expected version
-- That its size is non-zero in the "Files" tab of the details of the version.
-
-**CLI parameters for `publish_npm.mjs`:**
-
-- `-p, --package=<name>`: Package(s) to publish. Can be specified multiple times. Accepts short names (e.g., `web_core`) or scoped names (e.g., `@a2ui/web_core`).
-- `--no-dry-run`: Actually publish the packages. By default, the script runs in dry-run mode.
-- `--skip-tests`: Skip building and testing packages before publishing. **Not recommended.**
-
-### 3. Trigger Public Release (from `main`)
-
-Once packages are verified in staging, a release manifest must be uploaded to
-trigger the internal Exit Gate pipeline, which publishes them to npm:
+### Manifest Upload (`upload_manifest.mjs`)
 
 ```sh
-./renderers/scripts/upload_manifest.mjs --package=web_core --package=lit
+./renderers/scripts/upload_manifest.mjs --package=web_core --no-dry-run
 ```
-
-Similarly to `publish_npm.mjs`, this script runs in dry-run by default, so the
-`--no-dry-run` flag must be passed to actually trigger the release:
-
-```sh
-./renderers/scripts/upload_manifest.mjs --package=web_core --package=lit --no-dry-run
-```
-
-Confirmation emails from Exit Gate and npm reporting on the progress of the
-actual publishing will be sent automatically. Publishing normally takes around
-5 minutes.
-
-**CLI parameters for `upload_manifest.mjs`:**
-
-- `-p, --package=<name>`: Package(s) to trigger release for (e.g., `--package=lit`). Can be specified multiple times.
-- `--no-dry-run`: Actually trigger the public release via Exit Gate. By default, the script runs in dry-run mode.
 
 ---
 
@@ -107,23 +86,12 @@ A2UI web packages depend on each other via `workspace:*` links during developmen
 
 ---
 
-## What are valid values for the `--package` argument?
+## Valid Package Paths & Names
 
-The `publish_npm.mjs` and `upload_manifest.mjs` scripts
-work with all packages in the `renderers` directory of the monorepo:
+The release scripts accept relative directory paths, short names, or full scoped names:
 
-- `web_core`
-- `markdown-it`
-- `angular`
-- `lit`
-- `react`
-
-The scripts also support the full package names, e.g. `@a2ui/web_core`, but the
-`@a2ui/` prefix is not required.
-
----
-
-## Troubleshooting
-
-- **Dirty Working Tree Warnings**: If build artifacts or temporary files
-  persist, `yarn clean:all` can be run from the monorepo root before trying again.
+- `renderers/web_core` (`web_core`, `@a2ui/web_core`)
+- `renderers/markdown/markdown-it` (`markdown-it`, `@a2ui/markdown-it`)
+- `renderers/angular` (`angular`, `@a2ui/angular`)
+- `renderers/lit` (`lit`, `@a2ui/lit`)
+- `renderers/react` (`react`, `@a2ui/react`)

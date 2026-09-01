@@ -5,7 +5,7 @@ description: State-machine driven automated release workflow for A2UI Python (a2
 
 # A2UI SDK & Package Release Skill
 
-Guidelines and tactical recipes for AI agents to release A2UI Python (`a2ui-agent-sdk`, `a2ui-core`) and TypeScript (`@a2ui/web_core`, `@a2ui/lit`, `@a2ui/angular`, `@a2ui/react`, `@a2ui/markdown-it`) packages using a deterministic **State Machine**.
+Guidelines and tactical recipes for AI agents to inspect, prepare, and execute releases for A2UI Python (`a2ui-agent-sdk`, `a2ui-core`) and TypeScript (`@a2ui/web_core`, `@a2ui/lit`, `@a2ui/angular`, `@a2ui/react`, `@a2ui/markdown-it`) packages using a deterministic **State Machine**.
 
 Primary sources of truth:
 
@@ -15,78 +15,77 @@ Primary sources of truth:
 
 ---
 
-## State Machine Architecture
+## State Machine Architecture & Named States
 
-The agent evaluates the workspace across 4 operational states:
+The release state of **each package is evaluated independently** by relative directory path (e.g. `renderers/web_core`, `agent_sdks/python/a2ui_core`). Each package transitions through its own state machine:
 
-```
-  ┌────────────────────────────────────────────────────────┐
-  │ Phase 0: State Discovery                               │
-  │ (Inspect CHANGELOGs, Git log, Registry versions, PRs) │
-  └───────────────────────────┬────────────────────────────┘
-                              │
-       ┌──────────────────────┼──────────────────────┬──────────────────────┐
-       ▼                      ▼                      ▼                      ▼
-┌──────────────┐   ┌────────────────────┐   ┌──────────────────┐   ┌─────────────────┐
-│ STATE 0:     │   │ STATE 1:           │   │ STATE 2:         │   │ STATE 3:        │
-│ IDLE         │   │ UNRELEASED CHANGES │   │ RELEASE PR       │   │ MAIN READY FOR  │
-│              │   │ EXIST              │   │ PENDING          │   │ PUBLISHING      │
-└──────────────┘   └──────────┬─────────┘   └────────┬─────────┘   └────────┬────────┘
-                              │                      │                      │
-                              ▼                      ▼                      ▼
-                   Execute Phase 1:       Report open PR link    Execute Phase 2:
-                   Version Bump PR        Wait for maintainer    Staging & Manifest
-                   Creation               merge                  Upload
+```mermaid
+stateDiagram-v2
+    [*] --> STATE_INSPECTION: Run check_status.py
+    STATE_INSPECTION --> STATE_IDLE: Registry == Repo & No Unreleased Entries/Commits
+    STATE_INSPECTION --> STATE_UNRELEASED_CHANGES_EXIST: Unreleased Entries in CHANGELOG or Git Log
+    STATE_INSPECTION --> STATE_RELEASE_PR_PENDING: Open Release PR Exists on GitHub
+    STATE_INSPECTION --> STATE_MAIN_READY_FOR_PUBLISHING: Merged to main & Repo Version > Registry Version
+
+    STATE_UNRELEASED_CHANGES_EXIST --> STATE_RELEASE_PR_PENDING: Create Branch, Update Changelog, Bump Version, Open PR
+    STATE_RELEASE_PR_PENDING --> STATE_MAIN_READY_FOR_PUBLISHING: Peer Review & Merge PR to main
+    STATE_MAIN_READY_FOR_PUBLISHING --> STATE_IDLE: Run release.sh <package_path>
 ```
 
----
+### Official Named States:
 
-## Phase 0: State Discovery Protocol
-
-Execute this discovery sequence at the start of any release task:
-
-### 1. Inspect Unreleased Changes Across Packages
-
-Check `## Unreleased` headers in package `CHANGELOG.md` files:
-
-- **Python**: `agent_sdks/python/a2ui_core/CHANGELOG.md`, `agent_sdks/python/a2ui_agent/CHANGELOG.md`
-- **TypeScript**: `renderers/web_core/CHANGELOG.md`, `renderers/lit/CHANGELOG.md`, `renderers/angular/CHANGELOG.md`, `renderers/react/CHANGELOG.md`, `renderers/markdown/markdown-it/CHANGELOG.md`
-
-_Rule_: A package qualifies for release if its `CHANGELOG.md` has unreleased entries, or if `git log -n 20 <pkg_dir>` reveals unreleased commits that must be logged. If `## Unreleased` is empty and no commits exist, skip that package.
-
-### 2. Check Registry vs Local Versions
-
-- **Python**: Compare local `pyproject.toml` version against PyPI (`curl -s https://pypi.org/pypi/a2ui-agent-sdk/json`).
-- **TypeScript**: Compare local `package.json` version against NPM (`npm view @a2ui/web_core version`).
-
-### 3. Query Open GitHub PRs
-
-Run `gh pr list --search "release"` to check for existing release PRs.
-
-### 4. Determine Active State:
-
-- **STATE 0 (IDLE)**: Registry version equals local version AND no unreleased commits exist.
-- **STATE 1 (UNRELEASED_CHANGES_EXIST)**: Unreleased entries exist in `CHANGELOG.md` AND no release PR is currently open.
-- **STATE 2 (RELEASE_PR_PENDING)**: A version bump PR is currently open on GitHub.
-- **STATE 3 (MAIN_READY_FOR_PUBLISHING)**: Current branch is `main` AND local version in `main` is greater than published registry version (Version bump PR was merged).
+1. **`STATE_IDLE`**: The package in `main` is up to date with the public/staging registry and has no unreleased commits or changelog entries.
+2. **`STATE_UNRELEASED_CHANGES_EXIST`**: The package has unreleased changes (in `CHANGELOG.md` or git log), but the version in `main` is not yet bumped and no release PR is open.
+3. **`STATE_RELEASE_PR_PENDING`**: A version bump PR targeting `main` for this package is currently open on GitHub awaiting review/merge.
+4. **`STATE_MAIN_READY_FOR_PUBLISHING`**: The release PR has landed in `main`. The version string in `main` is greater than the published registry version.
 
 ---
 
-## Phase 1: State Handlers & Action Recipes
+## Phase 0: Automated State Discovery
 
-### Handler for STATE 0 (IDLE)
+To inspect the current release state across all packages at once, execute the status checker script:
 
-Emit summary to user: _"All packages are up to date and published."_ End turn.
+```bash
+./.agents/skills/a2ui-release-sdks/scripts/check_status.py
+```
+
+This script evaluates each package independently by directory path, compares local versions against PyPI / NPM registries, parses `CHANGELOG.md` files, checks git logs, and reports the active state for every package.
 
 ---
 
-### Handler for STATE 1 (UNRELEASED_CHANGES_EXIST)
+## Versioning & Changelog Policy
 
-1. **Determine SemVer Version Bump for Qualified Packages**:
-   - If `CHANGELOG.md` contains `BREAKING CHANGE` entries while pre-1.0 (`0.x.y`), bump **MINOR** version (`0.10.x` -> `0.11.0`).
-   - Otherwise, bump **PATCH** version (`0.10.x` -> `0.10.y`).
+### 1. SemVer Version Bump Rules
 
-2. **Prepare Release Branch**:
+- **Pre-1.0 (`0.x.y`)**:
+  - **MINOR Bump** (`0.10.x` -> `0.11.0`): Mandatory when changes contain `BREAKING CHANGE:` entries or breaking API modifications.
+  - **PATCH Bump** (`0.10.x` -> `0.10.y`): Used for backward-compatible features (`feat:`) and bug fixes (`fix:`).
+- **Post-1.0 (`X.y.z`)**:
+  - **MAJOR Bump** (`1.x.y` -> `2.0.0`): Mandatory for breaking changes (`BREAKING CHANGE:`).
+  - **MINOR Bump** (`1.x.y` -> `1.y+1.0`): New backward-compatible features.
+  - **PATCH Bump** (`1.x.y` -> `1.x.y+1`): Backward-compatible bug fixes.
+
+### 2. Changelog Conventions & Auto-Population
+
+- **Breaking Changes Format**: In `CHANGELOG.md`, any breaking change entry MUST start with `BREAKING CHANGE:` or `- BREAKING CHANGE: <description>`.
+- **Unpopulated `## Unreleased` Policy**: If `## Unreleased` is empty, the agent must check `git log -n 20 <pkg_dir>`:
+  1. Filter out non-user-facing commits (`chore:`, `docs:`, `ci:`, `test:`).
+  2. If significant commits exist (`feat:`, `fix:`, `refactor:`, `BREAKING CHANGE:`), automatically populate `## Unreleased` in `CHANGELOG.md` with standard bullet items before bumping version.
+  3. If no significant commits exist, leave the package in `STATE_IDLE`.
+
+---
+
+## Action Recipes by Package State
+
+### Recipe for `STATE_IDLE`
+
+Emit status summary to the user: _"Package `<name>` is fully up to date."_ No action needed.
+
+---
+
+### Recipe for `STATE_UNRELEASED_CHANGES_EXIST`
+
+1. **Prepare Release Branch**:
 
    ```bash
    git checkout main
@@ -94,67 +93,54 @@ Emit summary to user: _"All packages are up to date and published."_ End turn.
    git checkout -b release/sdks-$(date +%Y-%m-%d)
    ```
 
-3. **Update Changelogs & Version Identifiers**:
-   - Rename `## Unreleased` to `## <new_version>` and insert a fresh `## Unreleased` header above it.
-   - **TypeScript**: Update `"version": "<new_version>"` directly in package `package.json` files.
-   - **Python**: Update version strings in `src/a2ui/version.py` or `src/a2ui/core/version.py`.
-   - Run `yarn install` at the workspace root once to update lockfiles cleanly.
+2. **Update Changelogs & Bump Versions**:
+   - If `## Unreleased` is empty, populate it from `git log` of the package directory.
+   - Determine SemVer bump (MINOR for `BREAKING CHANGE:` in pre-1.0, PATCH otherwise).
+   - Move `## Unreleased` items to `## <new_version>` and insert a fresh `## Unreleased` header above.
+   - **TypeScript**: Edit `"version": "<new_version>"` directly in package `package.json`.
+   - **Python**: Edit `__version__ = "<new_version>"` in `version.py`.
+   - Run `yarn install` at the workspace root to update lockfiles cleanly.
 
-4. **Run Pre-flight Test Suite**:
-
-   ```bash
-   # TypeScript pre-flight
-   yarn build:all && yarn test:all
-
-   # Python pre-flight
-   cd agent_sdks/python && uv run pytest
-   ```
-
-5. **Commit & Open Upstream PR**:
+3. **Commit & Open Upstream PR**:
    ```bash
    git add -u
-   git commit -m "release: prepare SDK packages for release"
+   git commit -m "release: prepare <package> v<new_version> for release"
    git push -u origin release/sdks-$(date +%Y-%m-%d)
-   GH_TOKEN="$A2UI_UPSTREAM_TOKEN" gh pr create -R a2ui-project/a2ui --base main --title "release: prepare SDK packages for release" --body "Automated version bump and changelog preparation."
+   GH_TOKEN="$A2UI_UPSTREAM_TOKEN" gh pr create -R a2ui-project/a2ui --base main --title "release: prepare <package> v<new_version> for release" --body "Automated version bump and release notes."
    ```
 
-_Transition_: Repository enters **STATE 2 (RELEASE_PR_PENDING)**.
+---
+
+### Recipe for `STATE_RELEASE_PR_PENDING`
+
+1. Display the open PR link to the user/maintainer.
+2. Wait for peer review and PR merge into `main`.
 
 ---
 
-### Handler for STATE 2 (RELEASE_PR_PENDING)
+### Recipe for `STATE_MAIN_READY_FOR_PUBLISHING`
 
-1. Output open PR URL to the maintainer.
-2. Request PR review and merge into `main`.
+Once the release PR is merged into `main`, execute the release script targeting the package relative directory path:
 
-_Transition Trigger_: Once the PR is merged into `main`, the repository enters **STATE 3 (MAIN_READY_FOR_PUBLISHING)**.
-
----
-
-### Handler for STATE 3 (MAIN_READY_FOR_PUBLISHING)
-
-1. **Pull Latest Main**:
+1. **Sync Local Main**:
 
    ```bash
    git checkout main
    git pull upstream main
    ```
 
-2. **Execute Publishing & Manifest Upload Scripts**:
-   - **TypeScript (NPM)**:
+2. **Execute Package Release Script**:
+   - **TypeScript Packages**:
      ```bash
-     ./renderers/scripts/publish_npm.mjs -p web_core -p lit -p angular -p react --no-dry-run
-     ./renderers/scripts/upload_manifest.mjs -p web_core -p lit -p angular -p react --no-dry-run
+     ./renderers/release.sh renderers/web_core
+     ./renderers/release.sh renderers/lit
      ```
-   - **Python (PyPI)**:
+   - **Python Packages**:
      ```bash
-     cd agent_sdks/python
-     ./release.sh a2ui_core
-     ./release.sh a2ui_agent
+     ./agent_sdks/python/release.sh agent_sdks/python/a2ui_core
+     ./agent_sdks/python/release.sh agent_sdks/python/a2ui_agent
      ```
 
-3. **Post-Release Verification**:
-   - Verify artifacts in Google Artifact Registry staging repository.
-   - Confirm publication on `npmjs.com` and `pypi.org`.
-
-_Transition_: Repository returns to **STATE 0 (IDLE)**.
+3. **Verify Staging & Exit Gate**:
+   - Confirm Artifact Registry staging upload.
+   - Confirm Exit Gate manifest GCS trigger.

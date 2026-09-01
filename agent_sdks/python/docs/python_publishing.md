@@ -34,32 +34,21 @@ This renders a prominent **Changelog** link in PyPI's project navigation sidebar
 
 ---
 
-## 3. Pre-flight Checks & Testing
+## 3. Automated Release Execution (`release.sh`)
 
-Before triggering a release, ensure all Python test suites pass:
-
-```bash
-# Navigate to the Python SDK workspace root
-cd agent_sdks/python
-
-# Run pytest across all packages
-uv run pytest
-```
-
----
-
-## 4. Automated Release Script (`release.sh`)
-
-Python package releases are driven by [agent_sdks/python/release.sh](../release.sh).
+Python package releases are driven by [agent_sdks/python/release.sh](../release.sh) using the package relative directory path:
 
 ### Usage
 
 ```bash
-# Release the Agent SDK (a2ui-agent-sdk)
-./release.sh a2ui_agent
+# Release using package path
+./agent_sdks/python/release.sh agent_sdks/python/a2ui_core
+./agent_sdks/python/release.sh agent_sdks/python/a2ui_agent
 
-# Release the Core SDK (a2ui-core)
+# Or call release.sh directly inside agent_sdks/python
+cd agent_sdks/python
 ./release.sh a2ui_core
+./release.sh a2ui_agent
 ```
 
 ### What `release.sh` Does:
@@ -83,7 +72,7 @@ Python package releases are driven by [agent_sdks/python/release.sh](../release.
 
 ---
 
-## 5. Post-Release Verification
+## 4. Post-Release Verification
 
 After running `release.sh`:
 

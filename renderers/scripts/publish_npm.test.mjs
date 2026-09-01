@@ -35,13 +35,7 @@ describe('publish_npm script integration test', () => {
     };
 
     await main(
-      [
-        '--package=lit',
-        '--package=web_core',
-        '--package=markdown-it',
-        '--skip-tests',
-        '--no-dry-run',
-      ],
+      ['--package=lit', '--package=web_core', '--package=markdown-it', '--no-dry-run'],
       mocks,
     );
 
@@ -103,24 +97,6 @@ describe('publish_npm script integration test', () => {
 
     assert.ok(gcloudCalled, 'Should authenticate via gcloud when --no-dry-run is passed');
     assert.ok(hasPublish, 'Should publish when --no-dry-run is passed');
-  });
-
-  it('should skip tests when --skip-tests is passed', async () => {
-    const executedCommands = [];
-    const mocks = {
-      runCommand: (cmd, args) => {
-        executedCommands.push(`${cmd} ${args.join(' ')}`);
-      },
-      execSync: cmd => {
-        if (cmd.includes('npm info')) return '0.0.1\n';
-        return '';
-      },
-    };
-
-    await main(['--package=web_core', '--skip-tests'], mocks);
-
-    const hasTest = executedCommands.some(cmd => cmd.includes('run test'));
-    assert.strictEqual(hasTest, false, 'Should NOT run tests when --skip-tests is passed');
   });
 
   it('should automatically add core dependencies if missing', async () => {

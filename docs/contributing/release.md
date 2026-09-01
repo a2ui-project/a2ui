@@ -12,33 +12,57 @@ For codebase-specific technical guides:
 
 ## 1. Core Release Philosophy & State Machine
 
-Releases in A2UI follow a **two-stage state machine**:
+Releases in A2UI follow a **two-stage state machine**. Each package's state is **tracked and processed independently by relative directory path**:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> StateInspection: Run Inspection Commands
-    StateInspection --> Idle: Registry == Repo & No Unreleased Entries
-    StateInspection --> UnreleasedChangesExist: Unreleased Entries in CHANGELOG
-    StateInspection --> ReleasePRPending: Open Release PR Exists on GitHub
-    StateInspection --> MainReadyForPublishing: Merged to main & Repo Version > Registry Version
+    [*] --> STATE_INSPECTION: Run check_status.py
+    STATE_INSPECTION --> STATE_IDLE: Registry == Repo & No Unreleased Entries/Commits
+    STATE_INSPECTION --> STATE_UNRELEASED_CHANGES_EXIST: Unreleased Entries in CHANGELOG or Git Log
+    STATE_INSPECTION --> STATE_RELEASE_PR_PENDING: Open Release PR Exists on GitHub
+    STATE_INSPECTION --> STATE_MAIN_READY_FOR_PUBLISHING: Merged to main & Repo Version > Registry Version
 
-    UnreleasedChangesExist --> ReleasePRPending: Create Branch, Update Changelog, Bump Version, Open PR
-    ReleasePRPending --> MainReadyForPublishing: Peer Review & Merge PR to main
-    MainReadyForPublishing --> Idle: Run Staging & Manifest Upload Scripts
+    STATE_UNRELEASED_CHANGES_EXIST --> STATE_RELEASE_PR_PENDING: Create Branch, Update Changelog, Bump Version, Open PR
+    STATE_RELEASE_PR_PENDING --> STATE_MAIN_READY_FOR_PUBLISHING: Peer Review & Merge PR to main
+    STATE_MAIN_READY_FOR_PUBLISHING --> STATE_IDLE: Run release.sh <package_path>
 ```
 
-1. **Stage 1: Version Bump & Release Notes (Pull Request)**:
-    - Evaluates `CHANGELOG.md` unreleased items across packages.
-    - Increments the version string in `package.json` / `version.py`.
-    - Moves `CHANGELOG.md` `## Unreleased` entries to `## <new_version>`.
-    - Runs pre-flight unit tests and opens a GitHub PR targeting `a2ui-project/a2ui`.
-2. **Stage 2: Staging & Manifest Upload (Post-Merge)**:
-    - Once the Version Bump PR is merged into `main`, release artifacts are published to staging/internal registries.
-    - Release manifests are uploaded to trigger public distribution (via Exit Gate to PyPI / NPM).
+### Official Named States per Package:
+
+1. **`STATE_IDLE`**: Package version equals published registry version and has no unreleased commits or changelog entries.
+2. **`STATE_UNRELEASED_CHANGES_EXIST`**: Package has unreleased changes (in `CHANGELOG.md` or git log), but local version is not yet bumped and no release PR is open.
+3. **`STATE_RELEASE_PR_PENDING`**: A release PR for this package is currently open on GitHub awaiting review/merge.
+4. **`STATE_MAIN_READY_FOR_PUBLISHING`**: The release PR has merged into `main`. The version string in `main` is greater than the published registry version.
 
 ---
 
-## 2. Prerequisites & Authentication
+## 2. Status Inspection & Direct Release Tooling
+
+Check the current release status across all packages using the automated checker:
+
+```bash
+./.agents/skills/a2ui-release-sdks/scripts/check_status.py
+```
+
+To execute a release for any package once merged to `main`, run the release script for the package directory:
+
+- **TypeScript Packages**:
+    ```bash
+    ./renderers/release.sh renderers/web_core
+    ./renderers/release.sh renderers/lit
+    ./renderers/release.sh renderers/angular
+    ./renderers/release.sh renderers/react
+    ./renderers/release.sh renderers/markdown/markdown-it
+    ```
+- **Python Packages**:
+    ```bash
+    ./agent_sdks/python/release.sh agent_sdks/python/a2ui_core
+    ./agent_sdks/python/release.sh agent_sdks/python/a2ui_agent
+    ```
+
+---
+
+## 3. Prerequisites & Authentication
 
 Before triggering a package release, ensure your local development environment has authentication configured:
 
@@ -64,7 +88,7 @@ gh auth login
 
 ---
 
-## 3. Changelog & SemVer Rules
+## 4. Changelog & SemVer Rules
 
 Every publishable package maintains a `CHANGELOG.md` file in its package root directory (e.g., `renderers/web_core/CHANGELOG.md`, `agent_sdks/python/a2ui_agent/CHANGELOG.md`).
 
@@ -74,7 +98,7 @@ Every publishable package maintains a `CHANGELOG.md` file in its package root di
 ## Unreleased
 
 - Add new feature X [#123]
-- Fix edge-case bug Y [#124]
+- BREAKING CHANGE: Rename API parameter Y to Z [#124]
 
 ## 0.10.6
 
@@ -85,24 +109,27 @@ Every publishable package maintains a `CHANGELOG.md` file in its package root di
 
 When adding features or fixing bugs in feature PRs, developers append bullet points directly under `## Unreleased`.
 
-### Protocol During Package Release
+### Breaking Change Convention
 
-When preparing a package version release:
+Any breaking change entry in `CHANGELOG.md` MUST start with `BREAKING CHANGE:` or `- BREAKING CHANGE: <description>`.
 
-1. Rename `## Unreleased` to `## <new_version>`.
-2. Insert a fresh, empty `## Unreleased` header above `## <new_version>`.
-
-### Empty Unreleased Policy
+### Empty Unreleased Policy & Git Log Auto-Population
 
 If a release is requested but `CHANGELOG.md` has no entries under `## Unreleased`:
 
-- Check git history (`git log -n 20 <pkg_dir>`) to see if unreleased commits exist.
-- If unreleased commits exist, document them under `## Unreleased`.
-- If no unreleased commits exist, **skip releasing that package**.
+- Inspect git history (`git log -n 20 <pkg_dir>`) for unreleased commits.
+- Filter out non-user-facing commits (`chore:`, `docs:`, `ci:`, `test:`).
+- Populate `## Unreleased` in `CHANGELOG.md` with significant commits (`feat:`, `fix:`, `refactor:`, `BREAKING CHANGE:`).
+- If no significant commits exist, skip releasing that package (keep in `STATE_IDLE`).
 
 ### Version Bump Selection Rules (SemVer)
 
 When choosing `<new_version>`:
 
-- **Breaking Changes in Pre-1.0 (`0.x.y`)**: If `CHANGELOG.md` contains entries marked `BREAKING CHANGE` or breaking API modifications while pre-1.0 (`0.x.y`), bump the **MINOR** version (e.g., `0.10.2` -> `0.11.0`). If post-1.0 (`X.y.z`), bump the **MAJOR** version (`1.x.y` -> `2.0.0`).
-- **Backward-Compatible Changes**: If changes contain only non-breaking features or bug fixes, bump the **PATCH** version (e.g., `0.10.6` -> `0.10.7`).
+- **Pre-1.0 (`0.x.y`)**:
+    - **MINOR Bump** (`0.10.x` -> `0.11.0`): Mandatory when changes contain `BREAKING CHANGE:` entries or breaking API modifications.
+    - **PATCH Bump** (`0.10.x` -> `0.10.y`): Backward-compatible features and bug fixes.
+- **Post-1.0 (`X.y.z`)**:
+    - **MAJOR Bump** (`1.x.y` -> `2.0.0`): Mandatory for breaking changes (`BREAKING CHANGE:`).
+    - **MINOR Bump** (`1.x.y` -> `1.y+1.0`): New backward-compatible features.
+    - **PATCH Bump** (`1.x.y` -> `1.x.y+1`): Backward-compatible bug fixes.
