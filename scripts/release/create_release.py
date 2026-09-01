@@ -223,17 +223,15 @@ def evaluate_semver_bump(entries):
 
     for entry in entries:
         line = entry.strip()
-        if line.startswith("### "):
-            sec = line[4:].strip().lower()
-            if "breaking" in sec:
-                has_breaking = True
-            elif "feature" in sec or "feat" in sec:
-                has_feat = True
-        else:
-            if "BREAKING CHANGE:" in line:
-                has_breaking = True
-            elif line.startswith("- FEAT:") or line.startswith("* FEAT:") or line.startswith("- feat:") or line.startswith("* feat:"):
-                has_feat = True
+        if "BREAKING CHANGE:" in line:
+            has_breaking = True
+        elif (
+            line.startswith("- FEAT:")
+            or line.startswith("* FEAT:")
+            or line.startswith("- feat:")
+            or line.startswith("* feat:")
+        ):
+            has_feat = True
 
     if has_breaking:
         return "MAJOR_OR_MINOR"

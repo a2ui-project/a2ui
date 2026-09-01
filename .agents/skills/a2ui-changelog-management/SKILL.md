@@ -41,32 +41,12 @@ Each package in the repository maintains its own independent `CHANGELOG.md`:
 
 ## 3. Strict Canonical Formatting Rules
 
-To allow the automated release pipeline (`./scripts/release/release_manager.py`) to accurately compute Semantic Version bumps (`MAJOR`, `MINOR`, `PATCH`), all entries MUST be added under the **`## Unreleased`** section using **EXACTLY ONE** of the following two canonical formats:
-
-### Option 1: Section Subheadings (Recommended)
+To allow the automated release pipeline (`./scripts/release/create_release.py`) to accurately compute Semantic Version bumps (`MAJOR`, `MINOR`, `PATCH`), all entries MUST be added under the **`## Unreleased`** section using the **Single Mandatory Bullet Prefix Format**:
 
 ```markdown
 ## Unreleased
 
-### Breaking Changes
-
-- Changed `RenderEngine` constructor to accept a mandatory `options` object instead of positional arguments.
-
-### Features
-
-- Added two-way state binding support for client text inputs.
-
-### Bug Fixes
-
-- Fixed null pointer exception during component unmount in Lit renderer.
-```
-
-### Option 2: Bullet Item Prefixes
-
-```markdown
-## Unreleased
-
-- BREAKING CHANGE: Changed `RenderEngine` constructor to accept a mandatory `options` object.
+- BREAKING CHANGE: Changed `RenderEngine` constructor to accept a mandatory `options` object instead of positional arguments.
 - FEAT: Added two-way state binding support for client text inputs.
 - FIX: Fixed null pointer exception during component unmount in Lit renderer.
 ```

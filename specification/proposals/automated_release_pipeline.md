@@ -112,45 +112,25 @@ sequenceDiagram
 
 ### Strict Formal Changelog Conventions (Zero Fuzzy Matching)
 
-To ensure 100% deterministic version bump calculations without fuzzy string matching, developers MUST format items under `## Unreleased` using **EXACTLY ONE** of the two canonical syntaxes below:
-
-#### Canonical Syntax Option 1: Subheading Section Format (Recommended)
+To ensure 100% deterministic version bump calculations without fuzzy string matching, developers MUST format items under `## Unreleased` using the **Single Mandatory Line Prefix Format**:
 
 ```markdown
 ## Unreleased
 
-### Breaking Changes
-
-- Rename API parameter Y to Z [#124]
-
-### Features
-
-- Add support for custom layout binders [#130]
-
-### Bug Fixes
-
-- Resolve DateTimeInput styling on WebKit [#2200]
-```
-
-#### Canonical Syntax Option 2: Strict Line Prefix Format
-
-```markdown
-## Unreleased
-
-- BREAKING CHANGE: Rename API parameter Y to Z [#124]
-- FEAT: Add support for custom layout binders [#130]
-- FIX: Resolve DateTimeInput styling on WebKit [#2200]
+- BREAKING CHANGE: Changed `RenderEngine` constructor to accept a mandatory `options` object.
+- FEAT: Added two-way state binding support for client text inputs.
+- FIX: Fixed null pointer exception during component unmount in Lit renderer.
 ```
 
 #### Strict Parsing & SemVer Calculation Matrix
 
-The parser (`create_release_pr.py`) evaluates entries against strict exact token matches (`### Breaking Changes`, `### Features`, `### Bug Fixes`, `BREAKING CHANGE:`, `FEAT:`, `FIX:`):
+The parser (`create_release.py`) evaluates entries against strict exact prefix matches (`BREAKING CHANGE:`, `FEAT:`, `FIX:`):
 
-| Strict Token Matched                                                   | Pre-1.0 Version Bump (`0.x.y`)   | Post-1.0 Version Bump (`X.y.z`) |
-| :--------------------------------------------------------------------- | :------------------------------- | :------------------------------ |
-| `### Breaking Changes` OR `BREAKING CHANGE:`                           | **MINOR** (`0.10.2` -> `0.11.0`) | **MAJOR** (`1.2.3` -> `2.0.0`)  |
-| `### Features` OR `FEAT:`                                              | **MINOR** (`0.10.2` -> `0.11.0`) | **MINOR** (`1.2.3` -> `1.3.0`)  |
-| `### Bug Fixes` OR `FIX:` (or un-prefixed lines under `## Unreleased`) | **PATCH** (`0.10.2` -> `0.10.3`) | **PATCH** (`1.2.3` -> `1.2.4`)  |
+| Strict Token Matched                                    | Pre-1.0 Version Bump (`0.x.y`)   | Post-1.0 Version Bump (`X.y.z`) |
+| :------------------------------------------------------ | :------------------------------- | :------------------------------ |
+| `BREAKING CHANGE:`                                      | **MINOR** (`0.10.2` -> `0.11.0`) | **MAJOR** (`1.2.3` -> `2.0.0`)  |
+| `FEAT:` (or `feat:`)                                    | **MINOR** (`0.10.2` -> `0.11.0`) | **MINOR** (`1.2.3` -> `1.3.0`)  |
+| `FIX:` (or `fix:`, or un-prefixed line `## Unreleased`) | **PATCH** (`0.10.2` -> `0.10.3`) | **PATCH** (`1.2.3` -> `1.2.4`)  |
 
 #### Human SemVer Override Mechanism
 

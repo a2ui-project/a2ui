@@ -62,16 +62,6 @@ class TestCreateRelease(unittest.TestCase):
         # Post-1.0: PATCH -> bump patch
         self.assertEqual(compute_next_version("1.2.3", "PATCH"), "1.2.4")
 
-    def test_evaluate_semver_bump_subheadings(self):
-        entries_breaking = ["### Breaking Changes", "- Changed API signature"]
-        self.assertEqual(evaluate_semver_bump(entries_breaking), "MAJOR_OR_MINOR")
-
-        entries_feat = ["### Features", "- Added streaming support"]
-        self.assertEqual(evaluate_semver_bump(entries_feat), "MINOR")
-
-        entries_fix = ["### Bug Fixes", "- Fixed memory leak"]
-        self.assertEqual(evaluate_semver_bump(entries_fix), "PATCH")
-
     def test_evaluate_semver_bump_prefixes(self):
         entries_breaking = ["- BREAKING CHANGE: Changed API signature"]
         self.assertEqual(evaluate_semver_bump(entries_breaking), "MAJOR_OR_MINOR")

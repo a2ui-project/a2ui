@@ -108,26 +108,9 @@ gh auth login
 
 Every publishable package maintains a `CHANGELOG.md` file in its package root directory (e.g., `renderers/web_core/CHANGELOG.md`, `agent_sdks/python/a2ui_agent/CHANGELOG.md`).
 
-### Strict Canonical Syntaxes (Zero Fuzzy Matching)
+### Strict Canonical Syntax (Zero Fuzzy Matching)
 
-Developers MUST format items under `## Unreleased` using **EXACTLY ONE** of the two canonical syntaxes below:
-
-#### Option 1: Subheading Section Syntax (Recommended)
-
-```markdown
-## Unreleased
-
-### Breaking Changes
-- Rename API parameter Y to Z [#124]
-
-### Features
-- Add support for custom layout binders [#130]
-
-### Bug Fixes
-- Fix DateTimeInput styling on WebKit [#2200]
-```
-
-#### Option 2: Strict Line Prefix Syntax
+Developers MUST format items under `## Unreleased` using the **Single Mandatory Line Prefix Syntax**:
 
 ```markdown
 ## Unreleased

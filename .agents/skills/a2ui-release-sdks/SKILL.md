@@ -55,9 +55,9 @@ To ensure the automated release pipeline accurately calculates SemVer version bu
 
 ### SemVer Calculation Rules
 
-- **Breaking Changes** (`### Breaking Changes` or `- BREAKING CHANGE:`): Bumps **MINOR** for pre-1.0 (`0.10.x` -> `0.11.0`) or **MAJOR** for post-1.0 (`1.x.y` -> `2.0.0`).
-- **Features** (`### Features` or `- FEAT:`): Bumps **MINOR** (`0.10.x` -> `0.11.0` pre-1.0; `1.x.y` -> `1.y+1.0` post-1.0).
-- **Bug Fixes** (`### Bug Fixes` or `- FIX:`): Bumps **PATCH** (`0.10.x` -> `0.10.y`).
+- **Breaking Changes** (`- BREAKING CHANGE:`): Bumps **MINOR** for pre-1.0 (`0.10.x` -> `0.11.0`) or **MAJOR** for post-1.0 (`1.x.y` -> `2.0.0`).
+- **Features** (`- FEAT:` or `- feat:`): Bumps **MINOR** (`0.10.x` -> `0.11.0` pre-1.0; `1.x.y` -> `1.y+1.0` post-1.0).
+- **Bug Fixes** (`- FIX:` or `- fix:`): Bumps **PATCH** (`0.10.x` -> `0.10.y`).
 
 ---
 
@@ -82,11 +82,11 @@ Use `create_release.py` to inspect package release states or generate release PR
 
 The release pipeline operates on 3 automated GitHub Actions workflows:
 
-| Workflow                                 | Trigger                                    | Description                                                                                                                               |
-| :--------------------------------------- | :----------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------- |
-| **`.github/workflows/release-pr.yml`**   | Cron (Mon 09:00 UTC) / `workflow_dispatch` | Runs `create_release.py --create-pr`. Audits git commits, updates version strings, updates lockfiles, and opens a Release PR.             |
-| **`.github/workflows/tag-on-merge.yml`** | Push to `main` (version file changes)      | Runs `bootstrap_tags.py --push` to automatically create and push immutable Git tags (`javascript/<pkg>/v<ver>` or `python/<pkg>/v<ver>`). |
-| **`.github/workflows/publish-tag.yml`**  | Push tag (`javascript/**`, `python/**`)    | Checks out exact tag commit, builds artifacts, runs `release.sh`, and publishes to Artifact Registry / PyPI / npm.                        |
+| Workflow                                 | Trigger                                    | Description                                                                                                                                      |
+| :--------------------------------------- | :----------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`.github/workflows/release-pr.yml`**   | Cron (Mon 09:00 UTC) / `workflow_dispatch` | Runs `create_release.py --create-pr`. Audits git commits, updates version strings, updates lockfiles, and opens a Release PR.                    |
+| **`.github/workflows/tag-on-merge.yml`** | Push to `main` (version file changes)      | Runs `create_release.py --create-tags` to automatically create and push immutable Git tags (`javascript/<pkg>/v<ver>` or `python/<pkg>/v<ver>`). |
+| **`.github/workflows/publish-tag.yml`**  | Push tag (`javascript/**`, `python/**`)    | Checks out exact tag commit, builds artifacts, runs `release.sh`, and publishes to Artifact Registry / PyPI / npm.                               |
 
 ### Debugging Failed Releases
 
