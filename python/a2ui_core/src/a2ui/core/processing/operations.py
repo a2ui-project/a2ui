@@ -21,6 +21,7 @@ from ..schema.v1_0 import (
     MSG_TYPE_UPDATE_COMPONENTS,
     MSG_TYPE_UPDATE_DATA_MODEL,
     MSG_TYPE_CALL_RENDERER_FUNCTION,
+    MSG_TYPE_AGENT_FUNCTION_RESPONSE,
 )
 
 
@@ -77,10 +78,19 @@ class InternalCallRendererFunctionOp:
     type: str = MSG_TYPE_CALL_RENDERER_FUNCTION
 
 
+@dataclass
+class InternalAgentFunctionResponseOp:
+    function_call_id: str
+    value: Any | None = None
+    error: dict[str, Any] | None = None
+    type: str = MSG_TYPE_AGENT_FUNCTION_RESPONSE
+
+
 InternalOperation = (
     InternalCreateSurfaceOp
     | InternalUpdateComponentsOp
     | InternalUpdateDataModelOp
     | InternalDeleteSurfaceOp
     | InternalCallRendererFunctionOp
+    | InternalAgentFunctionResponseOp
 )

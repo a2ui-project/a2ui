@@ -166,14 +166,12 @@ class CallRendererFunctionMessage(StrictBaseModel):
     )
 
 
-class AgentFunctionResponse(StrictBaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-    pass
+AgentFunctionResponse = FunctionResponse
 
 
 class AgentFunctionResponseMessage(StrictBaseModel):
     version: PROTOCOL_VERSION_TYPE = PROTOCOL_VERSION
-    agent_function_response: AgentFunctionResponse = Field(
+    agent_function_response: FunctionResponse = Field(
         ..., alias="agentFunctionResponse"
     )
 
