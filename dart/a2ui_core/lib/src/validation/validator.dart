@@ -81,6 +81,11 @@ class _SurfacePayload {
 /// payloads against the same catalogs. Implements v0.9 only: [checkVersion]
 /// and [parseMessages] reject any other version, or none.
 ///
+/// Every entry point is synchronous. Component schemas reach the validator
+/// with their references already inlined by `resolveSchemaRefs`, so schema
+/// validation runs through `Schema.validateSync` and never performs I/O. A
+/// caller can therefore validate inside a synchronous message-processing path.
+///
 /// Validation runs in three stages, which [validate] performs in order:
 /// [parseMessages] checks envelopes, [validateStructure] checks the component
 /// graph, and [validateAgainstCatalogs] checks each component against its
@@ -219,7 +224,7 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
   /// A surface the payload does not create carries no catalog id, so its
   /// components are checked only when this validator holds exactly one
   /// catalog. A validator has no client state to look the surface up in.
-  Future<void> validateAgainstCatalogs(List<A2uiMessage> messages) async {
+  void validateAgainstCatalogs(List<A2uiMessage> messages) {
     final Map<String, _SurfacePayload> surfaces = _groupBySurface(messages);
 
     for (final _SurfacePayload surface in surfaces.values) {
@@ -237,7 +242,7 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
       final Catalog<C, F>? catalog = _catalogFor(surface);
       if (catalog == null) continue;
       for (final Map<String, Object?> component in surface.components) {
-        await _validateComponent(component, catalog);
+        _validateComponent(component, catalog);
       }
     }
   }
@@ -246,17 +251,17 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
   /// schemas.
   ///
   /// Returns the parsed messages, and throws as the individual steps do.
-  Future<List<A2uiMessage>> validate(List<Map<String, Object?>> payload) async {
+  List<A2uiMessage> validate(List<Map<String, Object?>> payload) {
     final List<A2uiMessage> messages = parseMessages(payload);
     validateStructure(messages);
-    await validateAgainstCatalogs(messages);
+    validateAgainstCatalogs(messages);
     return messages;
   }
 
-  Future<void> _validateComponent(
+  void _validateComponent(
     Map<String, Object?> component,
     Catalog<C, F> catalog,
-  ) async {
+  ) {
     final Object? type = component['component'];
     if (type is! String) {
       throw A2uiValidationError(
@@ -272,7 +277,7 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
       );
     }
 
-    final List<ValidationError> errors = await schema.validate(component);
+    final List<ValidationError> errors = schema.validateSync(component);
     if (errors.isNotEmpty) {
       throw A2uiValidationError(
         "Component '${component['id']}' does not match the '$type' schema in "

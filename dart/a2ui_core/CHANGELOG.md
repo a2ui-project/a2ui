@@ -2,10 +2,14 @@
 
 ## 0.2.0
 
+- **Breaking:** `A2uiValidator.validate` and `validateAgainstCatalogs` are now
+  synchronous, returning `List<A2uiMessage>` and `void` instead of futures.
+  Callers must drop `await`. They returned futures only because
+  `json_schema_builder` exposed no synchronous entry point; A2UI inlines every
+  schema reference up front and never fetches one, so the asynchrony was
+  unused. Requires `json_schema_builder` 0.1.7 for `Schema.validateSync`.
 - **Breaking:** `Catalog` now takes two type parameters,
-  `Catalog<C extends ComponentApi, F extends FunctionApi>`, so that agents can
-  hold catalogs whose functions declare a signature without an implementation.
-  Renderers use `Catalog<C, FunctionImplementation>`.
+  `Catalog<C extends ComponentApi, F extends FunctionApi>`.
 - Added `A2uiProtocolVersion`, which gates every entry point on protocol v0.9
   and rejects payloads that declare another version or omit it.
 - Added `Catalog.fromJson`, `Catalog.catalogSchema` and `Catalog.copyWith`, plus

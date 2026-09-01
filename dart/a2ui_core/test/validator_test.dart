@@ -695,7 +695,10 @@ void main() {
         updateComponents([text('label', 'Hello')]),
       ]);
 
-      expect(validator.validateAgainstCatalogs(messages), completes);
+      expect(
+        () => validator.validateAgainstCatalogs(messages),
+        returnsNormally,
+      );
     });
 
     test('rejects a component missing a required property', () {
@@ -709,7 +712,7 @@ void main() {
       ]);
 
       expect(
-        validator.validateAgainstCatalogs(messages),
+        () => validator.validateAgainstCatalogs(messages),
         throwsA(isA<A2uiValidationError>()),
       );
     });
@@ -725,7 +728,7 @@ void main() {
       ]);
 
       expect(
-        validator.validateAgainstCatalogs(messages),
+        () => validator.validateAgainstCatalogs(messages),
         throwsA(isA<A2uiValidationError>()),
       );
     });
@@ -741,7 +744,7 @@ void main() {
       ]);
 
       expect(
-        validator.validateAgainstCatalogs(messages),
+        () => validator.validateAgainstCatalogs(messages),
         throwsA(
           isA<A2uiValidationError>().having(
             (e) => e.message,
@@ -766,7 +769,7 @@ void main() {
       ]);
 
       expect(
-        validator.validateAgainstCatalogs(messages),
+        () => validator.validateAgainstCatalogs(messages),
         throwsA(isA<A2uiCatalogError>()),
       );
     });
@@ -787,7 +790,7 @@ void main() {
       ]);
 
       expect(
-        validator.validateAgainstCatalogs(messages),
+        () => validator.validateAgainstCatalogs(messages),
         throwsA(isA<A2uiValidationError>()),
       );
     });
@@ -809,7 +812,10 @@ void main() {
         ]),
       ]);
 
-      expect(validator.validateAgainstCatalogs(messages), completes);
+      expect(
+        () => validator.validateAgainstCatalogs(messages),
+        returnsNormally,
+      );
     });
   });
 
@@ -818,7 +824,7 @@ void main() {
       final A2uiValidator<CatalogComponent, CatalogFunction> validator =
           newValidator();
 
-      final List<A2uiMessage> messages = await validator.validate([
+      final List<A2uiMessage> messages = validator.validate([
         createSurface(),
         updateComponents([card('root', 'label'), text('label', 'Hello')]),
       ]);
@@ -832,7 +838,7 @@ void main() {
           newValidator();
 
       expect(
-        validator.validate([createSurface(version: 'v1.0')]),
+        () => validator.validate([createSurface(version: 'v1.0')]),
         throwsA(isA<A2uiValidationError>()),
       );
     });
@@ -844,7 +850,7 @@ void main() {
       // `root` is both a dangling reference and missing its required `text`.
       // Structure runs first, so the integrity error is what surfaces.
       expect(
-        validator.validate([
+        () => validator.validate([
           createSurface(),
           updateComponents([
             {'id': 'root', 'component': 'Card', 'child': 'missing'},

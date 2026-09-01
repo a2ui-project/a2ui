@@ -110,7 +110,7 @@ void main() {
             (message! as Map).cast<String, Object?>(),
         ];
 
-        await expectLater(basicValidator().validate(payload), completes);
+        expect(() => basicValidator().validate(payload), returnsNormally);
       });
     }
   });
@@ -122,7 +122,7 @@ void main() {
 
     test('a component missing a required property', () {
       expect(
-        validator.validate(
+        () => validator.validate(
           render([
             {'id': 'root', 'component': 'Text'},
           ]),
@@ -133,7 +133,7 @@ void main() {
 
     test('a value outside a property enum', () {
       expect(
-        validator.validate(
+        () => validator.validate(
           render([
             {'id': 'root', 'component': 'Text', 'text': 'hi', 'variant': 'h9'},
           ]),
@@ -144,7 +144,7 @@ void main() {
 
     test('a property the component does not declare', () {
       expect(
-        validator.validate(
+        () => validator.validate(
           render([
             {
               'id': 'root',
@@ -160,7 +160,7 @@ void main() {
 
     test('a component type the catalog does not declare', () {
       expect(
-        validator.validate(
+        () => validator.validate(
           render([
             {'id': 'root', 'component': 'Frobnicator'},
           ]),
@@ -174,7 +174,7 @@ void main() {
       // back at the catalog document, so resolving it in both directions is
       // what makes this check possible.
       expect(
-        validator.validate(
+        () => validator.validate(
           render([
             {
               'id': 'root',
@@ -193,7 +193,7 @@ void main() {
 
     test('a child reference that names no component', () {
       expect(
-        validator.validate(
+        () => validator.validate(
           render([
             {'id': 'root', 'component': 'Card', 'child': 'missing'},
           ]),
@@ -204,7 +204,7 @@ void main() {
 
     test('a malformed child list', () {
       expect(
-        validator.validate(
+        () => validator.validate(
           render([
             {
               'id': 'root',
@@ -227,7 +227,7 @@ void main() {
 
     test('a data binding in place of a literal', () {
       expect(
-        validator.validate(
+        () => validator.validate(
           render([
             {
               'id': 'root',
@@ -236,13 +236,13 @@ void main() {
             },
           ]),
         ),
-        completes,
+        returnsNormally,
       );
     });
 
     test('a call to a function the catalog declares', () {
       expect(
-        validator.validate(
+        () => validator.validate(
           render([
             {
               'id': 'root',
@@ -255,7 +255,7 @@ void main() {
             },
           ]),
         ),
-        completes,
+        returnsNormally,
       );
     });
   });

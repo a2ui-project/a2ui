@@ -77,14 +77,14 @@ void _runCase(Map<String, Object?> testCase) {
         step['expect_error'] ?? testCase['expect_error'];
     if (expectError != null) {
       expect(
-        validator.validate(payload),
+        () => validator.validate(payload),
         throwsA(_matchesError(expectError)),
         reason: testCase['name'] as String?,
       );
     } else {
       expect(
-        validator.validate(payload),
-        completes,
+        () => validator.validate(payload),
+        returnsNormally,
         reason: testCase['name'] as String?,
       );
     }
