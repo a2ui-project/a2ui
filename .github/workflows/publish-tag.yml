@@ -83,7 +83,7 @@ jobs:
 
       - name: Create GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.A2UI_UPSTREAM_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_INPUT: ${{ inputs.tag_name }}
           REF_NAME: ${{ github.ref_name }}
           DRY_RUN_INPUT: ${{ inputs.dry_run }}

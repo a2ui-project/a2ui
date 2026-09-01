@@ -300,17 +300,32 @@ To guarantee reliable execution across developer workstations and automated CI/C
   - `roles/artifactregistry.writer` (for pushing Python wheels to `us-python.pkg.dev` and npm packages to `us-npm.pkg.dev`)
   - `roles/storage.objectAdmin` (for uploading Exit Gate release manifests to `gs://oss-exit-gate-prod-projects-bucket/...`)
 
-### 2. Keyless Workload Identity Federation (WIF) in CI/CD
+### 2. Bot Identity Architecture (`github-actions[bot]` & GitHub Apps)
 
-- Automated release publishing in `.github/workflows/publish-tag.yml` uses Keyless OIDC authentication via `google-github-actions/auth@v2` with `id-token: write` permissions.
-- **Required Repository Secrets**:
-  - `GCP_WORKLOAD_IDENTITY_PROVIDER`: Workload identity pool provider resource name.
-  - `GCP_SERVICE_ACCOUNT`: Target IAM service account configured with Artifact Registry and GCS permissions.
+- **Zero Personal Tokens Policy**: To prevent dependency on individual developer credentials, all automated commits, branch creations, Git tags, and Release PRs run under an official bot identity.
+- **Native `secrets.GITHUB_TOKEN`**: The workflow uses GitHub's built-in `GITHUB_TOKEN` (`permissions: contents: write, pull-requests: write`). Pull Requests opened by the workflow are authored by `github-actions[bot]` (`41898282+github-actions[bot]@users.noreply.github.com`).
+- **Optional Dedicated GitHub App**: Repositories seeking custom bot names (e.g. `a2ui-release-bot[bot]`) can configure a dedicated GitHub App using `actions/create-github-app-token` with repository secrets `RELEASE_BOT_APP_ID` and `RELEASE_BOT_PRIVATE_KEY`.
 
-### 3. GitHub CLI (`gh`) & Token Scopes
+### 3. OSS Exit Gate v1.5.0 Keyless WIF Integration
 
-- Automated PR creation (`./scripts/release/create_release.py --create-pr`) retrieves token from `A2UI_UPSTREAM_TOKEN` or `GH_TOKEN`.
-- **Required Token Scopes**:
-  - `repo`: Full control of repositories (required to create branches and open Pull Requests).
-  - `workflow`: Updating GitHub Action workflow files if included in version bumps.
-- **Auth Failure Recovery**: If `gh pr create` encounters an HTTP 401/403 permission error (e.g. read-only token), `create_release.py` outputs clear scope requirements and logs the created branch name (`release/sdks-weekly`) so maintainers can push and open the PR manually.
+The publishing workflow (`.github/workflows/publish-tag.yml`) integrates directly with Google's **OSS Exit Gate v1.5.0**:
+
+1. **Builder Registration**:
+   The workflow is registered as an authorized builder in the Exit Gate project configuration (`project.txtpb`):
+   ```textproto
+   builders: "github_workflow:a2ui-project/a2ui/.github/workflows/publish-tag.yml@refs/heads/main"
+   ```
+2. **Keyless OIDC Workload Identity Federation (WIF)**:
+   The workflow authenticates using `google-github-actions/auth@v2` (`id-token: write`):
+   ```yaml
+   - name: Authenticate with OSS Exit Gate
+     uses: 'google-github-actions/auth@v2'
+     with:
+       workload_identity_provider: 'projects/305452601764/locations/global/workloadIdentityPools/builders/providers/github'
+   ```
+3. **Artifact Registry Staging & Manifest Triggering**:
+   - Builds production wheels and npm packages.
+   - Uploads artifacts to internal Artifact Registry repositories (`https://us-python.pkg.dev/oss-exit-gate-prod/a2ui--pypi`, `https://us-npm.pkg.dev/oss-exit-gate-prod/a2ui--npm`).
+   - Generates `manifest.json` (`{ "publish_all": true }`) and uploads it to GCS (`gs://oss-exit-gate-prod-projects-bucket/a2ui/<registry>/manifests/manifest-${VERSION}.json`).
+4. **Automated Verification & External Publication**:
+   The OSS Exit Gate verifies the WIF identity, evaluates BCID compliance policy, and publishes the package to public registries (PyPI, npm, GitHub Releases) under monitored Google infrastructure.

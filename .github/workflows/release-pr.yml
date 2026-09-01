@@ -50,7 +50,7 @@ jobs:
 
       - name: Run Release PR Creator Script
         env:
-          GH_TOKEN: ${{ secrets.A2UI_UPSTREAM_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DRY_RUN_INPUT: ${{ inputs.dry_run }}
         run: |
           EXTRA_ARGS=""

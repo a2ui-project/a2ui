@@ -45,6 +45,6 @@ jobs:
 
       - name: Detect Version Bumps & Create Git Tags
         env:
-          GH_TOKEN: ${{ secrets.A2UI_UPSTREAM_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ./scripts/release/create_release.py --create-tags

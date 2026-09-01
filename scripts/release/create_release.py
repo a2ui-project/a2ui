@@ -518,7 +518,7 @@ def create_release_pr(dry_run=False):
 
     # Create PR via gh CLI (Portable --head branch_name)
     pr_body_text = "\n".join(pr_body_lines)
-    gh_token = os.environ.get("A2UI_UPSTREAM_TOKEN") or os.environ.get("GH_TOKEN")
+    gh_token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     env = dict(os.environ)
     if gh_token:
         env["GH_TOKEN"] = gh_token
