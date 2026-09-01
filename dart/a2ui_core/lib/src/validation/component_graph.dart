@@ -12,16 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:meta/meta.dart';
+
 import '../primitives/errors.dart';
 import 'component_refs.dart';
 
 /// The id every surface's component tree is rooted at in v0.9.
-const String rootComponentId = 'root';
+const String _rootComponentId = 'root';
 
 /// The deepest component chain a surface may declare.
+@visibleForTesting
 const int maxComponentDepth = 50;
 
 /// The deepest chain of nested function calls a component property may hold.
+@visibleForTesting
 const int maxFunctionCallDepth = 5;
 
 /// Matches a JSON Pointer as A2UI writes data-model paths, allowing the
@@ -58,9 +62,9 @@ void checkComponentIntegrity(
 
   if (allowDangling) return;
 
-  if (requireRoot && !ids.contains(rootComponentId)) {
+  if (requireRoot && !ids.contains(_rootComponentId)) {
     throw A2uiIntegrityError(
-      "Missing root component: No component has id='$rootComponentId'",
+      "Missing root component: No component has id='$_rootComponentId'",
     );
   }
 
@@ -81,12 +85,12 @@ void checkComponentIntegrity(
   }
 }
 
-/// Walks the component graph from the root, reporting the ids it reaches.
+/// Walks the component graph from the root, checking what it reaches.
 ///
 /// Throws [A2uiRecursionError] for a self-reference, a cycle, or a chain
 /// deeper than [maxComponentDepth], and [A2uiIntegrityError] for a component
 /// unreachable from the root when [allowOrphans] is false.
-Set<String> analyzeComponentTopology(
+void checkComponentTopology(
   List<Map<String, Object?>> components,
   Map<String, ComponentRefFields> refFields, {
   required bool requireRoot,
@@ -146,22 +150,21 @@ Set<String> analyzeComponentTopology(
     for (final String id in ids.toList()..sort()) {
       if (!visited.contains(id)) visit(id, 0);
     }
-    return visited;
+    return;
   }
 
-  if (ids.contains(rootComponentId)) visit(rootComponentId, 0);
+  if (ids.contains(_rootComponentId)) visit(_rootComponentId, 0);
 
   if (!allowOrphans) {
     final List<String> orphans = (ids.difference(visited).toList())..sort();
     if (orphans.isNotEmpty) {
       throw A2uiIntegrityError(
         "Component '${orphans.first}' is not reachable from "
-        "'$rootComponentId'",
+        "'$_rootComponentId'",
         componentIds: orphans,
       );
     }
   }
-  return visited;
 }
 
 /// Checks data-model paths and nesting depth anywhere inside a message body.

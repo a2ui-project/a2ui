@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_core/src/validation/component_graph.dart';
+import 'package:a2ui_core/src/validation/component_refs.dart';
 import 'package:test/test.dart';
 
 const String catalogId = 'https://example.com/catalogs/test.json';

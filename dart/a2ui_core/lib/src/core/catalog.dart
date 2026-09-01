@@ -115,17 +115,8 @@ typedef SchemaCatalog = Catalog<CatalogComponent, CatalogFunction>;
 /// For renderers, [F] is [FunctionImplementation], for agents [F] is
 /// [CatalogFunction].
 ///
-/// For a catalog that declares no functions, pass `Never`:
-///
-/// ```dart
-/// final Catalog<MyComponent, Never> catalog = Catalog(
-///   id: 'my_catalog',
-///   components: [MyComponent()],
-/// );
-///
-/// void render(Catalog<MyComponent, FunctionImplementation> c) {}
-/// render(catalog);
-/// ```
+/// For a catalog that declares no functions, pass `Never`
+/// (see https://dart.dev/language/built-in-types).
 class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// The catalog id, from the document's `catalogId` field.
   final String id;

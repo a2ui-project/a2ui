@@ -22,10 +22,6 @@ abstract class A2uiMessage {
 
   A2uiMessage({this.version = 'v0.9'});
 
-  /// The declared protocol version, parsed.
-  A2uiProtocolVersion get protocolVersion =>
-      A2uiProtocolVersion.fromJson(version);
-
   /// Deserializes a JSON envelope into a typed [A2uiMessage].
   ///
   /// Throws [A2uiValidationError] if `version` is missing or unsupported.

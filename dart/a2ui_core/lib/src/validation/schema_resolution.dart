@@ -14,11 +14,11 @@
 
 /// The file name a catalog refers to for the shared type definitions, however
 /// the reference spells the rest of the URL.
-const String commonTypesDocument = 'common_types.json';
+const String _commonTypesDocument = 'common_types.json';
 
 /// The file name `common_types.json` refers back to for the catalog's own
 /// definitions, however the reference spells the rest of the URL.
-const String catalogDocument = 'catalog.json';
+const String _catalogDocument = 'catalog.json';
 
 /// Rewrites a component schema so it can be validated without any I/O.
 ///
@@ -139,7 +139,7 @@ class _RefResolver {
   /// The document [target] names, as seen from [base].
   _DocumentRef? _documentFor(String target, _DocumentRef base) {
     if (target.isEmpty) return base;
-    if (target.endsWith(commonTypesDocument)) {
+    if (target.endsWith(_commonTypesDocument)) {
       final Map<String, Object?>? commonTypes = _commonTypes;
       return commonTypes == null
           ? null
@@ -147,7 +147,7 @@ class _RefResolver {
     }
     // `common_types.json` points back at `catalog.json` for the catalog's own
     // `anyComponent` and `anyFunction` unions.
-    if (target.endsWith(catalogDocument)) {
+    if (target.endsWith(_catalogDocument)) {
       return _DocumentRef(_document, 'catalog');
     }
     return null;

@@ -46,14 +46,6 @@ export 'src/processing/expressions.dart';
 // Processing & expressions.
 export 'src/processing/processor.dart';
 export 'src/rendering/binder.dart';
-// Payload validation.
-export 'src/validation/component_graph.dart'
-    show maxComponentDepth, maxFunctionCallDepth, rootComponentId;
-export 'src/validation/component_refs.dart'
-    show
-        ComponentRefFields,
-        ComponentReference,
-        componentReferences,
-        extractComponentRefFields,
-        selfDescribingProperties;
+// Payload validation. The component-graph and reference helpers behind the
+// validator stay package-private: `A2uiValidator` is the entry point.
 export 'src/validation/validator.dart';

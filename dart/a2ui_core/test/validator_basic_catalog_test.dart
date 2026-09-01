@@ -16,6 +16,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_core/src/validation/component_refs.dart';
 import 'package:test/test.dart';
 
 import 'conformance/conformance_harness.dart';

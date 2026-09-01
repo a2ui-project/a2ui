@@ -92,7 +92,7 @@ class _SurfacePayload {
 /// catalog's schema.
 ///
 /// A payload that creates a surface is a full render: it must declare a
-/// component with id [rootComponentId], every reference must name a component
+/// component with id `root`, every reference must name a component
 /// the payload declares, and every component must be reachable from the root.
 /// A payload that only updates components is incremental, so it may reference
 /// components the client already holds; duplicate ids, self-references and
@@ -207,7 +207,7 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
         requireRoot: surface.created,
         allowDangling: !surface.created,
       );
-      analyzeComponentTopology(
+      checkComponentTopology(
         surface.components,
         refFields,
         requireRoot: surface.created,
