@@ -44,6 +44,7 @@ members = [
   "samples/community/mcp/a2ui-in-mcpapps/server",
   "samples/community/mcp/a2ui-over-mcp-recipe",
   "samples/community/mcp/mcp-apps-calculator",
+  "catalogs/mcp",
   "tools/build_catalog",
 ]
 
