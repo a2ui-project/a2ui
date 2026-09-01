@@ -298,4 +298,49 @@ describe('Catalog.catalogSchema & schema_generator', () => {
     assert.strictEqual(functions['updateAddress'].properties.args.definitions, undefined);
     assert.strictEqual(functions['updateAddress'].properties.args.$defs, undefined);
   });
+
+  it('emits unevaluatedProperties: false on flat components and themes', () => {
+    const SimpleWidget: ComponentApi = {
+      name: 'SimpleWidget',
+      schema: z.object({
+        title: z.string(),
+      }),
+    };
+    const SimpleTheme = z.object({
+      primaryColor: z.string(),
+    });
+
+    const catalog = new Catalog(
+      'https://example.com/unevaluated.json',
+      [SimpleWidget],
+      [],
+      SimpleTheme,
+    );
+    const schema = catalog.catalogSchema;
+    const components = schema['components'] as Record<string, any>;
+    const defs = schema['$defs'] as Record<string, any>;
+
+    assert.strictEqual(components['SimpleWidget'].unevaluatedProperties, false);
+    assert.strictEqual(defs['theme'].unevaluatedProperties, false);
+  });
+
+  it('emits unevaluatedProperties: false at the root of allOf when componentEnvelopeRef is used', () => {
+    const CustomWidget: ComponentApi = {
+      name: 'CustomWidget',
+      schema: z.object({
+        label: z.string(),
+      }),
+    };
+
+    const catalog = new Catalog('https://example.com/envelope.json', [CustomWidget]);
+    const schema = generateCatalogSchema(catalog, {
+      componentEnvelopeRef: 'common_types.json#/$defs/ComponentCommon',
+    });
+    const components = schema['components'] as Record<string, any>;
+    const widget = components['CustomWidget'];
+
+    assert.ok(Array.isArray(widget.allOf));
+    assert.strictEqual(widget.unevaluatedProperties, false);
+    assert.strictEqual(widget.allOf[1].additionalProperties, undefined);
+  });
 });

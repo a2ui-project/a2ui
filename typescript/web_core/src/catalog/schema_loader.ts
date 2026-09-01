@@ -301,10 +301,13 @@ function convertComponentJsonSchemaToZod(
   }
 
   const obj = z.object(shape);
-  return rawSchema.additionalProperties === true ||
-    (typeof rawSchema.additionalProperties === 'object' && rawSchema.additionalProperties !== null)
-    ? obj.passthrough()
-    : obj.strict();
+  const allowExtra =
+    rawSchema.unevaluatedProperties === true ||
+    (typeof rawSchema.unevaluatedProperties === 'object' &&
+      rawSchema.unevaluatedProperties !== null) ||
+    rawSchema.additionalProperties === true ||
+    (typeof rawSchema.additionalProperties === 'object' && rawSchema.additionalProperties !== null);
+  return allowExtra ? obj.passthrough() : obj.strict();
 }
 
 function convertFunctionArgsJsonSchemaToZod(

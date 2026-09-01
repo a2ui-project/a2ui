@@ -94,9 +94,12 @@ function processTheme(catalog: CatalogInterface<any, any>, defs: Record<string, 
     ...(Array.isArray(themeRaw.required) && themeRaw.required.length > 0
       ? {required: themeRaw.required}
       : {}),
-    ...(themeRaw.additionalProperties !== undefined
-      ? {additionalProperties: themeRaw.additionalProperties}
-      : {}),
+    unevaluatedProperties:
+      themeRaw.unevaluatedProperties !== undefined
+        ? themeRaw.unevaluatedProperties
+        : themeRaw.additionalProperties !== undefined
+          ? themeRaw.additionalProperties
+          : false,
   };
   defs['theme'] = themeObj;
 }
@@ -127,10 +130,10 @@ function processSingleComponent(
     reqList = Array.isArray(rawZod.required)
       ? (rawZod.required as string[]).filter(r => r !== 'component')
       : [];
+    const rawExtra = rawZod.unevaluatedProperties ?? rawZod.additionalProperties;
     additionalProps =
-      typeof rawZod.additionalProperties === 'boolean' ||
-      (typeof rawZod.additionalProperties === 'object' && rawZod.additionalProperties !== null)
-        ? (rawZod.additionalProperties as boolean | Record<string, unknown>)
+      typeof rawExtra === 'boolean' || (typeof rawExtra === 'object' && rawExtra !== null)
+        ? (rawExtra as boolean | Record<string, unknown>)
         : undefined;
   }
 
@@ -150,16 +153,16 @@ function processSingleComponent(
           type: 'object',
           properties: innerProperties,
           required: innerRequired,
-          ...(additionalProps !== undefined ? {additionalProperties: additionalProps} : {}),
         },
       ],
+      unevaluatedProperties: additionalProps !== undefined ? additionalProps : false,
     };
   } else {
     compSchemaObj = {
       type: 'object',
       properties: innerProperties,
       required: innerRequired,
-      ...(additionalProps !== undefined ? {additionalProperties: additionalProps} : {}),
+      unevaluatedProperties: additionalProps !== undefined ? additionalProps : false,
     };
   }
 

@@ -1,0 +1,1346 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "catalogId": "https://a2ui.org/specification/v0_8/catalogs/basic/catalog.json",
+  "components": {
+    "Text": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "Text"
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility."
+        },
+        "weight": {
+          "type": "number"
+        },
+        "text": {
+          "$ref": "#/properties/accessibility/properties/label"
+        },
+        "variant": {
+          "type": "string",
+          "enum": [
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "caption",
+            "body"
+          ],
+          "default": "body"
+        },
+        "usageHint": {
+          "type": "string",
+          "enum": [
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "caption",
+            "body"
+          ]
+        }
+      },
+      "required": [
+        "component",
+        "text"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Image": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "Image"
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility."
+        },
+        "weight": {
+          "type": "number"
+        },
+        "url": {
+          "$ref": "#/properties/accessibility/properties/label"
+        },
+        "description": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Represents a string"
+        },
+        "altText": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Represents a string"
+        },
+        "fit": {
+          "type": "string",
+          "enum": [
+            "contain",
+            "cover",
+            "fill",
+            "none",
+            "scaleDown",
+            "scale-down"
+          ],
+          "default": "fill"
+        },
+        "variant": {
+          "type": "string",
+          "enum": [
+            "icon",
+            "avatar",
+            "smallFeature",
+            "mediumFeature",
+            "largeFeature",
+            "header"
+          ],
+          "default": "mediumFeature"
+        },
+        "usageHint": {
+          "type": "string",
+          "enum": [
+            "icon",
+            "avatar",
+            "smallFeature",
+            "mediumFeature",
+            "largeFeature",
+            "header"
+          ]
+        }
+      },
+      "required": [
+        "component",
+        "url"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Icon": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "Icon"
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "accountCircle",
+                "add",
+                "arrowBack",
+                "arrowForward",
+                "attachFile",
+                "calendarToday",
+                "call",
+                "camera",
+                "check",
+                "close",
+                "delete",
+                "download",
+                "edit",
+                "event",
+                "error",
+                "fastForward",
+                "favorite",
+                "favoriteOff",
+                "folder",
+                "help",
+                "home",
+                "info",
+                "locationOn",
+                "lock",
+                "lockOpen",
+                "mail",
+                "menu",
+                "moreVert",
+                "moreHoriz",
+                "notificationsOff",
+                "notifications",
+                "pause",
+                "payment",
+                "person",
+                "phone",
+                "photo",
+                "play",
+                "print",
+                "refresh",
+                "rewind",
+                "search",
+                "send",
+                "settings",
+                "share",
+                "shoppingCart",
+                "skipNext",
+                "skipPrevious",
+                "star",
+                "starHalf",
+                "starOff",
+                "stop",
+                "upload",
+                "visibility",
+                "visibilityOff",
+                "volumeDown",
+                "volumeMute",
+                "volumeOff",
+                "volumeUp",
+                "warning"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "svgPath": {
+                  "type": "string",
+                  "description": "Custom SVG path data"
+                }
+              },
+              "required": [
+                "svgPath"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "description": "The name of the icon to display."
+        }
+      },
+      "required": [
+        "component",
+        "name"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Video": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "Video"
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "url": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/0"
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/1"
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/2"
+            }
+          ],
+          "description": "The URL of the video to display."
+        }
+      },
+      "required": [
+        "component",
+        "url"
+      ],
+      "unevaluatedProperties": false
+    },
+    "AudioPlayer": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "AudioPlayer"
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "url": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/0"
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/1"
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/2"
+            }
+          ],
+          "description": "The URL of the audio to be played."
+        },
+        "description": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/0"
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/1"
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/2"
+            }
+          ],
+          "description": "A description of the audio, such as a title or summary."
+        }
+      },
+      "required": [
+        "component",
+        "url"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Row": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "Row"
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility."
+        },
+        "weight": {
+          "type": "number"
+        },
+        "children": {
+          "$ref": "common_types.json#/$defs/ChildList"
+        },
+        "justify": {
+          "type": "string",
+          "enum": [
+            "center",
+            "end",
+            "spaceAround",
+            "spaceBetween",
+            "spaceEvenly",
+            "start",
+            "stretch"
+          ]
+        },
+        "distribution": {
+          "type": "string",
+          "enum": [
+            "center",
+            "end",
+            "spaceAround",
+            "spaceBetween",
+            "spaceEvenly",
+            "start",
+            "stretch"
+          ]
+        },
+        "align": {
+          "type": "string",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "stretch"
+          ]
+        },
+        "alignment": {
+          "type": "string",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "stretch"
+          ]
+        }
+      },
+      "required": [
+        "component",
+        "children"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Column": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "Column"
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility."
+        },
+        "weight": {
+          "type": "number"
+        },
+        "children": {
+          "$ref": "common_types.json#/$defs/ChildList"
+        },
+        "justify": {
+          "type": "string",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "spaceBetween",
+            "spaceAround",
+            "spaceEvenly",
+            "stretch"
+          ]
+        },
+        "distribution": {
+          "type": "string",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "spaceBetween",
+            "spaceAround",
+            "spaceEvenly",
+            "stretch"
+          ]
+        },
+        "align": {
+          "type": "string",
+          "enum": [
+            "center",
+            "end",
+            "start",
+            "stretch"
+          ]
+        },
+        "alignment": {
+          "type": "string",
+          "enum": [
+            "center",
+            "end",
+            "start",
+            "stretch"
+          ]
+        }
+      },
+      "required": [
+        "component",
+        "children"
+      ],
+      "unevaluatedProperties": false
+    },
+    "List": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "List"
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility."
+        },
+        "weight": {
+          "type": "number"
+        },
+        "children": {
+          "$ref": "common_types.json#/$defs/ChildList"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "vertical",
+            "horizontal"
+          ]
+        },
+        "align": {
+          "type": "string",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "stretch"
+          ]
+        },
+        "alignment": {
+          "type": "string",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "stretch"
+          ]
+        },
+        "listStyle": {
+          "type": "string",
+          "enum": [
+            "ordered",
+            "unordered",
+            "none"
+          ]
+        }
+      },
+      "required": [
+        "component",
+        "children"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Card": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "Card"
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "child": {
+          "$ref": "common_types.json#/$defs/ComponentId",
+          "description": "The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID. Do NOT define the child component inline."
+        }
+      },
+      "required": [
+        "component",
+        "child"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Tabs": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "Tabs"
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility."
+        },
+        "weight": {
+          "type": "number"
+        },
+        "tabs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "$ref": "#/properties/accessibility/properties/label"
+              },
+              "child": {
+                "$ref": "common_types.json#/$defs/ComponentId",
+                "description": "The unique identifier for a component."
+              }
+            },
+            "required": [
+              "title",
+              "child"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "tabItems": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "$ref": "#/properties/accessibility/properties/label"
+              },
+              "child": {
+                "$ref": "#/properties/tabs/items/properties/child"
+              }
+            },
+            "required": [
+              "title",
+              "child"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "component"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Modal": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "Modal"
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility."
+        },
+        "weight": {
+          "type": "number"
+        },
+        "trigger": {
+          "$ref": "common_types.json#/$defs/ComponentId",
+          "description": "The unique identifier for a component."
+        },
+        "entryPointChild": {
+          "$ref": "common_types.json#/$defs/ComponentId",
+          "description": "The unique identifier for a component."
+        },
+        "content": {
+          "$ref": "common_types.json#/$defs/ComponentId",
+          "description": "The unique identifier for a component."
+        },
+        "contentChild": {
+          "$ref": "common_types.json#/$defs/ComponentId",
+          "description": "The unique identifier for a component."
+        }
+      },
+      "required": [
+        "component"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Divider": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "Divider"
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "axis": {
+          "type": "string",
+          "enum": [
+            "horizontal",
+            "vertical"
+          ],
+          "default": "horizontal",
+          "description": "The orientation of the divider."
+        }
+      },
+      "required": [
+        "component"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Button": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "Button"
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "child": {
+          "$ref": "common_types.json#/$defs/ComponentId",
+          "description": "The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button. Do NOT define the child component inline."
+        },
+        "variant": {
+          "type": "string",
+          "enum": [
+            "default",
+            "primary",
+            "borderless"
+          ],
+          "default": "default",
+          "description": "A hint for the button style. If omitted, a default button style is used. 'primary' indicates this is the main call-to-action button. 'borderless' means the button has no visual border or background, making its child content appear like a clickable link."
+        },
+        "action": {
+          "$ref": "common_types.json#/$defs/Action"
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "common_types.json#/$defs/CheckRule",
+            "description": "A check rule consisting of a condition and an error message."
+          },
+          "description": "A list of checks to perform."
+        },
+        "isValid": {
+          "type": "boolean",
+          "description": "Whether the checks currently pass."
+        },
+        "validationErrors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Current validation error messages."
+        }
+      },
+      "required": [
+        "component",
+        "child"
+      ],
+      "unevaluatedProperties": false
+    },
+    "TextField": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "TextField"
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility."
+        },
+        "weight": {
+          "type": "number"
+        },
+        "label": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Represents a string"
+        },
+        "value": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Represents a string"
+        },
+        "text": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Represents a string"
+        },
+        "variant": {
+          "type": "string",
+          "enum": [
+            "longText",
+            "number",
+            "shortText",
+            "obscured"
+          ]
+        },
+        "textFieldType": {
+          "type": "string",
+          "enum": [
+            "longText",
+            "number",
+            "shortText",
+            "obscured"
+          ]
+        },
+        "validationRegexp": {
+          "type": "string"
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "common_types.json#/$defs/CheckRule",
+            "description": "A check rule consisting of a condition and an error message."
+          },
+          "description": "A list of checks to perform."
+        },
+        "isValid": {
+          "type": "boolean",
+          "description": "Whether the checks currently pass."
+        },
+        "validationErrors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Current validation error messages."
+        }
+      },
+      "required": [
+        "component"
+      ],
+      "unevaluatedProperties": false
+    },
+    "CheckBox": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "CheckBox"
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "label": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/0"
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/1"
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/2"
+            }
+          ],
+          "description": "The text to display next to the checkbox."
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/1"
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/2"
+            }
+          ],
+          "description": "The current state of the checkbox (true for checked, false for unchecked)."
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "common_types.json#/$defs/CheckRule",
+            "description": "A check rule consisting of a condition and an error message."
+          },
+          "description": "A list of checks to perform."
+        },
+        "isValid": {
+          "type": "boolean",
+          "description": "Whether the checks currently pass."
+        },
+        "validationErrors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Current validation error messages."
+        }
+      },
+      "required": [
+        "component",
+        "label",
+        "value"
+      ],
+      "unevaluatedProperties": false
+    },
+    "ChoicePicker": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "ChoicePicker"
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "label": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/0"
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/1"
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/2"
+            }
+          ],
+          "description": "The label for the group of options."
+        },
+        "variant": {
+          "type": "string",
+          "enum": [
+            "multipleSelection",
+            "mutuallyExclusive"
+          ],
+          "default": "mutuallyExclusive",
+          "description": "A hint for how the choice picker should be displayed and behave."
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/accessibility/properties/label/anyOf/0"
+                  },
+                  {
+                    "$ref": "#/properties/accessibility/properties/label/anyOf/1"
+                  },
+                  {
+                    "$ref": "#/properties/accessibility/properties/label/anyOf/2"
+                  }
+                ],
+                "description": "The text to display for this option."
+              },
+              "value": {
+                "type": "string",
+                "description": "The stable value associated with this option."
+              }
+            },
+            "required": [
+              "label",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          "description": "The list of available options to choose from."
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/1"
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/2"
+            }
+          ],
+          "description": "The list of currently selected values. This should be bound to a string array in the data model."
+        },
+        "displayStyle": {
+          "type": "string",
+          "enum": [
+            "checkbox",
+            "chips"
+          ],
+          "default": "checkbox",
+          "description": "The display style of the component."
+        },
+        "filterable": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, displays a search input to filter the options."
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "common_types.json#/$defs/CheckRule",
+            "description": "A check rule consisting of a condition and an error message."
+          },
+          "description": "A list of checks to perform."
+        },
+        "isValid": {
+          "type": "boolean",
+          "description": "Whether the checks currently pass."
+        },
+        "validationErrors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Current validation error messages."
+        }
+      },
+      "required": [
+        "component",
+        "options",
+        "value"
+      ],
+      "unevaluatedProperties": false
+    },
+    "MultipleChoice": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "MultipleChoice"
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "label": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/0"
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/1"
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/2"
+            }
+          ],
+          "description": "The label for the group of options."
+        },
+        "variant": {
+          "type": "string",
+          "enum": [
+            "multipleSelection",
+            "mutuallyExclusive"
+          ],
+          "default": "mutuallyExclusive",
+          "description": "A hint for how the choice picker should be displayed and behave."
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/accessibility/properties/label/anyOf/0"
+                  },
+                  {
+                    "$ref": "#/properties/accessibility/properties/label/anyOf/1"
+                  },
+                  {
+                    "$ref": "#/properties/accessibility/properties/label/anyOf/2"
+                  }
+                ],
+                "description": "The text to display for this option."
+              },
+              "value": {
+                "type": "string",
+                "description": "The stable value associated with this option."
+              }
+            },
+            "required": [
+              "label",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          "description": "The list of available options to choose from."
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/1"
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/2"
+            }
+          ],
+          "description": "The list of currently selected values. This should be bound to a string array in the data model."
+        },
+        "displayStyle": {
+          "type": "string",
+          "enum": [
+            "checkbox",
+            "chips"
+          ],
+          "default": "checkbox",
+          "description": "The display style of the component."
+        },
+        "filterable": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, displays a search input to filter the options."
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "common_types.json#/$defs/CheckRule",
+            "description": "A check rule consisting of a condition and an error message."
+          },
+          "description": "A list of checks to perform."
+        },
+        "isValid": {
+          "type": "boolean",
+          "description": "Whether the checks currently pass."
+        },
+        "validationErrors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Current validation error messages."
+        }
+      },
+      "required": [
+        "component",
+        "options",
+        "value"
+      ],
+      "unevaluatedProperties": false
+    },
+    "Slider": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "Slider"
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility."
+        },
+        "weight": {
+          "type": "number"
+        },
+        "label": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Represents a string"
+        },
+        "min": {
+          "type": "number"
+        },
+        "minValue": {
+          "type": "number"
+        },
+        "max": {
+          "type": "number"
+        },
+        "maxValue": {
+          "type": "number"
+        },
+        "value": {
+          "$ref": "common_types.json#/$defs/DynamicNumber",
+          "description": "Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number."
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "common_types.json#/$defs/CheckRule",
+            "description": "A check rule consisting of a condition and an error message."
+          },
+          "description": "A list of checks to perform."
+        },
+        "isValid": {
+          "type": "boolean",
+          "description": "Whether the checks currently pass."
+        },
+        "validationErrors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Current validation error messages."
+        }
+      },
+      "required": [
+        "component",
+        "value"
+      ],
+      "unevaluatedProperties": false
+    },
+    "DateTimeInput": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "DateTimeInput"
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+        },
+        "value": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/0"
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/1"
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/2"
+            }
+          ],
+          "description": "The selected date and/or time value in ISO 8601 format. If not yet set, initialize with an empty string."
+        },
+        "enableDate": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, allows the user to select a date."
+        },
+        "enableTime": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, allows the user to select a time."
+        },
+        "min": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/accessibility/properties/label"
+            },
+            {
+              "type": "string",
+              "format": "date"
+            },
+            {
+              "type": "string",
+              "format": "time"
+            },
+            {
+              "type": "string",
+              "format": "date-time"
+            }
+          ],
+          "description": "The minimum allowed date/time in ISO 8601 format."
+        },
+        "max": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/accessibility/properties/label"
+            },
+            {
+              "type": "string",
+              "format": "date"
+            },
+            {
+              "type": "string",
+              "format": "time"
+            },
+            {
+              "type": "string",
+              "format": "date-time"
+            }
+          ],
+          "description": "The maximum allowed date/time in ISO 8601 format."
+        },
+        "label": {
+          "anyOf": [
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/0"
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/1"
+            },
+            {
+              "$ref": "#/properties/accessibility/properties/label/anyOf/2"
+            }
+          ],
+          "description": "The text label for the input field."
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "common_types.json#/$defs/CheckRule",
+            "description": "A check rule consisting of a condition and an error message."
+          },
+          "description": "A list of checks to perform."
+        },
+        "isValid": {
+          "type": "boolean",
+          "description": "Whether the checks currently pass."
+        },
+        "validationErrors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Current validation error messages."
+        }
+      },
+      "required": [
+        "component",
+        "value"
+      ],
+      "unevaluatedProperties": false
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/components/Text"
+        },
+        {
+          "$ref": "#/components/Image"
+        },
+        {
+          "$ref": "#/components/Icon"
+        },
+        {
+          "$ref": "#/components/Video"
+        },
+        {
+          "$ref": "#/components/AudioPlayer"
+        },
+        {
+          "$ref": "#/components/Row"
+        },
+        {
+          "$ref": "#/components/Column"
+        },
+        {
+          "$ref": "#/components/List"
+        },
+        {
+          "$ref": "#/components/Card"
+        },
+        {
+          "$ref": "#/components/Tabs"
+        },
+        {
+          "$ref": "#/components/Modal"
+        },
+        {
+          "$ref": "#/components/Divider"
+        },
+        {
+          "$ref": "#/components/Button"
+        },
+        {
+          "$ref": "#/components/TextField"
+        },
+        {
+          "$ref": "#/components/CheckBox"
+        },
+        {
+          "$ref": "#/components/ChoicePicker"
+        },
+        {
+          "$ref": "#/components/MultipleChoice"
+        },
+        {
+          "$ref": "#/components/Slider"
+        },
+        {
+          "$ref": "#/components/DateTimeInput"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "component"
+      }
+    }
+  }
+}

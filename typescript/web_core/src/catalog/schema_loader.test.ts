@@ -548,4 +548,46 @@ describe('Catalog.fromSchema & schema_loader', () => {
     });
     assert.strictEqual(result.success, true);
   });
+
+  it('applies passthrough when unevaluatedProperties is true or a schema object', () => {
+    const catalogJson = {
+      catalogId: 'https://example.com/uneval_props_catalog.json',
+      components: {
+        OpenCard: {
+          type: 'object',
+          properties: {
+            title: {type: 'string'},
+          },
+          unevaluatedProperties: true,
+        },
+        SchemaCard: {
+          type: 'object',
+          properties: {
+            title: {type: 'string'},
+          },
+          unevaluatedProperties: {type: 'number'},
+        },
+        StrictCard: {
+          type: 'object',
+          properties: {
+            title: {type: 'string'},
+          },
+          unevaluatedProperties: false,
+        },
+      },
+    };
+
+    const catalog = Catalog.fromSchema(catalogJson);
+    const openCard = catalog.components.get('OpenCard');
+    const schemaCard = catalog.components.get('SchemaCard');
+    const strictCard = catalog.components.get('StrictCard');
+
+    assert.ok(openCard);
+    assert.ok(schemaCard);
+    assert.ok(strictCard);
+
+    assert.strictEqual(openCard.schema.safeParse({title: 'A', extra: 'allowed'}).success, true);
+    assert.strictEqual(schemaCard.schema.safeParse({title: 'B', extra: 123}).success, true);
+    assert.strictEqual(strictCard.schema.safeParse({title: 'C', extra: 'rejected'}).success, false);
+  });
 });

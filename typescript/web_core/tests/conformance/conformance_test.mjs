@@ -15,6 +15,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import assert from 'node:assert';
 import yaml from 'js-yaml';
 import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
 import {Catalog} from '../../dist/src/catalog/types.js';
@@ -171,8 +172,10 @@ function runConformanceHarness() {
           case 'get_renderer_capabilities':
             validateGetRendererCapabilitiesTestCase(testCase);
             break;
-          case 'from_json':
           case 'catalog_schema':
+            validateCatalogSchemaTestCase(testCase);
+            break;
+          case 'from_json':
           case 'get_renderer_data_model':
           case 'resolve_path':
           case 'load_catalog':
@@ -280,6 +283,154 @@ function validateAccessibilityCheckTestCase(testCase) {
 function validateGetRendererCapabilitiesTestCase(testCase) {
   if (!testCase.expect) {
     throw new Error('get_renderer_capabilities test requires "expect" object.');
+  }
+}
+
+function getBasicCatalog(version) {
+  if (version === 'v1.0') {
+    return new Catalog(
+      'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+      v1_0Components,
+    );
+  }
+  if (version === 'v0.9') {
+    return new Catalog(
+      'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+      v0_9Components,
+    );
+  }
+  if (version === 'v0.8') {
+    return new Catalog(
+      'https://a2ui.org/specification/v0_8/catalogs/basic/catalog.json',
+      v0_8Components,
+    );
+  }
+  throw new Error(`Unsupported BasicCatalog protocol version: ${version}`);
+}
+
+function assertCatalogSchemaMatches(actual, expected) {
+  if (expected.$schema) {
+    assert.strictEqual(actual.$schema, expected.$schema, '$schema mismatch');
+  }
+  if (expected.catalogId) {
+    assert.strictEqual(actual.catalogId, expected.catalogId, 'catalogId mismatch');
+  }
+  if (expected.instructions) {
+    assert.strictEqual(actual.instructions, expected.instructions, 'instructions mismatch');
+  }
+
+  if (expected.components) {
+    assert.ok(actual.components, 'Missing components object in actual schema');
+    for (const [compName, expComp] of Object.entries(expected.components)) {
+      const actComp = actual.components[compName];
+      assert.ok(actComp, `Missing component '${compName}' in actual schema`);
+      if (expComp.type) {
+        assert.strictEqual(actComp.type, expComp.type, `Component '${compName}' type mismatch`);
+      }
+      if (expComp.properties) {
+        for (const [pName, pDef] of Object.entries(expComp.properties)) {
+          if (pName === 'id') continue;
+          const actProp = actComp.properties?.[pName];
+          assert.ok(actProp, `Component '${compName}' missing property '${pName}'`);
+          if (pDef.type) assert.strictEqual(actProp.type, pDef.type);
+          if (pDef.const) assert.strictEqual(actProp.const, pDef.const);
+        }
+      }
+      if (Array.isArray(expComp.required)) {
+        for (const reqField of expComp.required) {
+          if (reqField === 'id') continue;
+          assert.ok(
+            actComp.required?.includes(reqField),
+            `Component '${compName}' missing required field '${reqField}'`,
+          );
+        }
+      }
+    }
+  }
+
+  if (expected.functions) {
+    assert.ok(actual.functions, 'Missing functions object in actual schema');
+    for (const [fnName, expFn] of Object.entries(expected.functions)) {
+      const actFn = actual.functions[fnName];
+      assert.ok(actFn, `Missing function '${fnName}' in actual schema`);
+      if (expFn.returnType) {
+        assert.strictEqual(actFn.returnType, expFn.returnType);
+      }
+    }
+  }
+
+  if (expected.$defs) {
+    assert.ok(actual.$defs, 'Missing $defs in actual schema');
+    if (expected.$defs.theme) {
+      assert.ok(actual.$defs.theme, 'Missing $defs.theme');
+    }
+    if (expected.$defs.anyComponent) {
+      assert.deepStrictEqual(actual.$defs.anyComponent, expected.$defs.anyComponent);
+    }
+    if (expected.$defs.anyFunction) {
+      assert.deepStrictEqual(actual.$defs.anyFunction, expected.$defs.anyFunction);
+    }
+  }
+}
+
+function validateCatalogSchemaTestCase(testCase) {
+  const pVer = testCase.protocolVersion || testCase.args?.version || 'v0.8';
+  let catalog;
+
+  if (testCase.useBasicCatalog || testCase.catalog === 'BasicCatalog') {
+    catalog = getBasicCatalog(pVer);
+  } else {
+    const cPath = testCase.catalogPath || testCase.catalogFile;
+    let rawSchema;
+    if (cPath) {
+      const fullP = path.resolve(CONFORMANCE_ROOT, '../', cPath);
+      rawSchema = JSON.parse(fs.readFileSync(fullP, 'utf8'));
+    } else {
+      rawSchema = testCase.catalogSchema || testCase.catalog || testCase.schema || testCase;
+    }
+
+    if (testCase.expectError) {
+      try {
+        Catalog.fromSchema(rawSchema);
+        throw new Error('Expected Catalog.fromSchema to throw an error, but it succeeded.');
+      } catch (err) {
+        if (testCase.expectError.code && !err.message.includes(testCase.expectError.code)) {
+          throw new Error(
+            `Expected error containing '${testCase.expectError.code}', but got '${err.message}'`,
+          );
+        }
+        return;
+      }
+    }
+
+    catalog = Catalog.fromSchema(rawSchema);
+  }
+
+  assert.ok(catalog, 'Catalog should be initialized.');
+
+  const expPath = testCase.expectFile || testCase.expectPath;
+  let expected;
+  if (expPath) {
+    let fullExpP = path.resolve(CONFORMANCE_ROOT, '../', expPath);
+    if (testCase.useBasicCatalog || testCase.catalog === 'BasicCatalog') {
+      const tsExpPath = expPath.replace('converted_basic_catalog_', 'converted_basic_catalog_ts_');
+      const tsFullExpP = path.resolve(CONFORMANCE_ROOT, '../', tsExpPath);
+      if (fs.existsSync(tsFullExpP)) {
+        fullExpP = tsFullExpP;
+      }
+    }
+    expected = JSON.parse(fs.readFileSync(fullExpP, 'utf8'));
+  } else {
+    expected = testCase.expect;
+  }
+
+  if (expected !== undefined) {
+    const actual = catalog.catalogSchema;
+    if (testCase.useBasicCatalog || testCase.catalog === 'BasicCatalog') {
+      assert.deepStrictEqual(actual, expected);
+    } else {
+      assertCatalogSchemaMatches(actual, expected);
+    }
   }
 }
 
