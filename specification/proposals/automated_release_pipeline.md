@@ -13,13 +13,29 @@
 
 This proposal specifies the design and implementation plan for the **A2UI Multi-Language Tag-Based Automated Release System**. It establishes a continuous, deterministic pipeline for releasing A2UI SDK and renderer packages across programming languages.
 
+### 💡 TL;DR — The 4-Step Release Lifecycle
+
+```
+[Step 1: Release PR] ──> [Step 2: Maintainer Audit] ──> [Step 3: Tag Creation] ──> [Step 4: WIF Exit Gate Publish]
+  Cron/CLI inspects        Human reviews PR body           On merge, pushes tag         Tag push builds & uploads
+ unreleased changes;       commit audit vs CHANGELOG;     javascript/web_core/v0.10.7   artifacts via Keyless WIF
+ opens Release PR           merges PR to main (C1)        pointing to commit C1         to OSS Exit Gate & PyPI/npm
+```
+
+1. **Step 1: Automated Release PR Generation (`create_release.py --create-pr`)**: Every Monday at 09:00 UTC, a GitHub Action cron runs `./scripts/release/create_release.py --create-pr`. It inspects `CHANGELOG.md` files for entries under `## Unreleased`, calculates strict SemVer bumps (`MAJOR`, `MINOR`, `PATCH`), mutates version strings (`package.json`/`version.py`), updates lockfiles, and opens a Release PR authored by `github-actions[bot]`. The PR body embeds a **Commit Audit Table** listing all git commits since the last release.
+2. **Step 2: Human Maintainer Audit & Review**: Maintainers inspect the Release PR, cross-referencing the **Commit Audit Table** in the PR body against human-authored notes under `## Unreleased` in `CHANGELOG.md` to ensure no significant changes are omitted. Maintainers edit notes or version strings directly on the PR branch if needed, then squash-and-merge into `main` (commit `C1`).
+3. **Step 3: Automated Namespaced Git Tag Creation (`create_release.py --create-tags`)**: Merging the Version Bump PR triggers `.github/workflows/tag-on-merge.yml`, which executes `./scripts/release/create_release.py --create-tags`. It detects package version increments on `main` and automatically creates and pushes ecosystem-namespaced Git tags pointing to commit `C1` (e.g. `javascript/web_core/v0.10.7`, `python/a2ui_core/v0.1.1`).
+4. **Step 4: Tag-Triggered Keyless WIF Publishing & Exit Gate Release**: Tag creation triggers `.github/workflows/publish-tag.yml`. The runner checks out the exact tag commit `C1`, builds production artifacts, and authenticates keylessly with Google Cloud using **Workload Identity Federation (WIF)** (`google-github-actions/auth@v2`). Artifacts are staged in GCP Artifact Registry, and a manifest is uploaded to GCS to trigger Google's **OSS Exit Gate** verification and release to public registries (PyPI, npm, GitHub Releases).
+
+---
+
 ### Key Objectives
 
 1. **Human-Centric Changelogs**: `CHANGELOG.md` files remain **100% human-maintained**. High-level release notes are written by developers under `## Unreleased`. Raw git commit logs are never injected into `CHANGELOG.md`.
 2. **Automated PR Commit Auditing**: Automated release PRs generate a **Commit Audit Table** in the **GitHub PR Description** listing all commits since the previous release. Human reviewers cross-reference this audit list against `CHANGELOG.md` to ensure no significant changes are omitted.
 3. **Namespaced Tagging Scheme (`javascript/`, `python/`)**: Every release generates an immutable Git tag using ecosystem prefixes (`javascript/<pkg>/v<version>`, `python/<pkg>/v<version>`) to prevent tag collisions in multi-language monorepos.
 4. **Atomic & Idempotent Releases**: Publishing workflows trigger strictly on Git tag creation, checking out the **exact tag commit** (`C1`). Artifact Registry / PyPI existence checks ensure publishing occurs **exactly once** per version.
-5. **Dry-Run & Bootstrapping Safety**: Provides configurable `dry_run` modes and tag bootstrapping scripts to initialize baselines without risk.
+5. **Dry-Run Safety**: Provides configurable `--dry-run` modes to preview version calculations, git tags, and release manifests without risk.
 
 ---
 
