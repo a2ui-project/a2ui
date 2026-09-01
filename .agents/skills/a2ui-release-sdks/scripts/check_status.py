@@ -157,16 +157,24 @@ def get_unreleased_changelog_entries(pkg):
         return []
 
     content = cl.read_text(encoding="utf-8")
-    unreleased_match = re.search(r"## Unreleased\s*\n(.*?)(?=\n## |\Z)", content, re.DOTALL)
-    if not unreleased_match:
-        return []
+    lines = content.splitlines()
+    unreleased_lines = []
+    in_unreleased = False
 
-    lines = [
-        line.strip()
-        for line in unreleased_match.group(1).splitlines()
-        if line.strip().startswith("-") or line.strip().startswith("*")
-    ]
-    return lines
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            if stripped.lower() == "## unreleased":
+                in_unreleased = True
+                continue
+            elif in_unreleased:
+                # Reached next section header (e.g. ## 0.1.1)
+                break
+        if in_unreleased:
+            if stripped.startswith("-") or stripped.startswith("*"):
+                unreleased_lines.append(stripped)
+
+    return unreleased_lines
 
 
 def check_open_prs_for_pkg(pkg):
