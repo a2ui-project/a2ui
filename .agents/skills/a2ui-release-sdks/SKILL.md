@@ -46,8 +46,8 @@ stateDiagram-v2
 To ensure that published release artifacts match the **exact Git commit** of the audited Version Bump PR (preventing subsequent commits on `main` from polluting a release):
 
 - **Tag Naming Convention**:
-  - **TypeScript**: `@a2ui/<short_name>-v<version>` (e.g. `@a2ui/web_core-v0.10.7`, `@a2ui/react-v0.11.0`)
-  - **Python**: `<pkg_name>-v<version>` (e.g. `a2ui-core-v0.1.1`, `a2ui-agent-sdk-v0.5.0`)
+  - **JavaScript/TypeScript**: `javascript/<short_name>/v<version>` (e.g. `javascript/web_core/v0.10.7`, `javascript/react/v0.11.0`)
+  - **Python**: `python/<short_name>/v<version>` (e.g. `python/a2ui_core/v0.1.1`, `python/a2ui_agent/v0.5.0`)
 - **Atomic Build Guarantee**: Release tags point directly to the merged Version Bump PR commit hash (`C1`). Release workflows checkout the exact tag commit (`git checkout tags/<tag>`) before building, guaranteeing 100% parity between `CHANGELOG.md`, version strings, Git history, and published registry artifacts.
 
 ---
@@ -118,13 +118,11 @@ Emit status summary to the user: _"Package `<name>` is fully up to date."_ No ac
      - **Python**: Edit `__version__ = "<new_version>"` in `version.py`.
    - Run `yarn install` at the workspace root to update lockfiles cleanly.
 
-3. **Commit & Open Upstream PR**:
-   ```bash
-   git add -u
-   git commit -m "release: prepare <package> v<new_version> for release"
-   git push -u origin release/sdks-$(date +%Y-%m-%d)
-   GH_TOKEN="$A2UI_UPSTREAM_TOKEN" gh pr create -R a2ui-project/a2ui --base main --title "release: prepare <package> v<new_version> for release" --body "Automated version bump and release notes."
-   ```
+3. **Automated PR Execution**:
+   - Alternatively, execute the centralized release manager script to perform version bumps, lockfile updates, and PR creation automatically:
+     ```bash
+     ./.agents/skills/a2ui-release-sdks/scripts/check_status.py --create-pr
+     ```
 
 ---
 

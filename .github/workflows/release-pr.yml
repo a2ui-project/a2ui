@@ -48,4 +48,4 @@ jobs:
           if [ "${{ github.event.inputs.dry_run }}" == "true" ]; then
             EXTRA_ARGS="--dry-run"
           fi
-          ./.agents/skills/a2ui-release-sdks/scripts/create_release_pr.py $EXTRA_ARGS
+          ./.agents/skills/a2ui-release-sdks/scripts/check_status.py --create-pr $EXTRA_ARGS
