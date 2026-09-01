@@ -64,7 +64,10 @@ class V0Point9Adapter(BaseVersionAdapter):
         }
 
     def _extract_operations_for_action(
-        self, action: str, message: dict[str, Any]
+        self,
+        action: str,
+        message: dict[str, Any],
+        user_activation_present: bool = False,
     ) -> list[InternalOperation]:
         res: list[InternalOperation] = []
         if action == MSG_TYPE_CREATE_SURFACE:

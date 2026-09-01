@@ -765,18 +765,9 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
             if "message" in expect_err:
                 assert expect_err["message"] in str(exc_info.value)
         elif expect_resp:
-            from a2ui.core.processing.adapters import VersionAdapterFactory
-            from a2ui.core.processing.operations import InternalCallRendererFunctionOp
-
-            adapter = VersionAdapterFactory.resolve_from_payload(message)
-            ops = adapter.extract_operations(message)
-            responses = []
-            for op in ops:
-                if isinstance(op, InternalCallRendererFunctionOp):
-                    op.user_activation_present = user_activation
-                resp = processor._process_operation(op)
-                if resp:
-                    responses.append(resp)
+            responses = processor.process_messages(
+                message, user_activation_present=user_activation
+            )
             assert len(responses) == 1
             assert responses[0] == expect_resp
 

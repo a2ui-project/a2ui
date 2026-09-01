@@ -56,7 +56,10 @@ class V0Point8Adapter(BaseVersionAdapter):
         return False
 
     def _extract_operations_for_action(
-        self, action: str, message: dict[str, Any]
+        self,
+        action: str,
+        message: dict[str, Any],
+        user_activation_present: bool = False,
     ) -> list[InternalOperation]:
         res: list[InternalOperation] = []
         if action == MSG_TYPE_BEGIN_RENDERING:

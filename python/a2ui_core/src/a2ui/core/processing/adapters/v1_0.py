@@ -23,7 +23,7 @@ from ...schema.v1_0 import (
     MSG_TYPE_UPDATE_DATA_MODEL,
     MSG_TYPE_CALL_RENDERER_FUNCTION,
     AgentToRendererMessageListWrapper,
-    CallRendererFunctionMessage,
+    CallRendererFunction,
 )
 from ..operations import (
     InternalCallRendererFunctionOp,
@@ -57,7 +57,10 @@ class V1Point0Adapter(BaseVersionAdapter):
         }
 
     def _extract_operations_for_action(
-        self, action: str, message: dict[str, Any]
+        self,
+        action: str,
+        message: dict[str, Any],
+        user_activation_present: bool = False,
     ) -> list[InternalOperation]:
         res: list[InternalOperation] = []
         if action == MSG_TYPE_CREATE_SURFACE:
@@ -68,25 +71,40 @@ class V1Point0Adapter(BaseVersionAdapter):
                     catalog_id=cs.get("catalogId"),
                     theme=cs.get("theme"),
                     send_data_model=bool(cs.get("sendDataModel", False)),
-                    components=cs.get("components"),
-                    data_model=cs.get("dataModel"),
                 )
             )
+            comps = cs.get("components")
+            if comps is not None:
+                res.append(
+                    InternalUpdateComponentsOp(
+                        surface_id=self._get_surface_id(cs),
+                        components=comps,
+                    )
+                )
+            dm = cs.get("dataModel")
+            if dm is not None:
+                res.append(
+                    InternalUpdateDataModelOp(
+                        surface_id=self._get_surface_id(cs),
+                        path="/",
+                        value=dm,
+                    )
+                )
         elif action == MSG_TYPE_UPDATE_COMPONENTS:
             uc = message[MSG_TYPE_UPDATE_COMPONENTS]
             res.append(
                 InternalUpdateComponentsOp(
                     surface_id=self._get_surface_id(uc),
-                    components=uc.get("components", []),
+                    components=uc.get("components") or [],
                 )
             )
         elif action == MSG_TYPE_UPDATE_DATA_MODEL:
-            ud = message[MSG_TYPE_UPDATE_DATA_MODEL]
+            udm = message[MSG_TYPE_UPDATE_DATA_MODEL]
             res.append(
                 InternalUpdateDataModelOp(
-                    surface_id=self._get_surface_id(ud),
-                    path=ud.get("path", "/"),
-                    value=ud.get("value"),
+                    surface_id=self._get_surface_id(udm),
+                    path=udm.get("path") or "/",
+                    value=udm.get("value"),
                 )
             )
         elif action == MSG_TYPE_DELETE_SURFACE:
@@ -97,8 +115,9 @@ class V1Point0Adapter(BaseVersionAdapter):
                 )
             )
         elif action == MSG_TYPE_CALL_RENDERER_FUNCTION:
-            msg_obj = CallRendererFunctionMessage.model_validate(message)
-            crf = msg_obj.call_renderer_function
+            crf = CallRendererFunction.model_validate(
+                message[MSG_TYPE_CALL_RENDERER_FUNCTION]
+            )
             cf = crf.call_function
             ver_str = (
                 self.version.value
@@ -112,6 +131,7 @@ class V1Point0Adapter(BaseVersionAdapter):
                     version=ver_str,
                     catalog_id=cf.catalog_id,
                     args=cf.args or {},
+                    user_activation_present=user_activation_present,
                 )
             )
         return res

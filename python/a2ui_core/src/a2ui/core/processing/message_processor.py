@@ -74,10 +74,13 @@ class MessageProcessor:
             | Mapping[str, Any]
             | Sequence[Mapping[str, Any]]
         ),
+        user_activation_present: bool = False,
     ) -> list[dict[str, Any]]:
         """Accepts a list of parsed JSON messages and executes them in order."""
         adapter = VersionAdapterFactory.resolve_from_payload(messages)
-        operations = adapter.extract_operations(messages)
+        operations = adapter.extract_operations(
+            messages, user_activation_present=user_activation_present
+        )
         responses: list[dict[str, Any]] = []
         for op in operations:
             resp = self._process_operation(op)
