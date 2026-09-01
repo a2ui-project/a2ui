@@ -209,7 +209,6 @@
     },
     "FunctionCommon": {
       "type": "object",
-      "description": "Common properties for function definitions, such as optional function-level catalogId overrides.",
       "properties": {
         "catalogId": {
           "type": "string",
