@@ -113,14 +113,15 @@ When adding features or fixing bugs in feature PRs, developers append bullet poi
 
 Any breaking change entry in `CHANGELOG.md` MUST start with `BREAKING CHANGE:` or `- BREAKING CHANGE: <description>`.
 
-### Empty Unreleased Policy & Git Log Auto-Population
+### Pre-Release Git Reconciliation Protocol
 
-If a release is requested but `CHANGELOG.md` has no entries under `## Unreleased`:
+When preparing a package release, the agent/maintainer performs a reconciliation check between `git log` and `CHANGELOG.md`:
 
-- Inspect git history (`git log -n 20 <pkg_dir>`) for unreleased commits.
-- Filter out non-user-facing commits (`chore:`, `docs:`, `ci:`, `test:`).
-- Populate `## Unreleased` in `CHANGELOG.md` with significant commits (`feat:`, `fix:`, `refactor:`, `BREAKING CHANGE:`).
-- If no significant commits exist, skip releasing that package (keep in `STATE_IDLE`).
+1. Inspect `git log` for the package directory since the previous release commit/tag.
+2. Scan for significant PRs or commits (`feat:`, `fix:`, `refactor:`, `BREAKING CHANGE:`) that are NOT yet documented under `## Unreleased` in `CHANGELOG.md`.
+3. Append any missing significant items to `CHANGELOG.md` to ensure complete release notes.
+4. Inspect all entries under `## Unreleased` to verify if breaking changes exist and select the appropriate SemVer bump version.
+5. If `CHANGELOG.md` has no `## Unreleased` items and no significant commits exist in `git log`, skip releasing that package (keep in `STATE_IDLE`).
 
 ### Version Bump Selection Rules (SemVer)
 

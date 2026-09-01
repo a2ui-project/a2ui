@@ -118,6 +118,17 @@ def get_local_version(pkg):
         return "unknown"
 
 
+def get_latest_changelog_version(pkg):
+    cl = pkg["changelog"]
+    if not cl.exists():
+        return None
+    content = cl.read_text(encoding="utf-8")
+    matches = re.findall(r"## (\d+\.\d+\.\d+)", content)
+    if matches:
+        return matches[0]
+    return None
+
+
 def get_registry_version(pkg):
     try:
         if pkg["type"] == "python":
@@ -137,7 +148,7 @@ def get_registry_version(pkg):
                 return res.stdout.strip()
     except Exception:
         pass
-    return None
+    return get_latest_changelog_version(pkg)
 
 
 def get_unreleased_changelog_entries(pkg):
@@ -217,22 +228,8 @@ def main():
             state = "STATE_UNRELEASED_CHANGES_EXIST"
             action = "Create version bump PR"
         else:
-            # Check git log for unreleased commits
-            rel_path = pkg["dir"].relative_to(WORKSPACE_ROOT)
-            res = subprocess.run(
-                ["git", "log", "-n", "5", "--oneline", "--", str(rel_path)],
-                capture_output=True,
-                text=True,
-                cwd=WORKSPACE_ROOT,
-            )
-            commits = [line for line in res.stdout.splitlines() if line.strip()]
-            if commits and registry_v and local_v == registry_v:
-                # Commits exist but no changelog entries
-                state = "STATE_UNRELEASED_CHANGES_EXIST"
-                action = f"Update CHANGELOG.md from {len(commits)} recent commits and create version bump PR"
-            else:
-                state = "STATE_IDLE"
-                action = "No release action needed"
+            state = "STATE_IDLE"
+            action = "No release action needed"
 
         print(f"\n📦 Package: {pkg['name']}")
         print(f"   Directory:       {pkg['dir'].relative_to(WORKSPACE_ROOT)}")

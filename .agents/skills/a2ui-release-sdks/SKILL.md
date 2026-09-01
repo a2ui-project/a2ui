@@ -93,12 +93,13 @@ Emit status summary to the user: _"Package `<name>` is fully up to date."_ No ac
    git checkout -b release/sdks-$(date +%Y-%m-%d)
    ```
 
-2. **Update Changelogs & Bump Versions**:
-   - If `## Unreleased` is empty, populate it from `git log` of the package directory.
-   - Determine SemVer bump (MINOR for `BREAKING CHANGE:` in pre-1.0, PATCH otherwise).
-   - Move `## Unreleased` items to `## <new_version>` and insert a fresh `## Unreleased` header above.
-   - **TypeScript**: Edit `"version": "<new_version>"` directly in package `package.json`.
-   - **Python**: Edit `__version__ = "<new_version>"` in `version.py`.
+2. **Reconcile Release Notes & Select SemVer Bump**:
+   - **Git Reconciliation Check**: Run `git log` on the package directory since the previous release commit/tag. Scan for significant PRs or commits (`feat:`, `fix:`, `refactor:`, `BREAKING CHANGE:`) that are NOT yet listed under `## Unreleased` in `CHANGELOG.md`. Append any missing items to `CHANGELOG.md` to ensure full release notes coverage.
+   - **SemVer Determination**: Inspect all items under `## Unreleased` (both pre-existing and newly reconciled). If any entry contains `BREAKING CHANGE:`, bump **MINOR** version for pre-1.0 (`0.10.x` -> `0.11.0`) or **MAJOR** for post-1.0 (`1.x.y` -> `2.0.0`). Otherwise, bump **PATCH** version (`0.10.x` -> `0.10.y`).
+   - **Update Version Header**: Rename `## Unreleased` to `## <new_version>` and insert a fresh `## Unreleased` header above it.
+   - **Update Version Identifiers**:
+     - **TypeScript**: Edit `"version": "<new_version>"` directly in package `package.json`.
+     - **Python**: Edit `__version__ = "<new_version>"` in `version.py`.
    - Run `yarn install` at the workspace root to update lockfiles cleanly.
 
 3. **Commit & Open Upstream PR**:
