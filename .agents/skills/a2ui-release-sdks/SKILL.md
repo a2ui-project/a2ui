@@ -13,6 +13,7 @@ This skill provides guidelines and recipes for developers and AI agents to:
 
 Primary sources of truth:
 
+- Day-to-Day Changelog Skill: [.agents/skills/a2ui-changelog-management/SKILL.md](../a2ui-changelog-management/SKILL.md)
 - Proposal & Architecture Spec: [specification/proposals/automated_release_pipeline.md](../../../specification/proposals/automated_release_pipeline.md)
 - Master Release Guide: [docs/contributing/release.md](../../../docs/contributing/release.md)
 
