@@ -443,3 +443,36 @@ def test_data_context_expression_error_dispatching():
     assert errors[0]["code"] == "EXPRESSION_ERROR"
     assert errors[0]["expression"] == "buggy_fn"
     assert "division by zero" in errors[0]["message"].lower()
+
+
+def test_mixed_catalog_protocol_versions_error():
+    from a2ui.core.catalog import Catalog
+    from a2ui.core.catalog.components import ComponentApi
+    from a2ui.core.exceptions import A2uiCatalogError
+    from a2ui.core.schema import ProtocolVersion
+
+    cat_v10 = Catalog(
+        catalog_id="cat_v10",
+        protocol_version=ProtocolVersion.V1_0,
+        components=[ComponentApi("Text", {})],
+    )
+
+    cat_v09 = Catalog(
+        catalog_id="cat_v09",
+        protocol_version=ProtocolVersion.V0_9,
+        components=[ComponentApi("LegacyButton", {})],
+    )
+
+    surface = SurfaceModel(
+        "surf-mixed-ver",
+        default_catalog=cat_v10,
+        available_catalogs=[cat_v10, cat_v09],
+    )
+
+    # Adding component with cat_v09 to v1.0 surface should trigger mismatched protocol version error
+    comp_v09 = ComponentModel("btn1", "LegacyButton", catalog=cat_v09)
+    surface.components_model.add_component(comp_v09)
+
+    with pytest.raises(A2uiCatalogError) as exc_info:
+        surface.validate_catalog_versions()
+    assert "mismatched protocol versions" in str(exc_info.value)

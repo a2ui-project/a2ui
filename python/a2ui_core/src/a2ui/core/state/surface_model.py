@@ -64,16 +64,24 @@ class SurfaceModel(Generic[TComponent, TFunction]):
             if isinstance(comp.catalog, Catalog) and comp.catalog not in cats_to_check:
                 cats_to_check.append(comp.catalog)
 
+        cats_tuple = tuple(sorted(cats_to_check, key=lambda c: id(c)))
+        if getattr(self, "_validated_catalogs_cache", None) == cats_tuple:
+            return
+
         versions = {
-            cat.protocol_version
+            cat.protocol_version.value
+            if hasattr(cat.protocol_version, "value")
+            else str(cat.protocol_version)
             for cat in cats_to_check
             if getattr(cat, "protocol_version", None) is not None
         }
         if len(versions) > 1:
             vers_str = ", ".join(sorted(versions))
             raise A2uiCatalogError(
-                f"Mixed catalogs on surface '{self.id}' have mismatched protocol versions: {vers_str}."
+                f"Mixed catalogs on surface '{self.id}' have mismatched protocol"
+                f" versions: {vers_str}."
             )
+        self._validated_catalogs_cache = cats_tuple
 
     def dispatch_action(
         self, payload: dict[str, Any], source_component_id: str

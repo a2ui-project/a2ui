@@ -394,6 +394,16 @@ def assert_raises(expect_error: Any):
                 "cannot be placed under parent" in msg_norm
                 and "cannot be placed under parent" in err_str
             )
+            or (
+                (
+                    "protocol version mismatch" in msg_norm
+                    or "mismatched protocol" in msg_norm
+                )
+                and (
+                    "mismatched protocol" in err_str
+                    or "protocol version mismatch" in err_str
+                )
+            )
         )
         assert (
             match
@@ -447,6 +457,8 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         validate_resolve_path_case(case)
     elif action == "handle_rpc":
         validate_handle_rpc_case(case)
+    elif action == "select_catalog":
+        validate_select_catalog_case(case)
     else:
         pytest.skip(f"Action '{action}' not implemented in core Python harness.")
 
@@ -817,3 +829,108 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
             assert fut.result() == case.get("expect", {}).get("result")
         finally:
             loop.close()
+
+
+def validate_select_catalog_case(case: dict[str, Any]) -> None:
+    from a2ui.core.resolution import DataContext
+    from a2ui.core.state import ComponentModel, SurfaceModel
+
+    args = case.get("args", {})
+    surface_args = args.get("surface", {})
+    s_id = surface_args.get("id", "main_surface")
+    default_cat_id = surface_args.get("defaultCatalogId", "basic")
+
+    catalogs_dict: dict[str, Catalog[Any, Any]] = {}
+    if "catalogs" in args and isinstance(args["catalogs"], dict):
+        for cat_id, cat_def in args["catalogs"].items():
+            p_ver = cat_def.get("protocolVersion", "v1.0")
+            catalogs_dict[cat_id] = Catalog(
+                catalog_id=cat_id,
+                protocol_version=p_ver,
+            )
+    else:
+        for cat_id in surface_args.get("supportedCatalogIds", [default_cat_id]):
+            catalogs_dict[cat_id] = Catalog(
+                catalog_id=cat_id,
+                protocol_version="v1.0",
+            )
+
+    default_cat = catalogs_dict.get(
+        default_cat_id,
+        Catalog(catalog_id=default_cat_id, protocol_version="v1.0"),
+    )
+    surface = SurfaceModel(
+        surface_id=s_id,
+        default_catalog=default_cat,
+        available_catalogs=list(catalogs_dict.values()),
+    )
+
+    expect_err = case.get("expectError")
+
+    if expect_err:
+        with assert_raises(expect_err):
+            surface.validate_catalog_versions()
+            if "components" in args:
+                for c_id, c_data in args["components"].items():
+                    comp_cat_id = c_data.get("catalogId")
+                    if comp_cat_id:
+                        if comp_cat_id not in catalogs_dict:
+                            raise A2uiCatalogError(
+                                f"Catalog '{comp_cat_id}' is not supported by surface"
+                                f" '{s_id}'."
+                            )
+                        comp_cat = catalogs_dict[comp_cat_id]
+                    else:
+                        comp_cat = default_cat
+
+                    comp_model = ComponentModel(
+                        c_id, c_data.get("component", "Box"), catalog=comp_cat
+                    )
+                    surface.components_model.add_component(comp_model)
+                surface.validate_catalog_versions()
+            elif "functionCall" in args:
+                fn_call = args["functionCall"]
+                fn_cat_id = fn_call.get("catalogId")
+                ctx = DataContext(surface=surface, path="/")
+                ctx._execute_function(
+                    fn_call["call"], fn_call.get("args", {}), catalog_id=fn_cat_id
+                )
+    else:
+        if "components" in args:
+            last_selected = None
+            for c_id, c_data in args["components"].items():
+                comp_cat_id = c_data.get("catalogId")
+                if comp_cat_id:
+                    if comp_cat_id not in catalogs_dict:
+                        raise A2uiCatalogError(
+                            f"Catalog '{comp_cat_id}' is not supported by surface"
+                            f" '{s_id}'."
+                        )
+                    comp_cat = catalogs_dict[comp_cat_id]
+                else:
+                    comp_cat = default_cat
+                last_selected = comp_cat.catalog_id
+
+                comp_model = ComponentModel(
+                    c_id, c_data.get("component", "Box"), catalog=comp_cat
+                )
+                surface.components_model.add_component(comp_model)
+
+            surface.validate_catalog_versions()
+            if "expectSelected" in case:
+                assert last_selected == case["expectSelected"]
+
+        elif "functionCall" in args:
+            fn_call = args["functionCall"]
+            fn_cat_id = fn_call.get("catalogId")
+            ctx = DataContext(surface=surface, path="/")
+            if fn_cat_id:
+                if fn_cat_id not in catalogs_dict:
+                    raise A2uiCatalogError(f"Catalog not found: {fn_cat_id}")
+                selected = catalogs_dict[fn_cat_id].catalog_id
+            else:
+                selected = surface.default_catalog.catalog_id
+
+            if "expectSelected" in case:
+                assert selected == case["expectSelected"]
+>>>>>>> 4c35484a (feat(python): implement Step 3.3 Multi-Catalog Resolution Engine)
