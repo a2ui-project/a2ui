@@ -207,10 +207,80 @@ def parse_semver(v):
     return tuple(nums[:3])
 
 
+def check_git_sync():
+    warnings = []
+    try:
+        branch = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            cwd=WORKSPACE_ROOT,
+        ).stdout.strip()
+
+        remote_name = "origin"
+        remotes = subprocess.run(
+            ["git", "remote"],
+            capture_output=True,
+            text=True,
+            cwd=WORKSPACE_ROOT,
+        ).stdout.splitlines()
+        if "upstream" in remotes:
+            remote_name = "upstream"
+
+        main_ref = f"{remote_name}/main"
+
+        subprocess.run(
+            ["git", "fetch", remote_name, "main", "--quiet"],
+            capture_output=True,
+            cwd=WORKSPACE_ROOT,
+            timeout=5,
+        )
+
+        local_commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            cwd=WORKSPACE_ROOT,
+        ).stdout.strip()
+
+        remote_commit = subprocess.run(
+            ["git", "rev-parse", main_ref],
+            capture_output=True,
+            text=True,
+            cwd=WORKSPACE_ROOT,
+        ).stdout.strip()
+
+        if branch != "main":
+            warnings.append(f"Current branch is '{branch}' (not 'main').")
+
+        if local_commit != remote_commit:
+            rev_list = subprocess.run(
+                ["git", "rev-list", "--left-right", "--count", f"HEAD...{main_ref}"],
+                capture_output=True,
+                text=True,
+                cwd=WORKSPACE_ROOT,
+            ).stdout.strip()
+            if rev_list:
+                ahead, behind = rev_list.split()
+                warnings.append(f"Local HEAD is out of sync with {main_ref} (ahead: {ahead}, behind: {behind}).")
+            else:
+                warnings.append(f"Local HEAD is not synced with {main_ref}.")
+    except Exception:
+        pass
+    return warnings
+
+
 def main():
     print("==================================================================")
     print("             A2UI Package Release Status Checker                  ")
     print("==================================================================")
+
+    git_warnings = check_git_sync()
+    if git_warnings:
+        print("\033[33m⚠️  GIT SYNCHRONIZATION WARNING:\033[0m")
+        for w in git_warnings:
+            print(f"   • {w}")
+        print("   \033[2mPlease ensure your local branch is synced with main for full accuracy.\033[0m\n")
 
     for pkg in PACKAGES:
         local_v = get_local_version(pkg)
