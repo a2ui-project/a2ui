@@ -32,6 +32,11 @@ from ..exceptions import (
     A2uiValidationError,
 )
 from ..schema import AgentToRendererMessage, ProtocolVersion
+from ..schema.v1_0 import (
+    FunctionResponse,
+    FunctionResponseError,
+    RendererFunctionResponseMessage,
+)
 from .adapters import VersionAdapterFactory
 from .operations import (
     InternalCallRendererFunctionOp,
@@ -40,6 +45,7 @@ from .operations import (
     InternalOperation,
     InternalUpdateComponentsOp,
     InternalUpdateDataModelOp,
+    RpcErrorCode,
 )
 
 
@@ -78,6 +84,15 @@ class MessageProcessor:
             if resp:
                 responses.append(resp)
         return responses
+
+    def _resolve_catalog(self, catalog_id: str | None = None) -> Any | None:
+        """Finds catalog by catalog_id or returns default (first registered) catalog."""
+        if catalog_id is not None:
+            for cat in self.catalogs:
+                if getattr(cat, "catalog_id", None) == catalog_id:
+                    return cat
+            return None
+        return self.catalogs[0] if self.catalogs else None
 
     def get_renderer_capabilities(
         self,
@@ -140,93 +155,67 @@ class MessageProcessor:
     ) -> dict[str, Any]:
         """Executes an agent-initiated function call on the renderer."""
         call_id = op.function_call_id
+        version = op.version
         matched_catalog = None
 
-        if op.catalog_id:
-            for cat in self.catalogs:
-                if getattr(cat, "catalog_id", None) == op.catalog_id:
-                    matched_catalog = cat
-                    break
-        elif self.catalogs:
-            matched_catalog = self.catalogs[0]
+        def make_error(code: RpcErrorCode, msg: str) -> dict[str, Any]:
+            resp = RendererFunctionResponseMessage(
+                version=cast(Any, version),
+                rendererFunctionResponse=FunctionResponse(  # type: ignore[call-arg]
+                    functionCallId=call_id,
+                    error=FunctionResponseError(code=code.value, message=msg),
+                ),
+            )
+            return resp.model_dump(by_alias=True, exclude_unset=True)
 
+        matched_catalog = self._resolve_catalog(op.catalog_id)
         if not matched_catalog:
-            return {
-                "version": "v1.0",
-                "rendererFunctionResponse": {
-                    "functionCallId": call_id,
-                    "error": {
-                        "code": "INVALID_FUNCTION_CALL",
-                        "message": f"Catalog not found: {op.catalog_id}",
-                    },
-                },
-            }
+            return make_error(
+                RpcErrorCode.INVALID_FUNCTION_CALL,
+                f"Catalog not found: {op.catalog_id}",
+            )
 
-        fn = getattr(matched_catalog, "functions", {}).get(op.call)
+        fn = (
+            matched_catalog.get_function(op.call)
+            if hasattr(matched_catalog, "get_function")
+            else getattr(matched_catalog, "functions", {}).get(op.call)
+        )
         if not fn:
-            return {
-                "version": "v1.0",
-                "rendererFunctionResponse": {
-                    "functionCallId": call_id,
-                    "error": {
-                        "code": "INVALID_FUNCTION_CALL",
-                        "message": f"Function not found: {op.call}",
-                    },
-                },
-            }
+            return make_error(
+                RpcErrorCode.INVALID_FUNCTION_CALL,
+                f"Function not found: {op.call}",
+            )
 
-        allowed_callers = getattr(fn, "allowed_callers", "rendererOnly")
+        allowed_callers = getattr(fn, "allowed_callers", None) or "rendererOrAgent"
         if allowed_callers not in ("agentOnly", "rendererOrAgent"):
-            return {
-                "version": "v1.0",
-                "rendererFunctionResponse": {
-                    "functionCallId": call_id,
-                    "error": {
-                        "code": "INVALID_FUNCTION_CALL",
-                        "message": (
-                            f"Function '{op.call}' cannot be called by agent"
-                            f" (allowedCallers is {allowed_callers})."
-                        ),
-                    },
-                },
-            }
+            return make_error(
+                RpcErrorCode.INVALID_FUNCTION_CALL,
+                f"Function '{op.call}' cannot be called by agent"
+                f" (allowedCallers is {allowed_callers}).",
+            )
 
         requires_user_activation = getattr(fn, "requires_user_activation", False)
         if requires_user_activation and not op.user_activation_present:
-            return {
-                "version": "v1.0",
-                "rendererFunctionResponse": {
-                    "functionCallId": call_id,
-                    "error": {
-                        "code": "INVALID_FUNCTION_CALL",
-                        "message": (
-                            f"Function '{op.call}' requires user activation context to"
-                            " execute."
-                        ),
-                    },
-                },
-            }
+            return make_error(
+                RpcErrorCode.INVALID_FUNCTION_CALL,
+                f"Function '{op.call}' requires user activation context to execute.",
+            )
 
         try:
             val = fn.execute(op.args) if hasattr(fn, "execute") else None
-            return {
-                "version": "v1.0",
-                "rendererFunctionResponse": {
-                    "functionCallId": call_id,
-                    "value": val,
-                },
-            }
+            resp = RendererFunctionResponseMessage(
+                version=cast(Any, version),
+                rendererFunctionResponse=FunctionResponse(  # type: ignore[call-arg]
+                    functionCallId=call_id,
+                    value=val,
+                ),
+            )
+            return resp.model_dump(by_alias=True, exclude_unset=True)
         except Exception as e:
-            return {
-                "version": "v1.0",
-                "rendererFunctionResponse": {
-                    "functionCallId": call_id,
-                    "error": {
-                        "code": "EXECUTION_ERROR",
-                        "message": str(e),
-                    },
-                },
-            }
+            return make_error(
+                RpcErrorCode.EXECUTION_ERROR,
+                str(e),
+            )
 
     def _process_create_surface_op(self, op: InternalCreateSurfaceOp) -> None:
         surface_id = op.surface_id
@@ -234,19 +223,10 @@ class MessageProcessor:
         theme = op.theme or {}
         send_data_model = op.send_data_model
 
-        if catalog_id:
-            matched_catalog = None
-            for cat in self.catalogs:
-                if getattr(cat, "catalog_id", None) == catalog_id:
-                    matched_catalog = cat
-                    break
-            if not matched_catalog:
+        surface_catalog = self._resolve_catalog(catalog_id)
+        if not surface_catalog:
+            if catalog_id is not None:
                 raise A2uiCatalogError(f"Catalog not found: {catalog_id}")
-            surface_catalog = matched_catalog
-        elif self.catalogs:
-            # v0.8 fallback: catalog_id is missing -> default to registered catalogs
-            surface_catalog = self.catalogs[0]
-        else:
             raise A2uiCatalogError("No default catalog available for surface.")
 
         if self.model.get_surface(surface_id):
@@ -317,11 +297,7 @@ class MessageProcessor:
                 )
             comp_cat_id = comp_dict.get("catalogId")
             if comp_cat_id:
-                matched_catalog = None
-                for cat in self.catalogs:
-                    if getattr(cat, "catalog_id", None) == comp_cat_id:
-                        matched_catalog = cat
-                        break
+                matched_catalog = self._resolve_catalog(comp_cat_id)
                 if not matched_catalog:
                     raise A2uiCatalogError(f"Catalog not found: {comp_cat_id}")
                 component_catalogs[comp_id] = matched_catalog

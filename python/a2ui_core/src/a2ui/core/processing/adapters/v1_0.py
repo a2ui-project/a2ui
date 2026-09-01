@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from typing import Any
+from ...exceptions import A2uiValidationError
 from .base import BaseVersionAdapter
 from ...schema import ProtocolVersion
 from ...schema.v1_0 import (
@@ -22,6 +23,7 @@ from ...schema.v1_0 import (
     MSG_TYPE_UPDATE_DATA_MODEL,
     MSG_TYPE_CALL_RENDERER_FUNCTION,
     AgentToRendererMessageListWrapper,
+    CallRendererFunctionMessage,
 )
 from ..operations import (
     InternalCallRendererFunctionOp,
@@ -95,19 +97,21 @@ class V1Point0Adapter(BaseVersionAdapter):
                 )
             )
         elif action == MSG_TYPE_CALL_RENDERER_FUNCTION:
-            crf = message[MSG_TYPE_CALL_RENDERER_FUNCTION]
-            cf = crf.get("callFunction", {})
-            user_activation = bool(
-                message.get("userActivationPresent")
-                or crf.get("userActivationPresent", False)
+            msg_obj = CallRendererFunctionMessage.model_validate(message)
+            crf = msg_obj.call_renderer_function
+            cf = crf.call_function
+            ver_str = (
+                self.version.value
+                if hasattr(self.version, "value")
+                else str(self.version)
             )
             res.append(
                 InternalCallRendererFunctionOp(
-                    function_call_id=crf.get("functionCallId", ""),
-                    call=cf.get("call", ""),
-                    catalog_id=cf.get("catalogId"),
-                    args=cf.get("args", {}),
-                    user_activation_present=user_activation,
+                    function_call_id=crf.function_call_id,
+                    call=cf.call,
+                    version=ver_str,
+                    catalog_id=cf.catalog_id,
+                    args=cf.args or {},
                 )
             )
         return res

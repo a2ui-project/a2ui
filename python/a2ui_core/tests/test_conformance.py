@@ -755,7 +755,16 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
     processor = MessageProcessor(catalogs=[cat])
 
     if message:
-        if user_activation:
+        expect_resp = case.get("expect", {}).get("response")
+        expect_err = case.get("expect", {}).get("error")
+        if expect_err:
+            from a2ui.core.exceptions import A2uiValidationError
+
+            with pytest.raises(A2uiValidationError) as exc_info:
+                processor.process_messages(message)
+            if "message" in expect_err:
+                assert expect_err["message"] in str(exc_info.value)
+        elif expect_resp:
             from a2ui.core.processing.adapters import VersionAdapterFactory
             from a2ui.core.processing.operations import InternalCallRendererFunctionOp
 
@@ -764,14 +773,10 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
             responses = []
             for op in ops:
                 if isinstance(op, InternalCallRendererFunctionOp):
-                    op.user_activation_present = True
+                    op.user_activation_present = user_activation
                 resp = processor._process_operation(op)
                 if resp:
                     responses.append(resp)
-        else:
-            responses = processor.process_messages(message)
-        expect_resp = case.get("expect", {}).get("response")
-        if expect_resp:
             assert len(responses) == 1
             assert responses[0] == expect_resp
 

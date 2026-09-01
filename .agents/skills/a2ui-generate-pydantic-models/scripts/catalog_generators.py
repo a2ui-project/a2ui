@@ -271,9 +271,16 @@ def generate_basic_catalog_functions(
             if isinstance(req_act_prop, bool):
                 requires_user_activation = req_act_prop
             elif isinstance(req_act_prop, dict):
-                requires_user_activation = req_act_prop.get("const") or (
-                    req_act_prop.get("enum", [False])[0]
-                )
+                const_val = req_act_prop.get("const")
+                if const_val is not None:
+                    requires_user_activation = const_val
+                else:
+                    enum_val = req_act_prop.get("enum")
+                    requires_user_activation = (
+                        enum_val[0]
+                        if isinstance(enum_val, list) and enum_val
+                        else False
+                    )
 
         func_class_lines = [
             f"class {func_class_name}(FunctionApi):",
