@@ -51,10 +51,14 @@ export interface ChildRefAnalysisOptions {
 
 /**
  * Extracts the target definition name from a JSON Schema `$ref` pointer or URI.
+ *
  * Examples:
  * - `https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList` -> `ChildList`
  * - `common_types.json#/definitions/ComponentId` -> `ComponentId`
  * - `#/definitions/Child` -> `Child`
+ *
+ * @param ref The JSON Schema reference string or URI.
+ * @returns Target definition name.
  */
 export function extractRefDefName(ref: string): string {
   if (!ref) return '';
@@ -64,8 +68,12 @@ export function extractRefDefName(ref: string): string {
   return segments.pop() ?? '';
 }
 
-function unwrapNextZodLayer(current: any): any {
+function unwrapNextZodLayer(current: any, visited?: Set<any>): any {
   if (!current?._def) return null;
+  if (visited) {
+    if (visited.has(current)) return null;
+    visited.add(current);
+  }
   const typeName = current._def.typeName;
   switch (typeName) {
     case 'ZodOptional':
@@ -86,11 +94,12 @@ function unwrapNextZodLayer(current: any): any {
 
 function getDescriptions(type: any): string[] {
   const descriptions: string[] = [];
+  const visited = new Set<any>();
   let current = type;
   while (current) {
     if (current.description) descriptions.push(current.description);
     if (current._def?.description) descriptions.push(current._def.description);
-    const next = unwrapNextZodLayer(current);
+    const next = unwrapNextZodLayer(current, visited);
     if (!next) break;
     current = next;
   }
@@ -98,9 +107,10 @@ function getDescriptions(type: any): string[] {
 }
 
 function unwrapZodType(type: any): any {
+  const visited = new Set<any>();
   let current = type;
   while (current) {
-    const next = unwrapNextZodLayer(current);
+    const next = unwrapNextZodLayer(current, visited);
     if (!next) break;
     current = next;
   }
@@ -239,11 +249,16 @@ function analyzeUnionOptions(
 }
 
 function isChildListDescription(desc: string, childListNames: ReadonlySet<string>): boolean {
-  if (/Static child IDs or dynamic child template/i.test(desc)) {
+  if (desc.startsWith('REF:')) {
+    const refTarget = extractRefDefName(desc.substring(4).split('|')[0]);
+    if (childListNames.has(refTarget)) return true;
+  }
+  if (/^Static child IDs or dynamic child template/i.test(desc)) {
     return true;
   }
+  const trimmed = desc.trim();
   for (const name of childListNames) {
-    if (new RegExp(name, 'i').test(desc)) {
+    if (trimmed === name || desc.includes(name)) {
       return true;
     }
   }
@@ -251,11 +266,22 @@ function isChildListDescription(desc: string, childListNames: ReadonlySet<string
 }
 
 function isChildDescription(desc: string, childNames: ReadonlySet<string>): boolean {
-  if (/The unique identifier for a component/i.test(desc) || /child component/i.test(desc)) {
+  if (desc.startsWith('REF:')) {
+    const refTarget = extractRefDefName(desc.substring(4).split('|')[0]);
+    if (childNames.has(refTarget)) return true;
+  }
+  if (
+    /^The unique identifier for a component/i.test(desc) ||
+    /child component (?:id|identifier)/i.test(desc)
+  ) {
     return true;
   }
+  const trimmed = desc.trim();
   for (const name of childNames) {
-    if (new RegExp(name, 'i').test(desc)) {
+    if (trimmed === name) {
+      return true;
+    }
+    if (name !== 'Child' && desc.includes(name)) {
       return true;
     }
   }
@@ -345,21 +371,33 @@ export function analyzeChildRefSchema(
 }
 
 /**
- * Returns true if the schema represents a single child ComponentId reference.
+ * Returns whether the schema represents a single child ComponentId reference.
+ *
+ * @param schema The schema to evaluate.
+ * @param options The child reference analysis options.
+ * @returns Whether the schema is a single child reference.
  */
 export function isChildSchema(schema: unknown, options: ChildRefAnalysisOptions): boolean {
   return analyzeChildRefSchema(schema, options).isChild;
 }
 
 /**
- * Returns true if the schema represents a child list or dynamic child template (ChildList).
+ * Returns whether the schema represents a child list or dynamic child template (ChildList).
+ *
+ * @param schema The schema to evaluate.
+ * @param options The child reference analysis options.
+ * @returns Whether the schema is a child list reference.
  */
 export function isChildListSchema(schema: unknown, options: ChildRefAnalysisOptions): boolean {
   return analyzeChildRefSchema(schema, options).isChildList;
 }
 
 /**
- * Returns true if the schema represents either a single child or a child list.
+ * Returns whether the schema represents either a single child or a child list.
+ *
+ * @param schema The schema to evaluate.
+ * @param options The child reference analysis options.
+ * @returns Whether the schema is any child or child list reference.
  */
 export function isChildOrChildListSchema(
   schema: unknown,

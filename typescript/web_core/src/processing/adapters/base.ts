@@ -38,7 +38,7 @@ export interface VersionAdapterResolver {
  * Isolates protocol syntax differences across specification versions.
  */
 export interface VersionAdapter {
-  /** The protocol version string supported by this adapter (e.g. 'v1.0'). */
+  /** Protocol version string supported by this adapter (e.g. 'v1.0'). */
   readonly version: ProtocolVersion;
 
   /**
@@ -82,7 +82,7 @@ function validateActionSurfaceIds(
 }
 
 /**
- * Base abstract class providing common payload unwrapping, Zod safeParse validation,
+ * Base abstract class providing common payload unwrapping, schema validation,
  * and error formatting for protocol version adapters.
  */
 export abstract class BaseVersionAdapter implements VersionAdapter {
@@ -135,7 +135,11 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
 
   /**
    * Normalizes the message object before running schema validation.
+   *
    * Defaults to attaching `version` if not present.
+   *
+   * @param msgObj Raw message object.
+   * @returns Normalized message payload for schema validation.
    */
   protected preparePayloadForValidation(msgObj: Record<string, unknown>): Record<string, unknown> {
     return 'version' in msgObj ? msgObj : {version: this.version, ...msgObj};
@@ -143,6 +147,9 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
 
   /**
    * Converts a validated message object into canonical internal operations.
+   *
+   * @param msgObj Validated message payload.
+   * @returns Array of canonical internal operations.
    */
   protected abstract extractOperationsFromObject(
     msgObj: Record<string, unknown>,

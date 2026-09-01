@@ -18,7 +18,9 @@
  * Generic component representation within internal processing operations.
  */
 export interface InternalComponentPayload {
+  /** Unique identifier of the component. */
   id: string;
+  /** Component type name. */
   component?: string;
   [key: string]: unknown;
 }
@@ -27,12 +29,19 @@ export interface InternalComponentPayload {
  * Canonical operation to create a surface and initialize state.
  */
 export interface InternalCreateSurfaceOp {
+  /** Discriminator type for surface creation. */
   readonly type: 'createSurface';
+  /** Target surface identifier. */
   readonly surfaceId: string;
+  /** Optional catalog identifier to bind to the surface. */
   readonly catalogId?: string;
+  /** Optional theme overrides or style parameters for the surface. */
   readonly theme?: unknown;
+  /** Whether the client should stream data model updates back to the agent. */
   readonly sendDataModel?: boolean;
+  /** Initial component definitions for the surface. */
   readonly components?: InternalComponentPayload[];
+  /** Initial data model contents. */
   readonly dataModel?: Record<string, unknown>;
 }
 
@@ -40,8 +49,11 @@ export interface InternalCreateSurfaceOp {
  * Canonical operation to update components on a surface.
  */
 export interface InternalUpdateComponentsOp {
+  /** Discriminator type for component updates. */
   readonly type: 'updateComponents';
+  /** Target surface identifier. */
   readonly surfaceId: string;
+  /** Array of component definitions to add or update. */
   readonly components: InternalComponentPayload[];
 }
 
@@ -49,9 +61,13 @@ export interface InternalUpdateComponentsOp {
  * Canonical operation to update data model values at a JSON Pointer path.
  */
 export interface InternalUpdateDataModelOp {
+  /** Discriminator type for data model updates. */
   readonly type: 'updateDataModel';
+  /** Target surface identifier. */
   readonly surfaceId: string;
+  /** Optional JSON Pointer path within the data model. */
   readonly path?: string;
+  /** Value to set at the specified path. */
   readonly value: unknown;
 }
 
@@ -59,7 +75,9 @@ export interface InternalUpdateDataModelOp {
  * Canonical operation to delete a surface.
  */
 export interface InternalDeleteSurfaceOp {
+  /** Discriminator type for surface deletion. */
   readonly type: 'deleteSurface';
+  /** Target surface identifier to delete. */
   readonly surfaceId: string;
 }
 

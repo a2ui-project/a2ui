@@ -84,25 +84,34 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
   }
 
   /**
-   * Static convenience method: registers a version adapter on the default singleton instance.
+   * Registers a version adapter on the default singleton factory instance.
+   *
+   * @param adapter Version adapter instance to register.
    */
   static registerAdapter(adapter: VersionAdapter): void {
     defaultVersionAdapterFactory.registerAdapter(adapter);
   }
 
   /**
-   * Static convenience method: resolves a version adapter from the default singleton instance.
+   * Resolves a version adapter for the specified version from the default singleton factory instance.
+   *
+   * @param version Protocol version string.
+   * @returns Matching version adapter.
    */
   static getAdapter(version: ProtocolVersion | string): VersionAdapter {
     return defaultVersionAdapterFactory.getAdapter(version);
   }
 
   /**
-   * Static convenience method: resolves a version adapter from payload using the default singleton instance.
+   * Resolves a version adapter directly from a payload using the default singleton factory instance.
+   *
+   * @param payload Raw JSON message payload.
+   * @returns Resolved version adapter.
    */
   static resolveFromPayload(payload: unknown): VersionAdapter {
     return defaultVersionAdapterFactory.resolveFromPayload(payload);
   }
 }
 
+/** Default singleton version adapter factory instance. */
 export const defaultVersionAdapterFactory = new VersionAdapterFactory();

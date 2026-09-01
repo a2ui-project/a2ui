@@ -1,4 +1,3 @@
-// Force rebuild by wireit
 /*
  * Copyright 2024 Google LLC
  *
@@ -34,24 +33,22 @@ import {FunctionInvoker} from '../catalog/function_invoker.js';
 import {SurfaceModel} from '../state/surface-model.js';
 
 /**
- * A contextual view of the main DataModel, serving as the unified interface for resolving
- * DynamicValues (literals, data paths, function calls) within a specific scope.
+ * Scoped view of the main DataModel for resolving DynamicValues within a component hierarchy.
  *
- * Components use `DataContext` instead of interacting with the `DataModel` directly.
- * It automatically handles resolving relative paths against the component's current scope
+ * Automatically resolves relative paths against the component's current scope
  * and provides tools for evaluating complex, reactive expressions.
  */
 export class DataContext {
-  /** The shared, global DataModel instance for the entire UI surface. */
+  /** Shared DataModel instance for the UI surface. */
   readonly dataModel: DataModel;
-  /** A callback for executing function calls defined in the A2UI component tree. */
+  /** Callback for executing function calls defined in the A2UI component tree. */
   readonly functionInvoker: FunctionInvoker;
 
   /**
-   * Initializes a new DataContext.
+   * Initializes a new DataContext instance.
    *
    * @param surface The surface model this context belongs to.
-   * @param path The absolute path in the DataModel that this context is scoped to (its "current working directory").
+   * @param path The absolute path in the DataModel that this context is scoped to.
    */
   constructor(
     readonly surface: SurfaceModel<any>,
@@ -64,11 +61,8 @@ export class DataContext {
   /**
    * Mutates the underlying DataModel at the specified path.
    *
-   * This is the primary method for components to push state changes (e.g. user input)
-   * back up to the global model.
-   *
-   * @param path A JSON pointer path. If relative, it is resolved against this context's `path`.
-   * @param value The new value to store in the DataModel.
+   * @param path JSON pointer path, resolved relative to this context's `path` if not absolute.
+   * @param value New value to store in the DataModel.
    */
   set(path: string, value: any): void {
     const absolutePath = this.resolvePath(path);
@@ -90,12 +84,10 @@ export class DataContext {
   }
 
   /**
-   * Synchronously evaluates a `DynamicValue` (a literal, a path binding, or a function call)
-   * into its concrete runtime value.
+   * Synchronously evaluates a DynamicValue into its concrete runtime value.
    *
-   * **Note:** This method evaluates the value *once* at the current moment in time.
-   * It does not create any reactive subscriptions. If the underlying data changes later,
-   * this result will not automatically update. Use `subscribeDynamicValue` for reactive updates.
+   * Evaluates the value once at the current moment without creating reactive subscriptions.
+   * Use `subscribeDynamicValue` for reactive updates.
    *
    * @param value The DynamicValue object from the A2UI JSON payload.
    * @returns The synchronously resolved value.
@@ -145,16 +137,15 @@ export class DataContext {
   }
 
   /**
-   * Reactively listens to changes in a `DynamicValue`.
+   * Reactively listens to changes in a DynamicValue.
    *
-   * This is the core reactive binding mechanism. Whenever the underlying data changes
-   * (or if a function call's dependencies change), the `onChange` callback will be fired
-   * with the freshly evaluated result.
+   * Whenever the underlying data or function dependencies change, the `onChange`
+   * callback fires with the freshly evaluated result.
    *
-   * @template V The expected type of the resolved value.
+   * @template V Expected type of the resolved value.
    * @param value The DynamicValue to evaluate and observe.
-   * @param onChange A callback fired whenever the evaluated result changes.
-   * @returns A `DataSubscription` containing the initial synchronously-resolved value, along with an `unsubscribe` method to clean up the listener.
+   * @param onChange Callback fired whenever the evaluated result changes.
+   * @returns A subscription containing the current value and an `unsubscribe` method.
    */
   subscribeDynamicValue<V>(
     value: DynamicValue,
@@ -186,14 +177,15 @@ export class DataContext {
   }
 
   /**
-   * Returns a Preact Signal representing the reactive dynamic value.
+   * Resolves a DynamicValue into a reactive Signal.
    *
-   * This method recursively resolves any nested path bindings or function calls into a
-   * single, reactive `Signal`. Any changes to the underlying data or function dependencies
-   * will cause this signal's value to update.
+   * Recursively resolves any nested path bindings or function calls into a
+   * single reactive `Signal`. Changes to underlying data or function dependencies
+   * cause the signal's value to update.
    *
+   * @template V Expected type of the signal value.
    * @param value The DynamicValue to evaluate and observe.
-   * @returns A Preact Signal containing the reactive result of the evaluation.
+   * @returns A reactive Signal containing the result of the evaluation.
    */
   resolveSignal<V>(value: DynamicValue): Signal<V> {
     // 1. Primitive literals
@@ -298,12 +290,11 @@ export class DataContext {
   /**
    * Resolves an action by evaluating its top-level dynamic values.
    *
-   * For event actions, it resolves each value in the context map.
-   * For function call actions, it evaluates the call.
+   * For event actions, resolves each value in the context map.
+   * For function call actions, evaluates the function call.
    *
-   * This is non-recursive: it only resolves one level deep for the context record,
-   * in accordance with the schema specification that requires values to be single
-   * DynamicValue types and prevents arbitrary nesting.
+   * @param action The Action object to resolve.
+   * @returns The resolved action payload or function execution result.
    */
   resolveAction(action: Action): any {
     if ('event' in action) {
@@ -370,13 +361,10 @@ export class DataContext {
   }
 
   /**
-   * Creates a new, child `DataContext` scoped to a deeper path.
+   * Creates a child DataContext scoped to a deeper relative path.
    *
-   * This is used when a component (like a List or a Card) wants to provide a targeted
-   * data scope for its children, so children can use relative paths like `./title`.
-   *
-   * @param relativePath The path relative to the *current* context's path.
-   * @returns A new `DataContext` instance pointing to the resolved absolute path.
+   * @param relativePath The path relative to the current context's path.
+   * @returns A new DataContext instance pointing to the resolved absolute path.
    */
   nested(relativePath: string): DataContext {
     const newPath = this.resolvePath(relativePath);

@@ -20,7 +20,15 @@ import {Catalog, ComponentApi} from '../../catalog/types.js';
 import {V09_CHILD_REF_OPTIONS} from '../standard_defs.js';
 import {ComponentModel} from '../../state/component-model.js';
 
+/**
+ * Test double for `SurfaceModel` initialized with an empty catalog.
+ */
 export class TestSurfaceModel extends SurfaceModel<ComponentApi> {
+  /**
+   * Creates a new `TestSurfaceModel` instance.
+   *
+   * @param actionHandler Optional action listener callback.
+   */
   constructor(actionHandler: any = async () => {}) {
     super(
       'test',
@@ -31,6 +39,13 @@ export class TestSurfaceModel extends SurfaceModel<ComponentApi> {
   }
 }
 
+/**
+ * Creates a mock `ComponentContext` bound to a test surface and component model.
+ *
+ * @param properties Component properties dictionary.
+ * @param actionHandler Optional action listener callback.
+ * @returns Initialized component context for testing.
+ */
 export function createTestContext(properties: any, actionHandler: any = async () => {}) {
   const surface = new TestSurfaceModel(actionHandler);
   const component = new ComponentModel('test-id', 'TestComponent', properties, surface.catalog);

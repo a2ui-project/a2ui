@@ -52,10 +52,11 @@ export type BehaviorNode =
 /**
  * Traverses a Zod schema tree to build a `BehaviorNode` map.
  *
- * This allows the Generic Binder to know *how* to handle a piece of raw JSON
- * data without needing hardcoded logic for every specific component type.
- * It identifies core A2UI primitives (Dynamic values, Actions, ChildLists) by
- * inspecting the shape of ZodUnion objects defined in `common-types.ts`.
+ * Enables GenericBinder to determine how to handle raw JSON properties
+ * without hardcoding logic for specific component types.
+ *
+ * @param schema Zod schema to inspect.
+ * @returns Root BehaviorNode describing schema properties.
  */
 export function scrapeSchemaBehavior(schema: z.ZodTypeAny): BehaviorNode {
   return getFieldBehavior(schema);
@@ -209,20 +210,10 @@ export type ResolveA2uiProps<T> = (T extends object
   };
 
 /**
- * The Generic Binder is a framework-agnostic engine that transforms raw A2UI JSON payload
- * configurations into a single, cohesive reactive stream of strongly-typed `ResolvedProps`.
+ * Reactive property binder transforming raw A2UI component JSON into strongly-typed resolved props.
  *
- * It solves the problem of manual state management: developers do not need to write
- * boilerplate code to subscribe to data paths, evaluate logic expressions, or tear down
- * listeners when components unmount.
- *
- * Usage Flow:
- * 1. Takes a `ComponentContext` (the raw JSON config) and a `Zod Schema` (the API definition).
- * 2. Uses `scrapeSchemaBehavior` to analyze the schema.
- * 3. Deeply iterates over the raw JSON properties, applying rules based on the scraped behavior.
- * 4. Subscribes to the `DataContext` for all `DYNAMIC` and `CHECKABLE` paths.
- * 5. Bundles the final resolved primitives, structural arrays, and executable Actions into `currentProps`.
- * 6. Exposes a `subscribe()` interface for framework-specific adapters (React, Angular) to listen to state changes.
+ * Connects component properties to the data context, resolves dynamic bindings,
+ * actions, structural templates, and validation checks.
  */
 export class GenericBinder<T> {
   private dataListeners: (() => void)[] = [];
@@ -470,6 +461,9 @@ export class GenericBinder<T> {
     }
   }
 
+  /**
+   * Disposes all active data subscriptions and detaches component listeners.
+   */
   dispose() {
     if (!this.isConnected) return;
     this.isConnected = false;
@@ -485,6 +479,12 @@ export class GenericBinder<T> {
     this.propsListeners.forEach(l => l(this.currentProps as T));
   }
 
+  /**
+   * Subscribes to prop change notifications.
+   *
+   * @param listener Callback invoked whenever resolved properties update.
+   * @returns A subscription object to unsubscribe.
+   */
   subscribe(listener: (props: T) => void) {
     if (this.propsListeners.length === 0) {
       this.connect();
@@ -501,6 +501,9 @@ export class GenericBinder<T> {
     };
   }
 
+  /**
+   * Current snapshot of resolved component properties.
+   */
   get snapshot() {
     return this.currentProps as T;
   }

@@ -29,7 +29,7 @@ import {
   isChildOrChildListSchema,
   isChildSchema,
 } from './reference-map.js';
-import {Catalog} from './types.js';
+import {Catalog, ComponentApi} from './types.js';
 import {V08_CHILD_REF_OPTIONS} from '../v0_8/standard_defs.js';
 import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
@@ -250,5 +250,61 @@ describe('reference-map schema introspection', () => {
     const refMap = catalogWithoutOptions.componentRefMap;
     assert.ok(refMap.Drawer);
     assert.deepStrictEqual(Array.from(refMap.Drawer.singleRefs), ['slot']);
+  });
+
+  it('handles recursive z.lazy() component schemas without cycle overflow', () => {
+    interface TreeNodeSchema {
+      label: string;
+      childSlot?: string;
+      nestedNode?: TreeNodeSchema;
+    }
+    const treeNodeSchema: z.ZodType<TreeNodeSchema> = z.lazy(() =>
+      z.object({
+        label: z.string(),
+        childSlot: z.string().describe('REF:common_types.json#/$defs/ComponentId').optional(),
+        nestedNode: treeNodeSchema.optional(),
+      }),
+    );
+
+    const treeApi: ComponentApi = {
+      name: 'TreeNode',
+      schema: treeNodeSchema,
+    };
+
+    const catalog = new Catalog(
+      'tree-cat',
+      [treeApi],
+      [],
+      undefined,
+      undefined,
+      V09_CHILD_REF_OPTIONS,
+    );
+    const refMap = catalog.componentRefMap;
+    assert.ok(refMap.TreeNode);
+    assert.deepStrictEqual(Array.from(refMap.TreeNode.singleRefs), ['childSlot']);
+  });
+
+  it('does not falsely classify non-ID properties whose descriptions mention child components', () => {
+    const customApi: ComponentApi = {
+      name: 'CardCounter',
+      schema: z.object({
+        childCount: z.number().describe('The total count of child components in this view'),
+        hasChildren: z.boolean().describe('Whether child component is rendered'),
+        mainSlot: z.string().describe('REF:common_types.json#/$defs/ComponentId'),
+      }),
+    };
+
+    const catalog = new Catalog(
+      'counter-cat',
+      [customApi],
+      [],
+      undefined,
+      undefined,
+      V09_CHILD_REF_OPTIONS,
+    );
+    const refMap = catalog.componentRefMap;
+    assert.ok(refMap.CardCounter);
+    assert.deepStrictEqual(Array.from(refMap.CardCounter.singleRefs), ['mainSlot']);
+    assert.strictEqual(refMap.CardCounter.listRefs.size, 0);
   });
 });

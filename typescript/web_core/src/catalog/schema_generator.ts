@@ -29,7 +29,7 @@ const STANDARD_DEFS_BY_VERSION: Readonly<Record<string, Record<string, unknown>>
 };
 
 /**
- * Resolves the appropriate standard $defs dictionary based on options, catalog configuration, or default protocol version.
+ * Resolves the appropriate standard $defs dictionary based on options or catalog configuration.
  */
 function getStandardDefsForCatalog(
   catalog: CatalogInterface<any, any>,
@@ -48,7 +48,7 @@ function getStandardDefsForCatalog(
 }
 
 /**
- * Transforms a node with a REF description into a $ref definition node.
+ * Transforms a schema node with a REF description into a `$ref` definition node.
  */
 function transformRefDescriptionNode(obj: Record<string, unknown>): boolean {
   if (typeof obj.description !== 'string' || !obj.description.startsWith('REF:')) {
@@ -131,7 +131,7 @@ export function cleanSchemaNode(node: unknown, visited = new Set<unknown>()): vo
  * Configuration options for catalog JSON schema generation.
  */
 export interface GenerateCatalogSchemaOptions {
-  /** Optional reference URI to a base component schema envelope (e.g. `common_types.json#/$defs/ComponentCommon`). */
+  /** Reference URI to a base component schema envelope (e.g. `common_types.json#/$defs/ComponentCommon`). */
   componentEnvelopeRef?: string;
   /** Explicit standard $defs dictionary to use when serializing catalog components and functions. */
   standardDefs?: Record<string, unknown>;

@@ -18,19 +18,19 @@ import {EventEmitter, EventSource} from '../common/events.js';
 import {Catalog} from '../catalog/types.js';
 
 /**
- * Represents the state model for an individual UI component.
+ * State model for an individual UI component.
  */
 export class ComponentModel {
   private _properties: Record<string, any>;
   private readonly _onUpdated = new EventEmitter<ComponentModel>();
 
   /**
-   * Fires whenever the component's properties are updated.
+   * Event source firing whenever component properties are updated.
    */
   readonly onUpdated: EventSource<ComponentModel> = this._onUpdated;
 
   /**
-   * Creates a new component model.
+   * Initializes a new `ComponentModel` instance.
    *
    * @param id The unique identifier for this component.
    * @param type The component type name.
@@ -47,7 +47,7 @@ export class ComponentModel {
   }
 
   /**
-   * The current properties of the component.
+   * Current properties of the component.
    */
   get properties(): Record<string, any> {
     return this._properties;
@@ -59,14 +59,14 @@ export class ComponentModel {
   }
 
   /**
-   * Disposes of the component and its resources.
+   * Disposes the component model and its update event emitters.
    */
   dispose(): void {
     this._onUpdated.dispose();
   }
 
   /**
-   * Returns a JSON representation of the component tree.
+   * Serialized JSON representation of the component definition.
    */
   get componentTree(): any {
     return {

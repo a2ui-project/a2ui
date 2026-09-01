@@ -27,7 +27,9 @@ import {childRefKindOf, type ChildRefKind} from '../schema/common-types.js';
 const COMPONENT_ID_REF = 'REF:common_types.json#/$defs/ComponentId';
 const CHILD_LIST_REF = 'REF:common_types.json#/$defs/ChildList';
 
-/** How one property of a component's schema references child components. */
+/**
+ * Describes how a component schema property references child components.
+ */
 export type RefKind =
   | {
       /** The property holds a single child component id. */
@@ -54,14 +56,10 @@ const EMPTY_REF_FIELDS: RefFields = new Map();
 const refFieldsCache = new WeakMap<z.ZodTypeAny, RefFields>();
 
 /**
- * Derives the {@link RefFields} of a component schema.
+ * Extracts the child-referencing properties and their kinds from a component Zod schema.
  *
- * Detection is by the `REF:` pointers above, plus the same structural test
- * the binder uses for `ChildList` unions (an option object with both
- * `componentId` and `path`), so catalogs that build their own child-list
- * union need no pointer for list properties. A plain array whose element
- * carries the ComponentId pointer also classifies as a list. Results are
- * memoized per schema object.
+ * @param schema Component Zod schema to inspect.
+ * @returns Map of child-referencing property names to their reference kinds.
  */
 export function extractRefFields(schema: z.ZodTypeAny): RefFields {
   const cached = refFieldsCache.get(schema);

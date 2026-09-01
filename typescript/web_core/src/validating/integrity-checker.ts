@@ -155,7 +155,7 @@ export interface TopologyOptions {
 export interface ValidationConfig extends IntegrityOptions, TopologyOptions {
   /** Target protocol version expected for incoming messages (e.g. 'v0.8', 'v0.9', 'v1.0'). */
   targetVersion?: ProtocolVersion | string;
-  /** When false, verifies that all component types exist in the surface catalog. Default: false. */
+  /** Whether to allow component types that do not exist in the surface catalog. Defaults to false. */
   allowUnknownElements?: boolean;
   /** Allowed top-level message operation types (e.g. ['createSurface', 'updateComponents']). */
   allowedMessages?: string[];
@@ -177,6 +177,7 @@ export const RELAXED_VALIDATION: ValidationConfig = Object.freeze({
   allowUnknownElements: true,
 });
 
+/** Catalog, reference map, or collection of catalogs providing child reference definitions. */
 export type CatalogOrRefMapInput =
   | Catalog<any>
   | ComponentRefMap
@@ -195,6 +196,7 @@ function resolveRefMapForComponent(
     if (typeof rawCatalogId === 'string' && rawCatalogId) {
       const found = catalogInput.find(c => c.id === rawCatalogId);
       if (found) return getOrCreateRefMap(found);
+      return {};
     }
     if (catalogInput.length > 0 && catalogInput[0] instanceof Catalog) {
       return getOrCreateRefMap(catalogInput[0]);
@@ -206,6 +208,7 @@ function resolveRefMapForComponent(
     if (typeof rawCatalogId === 'string' && rawCatalogId) {
       const cat = catalogInput.get(rawCatalogId);
       if (cat) return getOrCreateRefMap(cat);
+      return {};
     }
     const first = catalogInput.values().next().value;
     if (first instanceof Catalog) {

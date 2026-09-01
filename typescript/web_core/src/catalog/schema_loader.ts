@@ -128,7 +128,7 @@ function convertPropertyToZod(
     }
   }
 
-  // oneOf / anyOf inspection (e.g. Icon.name which has enum + DataBinding)
+  // oneOf / anyOf inspection (e.g. Icon.name which has enum + DataBinding, or arbitrary type unions)
   if (Array.isArray(propSchema.oneOf) || Array.isArray(propSchema.anyOf)) {
     const branches: Record<string, any>[] = (propSchema.oneOf || propSchema.anyOf) as any[];
     const enumBranch = branches.find(b => Array.isArray(b.enum));
@@ -147,6 +147,23 @@ function convertPropertyToZod(
         enumZod = enumZod.describe(desc);
       }
       return enumZod;
+    }
+
+    if (branches.length > 0) {
+      const zodBranches = branches.map(b => convertPropertyToZod(b, rootDoc, visitedPointers));
+      let unionZod: z.ZodTypeAny;
+      if (zodBranches.length === 1) {
+        unionZod = zodBranches[0];
+      } else {
+        unionZod = z.union([zodBranches[0], zodBranches[1], ...zodBranches.slice(2)]);
+      }
+      if (propSchema.default !== undefined) {
+        unionZod = unionZod.default(propSchema.default);
+      }
+      if (propSchema.description) {
+        unionZod = unionZod.describe(propSchema.description);
+      }
+      return unionZod;
     }
   }
 
@@ -399,6 +416,7 @@ function extractPermittedNames(oneOf: unknown, prefix: string): Set<string> | un
  *
  * @param catalogSchema Raw catalog schema or capabilities definition object.
  * @returns Fully-typed Catalog instance configured with components, functions, and metadata.
+ * @throws {Error} If the catalog ID is missing or not a string.
  */
 export function loadCatalogFromSchema(
   catalogSchema: Record<string, any>,

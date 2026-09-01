@@ -22,23 +22,25 @@ import {A2uiStateError} from '../errors.js';
 
 /**
  * Context provided to components during rendering.
- * It provides access to the component's model, the data context, and a way to dispatch actions.
+ *
+ * Provides access to the component's model, the data context, and action dispatching.
  */
 export class ComponentContext {
-  /** The state model for this specific component, providing access to its properties and state. */
+  /** State model for this specific component, providing access to its properties and state. */
   readonly componentModel: ComponentModel;
   /**
-   * The data context scoped to this component's position in the visual hierarchy.
-   * Uses the `dataModelBasePath` to resolve relative data paths.
+   * Data context scoped to this component's position in the visual hierarchy.
+   *
+   * Uses `dataModelBasePath` to resolve relative data paths.
    */
   readonly dataContext: DataContext;
-  /** The collection of all component models for the current surface, allowing lookups by ID. */
+  /** Collection of all component models for the current surface, allowing lookups by ID. */
   readonly surfaceComponents: SurfaceComponentsModel;
-  /** The theme configuration for the surface this component belongs to. */
+  /** Theme configuration for the surface this component belongs to. */
   readonly theme: any;
 
   /**
-   * Creates a new component context.
+   * Initializes a new `ComponentContext` instance.
    *
    * @param surface The surface model the component belongs to.
    * @param componentId The ID of the component.
@@ -63,6 +65,7 @@ export class ComponentContext {
    * Dispatches an action from the component.
    *
    * @param action The action to dispatch.
+   * @returns A promise that resolves when action dispatching completes.
    */
   dispatchAction(action: any): Promise<void> {
     return this._actionDispatcher(action);

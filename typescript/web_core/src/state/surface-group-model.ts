@@ -19,8 +19,9 @@ import {ComponentApi} from '../catalog/types.js';
 import {EventEmitter, EventSource, Subscription} from '../common/events.js';
 
 /**
- * The root state model for the A2UI system.
- * Manages the collection of active surfaces.
+ * Root state model managing a collection of active surfaces.
+ *
+ * @template T Component API type definition.
  */
 export class SurfaceGroupModel<T extends ComponentApi> {
   private surfaces: Map<string, SurfaceModel<T>> = new Map();
@@ -30,15 +31,16 @@ export class SurfaceGroupModel<T extends ComponentApi> {
   private readonly _onSurfaceDeleted = new EventEmitter<string>();
   private readonly _onAction = new EventEmitter<ActionPayload>();
 
-  /** Fires when a new surface is added. */
+  /** Event source firing when a new surface is added. */
   readonly onSurfaceCreated: EventSource<SurfaceModel<T>> = this._onSurfaceCreated;
-  /** Fires when a surface is removed. */
+  /** Event source firing when a surface is removed. */
   readonly onSurfaceDeleted: EventSource<string> = this._onSurfaceDeleted;
-  /** Fires when an action is dispatched from ANY surface in the group. */
+  /** Event source firing when an action is dispatched from any surface in the group. */
   readonly onAction: EventSource<ActionPayload> = this._onAction;
 
   /**
    * Adds a surface to the group.
+   *
    * Ignores if a surface with the same ID already exists.
    *
    * @param surface The surface model to add.
@@ -60,6 +62,7 @@ export class SurfaceGroupModel<T extends ComponentApi> {
 
   /**
    * Removes a surface from the group by its ID.
+   *
    * Disposes of the surface upon removal.
    *
    * @param id The ID of the surface to remove.
@@ -82,7 +85,6 @@ export class SurfaceGroupModel<T extends ComponentApi> {
   /**
    * Retrieves a surface by its ID.
    *
-   *
    * @param id The ID of the surface to retrieve.
    * @returns The surface model, or undefined if not found.
    */
@@ -91,14 +93,14 @@ export class SurfaceGroupModel<T extends ComponentApi> {
   }
 
   /**
-   * Returns a readonly map of all active surfaces.
+   * Readonly map of all active surfaces keyed by surface ID.
    */
   get surfacesMap(): ReadonlyMap<string, SurfaceModel<T>> {
     return this.surfaces;
   }
 
   /**
-   * Disposes of the group and all its surfaces.
+   * Disposes the group and all contained surfaces.
    */
   dispose(): void {
     for (const id of Array.from(this.surfaces.keys())) {

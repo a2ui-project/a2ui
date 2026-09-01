@@ -17,10 +17,9 @@
 import {z} from 'zod';
 
 /**
- * Universal v1.0 system function to calculate the current 0-based iteration index in array contexts.
+ * System function definition for computing iteration indices in array contexts.
  *
- * Arguments:
- * - `offset`: Optional numerical offset added to the calculated index.
+ * Evaluates the 0-based iteration index with an optional numerical offset.
  */
 export const IndexApi = {
   name: '@index' as const,

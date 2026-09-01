@@ -590,4 +590,31 @@ describe('Catalog.fromSchema & schema_loader', () => {
     assert.strictEqual(schemaCard.schema.safeParse({title: 'B', extra: 123}).success, true);
     assert.strictEqual(strictCard.schema.safeParse({title: 'C', extra: 'rejected'}).success, false);
   });
+
+  it('converts multi-branch oneOf unions to z.union', () => {
+    const catalogJson = {
+      $id: 'https://example.com/union-cat',
+      title: 'Union Catalog',
+      components: {
+        FlexibleInput: {
+          type: 'object',
+          properties: {
+            value: {
+              oneOf: [{type: 'string'}, {type: 'number'}, {type: 'boolean'}],
+            },
+          },
+          required: ['value'],
+        },
+      },
+    };
+
+    const catalog = Catalog.fromSchema(catalogJson);
+    const inputComp = catalog.components.get('FlexibleInput');
+    assert.ok(inputComp);
+
+    assert.strictEqual(inputComp.schema.safeParse({value: 'hello'}).success, true);
+    assert.strictEqual(inputComp.schema.safeParse({value: 42}).success, true);
+    assert.strictEqual(inputComp.schema.safeParse({value: true}).success, true);
+    assert.strictEqual(inputComp.schema.safeParse({value: {invalid: 'obj'}}).success, false);
+  });
 });

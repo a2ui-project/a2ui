@@ -69,19 +69,19 @@ export const DynamicValueSchema = z
   ])
   .describe('A value that can be a literal, a path, or a function call returning any type.');
 
-/** A JSON Pointer path to a value in the data model. */
+/** JSON Pointer path to a value in the data model. */
 export type DataBinding = z.infer<typeof DataBindingSchema>;
-/** A function call representation. */
+/** Invocation specification for a named function. */
 export type FunctionCall = z.infer<typeof FunctionCallSchema>;
-/** A dynamic string that can be a literal, a data binding, or a function call. */
+/** Dynamic string that can be a literal, a data binding, or a function call. */
 export type DynamicString = z.infer<typeof DynamicStringSchema>;
-/** A dynamic number that can be a literal, a data binding, or a function call. */
+/** Dynamic number that can be a literal, a data binding, or a function call. */
 export type DynamicNumber = z.infer<typeof DynamicNumberSchema>;
-/** A dynamic boolean that can be a literal, a path, or a function call returning a boolean. */
+/** Dynamic boolean that can be a literal, a path, or a function call returning a boolean. */
 export type DynamicBoolean = z.infer<typeof DynamicBooleanSchema>;
-/** A dynamic list of strings that can be a literal array, a data binding, or a function call. */
+/** Dynamic list of strings that can be a literal array, a data binding, or a function call. */
 export type DynamicStringList = z.infer<typeof DynamicStringListSchema>;
-/** A dynamic value that can be a literal, a path, or a function call returning any type. */
+/** Dynamic value that can be a literal, a path, or a function call returning any type. */
 export type DynamicValue = z.infer<typeof DynamicValueSchema>;
 
 export const ComponentIdSchema = markChildRef(
@@ -90,17 +90,12 @@ export const ComponentIdSchema = markChildRef(
     .describe('REF:common_types.json#/$defs/ComponentId|The unique identifier for a component.'),
   'component-id',
 );
-/** The unique identifier for a component. */
+/** Unique identifier for a component. */
 export type ComponentId = z.infer<typeof ComponentIdSchema>;
 
 /**
- * Describes a component-id property without losing its `REF:` pointer.
- * `.describe()` replaces the whole description, so calling it directly on
- * {@link ComponentIdSchema} silently drops the pointer that the capabilities
- * generator turns into a wire `$ref` and the node layer reads to classify
- * child-reference properties.
+ * Classification kind for a schema marked as a child reference.
  */
-/** How a schema marked as a child reference is classified. */
 export type ChildRefKind = 'component-id' | 'child-list';
 
 /**
@@ -114,15 +109,30 @@ function markChildRef<T extends z.ZodTypeAny>(schema: T, ref: ChildRefKind): T {
   return schema;
 }
 
+/**
+ * Extracts the child reference kind associated with a Zod schema, if present.
+ *
+ * @param schema Zod schema to inspect.
+ * @returns The child reference kind or undefined if not marked.
+ */
 export function childRefKindOf(schema: z.ZodTypeAny): ChildRefKind | undefined {
   return (schema._def as {a2uiChildRef?: ChildRefKind}).a2uiChildRef;
 }
 
+/**
+ * Options for generating child reference schemas with custom descriptions.
+ */
 export interface RefSchemaOptions {
   /** Prose appended after the `REF:` pointer; shown in generated capabilities. */
   readonly description?: string;
 }
 
+/**
+ * Creates or customizes a ComponentId schema without losing its reference pointer metadata.
+ *
+ * @param options Configuration options including custom description.
+ * @returns The configured ComponentId schema.
+ */
 export function componentId(options: RefSchemaOptions = {}): typeof ComponentIdSchema {
   if (options.description === undefined) {
     return ComponentIdSchema;
@@ -133,8 +143,10 @@ export function componentId(options: RefSchemaOptions = {}): typeof ComponentIdS
 }
 
 /**
- * Describes a child-list property without losing its `REF:` pointer; the
- * same hazard {@link componentId} exists for.
+ * Creates or customizes a ChildList schema without losing its reference pointer metadata.
+ *
+ * @param options Configuration options including custom description.
+ * @returns The configured ChildList schema.
  */
 export function childList(options: RefSchemaOptions = {}): typeof ChildListSchema {
   if (options.description === undefined) {
@@ -159,7 +171,7 @@ export const ChildListSchema = markChildRef(
     .describe('REF:common_types.json#/$defs/ChildList'),
   'child-list',
 );
-/** A static list of child component IDs or a dynamic list template. */
+/** Static list of child component IDs or dynamic list template. */
 export type ChildList = z.infer<typeof ChildListSchema>;
 
 export const ActionSchema = z
@@ -179,7 +191,7 @@ export const ActionSchema = z
       .describe('Executes a local client-side function.'),
   ])
   .describe('Triggers a server-side event or a local client-side function.');
-/** Triggers a server-side event or a local client-side function. */
+/** Action specification triggering a server event or client function. */
 export type Action = z.infer<typeof ActionSchema>;
 
 export const CheckRuleSchema = z
@@ -188,7 +200,7 @@ export const CheckRuleSchema = z
     'message': z.string().describe('The error message to display if the check fails.'),
   })
   .describe('A check rule consisting of a condition and an error message.');
-/** A check rule consisting of a condition and an error message. */
+/** Validation rule consisting of a condition and an error message. */
 export type CheckRule = z.infer<typeof CheckRuleSchema>;
 
 export const CheckableSchema = z
@@ -201,7 +213,7 @@ export const CheckableSchema = z
       .describe('Current validation error messages.'),
   })
   .describe('Properties for components that support client-side checks.');
-/** An object that contains checks. */
+/** Properties for components supporting client-side validation checks. */
 export type Checkable = z.infer<typeof CheckableSchema>;
 
 export const AccessibilityAttributesSchema = z
@@ -215,7 +227,7 @@ export const AccessibilityAttributesSchema = z
   })
   .describe('Attributes to enhance accessibility.');
 
-/** Accessibility attributes like label and description. */
+/** Accessibility attributes such as assistive label and description. */
 export type AccessibilityAttributes = z.infer<typeof AccessibilityAttributesSchema>;
 
 export const AnyComponentSchema = z
@@ -227,9 +239,12 @@ export const AnyComponentSchema = z
   .passthrough()
   .describe('A generic A2UI component definition.');
 
-/** A generic A2UI component definition. */
+/** Generic component definition payload. */
 export type AnyComponent = z.infer<typeof AnyComponentSchema>;
 
+/**
+ * Registry of reusable common schema definitions across A2UI catalogs and protocols.
+ */
 export const CommonSchemas = {
   ComponentId: ComponentIdSchema,
   ChildList: ChildListSchema,

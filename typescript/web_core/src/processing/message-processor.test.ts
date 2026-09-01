@@ -1640,5 +1640,76 @@ describe('MessageProcessor', () => {
       assert.strictEqual(surface.componentsModel.get('root')?.properties.text, 'Initial');
       assert.strictEqual(surface.componentsModel.has('new_comp'), false);
     });
+
+    it('handles empty message array without throwing or processing', () => {
+      const proc = new MessageProcessor([basicCatalog]);
+      assert.doesNotThrow(() => proc.processMessages([]));
+      assert.strictEqual(proc.getSurfaces().size, 0);
+    });
+
+    it('allows partial streaming component updates before parent container arrives', () => {
+      const cardComp: ComponentApi = {
+        name: 'Card',
+        allowedParents: ['Surface'],
+        allowedChildren: ['Button'],
+        schema: z.object({
+          child: z.string().describe('REF:common_types.json#/$defs/ComponentId'),
+        }),
+      };
+      const buttonComp: ComponentApi = {
+        name: 'Button',
+        allowedParents: ['Card'],
+        schema: z.object({
+          label: z.string(),
+        }),
+      };
+
+      const customCat = new Catalog(
+        'custom-stream',
+        [cardComp, buttonComp],
+        [],
+        undefined,
+        undefined,
+        V10_CHILD_REF_OPTIONS,
+      );
+      const proc = new MessageProcessor([customCat], undefined, {
+        validationConfig: {allowOrphanComponents: true, allowMissingRoot: true},
+      });
+
+      // Stream child Button first before Card arrives
+      assert.doesNotThrow(() =>
+        proc.processMessages([
+          {
+            version: 'v1.0',
+            createSurface: {
+              surfaceId: 'stream-surface',
+              catalogId: 'custom-stream',
+            },
+          },
+          {
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 'stream-surface',
+              components: [{id: 'b1', component: 'Button', label: 'Click'}],
+            },
+          },
+        ]),
+      );
+
+      // Now attach root Card containing Button
+      assert.doesNotThrow(() =>
+        proc.processMessages({
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 'stream-surface',
+            components: [{id: 'root', component: 'Card', child: 'b1'}],
+          },
+        }),
+      );
+
+      const surface = proc.getSurface('stream-surface');
+      assert.ok(surface);
+      assert.strictEqual(surface.componentsModel.size, 2);
+    });
   });
 });

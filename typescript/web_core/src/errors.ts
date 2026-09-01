@@ -32,11 +32,11 @@ interface V8ErrorConstructor extends ErrorConstructor {
  * ```
  */
 export class A2uiError extends Error {
-  /** A machine-readable string identifying the error category. */
+  /** Machine-readable string identifying the error category. */
   public readonly code: string;
 
   /**
-   * Creates an instance of `A2uiError`.
+   * Initializes a new `A2uiError` instance.
    *
    * @param message Human-readable error description.
    * @param code Machine-readable error category code.
@@ -58,10 +58,11 @@ export class A2uiError extends Error {
  */
 export class A2uiValidationError extends A2uiError {
   /**
-   * Creates an instance of `A2uiValidationError`.
+   * Initializes a new `A2uiValidationError` instance.
    *
    * @param message Error description detailing the validation failure.
    * @param details Additional error context or Zod validation issues.
+   * @param code Optional error category code.
    */
   constructor(
     message: string,
@@ -77,7 +78,7 @@ export class A2uiValidationError extends A2uiError {
  */
 export class A2uiDataError extends A2uiError {
   /**
-   * Creates an instance of `A2uiDataError`.
+   * Initializes a new `A2uiDataError` instance.
    *
    * @param message Error description.
    * @param path Target data model path where the mutation failed.
@@ -95,7 +96,7 @@ export class A2uiDataError extends A2uiError {
  */
 export class A2uiExpressionError extends A2uiError {
   /**
-   * Creates an instance of `A2uiExpressionError`.
+   * Initializes a new `A2uiExpressionError` instance.
    *
    * @param message Error description.
    * @param expression Evaluated expression string.
@@ -115,7 +116,7 @@ export class A2uiExpressionError extends A2uiError {
  */
 export class A2uiStateError extends A2uiError {
   /**
-   * Creates an instance of `A2uiStateError`.
+   * Initializes a new `A2uiStateError` instance.
    *
    * @param message Error description.
    */
@@ -129,7 +130,7 @@ export class A2uiStateError extends A2uiError {
  */
 export class A2uiIntegrityError extends A2uiValidationError {
   /**
-   * Creates an instance of `A2uiIntegrityError`.
+   * Initializes a new `A2uiIntegrityError` instance.
    *
    * @param message Error description.
    * @param details Additional error details.
@@ -146,7 +147,7 @@ export class A2uiIntegrityError extends A2uiValidationError {
  */
 export class A2uiRecursionError extends A2uiValidationError {
   /**
-   * Creates an instance of `A2uiRecursionError`.
+   * Initializes a new `A2uiRecursionError` instance.
    *
    * @param message Error description.
    * @param details Additional error details.
