@@ -84,7 +84,10 @@ def validate_messages(root_schema, example_files, refs=None, temp_dir="temp_val"
             try:
                 messages = json.load(f)
             except json.JSONDecodeError as e:
-                print(f"  Validating {os.path.basename(example_file)}...\n    [FAIL] Invalid JSON: {e}")
+                print(
+                    f"  Validating {os.path.basename(example_file)}...\n    [FAIL]"
+                    f" Invalid JSON: {e}"
+                )
                 return False
 
         if (
