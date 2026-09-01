@@ -1,161 +1,96 @@
 ---
 name: a2ui-release-sdks
-description: State-machine driven automated release workflow for A2UI Python (a2ui-agent-sdk, a2ui-core) and TypeScript (@a2ui/web_core, @a2ui/lit, @a2ui/angular, @a2ui/react, @a2ui/markdown-it) SDKs. Handles state inspection, version selection, PR creation, build staging, and Exit Gate manifest uploads.
+description: Guidelines for writing human release notes, inspecting package release status, and running or debugging the automated A2UI multi-language release pipeline.
 ---
 
-# A2UI SDK & Package Release Skill
+# A2UI SDK Release & Release Notes Skill
 
-Guidelines and tactical recipes for AI agents to inspect, prepare, and execute releases for A2UI Python (`a2ui-agent-sdk`, `a2ui-core`) and TypeScript (`@a2ui/web_core`, `@a2ui/lit`, `@a2ui/angular`, `@a2ui/react`, `@a2ui/markdown-it`) packages using a deterministic **State Machine**.
+This skill provides guidelines and recipes for developers and AI agents to:
+
+1. **Document human release notes** in `CHANGELOG.md` files using canonical SemVer syntaxes.
+2. **Inspect release status & trigger automated PR generation** using `release_manager.py`.
+3. **Debug & troubleshoot** the automated GitHub Actions release pipeline.
 
 Primary sources of truth:
 
+- Proposal & Architecture Spec: [specification/proposals/automated_release_pipeline.md](../../../specification/proposals/automated_release_pipeline.md)
 - Master Release Guide: [docs/contributing/release.md](../../../docs/contributing/release.md)
-- Python Technical Guide: [agent_sdks/python/docs/python_publishing.md](../../../agent_sdks/python/docs/python_publishing.md)
-- TypeScript Technical Guide: [renderers/docs/web_publishing.md](../../../renderers/docs/web_publishing.md)
 
 ---
 
-## State Machine Architecture & Named States
+## 1. Writing & Managing Human Release Notes
 
-The release state of **each package is evaluated independently** by relative directory path (e.g. `renderers/web_core`, `agent_sdks/python/a2ui_core`). Each package transitions through its own state machine:
+Maintainers and AI agents write release notes manually under the `## Unreleased` section of each package's `CHANGELOG.md`.
 
-```mermaid
-stateDiagram-v2
-    [*] --> STATE_INSPECTION: Run check_status.py
-    STATE_INSPECTION --> STATE_IDLE: Registry == Repo & No Unreleased Entries/Commits
-    STATE_INSPECTION --> STATE_UNRELEASED_CHANGES_EXIST: Unreleased Entries in CHANGELOG or Git Log
-    STATE_INSPECTION --> STATE_RELEASE_PR_PENDING: Open Release PR Exists on GitHub
-    STATE_INSPECTION --> STATE_MAIN_READY_FOR_PUBLISHING: Merged to main & Repo Version > Registry Version
+To ensure the automated release pipeline accurately calculates SemVer version bumps (`MAJOR`, `MINOR`, `PATCH`), release notes MUST use **one of the following two canonical formats**:
 
-    STATE_UNRELEASED_CHANGES_EXIST --> STATE_RELEASE_PR_PENDING: Create Branch, Update Changelog, Bump Version, Open PR
-    STATE_RELEASE_PR_PENDING --> STATE_MAIN_READY_FOR_PUBLISHING: Peer Review & Merge PR to main
-    STATE_MAIN_READY_FOR_PUBLISHING --> STATE_IDLE: Run release.sh <package_path>
+### Option 1: Section Subheadings (Recommended)
+
+```markdown
+## Unreleased
+
+### Breaking Changes
+
+- Changed `RenderEngine` constructor signature to accept `ConfigOptions`.
+
+### Features
+
+- Added streaming data binding support for client renderers.
+
+### Bug Fixes
+
+- Fixed null pointer exception during component unmount.
 ```
 
-### Official Named States:
+### Option 2: Bullet Item Prefixes
 
-1. **`STATE_IDLE`**: The package in `main` is up to date with the public/staging registry and has no unreleased commits or changelog entries.
-2. **`STATE_UNRELEASED_CHANGES_EXIST`**: The package has unreleased changes (in `CHANGELOG.md` or git log), but the version in `main` is not yet bumped and no release PR is open.
-3. **`STATE_RELEASE_PR_PENDING`**: A version bump PR targeting `main` for this package is currently open on GitHub awaiting review/merge.
-4. **`STATE_MAIN_READY_FOR_PUBLISHING`**: The release PR has landed in `main`. The version string in `main` is greater than the published registry version.
+```markdown
+## Unreleased
 
----
+- BREAKING CHANGE: Changed `RenderEngine` constructor signature to accept `ConfigOptions`.
+- FEAT: Added streaming data binding support for client renderers.
+- FIX: Fixed null pointer exception during component unmount.
+```
 
-## Git Tagging & Atomic Release Guarantees
+### SemVer Calculation Rules
 
-To ensure that published release artifacts match the **exact Git commit** of the audited Version Bump PR (preventing subsequent commits on `main` from polluting a release):
-
-- **Tag Naming Convention**:
-  - **JavaScript/TypeScript**: `javascript/<short_name>/v<version>` (e.g. `javascript/web_core/v0.10.7`, `javascript/react/v0.11.0`)
-  - **Python**: `python/<short_name>/v<version>` (e.g. `python/a2ui_core/v0.1.1`, `python/a2ui_agent/v0.5.0`)
-- **Atomic Build Guarantee**: Release tags point directly to the merged Version Bump PR commit hash (`C1`). Release workflows checkout the exact tag commit (`git checkout tags/<tag>`) before building, guaranteeing 100% parity between `CHANGELOG.md`, version strings, Git history, and published registry artifacts.
+- **Breaking Changes** (`### Breaking Changes` or `- BREAKING CHANGE:`): Bumps **MINOR** for pre-1.0 (`0.10.x` -> `0.11.0`) or **MAJOR** for post-1.0 (`1.x.y` -> `2.0.0`).
+- **Features** (`### Features` or `- FEAT:`): Bumps **MINOR** (`0.10.x` -> `0.11.0` pre-1.0; `1.x.y` -> `1.y+1.0` post-1.0).
+- **Bug Fixes** (`### Bug Fixes` or `- FIX:`): Bumps **PATCH** (`0.10.x` -> `0.10.y`).
 
 ---
 
-## Phase 0: Automated State Discovery
+## 2. Inspecting Release Status & Triggering Release PRs
 
-To inspect the current release state across all packages at once, execute the status checker script:
+Use `release_manager.py` to inspect package release states or generate release PRs:
 
 ```bash
+# Inspect release state across all packages
 ./.agents/skills/a2ui-release-sdks/scripts/release_manager.py
+
+# Perform dry-run release PR creation
+./.agents/skills/a2ui-release-sdks/scripts/release_manager.py --create-pr --dry-run
+
+# Execute automated Version Bump PR creation
+./.agents/skills/a2ui-release-sdks/scripts/release_manager.py --create-pr
 ```
 
-This script evaluates each package independently by directory path, compares local versions against PyPI / NPM registries, parses `CHANGELOG.md` files, checks git logs, and reports the active state for every package.
-
 ---
 
-## Versioning & Changelog Policy
+## 3. Pipeline Architecture & Debugging Guide
 
-### 1. SemVer Version Bump Rules
+The release pipeline operates on 3 automated GitHub Actions workflows:
 
-- **Pre-1.0 (`0.x.y`)**:
-  - **MINOR Bump** (`0.10.x` -> `0.11.0`): Mandatory when changes contain `BREAKING CHANGE:` entries or breaking API modifications.
-  - **PATCH Bump** (`0.10.x` -> `0.10.y`): Used for backward-compatible features (`feat:`) and bug fixes (`fix:`).
-- **Post-1.0 (`X.y.z`)**:
-  - **MAJOR Bump** (`1.x.y` -> `2.0.0`): Mandatory for breaking changes (`BREAKING CHANGE:`).
-  - **MINOR Bump** (`1.x.y` -> `1.y+1.0`): New backward-compatible features.
-  - **PATCH Bump** (`1.x.y` -> `1.x.y+1`): Backward-compatible bug fixes.
+| Workflow                                 | Trigger                                    | Description                                                                                                                               |
+| :--------------------------------------- | :----------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------- |
+| **`.github/workflows/release-pr.yml`**   | Cron (Mon 09:00 UTC) / `workflow_dispatch` | Runs `release_manager.py --create-pr`. Audits git commits, updates version strings, updates lockfiles, and opens a Release PR.            |
+| **`.github/workflows/tag-on-merge.yml`** | Push to `main` (version file changes)      | Runs `bootstrap_tags.py --push` to automatically create and push immutable Git tags (`javascript/<pkg>/v<ver>` or `python/<pkg>/v<ver>`). |
+| **`.github/workflows/publish-tag.yml`**  | Push tag (`javascript/**`, `python/**`)    | Checks out exact tag commit, builds artifacts, runs `release.sh`, and publishes to Artifact Registry / PyPI / npm.                        |
 
-### 2. Changelog Conventions & Auto-Population
+### Debugging Failed Releases
 
-- **Breaking Changes Format**: In `CHANGELOG.md`, any breaking change entry MUST start with `BREAKING CHANGE:` or `- BREAKING CHANGE: <description>`.
-- **Unpopulated `## Unreleased` Policy**: If `## Unreleased` is empty, the agent must check `git log -n 20 <pkg_dir>`:
-  1. Filter out non-user-facing commits (`chore:`, `docs:`, `ci:`, `test:`).
-  2. If significant commits exist (`feat:`, `fix:`, `refactor:`, `BREAKING CHANGE:`), automatically populate `## Unreleased` in `CHANGELOG.md` with standard bullet items before bumping version.
-  3. If no significant commits exist, leave the package in `STATE_IDLE`.
-
----
-
-## Action Recipes by Package State
-
-### Recipe for `STATE_IDLE`
-
-Emit status summary to the user: _"Package `<name>` is fully up to date."_ No action needed.
-
----
-
-### Recipe for `STATE_UNRELEASED_CHANGES_EXIST`
-
-1. **Prepare Release Branch**:
-
-   ```bash
-   git checkout main
-   git pull upstream main
-   git checkout -b release/sdks-$(date +%Y-%m-%d)
-   ```
-
-2. **Audit Release Notes & Select SemVer Bump**:
-   - **Human-Maintained Notes**: `CHANGELOG.md` files are human-written. Maintainers and AI agents append entries under `## Unreleased` using **EXACTLY ONE** of the two canonical syntaxes (no fuzzy matching):
-     - **Option 1 (Subheadings)**: `### Breaking Changes`, `### Features`, `### Bug Fixes`
-     - **Option 2 (Prefixes)**: `- BREAKING CHANGE: ...`, `- FEAT: ...`, `- FIX: ...`
-   - **SemVer Determination**: Inspect items under `## Unreleased`.
-     - `### Breaking Changes` / `BREAKING CHANGE:` -> Bump **MINOR** for pre-1.0 (`0.10.x` -> `0.11.0`) or **MAJOR** for post-1.0 (`1.x.y` -> `2.0.0`).
-     - `### Features` / `FEAT:` -> Bump **MINOR** (`0.10.x` -> `0.11.0` pre-1.0; `1.x.y` -> `1.y+1.0` post-1.0).
-     - `### Bug Fixes` / `FIX:` (or standard bug fixes) -> Bump **PATCH** (`0.10.x` -> `0.10.y`).
-   - **Update Version Header**: Rename `## Unreleased` to `## <new_version>` and insert a fresh `## Unreleased` header above it.
-   - **Update Version Identifiers**:
-     - **TypeScript**: Edit `"version": "<new_version>"` directly in package `package.json`.
-     - **Python**: Edit `__version__ = "<new_version>"` in `version.py`.
-   - Run `yarn install` at the workspace root to update lockfiles cleanly.
-
-3. **Automated PR Execution**:
-   - Alternatively, execute the centralized release manager script to perform version bumps, lockfile updates, and PR creation automatically:
-     ```bash
-     ./.agents/skills/a2ui-release-sdks/scripts/release_manager.py --create-pr
-     ```
-
----
-
-### Recipe for `STATE_RELEASE_PR_PENDING`
-
-1. Display the open PR link to the user/maintainer.
-2. Wait for peer review and PR merge into `main`.
-
----
-
-### Recipe for `STATE_MAIN_READY_FOR_PUBLISHING`
-
-Once the release PR is merged into `main`, execute the release script targeting the package relative directory path:
-
-1. **Sync Local Main**:
-
-   ```bash
-   git checkout main
-   git pull upstream main
-   ```
-
-2. **Execute Package Release Script**:
-   - **TypeScript Packages**:
-     ```bash
-     ./renderers/release.sh renderers/web_core
-     ./renderers/release.sh renderers/lit
-     ```
-   - **Python Packages**:
-     ```bash
-     ./agent_sdks/python/release.sh agent_sdks/python/a2ui_core
-     ./agent_sdks/python/release.sh agent_sdks/python/a2ui_agent
-     ```
-
-3. **Verify Staging & Exit Gate**:
-   - Confirm Artifact Registry staging upload.
-   - Confirm Exit Gate manifest GCS trigger.
+1. **Unreleased changes ignored?** Verify `CHANGELOG.md` section header is named `## Unreleased` and uses one of the two canonical formats above.
+2. **Missing Git tags on main?** Run `./.agents/skills/a2ui-release-sdks/scripts/bootstrap_tags.py --push` to sync missing baseline tags.
+3. **Artifact publish failure?** Check `.github/workflows/publish-tag.yml` workflow logs. Run release scripts locally with `--dry-run`:
+   - `./renderers/release.sh renderers/web_core --dry-run`
+   - `./agent_sdks/python/release.sh agent_sdks/python/a2ui_core --dry-run`
