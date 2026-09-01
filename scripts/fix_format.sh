@@ -84,16 +84,25 @@ if command -v dart >/dev/null 2>&1; then
   # a Flutter SDK directory, "dart pub get" will give errors about the monorepo
   # depending on Flutter and not running "flutter pub get", so we want to
   # suppress that failure here so it doesn't cause the fix_format.sh script to
-  # exit. The dart format run will still have warnings because pub get wasn't
-  # run, but it won't affect the CI build outcome.
+  # exit.
+  #
+  # Whether that resolution succeeded DOES change the formatting, so we pin the
+  # language version below rather than letting it vary. With a package config,
+  # "dart format" uses the language version the pubspec declares; without one it
+  # falls back to the newest version the SDK supports, and the two disagree on
+  # constructs like method chains. That is how CI and a contributor on the same
+  # SDK can reach opposite conclusions about the same file. Every package in the
+  # formatted paths declares sdk ">=3.10.0", matching the monorepo workspace, so
+  # 3.10 reproduces a resolved local run. Bump it when those pubspecs raise
+  # their floor.
   if [ ! -f ".dart_tool/package_config.json" ]; then
     dart pub get >/dev/null 2>&1 || true
   fi
 
   if [ "$CHECK_ONLY" = true ]; then
-    dart format --output=none --set-exit-if-changed samples/client/flutter renderers/flutter
+    dart format --language-version=3.10 --output=none --set-exit-if-changed samples/client/flutter renderers/flutter
   else
-    dart format samples/client/flutter renderers/flutter
+    dart format --language-version=3.10 samples/client/flutter renderers/flutter
   fi
 else
   echo "Warning: dart command not found. Skipping Dart formatting."
@@ -101,12 +110,13 @@ fi
 
 echo "Running swift-format..."
 if command -v swift-format >/dev/null 2>&1; then
+  SWIFT_PATHS=(Package.swift swift/)
   if [ "$CHECK_ONLY" = true ]; then
     echo "Linting Swift files..."
-    swift-format lint -r Package.swift swift/
+    swift-format lint -r "${SWIFT_PATHS[@]}"
   else
     echo "Formatting Swift files..."
-    swift-format format -i -r Package.swift swift/
+    swift-format format -i -r "${SWIFT_PATHS[@]}"
   fi
 else
   echo "Warning: swift-format command not found. Skipping Swift formatting."
@@ -114,7 +124,10 @@ fi
 
 echo "Running ktfmt for Kotlin files..."
 cd "$REPO_ROOT"
-if command -v java >/dev/null 2>&1; then
+# Probe the runtime rather than the binary: macOS ships a /usr/bin/java stub
+# that exists on PATH but exits non-zero when no JDK is installed, so
+# `command -v java` alone would send us into Gradle and fail there.
+if java -version >/dev/null 2>&1; then
   while IFS= read -r -d '' build_file; do
     dir="$(dirname "$build_file")"
     if grep -q "ktfmt" "$build_file" 2>/dev/null; then
@@ -138,7 +151,7 @@ if command -v java >/dev/null 2>&1; then
     fi
   done < <(find "$REPO_ROOT" \( -name build -o -name .gradle -o -name node_modules -o -name .git -o -name .yarn -o -name .dart_tool \) -prune -o -name "build.gradle.kts" -print0)
 else
-  echo "Warning: java command not found. Skipping Kotlin formatting."
+  echo "Warning: no Java runtime found. Skipping Kotlin formatting."
 fi
 
 echo "Done."

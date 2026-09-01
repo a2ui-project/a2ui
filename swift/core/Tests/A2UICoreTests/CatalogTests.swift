@@ -82,7 +82,7 @@ struct ComponentAPITests {
         }
         """
     )
-    let api = ComponentAPI(name: "Button", schema: schema)
+    let api = AnyComponentAPI(name: "Button", schema: schema)
     #expect(api.name == "Button")
     #expect(api.schema == schema)
   }
@@ -91,15 +91,15 @@ struct ComponentAPITests {
 
   @Test func componentAPIsEqualByNameAndSchema() throws {
     let schema = try Schema(instance: "{\"type\": \"object\"}")
-    let a = ComponentAPI(name: "Button", schema: schema)
-    let b = ComponentAPI(name: "Button", schema: schema)
+    let a = AnyComponentAPI(name: "Button", schema: schema)
+    let b = AnyComponentAPI(name: "Button", schema: schema)
     #expect(a == b)
   }
 
   @Test func componentAPIsNotEqualByDifferentName() throws {
     let schema = try Schema(instance: "{\"type\": \"object\"}")
-    let a = ComponentAPI(name: "Button", schema: schema)
-    let b = ComponentAPI(name: "Text", schema: schema)
+    let a = AnyComponentAPI(name: "Button", schema: schema)
+    let b = AnyComponentAPI(name: "Text", schema: schema)
     #expect(a != b)
   }
 }
@@ -158,7 +158,7 @@ struct CatalogTests {
         }
         """
     )
-    let buttonAPI = ComponentAPI(name: "Button", schema: buttonSchema)
+    let buttonAPI = AnyComponentAPI(name: "Button", schema: buttonSchema)
     let catalog = Catalog(
       id: "test-catalog",
       components: [buttonAPI],
@@ -173,7 +173,7 @@ struct CatalogTests {
   }
 
   @Test func catalogInitializesWithEmptyDefaults() {
-    let catalog = Catalog(id: "empty-catalog", components: [])
+    let catalog = AnyCatalog(id: "empty-catalog", components: [])
     #expect(catalog.id == "empty-catalog")
     #expect(catalog.components.isEmpty)
     #expect(catalog.functions.isEmpty)
@@ -191,7 +191,7 @@ struct CatalogTests {
         }
         """
     )
-    let catalog = Catalog(
+    let catalog = AnyCatalog(
       id: "themed-catalog",
       components: [],
       themeSchema: themeSchema
@@ -203,7 +203,7 @@ struct CatalogTests {
 
   @Test func catalogComponentsLookupReturnsAPIForRegisteredName() throws {
     let schema = try Schema(instance: "{\"type\": \"object\"}")
-    let api = ComponentAPI(name: "Text", schema: schema)
+    let api = AnyComponentAPI(name: "Text", schema: schema)
     let catalog = Catalog(id: "test", components: [api])
 
     let result = catalog.components["Text"]
@@ -213,14 +213,14 @@ struct CatalogTests {
   }
 
   @Test func catalogComponentsLookupReturnsNilForUnregisteredName() {
-    let catalog = Catalog(id: "test", components: [])
+    let catalog = AnyCatalog(id: "test", components: [])
     #expect(catalog.components["Unknown"] == nil)
   }
 
   // MARK: - Function Lookup
 
   @Test func catalogFunctionsLookupReturnsImplementation() {
-    let catalog = Catalog(
+    let catalog = AnyCatalog(
       id: "test",
       components: [],
       functions: [ConcatFunction(), IsEmptyFunction()]
@@ -230,8 +230,7 @@ struct CatalogTests {
   }
 
   @Test func catalogFunctionsLookupReturnsNilForUnregistered() {
-    let catalog = Catalog(id: "test", components: [])
+    let catalog = AnyCatalog(id: "test", components: [])
     #expect(catalog.functions["unknown"] == nil)
   }
-
 }

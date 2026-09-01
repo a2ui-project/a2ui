@@ -35,7 +35,8 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
    * - `--a2ui-tabs-content-padding`: Default `0 var(--a2ui-spacing-m, 0.5rem)`.
    */
   static override styles = css`
-    :host {
+    :host,
+    a2ui-tabs {
       display: block;
     }
     .a2ui-tabs-headers {

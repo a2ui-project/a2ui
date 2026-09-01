@@ -16,9 +16,10 @@ import A2UICore
 import SwiftUI
 
 /// Renders a single resolved A2UI engine node by looking up its view builder
-/// from the active catalog implementation in the SwiftUI environment.
+/// from the active component catalogs in the SwiftUI environment.
 public struct ComponentNodeView: View {
-  @Environment(\.a2uiCatalogImplementation) private var catalogImplementation
+  @Environment(\.a2uiCatalogs) private var catalogs
+  @Environment(\.a2uiDefaultCatalogID) private var defaultCatalogID
 
   public let node: Node
 
@@ -27,7 +28,9 @@ public struct ComponentNodeView: View {
   }
 
   public var body: some View {
-    if let renderedView = Surface.render(node: node, using: catalogImplementation) {
+    if let renderedView = Surface.render(
+      node: node, using: catalogs, defaultCatalogID: defaultCatalogID)
+    {
       renderedView
     } else {
       fallbackView

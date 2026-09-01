@@ -31,7 +31,7 @@ on:
       - "requirements-docs.txt"
       - "pyproject.toml"
       - "lychee.toml"
-      - "mkdocs.yml"
+      - "mkdocs.yaml"
       - "docs/**"
   pull_request:
     branches:
@@ -59,7 +59,7 @@ jobs:
               - ".github/workflows/docs.yml"
               - "requirements-docs.txt"
               - "pyproject.toml"
-              - "mkdocs.yml"
+              - "mkdocs.yaml"
               - "lychee.toml"
               - "docs/**"
               - "**.md"

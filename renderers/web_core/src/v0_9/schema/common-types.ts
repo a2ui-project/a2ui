@@ -91,25 +91,81 @@ export type DynamicStringList = z.infer<typeof DynamicStringListSchema>;
 /** A dynamic value that can be a literal, a path, or a function call returning any type. */
 export type DynamicValue = z.infer<typeof DynamicValueSchema>;
 
-export const ComponentIdSchema = z
-  .string()
-  .describe('REF:common_types.json#/$defs/ComponentId|The unique identifier for a component.');
+export const ComponentIdSchema = markChildRef(
+  z
+    .string()
+    .describe('REF:common_types.json#/$defs/ComponentId|The unique identifier for a component.'),
+  'component-id',
+);
 /** The unique identifier for a component. */
 export type ComponentId = z.infer<typeof ComponentIdSchema>;
 
-export const ChildListSchema = z
-  .union([
-    z.array(ComponentIdSchema).describe('A static list of child component IDs.'),
-    z
-      .object({
-        'componentId': ComponentIdSchema,
-        'path': z
-          .string()
-          .describe('The path to the list of component property objects in the data model.'),
-      })
-      .describe('A template for generating a dynamic list of children.'),
-  ])
-  .describe('REF:common_types.json#/$defs/ChildList');
+/**
+ * Describes a component-id property without losing its `REF:` pointer.
+ * `.describe()` replaces the whole description, so calling it directly on
+ * {@link ComponentIdSchema} silently drops the pointer that the capabilities
+ * generator turns into a wire `$ref` and the node layer reads to classify
+ * child-reference properties.
+ */
+/** How a schema marked as a child reference is classified. */
+export type ChildRefKind = 'component-id' | 'child-list';
+
+/**
+ * Stamps the child-reference kind into the schema's zod metadata. Methods
+ * like `.describe()` and `.optional()` rebuild schemas from `_def`, so the
+ * flag survives them; the `REF:` description remains the wire-facing pointer
+ * the capabilities generator resolves into a `$ref`.
+ */
+function markChildRef<T extends z.ZodTypeAny>(schema: T, ref: ChildRefKind): T {
+  (schema._def as {a2uiChildRef?: ChildRefKind}).a2uiChildRef = ref;
+  return schema;
+}
+
+export function childRefKindOf(schema: z.ZodTypeAny): ChildRefKind | undefined {
+  return (schema._def as {a2uiChildRef?: ChildRefKind}).a2uiChildRef;
+}
+
+export interface RefSchemaOptions {
+  /** Prose appended after the `REF:` pointer; shown in generated capabilities. */
+  readonly description?: string;
+}
+
+export function componentId(options: RefSchemaOptions = {}): typeof ComponentIdSchema {
+  if (options.description === undefined) {
+    return ComponentIdSchema;
+  }
+  return ComponentIdSchema.describe(
+    `REF:common_types.json#/$defs/ComponentId|${options.description}`,
+  );
+}
+
+/**
+ * Describes a child-list property without losing its `REF:` pointer; the
+ * same hazard {@link componentId} exists for.
+ */
+export function childList(options: RefSchemaOptions = {}): typeof ChildListSchema {
+  if (options.description === undefined) {
+    return ChildListSchema;
+  }
+  return ChildListSchema.describe(`REF:common_types.json#/$defs/ChildList|${options.description}`);
+}
+
+export const ChildListSchema = markChildRef(
+  z
+    .union([
+      z.array(ComponentIdSchema).describe('A static list of child component IDs.'),
+      z
+        .object({
+          'componentId': ComponentIdSchema,
+          'path': z
+            .string()
+            .describe('The path to the list of component property objects in the data model.'),
+        })
+        .describe('A template for generating a dynamic list of children.'),
+    ])
+    .describe('REF:common_types.json#/$defs/ChildList'),
+  'child-list',
+);
 /** A static list of child component IDs or a dynamic list template. */
 export type ChildList = z.infer<typeof ChildListSchema>;
 

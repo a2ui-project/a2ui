@@ -316,7 +316,6 @@ function ShellContent({config, client, sendAndProcessRef, processor}: ShellConte
       {/* Error display */}
       {error && <div className="error">{error}</div>}
 
-      {/* Render all surfaces */}
       {hasSurfaces && (
         <section className="surfaces">
           {surfaces.map(surface => (
