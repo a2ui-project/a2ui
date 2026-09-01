@@ -390,6 +390,16 @@
       "required": ["functionCallId"],
       "oneOf": [{"required": ["value"]}, {"required": ["error"]}],
       "additionalProperties": false
+    },
+    "FunctionCommon": {
+      "type": "object",
+      "description": "Common properties for function definitions, such as optional function-level catalogId overrides.",
+      "properties": {
+        "catalogId": {
+          "type": "string",
+          "description": "The catalog ID for this function, overriding any surface-level default catalogId."
+        }
+      }
     }
   }
 }

@@ -1,7 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-  "protocolVersion": "1.0",
   "title": "A2UI Basic Catalog",
   "description": "Unified catalog of basic A2UI components and functions.",
   "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -14,7 +13,7 @@
           "const": "Text"
         },
         "text": {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+          "$ref": "common_types.json#/$defs/DynamicString",
           "description": "The text content to display. While simple Markdown formatting is supported (i.e. without HTML, images, or links), utilizing dedicated UI components is generally preferred for a richer and more structured presentation."
         },
         "variant": {
@@ -37,11 +36,11 @@
           "const": "Image"
         },
         "url": {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+          "$ref": "common_types.json#/$defs/DynamicString",
           "description": "The URL of the image to display."
         },
         "description": {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+          "$ref": "common_types.json#/$defs/DynamicString",
           "description": "Accessibility text for the image."
         },
         "fit": {
@@ -140,14 +139,14 @@
               "type": "object",
               "properties": {
                 "svgPath": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
+                  "$ref": "common_types.json#/$defs/DynamicString"
                 }
               },
               "required": ["svgPath"],
               "additionalProperties": false
             },
             {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DataBinding"
+              "$ref": "common_types.json#/$defs/DataBinding"
             }
           ]
         },
@@ -165,11 +164,11 @@
           "const": "Video"
         },
         "url": {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+          "$ref": "common_types.json#/$defs/DynamicString",
           "description": "The URL of the video to display."
         },
         "posterUrl": {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+          "$ref": "common_types.json#/$defs/DynamicString",
           "description": "The URL of the poster image to display before the video plays."
         },
         "weight": {
@@ -186,12 +185,12 @@
           "const": "AudioPlayer"
         },
         "url": {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+          "$ref": "common_types.json#/$defs/DynamicString",
           "description": "The URL of the audio to be played."
         },
         "description": {
           "description": "A description of the audio, such as a title or summary.",
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
+          "$ref": "common_types.json#/$defs/DynamicString"
         },
         "weight": {
           "type": "number",
@@ -209,7 +208,7 @@
         },
         "children": {
           "description": "Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.",
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList"
+          "$ref": "common_types.json#/$defs/ChildList"
         },
         "justify": {
           "type": "string",
@@ -247,7 +246,7 @@
         },
         "children": {
           "description": "Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.",
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList"
+          "$ref": "common_types.json#/$defs/ChildList"
         },
         "justify": {
           "type": "string",
@@ -284,7 +283,7 @@
         },
         "children": {
           "description": "Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list.",
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList"
+          "$ref": "common_types.json#/$defs/ChildList"
         },
         "direction": {
           "type": "string",
@@ -312,7 +311,7 @@
           "const": "Card"
         },
         "child": {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Child",
+          "$ref": "common_types.json#/$defs/Child",
           "description": "The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID."
         },
         "weight": {
@@ -337,10 +336,10 @@
             "properties": {
               "title": {
                 "description": "The tab title.",
-                "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
+                "$ref": "common_types.json#/$defs/DynamicString"
               },
               "child": {
-                "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Child",
+                "$ref": "common_types.json#/$defs/Child",
                 "description": "The ID of the child component."
               }
             },
@@ -362,11 +361,11 @@
           "const": "Modal"
         },
         "trigger": {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Child",
+          "$ref": "common_types.json#/$defs/Child",
           "description": "The ID of the component that opens the modal when interacted with (e.g., a button)."
         },
         "content": {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Child",
+          "$ref": "common_types.json#/$defs/Child",
           "description": "The ID of the component to be displayed inside the modal."
         },
         "weight": {
@@ -399,7 +398,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Checkable"
+          "$ref": "common_types.json#/$defs/Checkable"
         },
         {
           "type": "object",
@@ -408,7 +407,7 @@
               "const": "Button"
             },
             "child": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Child",
+              "$ref": "common_types.json#/$defs/Child",
               "description": "The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button."
             },
             "variant": {
@@ -418,7 +417,7 @@
               "default": "default"
             },
             "action": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Action"
+              "$ref": "common_types.json#/$defs/Action"
             },
             "weight": {
               "type": "number",
@@ -433,7 +432,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Checkable"
+          "$ref": "common_types.json#/$defs/Checkable"
         },
         {
           "type": "object",
@@ -442,15 +441,15 @@
               "const": "TextField"
             },
             "label": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+              "$ref": "common_types.json#/$defs/DynamicString",
               "description": "The text label for the input field."
             },
             "value": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+              "$ref": "common_types.json#/$defs/DynamicString",
               "description": "The value of the text field."
             },
             "placeholder": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+              "$ref": "common_types.json#/$defs/DynamicString",
               "description": "The placeholder text for the input field."
             },
             "variant": {
@@ -472,7 +471,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Checkable"
+          "$ref": "common_types.json#/$defs/Checkable"
         },
         {
           "type": "object",
@@ -481,11 +480,11 @@
               "const": "CheckBox"
             },
             "label": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+              "$ref": "common_types.json#/$defs/DynamicString",
               "description": "The text to display next to the checkbox."
             },
             "value": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicBoolean",
+              "$ref": "common_types.json#/$defs/DynamicBoolean",
               "description": "The current state of the checkbox (true for checked, false for unchecked)."
             },
             "weight": {
@@ -502,7 +501,7 @@
       "description": "A component that allows selecting one or more options from a list.",
       "allOf": [
         {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Checkable"
+          "$ref": "common_types.json#/$defs/Checkable"
         },
         {
           "type": "object",
@@ -511,7 +510,7 @@
               "const": "ChoicePicker"
             },
             "label": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+              "$ref": "common_types.json#/$defs/DynamicString",
               "description": "The label for the group of options."
             },
             "variant": {
@@ -528,7 +527,7 @@
                 "properties": {
                   "label": {
                     "description": "The text to display for this option.",
-                    "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
+                    "$ref": "common_types.json#/$defs/DynamicString"
                   },
                   "value": {
                     "type": "string",
@@ -540,7 +539,7 @@
               }
             },
             "value": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicStringList",
+              "$ref": "common_types.json#/$defs/DynamicStringList",
               "description": "The list of currently selected values. This should be bound to a string array in the data model."
             },
             "displayStyle": {
@@ -567,7 +566,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Checkable"
+          "$ref": "common_types.json#/$defs/Checkable"
         },
         {
           "type": "object",
@@ -576,7 +575,7 @@
               "const": "Slider"
             },
             "label": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+              "$ref": "common_types.json#/$defs/DynamicString",
               "description": "The label for the slider."
             },
             "min": {
@@ -589,7 +588,7 @@
               "description": "The maximum value of the slider."
             },
             "value": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicNumber",
+              "$ref": "common_types.json#/$defs/DynamicNumber",
               "description": "The current value of the slider."
             },
             "steps": {
@@ -610,7 +609,7 @@
       "type": "object",
       "allOf": [
         {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Checkable"
+          "$ref": "common_types.json#/$defs/Checkable"
         },
         {
           "type": "object",
@@ -619,7 +618,7 @@
               "const": "DateTimeInput"
             },
             "value": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+              "$ref": "common_types.json#/$defs/DynamicString",
               "description": "The selected date and/or time value in ISO 8601 format. If not yet set, initialize with an empty string."
             },
             "enableDate": {
@@ -635,7 +634,7 @@
             "min": {
               "allOf": [
                 {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
+                  "$ref": "common_types.json#/$defs/DynamicString"
                 },
                 {
                   "if": {
@@ -661,7 +660,7 @@
             "max": {
               "allOf": [
                 {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
+                  "$ref": "common_types.json#/$defs/DynamicString"
                 },
                 {
                   "if": {
@@ -685,7 +684,7 @@
               "description": "The maximum allowed date/time in ISO 8601 format."
             },
             "label": {
-              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+              "$ref": "common_types.json#/$defs/DynamicString",
               "description": "The text label for the input field."
             },
             "weight": {
@@ -705,7 +704,7 @@
       "returnType": "validationResult",
       "allOf": [
         {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
+          "$ref": "common_types.json#/$defs/FunctionCommon"
         },
         {
           "type": "object",
@@ -735,7 +734,7 @@
       "returnType": "validationResult",
       "allOf": [
         {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
+          "$ref": "common_types.json#/$defs/FunctionCommon"
         },
         {
           "type": "object",
@@ -747,7 +746,7 @@
               "type": "object",
               "properties": {
                 "value": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
+                  "$ref": "common_types.json#/$defs/DynamicString"
                 },
                 "pattern": {
                   "type": "string",
@@ -769,7 +768,7 @@
       "returnType": "validationResult",
       "allOf": [
         {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
+          "$ref": "common_types.json#/$defs/FunctionCommon"
         },
         {
           "type": "object",
@@ -781,7 +780,7 @@
               "type": "object",
               "properties": {
                 "value": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
+                  "$ref": "common_types.json#/$defs/DynamicString"
                 },
                 "min": {
                   "type": "integer",
@@ -817,7 +816,7 @@
       "returnType": "validationResult",
       "allOf": [
         {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
+          "$ref": "common_types.json#/$defs/FunctionCommon"
         },
         {
           "type": "object",
@@ -829,7 +828,7 @@
               "type": "object",
               "properties": {
                 "value": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicNumber"
+                  "$ref": "common_types.json#/$defs/DynamicNumber"
                 },
                 "min": {
                   "type": "number",
@@ -863,7 +862,7 @@
       "returnType": "validationResult",
       "allOf": [
         {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
+          "$ref": "common_types.json#/$defs/FunctionCommon"
         },
         {
           "type": "object",
@@ -875,7 +874,7 @@
               "type": "object",
               "properties": {
                 "value": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
+                  "$ref": "common_types.json#/$defs/DynamicString"
                 }
               },
               "required": ["value"],
@@ -893,7 +892,7 @@
       "returnType": "string",
       "allOf": [
         {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
+          "$ref": "common_types.json#/$defs/FunctionCommon"
         },
         {
           "type": "object",
@@ -905,7 +904,7 @@
               "type": "object",
               "properties": {
                 "value": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
+                  "$ref": "common_types.json#/$defs/DynamicString"
                 }
               },
               "required": ["value"],
@@ -923,7 +922,7 @@
       "returnType": "string",
       "allOf": [
         {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
+          "$ref": "common_types.json#/$defs/FunctionCommon"
         },
         {
           "type": "object",
@@ -935,15 +934,15 @@
               "type": "object",
               "properties": {
                 "value": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicNumber",
+                  "$ref": "common_types.json#/$defs/DynamicNumber",
                   "description": "The number to format."
                 },
                 "decimals": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicNumber",
+                  "$ref": "common_types.json#/$defs/DynamicNumber",
                   "description": "Optional. The number of decimal places to show. Defaults to 0 or 2 depending on locale."
                 },
                 "grouping": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicBoolean",
+                  "$ref": "common_types.json#/$defs/DynamicBoolean",
                   "description": "Optional. If true, uses locale-specific grouping separators (e.g. '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true."
                 }
               },
@@ -962,7 +961,7 @@
       "returnType": "string",
       "allOf": [
         {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
+          "$ref": "common_types.json#/$defs/FunctionCommon"
         },
         {
           "type": "object",
@@ -974,19 +973,19 @@
               "type": "object",
               "properties": {
                 "value": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicNumber",
+                  "$ref": "common_types.json#/$defs/DynamicNumber",
                   "description": "The monetary amount."
                 },
                 "currency": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+                  "$ref": "common_types.json#/$defs/DynamicString",
                   "description": "The ISO 4217 currency code (e.g., 'USD', 'EUR')."
                 },
                 "decimals": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicNumber",
+                  "$ref": "common_types.json#/$defs/DynamicNumber",
                   "description": "Optional. The number of decimal places to show. Defaults to 0 or 2 depending on locale."
                 },
                 "grouping": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicBoolean",
+                  "$ref": "common_types.json#/$defs/DynamicBoolean",
                   "description": "Optional. If true, uses locale-specific grouping separators (e.g. '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true."
                 }
               },
@@ -1005,7 +1004,7 @@
       "returnType": "string",
       "allOf": [
         {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
+          "$ref": "common_types.json#/$defs/FunctionCommon"
         },
         {
           "type": "object",
@@ -1017,11 +1016,11 @@
               "type": "object",
               "properties": {
                 "value": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicValue",
+                  "$ref": "common_types.json#/$defs/DynamicValue",
                   "description": "The date to format."
                 },
                 "format": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+                  "$ref": "common_types.json#/$defs/DynamicString",
                   "description": "A Unicode TR35 date pattern string.\n\nToken Reference:\n- Year: 'yy' (26), 'yyyy' (2026)\n- Month: 'M' (1), 'MM' (01), 'MMM' (Jan), 'MMMM' (January)\n- Day: 'd' (1), 'dd' (01), 'E' (Tue), 'EEEE' (Tuesday)\n- Hour (12h): 'h' (1-12), 'hh' (01-12) - requires 'a' for AM/PM\n- Hour (24h): 'H' (0-23), 'HH' (00-23) - Military Time\n- Minute: 'mm' (00-59)\n- Second: 'ss' (00-59)\n- Period: 'a' (AM/PM)\n\nExamples:\n- 'MMM dd, yyyy' -> 'Jan 16, 2026'\n- 'HH:mm' -> '14:30' (Military)\n- 'h:mm a' -> '2:30 PM'\n- 'EEEE, d MMMM' -> 'Friday, 16 January'"
                 }
               },
@@ -1040,7 +1039,7 @@
       "returnType": "string",
       "allOf": [
         {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
+          "$ref": "common_types.json#/$defs/FunctionCommon"
         },
         {
           "type": "object",
@@ -1052,31 +1051,31 @@
               "type": "object",
               "properties": {
                 "value": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicNumber",
+                  "$ref": "common_types.json#/$defs/DynamicNumber",
                   "description": "The numeric value used to determine the plural category."
                 },
                 "zero": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+                  "$ref": "common_types.json#/$defs/DynamicString",
                   "description": "String for the 'zero' category (e.g., 0 items)."
                 },
                 "one": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+                  "$ref": "common_types.json#/$defs/DynamicString",
                   "description": "String for the 'one' category (e.g., 1 item)."
                 },
                 "two": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+                  "$ref": "common_types.json#/$defs/DynamicString",
                   "description": "String for the 'two' category (used in Arabic, Welsh, etc.)."
                 },
                 "few": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+                  "$ref": "common_types.json#/$defs/DynamicString",
                   "description": "String for the 'few' category (e.g., small groups in Slavic languages)."
                 },
                 "many": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+                  "$ref": "common_types.json#/$defs/DynamicString",
                   "description": "String for the 'many' category (e.g., large groups in various languages)."
                 },
                 "other": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+                  "$ref": "common_types.json#/$defs/DynamicString",
                   "description": "The default/fallback string (used for general plural cases)."
                 }
               },
@@ -1096,7 +1095,7 @@
       "requiresUserActivation": true,
       "allOf": [
         {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
+          "$ref": "common_types.json#/$defs/FunctionCommon"
         },
         {
           "type": "object",
@@ -1115,10 +1114,10 @@
                       "format": "uri"
                     },
                     {
-                      "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DataBinding"
+                      "$ref": "common_types.json#/$defs/DataBinding"
                     },
                     {
-                      "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCall"
+                      "$ref": "common_types.json#/$defs/FunctionCall"
                     }
                   ]
                 }
@@ -1138,7 +1137,7 @@
       "returnType": "boolean",
       "allOf": [
         {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
+          "$ref": "common_types.json#/$defs/FunctionCommon"
         },
         {
           "type": "object",
@@ -1153,7 +1152,7 @@
                   "type": "array",
                   "description": "The list of boolean values to evaluate.",
                   "items": {
-                    "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicBoolean"
+                    "$ref": "common_types.json#/$defs/DynamicBoolean"
                   },
                   "minItems": 2
                 }
@@ -1173,7 +1172,7 @@
       "returnType": "boolean",
       "allOf": [
         {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
+          "$ref": "common_types.json#/$defs/FunctionCommon"
         },
         {
           "type": "object",
@@ -1188,7 +1187,7 @@
                   "type": "array",
                   "description": "The list of boolean values to evaluate.",
                   "items": {
-                    "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicBoolean"
+                    "$ref": "common_types.json#/$defs/DynamicBoolean"
                   },
                   "minItems": 2
                 }
@@ -1208,7 +1207,7 @@
       "returnType": "boolean",
       "allOf": [
         {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/FunctionCommon"
+          "$ref": "common_types.json#/$defs/FunctionCommon"
         },
         {
           "type": "object",
@@ -1220,7 +1219,7 @@
               "type": "object",
               "properties": {
                 "value": {
-                  "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicBoolean",
+                  "$ref": "common_types.json#/$defs/DynamicBoolean",
                   "description": "The boolean value to negate."
                 }
               },

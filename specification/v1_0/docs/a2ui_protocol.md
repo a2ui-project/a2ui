@@ -564,7 +564,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
    - All helper properties (such as common properties factored out of catalog items) MUST be inlined directly inside the properties block of each supporting component schema rather than referenced from a shared helper.
 3. **Restricted `$ref` Targets:**
    - Local `$ref` targets are restricted to referencing the catalog's top-level components or functions (e.g., `#/components/Text`, `#/functions/required`).
-   - External `$ref` targets MUST reference the standard types inside `common_types.json` (`https://a2ui.org/specification/v1_0/common_types.json#/$defs/...`), limited to the following allowed schemas:
+   - External `$ref` targets MUST reference the standard types inside `common_types.json` using the version-agnostic relative target format (`common_types.json#/$defs/...`). Catalog definitions MUST NOT constrain themselves to a specific protocol version (omit `protocolVersion`). Allowed `$ref` targets are limited to the following schemas:
      - `ComponentId`
      - `ChildList`
      - `DynamicString`
@@ -637,7 +637,7 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
         },
         // Leaf properties can be standard JSON primitives or Dynamic wrappers
         "text": {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+          "$ref": "common_types.json#/$defs/DynamicString",
           "description": "Text content to display.",
         },
       },
