@@ -20,9 +20,11 @@ from ...schema.v1_0 import (
     MSG_TYPE_DELETE_SURFACE,
     MSG_TYPE_UPDATE_COMPONENTS,
     MSG_TYPE_UPDATE_DATA_MODEL,
+    MSG_TYPE_CALL_RENDERER_FUNCTION,
     AgentToRendererMessageListWrapper,
 )
 from ..operations import (
+    InternalCallRendererFunctionOp,
     InternalCreateSurfaceOp,
     InternalDeleteSurfaceOp,
     InternalOperation,
@@ -49,6 +51,7 @@ class V1Point0Adapter(BaseVersionAdapter):
             MSG_TYPE_UPDATE_COMPONENTS,
             MSG_TYPE_UPDATE_DATA_MODEL,
             MSG_TYPE_DELETE_SURFACE,
+            MSG_TYPE_CALL_RENDERER_FUNCTION,
         }
 
     def _extract_operations_for_action(
@@ -89,6 +92,22 @@ class V1Point0Adapter(BaseVersionAdapter):
             res.append(
                 InternalDeleteSurfaceOp(
                     surface_id=self._get_surface_id(ds),
+                )
+            )
+        elif action == MSG_TYPE_CALL_RENDERER_FUNCTION:
+            crf = message[MSG_TYPE_CALL_RENDERER_FUNCTION]
+            cf = crf.get("callFunction", {})
+            user_activation = bool(
+                message.get("userActivationPresent")
+                or crf.get("userActivationPresent", False)
+            )
+            res.append(
+                InternalCallRendererFunctionOp(
+                    function_call_id=crf.get("functionCallId", ""),
+                    call=cf.get("call", ""),
+                    catalog_id=cf.get("catalogId"),
+                    args=cf.get("args", {}),
+                    user_activation_present=user_activation,
                 )
             )
         return res

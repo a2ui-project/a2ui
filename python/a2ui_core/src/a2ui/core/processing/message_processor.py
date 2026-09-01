@@ -34,6 +34,7 @@ from ..exceptions import (
 from ..schema import AgentToRendererMessage, ProtocolVersion
 from .adapters import VersionAdapterFactory
 from .operations import (
+    InternalCallRendererFunctionOp,
     InternalCreateSurfaceOp,
     InternalDeleteSurfaceOp,
     InternalOperation,
@@ -67,12 +68,16 @@ class MessageProcessor:
             | Mapping[str, Any]
             | Sequence[Mapping[str, Any]]
         ),
-    ) -> None:
+    ) -> list[dict[str, Any]]:
         """Accepts a list of parsed JSON messages and executes them in order."""
         adapter = VersionAdapterFactory.resolve_from_payload(messages)
         operations = adapter.extract_operations(messages)
+        responses: list[dict[str, Any]] = []
         for op in operations:
-            self._process_operation(op)
+            resp = self._process_operation(op)
+            if resp:
+                responses.append(resp)
+        return responses
 
     def get_renderer_capabilities(
         self,
@@ -116,7 +121,7 @@ class MessageProcessor:
         )
         return {"version": ver_str, "surfaces": surfaces}
 
-    def _process_operation(self, op: InternalOperation) -> None:
+    def _process_operation(self, op: InternalOperation) -> dict[str, Any] | None:
         """Dispatches canonical internal operations."""
         if isinstance(op, InternalCreateSurfaceOp):
             self._process_create_surface_op(op)
@@ -126,6 +131,102 @@ class MessageProcessor:
             self._process_update_components_op(op)
         elif isinstance(op, InternalUpdateDataModelOp):
             self._process_update_data_model_op(op)
+        elif isinstance(op, InternalCallRendererFunctionOp):
+            return self._process_call_renderer_function_op(op)
+        return None
+
+    def _process_call_renderer_function_op(
+        self, op: InternalCallRendererFunctionOp
+    ) -> dict[str, Any]:
+        """Executes an agent-initiated function call on the renderer."""
+        call_id = op.function_call_id
+        matched_catalog = None
+
+        if op.catalog_id:
+            for cat in self.catalogs:
+                if getattr(cat, "catalog_id", None) == op.catalog_id:
+                    matched_catalog = cat
+                    break
+        elif self.catalogs:
+            matched_catalog = self.catalogs[0]
+
+        if not matched_catalog:
+            return {
+                "version": "v1.0",
+                "rendererFunctionResponse": {
+                    "functionCallId": call_id,
+                    "error": {
+                        "code": "INVALID_FUNCTION_CALL",
+                        "message": f"Catalog not found: {op.catalog_id}",
+                    },
+                },
+            }
+
+        fn = getattr(matched_catalog, "functions", {}).get(op.call)
+        if not fn:
+            return {
+                "version": "v1.0",
+                "rendererFunctionResponse": {
+                    "functionCallId": call_id,
+                    "error": {
+                        "code": "INVALID_FUNCTION_CALL",
+                        "message": f"Function not found: {op.call}",
+                    },
+                },
+            }
+
+        allowed_callers = getattr(fn, "allowed_callers", "rendererOnly")
+        if allowed_callers not in ("agentOnly", "rendererOrAgent"):
+            return {
+                "version": "v1.0",
+                "rendererFunctionResponse": {
+                    "functionCallId": call_id,
+                    "error": {
+                        "code": "INVALID_FUNCTION_CALL",
+                        "message": (
+                            f"Function '{op.call}' cannot be called by agent"
+                            f" (allowedCallers is {allowed_callers})."
+                        ),
+                    },
+                },
+            }
+
+        requires_user_activation = getattr(fn, "requires_user_activation", False)
+        if requires_user_activation and not op.user_activation_present:
+            return {
+                "version": "v1.0",
+                "rendererFunctionResponse": {
+                    "functionCallId": call_id,
+                    "error": {
+                        "code": "INVALID_FUNCTION_CALL",
+                        "message": (
+                            f"Function '{op.call}' requires user activation context to"
+                            " execute."
+                        ),
+                    },
+                },
+            }
+
+        try:
+            val = fn.execute(op.args) if hasattr(fn, "execute") else None
+            return {
+                "version": "v1.0",
+                "rendererFunctionResponse": {
+                    "functionCallId": call_id,
+                    "value": val,
+                },
+            }
+        except Exception as e:
+            return {
+                "version": "v1.0",
+                "rendererFunctionResponse": {
+                    "functionCallId": call_id,
+                    "error": {
+                        "code": "EXECUTION_ERROR",
+                        "message": str(e),
+                    },
+                },
+            }
 
     def _process_create_surface_op(self, op: InternalCreateSurfaceOp) -> None:
         surface_id = op.surface_id

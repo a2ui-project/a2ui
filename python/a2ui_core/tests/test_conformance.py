@@ -445,6 +445,8 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         validate_get_renderer_data_model_case(case)
     elif action == "resolve_path":
         validate_resolve_path_case(case)
+    elif action == "handle_rpc":
+        validate_handle_rpc_case(case)
     else:
         pytest.skip(f"Action '{action}' not implemented in core Python harness.")
 
@@ -694,3 +696,87 @@ def validate_get_renderer_data_model_case(case: dict[str, Any]) -> None:
             assert res == expected["data"]
         else:
             assert res == expected
+
+
+def validate_handle_rpc_case(case: dict[str, Any]) -> None:
+    args = case.get("args", {})
+    message = args.get("message")
+    outbound_call = args.get("outboundCall")
+    inbound_response = args.get("inboundResponse")
+    fn_metadata = args.get("functionMetadata", {})
+    user_activation = bool(args.get("userActivationPresent", False))
+
+    from a2ui.core.catalog import Catalog, FunctionImplementation
+
+    funcs: list[FunctionImplementation] = []
+    for fn_name, meta in fn_metadata.items():
+        allowed = meta.get("allowedCallers", "rendererOrAgent")
+        requires_activation = meta.get("requiresUserActivation", False)
+
+        def make_exec(name: str):
+            def execute(fn_args: dict[str, Any], *args: Any, **kwargs: Any) -> Any:
+                if name == "playMedia":
+                    return {"playing": True, "timestamp": 0}
+                elif name == "openExternalUrl":
+                    return {"opened": True}
+                elif name == "syncState":
+                    return None
+                elif name == "failingFunction":
+                    raise Exception("An error occurred during function execution.")
+                return None
+
+            return execute
+
+        funcs.append(
+            FunctionImplementation(
+                name=fn_name,
+                return_type="any",
+                execute=make_exec(fn_name),
+                allowed_callers=allowed,
+                requires_user_activation=requires_activation,
+            )
+        )
+
+    cat_id = (
+        "media_catalog"
+        if "playMedia" in fn_metadata
+        else "system_catalog"
+        if "internalStateReset" in fn_metadata
+        else "store_catalog"
+        if "queryInventory" in fn_metadata
+        else "basic"
+    )
+    cat = Catalog(
+        catalog_id=cat_id,
+        protocol_version="v1.0",
+        components=[],
+        functions=funcs,
+    )
+    processor = MessageProcessor(catalogs=[cat])
+
+    if message:
+        if user_activation:
+            from a2ui.core.processing.adapters import VersionAdapterFactory
+            from a2ui.core.processing.operations import InternalCallRendererFunctionOp
+
+            adapter = VersionAdapterFactory.resolve_from_payload(message)
+            ops = adapter.extract_operations(message)
+            responses = []
+            for op in ops:
+                if isinstance(op, InternalCallRendererFunctionOp):
+                    op.user_activation_present = True
+                resp = processor._process_operation(op)
+                if resp:
+                    responses.append(resp)
+        else:
+            responses = processor.process_messages(message)
+        expect_resp = case.get("expect", {}).get("response")
+        if expect_resp:
+            assert len(responses) == 1
+            assert responses[0] == expect_resp
+
+    if outbound_call and inbound_response:
+        correlated_id = case.get("expect", {}).get("correlatedCallId")
+        assert (
+            inbound_response["agentFunctionResponse"]["functionCallId"] == correlated_id
+        )

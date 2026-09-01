@@ -56,9 +56,20 @@ class InternalDeleteSurfaceOp:
     type: str = MSG_TYPE_DELETE_SURFACE
 
 
+@dataclass
+class InternalCallRendererFunctionOp:
+    function_call_id: str
+    call: str
+    catalog_id: str | None = None
+    args: dict[str, Any] = field(default_factory=dict)
+    user_activation_present: bool = False
+    type: str = "callRendererFunction"
+
+
 InternalOperation = (
     InternalCreateSurfaceOp
     | InternalUpdateComponentsOp
     | InternalUpdateDataModelOp
     | InternalDeleteSurfaceOp
+    | InternalCallRendererFunctionOp
 )
