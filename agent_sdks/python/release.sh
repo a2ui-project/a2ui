@@ -81,6 +81,13 @@ if [ "$DRY_RUN" = true ]; then
   exit 0
 fi
 
+# Check Google Cloud CLI authentication
+if ! gcloud auth print-access-token > /dev/null 2>&1; then
+  echo "❌ ERROR: Google Cloud CLI authentication token is missing or expired."
+  echo "   To fix, run: gcloud auth login --update-adc"
+  exit 1
+fi
+
 # Check if the version already exists in the staging repository
 if gcloud artifacts versions describe "$VERSION" --package="$PACKAGE_NAME" --repository="$REPOSITORY" --location="$LOCATION" --project="$PROJECT" > /dev/null 2>&1; then
   echo "Version $VERSION of $PACKAGE_NAME already exists in Artifact Registry. Skip the release."

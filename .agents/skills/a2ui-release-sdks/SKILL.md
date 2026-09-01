@@ -8,7 +8,7 @@ description: Guidelines for writing human release notes, inspecting package rele
 This skill provides guidelines and recipes for developers and AI agents to:
 
 1. **Document human release notes** in `CHANGELOG.md` files using canonical SemVer syntaxes.
-2. **Inspect release status & trigger automated PR generation** using `release_manager.py`.
+2. **Inspect release status & trigger automated PR generation** using `create_release.py`.
 3. **Debug & troubleshoot** the automated GitHub Actions release pipeline.
 
 Primary sources of truth:
@@ -63,17 +63,17 @@ To ensure the automated release pipeline accurately calculates SemVer version bu
 
 ## 2. Inspecting Release Status & Triggering Release PRs
 
-Use `release_manager.py` to inspect package release states or generate release PRs:
+Use `create_release.py` to inspect package release states or generate release PRs:
 
 ```bash
 # Inspect release state across all packages
-./scripts/release/release_manager.py
+./scripts/release/create_release.py
 
 # Perform dry-run release PR creation
-./scripts/release/release_manager.py --create-pr --dry-run
+./scripts/release/create_release.py --create-pr --dry-run
 
 # Execute automated Version Bump PR creation
-./scripts/release/release_manager.py --create-pr
+./scripts/release/create_release.py --create-pr
 ```
 
 ---
@@ -84,7 +84,7 @@ The release pipeline operates on 3 automated GitHub Actions workflows:
 
 | Workflow                                 | Trigger                                    | Description                                                                                                                               |
 | :--------------------------------------- | :----------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------- |
-| **`.github/workflows/release-pr.yml`**   | Cron (Mon 09:00 UTC) / `workflow_dispatch` | Runs `release_manager.py --create-pr`. Audits git commits, updates version strings, updates lockfiles, and opens a Release PR.            |
+| **`.github/workflows/release-pr.yml`**   | Cron (Mon 09:00 UTC) / `workflow_dispatch` | Runs `create_release.py --create-pr`. Audits git commits, updates version strings, updates lockfiles, and opens a Release PR.             |
 | **`.github/workflows/tag-on-merge.yml`** | Push to `main` (version file changes)      | Runs `bootstrap_tags.py --push` to automatically create and push immutable Git tags (`javascript/<pkg>/v<ver>` or `python/<pkg>/v<ver>`). |
 | **`.github/workflows/publish-tag.yml`**  | Push tag (`javascript/**`, `python/**`)    | Checks out exact tag commit, builds artifacts, runs `release.sh`, and publishes to Artifact Registry / PyPI / npm.                        |
 

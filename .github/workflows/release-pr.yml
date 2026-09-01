@@ -57,4 +57,4 @@ jobs:
           if [ "$DRY_RUN_INPUT" == "true" ]; then
             EXTRA_ARGS="--dry-run"
           fi
-          ./scripts/release/release_manager.py --create-pr $EXTRA_ARGS
+          ./scripts/release/create_release.py --create-pr $EXTRA_ARGS

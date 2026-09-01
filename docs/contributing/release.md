@@ -15,7 +15,7 @@ Releases in A2UI follow a **two-stage state machine**. Each package's state is *
 
 ```mermaid
 stateDiagram-v2
-    [*] --> STATE_INSPECTION: Run release_manager.py
+    [*] --> STATE_INSPECTION: Run create_release.py
     STATE_INSPECTION --> STATE_IDLE: Registry == Repo & No Unreleased Entries/Commits
     STATE_INSPECTION --> STATE_UNRELEASED_CHANGES_EXIST: Unreleased Entries in CHANGELOG or Git Log
     STATE_INSPECTION --> STATE_RELEASE_PR_PENDING: Open Release PR Exists on GitHub
@@ -57,7 +57,7 @@ The publishing scripts (`./renderers/release.sh` and `./agent_sdks/python/releas
 Check the current release status across all packages using the automated checker:
 
 ```bash
-./scripts/release/release_manager.py
+./scripts/release/create_release.py
 ```
 
 To execute a release for any package once merged to `main`, run the release script for the package directory:

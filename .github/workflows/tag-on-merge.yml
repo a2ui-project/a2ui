@@ -47,4 +47,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.A2UI_UPSTREAM_TOKEN }}
         run: |
-          ./scripts/release/bootstrap_tags.py --push --force
+          ./scripts/release/create_release.py --create-tags

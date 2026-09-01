@@ -43,6 +43,14 @@ WORKSPACE_ROOT="${SCRIPT_DIR}/.."
 
 cd "$WORKSPACE_ROOT"
 
+if [ "$DRY_RUN_FLAG" == "--no-dry-run" ]; then
+  if ! gcloud auth print-access-token > /dev/null 2>&1; then
+    echo "❌ ERROR: Google Cloud CLI authentication token is missing or expired."
+    echo "   To fix, run: gcloud auth login --update-adc"
+    exit 1
+  fi
+fi
+
 echo "=== Stage 1: Publishing $PKG_NAME to Artifact Registry staging ==="
 ./renderers/scripts/publish_npm.mjs -p "$PKG_NAME" "$DRY_RUN_FLAG"
 

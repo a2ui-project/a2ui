@@ -124,8 +124,13 @@ SHORT_NAME_MAP = {
 
 
 def get_short_name(pkg):
-    rel_path = str(pkg["dir"].relative_to(WORKSPACE_ROOT))
-    return SHORT_NAME_MAP.get(rel_path, pkg["dir"].name)
+    if "short_name" in pkg:
+        return pkg["short_name"]
+    try:
+        rel_path = str(pkg["dir"].relative_to(WORKSPACE_ROOT))
+        return SHORT_NAME_MAP.get(rel_path, pkg["dir"].name)
+    except Exception:
+        return pkg["dir"].name
 
 
 def get_local_version(pkg):
@@ -531,7 +536,47 @@ def create_release_pr(dry_run=False):
     if res.returncode == 0:
         print(f"✅ Release PR created: {res.stdout.strip()}")
     else:
-        print(f"⚠️  PR Creation message: {res.stderr.strip() or res.stdout.strip()}")
+        err_msg = res.stderr.strip() or res.stdout.strip()
+        print(f"⚠️  PR Creation notice: {err_msg}")
+        if "Resource not accessible by integration" in err_msg or "403" in err_msg or "401" in err_msg:
+            print("\n📌 AUTHENTICATION TROUBLESHOOTING:")
+            print("   GitHub Token lacks required permissions to create Pull Requests.")
+            print("   • Export a personal access token: export GH_TOKEN=ghp_...")
+            print("   • Required token scopes: 'repo' or 'workflow'\n")
+
+    print("==================================================================")
+
+
+def create_release_tags(push=True):
+    print("==================================================================")
+    print("             A2UI Automated Release Tag Creator                   ")
+    print("==================================================================")
+
+    created_tags = []
+    for pkg in PACKAGES:
+        local_v = get_local_version(pkg)
+        if local_v == "unknown":
+            continue
+
+        tag_name = get_tag_name_for_package(pkg, version=local_v)
+        res = subprocess.run(
+            ["git", "rev-parse", f"refs/tags/{tag_name}"],
+            capture_output=True,
+            text=True,
+            cwd=WORKSPACE_ROOT,
+        )
+        if res.returncode == 0:
+            print(f"  • Tag '{tag_name}' already exists. Skipping.")
+            continue
+
+        print(f"🏷️  Creating Git Tag: {tag_name}")
+        subprocess.run(["git", "tag", tag_name, "HEAD"], check=True, cwd=WORKSPACE_ROOT)
+        created_tags.append(tag_name)
+
+    if push and created_tags:
+        print("Pushing tags to origin...")
+        for tag_name in created_tags:
+            subprocess.run(["git", "push", "origin", tag_name], check=True, cwd=WORKSPACE_ROOT)
 
     print("==================================================================")
 
@@ -567,7 +612,7 @@ def print_status_report():
             action = f"Wait for maintainer review on PR: {open_pr_url}"
         elif len(unreleased_entries) > 0:
             state = "STATE_UNRELEASED_CHANGES_EXIST"
-            action = "Create version bump PR via `./check_status.py --create-pr`"
+            action = "Create version bump PR via `./scripts/release/create_release.py --create-pr`"
         else:
             state = "STATE_IDLE"
             action = "No release action needed"
@@ -592,9 +637,13 @@ def main():
     if "--create-pr" in sys.argv:
         dry_run = "--dry-run" in sys.argv
         create_release_pr(dry_run=dry_run)
+    elif "--create-tags" in sys.argv:
+        push = "--no-push" not in sys.argv
+        create_release_tags(push=push)
     else:
         print_status_report()
 
 
 if __name__ == "__main__":
     main()
+

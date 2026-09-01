@@ -87,7 +87,7 @@ To allow the automated release pipeline (`./scripts/release/release_manager.py`)
 After updating `CHANGELOG.md`, test how the release automation inspects your entry by running:
 
 ```bash
-./scripts/release/release_manager.py
+./scripts/release/create_release.py
 ```
 
-Verify that `release_manager.py` identifies your package state as `STATE_UNRELEASED_CHANGES_EXIST` and lists your unreleased changes under the package summary.
+Verify that `create_release.py` identifies your package state as `STATE_UNRELEASED_CHANGES_EXIST` and lists your unreleased changes under the package summary.
