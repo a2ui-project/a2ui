@@ -72,13 +72,21 @@ sequenceDiagram
 
 ## 4. Detailed 4-Step Release Lifecycle
 
-### Step 1: Automated Release PR Generation (Cron or Agent)
+### Step 1: Automated Release PR Generation (`create_release_pr.py`)
+
+> **Deterministic Script Mechanism**: Automated Release PR generation is performed by a **pure Python script (`.agents/skills/a2ui-release-sdks/scripts/create_release_pr.py`)**. No LLM or AI agent runtime is required for scheduled cron execution. An AI agent can optionally invoke this same script when asked by a maintainer to prepare a release.
 
 - **Trigger**: Weekly schedule (`0 9 * * 1` Mondays at 09:00 UTC) or manual `workflow_dispatch`.
-- **Workflow**:
-  1. Executes `check_status.py` to inspect all package `CHANGELOG.md` files.
-  2. For each package with unreleased changes (`STATE_UNRELEASED_CHANGES_EXIST`), fetches commits since the previous tag (`git log <last_tag>..HEAD -- <pkg_dir>`).
-  3. Formats a **GitHub PR Description** with a **Commit Audit Table**:
+- **Script Algorithm (`create_release_pr.py`)**:
+  1. **Status Inspection**: Executes `check_status.py` logic to inspect all package `CHANGELOG.md` files. If zero packages have unreleased changes, exits quietly (no PR opened).
+  2. **Git Commit History Audit**: For each package with unreleased changes (`STATE_UNRELEASED_CHANGES_EXIST`), fetches commits since the previous tag (`git log <last_tag>..HEAD -- <pkg_dir>`).
+  3. **SemVer Calculation**: Scans `## Unreleased` entries. If `BREAKING CHANGE:` exists, selects **MINOR** (pre-1.0) or **MAJOR** (post-1.0). Otherwise, selects **PATCH**.
+  4. **File Mutation**:
+     - Bumps `"version"` in package `package.json` / `version.py`.
+     - Renames `## Unreleased` to `## <new_version>` and inserts fresh `## Unreleased` header above in `CHANGELOG.md`.
+     - Runs `yarn install` at monorepo root to update lockfiles cleanly.
+  5. **Branch & PR Creation via GitHub CLI (`gh`)**:
+     - Formats a **GitHub PR Description** with a **Commit Audit Table**:
 
      ```markdown
      ### 📦 Release PR: Prepare Package Version Bumps
@@ -98,7 +106,7 @@ sequenceDiagram
        - `e4f5g6h` fix(react): update child reference schema handling ([#2359])
      ```
 
-  4. Bumps version identifiers (`package.json` / `version.py`), renames `## Unreleased` to `## <new_version>`, and opens branch `release/sdks-weekly`.
+  6. Bumps version identifiers (`package.json` / `version.py`), renames `## Unreleased` to `## <new_version>`, and opens branch `release/sdks-weekly`.
 
 ---
 
