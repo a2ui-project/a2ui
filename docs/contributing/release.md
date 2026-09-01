@@ -2,10 +2,9 @@
 
 This document is the authoritative, language-agnostic guide for releasing A2UI SDK and renderer packages. It applies to all maintained packages in this repository (Python, TypeScript/Web, and future language targets).
 
-For codebase-specific technical guides:
+For detailed specifications and agent instructions:
 
-- **Python SDKs**: [agent_sdks/python/docs/python_publishing.md](../../agent_sdks/python/docs/python_publishing.md)
-- **TypeScript/Web Packages**: [renderers/docs/web_publishing.md](../../renderers/docs/web_publishing.md)
+- **Specification & Proposal**: [specification/proposals/automated_release_pipeline.md](../../specification/proposals/automated_release_pipeline.md)
 - **Agent Skill**: [.agents/skills/a2ui-release-sdks/SKILL.md](../../.agents/skills/a2ui-release-sdks/SKILL.md)
 
 ---
@@ -16,7 +15,7 @@ Releases in A2UI follow a **two-stage state machine**. Each package's state is *
 
 ```mermaid
 stateDiagram-v2
-    [*] --> STATE_INSPECTION: Run check_status.py
+    [*] --> STATE_INSPECTION: Run release_manager.py
     STATE_INSPECTION --> STATE_IDLE: Registry == Repo & No Unreleased Entries/Commits
     STATE_INSPECTION --> STATE_UNRELEASED_CHANGES_EXIST: Unreleased Entries in CHANGELOG or Git Log
     STATE_INSPECTION --> STATE_RELEASE_PR_PENDING: Open Release PR Exists on GitHub
@@ -58,7 +57,7 @@ The publishing scripts (`./renderers/release.sh` and `./agent_sdks/python/releas
 Check the current release status across all packages using the automated checker:
 
 ```bash
-./.agents/skills/a2ui-release-sdks/scripts/release_manager.py
+./scripts/release/release_manager.py
 ```
 
 To execute a release for any package once merged to `main`, run the release script for the package directory:

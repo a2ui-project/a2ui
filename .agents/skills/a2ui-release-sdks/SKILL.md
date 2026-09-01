@@ -66,13 +66,13 @@ Use `release_manager.py` to inspect package release states or generate release P
 
 ```bash
 # Inspect release state across all packages
-./.agents/skills/a2ui-release-sdks/scripts/release_manager.py
+./scripts/release/release_manager.py
 
 # Perform dry-run release PR creation
-./.agents/skills/a2ui-release-sdks/scripts/release_manager.py --create-pr --dry-run
+./scripts/release/release_manager.py --create-pr --dry-run
 
 # Execute automated Version Bump PR creation
-./.agents/skills/a2ui-release-sdks/scripts/release_manager.py --create-pr
+./scripts/release/release_manager.py --create-pr
 ```
 
 ---
@@ -90,7 +90,7 @@ The release pipeline operates on 3 automated GitHub Actions workflows:
 ### Debugging Failed Releases
 
 1. **Unreleased changes ignored?** Verify `CHANGELOG.md` section header is named `## Unreleased` and uses one of the two canonical formats above.
-2. **Missing Git tags on main?** Run `./.agents/skills/a2ui-release-sdks/scripts/bootstrap_tags.py --push` to sync missing baseline tags.
+2. **Missing Git tags on main?** Run `./scripts/release/bootstrap_tags.py --push` to sync missing baseline tags.
 3. **Artifact publish failure?** Check `.github/workflows/publish-tag.yml` workflow logs. Run release scripts locally with `--dry-run`:
    - `./renderers/release.sh renderers/web_core --dry-run`
    - `./agent_sdks/python/release.sh agent_sdks/python/a2ui_core --dry-run`
