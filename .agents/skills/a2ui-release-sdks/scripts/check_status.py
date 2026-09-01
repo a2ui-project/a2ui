@@ -138,14 +138,11 @@ def get_registry_version(pkg):
                 data = json.loads(resp.read().decode())
                 return data["info"]["version"]
         else:  # typescript npm
-            res = subprocess.run(
-                ["npm", "view", pkg["registry_name"], "version"],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if res.returncode == 0 and res.stdout.strip():
-                return res.stdout.strip()
+            url = f"https://registry.npmjs.org/{pkg['registry_name']}/latest"
+            req = urllib.request.Request(url, headers={"User-Agent": "A2UI-Release-Checker/1.0"})
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = json.loads(resp.read().decode())
+                return data.get("version")
     except Exception:
         pass
     return get_latest_changelog_version(pkg)
