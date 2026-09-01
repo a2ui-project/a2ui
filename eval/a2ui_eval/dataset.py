@@ -243,6 +243,7 @@ def load_a2ui_dataset(
                         "allowed_surface_ids": (
                             item.get("allowed_surface_ids") or ["main"]
                         ),
+                        "format_name": format_name or "direct_json",
                     },
                 )
             )

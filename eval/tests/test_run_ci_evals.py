@@ -21,7 +21,12 @@ import pytest
 # Add bin directory to path to import run_ci_evals
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../bin")))
 from run_ci_evals import check_threshold, build_main_command
-from report_evals import extract_accuracy, print_results_summary, generate_markdown_summary
+from report_evals import (
+    extract_accuracy,
+    extract_strategy,
+    print_results_summary,
+    generate_markdown_summary,
+)
 from typing import Any
 import argparse
 
@@ -101,6 +106,19 @@ def test_build_main_command_no_limit() -> None:
     assert "--limit" not in cmd
 
 
+def test_build_main_command_with_strategies() -> None:
+    args = argparse.Namespace(
+        model="google/gemini-3-flash-preview",
+        max_samples=100,
+        grading_model="google/gemini-3.5-flash",
+        strategies="direct,express",
+    )
+    seed = "20260507"
+    cmd = build_main_command(args, seed)
+    assert "--strategies" in cmd
+    assert cmd[cmd.index("--strategies") + 1] == "direct,express"
+
+
 def test_print_results_summary_valid(capsys: pytest.CaptureFixture[str]) -> None:
     log_data: dict[str, Any] = {
         "samples": [
@@ -173,9 +191,23 @@ def test_print_results_summary_fail(capsys: pytest.CaptureFixture[str]) -> None:
     assert "    Incorrect" in captured.out
 
 
+def test_extract_strategy() -> None:
+    log_data: dict[str, Any] = {
+        "eval": {"task_args": {"strategy": "express"}},
+        "samples": [],
+    }
+    strategy, desc = extract_strategy(log_data)
+    assert strategy == "express"
+    assert "Express (express)" in desc
+
+
 def test_generate_markdown_summary_valid() -> None:
     log_data: dict[str, Any] = {
-        "eval": {"task": "test_task", "model": "test_model"},
+        "eval": {
+            "task": "test_task",
+            "model": "test_model",
+            "task_args": {"strategy": "direct"},
+        },
         "samples": [{
             "id": 1,
             "metadata": {"name": "sample_1", "evaluation_duration_seconds": 5.0},
@@ -188,6 +220,7 @@ def test_generate_markdown_summary_valid() -> None:
     summary = generate_markdown_summary(log_data, 100.0, 90.0)
     assert "### Evaluation Summary: test_task" in summary
     assert "- **Status**: PASS" in summary
+    assert "- **Inference Format / Strategy**: `direct` (Direct JSON (direct_json))" in summary
     assert "- **Model**: `test_model`" in summary
     assert "- **Pass Percentage**: `100.00%` (Threshold: `90.00%`)" in summary
     assert "| sample_1 | PASS | C | 5.00s | PASS |" in summary

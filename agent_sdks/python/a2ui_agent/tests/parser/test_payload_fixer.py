@@ -54,3 +54,12 @@ class TestPayloadFixer(unittest.TestCase):
         self.assertEqual(len(res), 1)
         components = res[0]['createSurface']['components']
         self.assertEqual(components[0]['text'], 'Hello world')
+
+    def test_fix_unprefixed_version(self):
+        """Verify parse_and_fix normalizes missing 'v' prefix on message version strings."""
+        payload_09 = r'[{"version": "0.9", "createSurface": {"surfaceId": "default"}}]'
+        payload_10 = r'[{"version": "1.0", "createSurface": {"surfaceId": "default"}}]'
+        res_09 = parse_and_fix(payload_09)
+        res_10 = parse_and_fix(payload_10)
+        self.assertEqual(res_09[0]['version'], 'v0.9')
+        self.assertEqual(res_10[0]['version'], 'v1.0')

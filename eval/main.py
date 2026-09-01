@@ -129,7 +129,9 @@ def main() -> None:
 
     # Parse and validate strategies
     selected_strategies = []
-    raw_strategies = args.strategies if args.strategies else ["direct", "subagent_tool"]
+    raw_strategies = (
+        args.strategies if args.strategies else ["direct", "subagent_tool", "express"]
+    )
     for item in raw_strategies:
         for s in item.split(","):
             s_clean = s.strip()

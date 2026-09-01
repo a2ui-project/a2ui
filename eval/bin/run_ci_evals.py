@@ -79,6 +79,8 @@ def build_main_command(args: argparse.Namespace, seed: str) -> list[str]:
         cmd.extend(["--datasets", args.datasets])
     if getattr(args, "max_samples", None) and args.max_samples != 0:
         cmd.extend(["--limit", str(args.max_samples)])
+    if getattr(args, "strategies", None):
+        cmd.extend(["--strategies", args.strategies])
     return cmd
 
 
@@ -96,6 +98,12 @@ def main() -> None:
         type=str,
         default=None,
         help="Comma-separated list of datasets to evaluate",
+    )
+    parser.add_argument(
+        "--strategies",
+        type=str,
+        default=None,
+        help="Evaluation strategies to run (e.g., 'direct,subagent_tool,express')",
     )
     parser.add_argument(
         "--max-samples",
