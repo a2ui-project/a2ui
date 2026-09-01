@@ -192,60 +192,24 @@ export interface Catalog<TComponent extends ComponentApi, TFunction extends Func
 
 #### Canonical Common Types Authoring Layer (`a2ui.core.catalog.common_types`)
 
-To ensure developers authoring component and function catalogs never have to migrate import paths when new A2UI protocol versions are released, the Core SDK strictly separates the **Public Authoring Surface** from **Private Wire Validation Assets**:
+To allow developers to author components and functions without coupling to specific protocol versions or migrating import paths as A2UI evolves, the Core SDK exposes canonical, version-agnostic common types directly from the root catalog namespace (`@a2ui/core`, `a2ui.catalog`, `package:a2ui_core`).
 
-1. **Canonical Public Primitives (`a2ui.core.catalog.common_types`)**:
-   - The Core SDK exports a single, version-agnostic set of common-type schema builders and types from the root catalog namespace (`@a2ui/core`, `a2ui.catalog`, `package:a2ui_core`).
-   - Standard authoring primitives include:
-     - `DynamicString`: Evaluates to `string | DataBinding | FunctionCall`
-     - `DynamicNumber`: Evaluates to `number | DataBinding | FunctionCall`
-     - `DynamicBoolean`: Evaluates to `boolean | DataBinding | FunctionCall`
-     - `DynamicStringList`: Evaluates to `string[] | DataBinding | FunctionCall`
-     - `DataBinding`: Data model pointer binding (`{ path: string, ... }`)
-     - `FunctionCall`: Client function invocation (`{ call: string, args: Record<string, any>, returnType?: string }`)
-     - `Action`: User action dispatch event (`{ name: string, context?: Record<string, any> }`)
-     - `ChildList`: Child component slot references
-     - `AccessibilityAttributes`: Standard accessibility metadata
-   - Component and function authors write all schemas against these root canonical types:
+- **Authoring Surface**: Public building blocks (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DataBinding`, `FunctionCall`, `Action`, `ChildList`, etc.) implemented as re-exported aliases of the latest supported version (`schema/v1_0/common_types`).
+- **Subschema References & Wire Emission**: Across both schema-builder languages (TypeScript Zod, Dart `json_schema_builder`, Swift) and subschema-dict languages (Python), component schemas emit or retain version-agnostic relative pointers (`"$ref": "common_types.json#/$defs/<TypeName>"`), omitting version strings and `protocolVersion` constraints.
+- **Runtime Version Enforcement**: The `A2uiValidator` internally resolves `"common_types.json"` against the active message version's private schema bundle (`schema/v0_9/` vs `schema/v1_0/`), enforcing protocol version boundaries at the wire boundary without requiring developer-facing code migrations.
 
-     ```typescript
-     // ✅ Canonical Developer Experience (Zero version migration across A2UI upgrades)
-     import {DynamicString, DynamicNumber, Action, ChildList, ComponentApi} from '@a2ui/core';
+```typescript
+import {DynamicString, Action, ChildList, ComponentApi} from '@a2ui/core';
 
-     export const CardComponent: ComponentApi = {
-       name: 'Card',
-       schema: z.object({
-         title: DynamicString.describe('Card title'),
-         elevation: DynamicNumber.default(1),
-         onClick: Action.optional(),
-         children: ChildList.optional(),
-       }),
-     };
-     ```
-
-2. **Metadata Tagging & Portable Wire Emission**:
-   - Canonical authoring builders automatically attach schema metadata tags (`REF:common_types.json#/$defs/<TypeName>`).
-   - When the SDK generates JSON Schemas for catalog distribution or `clientCapabilities.inlineCatalogs`, it emits relative `$ref: "common_types.json#/$defs/<TypeName>"` pointers with **no version numbers** and **no `protocolVersion` constraints**.
-
-3. **Private Versioned Validation Registries (`a2ui.core.schema.v*`)**:
-   - The version-specific schema definitions (`schema/v0_8/common_types.json`, `schema/v0_9/common_types.json`, `schema/v1_0/common_types.json`) are **private internal assets** encapsulated within the validation engine.
-   - The `A2uiValidator` manages **Version-Scoped Schema Registries**:
-     - When validating a **v0.9** message, `"common_types.json"` is bound to the private v0.9 schema. Any v1.0 features (such as `@index` / `IndexSystemFunction` or v1.0 binding fields) **fail validation immediately** at the wire boundary.
-     - When validating a **v1.0** message, `"common_types.json"` is bound to the private v1.0 schema, and validation **passes**.
-
-##### In-Memory Representation Across SDK Languages
-
-Depending on the SDK implementation language, schemas are represented in memory in one of two ways:
-
-1. **Resolved Tree Representation (TypeScript Zod, Dart `json_schema_builder`, Swift Result Builders)**:
-   - Component and function schemas embed SDK common-type builder objects directly into resolved in-memory schema trees.
-   - Common-type builders attach metadata tags (`REF:common_types.json#/$defs/<TypeName>`).
-   - When generating JSON schemas or `clientCapabilities.inlineCatalogs`, the SDK serializer inspects metadata tags and projects the tree into version-agnostic relative `$ref: "common_types.json#/$defs/<TypeName>"` JSON pointers without a `protocolVersion` field.
-   - At runtime, the Version-Scoped Schema Registry dynamically validates the relative `$ref`s against the active message version's `common_types.json`.
-
-2. **Reference Dict Representation (Python)**:
-   - Component and function schemas are held as dict structures containing raw `$ref: "common_types.json#/$defs/<TypeName>"` string pointers alongside the version-specific `common_types_schema` dictionary.
-   - The version-scoped `Registry` resolves relative `$ref` strings against the active runtime protocol version schema.
+export const CardComponent: ComponentApi = {
+  name: 'Card',
+  schema: z.object({
+    title: DynamicString.describe('Card title'),
+    onClick: Action.optional(),
+    children: ChildList.optional(),
+  }),
+};
+```
 
 #### `ComponentApi`
 
