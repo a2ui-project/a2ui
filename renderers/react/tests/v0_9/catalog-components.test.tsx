@@ -15,7 +15,7 @@
  */
 
 import {describe, it, expect, vi} from 'vitest';
-import {screen, fireEvent, act} from '@testing-library/react';
+import {screen, fireEvent, act, within} from '@testing-library/react';
 import {ComponentModel} from '@a2ui/web_core/v0_9';
 import {renderA2uiComponent} from '../utils';
 
@@ -378,6 +378,44 @@ describe('Basic Catalog Components', () => {
 
       fireEvent.click(screen.getByText('A'));
       expect(surface.dataModel.get('/picked')).toEqual(['a']);
+    });
+
+    it('ChoicePicker radio groups do not collide across surfaces', () => {
+      // Component ids are only surface-scoped, so two surfaces may each
+      // contain a ChoicePicker with the same id. Radio `name`s are
+      // document-scoped: if the group name is derived from the component id,
+      // both pickers merge into one radio group and fight over one selection.
+      const props = {
+        label: 'Pick',
+        options: [
+          {label: 'A', value: 'a'},
+          {label: 'B', value: 'b'},
+        ],
+        value: {path: '/picked'},
+        variant: 'mutuallyExclusive',
+      };
+      const first = renderA2uiComponent(ChoicePicker, props);
+      const second = renderA2uiComponent(ChoicePicker, props);
+
+      const groupNames = (container: HTMLElement) =>
+        new Set(
+          within(container)
+            .getAllByRole('radio')
+            .map(r => (r as HTMLInputElement).name),
+        );
+      const firstNames = groupNames(first.view.container);
+      const secondNames = groupNames(second.view.container);
+
+      expect(firstNames.size).toBe(1);
+      expect(secondNames.size).toBe(1);
+      expect(firstNames).not.toEqual(secondNames);
+
+      fireEvent.click(within(first.view.container).getByLabelText('A'));
+      fireEvent.click(within(second.view.container).getByLabelText('B'));
+      expect(first.surface.dataModel.get('/picked')).toEqual(['a']);
+      expect(second.surface.dataModel.get('/picked')).toEqual(['b']);
+      expect(within(first.view.container).getByLabelText('A')).toBeChecked();
+      expect(within(second.view.container).getByLabelText('B')).toBeChecked();
     });
 
     it('DateTimeInput handles date changes', () => {

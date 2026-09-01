@@ -15,11 +15,10 @@
 import A2UICore
 import A2UISwiftUI
 import BasicCatalog
+import BasicCatalogSwiftUI
 import OrderedJSON
 import SwiftUI
 import Testing
-
-@testable import BasicCatalogSwiftUI
 
 @MainActor
 struct A2UIChoicePickerTests {

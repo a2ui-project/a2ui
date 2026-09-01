@@ -160,7 +160,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
     case checks
     case action
     case childList
-    case componentId
+    case componentID
     case number
     case integer
     case standard
@@ -189,7 +189,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
       case "CheckRule", "Checkable": return .checks
       case "Action": return .action
       case "ChildList": return .childList
-      case "ComponentId": return .componentId
+      case "ComponentId": return .componentID
       default: break
       }
     }
@@ -422,7 +422,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
         components: components,
         data: data
       )
-    case .componentId:
+    case .componentID:
       guard let childID = value.stringValue else { return nil }
       return resolveNode(
         definitionID: childID,

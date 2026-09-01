@@ -1,0 +1,21 @@
+{
+  "name": "a2ui-mcp-catalog",
+  "private": true,
+  "main": "./v0_9/src/catalog.ts",
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --import tsx --test v0_9/src/functions/callMcpTool.test.ts",
+    "lint": "echo \"Workspace has no lint configuration.\"",
+    "lint:fix": "echo \"Workspace has no lint configuration.\""
+  },
+  "dependencies": {
+    "@a2ui/web_core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.0.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.4",
+    "typescript": "5.9.3"
+  }
+}

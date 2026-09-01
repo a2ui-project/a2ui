@@ -147,7 +147,7 @@ struct CatalogTests {
 
   // MARK: - Initialization
 
-  @Test func catalogInitializesWithIdComponentsAndFunctions() throws {
+  @Test func catalogInitializesWithIDComponentsAndFunctions() throws {
     let buttonSchema = try Schema(
       instance: """
         {
