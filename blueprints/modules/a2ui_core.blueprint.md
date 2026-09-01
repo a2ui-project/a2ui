@@ -146,16 +146,18 @@ a2ui/core/
 │   ├── node_graph                  # Reactive node graph traversal engine
 │   └── data_context                # Path binding & function evaluator (Internal)
 └── schema/                         # Protocol schema definitions & models
-    ├── common_types/               # Centralized, additively expanding common types model
-    ├── v0_8/                       # Protocol message wrappers for spec v0.8
+    ├── v0_8/                       # Canonical schemas & message wrappers for spec v0.8
+    │   ├── common_types
     │   ├── agent_to_renderer
     │   ├── renderer_to_agent
     │   └── renderer_capabilities
-    ├── v0_9/                       # Protocol message wrappers for spec v0.9 and v0.9.1
+    ├── v0_9/                       # Canonical schemas & message wrappers for spec v0.9 and v0.9.1
+    │   ├── common_types
     │   ├── agent_to_renderer
     │   ├── renderer_to_agent
     │   └── renderer_capabilities
-    └── v1_0/                       # Protocol message wrappers for spec v1.0
+    └── v1_0/                       # Canonical schemas & message wrappers for spec v1.0
+        ├── common_types
         ├── agent_to_renderer
         ├── renderer_to_agent
         └── renderer_capabilities
@@ -202,7 +204,22 @@ interface ComponentApi {
 
 ##### Common Types & Schema Representation
 
-Catalog components reference standard primitive building blocks (`DynamicString`, `DataBinding`, `ChildList`, `Action`) derived from a single, additively expanding `common_types` model.
+A2UI balances two requirements for catalog schemas and core data types:
+
+1. **Catalog Portability**: Component catalogs are version-agnostic and do not hardcode specific protocol version URLs or `protocolVersion` properties. In JSON Schema, catalogs point to relative building blocks via `"$ref": "common_types.json#/$defs/<TypeName>"`.
+2. **Version-Specific Common Types Declarations**: Each protocol version (v0.8, v0.9, v0.9.1, v1.0) declares its own canonical `common_types.json` schema file in `schema/<version>/common_types.json`.
+
+###### Version-Scoped Schema Registry & Active Version Pruning
+
+To support portable catalogs while strictly enforcing protocol version boundaries, the Core SDK implements a **Version-Scoped Schema Registry**:
+
+- **Per-Version Validator Contexts**: The `A2uiValidator` maintains distinct validation contexts for each supported `A2uiProtocolVersion` (v0.8, v0.9, v0.9.1, v1.0).
+- **Relative Schema Binding**: Within each version context, the relative URI `"common_types.json"` is bound directly to that protocol version's canonical `common_types.json` schema.
+- **Active Version Validation**: When evaluating incoming messages, the validator identifies the message's active protocol version (e.g. from the message envelope or configuration) and validates against the corresponding versioned registry context:
+  - If a **v0.9** message attempts to use a feature only introduced in v1.0 (such as the `@index` / `IndexSystemFunction` or v1.0 action/binding fields), validation **fails** because `schema/v0_9/common_types.json` does not contain or permit those definitions.
+  - If a **v1.0** message uses the feature, validation **passes** because `schema/v1_0/common_types.json` declares it.
+
+###### In-Memory Representation Across SDK Languages
 
 Depending on the SDK implementation language, schemas are represented in memory in one of two ways:
 
@@ -210,11 +227,11 @@ Depending on the SDK implementation language, schemas are represented in memory 
    - Component schemas embed SDK common-type builder objects directly into resolved in-memory schema trees.
    - Common-type builders attach metadata tags (`REF:common_types.json#/$defs/<TypeName>`).
    - When generating JSON schemas or `clientCapabilities.inlineCatalogs`, the SDK serializer inspects metadata tags and projects the tree into version-agnostic relative `$ref: "common_types.json#/$defs/<TypeName>"` JSON pointers without a `protocolVersion` field.
-   - **Additive Evolution**: As underlying SDK common-type builders expand (e.g., adding `fallback` or `mode` to `DataBinding`), all resolved component trees in application code automatically inherit the new capabilities without modifying component definitions.
+   - At runtime, the Version-Scoped Schema Registry dynamically validates the relative `$ref`s against the active version's `common_types.json`.
 
 2. **Reference Dict Representation (Python)**:
-   - Component schemas are held as dict structures containing raw `$ref: "common_types.json#/$defs/<TypeName>"` string pointers alongside a `common_types_schema` dictionary.
-   - Pruning, validation, and Pydantic generation inspect `$ref` strings and resolve them against the active runtime protocol version schema.
+   - Component schemas are held as dict structures containing raw `$ref: "common_types.json#/$defs/<TypeName>"` string pointers alongside the version-specific `common_types_schema` dictionary.
+   - The version-scoped `Registry` resolves relative `$ref` strings against the active runtime protocol version schema.
 
 #### `FunctionApi` & `FunctionImplementation`
 
@@ -471,10 +488,16 @@ export class A2uiValidator {
   /** Internal: Verifies JSON Pointer path syntax in data model updates and dynamic bindings. */
   protected validatePathSyntax(messages: AgentToRendererMessage[]): void;
 }
+```
 
 ##### Relative Common Types Registration Rule
-When `A2uiValidator` initializes its underlying JSON Schema referencing registry (e.g., Ajv in TypeScript, `referencing.Registry` in Python, Dart schema validator), it **MUST register `common_types_schema` under the root relative key `"common_types.json"`** in addition to its canonical absolute URI (`https://a2ui.org/...`). This ensures relative pointers (`"$ref": "common_types.json#/$defs/<TypeName>"`) in catalog definitions resolve cleanly regardless of the catalog's base `$id` URI.
-```
+
+When `A2uiValidator` initializes its underlying JSON Schema referencing registry (e.g., Ajv in TypeScript, `referencing.Registry` in Python, `JsonSchemaValidator` in Dart, Swift schema validator), it **MUST register the active protocol version's `common_types_schema` under the root relative key `"common_types.json"`** in addition to its canonical absolute URI (`https://a2ui.org/...`).
+
+This guarantees:
+
+1. **Catalog Portability**: Relative pointers (`"$ref": "common_types.json#/$defs/<TypeName>"`) in catalog definitions resolve cleanly regardless of the catalog's base `$id` URI.
+2. **Version Boundary Enforcement**: Validating against the active protocol version's schema ensures that incoming messages cannot use newer common types constructs not supported by that version.
 
 #### Validation Implementation Matrix
 
