@@ -36,6 +36,12 @@ export class ComponentContext {
   readonly surfaceComponents: SurfaceComponentsModel;
   /** The theme configuration for the surface this component belongs to. */
   readonly theme: any;
+  /**
+   * The id of the surface this component belongs to. Component ids are only
+   * unique within a surface, so document-scoped HTML constructs (e.g. radio
+   * input `name` groups) must combine this with the component id.
+   */
+  readonly surfaceId: string;
 
   /**
    * Creates a new component context.
@@ -52,6 +58,7 @@ export class ComponentContext {
     this.componentModel = model;
     this.surfaceComponents = surface.componentsModel;
     this.theme = surface.theme;
+    this.surfaceId = surface.id;
 
     this.dataContext = new DataContext(surface, dataModelBasePath);
     this._actionDispatcher = action => surface.dispatchAction(action, this.componentModel.id);

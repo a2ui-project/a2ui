@@ -77,4 +77,17 @@ describe('ComponentContext', () => {
     const context = new ComponentContext(mockSurface, componentId);
     assert.deepStrictEqual(context.theme, {});
   });
+
+  it('exposes the surface id, so document-scoped names can disambiguate same-id components across surfaces', () => {
+    const surface2 = new SurfaceModel('surface2', {} as any);
+    const componentModel2 = new ComponentModel(componentId, 'TestComponent', {});
+    surface2.componentsModel.addComponent(componentModel2);
+
+    const context1 = new ComponentContext(mockSurface, componentId);
+    const context2 = new ComponentContext(surface2, componentId);
+
+    assert.strictEqual(context1.surfaceId, 'surface1');
+    assert.strictEqual(context2.surfaceId, 'surface2');
+    assert.strictEqual(context1.componentModel.id, context2.componentModel.id);
+  });
 });

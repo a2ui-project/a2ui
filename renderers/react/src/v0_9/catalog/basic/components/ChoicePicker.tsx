@@ -85,7 +85,11 @@ export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({pro
                 type={isMutuallyExclusive ? 'radio' : 'checkbox'}
                 checked={isSelected}
                 onChange={() => onToggle(opt.value)}
-                name={isMutuallyExclusive ? `choice-${context.componentModel.id}` : undefined}
+                name={
+                  isMutuallyExclusive
+                    ? `choice-${context.surfaceId}-${context.componentModel.id}`
+                    : undefined
+                }
               />
               <span className={styles.optionText}>{opt.label}</span>
             </label>
