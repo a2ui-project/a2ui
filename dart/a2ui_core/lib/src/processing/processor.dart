@@ -80,6 +80,13 @@ class MessageProcessor<T extends ComponentApi> {
       throw A2uiStateError('Surface not found: ${message.surfaceId}');
     }
 
+    // Pass 1: validation.
+    //
+    // Every component in the batch is checked before any of them is applied,
+    // so a batch that is rejected leaves the surface exactly as it was. Without
+    // this, a valid component followed by an invalid one was committed before
+    // the error surfaced, leaving the surface in a half-updated state that no
+    // message describes.
     for (final Map<String, dynamic> compJson in message.components) {
       final id = compJson['id'] as String?;
       final type = compJson['component'] as String?;
@@ -87,6 +94,19 @@ class MessageProcessor<T extends ComponentApi> {
       if (id == null) {
         throw A2uiValidationError("Component missing an 'id'.");
       }
+
+      final ComponentModel? existing = surface.componentsModel.get(id);
+      if (existing == null && type == null) {
+        throw A2uiValidationError(
+          "Cannot create component $id without a 'component' type.",
+        );
+      }
+    }
+
+    // Pass 2: mutation. Only reached when the whole batch is valid.
+    for (final Map<String, dynamic> compJson in message.components) {
+      final id = compJson['id'] as String;
+      final type = compJson['component'] as String?;
 
       final ComponentModel? existing = surface.componentsModel.get(id);
       final props = Map<String, dynamic>.from(compJson)
@@ -102,12 +122,7 @@ class MessageProcessor<T extends ComponentApi> {
           existing.properties = props;
         }
       } else {
-        if (type == null) {
-          throw A2uiValidationError(
-            "Cannot create component $id without a 'component' type.",
-          );
-        }
-        surface.componentsModel.addComponent(ComponentModel(id, type, props));
+        surface.componentsModel.addComponent(ComponentModel(id, type!, props));
       }
     }
   }

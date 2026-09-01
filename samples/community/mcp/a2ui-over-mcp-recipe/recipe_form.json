@@ -86,8 +86,10 @@
           "variant": "primary",
           "action": {
             "event": {
-              "name": "generate_recipe",
+              "name": "callMcpTool",
               "context": {
+                "server": "a2ui-mcp-recipe-demo",
+                "tool": "get_recipe_a2ui",
                 "cookingStyle": {
                   "path": "/cookingStyle"
                 },
@@ -104,17 +106,6 @@
           "text": "Get Recipe"
         }
       ]
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateDataModel": {
-      "surfaceId": "recipe-form",
-      "path": "/",
-      "value": {
-        "cookingStyle": ["Grilled"],
-        "protein": ["Chicken"]
-      }
     }
   }
 ]

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v0_9/catalogs/mcp/mcp_catalog.json",
+  "title": "A2UI MCP Catalog",
+  "description": "A2UI Catalog for interacting with Model Context Protocol (MCP) servers and executing client-side MCP tools.",
+  "catalogId": "https://a2ui.org/specification/v0_9/catalogs/mcp/mcp_catalog.json",
+  "components": {},
+  "functions": {
+    "callMcpTool": {
+      "type": "object",
+      "description": "Executes a tool on a connected Model Context Protocol (MCP) server.",
+      "properties": {
+        "call": {
+          "const": "callMcpTool"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The name of the MCP tool to execute."
+            },
+            "arguments": {
+              "type": "object",
+              "description": "The arguments to pass to the MCP tool."
+            }
+          },
+          "required": ["name"],
+          "additionalProperties": false
+        },
+        "returnType": {
+          "const": "any"
+        }
+      },
+      "required": ["call", "args"],
+      "unevaluatedProperties": false
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "type": "object"
+    },
+    "anyFunction": {
+      "oneOf": [
+        {
+          "$ref": "#/functions/callMcpTool"
+        }
+      ]
+    }
+  }
+}
