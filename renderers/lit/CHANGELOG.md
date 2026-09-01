@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.10.4
+
 - (v0_9) Migrate Basic Catalog components and surface rendering from Shadow DOM to Light DOM. [#2204](https://github.com/a2ui-project/a2ui/pull/2204)
 
 ## 0.10.3
