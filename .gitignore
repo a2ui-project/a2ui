@@ -49,6 +49,7 @@ worktrees/
 
 # Local-only scratch files.
 .local/
+temp_docs/
 
 # Locally symlinked SDD blueprint skills
 /.agents/skills/a2ui-blueprint-compliance

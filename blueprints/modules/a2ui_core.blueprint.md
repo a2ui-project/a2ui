@@ -202,7 +202,7 @@ interface ComponentApi {
 
 ##### Common Types & Schema Representation
 
-Catalog components reference standard primitive building blocks (`DynamicString`, `DataBinding`, `ChildList`, `Action`) derived from a single, additively expanding `common_types` model. 
+Catalog components reference standard primitive building blocks (`DynamicString`, `DataBinding`, `ChildList`, `Action`) derived from a single, additively expanding `common_types` model.
 
 Depending on the SDK implementation language, schemas are represented in memory in one of two ways:
 
