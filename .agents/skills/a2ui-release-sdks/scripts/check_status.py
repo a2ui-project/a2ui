@@ -118,6 +118,49 @@ def get_local_version(pkg):
         return "unknown"
 
 
+SHORT_NAME_MAP = {
+    "agent_sdks/python/a2ui_core": "a2ui_core",
+    "agent_sdks/python/a2ui_agent": "a2ui_agent",
+    "renderers/web_core": "web_core",
+    "renderers/lit": "lit",
+    "renderers/angular": "angular",
+    "renderers/react": "react",
+    "renderers/markdown/markdown-it": "markdown-it",
+}
+
+
+def get_short_name(pkg):
+    rel_path = str(pkg["dir"].relative_to(WORKSPACE_ROOT))
+    return SHORT_NAME_MAP.get(rel_path, pkg["dir"].name)
+
+
+def get_tag_name_for_package(pkg, version=None):
+    if version is None:
+        version = get_local_version(pkg)
+    short_name = get_short_name(pkg)
+    eco = "javascript" if pkg["type"] == "typescript" else "python"
+    return f"{eco}/{short_name}/v{version}"
+
+
+def get_latest_git_tag(pkg):
+    short_name = get_short_name(pkg)
+    eco = "javascript" if pkg["type"] == "typescript" else "python"
+    pattern = f"{eco}/{short_name}/v*"
+    try:
+        res = subprocess.run(
+            ["git", "tag", "-l", pattern, "--sort=-v:refname"],
+            capture_output=True,
+            text=True,
+            cwd=WORKSPACE_ROOT,
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            tags = res.stdout.strip().splitlines()
+            return tags[0]
+    except Exception:
+        pass
+    return None
+
+
 def get_latest_changelog_version(pkg):
     cl = pkg["changelog"]
     if not cl.exists():
@@ -146,6 +189,31 @@ def get_registry_version(pkg):
     except Exception:
         pass
     return get_latest_changelog_version(pkg)
+
+
+def evaluate_semver_bump(entries):
+    has_breaking = False
+    has_feat = False
+
+    for entry in entries:
+        line = entry.strip()
+        if line.startswith("### "):
+            sec = line[4:].strip().lower()
+            if "breaking" in sec:
+                has_breaking = True
+            elif "feature" in sec or "feat" in sec:
+                has_feat = True
+        else:
+            if "BREAKING CHANGE:" in line:
+                has_breaking = True
+            elif line.startswith("- FEAT:") or line.startswith("* FEAT:") or line.startswith("- feat:") or line.startswith("* feat:"):
+                has_feat = True
+
+    if has_breaking:
+        return "MAJOR_OR_MINOR"
+    elif has_feat:
+        return "MINOR"
+    return "PATCH"
 
 
 def get_unreleased_changelog_entries(pkg):

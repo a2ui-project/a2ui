@@ -1,0 +1,80 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Publish Tagged Release
+
+on:
+  push:
+    tags:
+      - "javascript/**"
+      - "python/**"
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Tag name to release (e.g. javascript/react/v0.11.0)"
+        required: false
+      dry_run:
+        description: "Perform dry run without uploading artifacts"
+        type: boolean
+        default: false
+
+jobs:
+  publish:
+    name: Build & Publish Tagged Package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Setup Python
+        uses: ./.github/actions/setup-python
+
+      - name: Authenticate Google Cloud
+        uses: google-github-actions/auth@v2
+        continue-on-error: true
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Execute Tagged Release Script
+        run: |
+          TAG_NAME="${{ github.event.inputs.tag_name || github.ref_name }}"
+          DRY_RUN_ARG=""
+          if [ "${{ github.event.inputs.dry_run }}" == "true" ]; then
+            DRY_RUN_ARG="--dry-run"
+          fi
+
+          echo "=== Executing release for tag: $TAG_NAME ==="
+          if [[ "$TAG_NAME" == "javascript/"* ]]; then
+            ./renderers/release.sh "$TAG_NAME" $DRY_RUN_ARG
+          elif [[ "$TAG_NAME" == "python/"* ]]; then
+            ./agent_sdks/python/release.sh "$TAG_NAME" $DRY_RUN_ARG
+          else
+            echo "Unknown tag prefix in '$TAG_NAME'. Expected javascript/ or python/."
+            exit 1
+          fi
+
+      - name: Create GitHub Release
+        if: github.event.inputs.dry_run != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
+          generate_release_notes: true
