@@ -22,6 +22,10 @@ from ..catalog import Catalog
 from ..catalog.catalog import TComponent, TFunction
 
 
+from collections.abc import Sequence
+from ..exceptions import A2uiCatalogError
+
+
 class SurfaceModel(Generic[TComponent, TFunction]):
     """Represents a single active UI Surface state tree."""
 
@@ -29,12 +33,18 @@ class SurfaceModel(Generic[TComponent, TFunction]):
         self,
         surface_id: str,
         default_catalog: Catalog[TComponent, TFunction],
+        available_catalogs: Sequence[Catalog[TComponent, TFunction]] | None = None,
         theme: dict[str, Any] | None = None,
         send_data_model: bool = False,
         data_model: DataModel | None = None,
     ) -> None:
         self.id = surface_id
         self.default_catalog = default_catalog
+        self.available_catalogs: list[Catalog[TComponent, TFunction]] = list(
+            available_catalogs or [default_catalog]
+        )
+        if default_catalog not in self.available_catalogs:
+            self.available_catalogs.append(default_catalog)
         self.theme = theme or {}
         self.send_data_model = send_data_model
 
@@ -43,6 +53,27 @@ class SurfaceModel(Generic[TComponent, TFunction]):
         self.root_id: str | None = None
         self.on_action = EventSource()
         self.on_error = EventSource()
+
+    def validate_catalog_versions(self) -> None:
+        """Verifies that all active catalogs mixed within this surface share the same protocolVersion."""
+        cats_to_check: list[Catalog[Any, Any]] = [self.default_catalog]
+        for cat in self.available_catalogs:
+            if cat not in cats_to_check:
+                cats_to_check.append(cat)
+        for comp in self.components_model.get_all().values():
+            if isinstance(comp.catalog, Catalog) and comp.catalog not in cats_to_check:
+                cats_to_check.append(comp.catalog)
+
+        versions = {
+            cat.protocol_version
+            for cat in cats_to_check
+            if getattr(cat, "protocol_version", None) is not None
+        }
+        if len(versions) > 1:
+            vers_str = ", ".join(sorted(versions))
+            raise A2uiCatalogError(
+                f"Mixed catalogs on surface '{self.id}' have mismatched protocol versions: {vers_str}."
+            )
 
     def dispatch_action(
         self, payload: dict[str, Any], source_component_id: str

@@ -660,7 +660,7 @@ def validate_catalog_schema_case(case: dict[str, Any]) -> None:
 
 
 def validate_resolve_path_case(case: dict[str, Any]) -> None:
-    from a2ui.core.rendering.data_context import DataContext
+    from a2ui.core.resolution.data_context import DataContext
     from a2ui.core.state.surface_model import SurfaceModel
 
     args = case.get("args", {})

@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 
 from a2ui.core.processing import MessageProcessor
 from a2ui.core.validation import STRICT_VALIDATION, ValidationConfig
-from a2ui.core.rendering import (
+from a2ui.core.resolution import (
     DataContext,
     ComponentContext,
     GenericBinder,

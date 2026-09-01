@@ -16,16 +16,16 @@ import copy
 from typing import Any, Generic, TYPE_CHECKING
 from ..catalog.catalog import TComponent, TFunction
 from ..common.events import Signal, Subscription
-from .component_node import ComponentNode
-from .component_model import (
+from ..state.component_node import ComponentNode
+from ..state.component_model import (
     ComponentModel,
     V0_8_LIST_REF_FIELDS,
     is_v0_8_heuristic_child_prop_key,
 )
-from .surface_model import SurfaceModel
+from ..state.surface_model import SurfaceModel
 
 if TYPE_CHECKING:
-    from ..rendering.generic_binder import GenericBinder
+    from .generic_binder import GenericBinder
 
 
 class NodeGraph(Generic[TComponent, TFunction]):
@@ -106,9 +106,9 @@ class NodeGraph(Generic[TComponent, TFunction]):
             return node
 
         # Set up reactive context and binder
-        from ..rendering.data_context import DataContext
-        from ..rendering.component_context import ComponentContext
-        from ..rendering.generic_binder import GenericBinder
+        from .data_context import DataContext
+        from .component_context import ComponentContext
+        from .generic_binder import GenericBinder
 
         data_context = DataContext(
             surface=self.surface,
