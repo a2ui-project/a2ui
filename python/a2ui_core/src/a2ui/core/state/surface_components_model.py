@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 from ..common.events import EventSource
 from ..exceptions import A2uiErrorDetail, A2uiValidationError
 from .component_model import ComponentModel
@@ -26,7 +26,6 @@ from ..validation.payload_validator import (
     ValidationConfig,
 )
 
-
 from ..catalog import Catalog
 from ..catalog.catalog import TComponent, TFunction
 
@@ -35,14 +34,14 @@ class SurfaceComponentsModel:
     """Manages the adjacency map of component configs in a surface."""
 
     def __init__(self) -> None:
-        self._components: Dict[str, ComponentModel] = {}
+        self._components: dict[str, ComponentModel] = {}
         self.on_created = EventSource()
         self.on_deleted = EventSource()
 
-    def get(self, component_id: str) -> Optional[ComponentModel]:
+    def get(self, component_id: str) -> ComponentModel | None:
         return self._components.get(component_id)
 
-    def get_all(self) -> Dict[str, ComponentModel]:
+    def get_all(self) -> dict[str, ComponentModel]:
         return dict(self._components)
 
     def add_component(self, component: ComponentModel) -> None:
@@ -60,15 +59,15 @@ class SurfaceComponentsModel:
 
     def validate_components_update(
         self,
-        new_components: List[ComponentModel],
+        new_components: list[ComponentModel],
         root_id: str = "root",
-        config: Optional[ValidationConfig] = None,
+        config: ValidationConfig | None = None,
     ) -> None:
         """Validates inbound component models schema, composition constraints, and graph completeness BEFORE updating surface state."""
         if config is None:
             return
 
-        seen_ids: Set[str] = set()
+        seen_ids: set[str] = set()
         for comp_model in new_components:
             if comp_model.id in seen_ids:
                 raise A2uiValidationError(
@@ -86,8 +85,8 @@ class SurfaceComponentsModel:
                 )
             seen_ids.add(comp_model.id)
 
-        all_errors: List[A2uiErrorDetail] = []
-        comp_summaries: List[str] = []
+        all_errors: list[A2uiErrorDetail] = []
+        comp_summaries: list[str] = []
         for comp_model in new_components:
             errors = comp_model.validate(config=config)
             if errors:

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Literal, Optional, Set, Tuple
+from typing import Any, Literal
 from pydantic import BaseModel, Field, ValidationError
 import pytest
 from a2ui.core.catalog import (
@@ -49,7 +49,7 @@ class _TestValidatorHelper:
     def validate_components(self, components: Any) -> None:
         self.validate_component(components)
 
-    def validate_function(self, name: str, args: Dict[str, Any]) -> None:
+    def validate_function(self, name: str, args: dict[str, Any]) -> None:
         self.validator.validate_function(name, args)
 
 
@@ -309,7 +309,7 @@ def test_nested_function_validation_with_models():
     class SearchButton(BaseModel):
         id: str
         component: Literal["SearchButton"] = "SearchButton"
-        onSearch: Dict[str, Any]
+        onSearch: dict[str, Any]
 
     catalog = Catalog(
         protocol_version=PROTOCOL_VERSION,

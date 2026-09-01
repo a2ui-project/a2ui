@@ -15,14 +15,13 @@
 import json
 import logging
 import re
-from typing import Any, Dict, List
+from typing import Any
 from a2ui.core import A2uiParseError
-
 
 logger = logging.getLogger(__name__)
 
 
-def parse_and_fix(payload: str) -> List[Dict[str, Any]]:
+def parse_and_fix(payload: str) -> list[dict[str, Any]]:
     """Validates and applies autofixes to a raw JSON string and returns the parsed payload.
 
     Args:
@@ -46,7 +45,7 @@ def parse_and_fix(payload: str) -> List[Dict[str, Any]]:
         return a2ui_json
 
 
-def _parse(payload: str) -> List[Dict[str, Any]]:
+def _parse(payload: str) -> list[dict[str, Any]]:
     """Parses the payload and returns a list of A2UI JSON objects."""
     try:
         a2ui_json = json.loads(payload)

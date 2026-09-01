@@ -21,7 +21,7 @@ This simulates the handoff from an upstream personalization pipeline.
 
 import os
 import logging
-from typing import Optional
+import sys
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ GCS_PREFIX = os.getenv("GCS_CONTEXT_PREFIX", "learner_context/")
 LOCAL_CONTEXT_PATH = Path(__file__).parent / "learner_context"
 
 
-def _load_from_gcs(filename: str) -> Optional[str]:
+def _load_from_gcs(filename: str) -> str | None:
     """Load a context file from GCS."""
     try:
         from google.cloud import storage
@@ -56,7 +56,7 @@ def _load_from_gcs(filename: str) -> Optional[str]:
         return None
 
 
-def _load_from_local(filename: str) -> Optional[str]:
+def _load_from_local(filename: str) -> str | None:
     """Load a context file from local filesystem."""
     filepath = LOCAL_CONTEXT_PATH / filename
 
@@ -69,7 +69,7 @@ def _load_from_local(filename: str) -> Optional[str]:
         return None
 
 
-def load_context_file(filename: str) -> Optional[str]:
+def load_context_file(filename: str) -> str | None:
     """
     Load a context file with fallback chain: local files → GCS.
 
@@ -120,17 +120,17 @@ def load_all_context() -> dict[str, str]:
     return context
 
 
-def get_learner_profile() -> Optional[str]:
+def get_learner_profile() -> str | None:
     """Get the learner profile context."""
     return load_context_file("01_maria_learner_profile.txt")
 
 
-def get_misconception_context() -> Optional[str]:
+def get_misconception_context() -> str | None:
     """Get the misconception resolution context."""
     return load_context_file("05_misconception_resolution.txt")
 
 
-def get_mcat_concepts() -> Optional[str]:
+def get_mcat_concepts() -> str | None:
     """Get the MCAT practice concepts."""
     return load_context_file("06_mcat_practice_concepts.txt")
 

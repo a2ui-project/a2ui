@@ -15,7 +15,7 @@
 """Pydantic v2 code generators for Basic Catalog definitions (components, function_apis, styles)."""
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 from engine import PydanticCodegen
 from utils import (
     FILE_HEADER,
@@ -30,8 +30,8 @@ from utils import (
 
 def generate_basic_catalog_components(
     version: str,
-    catalog_data: Dict[str, Any],
-    common_data: Optional[Dict[str, Any]] = None,
+    catalog_data: dict[str, Any],
+    common_data: dict[str, Any] | None = None,
 ) -> str:
     """Generates components.py content."""
     codegen = PydanticCodegen(version)
@@ -63,7 +63,7 @@ def generate_basic_catalog_components(
     comp_blocks = [
         (
             f"{FILE_HEADER}\n"
-            "from typing import Any, Dict, List, Literal, Optional, Union, Annotated\n"
+            "from typing import Annotated, Any, Literal\n"
             "from pydantic import BaseModel, Field, ConfigDict\n"
             f"{common_import_stmt}\n"
             "from ...catalog.components import ModelComponentApi"
@@ -170,15 +170,10 @@ def generate_basic_catalog_components(
         for c in comp_names
         if not allowed_union_components or c in allowed_union_components
     ]
+    union_str = " | ".join(union_comp_names) if union_comp_names else "Any"
     any_comp_lines = [
-        "AnyComponent = Annotated[",
-        "    Union[",
+        f'AnyComponent = Annotated[{union_str}, Field(..., discriminator="component")]'
     ]
-    for cname in union_comp_names:
-        any_comp_lines.append(f"        {cname},")
-    any_comp_lines.append("    ],")
-    any_comp_lines.append('    Field(..., discriminator="component")')
-    any_comp_lines.append("]")
     names.append("AnyComponent")
 
     api_names = []
@@ -207,8 +202,8 @@ def generate_basic_catalog_components(
 
 def generate_basic_catalog_functions(
     version: str,
-    catalog_data: Dict[str, Any],
-    common_data: Optional[Dict[str, Any]] = None,
+    catalog_data: dict[str, Any],
+    common_data: dict[str, Any] | None = None,
 ) -> str:
     """Generates function_apis.py content."""
     codegen = PydanticCodegen(version)
@@ -293,9 +288,8 @@ def generate_basic_catalog_functions(
         else "...schema.common_types"
     )
     header = (
-        f"{FILE_HEADER}\nfrom typing import Any, Dict, List, Literal, Optional,"
-        " Union\nfrom pydantic import BaseModel, Field, ConfigDict\nfrom"
-        f" {common_module_path} import {', '.join(used_imports)}\nfrom"
+        f"{FILE_HEADER}\nfrom typing import Any\nfrom pydantic import BaseModel, Field,"
+        f" ConfigDict\nfrom {common_module_path} import {', '.join(used_imports)}\nfrom"
         " ...catalog.functions import FunctionApi\n\n\n"
     )
 
@@ -304,8 +298,8 @@ def generate_basic_catalog_functions(
 
 def generate_basic_catalog_styles(
     version: str,
-    catalog_data: Dict[str, Any],
-) -> Optional[str]:
+    catalog_data: dict[str, Any],
+) -> str | None:
     """Generates styles.py content if the catalog defines styles or theme."""
     defs = catalog_data.get("$defs", {})
     styles_spec = catalog_data.get("styles")
@@ -316,8 +310,10 @@ def generate_basic_catalog_styles(
     codegen = PydanticCodegen(version)
     style_blocks = [
         (
-            f"{FILE_HEADER}\nfrom typing import Any, Dict, Optional\nfrom"
-            " pydantic import BaseModel, Field, ConfigDict"
+            f"{FILE_HEADER}\n"
+            "from typing import Any\n"
+            "from pydantic import BaseModel, Field, ConfigDict\n"
+            "from ...schema.common_types import StrictBaseModel"
         ),
     ]
 
@@ -351,7 +347,7 @@ def generate_basic_catalog_index(
     out_dir: str,
     comp_code: str,
     func_code: str,
-    style_code: Optional[str],
+    style_code: str | None,
 ) -> str:
     """Generates __init__.py content for a version basic_catalog directory."""
     dir_name = version_to_underscore(version)
@@ -414,16 +410,11 @@ def generate_basic_catalog_index(
         os.path.join(out_dir, "function_impls.py")
     ) and os.path.exists(os.path.join(os.path.dirname(out_dir), "function_impls.py"))
 
-    typing_types = ["Optional"]
+    cat_init = [FILE_HEADER]
     if shared_impls and has_func_impls:
-        typing_types.insert(0, "Any")
-    typing_line = f"from typing import {', '.join(typing_types)}"
-
-    cat_init = [
-        FILE_HEADER,
-        typing_line,
-        "",
-    ]
+        cat_init.extend(["from typing import Any", ""])
+    else:
+        cat_init.append("")
     if comp_import_lines:
         cat_init.extend([
             "from .components import (",
@@ -483,7 +474,7 @@ def generate_basic_catalog_index(
         "",
         "class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):",
         "",
-        "    def __init__(self, locale: Optional[str] = None):",
+        "    def __init__(self, locale: str | None = None):",
         f"{lazy_func_import}        super().__init__(",
         "            catalog_id=_basic_catalog_id(PROTOCOL_VERSION),",
         "            protocol_version=PROTOCOL_VERSION,",

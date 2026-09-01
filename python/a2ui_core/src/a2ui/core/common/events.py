@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Callable, Set, Generic, TypeVar
+from typing import Any, Callable, Generic, TypeVar
 
 T = TypeVar("T")
 
@@ -34,7 +34,7 @@ class EventSource:
     """A simple, lightweight multi-cast event source matching EventEmitter style."""
 
     def __init__(self) -> None:
-        self._listeners: Set[Callable[[Any], None]] = set()
+        self._listeners: set[Callable[[Any], None]] = set()
 
     def subscribe(self, handler: Callable[[Any], None]) -> Subscription:
         self._listeners.add(handler)

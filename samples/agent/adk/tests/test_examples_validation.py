@@ -15,7 +15,7 @@
 import os
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 import pytest
 
 from a2ui.schema.constants import VERSION_0_9

@@ -73,7 +73,7 @@ Usage Examples:
 """
 
 import logging
-from typing import Optional, Any
+from typing import Any
 from google.adk.agents.invocation_context import new_invocation_context_id
 from google.adk.events.event import Event
 from google.adk.events.event_actions import EventActions
@@ -111,7 +111,7 @@ class A2uiSubagentMap:
         return cls.KEY_PREFIX + surface_id
 
     @classmethod
-    async def get_subagent_name(cls, surface_id: str, state: State) -> Optional[str]:
+    async def get_subagent_name(cls, surface_id: str, state: State) -> str | None:
         """Gets the subagent name that owns the given surface ID.
 
         Args:
@@ -134,7 +134,7 @@ class A2uiSubagentMap:
     @classmethod
     async def get_subagent_name_for_client_event(
         cls, a2a_part: Part, state: State
-    ) -> Optional[str]:
+    ) -> str | None:
         """Extracts the surface ID from a client event A2A part and returns the owning subagent.
 
         Examines an incoming client event (like an action or error) to find the targeted
@@ -309,7 +309,7 @@ class A2uiSubagentMap:
     @classmethod
     async def strip_unowned_surfaces_from_data_model(
         cls,
-        subagent_name: Optional[str],
+        subagent_name: str | None,
         client_data_model: dict[str, Any],
         state: State,
     ) -> None:

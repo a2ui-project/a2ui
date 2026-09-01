@@ -18,7 +18,7 @@ import json
 import logging
 import os
 import importlib.resources
-from typing import Any, Dict, cast
+from typing import Any, cast
 
 from .constants import A2UI_ASSET_PACKAGE, SPECIFICATION_DIR, ENCODING, COMMON_TYPES_SCHEMA_KEY
 from .catalog_provider import FileSystemCatalogProvider
@@ -68,8 +68,8 @@ def get_basic_examples_dir(version: str = "v1_0", start_path: str | None = None)
 def load_from_bundled_resource(
     version: str,
     resource_key: str,
-    spec_map: Dict[str, Dict[str, str]],
-) -> Dict[str, Any]:
+    spec_map: dict[str, dict[str, str]],
+) -> dict[str, Any]:
     """Loads a schema resource from bundled package resources."""
     version_spec_map = spec_map.get(version)
     if not version_spec_map:
@@ -95,7 +95,7 @@ def load_from_bundled_resource(
         traversable = importlib.resources.files(A2UI_ASSET_PACKAGE)
         traversable = traversable.joinpath(version).joinpath(filename)
         with traversable.open("r", encoding=ENCODING) as f:
-            return cast(Dict[str, Any], json.load(f))
+            return cast(dict[str, Any], json.load(f))
     except Exception as e:
         logging.debug("Could not load '%s' from package resources: %s", filename, e)
 

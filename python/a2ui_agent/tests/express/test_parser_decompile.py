@@ -21,7 +21,6 @@ from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import VERSION_1_0
 
-
 from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
 from a2ui.inference_formats.experimental.express.parser import ExpressParser
 

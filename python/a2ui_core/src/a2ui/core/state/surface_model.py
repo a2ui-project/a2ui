@@ -14,7 +14,7 @@
 
 import copy
 import warnings
-from typing import Any, Dict, Generic, List, Optional, Union, cast
+from typing import Any, Generic, cast
 from ..common.events import EventSource
 from .data_model import DataModel
 from .surface_components_model import SurfaceComponentsModel
@@ -29,9 +29,9 @@ class SurfaceModel(Generic[TComponent, TFunction]):
         self,
         surface_id: str,
         default_catalog: Catalog[TComponent, TFunction],
-        theme: Optional[Dict[str, Any]] = None,
+        theme: dict[str, Any] | None = None,
         send_data_model: bool = False,
-        data_model: Optional[DataModel] = None,
+        data_model: DataModel | None = None,
     ) -> None:
         self.id = surface_id
         self.default_catalog = default_catalog
@@ -40,12 +40,12 @@ class SurfaceModel(Generic[TComponent, TFunction]):
 
         self.data_model = data_model or DataModel()
         self.components_model = SurfaceComponentsModel()
-        self.root_id: Optional[str] = None
+        self.root_id: str | None = None
         self.on_action = EventSource()
         self.on_error = EventSource()
 
     def dispatch_action(
-        self, payload: Dict[str, Any], source_component_id: str
+        self, payload: dict[str, Any], source_component_id: str
     ) -> None:
         """Triggers action emission from component interactives."""
         import datetime
@@ -70,7 +70,7 @@ class SurfaceModel(Generic[TComponent, TFunction]):
         }
         self.on_action.emit(action_event)
 
-    def dispatch_error(self, error: Dict[str, Any]) -> None:
+    def dispatch_error(self, error: dict[str, Any]) -> None:
         """Dispatches an error from this surface to listeners."""
         err_payload = copy.deepcopy(error)
         if "surfaceId" not in err_payload:
@@ -78,8 +78,8 @@ class SurfaceModel(Generic[TComponent, TFunction]):
         self.on_error.emit(err_payload)
 
     @property
-    def catalogs(self) -> Dict[str, Catalog[TComponent, TFunction]]:
-        res: Dict[str, Catalog[TComponent, TFunction]] = {}
+    def catalogs(self) -> dict[str, Catalog[TComponent, TFunction]]:
+        res: dict[str, Catalog[TComponent, TFunction]] = {}
         for comp in self.components_model.get_all().values():
             res[comp.id] = cast(Catalog[TComponent, TFunction], comp.catalog)
         return res

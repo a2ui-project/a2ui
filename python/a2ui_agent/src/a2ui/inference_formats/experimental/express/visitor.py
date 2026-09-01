@@ -15,7 +15,7 @@
 """Custom AST visitor for A2UI Express."""
 
 import re
-from typing import Any, Optional
+from typing import Any
 from antlr4 import *
 from antlr4.error.ErrorListener import ErrorListener
 from .generated.express_parser import ExpressParser
@@ -49,7 +49,7 @@ def _unescape_string(val: str) -> str:
 class ExpressAstVisitor(ExpressVisitor):
     """Traverses the ANTLR parse tree to construct the expected AST nodes."""
 
-    def __init__(self, first_error_line: Optional[int] = None):
+    def __init__(self, first_error_line: int | None = None):
         super().__init__()
         self.first_error_line = first_error_line
 

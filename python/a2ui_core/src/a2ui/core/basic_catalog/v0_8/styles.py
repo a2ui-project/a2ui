@@ -14,13 +14,15 @@
 
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
-from typing import Any, Dict, Optional
+from typing import Any
 from pydantic import BaseModel, Field, ConfigDict
+from ...schema.common_types import StrictBaseModel
 
 
 class Styles(BaseModel):
-    font: Optional[str] = Field(None, description="The primary font for the UI.")
-    primary_color: Optional[str] = Field(
+    model_config = ConfigDict(populate_by_name=True)
+    font: str | None = Field(None, description="The primary font for the UI.")
+    primary_color: str | None = Field(
         None,
         alias="primaryColor",
         description="The primary UI color as a hexadecimal code (e.g., '#00BFFF').",

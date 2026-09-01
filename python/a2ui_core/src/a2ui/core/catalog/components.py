@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Type
 from pydantic import BaseModel, TypeAdapter
 from pydantic_core import PydanticUndefined
 
@@ -23,9 +23,9 @@ class ComponentApi:
     def __init__(
         self,
         name: str,
-        schema: Dict[str, Any],
-        allowed_parents: Optional[List[str]] = None,
-        allowed_children: Optional[List[str]] = None,
+        schema: dict[str, Any],
+        allowed_parents: list[str] | None = None,
+        allowed_children: list[str] | None = None,
     ):
         self.name = name
         self.schema = schema
@@ -43,10 +43,10 @@ class ComponentImplementation(ComponentApi):
     def __init__(
         self,
         name: str,
-        schema: Dict[str, Any],
+        schema: dict[str, Any],
         model_class: Type[BaseModel],
-        allowed_parents: Optional[List[str]] = None,
-        allowed_children: Optional[List[str]] = None,
+        allowed_parents: list[str] | None = None,
+        allowed_children: list[str] | None = None,
     ):
         super().__init__(
             name=name,
@@ -55,7 +55,7 @@ class ComponentImplementation(ComponentApi):
             allowed_children=allowed_children,
         )
         self.model_class = model_class
-        self._type_adapter: Optional[TypeAdapter[Any]] = None
+        self._type_adapter: TypeAdapter[Any] | None = None
 
     @property
     def type_adapter(self) -> TypeAdapter[Any]:
@@ -70,9 +70,9 @@ class ModelComponentApi(ComponentImplementation):
     def __init__(
         self,
         model_class: Type[BaseModel],
-        name: Optional[str] = None,
-        allowed_parents: Optional[List[str]] = None,
-        allowed_children: Optional[List[str]] = None,
+        name: str | None = None,
+        allowed_parents: list[str] | None = None,
+        allowed_children: list[str] | None = None,
     ):
         if not (isinstance(model_class, type) and issubclass(model_class, BaseModel)):
             raise ValueError(f"Expected a Pydantic BaseModel class, got {model_class}")

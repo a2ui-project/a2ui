@@ -18,6 +18,7 @@ from typing import Final, Literal
 
 PROTOCOL_VERSION: Final[Literal["v0.8"]] = "v0.8"
 PROTOCOL_VERSION_TYPE = Literal["v0.8"]
+SUPPORTED_PROTOCOL_VERSIONS: Final[set[str]] = {"v0.8"}
 
 ROOT_ID = "root"
 CATALOG_COMPONENTS_KEY = "components"

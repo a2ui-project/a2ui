@@ -16,7 +16,7 @@ import contextlib
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 import pytest
 import yaml
 
@@ -52,7 +52,7 @@ CATEGORY_TO_EXCEPTION = {
 SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "v1.0", "0.8", "0.9", "1.0"}
 
 # Transition skip list for core test cases pending feature implementation or version adapters
-SKIP_TEST_NAMES: Set[str] = {
+SKIP_TEST_NAMES: set[str] = {
     "test_index_function_in_collection_loop",
     "test_index_function_with_offset",
     "test_index_function_nested_path",
@@ -62,7 +62,7 @@ SKIP_TEST_NAMES: Set[str] = {
 }
 
 # Transition skip list containing specific test suite files or basenames to skip entirely.
-SKIP_TEST_SUITES: Set[str] = set()
+SKIP_TEST_SUITES: set[str] = set()
 
 # Root core conformance directory resolution
 CONFORMANCE_ROOT = os.environ.get(
@@ -78,7 +78,7 @@ v10_catalog = v1_0.BasicCatalog()
 ALL_CATALOGS = [basic_catalog, v08_catalog, v09_catalog, v10_catalog]
 
 
-def find_yaml_files(dir_path: str) -> List[str]:
+def find_yaml_files(dir_path: str) -> list[str]:
     results = []
     if not os.path.exists(dir_path):
         return results
@@ -89,7 +89,7 @@ def find_yaml_files(dir_path: str) -> List[str]:
     return sorted(results)
 
 
-def resolve_protocol_version(case: Dict[str, Any]) -> Optional[str]:
+def resolve_protocol_version(case: dict[str, Any]) -> str | None:
     if "protocolVersion" in case and case["protocolVersion"]:
         return case["protocolVersion"]
     cat_spec = case.get("catalog") if isinstance(case.get("catalog"), dict) else {}
@@ -119,7 +119,7 @@ def resolve_protocol_version(case: Dict[str, Any]) -> Optional[str]:
     return "v0.9"
 
 
-def resolve_catalog_id(case: Dict[str, Any]) -> Optional[str]:
+def resolve_catalog_id(case: dict[str, Any]) -> str | None:
     cat_spec = case.get("catalog") if isinstance(case.get("catalog"), dict) else {}
     c_schema = (
         cat_spec.get("catalogSchema")
@@ -131,7 +131,7 @@ def resolve_catalog_id(case: Dict[str, Any]) -> Optional[str]:
     )
 
 
-def load_conformance_cases() -> List[Tuple[str, str, Dict[str, Any]]]:
+def load_conformance_cases() -> list[tuple[str, str, dict[str, Any]]]:
     cases = []
     yaml_files = find_yaml_files(CORE_DIR)
     for file_path in yaml_files:
@@ -160,8 +160,8 @@ def load_conformance_cases() -> List[Tuple[str, str, Dict[str, Any]]]:
     return cases
 
 
-def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
-    catalogs_map: Dict[str, Any] = {}
+def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
+    catalogs_map: dict[str, Any] = {}
 
     for cat in ALL_CATALOGS:
         if hasattr(cat, "catalog_id"):
@@ -184,7 +184,7 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
         else (v08_catalog if version == "v0.8" else v09_catalog)
     )
 
-    def add_catalog_id(cat_id: str, ver: Optional[str] = None):
+    def add_catalog_id(cat_id: str, ver: str | None = None):
         if cat_id and (
             cat_id not in catalogs_map
             or not any(
@@ -197,7 +197,7 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
                 components=list(cur_basic.components.values()),
             )
 
-    specified_catalogs: List[Any] = []
+    specified_catalogs: list[Any] = []
 
     if "catalog" in case and isinstance(case["catalog"], dict):
         cat_spec = case["catalog"]
@@ -291,7 +291,7 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
                         catalogs_map["test-catalog"] = test_cat
                         specified_catalogs.append(test_cat)
 
-    messages: List[Any] = case.get("messages") or (
+    messages: list[Any] = case.get("messages") or (
         [case["payload"]] if "payload" in case else []
     )
     if "steps" in case:
@@ -308,7 +308,7 @@ def get_catalogs_for_test_case(case: Dict[str, Any]) -> List[Any]:
         "category"
     ) in ("CatalogError", "A2uiCatalogError")
 
-    scan_version: Optional[str] = None
+    scan_version: str | None = None
 
     def scan(item: Any):
         nonlocal scan_version
@@ -417,7 +417,7 @@ CONFORMANCE_CASES = load_conformance_cases()
     CONFORMANCE_CASES,
     ids=[c[0] for c in CONFORMANCE_CASES],
 )
-def test_conformance_suite(test_id: str, rel_path: str, case: Dict[str, Any]) -> None:
+def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) -> None:
     ver = resolve_protocol_version(case)
     if ver and ver not in SUPPORTED_PROTOCOL_VERSIONS:
         pytest.fail(
@@ -450,7 +450,7 @@ def test_conformance_suite(test_id: str, rel_path: str, case: Dict[str, Any]) ->
 
 
 def _assert_expected_surface_state(
-    processor: MessageProcessor, expected: Dict[str, Any]
+    processor: MessageProcessor, expected: dict[str, Any]
 ) -> None:
     if "surfaces" in expected:
         for s_id, s_exp in expected["surfaces"].items():
@@ -484,7 +484,7 @@ def _assert_expected_surface_state(
                         assert comp.type == c_exp["component"]
 
 
-def validate_pure_validation_case(case: Dict[str, Any]) -> None:
+def validate_pure_validation_case(case: dict[str, Any]) -> None:
     catalogs = get_catalogs_for_test_case(case)
     val_config = STRICT_VALIDATION
     processor = MessageProcessor(catalogs, validation_config=val_config)
@@ -509,7 +509,7 @@ def validate_pure_validation_case(case: Dict[str, Any]) -> None:
             processor.process_messages(messages)
 
 
-def validate_process_messages_case(case: Dict[str, Any]) -> None:
+def validate_process_messages_case(case: dict[str, Any]) -> None:
     catalogs = get_catalogs_for_test_case(case)
     is_strict = bool(
         case.get("strictMode")
@@ -557,7 +557,7 @@ def validate_process_messages_case(case: Dict[str, Any]) -> None:
             _assert_expected_surface_state(processor, expected)
 
 
-def validate_capabilities_case(case: Dict[str, Any]) -> None:
+def validate_capabilities_case(case: dict[str, Any]) -> None:
     catalogs = get_catalogs_for_test_case(case)
     processor = MessageProcessor(catalogs)
     ver = resolve_protocol_version(case) or "v0.9"
@@ -568,7 +568,7 @@ def validate_capabilities_case(case: Dict[str, Any]) -> None:
         assert k in caps
 
 
-def validate_from_json_case(case: Dict[str, Any]) -> None:
+def validate_from_json_case(case: dict[str, Any]) -> None:
     c_schema = (
         case.get("catalogSchema") or case.get("catalog") or case.get("schema") or case
     )
@@ -599,7 +599,7 @@ def validate_from_json_case(case: Dict[str, Any]) -> None:
                     assert cat.get_function(fn_name) is not None
 
 
-def validate_catalog_schema_case(case: Dict[str, Any]) -> None:
+def validate_catalog_schema_case(case: dict[str, Any]) -> None:
     p_ver = resolve_protocol_version(case)
     if case.get("useBasicCatalog") or case.get("catalog") == "BasicCatalog":
         if p_ver == "v1.0":
@@ -657,7 +657,7 @@ def validate_catalog_schema_case(case: Dict[str, Any]) -> None:
         assert cat.catalog_schema == expected
 
 
-def validate_resolve_path_case(case: Dict[str, Any]) -> None:
+def validate_resolve_path_case(case: dict[str, Any]) -> None:
     from a2ui.core.rendering.data_context import DataContext
     from a2ui.core.state.surface_model import SurfaceModel
 
@@ -672,7 +672,7 @@ def validate_resolve_path_case(case: Dict[str, Any]) -> None:
         assert res == expected["result"]
 
 
-def validate_get_renderer_data_model_case(case: Dict[str, Any]) -> None:
+def validate_get_renderer_data_model_case(case: dict[str, Any]) -> None:
     catalogs = get_catalogs_for_test_case(case)
     processor = MessageProcessor(catalogs)
     steps = case.get("steps")

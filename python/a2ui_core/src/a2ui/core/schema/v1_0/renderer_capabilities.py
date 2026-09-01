@@ -14,7 +14,7 @@
 
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal
 from pydantic import BaseModel, Field, ConfigDict
 from .common_types import StrictBaseModel
 from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
@@ -27,7 +27,7 @@ Catalog = InlineCatalog
 
 
 class V10Capabilities(StrictBaseModel):
-    supported_catalog_ids: List[str] = Field(
+    supported_catalog_ids: list[str] = Field(
         ...,
         alias="supportedCatalogIds",
         description=(
@@ -36,7 +36,7 @@ class V10Capabilities(StrictBaseModel):
             " single surface."
         ),
     )
-    inline_catalogs: Optional[List[CatalogDefinition]] = Field(
+    inline_catalogs: list[CatalogDefinition] | None = Field(
         None,
         alias="inlineCatalogs",
         description=(
@@ -51,4 +51,4 @@ V1_0Capabilities = V10Capabilities
 
 
 class A2uiRendererCapabilities(StrictBaseModel):
-    v1_0: Optional[V10Capabilities] = Field(None, alias=PROTOCOL_VERSION)
+    v1_0: V10Capabilities | None = Field(None, alias=PROTOCOL_VERSION)

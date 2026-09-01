@@ -17,7 +17,7 @@ import logging
 import os
 from collections import OrderedDict
 from collections.abc import AsyncIterable
-from typing import Any, Optional, Dict
+from typing import Any
 
 import jsonschema
 from a2a.types import (
@@ -67,12 +67,10 @@ class RestaurantAgent:
         self.base_url = base_url
         self._agent_name = "Restaurant Agent"
         self._user_id = "remote_agent"
-        self._text_runner: Optional[Runner] = self._build_runner(
-            self._build_llm_agent()
-        )
+        self._text_runner: Runner | None = self._build_runner(self._build_llm_agent())
 
-        self._inference_formats: Dict[str, DirectJsonFormat] = {}
-        self._ui_runners: Dict[str, Runner] = {}
+        self._inference_formats: dict[str, DirectJsonFormat] = {}
+        self._ui_runners: dict[str, Runner] = {}
         self._parsers = OrderedDict()
         self._max_parsers = 1000  # Max active sessions to keep in memory
 
@@ -149,7 +147,7 @@ class RestaurantAgent:
         return "Finding restaurants that match your criteria..."
 
     def _build_llm_agent(
-        self, inference_format: Optional[DirectJsonFormat] = None
+        self, inference_format: DirectJsonFormat | None = None
     ) -> LlmAgent:
         """Builds the LLM agent for the restaurant agent."""
         model_env = (
@@ -183,7 +181,7 @@ class RestaurantAgent:
         self,
         query,
         session_id,
-        ui_version: Optional[str] = None,
+        ui_version: str | None = None,
         use_streaming: bool = True,
     ) -> AsyncIterable[dict[str, Any]]:
         session_state = {"base_url": self.base_url, "expression": "{expression}"}

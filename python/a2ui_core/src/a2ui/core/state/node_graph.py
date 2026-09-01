@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import copy
-from typing import Any, Dict, Generic, List, Optional, TYPE_CHECKING
+from typing import Any, Generic, TYPE_CHECKING
 from ..catalog.catalog import TComponent, TFunction
 from ..common.events import Signal, Subscription
 from .component_node import ComponentNode
@@ -34,9 +34,9 @@ class NodeGraph(Generic[TComponent, TFunction]):
     def __init__(self, surface: SurfaceModel[TComponent, TFunction]) -> None:
         self.surface = surface
 
-        self.rootNode: Signal[Optional[ComponentNode]] = Signal(None)
-        self.active_nodes: Dict[str, ComponentNode] = {}
-        self.binders: Dict[str, "GenericBinder"] = {}
+        self.rootNode: Signal[ComponentNode | None] = Signal(None)
+        self.active_nodes: dict[str, ComponentNode] = {}
+        self.binders: dict[str, "GenericBinder"] = {}
 
         self._comp_created_sub = self.surface.components_model.on_created.subscribe(
             self._on_component_created
@@ -49,7 +49,7 @@ class NodeGraph(Generic[TComponent, TFunction]):
         if self.surface.components_model.get("root"):
             self.rootNode.value = self.get_or_create_node("root", "/")
 
-    def to_dict(self) -> Optional[Dict[str, Any]]:
+    def to_dict(self) -> dict[str, Any] | None:
         """Returns the serialized dict layout of the root component node tree."""
         root_node = self.rootNode.value
         return root_node.to_dict() if root_node else None
@@ -82,7 +82,7 @@ class NodeGraph(Generic[TComponent, TFunction]):
             return nodes
 
         component_model = self.surface.components_model.get(component_id)
-        props_signal: Signal[Dict[str, Any]] = Signal({})
+        props_signal: Signal[dict[str, Any]] = Signal({})
 
         if component_model:
             node = ComponentNode(
@@ -124,15 +124,15 @@ class NodeGraph(Generic[TComponent, TFunction]):
         binder = GenericBinder(comp_context)
         self.binders[instance_id] = binder
 
-        child_nodes_by_prop: Dict[str, Any] = {}
-        template_subs: Dict[str, Subscription] = {}
+        child_nodes_by_prop: dict[str, Any] = {}
+        template_subs: dict[str, Subscription] = {}
 
-        def on_properties_changed(resolved_props: Dict[str, Any]) -> None:
-            new_props: Dict[str, Any] = {}
+        def on_properties_changed(resolved_props: dict[str, Any]) -> None:
+            new_props: dict[str, Any] = {}
             for k, v in resolved_props.items():
                 new_props[k] = v
 
-            current_resolved: Dict[str, Any] = {}
+            current_resolved: dict[str, Any] = {}
 
             # Wrap actions into closures
             for k, v in list(new_props.items()):
@@ -203,7 +203,7 @@ class NodeGraph(Generic[TComponent, TFunction]):
                 if list_ref in new_props:
                     val = new_props[list_ref]
                     if isinstance(val, list):
-                        child_list: List[Any] = []
+                        child_list: list[Any] = []
                         for item in val:
                             if isinstance(item, str) and item:
                                 child_list.append(
@@ -264,7 +264,7 @@ class NodeGraph(Generic[TComponent, TFunction]):
                             template_subs[list_ref].unsubscribe()
                             del template_subs[list_ref]
 
-                        spawned_nodes_signal: Signal[List[ComponentNode]] = Signal([])
+                        spawned_nodes_signal: Signal[list[ComponentNode]] = Signal([])
                         new_props[list_ref] = spawned_nodes_signal
 
                         def on_array_changed(array_data: Any) -> None:

@@ -14,14 +14,14 @@
 
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any
 from pydantic import BaseModel, Field, ConfigDict
 from .common_types import StrictBaseModel
 from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
 
 class V10AgentCapabilities(StrictBaseModel):
-    supported_catalog_ids: Optional[List[str]] = Field(
+    supported_catalog_ids: list[str] | None = Field(
         None,
         alias="supportedCatalogIds",
         description=(
@@ -30,7 +30,7 @@ class V10AgentCapabilities(StrictBaseModel):
             " catalogs can be mixed in a single surface."
         ),
     )
-    accepts_inline_catalogs: Optional[bool] = Field(
+    accepts_inline_catalogs: bool | None = Field(
         alias="acceptsInlineCatalogs",
         description=(
             "A boolean indicating if the agent can accept an 'inlineCatalogs' array in"
@@ -45,4 +45,4 @@ V1_0AgentCapabilities = V10AgentCapabilities
 
 
 class A2uiAgentCapabilities(StrictBaseModel):
-    v1_0: Optional[V10AgentCapabilities] = Field(None, alias=PROTOCOL_VERSION)
+    v1_0: V10AgentCapabilities | None = Field(None, alias=PROTOCOL_VERSION)

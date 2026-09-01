@@ -14,7 +14,8 @@
 
 """Prompt compiler for A2UI Atom inference format."""
 
-from typing import Any, Optional, TYPE_CHECKING
+from collections.abc import Mapping, Sequence
+from typing import Any, TYPE_CHECKING
 from a2ui.prompt import PromptGenerator
 from a2ui.core.schema.v0_9.client_capabilities import V09Capabilities
 # CatalogSchemaHelper import handled lazily inside class
@@ -84,7 +85,7 @@ You MUST surround the entire A2UI Atom block with sentinel tags `<a2ui>` and `</
 """
 
 
-def _get_schema_enum(prop_schema: Any) -> Optional[list[str]]:
+def _get_schema_enum(prop_schema: Any) -> list[str] | None:
     """Helper to recursively find enum definitions inside a JSON schema."""
     if not isinstance(prop_schema, dict):
         return None
@@ -131,9 +132,9 @@ class AtomPromptGenerator(PromptGenerator):
         role_description: str = "",
         workflow_description: str = "",
         ui_description: str = "",
-        client_ui_capabilities: Optional[Any] = None,
-        allowed_components: Optional[list[str]] = None,
-        allowed_messages: Optional[list[str]] = None,
+        client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
+        allowed_components: Sequence[str] | None = None,
+        allowed_messages: Sequence[str] | None = None,
         include_schema: bool = True,
         include_examples: bool = True,
         validate_examples: bool = False,

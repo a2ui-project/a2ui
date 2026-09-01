@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import copy
-from typing import Any, Callable, Dict, List, Set
+from typing import Any, Callable
 from ..common import Subscription
 from .component_context import ComponentContext
 
@@ -27,9 +27,9 @@ class GenericBinder:
 
     def __init__(self, context: ComponentContext):
         self.context = context
-        self.data_listeners: List[Subscription] = []
-        self.listeners: Set[Callable[[Dict[str, Any]], None]] = set()
-        self.current_props: Dict[str, Any] = {}
+        self.data_listeners: list[Subscription] = []
+        self.listeners: set[Callable[[dict[str, Any]], None]] = set()
+        self.current_props: dict[str, Any] = {}
         self.comp_unsub: Any = None
 
         # Subscribe to component model updates
@@ -173,7 +173,7 @@ class GenericBinder:
             except Exception:
                 pass
 
-    def subscribe(self, listener: Callable[[Dict[str, Any]], None]) -> Subscription:
+    def subscribe(self, listener: Callable[[dict[str, Any]], None]) -> Subscription:
         """Registers a listener to receive resolved updates to the component properties."""
         self.listeners.add(listener)
         listener(self.current_props)

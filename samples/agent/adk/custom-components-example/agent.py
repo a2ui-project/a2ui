@@ -18,7 +18,7 @@ import os
 from collections import OrderedDict
 from collections.abc import AsyncIterable
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
 import jsonschema
 
@@ -63,12 +63,10 @@ class ContactAgent:
         self.base_url = base_url
         self._agent_name = "contact_agent"
         self._user_id = "remote_agent"
-        self._text_runner: Optional[Runner] = self._build_runner(
-            self._build_llm_agent()
-        )
+        self._text_runner: Runner | None = self._build_runner(self._build_llm_agent())
 
-        self._inference_formats: Dict[str, DirectJsonFormat] = {}
-        self._ui_runners: Dict[str, Runner] = {}
+        self._inference_formats: dict[str, DirectJsonFormat] = {}
+        self._ui_runners: dict[str, Runner] = {}
         self._parsers: OrderedDict[str, DirectJsonStreamParser] = OrderedDict()
         self._max_parsers = 1000  # Max active sessions to keep in memory
 
@@ -84,9 +82,7 @@ class ContactAgent:
     def agent_card(self) -> AgentCard:
         return self._agent_card
 
-    def get_inference_format(
-        self, version: Optional[str]
-    ) -> Optional[DirectJsonFormat]:
+    def get_inference_format(self, version: str | None) -> DirectJsonFormat | None:
         if version is None:
             return None
         return self._inference_formats[version]
@@ -158,7 +154,7 @@ class ContactAgent:
         return "Looking up contact information..."
 
     def _build_llm_agent(
-        self, inference_format: Optional[DirectJsonFormat] = None
+        self, inference_format: DirectJsonFormat | None = None
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
         LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3-flash-preview")
@@ -185,7 +181,7 @@ class ContactAgent:
         )
 
     async def _handle_action(
-        self, query: str, ui_version: Optional[str] = None
+        self, query: str, ui_version: str | None = None
     ) -> dict[str, Any] | None:
         """Handles simulated UI actions like close_modal or view_location."""
         if not query.startswith("ACTION:"):
@@ -292,7 +288,7 @@ class ContactAgent:
         query,
         session_id,
         client_ui_capabilities: dict[str, Any] | None = None,
-        ui_version: Optional[str] = None,
+        ui_version: str | None = None,
     ) -> AsyncIterable[dict[str, Any]]:
         session_state = {"base_url": self.base_url}
 

@@ -16,7 +16,7 @@ from collections.abc import AsyncIterable
 import json
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 from a2a.types import (
     AgentCapabilities,
@@ -61,12 +61,10 @@ class ContactAgent:
         self.base_url = base_url
         self._agent_name = "contact_agent"
         self._user_id = "remote_agent"
-        self._text_runner: Optional[Runner] = self._build_runner(
-            self._build_llm_agent()
-        )
+        self._text_runner: Runner | None = self._build_runner(self._build_llm_agent())
 
-        self._inference_formats: Dict[str, DirectJsonFormat] = {}
-        self._ui_runners: Dict[str, Runner] = {}
+        self._inference_formats: dict[str, DirectJsonFormat] = {}
+        self._ui_runners: dict[str, Runner] = {}
 
         # Gemini Enerprise only supports VERSION_0_8 for now.
         for version in [VERSION_0_8]:
@@ -153,7 +151,7 @@ class ContactAgent:
         return "Looking up contact information..."
 
     def _build_llm_agent(
-        self, inference_format: Optional[DirectJsonFormat] = None
+        self, inference_format: DirectJsonFormat | None = None
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
 
@@ -179,7 +177,7 @@ class ContactAgent:
         )
 
     async def fetch_response(
-        self, query, session_id, ui_version: Optional[str] = None
+        self, query, session_id, ui_version: str | None = None
     ) -> list[Part]:
         """Fetches the response from the agent."""
 

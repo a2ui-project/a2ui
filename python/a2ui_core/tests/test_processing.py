@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import pytest
-from typing import Any, Dict, List, Literal
+from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from a2ui.core.processing import MessageProcessor

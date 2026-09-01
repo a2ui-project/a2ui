@@ -43,7 +43,6 @@ import re
 
 import contextlib
 
-
 CATEGORY_TO_EXCEPTION = {
     "ParseError": A2uiParseError,
     "ValidationError": A2uiValidationError,

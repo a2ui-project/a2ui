@@ -14,8 +14,9 @@
 
 """Deprecated compatibility redirect for A2uiSchemaManager."""
 
+from collections.abc import Sequence
 import warnings
-from typing import Any, Optional, Callable, Union
+from typing import Any, Callable
 from a2ui.inference_formats.direct_json.format import DirectJsonFormat
 from a2ui.schema.catalog import CatalogConfig
 
@@ -33,12 +34,12 @@ class A2uiSchemaManager(DirectJsonFormat):
     def __init__(
         self,
         version: str,
-        catalogs: Optional[list[CatalogConfig]] = None,
+        catalogs: Sequence[CatalogConfig] | None = None,
         accepts_inline_catalogs: bool = False,
-        schema_modifiers: Optional[
-            list[Callable[[dict[str, Any]], dict[str, Any]]]
-        ] = None,
-        experiments: Optional[Union[set[str], frozenset[str]]] = None,
+        schema_modifiers: (
+            Sequence[Callable[[dict[str, Any]], dict[str, Any]]] | None
+        ) = None,
+        experiments: set[str] | frozenset[str] | None = None,
     ):
         warnings.warn(
             "A2uiSchemaManager is deprecated. Please use DirectJsonFormat instead.",

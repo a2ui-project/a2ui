@@ -111,14 +111,14 @@ from a2ui.schema.constants import (
 logger = logging.getLogger(__name__)
 
 A2uiEnabledProvider: TypeAlias = Callable[
-    [readonly_context.ReadonlyContext], Union[bool, Awaitable[bool]]
+    [readonly_context.ReadonlyContext], bool | Awaitable[bool]
 ]
 A2uiCatalogProvider: TypeAlias = Callable[
     [readonly_context.ReadonlyContext],
-    Union[catalog.A2uiCatalog, Awaitable[catalog.A2uiCatalog]],
+    catalog.A2uiCatalog | Awaitable[catalog.A2uiCatalog],
 ]
 A2uiExamplesProvider: TypeAlias = Callable[
-    [readonly_context.ReadonlyContext], Union[str, Awaitable[str]]
+    [readonly_context.ReadonlyContext], str | Awaitable[str]
 ]
 
 
@@ -128,9 +128,9 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
     def __init__(
         self,
-        a2ui_enabled: Union[bool, A2uiEnabledProvider],
-        a2ui_catalog: Union[catalog.A2uiCatalog, A2uiCatalogProvider],
-        a2ui_examples: Union[str, A2uiExamplesProvider],
+        a2ui_enabled: bool | A2uiEnabledProvider,
+        a2ui_catalog: catalog.A2uiCatalog | A2uiCatalogProvider,
+        a2ui_examples: str | A2uiExamplesProvider,
     ):
         super().__init__()
         self._a2ui_enabled = a2ui_enabled
@@ -158,7 +158,7 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
     async def get_tools(
         self,
-        readonly_context: Optional[readonly_context.ReadonlyContext] = None,
+        readonly_context: readonly_context.ReadonlyContext | None = None,
     ) -> list[base_tool.BaseTool]:
         """Returns the list of tools provided by this toolset.
 
@@ -200,8 +200,8 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
         def __init__(
             self,
-            a2ui_catalog: Union[catalog.A2uiCatalog, A2uiCatalogProvider],
-            a2ui_examples: Union[str, A2uiExamplesProvider],
+            a2ui_catalog: catalog.A2uiCatalog | A2uiCatalogProvider,
+            a2ui_examples: str | A2uiExamplesProvider,
         ):
             self._a2ui_catalog = a2ui_catalog
             self._a2ui_examples = a2ui_examples

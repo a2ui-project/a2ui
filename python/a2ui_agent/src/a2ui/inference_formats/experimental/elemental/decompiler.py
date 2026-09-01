@@ -20,7 +20,7 @@ Reconstructs standard A2UI v1.0 JSON envelopes back into A2UI Elemental HTML5-li
 import html
 import json
 import re
-from typing import Any, Optional, Union
+from typing import Any
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 
@@ -118,7 +118,7 @@ def _get_action_properties(helper: CatalogSchemaHelper, comp_name: str) -> list[
 class _ElementalDecompiler:
     """Decompiles A2UI JSON payloads back into A2UI Elemental HTML."""
 
-    def __init__(self, catalog: Union[Catalog[Any, Any], A2uiCatalog]):
+    def __init__(self, catalog: Catalog[Any, Any] | A2uiCatalog):
         self.helper = CatalogSchemaHelper(catalog)
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
@@ -236,7 +236,7 @@ class _ElementalDecompiler:
         return "\n".join(lines)
 
     def _render_component(
-        self, comp_id: str, indent: int = 0, slot: Optional[str] = None
+        self, comp_id: str, indent: int = 0, slot: str | None = None
     ) -> str:
         C = self.id_to_component.get(comp_id)
         if not C:
@@ -368,7 +368,7 @@ class _ElementalDecompiler:
         return "\n".join(result)
 
     def _format_attribute(
-        self, name: str, val: Any, comp_ids: set[str], comp_name: Optional[str] = None
+        self, name: str, val: Any, comp_ids: set[str], comp_name: str | None = None
     ) -> str:
         kebab_name = re.sub(r"(?<!^)(?=[A-Z])", "-", name).lower()
 
@@ -413,7 +413,7 @@ class _ElementalDecompiler:
 
     def _format_checks(
         self, checks_val: list, C: dict, comp_ids: set[str]
-    ) -> Optional[str]:
+    ) -> str | None:
         if not checks_val:
             return None
 

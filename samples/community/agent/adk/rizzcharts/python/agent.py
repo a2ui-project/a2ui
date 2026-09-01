@@ -16,7 +16,7 @@ import json
 import logging
 from pathlib import Path
 import pkgutil
-from typing import Any, ClassVar, Dict, Optional
+from typing import Any, ClassVar
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from a2ui.a2a.extension import get_a2ui_agent_extension
 from a2ui.adk.send_a2ui_to_client_toolset import SendA2uiToClientToolset, A2uiEnabledProvider, A2uiCatalogProvider, A2uiExamplesProvider
@@ -114,12 +114,10 @@ class RizzchartsAgent:
         self._memory_service = InMemoryMemoryService()
         self._artifact_service = InMemoryArtifactService()
 
-        self._text_runner: Optional[Runner] = self._build_runner(
-            self._build_llm_agent()
-        )
+        self._text_runner: Runner | None = self._build_runner(self._build_llm_agent())
 
-        self._inference_formats: Dict[str, DirectJsonFormat] = {}
-        self._ui_runners: Dict[str, Runner] = {}
+        self._inference_formats: dict[str, DirectJsonFormat] = {}
+        self._ui_runners: dict[str, Runner] = {}
 
         for version in [VERSION_0_8, VERSION_0_9]:
             inference_format = self._build_inference_format(version)
@@ -133,14 +131,12 @@ class RizzchartsAgent:
     def agent_card(self) -> AgentCard:
         return self._agent_card
 
-    def get_runner(self, version: Optional[str]) -> Runner:
+    def get_runner(self, version: str | None) -> Runner:
         if version is None:
             return self._text_runner
         return self._ui_runners[version]
 
-    def get_inference_format(
-        self, version: Optional[str]
-    ) -> Optional[DirectJsonFormat]:
+    def get_inference_format(self, version: str | None) -> DirectJsonFormat | None:
         if version is None:
             return None
         return self._inference_formats[version]
@@ -247,7 +243,7 @@ class RizzchartsAgent:
         )
 
     def _build_llm_agent(
-        self, inference_format: Optional[DirectJsonFormat] = None
+        self, inference_format: DirectJsonFormat | None = None
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
         instruction = (

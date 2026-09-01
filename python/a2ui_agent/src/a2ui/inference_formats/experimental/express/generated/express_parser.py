@@ -143,9 +143,6 @@ class ExpressParser ( Parser ):
         self._interp = ParserATNSimulator(self, self.atn, self.decisionsToDFA, self.sharedContextCache)
         self._predicates = None
 
-
-
-
     class ProgramContext(ParserRuleContext):
         __slots__ = 'parser'
 
@@ -162,7 +159,6 @@ class ExpressParser ( Parser ):
             else:
                 return self.getTypedRuleContext(ExpressParser.StatementContext,i)
 
-
         def getRuleIndex(self):
             return ExpressParser.RULE_program
 
@@ -171,9 +167,6 @@ class ExpressParser ( Parser ):
                 return visitor.visitProgram(self)
             else:
                 return visitor.visitChildren(self)
-
-
-
 
     def program(self):
 
@@ -202,7 +195,6 @@ class ExpressParser ( Parser ):
             self.exitRule()
         return localctx
 
-
     class StatementContext(ParserRuleContext):
         __slots__ = 'parser'
 
@@ -213,10 +205,8 @@ class ExpressParser ( Parser ):
         def assignment(self):
             return self.getTypedRuleContext(ExpressParser.AssignmentContext,0)
 
-
         def expression(self):
             return self.getTypedRuleContext(ExpressParser.ExpressionContext,0)
-
 
         def getRuleIndex(self):
             return ExpressParser.RULE_statement
@@ -226,9 +216,6 @@ class ExpressParser ( Parser ):
                 return visitor.visitStatement(self)
             else:
                 return visitor.visitChildren(self)
-
-
-
 
     def statement(self):
 
@@ -250,7 +237,6 @@ class ExpressParser ( Parser ):
                 self.expression()
                 pass
 
-
         except RecognitionException as re:
             localctx.exception = re
             self._errHandler.reportError(self, re)
@@ -258,7 +244,6 @@ class ExpressParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class AssignmentContext(ParserRuleContext):
         __slots__ = 'parser'
@@ -270,14 +255,11 @@ class ExpressParser ( Parser ):
         def expression(self):
             return self.getTypedRuleContext(ExpressParser.ExpressionContext,0)
 
-
         def identifier(self):
             return self.getTypedRuleContext(ExpressParser.IdentifierContext,0)
 
-
         def path(self):
             return self.getTypedRuleContext(ExpressParser.PathContext,0)
-
 
         def getRuleIndex(self):
             return ExpressParser.RULE_assignment
@@ -287,9 +269,6 @@ class ExpressParser ( Parser ):
                 return visitor.visitAssignment(self)
             else:
                 return visitor.visitChildren(self)
-
-
-
 
     def assignment(self):
 
@@ -323,7 +302,6 @@ class ExpressParser ( Parser ):
             self.exitRule()
         return localctx
 
-
     class ExpressionContext(ParserRuleContext):
         __slots__ = 'parser'
 
@@ -334,30 +312,23 @@ class ExpressParser ( Parser ):
         def array(self):
             return self.getTypedRuleContext(ExpressParser.ArrayContext,0)
 
-
         def map_(self):
             return self.getTypedRuleContext(ExpressParser.MapContext,0)
-
 
         def path(self):
             return self.getTypedRuleContext(ExpressParser.PathContext,0)
 
-
         def check(self):
             return self.getTypedRuleContext(ExpressParser.CheckContext,0)
-
 
         def call(self):
             return self.getTypedRuleContext(ExpressParser.CallContext,0)
 
-
         def variable(self):
             return self.getTypedRuleContext(ExpressParser.VariableContext,0)
 
-
         def literal(self):
             return self.getTypedRuleContext(ExpressParser.LiteralContext,0)
-
 
         def getRuleIndex(self):
             return ExpressParser.RULE_expression
@@ -367,9 +338,6 @@ class ExpressParser ( Parser ):
                 return visitor.visitExpression(self)
             else:
                 return visitor.visitChildren(self)
-
-
-
 
     def expression(self):
 
@@ -421,7 +389,6 @@ class ExpressParser ( Parser ):
                 self.literal()
                 pass
 
-
         except RecognitionException as re:
             localctx.exception = re
             self._errHandler.reportError(self, re)
@@ -429,7 +396,6 @@ class ExpressParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class ArrayContext(ParserRuleContext):
         __slots__ = 'parser'
@@ -444,7 +410,6 @@ class ExpressParser ( Parser ):
             else:
                 return self.getTypedRuleContext(ExpressParser.ExpressionContext,i)
 
-
         def getRuleIndex(self):
             return ExpressParser.RULE_array
 
@@ -453,9 +418,6 @@ class ExpressParser ( Parser ):
                 return visitor.visitArray(self)
             else:
                 return visitor.visitChildren(self)
-
-
-
 
     def array(self):
 
@@ -492,9 +454,6 @@ class ExpressParser ( Parser ):
                     self.state = 69
                     self.match(ExpressParser.T__2)
 
-
-
-
             self.state = 74
             self.match(ExpressParser.T__3)
         except RecognitionException as re:
@@ -504,7 +463,6 @@ class ExpressParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class MapContext(ParserRuleContext):
         __slots__ = 'parser'
@@ -519,7 +477,6 @@ class ExpressParser ( Parser ):
             else:
                 return self.getTypedRuleContext(ExpressParser.Map_entryContext,i)
 
-
         def getRuleIndex(self):
             return ExpressParser.RULE_map
 
@@ -528,9 +485,6 @@ class ExpressParser ( Parser ):
                 return visitor.visitMap(self)
             else:
                 return visitor.visitChildren(self)
-
-
-
 
     def map_(self):
 
@@ -567,9 +521,6 @@ class ExpressParser ( Parser ):
                     self.state = 85
                     self.match(ExpressParser.T__2)
 
-
-
-
             self.state = 90
             self.match(ExpressParser.T__5)
         except RecognitionException as re:
@@ -579,7 +530,6 @@ class ExpressParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class Map_entryContext(ParserRuleContext):
         __slots__ = 'parser'
@@ -591,14 +541,11 @@ class ExpressParser ( Parser ):
         def expression(self):
             return self.getTypedRuleContext(ExpressParser.ExpressionContext,0)
 
-
         def identifier(self):
             return self.getTypedRuleContext(ExpressParser.IdentifierContext,0)
 
-
         def string(self):
             return self.getTypedRuleContext(ExpressParser.StringContext,0)
-
 
         def getRuleIndex(self):
             return ExpressParser.RULE_map_entry
@@ -608,9 +555,6 @@ class ExpressParser ( Parser ):
                 return visitor.visitMap_entry(self)
             else:
                 return visitor.visitChildren(self)
-
-
-
 
     def map_entry(self):
 
@@ -644,7 +588,6 @@ class ExpressParser ( Parser ):
             self.exitRule()
         return localctx
 
-
     class PathContext(ParserRuleContext):
         __slots__ = 'parser'
 
@@ -664,9 +607,6 @@ class ExpressParser ( Parser ):
             else:
                 return visitor.visitChildren(self)
 
-
-
-
     def path(self):
 
         localctx = ExpressParser.PathContext(self, self._ctx, self.state)
@@ -682,7 +622,6 @@ class ExpressParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class CheckContext(ParserRuleContext):
         __slots__ = 'parser'
@@ -700,7 +639,6 @@ class ExpressParser ( Parser ):
             else:
                 return self.getTypedRuleContext(ExpressParser.ExpressionContext,i)
 
-
         def getRuleIndex(self):
             return ExpressParser.RULE_check
 
@@ -709,9 +647,6 @@ class ExpressParser ( Parser ):
                 return visitor.visitCheck(self)
             else:
                 return visitor.visitChildren(self)
-
-
-
 
     def check(self):
 
@@ -754,12 +689,8 @@ class ExpressParser ( Parser ):
                         self.state = 111
                         self.match(ExpressParser.T__2)
 
-
-
-
                 self.state = 116
                 self.match(ExpressParser.T__8)
-
 
         except RecognitionException as re:
             localctx.exception = re
@@ -768,7 +699,6 @@ class ExpressParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class CallContext(ParserRuleContext):
         __slots__ = 'parser'
@@ -780,13 +710,11 @@ class ExpressParser ( Parser ):
         def identifier(self):
             return self.getTypedRuleContext(ExpressParser.IdentifierContext,0)
 
-
         def arg(self, i:int=None):
             if i is None:
                 return self.getTypedRuleContexts(ExpressParser.ArgContext)
             else:
                 return self.getTypedRuleContext(ExpressParser.ArgContext,i)
-
 
         def getRuleIndex(self):
             return ExpressParser.RULE_call
@@ -796,9 +724,6 @@ class ExpressParser ( Parser ):
                 return visitor.visitCall(self)
             else:
                 return visitor.visitChildren(self)
-
-
-
 
     def call(self):
 
@@ -837,9 +762,6 @@ class ExpressParser ( Parser ):
                     self.state = 129
                     self.match(ExpressParser.T__2)
 
-
-
-
             self.state = 134
             self.match(ExpressParser.T__8)
         except RecognitionException as re:
@@ -849,7 +771,6 @@ class ExpressParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class ArgContext(ParserRuleContext):
         __slots__ = 'parser'
@@ -861,10 +782,8 @@ class ExpressParser ( Parser ):
         def named_arg(self):
             return self.getTypedRuleContext(ExpressParser.Named_argContext,0)
 
-
         def expression(self):
             return self.getTypedRuleContext(ExpressParser.ExpressionContext,0)
-
 
         def getRuleIndex(self):
             return ExpressParser.RULE_arg
@@ -874,9 +793,6 @@ class ExpressParser ( Parser ):
                 return visitor.visitArg(self)
             else:
                 return visitor.visitChildren(self)
-
-
-
 
     def arg(self):
 
@@ -898,7 +814,6 @@ class ExpressParser ( Parser ):
                 self.expression()
                 pass
 
-
         except RecognitionException as re:
             localctx.exception = re
             self._errHandler.reportError(self, re)
@@ -906,7 +821,6 @@ class ExpressParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class Named_argContext(ParserRuleContext):
         __slots__ = 'parser'
@@ -918,10 +832,8 @@ class ExpressParser ( Parser ):
         def identifier(self):
             return self.getTypedRuleContext(ExpressParser.IdentifierContext,0)
 
-
         def expression(self):
             return self.getTypedRuleContext(ExpressParser.ExpressionContext,0)
-
 
         def getRuleIndex(self):
             return ExpressParser.RULE_named_arg
@@ -931,9 +843,6 @@ class ExpressParser ( Parser ):
                 return visitor.visitNamed_arg(self)
             else:
                 return visitor.visitChildren(self)
-
-
-
 
     def named_arg(self):
 
@@ -955,7 +864,6 @@ class ExpressParser ( Parser ):
             self.exitRule()
         return localctx
 
-
     class VariableContext(ParserRuleContext):
         __slots__ = 'parser'
 
@@ -966,7 +874,6 @@ class ExpressParser ( Parser ):
         def identifier(self):
             return self.getTypedRuleContext(ExpressParser.IdentifierContext,0)
 
-
         def getRuleIndex(self):
             return ExpressParser.RULE_variable
 
@@ -975,9 +882,6 @@ class ExpressParser ( Parser ):
                 return visitor.visitVariable(self)
             else:
                 return visitor.visitChildren(self)
-
-
-
 
     def variable(self):
 
@@ -1008,7 +912,6 @@ class ExpressParser ( Parser ):
             self.exitRule()
         return localctx
 
-
     class LiteralContext(ParserRuleContext):
         __slots__ = 'parser'
 
@@ -1018,7 +921,6 @@ class ExpressParser ( Parser ):
 
         def string(self):
             return self.getTypedRuleContext(ExpressParser.StringContext,0)
-
 
         def NUMBER(self):
             return self.getToken(ExpressParser.NUMBER, 0)
@@ -1034,9 +936,6 @@ class ExpressParser ( Parser ):
                 return visitor.visitLiteral(self)
             else:
                 return visitor.visitChildren(self)
-
-
-
 
     def literal(self):
 
@@ -1077,7 +976,6 @@ class ExpressParser ( Parser ):
             self.exitRule()
         return localctx
 
-
     class IdentifierContext(ParserRuleContext):
         __slots__ = 'parser'
 
@@ -1097,9 +995,6 @@ class ExpressParser ( Parser ):
             else:
                 return visitor.visitChildren(self)
 
-
-
-
     def identifier(self):
 
         localctx = ExpressParser.IdentifierContext(self, self._ctx, self.state)
@@ -1115,7 +1010,6 @@ class ExpressParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class StringContext(ParserRuleContext):
         __slots__ = 'parser'
@@ -1145,9 +1039,6 @@ class ExpressParser ( Parser ):
             else:
                 return visitor.visitChildren(self)
 
-
-
-
     def string(self):
 
         localctx = ExpressParser.StringContext(self, self._ctx, self.state)
@@ -1169,8 +1060,4 @@ class ExpressParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
-
-
-
 

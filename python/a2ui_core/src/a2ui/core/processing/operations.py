@@ -13,8 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union
-
+from typing import Any
 
 from ..schema.v0_9 import (
     MSG_TYPE_CREATE_SURFACE,
@@ -27,19 +26,19 @@ from ..schema.v0_9 import (
 @dataclass
 class InternalCreateSurfaceOp:
     surface_id: str
-    catalog_id: Optional[str] = None
-    theme: Optional[Any] = None
+    catalog_id: str | None = None
+    theme: Any | None = None
     send_data_model: bool = False
-    components: Optional[List[Dict[str, Any]]] = None
-    data_model: Optional[Dict[str, Any]] = None
-    root: Optional[str] = None
+    components: list[dict[str, Any]] | None = None
+    data_model: dict[str, Any] | None = None
+    root: str | None = None
     type: str = MSG_TYPE_CREATE_SURFACE
 
 
 @dataclass
 class InternalUpdateComponentsOp:
     surface_id: str
-    components: List[Dict[str, Any]] = field(default_factory=list)
+    components: list[dict[str, Any]] = field(default_factory=list)
     type: str = MSG_TYPE_UPDATE_COMPONENTS
 
 
@@ -47,7 +46,7 @@ class InternalUpdateComponentsOp:
 class InternalUpdateDataModelOp:
     surface_id: str
     value: Any = None
-    path: Optional[str] = "/"
+    path: str | None = "/"
     type: str = MSG_TYPE_UPDATE_DATA_MODEL
 
 
@@ -57,9 +56,9 @@ class InternalDeleteSurfaceOp:
     type: str = MSG_TYPE_DELETE_SURFACE
 
 
-InternalOperation = Union[
-    InternalCreateSurfaceOp,
-    InternalUpdateComponentsOp,
-    InternalUpdateDataModelOp,
-    InternalDeleteSurfaceOp,
-]
+InternalOperation = (
+    InternalCreateSurfaceOp
+    | InternalUpdateComponentsOp
+    | InternalUpdateDataModelOp
+    | InternalDeleteSurfaceOp
+)

@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import copy
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union, cast
+from collections.abc import Mapping, Sequence
+from typing import Any, Callable, cast
 
 from ..state import SurfaceGroupModel, SurfaceModel, ComponentModel
 from ..validation import (
@@ -30,7 +31,7 @@ from ..exceptions import (
     A2uiIntegrityError,
     A2uiValidationError,
 )
-from ..schema import ProtocolVersion, AgentToRendererMessagePayload
+from ..schema import AgentToRendererMessage, ProtocolVersion
 from .adapters import VersionAdapterFactory
 from .operations import (
     InternalCreateSurfaceOp,
@@ -46,9 +47,9 @@ class MessageProcessor:
 
     def __init__(
         self,
-        catalogs: Optional[List[Catalog[TComponent, TFunction]]] = None,
-        validation_config: Optional[ValidationConfig] = None,
-        action_handler: Optional[Callable[[Dict[str, Any]], None]] = None,
+        catalogs: Sequence[Catalog[TComponent, TFunction]] | None = None,
+        validation_config: ValidationConfig | None = None,
+        action_handler: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         if not catalogs:
             raise ValueError("At least one catalog must be provided.")
@@ -58,7 +59,15 @@ class MessageProcessor:
         if action_handler:
             self.model.on_action.subscribe(action_handler)
 
-    def process_messages(self, messages: AgentToRendererMessagePayload) -> None:
+    def process_messages(
+        self,
+        messages: (
+            AgentToRendererMessage
+            | Sequence[AgentToRendererMessage]
+            | Mapping[str, Any]
+            | Sequence[Mapping[str, Any]]
+        ),
+    ) -> None:
         """Accepts a list of parsed JSON messages and executes them in order."""
         adapter = VersionAdapterFactory.resolve_from_payload(messages)
         operations = adapter.extract_operations(messages)
@@ -67,13 +76,13 @@ class MessageProcessor:
 
     def get_renderer_capabilities(
         self,
-        versions: List[ProtocolVersion],
+        versions: list[ProtocolVersion],
         include_inline_catalogs: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generates renderer capabilities dictionary keyed by protocol version(s)."""
-        capabilities: Dict[str, Any] = {}
+        capabilities: dict[str, Any] = {}
         for ver in versions:
-            version_caps: Dict[str, Any] = {
+            version_caps: dict[str, Any] = {
                 "supportedCatalogIds": [
                     cat_id
                     for c in self.catalogs
@@ -91,8 +100,8 @@ class MessageProcessor:
         return capabilities
 
     def get_renderer_data_model(
-        self, version: Union[str, ProtocolVersion] = ProtocolVersion.V0_9
-    ) -> Optional[Dict[str, Any]]:
+        self, version: str | ProtocolVersion = ProtocolVersion.V0_9
+    ) -> dict[str, Any] | None:
         """Aggregates active renderer data models for sync metadata."""
         surfaces = {}
         for surface in self.model.surfaces.values():
@@ -190,14 +199,14 @@ class MessageProcessor:
         if not isinstance(components, list):
             raise A2uiValidationError("Components payload must be a list.")
 
-        component_catalogs: Dict[str, Catalog[Any, Any]] = {}
+        component_catalogs: dict[str, Catalog[Any, Any]] = {}
         for comp in components:
             comp_dict = (
                 comp
                 if isinstance(comp, dict)
                 else comp.model_dump(by_alias=True, exclude_none=True)
                 if hasattr(comp, "model_dump")
-                else cast(Dict[str, Any], comp)
+                else cast(dict[str, Any], comp)
             )
             comp_id = comp_dict.get("id")
             if not comp_id:
@@ -223,14 +232,14 @@ class MessageProcessor:
                     f"Cannot create component {comp_id} without a type."
                 )
 
-        new_component_models: List[ComponentModel] = []
+        new_component_models: list[ComponentModel] = []
         for comp in components:
             comp_dict = (
                 comp
                 if isinstance(comp, dict)
                 else comp.model_dump(by_alias=True, exclude_none=True)
                 if hasattr(comp, "model_dump")
-                else cast(Dict[str, Any], comp)
+                else cast(dict[str, Any], comp)
             )
             c_id = cast(str, comp_dict.get("id"))
             existing = surface.components_model.get(c_id)

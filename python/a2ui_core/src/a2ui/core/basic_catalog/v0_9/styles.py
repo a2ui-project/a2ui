@@ -14,13 +14,14 @@
 
 # Auto-generated. Do not edit manually.
 from __future__ import annotations
-from typing import Any, Dict, Optional
+from typing import Any
 from pydantic import BaseModel, Field, ConfigDict
+from ...schema.common_types import StrictBaseModel
 
 
 class Theme(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
-    primary_color: Optional[str] = Field(
+    primary_color: str | None = Field(
         None,
         alias="primaryColor",
         description=(
@@ -30,7 +31,7 @@ class Theme(BaseModel):
         ),
         pattern=r"^#[0-9a-fA-F]{6}$",
     )
-    icon_url: Optional[str] = Field(
+    icon_url: str | None = Field(
         None,
         alias="iconUrl",
         description=(
@@ -38,7 +39,7 @@ class Theme(BaseModel):
             " surface."
         ),
     )
-    agent_display_name: Optional[str] = Field(
+    agent_display_name: str | None = Field(
         None,
         alias="agentDisplayName",
         description=(
