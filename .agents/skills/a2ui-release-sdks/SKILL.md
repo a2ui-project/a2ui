@@ -104,9 +104,14 @@ Emit status summary to the user: _"Package `<name>` is fully up to date."_ No ac
    git checkout -b release/sdks-$(date +%Y-%m-%d)
    ```
 
-2. **Reconcile Release Notes & Select SemVer Bump**:
-   - **Git Reconciliation Check**: Run `git log` on the package directory since the previous release commit/tag. Scan for significant PRs or commits (`feat:`, `fix:`, `refactor:`, `BREAKING CHANGE:`) that are NOT yet listed under `## Unreleased` in `CHANGELOG.md`. Append any missing items to `CHANGELOG.md` to ensure full release notes coverage.
-   - **SemVer Determination**: Inspect all items under `## Unreleased` (both pre-existing and newly reconciled). If any entry contains `BREAKING CHANGE:`, bump **MINOR** version for pre-1.0 (`0.10.x` -> `0.11.0`) or **MAJOR** for post-1.0 (`1.x.y` -> `2.0.0`). Otherwise, bump **PATCH** version (`0.10.x` -> `0.10.y`).
+2. **Audit Release Notes & Select SemVer Bump**:
+   - **Human-Maintained Notes**: `CHANGELOG.md` files are human-written. Maintainers and AI agents append entries under `## Unreleased` using **EXACTLY ONE** of the two canonical syntaxes (no fuzzy matching):
+     - **Option 1 (Subheadings)**: `### Breaking Changes`, `### Features`, `### Bug Fixes`
+     - **Option 2 (Prefixes)**: `- BREAKING CHANGE: ...`, `- FEAT: ...`, `- FIX: ...`
+   - **SemVer Determination**: Inspect items under `## Unreleased`.
+     - `### Breaking Changes` / `BREAKING CHANGE:` -> Bump **MINOR** for pre-1.0 (`0.10.x` -> `0.11.0`) or **MAJOR** for post-1.0 (`1.x.y` -> `2.0.0`).
+     - `### Features` / `FEAT:` -> Bump **MINOR** (`0.10.x` -> `0.11.0` pre-1.0; `1.x.y` -> `1.y+1.0` post-1.0).
+     - `### Bug Fixes` / `FIX:` (or standard bug fixes) -> Bump **PATCH** (`0.10.x` -> `0.10.y`).
    - **Update Version Header**: Rename `## Unreleased` to `## <new_version>` and insert a fresh `## Unreleased` header above it.
    - **Update Version Identifiers**:
      - **TypeScript**: Edit `"version": "<new_version>"` directly in package `package.json`.

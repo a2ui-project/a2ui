@@ -109,26 +109,34 @@ gh auth login
 
 Every publishable package maintains a `CHANGELOG.md` file in its package root directory (e.g., `renderers/web_core/CHANGELOG.md`, `agent_sdks/python/a2ui_agent/CHANGELOG.md`).
 
-### Structure & Conventions
+### Strict Canonical Syntaxes (Zero Fuzzy Matching)
+
+Developers MUST format items under `## Unreleased` using **EXACTLY ONE** of the two canonical syntaxes below:
+
+#### Option 1: Subheading Section Syntax (Recommended)
 
 ```markdown
 ## Unreleased
 
-- Add new feature X [#123]
-- BREAKING CHANGE: Rename API parameter Y to Z [#124]
+### Breaking Changes
+- Rename API parameter Y to Z [#124]
 
-## 0.10.6
+### Features
+- Add support for custom layout binders [#130]
 
-- Previous release notes...
+### Bug Fixes
+- Fix DateTimeInput styling on WebKit [#2200]
 ```
 
-### Protocol During Feature Development
+#### Option 2: Strict Line Prefix Syntax
 
-When adding features or fixing bugs in feature PRs, developers append bullet points directly under `## Unreleased`.
+```markdown
+## Unreleased
 
-### Breaking Change Convention
-
-Any breaking change entry in `CHANGELOG.md` MUST start with `BREAKING CHANGE:` or `- BREAKING CHANGE: <description>`.
+- BREAKING CHANGE: Rename API parameter Y to Z [#124]
+- FEAT: Add support for custom layout binders [#130]
+- FIX: Fix DateTimeInput styling on WebKit [#2200]
+```
 
 ### Pre-Release Git Reconciliation Protocol
 
