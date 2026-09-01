@@ -306,15 +306,13 @@ To guarantee reliable execution across developer workstations and automated CI/C
 - **Native `secrets.GITHUB_TOKEN`**: The workflow uses GitHub's built-in `GITHUB_TOKEN` (`permissions: contents: write, pull-requests: write`). Pull Requests opened by the workflow are authored by `github-actions[bot]` (`41898282+github-actions[bot]@users.noreply.github.com`).
 - **Optional Dedicated GitHub App**: Repositories seeking custom bot names (e.g. `a2ui-release-bot[bot]`) can configure a dedicated GitHub App using `actions/create-github-app-token` with repository secrets `RELEASE_BOT_APP_ID` and `RELEASE_BOT_PRIVATE_KEY`.
 
-### 3. OSS Exit Gate v1.5.0 Keyless WIF Integration
+3. **OSS Exit Gate v1.5.0 Keyless WIF Integration**
 
 The publishing workflow (`.github/workflows/publish-tag.yml`) integrates directly with Google's **OSS Exit Gate v1.5.0**:
 
-1. **Builder Registration**:
-   The workflow is registered as an authorized builder in the Exit Gate project configuration (`project.txtpb`):
-   ```textproto
-   builders: "github_workflow:a2ui-project/a2ui/.github/workflows/publish-tag.yml@refs/heads/main"
-   ```
+1. **Builder Identity Registration**:
+   The workflow runner is registered as an authorized builder:
+   `github_workflow:a2ui-project/a2ui/.github/workflows/publish-tag.yml@refs/heads/main`
 2. **Keyless OIDC Workload Identity Federation (WIF)**:
    The workflow authenticates using `google-github-actions/auth@v2` (`id-token: write`):
    ```yaml
@@ -325,16 +323,16 @@ The publishing workflow (`.github/workflows/publish-tag.yml`) integrates directl
    ```
 3. **Artifact Registry Staging & Manifest Triggering**:
    - Builds production wheels and npm packages.
-   - Uploads artifacts to internal Artifact Registry repositories (`https://us-python.pkg.dev/oss-exit-gate-prod/a2ui--pypi`, `https://us-npm.pkg.dev/oss-exit-gate-prod/a2ui--npm`).
+   - Uploads artifacts to Artifact Registry staging repositories (`https://us-python.pkg.dev/oss-exit-gate-prod/a2ui--pypi`, `https://us-npm.pkg.dev/oss-exit-gate-prod/a2ui--npm`).
    - Generates `manifest.json` (`{ "publish_all": true }`) and uploads it to GCS (`gs://oss-exit-gate-prod-projects-bucket/a2ui/<registry>/manifests/manifest-${VERSION}.json`).
 4. **Automated Verification & External Publication**:
-   The OSS Exit Gate verifies the WIF identity, evaluates BCID compliance policy, and publishes the package to public registries (PyPI, npm, GitHub Releases) under monitored Google infrastructure.
+   The OSS Exit Gate verifies the WIF identity, evaluates compliance policy, and publishes the package to public registries (PyPI, npm, GitHub Releases) under monitored Google infrastructure.
 
 ---
 
 ## 9. One-Time Setup & Configuration Checklist (GitHub & Google Infra)
 
-To activate the automated release system, maintainers complete the following one-time configuration across GitHub repository settings, Google Cloud infrastructure, and the OSS Exit Gate:
+To activate the automated release system, maintainers complete the following one-time configuration across GitHub repository settings and Google Cloud infrastructure:
 
 ### 1. GitHub Repository Settings (`github.com/a2ui-project/a2ui`)
 
@@ -351,35 +349,14 @@ To activate the automated release system, maintainers complete the following one
      - `GCP_WORKLOAD_IDENTITY_PROVIDER`: `projects/305452601764/locations/global/workloadIdentityPools/builders/providers/github`
      - `GCP_SERVICE_ACCOUNT`: `a2ui-py@oss-exit-gate-prod.iam.gserviceaccount.com`
 
-### 2. Google Cloud Infrastructure & OSS Exit Gate (Piper / Google3)
+### 2. Google Cloud Infrastructure & OSS Exit Gate Onboarding
 
-1. **Project Onboarding via `usercli`**:
-   Execute the OSS Exit Gate CLI to configure `a2ui` project publishing rules:
-   ```bash
-   /google/bin/releases/ossexitgate-user-cli/usercli create-project \
-     --project_name=a2ui \
-     --package_registry=pypi \
-     --environment=prod \
-     --builders="github_workflow:a2ui-project/a2ui/.github/workflows/publish-tag.yml@refs/heads/main"
-   ```
-2. **Register Builder Workflow in `project.txtpb`**:
-   In `configs/security/opensource/exit_gate/prod/projects/a2ui/project.txtpb`, verify builder registration:
-   ```textproto
-   builders: "github_workflow:a2ui-project/a2ui/.github/workflows/publish-tag.yml@refs/heads/main"
-   ```
-3. **Grant Buganizer Component Access**:
-   Grant Issue Viewer access to the presubmit role:
-   ```bash
-   /google/bin/releases/buganizer/public/buganizer_admin \
-     --component_id=<component_id> \
-     --action=add \
-     --field=view \
-     --user=oss-exit-gate-creds-compliant@prod.google.com \
-     --use_prod=True
-   ```
-4. **PyPI & npm Registry Credentials**:
+1. **OSS Exit Gate Project Onboarding**:
+   Onboard the `a2ui` project via the OSS Exit Gate onboarding workflow and register the GitHub Actions builder identity:
+   `github_workflow:a2ui-project/a2ui/.github/workflows/publish-tag.yml@refs/heads/main`
+2. **PyPI & npm Registry Credentials**:
    - **PyPI**: Add `a2ui-py@oss-exit-gate-prod.iam.gserviceaccount.com` as a Trusted Publisher on PyPI (leave Subject blank).
-   - **npm**: Store npm publishing tokens in Secret Manager under GCP project `oss-exit-gate-prod`.
+   - **npm**: Store npm publishing tokens in Google Secret Manager under project `oss-exit-gate-prod`.
 
 ### 3. Baseline Tag Bootstrapping (One-Time Command Execution)
 
