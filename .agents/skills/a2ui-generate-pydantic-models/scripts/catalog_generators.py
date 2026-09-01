@@ -265,12 +265,24 @@ def generate_basic_catalog_functions(
         if not ret_type_val:
             ret_type_val = "boolean"
 
+        requires_user_activation = fschema.get("requiresUserActivation")
+        if requires_user_activation is None:
+            req_act_prop = fprops.get("requiresUserActivation")
+            if isinstance(req_act_prop, bool):
+                requires_user_activation = req_act_prop
+            elif isinstance(req_act_prop, dict):
+                requires_user_activation = req_act_prop.get("const") or (
+                    req_act_prop.get("enum", [False])[0]
+                )
+
         func_class_lines = [
             f"class {func_class_name}(FunctionApi):",
             f'    name = "{fname}"',
             f"    schema = {args_class_name}",
             f'    return_type = "{ret_type_val}"',
         ]
+        if requires_user_activation:
+            func_class_lines.append("    requires_user_activation = True")
         func_blocks.append("\n".join(func_class_lines))
         names.append(func_class_name)
         if not allowed_funcs or fname in allowed_funcs:
