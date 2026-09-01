@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.10.7
+
 - (v0_9) The child-reference marker on `ComponentIdSchema` and `ChildListSchema` now lives in the schema's metadata, so `.describe()` and other schema-rebuilding methods no longer drop it. Hand-authored `REF:` descriptions are still recognized ([#2393](https://github.com/a2ui-project/a2ui/pull/2393)).
 
 - (v0_9) Add the node layer: `NodeResolver` resolves a surface's components and data into a live tree of read-only `ComponentNode`s, with dynamic properties resolved to `ResolvedBinding`/`WritableBinding` and distinct pending, unknown-type, and cyclic placeholder states. Sibling instance ids are always distinct, unresolvable and cyclic references are reported through `onError` once per component and data path while the condition persists, model events delivered late reconcile against current model state, and child-reference detection covers `ChildList` unions and plain arrays of component ids ([#2077](https://github.com/a2ui-project/a2ui/pull/2077), [#2393](https://github.com/a2ui-project/a2ui/pull/2393)).
