@@ -329,3 +329,73 @@ The publishing workflow (`.github/workflows/publish-tag.yml`) integrates directl
    - Generates `manifest.json` (`{ "publish_all": true }`) and uploads it to GCS (`gs://oss-exit-gate-prod-projects-bucket/a2ui/<registry>/manifests/manifest-${VERSION}.json`).
 4. **Automated Verification & External Publication**:
    The OSS Exit Gate verifies the WIF identity, evaluates BCID compliance policy, and publishes the package to public registries (PyPI, npm, GitHub Releases) under monitored Google infrastructure.
+
+---
+
+## 9. One-Time Setup & Configuration Checklist (GitHub & Google Infra)
+
+To activate the automated release system, maintainers complete the following one-time configuration across GitHub repository settings, Google Cloud infrastructure, and the OSS Exit Gate:
+
+### 1. GitHub Repository Settings (`github.com/a2ui-project/a2ui`)
+
+1. **Actions Permissions**:
+   - Navigate to **Settings** -> **Actions** -> **General** -> **Workflow permissions**.
+   - Select **Read and write permissions** (enables `github-actions[bot]` to push release branches, tags, and PRs).
+   - Check **Allow GitHub Actions to create and approve pull requests**.
+2. **Branch Protection Rules**:
+   - Navigate to **Settings** -> **Branches** -> **Add branch protection rule** for `main`.
+   - Enable **Require status checks to pass before merging** (select `Python CI`, `Presubmit Lint`).
+3. **Optional Repository Secrets**:
+   - Navigate to **Settings** -> **Secrets and variables** -> **Actions**.
+   - If using custom GCP Workload Identity pools (outside default OSS Exit Gate pool), add:
+     - `GCP_WORKLOAD_IDENTITY_PROVIDER`: `projects/305452601764/locations/global/workloadIdentityPools/builders/providers/github`
+     - `GCP_SERVICE_ACCOUNT`: `a2ui-py@oss-exit-gate-prod.iam.gserviceaccount.com`
+
+### 2. Google Cloud Infrastructure & OSS Exit Gate (Piper / Google3)
+
+1. **Project Onboarding via `usercli`**:
+   Execute the OSS Exit Gate CLI to configure `a2ui` project publishing rules:
+   ```bash
+   /google/bin/releases/ossexitgate-user-cli/usercli create-project \
+     --project_name=a2ui \
+     --package_registry=pypi \
+     --environment=prod \
+     --builders="github_workflow:a2ui-project/a2ui/.github/workflows/publish-tag.yml@refs/heads/main"
+   ```
+2. **Register Builder Workflow in `project.txtpb`**:
+   In `configs/security/opensource/exit_gate/prod/projects/a2ui/project.txtpb`, verify builder registration:
+   ```textproto
+   builders: "github_workflow:a2ui-project/a2ui/.github/workflows/publish-tag.yml@refs/heads/main"
+   ```
+3. **Grant Buganizer Component Access**:
+   Grant Issue Viewer access to the presubmit role:
+   ```bash
+   /google/bin/releases/buganizer/public/buganizer_admin \
+     --component_id=<component_id> \
+     --action=add \
+     --field=view \
+     --user=oss-exit-gate-creds-compliant@prod.google.com \
+     --use_prod=True
+   ```
+4. **PyPI & npm Registry Credentials**:
+   - **PyPI**: Add `a2ui-py@oss-exit-gate-prod.iam.gserviceaccount.com` as a Trusted Publisher on PyPI (leave Subject blank).
+   - **npm**: Store npm publishing tokens in Secret Manager under GCP project `oss-exit-gate-prod`.
+
+### 3. Baseline Tag Bootstrapping (One-Time Command Execution)
+
+Maintainers run the following commands once on `main` to set initial Git tag baselines for existing published packages:
+
+```bash
+# JavaScript baseline tags
+git tag javascript/web_core/v0.10.7 HEAD
+git tag javascript/lit/v0.10.4 HEAD
+git tag javascript/angular/v0.10.6 HEAD
+git tag javascript/react/v0.11.0 HEAD
+git tag javascript/markdown-it/v0.1.1 HEAD
+
+# Python baseline tags
+git tag python/a2ui_core/v0.1.1 HEAD
+git tag python/a2ui_agent/v0.5.0 HEAD
+
+git push upstream --tags
+```
