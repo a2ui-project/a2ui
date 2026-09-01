@@ -87,7 +87,7 @@ describe('Catalog.catalogSchema & schema_generator', () => {
     assert.deepStrictEqual(components['Container'].allowedChildren, ['Text', 'Container']);
     // Verify REF marker processing
     assert.deepStrictEqual(components['Container'].properties.children, {
-      $ref: 'common_types.json#/$defs/ChildList',
+      $ref: '#/$defs/ChildList',
       description: 'List of children',
     });
 
@@ -96,11 +96,7 @@ describe('Catalog.catalogSchema & schema_generator', () => {
     assert.ok(functions);
     assert.ok(functions['greet']);
     assert.strictEqual(functions['greet'].description, 'Greets the user');
-    assert.strictEqual(functions['greet'].returnType, 'string');
-    assert.strictEqual(functions['greet'].allowedCallers, 'rendererOnly');
-    assert.strictEqual(functions['greet'].requiresUserActivation, true);
-    assert.deepStrictEqual(functions['greet'].properties.call, {const: 'greet'});
-    assert.ok(functions['greet'].properties.args.properties.name);
+    assert.ok(functions['greet'].properties.name);
 
     // Verify $defs
     const defs = schema['$defs'] as Record<string, any>;
@@ -168,10 +164,7 @@ describe('Catalog.catalogSchema & schema_generator', () => {
 
     const functions = generated['functions'] as Record<string, any>;
     assert.ok(functions['calculateTotal']);
-    assert.strictEqual(functions['calculateTotal'].returnType, 'number');
-    assert.strictEqual(functions['calculateTotal'].allowedCallers, 'agentOnly');
-    assert.strictEqual(functions['calculateTotal'].requiresUserActivation, false);
-    assert.deepStrictEqual(functions['calculateTotal'].properties.call, {const: 'calculateTotal'});
+    assert.ok(functions['calculateTotal'].properties.subtotal);
 
     const defs = generated['$defs'] as Record<string, any>;
     assert.deepStrictEqual(defs['anyComponent'], {
@@ -243,7 +236,7 @@ describe('Catalog.catalogSchema & schema_generator', () => {
     };
 
     cleanSchemaNode(node);
-    assert.strictEqual(node['$ref'], 'common_types.json#/$defs/DynamicString');
+    assert.strictEqual(node['$ref'], '#/$defs/DynamicString');
     assert.strictEqual(node['description'], 'Format: YYYY-MM-DD | ISO-8601');
     assert.strictEqual(node['type'], undefined);
   });
@@ -295,20 +288,22 @@ describe('Catalog.catalogSchema & schema_generator', () => {
     const schema = catalog.catalogSchema;
     const functions = schema['functions'] as Record<string, any>;
     assert.ok(functions['updateAddress']);
-    assert.strictEqual(functions['updateAddress'].properties.args.definitions, undefined);
-    assert.strictEqual(functions['updateAddress'].properties.args.$defs, undefined);
+    assert.strictEqual(functions['updateAddress'].definitions, undefined);
+    assert.strictEqual(functions['updateAddress'].$defs, undefined);
   });
 
-  it('emits unevaluatedProperties: false on flat components and themes', () => {
+  it('emits unevaluatedProperties: false on flat components and preserves theme additionalProperties', () => {
     const SimpleWidget: ComponentApi = {
       name: 'SimpleWidget',
       schema: z.object({
         title: z.string(),
       }),
     };
-    const SimpleTheme = z.object({
-      primaryColor: z.string(),
-    });
+    const SimpleTheme = z
+      .object({
+        primaryColor: z.string(),
+      })
+      .passthrough();
 
     const catalog = new Catalog(
       'https://example.com/unevaluated.json',
@@ -321,7 +316,7 @@ describe('Catalog.catalogSchema & schema_generator', () => {
     const defs = schema['$defs'] as Record<string, any>;
 
     assert.strictEqual(components['SimpleWidget'].unevaluatedProperties, false);
-    assert.strictEqual(defs['theme'].unevaluatedProperties, false);
+    assert.strictEqual(defs['theme'].additionalProperties, true);
   });
 
   it('emits unevaluatedProperties: false at the root of allOf when componentEnvelopeRef is used', () => {
@@ -342,5 +337,49 @@ describe('Catalog.catalogSchema & schema_generator', () => {
     assert.ok(Array.isArray(widget.allOf));
     assert.strictEqual(widget.unevaluatedProperties, false);
     assert.strictEqual(widget.allOf[1].additionalProperties, undefined);
+  });
+
+  it('respects explicit protocolVersion in GenerateCatalogSchemaOptions for non-standard catalog IDs', () => {
+    const CustomWidget: ComponentApi = {
+      name: 'CustomWidget',
+      schema: z.object({
+        content: z.string().describe('REF:#/$defs/DynamicString'),
+      }),
+    };
+
+    const catalog = new Catalog('guid-550e8400-e29b-41d4-a716-446655440000', [CustomWidget]);
+    const v10Schema = generateCatalogSchema(catalog, {
+      protocolVersion: 'v1.0',
+    });
+    const v10Defs = v10Schema['$defs'] as Record<string, any>;
+    assert.ok(v10Defs);
+    assert.ok(v10Defs['DynamicString']);
+
+    const v08Schema = generateCatalogSchema(catalog, {
+      protocolVersion: 'v0.8',
+    });
+    const v08Defs = v08Schema['$defs'] as Record<string, any>;
+    assert.ok(v08Defs);
+  });
+
+  it('respects explicit standardDefs in GenerateCatalogSchemaOptions', () => {
+    const CustomWidget: ComponentApi = {
+      name: 'CustomWidget',
+      schema: z.object({
+        content: z.string().describe('REF:#/$defs/CustomType'),
+      }),
+    };
+
+    const customDefs = {
+      CustomType: {type: 'string', description: 'Explicit custom definition'},
+    };
+
+    const catalog = new Catalog('https://example.com/arbitrary-id', [CustomWidget]);
+    const schema = generateCatalogSchema(catalog, {
+      standardDefs: customDefs,
+    });
+    const defs = schema['$defs'] as Record<string, any>;
+    assert.ok(defs);
+    assert.deepStrictEqual(defs.CustomType, customDefs.CustomType);
   });
 });

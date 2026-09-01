@@ -33,7 +33,7 @@ import {
   InternalDeleteSurfaceOp,
 } from './operations.js';
 
-import {ProtocolVersion, VersionAdapter} from './adapters/base.js';
+import {ProtocolVersion, VersionAdapterResolver} from './adapters/base.js';
 import {RendererCapabilities} from '../v1_0/schema/index.js';
 import {
   getComponentReferences,
@@ -45,14 +45,6 @@ import {
 
 export type {RendererCapabilities, ValidationConfig};
 export {STRICT_VALIDATION, RELAXED_VALIDATION};
-
-/**
- * Interface for version adapter resolution services.
- */
-export interface VersionAdapterResolver {
-  getAdapter(version: string): VersionAdapter;
-  resolveFromPayload(payload: unknown): VersionAdapter;
-}
 
 /**
  * Options for generating renderer capabilities.

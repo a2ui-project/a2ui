@@ -25,6 +25,16 @@ import {formatZodIssue} from '../message-processor.js';
 export type ProtocolVersion = 'v0.8' | 'v0.9' | 'v0.9.1' | 'v1.0' | (string & {});
 
 /**
+ * Resolves a version adapter for a given protocol version or raw payload.
+ */
+export interface VersionAdapterResolver {
+  /** Resolves an adapter by protocol version string. */
+  getAdapter(version: ProtocolVersion | string): VersionAdapter;
+  /** Resolves an adapter from a raw message payload. */
+  resolveFromPayload(payload: unknown): VersionAdapter;
+}
+
+/**
  * Isolates protocol syntax differences across specification versions.
  */
 export interface VersionAdapter {
@@ -40,6 +50,37 @@ export interface VersionAdapter {
   extractOperations(payload: unknown): InternalOperation[];
 }
 
+const ALL_KNOWN_ACTION_KEYS = [
+  'beginRendering',
+  'surfaceUpdate',
+  'dataModelUpdate',
+  'createSurface',
+  'updateComponents',
+  'updateDataModel',
+  'deleteSurface',
+  'callRendererFunction',
+  'agentFunctionResponse',
+] as const;
+
+function validateActionSurfaceIds(
+  msgObj: Record<string, unknown>,
+  actionKeys: readonly string[],
+): void {
+  for (const key of actionKeys) {
+    const actionVal = msgObj[key];
+    if (actionVal && typeof actionVal === 'object') {
+      const actionObj = actionVal as Record<string, unknown>;
+      if (
+        'surfaceId' in actionObj &&
+        actionObj.surfaceId !== undefined &&
+        typeof actionObj.surfaceId !== 'string'
+      ) {
+        throw new A2uiValidationError('surfaceId must be a string');
+      }
+    }
+  }
+}
+
 /**
  * Base abstract class providing common payload unwrapping, Zod safeParse validation,
  * and error formatting for protocol version adapters.
@@ -47,6 +88,8 @@ export interface VersionAdapter {
 export abstract class BaseVersionAdapter implements VersionAdapter {
   abstract readonly version: ProtocolVersion;
   protected abstract readonly schema: z.ZodTypeAny;
+
+  protected abstract getNativeActionKeys(): string[];
 
   extractOperations(payload: unknown): InternalOperation[] {
     if (!payload || typeof payload !== 'object') return [];
@@ -56,6 +99,25 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
     const msgObj = payload as Record<string, unknown>;
     if (Array.isArray(msgObj.messages)) {
       return this.extractOperations(msgObj.messages);
+    }
+
+    validateActionSurfaceIds(msgObj, ALL_KNOWN_ACTION_KEYS);
+
+    const nativeActionKeys = this.getNativeActionKeys();
+    const presentNativeKeys = nativeActionKeys.filter(k => k in msgObj);
+    const presentOtherKnownKeys = ALL_KNOWN_ACTION_KEYS.filter(
+      k => !nativeActionKeys.includes(k) && k in msgObj,
+    );
+
+    if (presentNativeKeys.length > 1) {
+      throw new A2uiValidationError(
+        `Message contains multiple conflicting update actions: ${presentNativeKeys.join(', ')}.`,
+      );
+    }
+
+    // Ignore cross-version messages
+    if (presentNativeKeys.length === 0 && presentOtherKnownKeys.length > 0) {
+      return [];
     }
 
     const preparedPayload = this.preparePayloadForValidation(msgObj);

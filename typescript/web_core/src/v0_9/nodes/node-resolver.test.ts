@@ -41,6 +41,7 @@ import {
 } from '../schema/common-types.js';
 import {effect, getValue, peekValue, Signal} from '../../reactivity/signals.js';
 import * as v0_9 from '../index.js';
+import {V09_CHILD_REF_OPTIONS} from '../standard_defs.js';
 import {ComponentNode, NodeProps, PLACEHOLDER_TYPE, isComponentNode} from './component-node.js';
 import {NodeResolver} from './node-resolver.js';
 import {ResolvedBinding, isWritable} from './resolved-binding.js';
@@ -79,6 +80,9 @@ function makeCatalog() {
     'node-test-catalog',
     [TextApi, ButtonApi, CardApi, ColumnApi, TabsApi],
     [createFunctionImplementation(ShoutApi, args => String(args.value).toUpperCase())],
+    undefined,
+    undefined,
+    V09_CHILD_REF_OPTIONS,
   );
 }
 
@@ -252,7 +256,14 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
       name: 'PlainList',
       schema: z.object({children: z.array(ComponentIdSchema).optional()}),
     };
-    const catalog = new Catalog<ComponentApi>('plain-list-catalog', [TextApi, PlainListApi], []);
+    const catalog = new Catalog<ComponentApi>(
+      'plain-list-catalog',
+      [TextApi, PlainListApi],
+      [],
+      undefined,
+      undefined,
+      V09_CHILD_REF_OPTIONS,
+    );
     const surface = new SurfaceModel('surf-1', catalog);
     const resolver = new NodeResolver(surface, catalog);
     add(surface, 'root', 'PlainList', {children: ['a', 'b']});
@@ -278,7 +289,14 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
         items: ChildListSchema.optional(),
       }),
     };
-    const catalog = new Catalog<ComponentApi>('mimic-catalog', [TextApi, ColumnApi, PaneApi], []);
+    const catalog = new Catalog<ComponentApi>(
+      'mimic-catalog',
+      [TextApi, ColumnApi, PaneApi],
+      [],
+      undefined,
+      undefined,
+      V09_CHILD_REF_OPTIONS,
+    );
 
     // A sibling literally named 'a#2' next to duplicates of 'a'.
     {
@@ -327,7 +345,14 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
         'a>b': ComponentIdSchema.optional(),
       }),
     };
-    const catalog = new Catalog<ComponentApi>('tricky-catalog', [TextApi, TrickyApi], []);
+    const catalog = new Catalog<ComponentApi>(
+      'tricky-catalog',
+      [TextApi, TrickyApi],
+      [],
+      undefined,
+      undefined,
+      V09_CHILD_REF_OPTIONS,
+    );
     const surface = new SurfaceModel('surf-1', catalog);
     const resolver = new NodeResolver(surface, catalog);
     add(surface, 'root', 'Tricky', {'a': 'b>c', 'a>b': 'c'});
@@ -795,7 +820,14 @@ describe('NodeResolver malformed and unusual payloads', () => {
       name: 'Text',
       schema: z.object({text: DynamicStringSchema.optional()}),
     };
-    const catalog = new Catalog<ComponentApi>('stale-root-catalog', [TextApi], []);
+    const catalog = new Catalog<ComponentApi>(
+      'stale-root-catalog',
+      [TextApi],
+      [],
+      undefined,
+      undefined,
+      V09_CHILD_REF_OPTIONS,
+    );
     const surface = new SurfaceModel('surf-1', catalog);
     surface.componentsModel.onCreated.subscribe(async () => {
       await Promise.resolve();
@@ -950,7 +982,14 @@ describe('NodeResolver absent dynamic properties', () => {
           .optional(),
       }),
     };
-    const catalog = new Catalog<ComponentApi>('group-catalog', [GroupApi], []);
+    const catalog = new Catalog<ComponentApi>(
+      'group-catalog',
+      [GroupApi],
+      [],
+      undefined,
+      undefined,
+      V09_CHILD_REF_OPTIONS,
+    );
     const surface = new SurfaceModel('surf-1', catalog);
     const resolver = new NodeResolver(surface, catalog);
     add(surface, 'root', 'Group', {group: {label: 'x'}});
@@ -977,7 +1016,14 @@ describe('NodeResolver child markers survive schema description', () => {
       schema: z.object({child: ComponentIdSchema.describe('The child to show.').optional()}),
     };
     const TextApi = {name: 'Text', schema: z.object({text: DynamicStringSchema.optional()})};
-    const catalog = new Catalog<ComponentApi>('described-catalog', [Api, TextApi], []);
+    const catalog = new Catalog<ComponentApi>(
+      'described-catalog',
+      [Api, TextApi],
+      [],
+      undefined,
+      undefined,
+      V09_CHILD_REF_OPTIONS,
+    );
     const surface = new SurfaceModel('surf-1', catalog);
     const resolver = new NodeResolver(surface, catalog);
     add(surface, 'root', 'DescribedCard', {child: 'kid'});
@@ -997,7 +1043,14 @@ describe('NodeResolver child markers survive schema description', () => {
       schema: z.object({children: ChildListSchema.describe('The children.').optional()}),
     };
     const TextApi = {name: 'Text', schema: z.object({text: DynamicStringSchema.optional()})};
-    const catalog = new Catalog<ComponentApi>('described-catalog', [Api, TextApi], []);
+    const catalog = new Catalog<ComponentApi>(
+      'described-catalog',
+      [Api, TextApi],
+      [],
+      undefined,
+      undefined,
+      V09_CHILD_REF_OPTIONS,
+    );
     const surface = new SurfaceModel('surf-1', catalog);
     const resolver = new NodeResolver(surface, catalog);
     add(surface, 'root', 'DescribedColumn', {children: ['a', 'b']});
@@ -1023,7 +1076,14 @@ describe('NodeResolver child markers survive schema description', () => {
       }),
     };
     const TextApi = {name: 'Text', schema: z.object({text: DynamicStringSchema.optional()})};
-    const catalog = new Catalog<ComponentApi>('hand-catalog', [Api, TextApi], []);
+    const catalog = new Catalog<ComponentApi>(
+      'hand-catalog',
+      [Api, TextApi],
+      [],
+      undefined,
+      undefined,
+      V09_CHILD_REF_OPTIONS,
+    );
     const surface = new SurfaceModel('surf-1', catalog);
     const resolver = new NodeResolver(surface, catalog);
     add(surface, 'root', 'HandAuthored', {child: 'kid'});

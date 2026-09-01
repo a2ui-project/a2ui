@@ -28,14 +28,19 @@ import {
 import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
 import {Catalog} from '../catalog/types.js';
 import {BASIC_COMPONENTS} from '../v1_0/basic_catalog/components/basic_components.js';
+import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
+import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {z} from 'zod';
 
 describe('Integrity Verification', () => {
   describe('getComponentReferences', () => {
     it('extracts references from container components', () => {
       const refMap = {
-        Container: [new Set(['singleChild', 'nestedObj']), new Set(['childrenList', 'tabs'])],
-      } as const;
+        Container: {
+          singleRefs: new Set(['singleChild', 'nestedObj']),
+          listRefs: new Set(['childrenList', 'tabs']),
+        },
+      };
 
       const comp = {
         id: 'c1',
@@ -63,7 +68,7 @@ describe('Integrity Verification', () => {
 
   describe('validateComponentIntegrity', () => {
     it('passes for valid component tree', () => {
-      const refMap = {Box: [new Set(['child']), new Set()]} as const;
+      const refMap = {Box: {singleRefs: new Set(['child']), listRefs: new Set<string>()}};
       const components = [
         {id: 'root', component: {Box: {child: 'c1'}}},
         {id: 'c1', component: {Box: {}}},
@@ -109,7 +114,7 @@ describe('Integrity Verification', () => {
     });
 
     it('throws on dangling component reference', () => {
-      const refMap = {Box: [new Set(['child']), new Set()]} as const;
+      const refMap = {Box: {singleRefs: new Set(['child']), listRefs: new Set<string>()}};
       const components = [{id: 'root', component: {Box: {child: 'nonexistent'}}}];
       assert.throws(
         () => validateComponentIntegrity(components, refMap as any),
@@ -120,7 +125,14 @@ describe('Integrity Verification', () => {
     });
 
     it('enforces missing root even when allowDanglingReferences is true', () => {
-      const basicCatalog = new Catalog('basic', BASIC_COMPONENTS);
+      const basicCatalog = new Catalog(
+        'basic',
+        BASIC_COMPONENTS,
+        [],
+        undefined,
+        undefined,
+        V10_CHILD_REF_OPTIONS,
+      );
       const components = [{id: 'c1', component: 'Text', text: 'No root'}];
       assert.throws(
         () =>
@@ -141,7 +153,14 @@ describe('Integrity Verification', () => {
           bodyItems: z.array(z.string()).describe('ChildList'),
         }),
       };
-      const customCat = new Catalog('custom-cat', [customDrawerApi]);
+      const customCat = new Catalog(
+        'custom-cat',
+        [customDrawerApi],
+        [],
+        undefined,
+        undefined,
+        V09_CHILD_REF_OPTIONS,
+      );
       const components = [
         {id: 'root', component: 'CustomDrawer', header: 'c1', bodyItems: ['c2', 'c3']},
         {id: 'c1', component: 'Text', text: 'Header'},
@@ -153,22 +172,36 @@ describe('Integrity Verification', () => {
     });
 
     it('validates components across multiple catalogs', () => {
-      const catalogA = new Catalog('cat-a', [
-        {
-          name: 'BoxA',
-          schema: z.object({childSlot: z.string().describe('ChildComponentId')}),
-        },
-      ]);
-      const catalogB = new Catalog('cat-b', [
-        {
-          name: 'BoxB',
-          schema: z.object({contentSlot: z.string().describe('ChildComponentId')}),
-        },
-        {
-          name: 'LeafB',
-          schema: z.object({text: z.string()}),
-        },
-      ]);
+      const catalogA = new Catalog(
+        'cat-a',
+        [
+          {
+            name: 'BoxA',
+            schema: z.object({childSlot: z.string().describe('ChildComponentId')}),
+          },
+        ],
+        [],
+        undefined,
+        undefined,
+        V09_CHILD_REF_OPTIONS,
+      );
+      const catalogB = new Catalog(
+        'cat-b',
+        [
+          {
+            name: 'BoxB',
+            schema: z.object({contentSlot: z.string().describe('ChildComponentId')}),
+          },
+          {
+            name: 'LeafB',
+            schema: z.object({text: z.string()}),
+          },
+        ],
+        [],
+        undefined,
+        undefined,
+        V09_CHILD_REF_OPTIONS,
+      );
 
       const components = [
         {id: 'root', component: 'BoxA', catalogId: 'cat-a', childSlot: 'node-b'},

@@ -151,9 +151,17 @@ function getFieldBehavior(type: z.ZodTypeAny, propertyName?: string): BehaviorNo
   return {type: 'STATIC'};
 }
 
-// --- Generic Binder ---
+type DynamicTypes =
+  | DataBinding
+  | FunctionCall
+  | {path: string}
+  | {call: string; catalogId?: string; args?: Record<string, any>; returnType?: any};
 
-type DynamicTypes = DataBinding | FunctionCall;
+type ActionLike =
+  | Action
+  | {event: {name: string; context?: Record<string, any>}}
+  | {functionCall: {call: string; catalogId?: string; args?: Record<string, any>}};
+
 type IsDynamic<T> = DataBinding extends NonNullable<T> ? true : false;
 
 /**
@@ -168,7 +176,7 @@ export interface ResolvedChildRef {
  * Maps raw Zod inferred types to their resolved runtime equivalents.
  * For example, an `Action` object becomes a callable `() => void` function.
  */
-export type ResolveA2uiProp<T> = [NonNullable<T>] extends [Action]
+export type ResolveA2uiProp<T> = [NonNullable<T>] extends [ActionLike]
   ? (() => void) | Extract<T, undefined>
   : [NonNullable<T>] extends [ChildList]
     ? (string | ResolvedChildRef)[] | Extract<T, undefined>

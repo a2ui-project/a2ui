@@ -15,62 +15,48 @@
  */
 
 import {
-  RequiredApi as RequiredV09Api,
-  RegexApi as RegexV09Api,
-  LengthApi as LengthV09Api,
-  NumericApi as NumericV09Api,
-  EmailApi as EmailV09Api,
-} from '../../v0_9/basic_catalog/functions/basic_functions_api.js';
+  RequiredApi,
+  RegexApi,
+  LengthApi,
+  NumericApi,
+  EmailApi,
+} from '../basic_catalog/functions/basic_functions_api.js';
+
+declare module '../../catalog/types.js' {
+  interface A2uiReturnTypeMap {
+    validationResult: {valid: boolean; message?: string};
+  }
+}
 
 /**
  * v1.0 required validation function.
  * Return type: 'validationResult'.
  */
-export const RequiredV1Point0Api = {
-  name: 'required' as const,
-  returnType: 'validationResult' as const,
-  schema: RequiredV09Api.schema,
-};
+export const RequiredV1Point0Api = RequiredApi;
 
 /**
  * v1.0 regex validation function.
  * Return type: 'validationResult'.
  */
-export const RegexV1Point0Api = {
-  name: 'regex' as const,
-  returnType: 'validationResult' as const,
-  schema: RegexV09Api.schema,
-};
+export const RegexV1Point0Api = RegexApi;
 
 /**
  * v1.0 length validation function.
  * Return type: 'validationResult'.
  */
-export const LengthV1Point0Api = {
-  name: 'length' as const,
-  returnType: 'validationResult' as const,
-  schema: LengthV09Api.schema,
-};
+export const LengthV1Point0Api = LengthApi;
 
 /**
  * v1.0 numeric validation function.
  * Return type: 'validationResult'.
  */
-export const NumericV1Point0Api = {
-  name: 'numeric' as const,
-  returnType: 'validationResult' as const,
-  schema: NumericV09Api.schema,
-};
+export const NumericV1Point0Api = NumericApi;
 
 /**
  * v1.0 email validation function.
  * Return type: 'validationResult'.
  */
-export const EmailV1Point0Api = {
-  name: 'email' as const,
-  returnType: 'validationResult' as const,
-  schema: EmailV09Api.schema,
-};
+export const EmailV1Point0Api = EmailApi;
 
 /**
  * v1.0 basic catalog validation APIs.

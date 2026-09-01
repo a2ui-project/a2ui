@@ -26,10 +26,11 @@ export type DataBindingType = z.infer<typeof DataBindingSchema>;
 export const FunctionCallSchema = z
   .object({
     'call': z.string().describe('The name of the function to call.'),
-    'args': z.record(z.any()).describe('Arguments passed to the function.'),
+    'catalogId': z.string().optional().describe('The ID of the catalog containing the function.'),
+    'args': z.record(z.any()).optional().describe('Arguments passed to the function.'),
     'returnType': z
-      .enum(['string', 'number', 'boolean', 'array', 'object', 'any', 'void'])
-      .default('boolean'),
+      .enum(['string', 'number', 'boolean', 'array', 'object', 'validationResult', 'any', 'void'])
+      .optional(),
   })
   .describe('Invokes a named function on the client.');
 export type FunctionCallType = z.infer<typeof FunctionCallSchema>;
@@ -62,6 +63,7 @@ export const DynamicValueSchema = z
     z.number(),
     z.boolean(),
     z.array(z.any()),
+    z.record(z.string(), z.any()),
     DataBindingSchema,
     FunctionCallSchema,
   ])

@@ -18,6 +18,7 @@
 // Generated from specification/ catalogs via scripts/generate-catalog-schemas.mjs
 import {z} from 'zod';
 import {
+  DataBindingSchema,
   DynamicBooleanSchema,
   DynamicNumberSchema,
   DynamicStringSchema,
@@ -29,7 +30,7 @@ import {
  */
 export const RequiredApi = {
   name: 'required' as const,
-  returnType: 'boolean' as const,
+  returnType: 'validationResult' as const,
   schema: z.object({
     'value': z
       .any()
@@ -43,7 +44,7 @@ export const RequiredApi = {
  */
 export const RegexApi = {
   name: 'regex' as const,
-  returnType: 'boolean' as const,
+  returnType: 'validationResult' as const,
   schema: z.object({
     'value': DynamicStringSchema.describe('REF:#/$defs/DynamicString'),
     'pattern': z.string().describe('The regex pattern to match against.'),
@@ -55,7 +56,7 @@ export const RegexApi = {
  */
 export const LengthApi = {
   name: 'length' as const,
-  returnType: 'boolean' as const,
+  returnType: 'validationResult' as const,
   schema: z.object({
     'value': DynamicStringSchema.describe('REF:#/$defs/DynamicString'),
     'min': z.number().int().describe('The minimum allowed length.').optional(),
@@ -68,7 +69,7 @@ export const LengthApi = {
  */
 export const NumericApi = {
   name: 'numeric' as const,
-  returnType: 'boolean' as const,
+  returnType: 'validationResult' as const,
   schema: z.object({
     'value': DynamicNumberSchema.describe('REF:#/$defs/DynamicNumber'),
     'min': z.number().describe('The minimum allowed value.').optional(),
@@ -81,14 +82,14 @@ export const NumericApi = {
  */
 export const EmailApi = {
   name: 'email' as const,
-  returnType: 'boolean' as const,
+  returnType: 'validationResult' as const,
   schema: z.object({
     'value': DynamicStringSchema.describe('REF:#/$defs/DynamicString'),
   }),
 };
 
 /**
- * Performs string interpolation of data model values and other functions in the catalog functions list and returns the resulting string. The value string can contain interpolated expressions in the `${expression}` format. Supported expression types include: JSON Pointer paths to the data model (e.g., `${/absolute/path}` or `${relative/path}`), and client-side function calls (e.g., `${now()}`). Function arguments must be named (e.g., `${formatDate(value:${/currentDate}, format:'MM-dd')}`). To include a literal `${` sequence, escape it as `\${`.
+ * Performs string interpolation of data model values and other functions in the catalog functions list and returns the resulting string. The value string can contain interpolated expressions in the `${expression}` format. Supported expression types include: JSON Pointer paths to the data model (e.g., `${/absolute/path}` or `${relative/path}`), and renderer-side function calls (e.g., `${now()}`). Function arguments must be named (e.g., `${formatDate(value:${/currentDate}, format:'MM-dd')}`). To include a literal `${` sequence, escape it as `\${`.
  */
 export const FormatStringApi = {
   name: 'formatString' as const,
@@ -181,13 +182,13 @@ export const PluralizeApi = {
 };
 
 /**
- * Opens the specified URL in a browser or handler. This function has no return value.
+ * Opens the specified URL in a browser or handler (requires user activation). This function has no return value.
  */
 export const OpenUrlApi = {
   name: 'openUrl' as const,
   returnType: 'void' as const,
   schema: z.object({
-    'url': z.string().describe('The URL to open.'),
+    'url': DataBindingSchema.describe('REF:#/$defs/DataBinding|The URL to open.'),
   }),
 };
 

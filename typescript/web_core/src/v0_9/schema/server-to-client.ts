@@ -15,7 +15,6 @@
  */
 
 import {z} from 'zod';
-import {AnyComponentSchema} from './common-types.js';
 
 /**
  * Supported protocol versions for this schema.
@@ -47,7 +46,7 @@ export const UpdateComponentsMessageSchema = z
       .object({
         surfaceId: z.string().describe('The unique identifier for the UI surface to be updated.'),
         components: z
-          .array(AnyComponentSchema)
+          .array(z.record(z.any()))
           .min(1)
           .describe('A list containing all UI components for the surface.'),
       })

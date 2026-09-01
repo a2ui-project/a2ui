@@ -96,13 +96,28 @@
   },
   "wireit": {
     "generate-zod-schemas": {
-      "command": "node scripts/generate-zod-schemas.mjs",
+      "command": "node scripts/generate-standard-defs.mjs && node scripts/generate-zod-schemas.mjs && node src/v0_9/scripts/generate-catalog.mjs && node src/v1_0/scripts/generate-catalog.mjs && prettier --write \"src/v0_8/standard_defs.ts\" \"src/v0_9/standard_defs.ts\" \"src/v1_0/standard_defs.ts\" \"src/v0_9/basic_catalog/components/basic_components.ts\" \"src/v0_9/basic_catalog/functions/basic_functions_api.ts\" \"src/v1_0/schema/*.ts\" \"src/v1_0/basic_catalog/components/basic_components.ts\" \"src/v1_0/basic_catalog/functions/basic_functions_api.ts\"",
       "files": [
+        "../../specification/v0_8/json/*.json",
+        "../../specification/v0_9/catalogs/**/*.json",
+        "../../specification/v0_9/json/*.json",
         "../../specification/v1_0/json/*.json",
-        "scripts/generate-zod-schemas.mjs"
+        "../../specification/v1_0/catalogs/**/*.json",
+        "scripts/generate-standard-defs.mjs",
+        "scripts/generate-zod-schemas.mjs",
+        "scripts/generate-catalog-schemas.mjs",
+        "src/v0_9/scripts/generate-catalog.mjs",
+        "src/v1_0/scripts/generate-catalog.mjs"
       ],
       "output": [
-        "src/v1_0/schema/*.ts"
+        "src/v0_8/standard_defs.ts",
+        "src/v0_9/standard_defs.ts",
+        "src/v1_0/standard_defs.ts",
+        "src/v0_9/basic_catalog/components/basic_components.ts",
+        "src/v0_9/basic_catalog/functions/basic_functions_api.ts",
+        "src/v1_0/schema/*.ts",
+        "src/v1_0/basic_catalog/components/basic_components.ts",
+        "src/v1_0/basic_catalog/functions/basic_functions_api.ts"
       ]
     },
     "copy-spec": {

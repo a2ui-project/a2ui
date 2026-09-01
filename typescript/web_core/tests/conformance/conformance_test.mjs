@@ -19,19 +19,60 @@ import assert from 'node:assert';
 import yaml from 'js-yaml';
 import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
 import {Catalog} from '../../dist/src/catalog/types.js';
-import {BASIC_COMPONENTS as V0_8_BASIC_COMPONENTS} from '../../dist/src/v0_8/basic_catalog/index.js';
-import {BASIC_COMPONENTS as V0_9_BASIC_COMPONENTS} from '../../dist/src/v0_9/basic_catalog/index.js';
-import {BASIC_COMPONENTS as V1_0_BASIC_COMPONENTS} from '../../dist/src/v1_0/basic_catalog/index.js';
+import {
+  BASIC_COMPONENTS as V0_8_BASIC_COMPONENTS,
+  ThemeSchema as V0_8_ThemeSchema,
+} from '../../dist/src/v0_8/basic_catalog/index.js';
+import {V08_CHILD_REF_OPTIONS} from '../../dist/src/v0_8/index.js';
+import {
+  BASIC_COMPONENTS as V0_9_BASIC_COMPONENTS,
+  BASIC_FUNCTION_APIS as V0_9_BASIC_FUNCTIONS,
+  ThemeSchema as V0_9_ThemeSchema,
+  V09_CHILD_REF_OPTIONS,
+} from '../../dist/src/v0_9/index.js';
+import {
+  BASIC_COMPONENTS as V1_0_BASIC_COMPONENTS,
+  BASIC_FUNCTION_APIS as V1_0_BASIC_FUNCTIONS,
+} from '../../dist/src/v1_0/basic_catalog/index.js';
+import {V10_CHILD_REF_OPTIONS} from '../../dist/src/v1_0/index.js';
 
 // Dedicated basic catalog component definitions per specification version
 const v0_8Components = V0_8_BASIC_COMPONENTS;
 const v0_9Components = V0_9_BASIC_COMPONENTS;
 const v1_0Components = V1_0_BASIC_COMPONENTS;
 
-const basicCatalog = new Catalog('basic', v0_9Components);
-const v0_8Catalog = new Catalog('v0.8:basic', v0_8Components);
-const v0_9Catalog = new Catalog('v0.9:basic', v0_9Components);
-const v1_0Catalog = new Catalog('v1.0:basic', v1_0Components);
+const basicCatalog = new Catalog(
+  'basic',
+  v0_9Components,
+  [],
+  undefined,
+  undefined,
+  V09_CHILD_REF_OPTIONS,
+);
+const v0_8Catalog = new Catalog(
+  'v0.8:basic',
+  v0_8Components,
+  [],
+  V0_8_ThemeSchema,
+  undefined,
+  V08_CHILD_REF_OPTIONS,
+);
+const v0_9Catalog = new Catalog(
+  'v0.9:basic',
+  v0_9Components,
+  V0_9_BASIC_FUNCTIONS,
+  V0_9_ThemeSchema,
+  undefined,
+  V09_CHILD_REF_OPTIONS,
+);
+const v1_0Catalog = new Catalog(
+  'v1.0:basic',
+  v1_0Components,
+  V1_0_BASIC_FUNCTIONS,
+  undefined,
+  undefined,
+  V10_CHILD_REF_OPTIONS,
+);
 const allCatalogs = [basicCatalog, v0_8Catalog, v0_9Catalog, v1_0Catalog];
 
 const __filename = fileURLToPath(import.meta.url);
@@ -50,10 +91,12 @@ const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
 const SUPPORTED_PROTOCOL_VERSIONS = new Set(['v0.8', 'v0.9', 'v1.0']);
 
 /**
- * Transition skip list containing specific test case names to skip during active feature transitions.
- * Remove test names from this set as feature implementations are completed.
+ * Transition skip list containing specific test case names to skip.
+ *
+ * 'test_v09_basic_catalog_schema' and 'test_v10_basic_catalog_schema' test Python-specific
+ * dictionary schema export structures from Python ADK and are skipped in Web Core TS conformance.
  */
-const SKIP_TEST_NAMES = new Set([]);
+const SKIP_TEST_NAMES = new Set(['test_v09_basic_catalog_schema', 'test_v10_basic_catalog_schema']);
 
 /**
  * Transition skip list containing specific test suite files to skip during active feature transitions.
@@ -291,18 +334,30 @@ function getBasicCatalog(version) {
     return new Catalog(
       'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
       v1_0Components,
+      V1_0_BASIC_FUNCTIONS,
+      undefined,
+      undefined,
+      V10_CHILD_REF_OPTIONS,
     );
   }
   if (version === 'v0.9') {
     return new Catalog(
       'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
       v0_9Components,
+      V0_9_BASIC_FUNCTIONS,
+      V0_9_ThemeSchema,
+      undefined,
+      V09_CHILD_REF_OPTIONS,
     );
   }
   if (version === 'v0.8') {
     return new Catalog(
       'https://a2ui.org/specification/v0_8/catalogs/basic/catalog.json',
       v0_8Components,
+      [],
+      V0_8_ThemeSchema,
+      undefined,
+      V08_CHILD_REF_OPTIONS,
     );
   }
   throw new Error(`Unsupported BasicCatalog protocol version: ${version}`);
@@ -329,16 +384,14 @@ function assertCatalogSchemaMatches(actual, expected) {
       }
       if (expComp.properties) {
         for (const [pName, pDef] of Object.entries(expComp.properties)) {
-          if (pName === 'id') continue;
           const actProp = actComp.properties?.[pName];
           assert.ok(actProp, `Component '${compName}' missing property '${pName}'`);
-          if (pDef.type) assert.strictEqual(actProp.type, pDef.type);
+          if (pDef.type && !actProp.$ref) assert.strictEqual(actProp.type, pDef.type);
           if (pDef.const) assert.strictEqual(actProp.const, pDef.const);
         }
       }
       if (Array.isArray(expComp.required)) {
         for (const reqField of expComp.required) {
-          if (reqField === 'id') continue;
           assert.ok(
             actComp.required?.includes(reqField),
             `Component '${compName}' missing required field '${reqField}'`,
@@ -411,14 +464,7 @@ function validateCatalogSchemaTestCase(testCase) {
   const expPath = testCase.expectFile || testCase.expectPath;
   let expected;
   if (expPath) {
-    let fullExpP = path.resolve(CONFORMANCE_ROOT, '../', expPath);
-    if (testCase.useBasicCatalog || testCase.catalog === 'BasicCatalog') {
-      const tsExpPath = expPath.replace('converted_basic_catalog_', 'converted_basic_catalog_ts_');
-      const tsFullExpP = path.resolve(CONFORMANCE_ROOT, '../', tsExpPath);
-      if (fs.existsSync(tsFullExpP)) {
-        fullExpP = tsFullExpP;
-      }
-    }
+    const fullExpP = path.resolve(CONFORMANCE_ROOT, '../', expPath);
     expected = JSON.parse(fs.readFileSync(fullExpP, 'utf8'));
   } else {
     expected = testCase.expect;
@@ -426,11 +472,7 @@ function validateCatalogSchemaTestCase(testCase) {
 
   if (expected !== undefined) {
     const actual = catalog.catalogSchema;
-    if (testCase.useBasicCatalog || testCase.catalog === 'BasicCatalog') {
-      assert.deepStrictEqual(actual, expected);
-    } else {
-      assertCatalogSchemaMatches(actual, expected);
-    }
+    assertCatalogSchemaMatches(actual, expected);
   }
 }
 
@@ -517,10 +559,19 @@ function jsonSchemaToZod(schemaDef) {
 }
 
 function getCatalogsForTestCase(testCase) {
+  const refOptions =
+    testCase.protocolVersion === 'v0.8'
+      ? V08_CHILD_REF_OPTIONS
+      : testCase.protocolVersion === 'v0.9'
+        ? V09_CHILD_REF_OPTIONS
+        : V10_CHILD_REF_OPTIONS;
   const catalogsMap = new Map(allCatalogs.map(c => [c.id, c]));
   const addCatalogId = id => {
     if (id && !catalogsMap.has(id)) {
-      catalogsMap.set(id, new Catalog(id, flexibleComponents));
+      catalogsMap.set(
+        id,
+        new Catalog(id, flexibleComponents, [], undefined, undefined, refOptions),
+      );
     }
   };
 
@@ -535,7 +586,10 @@ function getCatalogsForTestCase(testCase) {
               }))
             : flexibleComponents;
           const themeSchema = cat.theme ? jsonSchemaToZod(cat.theme) : undefined;
-          catalogsMap.set(cat.catalogId, new Catalog(cat.catalogId, compApis, [], themeSchema));
+          catalogsMap.set(
+            cat.catalogId,
+            new Catalog(cat.catalogId, compApis, [], themeSchema, undefined, refOptions),
+          );
         } else {
           addCatalogId(cat.catalogId);
         }

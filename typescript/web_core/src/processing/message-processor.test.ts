@@ -26,6 +26,7 @@ import {Catalog, ComponentApi, FunctionImplementation} from '../catalog/types.js
 import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_components.js';
 import {BASIC_COMPONENTS} from '../v1_0/basic_catalog/components/basic_components.js';
 import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
+import {V09_CHILD_REF_OPTIONS, V10_CHILD_REF_OPTIONS} from '../validating/integrity-checker.js';
 import {z} from 'zod';
 
 describe('MessageProcessor', () => {
@@ -81,14 +82,14 @@ describe('MessageProcessor', () => {
       assert.ok(components);
 
       const cardChild = components.Card.allOf[1].properties.child;
-      assert.strictEqual(cardChild.$ref, 'common_types.json#/$defs/ComponentId');
+      assert.strictEqual(cardChild.$ref, '#/$defs/ComponentId');
       assert.strictEqual(cardChild.type, undefined);
 
       const rowChildren = components.Row.allOf[1].properties.children;
-      assert.strictEqual(rowChildren.$ref, 'common_types.json#/$defs/ChildList');
+      assert.strictEqual(rowChildren.$ref, '#/$defs/ChildList');
 
-      const tabChild = components.Tabs.allOf[1].properties.tabs.items.properties.child;
-      assert.strictEqual(tabChild.$ref, 'common_types.json#/$defs/ComponentId');
+      const tabItems = components.Tabs.allOf[1].properties.tabs.items;
+      assert.strictEqual(tabItems.properties.child.$ref, '#/$defs/ComponentId');
     });
 
     it('generates v1.0 inline catalog schemas with dictionary functions and top-level defs', () => {
@@ -112,7 +113,7 @@ describe('MessageProcessor', () => {
       assert.strictEqual(inlineCat.catalogId, 'cat-v1');
       assert.ok(inlineCat.components.Card);
       assert.ok(inlineCat.functions.greet);
-      assert.strictEqual(inlineCat.functions.greet.returnType, 'string');
+      assert.strictEqual(inlineCat.functions.greet.type, 'object');
       assert.strictEqual(typeof inlineCat.functions, 'object');
       assert.ok(!Array.isArray(inlineCat.functions));
     });
@@ -231,7 +232,7 @@ describe('MessageProcessor', () => {
             components: [{id: 'comp1', label: 'No Type'} as any],
           },
         });
-      }, /Invalid v0.9 message/);
+      }, /Cannot create component comp1 without a type/);
     });
 
     it('throws when catalog not found', () => {
@@ -643,7 +644,14 @@ describe('MessageProcessor', () => {
         name: 'Container',
         schema: z.object({child: z.string().describe('Child component ID')}),
       };
-      const cat = new Catalog('cat-refs', [containerApi]);
+      const cat = new Catalog(
+        'cat-refs',
+        [containerApi],
+        [],
+        undefined,
+        undefined,
+        V10_CHILD_REF_OPTIONS,
+      );
 
       const strictProc = new MessageProcessor([cat], undefined, {
         validationConfig: {allowDanglingReferences: false},
@@ -801,33 +809,47 @@ describe('MessageProcessor', () => {
   });
 
   describe('Mixed Catalogs Support', () => {
-    const basicCat: Catalog<ComponentApi> = new Catalog('cat-basic', [
-      {
-        name: 'Box',
-        schema: z.object({child: z.string().describe('ChildComponentId').optional()}),
-      },
-      {
-        name: 'Text',
-        schema: z.object({text: z.string()}),
-      },
-    ]);
+    const basicCat: Catalog<ComponentApi> = new Catalog(
+      'cat-basic',
+      [
+        {
+          name: 'Box',
+          schema: z.object({child: z.string().describe('ChildComponentId').optional()}),
+        },
+        {
+          name: 'Text',
+          schema: z.object({text: z.string()}),
+        },
+      ],
+      [],
+      undefined,
+      undefined,
+      V10_CHILD_REF_OPTIONS,
+    );
 
-    const customCat: Catalog<ComponentApi> = new Catalog('cat-custom', [
-      {
-        name: 'CustomCard',
-        schema: z.object({
-          title: z.string(),
-          contentSlot: z.string().describe('ChildComponentId'),
-        }),
-      },
-      {
-        name: 'CustomButton',
-        schema: z.object({
-          actionName: z.string(),
-          variant: z.enum(['primary', 'secondary']),
-        }),
-      },
-    ]);
+    const customCat: Catalog<ComponentApi> = new Catalog(
+      'cat-custom',
+      [
+        {
+          name: 'CustomCard',
+          schema: z.object({
+            title: z.string(),
+            contentSlot: z.string().describe('ChildComponentId'),
+          }),
+        },
+        {
+          name: 'CustomButton',
+          schema: z.object({
+            actionName: z.string(),
+            variant: z.enum(['primary', 'secondary']),
+          }),
+        },
+      ],
+      [],
+      undefined,
+      undefined,
+      V10_CHILD_REF_OPTIONS,
+    );
 
     it('processes and validates components from multiple catalogs on a single surface', () => {
       const processor = new MessageProcessor([basicCat, customCat]);
@@ -949,7 +971,14 @@ describe('MessageProcessor', () => {
   });
 
   describe('MessageProcessor Full Pipeline & Validation Integration', () => {
-    const basicCatalog = new Catalog('https://a2ui.org/catalog', BASIC_COMPONENTS);
+    const basicCatalog = new Catalog(
+      'https://a2ui.org/catalog',
+      BASIC_COMPONENTS,
+      [],
+      undefined,
+      undefined,
+      V10_CHILD_REF_OPTIONS,
+    );
 
     it('validates a valid message envelope stream', () => {
       const proc = new MessageProcessor([basicCatalog], undefined, {
@@ -1098,7 +1127,14 @@ describe('MessageProcessor', () => {
     });
 
     it('validates v0.9 envelope messages with version adapter', () => {
-      const v09Catalog = new Catalog('basic', BASIC_COMPONENTS);
+      const v09Catalog = new Catalog(
+        'basic',
+        BASIC_COMPONENTS,
+        [],
+        undefined,
+        undefined,
+        V09_CHILD_REF_OPTIONS,
+      );
       const proc = new MessageProcessor([v09Catalog], undefined, {
         validationConfig: STRICT_VALIDATION,
       });
@@ -1157,22 +1193,36 @@ describe('MessageProcessor', () => {
     });
 
     it('processes and validates multi-surface payloads across mixed catalogs', () => {
-      const catalogA = new Catalog('cat-a', [
-        {
-          name: 'BoxA',
-          schema: z.object({childSlot: z.string().describe('ChildComponentId')}),
-        },
-      ]);
-      const catalogB = new Catalog('cat-b', [
-        {
-          name: 'BoxB',
-          schema: z.object({contentSlot: z.string().describe('ChildComponentId')}),
-        },
-        {
-          name: 'LeafB',
-          schema: z.object({text: z.string()}),
-        },
-      ]);
+      const catalogA = new Catalog(
+        'cat-a',
+        [
+          {
+            name: 'BoxA',
+            schema: z.object({childSlot: z.string().describe('ChildComponentId')}),
+          },
+        ],
+        [],
+        undefined,
+        undefined,
+        V10_CHILD_REF_OPTIONS,
+      );
+      const catalogB = new Catalog(
+        'cat-b',
+        [
+          {
+            name: 'BoxB',
+            schema: z.object({contentSlot: z.string().describe('ChildComponentId')}),
+          },
+          {
+            name: 'LeafB',
+            schema: z.object({text: z.string()}),
+          },
+        ],
+        [],
+        undefined,
+        undefined,
+        V10_CHILD_REF_OPTIONS,
+      );
 
       const proc = new MessageProcessor([catalogA, catalogB], undefined, {
         validationConfig: STRICT_VALIDATION,
@@ -1274,20 +1324,27 @@ describe('MessageProcessor', () => {
     });
 
     it('replaces component properties on update so omitted properties are removed', () => {
-      const cardCatalog = new Catalog('card-cat', [
-        {
-          name: 'Card',
-          schema: z.object({
-            title: z.string(),
-            subtitle: z.string().optional(),
-            child: z.string().describe('ChildComponentId'),
-          }),
-        },
-        {
-          name: 'Text',
-          schema: z.object({text: z.string()}),
-        },
-      ]);
+      const cardCatalog = new Catalog(
+        'card-cat',
+        [
+          {
+            name: 'Card',
+            schema: z.object({
+              title: z.string(),
+              subtitle: z.string().optional(),
+              child: z.string().describe('ChildComponentId'),
+            }),
+          },
+          {
+            name: 'Text',
+            schema: z.object({text: z.string()}),
+          },
+        ],
+        [],
+        undefined,
+        undefined,
+        V10_CHILD_REF_OPTIONS,
+      );
       const proc = new MessageProcessor([cardCatalog], undefined, {
         validationConfig: STRICT_VALIDATION,
       });
@@ -1344,20 +1401,27 @@ describe('MessageProcessor', () => {
     });
 
     it('preserves container child relationships in composition constraint validation during updates', () => {
-      const constraintCatalog = new Catalog('constraint-cat', [
-        {
-          name: 'StrictParent',
-          schema: z.object({
-            title: z.string().optional(),
-            children: z.array(z.string()).describe('ChildList'),
-          }),
-        },
-        {
-          name: 'RestrictedChild',
-          schema: z.object({text: z.string()}),
-          allowedParents: ['StrictParent'],
-        },
-      ]);
+      const constraintCatalog = new Catalog(
+        'constraint-cat',
+        [
+          {
+            name: 'StrictParent',
+            schema: z.object({
+              title: z.string().optional(),
+              children: z.array(z.string()).describe('ChildList'),
+            }),
+          },
+          {
+            name: 'RestrictedChild',
+            schema: z.object({text: z.string()}),
+            allowedParents: ['StrictParent'],
+          },
+        ],
+        [],
+        undefined,
+        undefined,
+        V10_CHILD_REF_OPTIONS,
+      );
       const proc = new MessageProcessor([constraintCatalog], undefined, {
         validationConfig: STRICT_VALIDATION,
       });
@@ -1390,31 +1454,38 @@ describe('MessageProcessor', () => {
     });
 
     it('does not treat non-reference string properties matching child component IDs as child references', () => {
-      const constraintCatalog = new Catalog('constraint-cat-2', [
-        {
-          name: 'RootContainer',
-          schema: z.object({
-            children: z.array(z.string()).describe('ChildList'),
-          }),
-        },
-        {
-          name: 'AllowedParent',
-          schema: z.object({
-            child: z.string().describe('Child'),
-          }),
-          allowedParents: ['RootContainer'],
-        },
-        {
-          name: 'RestrictedChild',
-          schema: z.object({text: z.string()}),
-          allowedParents: ['AllowedParent'],
-        },
-        {
-          name: 'TextDisplay',
-          schema: z.object({text: z.string()}),
-          allowedParents: ['RootContainer'],
-        },
-      ]);
+      const constraintCatalog = new Catalog(
+        'constraint-cat-2',
+        [
+          {
+            name: 'RootContainer',
+            schema: z.object({
+              children: z.array(z.string()).describe('ChildList'),
+            }),
+          },
+          {
+            name: 'AllowedParent',
+            schema: z.object({
+              child: z.string().describe('Child'),
+            }),
+            allowedParents: ['RootContainer'],
+          },
+          {
+            name: 'RestrictedChild',
+            schema: z.object({text: z.string()}),
+            allowedParents: ['AllowedParent'],
+          },
+          {
+            name: 'TextDisplay',
+            schema: z.object({text: z.string()}),
+            allowedParents: ['RootContainer'],
+          },
+        ],
+        [],
+        undefined,
+        undefined,
+        V10_CHILD_REF_OPTIONS,
+      );
       const proc = new MessageProcessor([constraintCatalog], undefined, {
         validationConfig: STRICT_VALIDATION,
       });

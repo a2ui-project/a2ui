@@ -14,122 +14,521 @@
  * limitations under the License.
  */
 
+// AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
+// Generated from specification/ catalogs via scripts/generate-catalog-schemas.mjs
 import {z} from 'zod';
 import {ComponentApi} from '../../../catalog/types.js';
 import {
-  ImageApi,
-  IconApi,
-  AudioPlayerApi,
-  RowApi,
-  ColumnApi,
-  ListApi,
-  CardApi,
-  TabsApi,
-  ModalApi,
-  DividerApi,
-  ButtonApi,
-  CheckBoxApi,
-  ChoicePickerApi,
-  DateTimeInputApi,
-} from '../../../v0_9/basic_catalog/components/basic_components.js';
-import {
-  DynamicStringSchema,
+  ActionSchema,
+  CheckRuleSchema,
+  ChildListSchema,
+  ChildSchema,
+  DataBindingSchema,
+  DynamicBooleanSchema,
   DynamicNumberSchema,
-  AccessibilityAttributesSchema,
-  CheckableSchema,
-} from '../../../v0_9/schema/common-types.js';
+  DynamicStringListSchema,
+  DynamicStringSchema,
+} from '../../schema/common-types.js';
 
-const CommonProps = {
-  'accessibility': AccessibilityAttributesSchema.optional(),
-  'weight': z
-    .number()
-    .describe('The relative weight of this component within a Row or Column.')
-    .optional(),
-};
-
-export const TextApi: ComponentApi = {
+export const TextApi = {
   name: 'Text',
   schema: z
     .object({
-      ...CommonProps,
-      'text': DynamicStringSchema.describe('The text content to display.'),
+      'text': DynamicStringSchema.describe(
+        'REF:#/$defs/DynamicString|The text content to display. While simple Markdown formatting is supported (i.e. without HTML, images, or links), utilizing dedicated UI components is generally preferred for a richer and more structured presentation.',
+      ),
       'variant': z
-        .enum(['h1', 'h2', 'h3', 'h4', 'h5', 'caption', 'body'])
+        .enum(['caption', 'body'])
         .default('body')
         .describe('A hint for the base text style.')
         .optional(),
+      'weight': z
+        .number()
+        .describe(
+          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+        )
+        .optional(),
     })
     .strict(),
-};
+} satisfies ComponentApi;
 
-export const VideoApi: ComponentApi = {
+export const ImageApi = {
+  name: 'Image',
+  schema: z
+    .object({
+      'url': DynamicStringSchema.describe(
+        'REF:#/$defs/DynamicString|The URL of the image to display.',
+      ),
+      'description': DynamicStringSchema.describe(
+        'REF:#/$defs/DynamicString|Accessibility text for the image.',
+      ).optional(),
+      'fit': z
+        .enum(['contain', 'cover', 'fill', 'none', 'scaleDown'])
+        .default('fill')
+        .describe(
+          "Specifies how the image should be resized to fit its container. This corresponds to the CSS 'object-fit' property.",
+        )
+        .optional(),
+      'variant': z
+        .enum(['icon', 'avatar', 'smallFeature', 'mediumFeature', 'largeFeature', 'header'])
+        .default('mediumFeature')
+        .describe('A hint for the image size and style.')
+        .optional(),
+      'weight': z
+        .number()
+        .describe(
+          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+        )
+        .optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
+export const IconApi = {
+  name: 'Icon',
+  schema: z
+    .object({
+      'name': DataBindingSchema.describe(
+        'REF:#/$defs/DataBinding|The name of the icon to display.',
+      ),
+      'weight': z
+        .number()
+        .describe(
+          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+        )
+        .optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
+export const VideoApi = {
   name: 'Video',
   schema: z
     .object({
-      ...CommonProps,
-      'url': DynamicStringSchema.describe('The URL of the video to display.'),
+      'url': DynamicStringSchema.describe(
+        'REF:#/$defs/DynamicString|The URL of the video to display.',
+      ),
       'posterUrl': DynamicStringSchema.describe(
-        'The URL of the poster image to display before playing.',
+        'REF:#/$defs/DynamicString|The URL of the poster image to display before the video plays.',
       ).optional(),
+      'weight': z
+        .number()
+        .describe(
+          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+        )
+        .optional(),
     })
     .strict(),
-};
+} satisfies ComponentApi;
 
-export const TextFieldApi: ComponentApi = {
+export const AudioPlayerApi = {
+  name: 'AudioPlayer',
+  schema: z
+    .object({
+      'url': DynamicStringSchema.describe(
+        'REF:#/$defs/DynamicString|The URL of the audio to be played.',
+      ),
+      'description': DynamicStringSchema.describe(
+        'REF:#/$defs/DynamicString|A description of the audio, such as a title or summary.',
+      ).optional(),
+      'weight': z
+        .number()
+        .describe(
+          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+        )
+        .optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
+export const RowApi = {
+  name: 'Row',
+  schema: z
+    .object({
+      'children': ChildListSchema.describe(
+        'REF:#/$defs/ChildList|Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.',
+      ),
+      'justify': z
+        .enum(['center', 'end', 'spaceAround', 'spaceBetween', 'spaceEvenly', 'start', 'stretch'])
+        .default('start')
+        .describe(
+          "Defines the arrangement of children along the main axis (horizontally). Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center' to pack them together.",
+        )
+        .optional(),
+      'align': z
+        .enum(['start', 'center', 'end', 'stretch'])
+        .default('stretch')
+        .describe(
+          "Defines the alignment of children along the cross axis (vertically). This is similar to the CSS 'align-items' property, but uses camelCase values (e.g., 'start').",
+        )
+        .optional(),
+      'weight': z
+        .number()
+        .describe(
+          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+        )
+        .optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
+export const ColumnApi = {
+  name: 'Column',
+  schema: z
+    .object({
+      'children': ChildListSchema.describe(
+        'REF:#/$defs/ChildList|Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.',
+      ),
+      'justify': z
+        .enum(['start', 'center', 'end', 'spaceBetween', 'spaceAround', 'spaceEvenly', 'stretch'])
+        .default('start')
+        .describe(
+          "Defines the arrangement of children along the main axis (vertically). Use 'spaceBetween' to push items to the edges (e.g. header at top, footer at bottom), or 'start'/'end'/'center' to pack them together.",
+        )
+        .optional(),
+      'align': z
+        .enum(['center', 'end', 'start', 'stretch'])
+        .default('stretch')
+        .describe(
+          "Defines the alignment of children along the cross axis (horizontally). This is similar to the CSS 'align-items' property.",
+        )
+        .optional(),
+      'weight': z
+        .number()
+        .describe(
+          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+        )
+        .optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
+export const ListApi = {
+  name: 'List',
+  schema: z
+    .object({
+      'children': ChildListSchema.describe(
+        'REF:#/$defs/ChildList|Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list.',
+      ),
+      'direction': z
+        .enum(['vertical', 'horizontal'])
+        .default('vertical')
+        .describe('The direction in which the list items are laid out.')
+        .optional(),
+      'align': z
+        .enum(['start', 'center', 'end', 'stretch'])
+        .default('stretch')
+        .describe('Defines the alignment of children along the cross axis.')
+        .optional(),
+      'weight': z
+        .number()
+        .describe(
+          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+        )
+        .optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
+export const CardApi = {
+  name: 'Card',
+  schema: z
+    .object({
+      'child': ChildSchema.describe(
+        "REF:#/$defs/Child|The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID.",
+      ),
+      'weight': z
+        .number()
+        .describe(
+          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+        )
+        .optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
+export const TabsApi = {
+  name: 'Tabs',
+  schema: z
+    .object({
+      'tabs': z
+        .array(
+          z.object({
+            'title': DynamicStringSchema.describe('REF:#/$defs/DynamicString|The tab title.'),
+            'child': ChildSchema.describe('REF:#/$defs/Child|The ID of the child component.'),
+          }),
+        )
+        .min(1)
+        .describe(
+          'An array of objects, where each object defines a tab with a title and a child component.',
+        ),
+      'weight': z
+        .number()
+        .describe(
+          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+        )
+        .optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
+export const ModalApi = {
+  name: 'Modal',
+  schema: z
+    .object({
+      'trigger': ChildSchema.describe(
+        'REF:#/$defs/Child|The ID of the component that opens the modal when interacted with (e.g., a button).',
+      ),
+      'content': ChildSchema.describe(
+        'REF:#/$defs/Child|The ID of the component to be displayed inside the modal.',
+      ),
+      'weight': z
+        .number()
+        .describe(
+          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+        )
+        .optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
+export const DividerApi = {
+  name: 'Divider',
+  schema: z
+    .object({
+      'axis': z
+        .enum(['horizontal', 'vertical'])
+        .default('horizontal')
+        .describe('The orientation of the divider.')
+        .optional(),
+      'weight': z
+        .number()
+        .describe(
+          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+        )
+        .optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
+export const ButtonApi = {
+  name: 'Button',
+  schema: z
+    .object({
+      'checks': z
+        .array(CheckRuleSchema)
+        .describe(
+          'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+        )
+        .optional(),
+      'child': ChildSchema.describe(
+        "REF:#/$defs/Child|The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button.",
+      ),
+      'variant': z
+        .enum(['default', 'primary', 'borderless'])
+        .default('default')
+        .describe(
+          "A hint for the button style. If omitted, a default button style is used. 'primary' indicates this is the main call-to-action button. 'borderless' means the button has no visual border or background, making its child content appear like a clickable link.",
+        )
+        .optional(),
+      'action': ActionSchema.describe('REF:#/$defs/Action'),
+      'weight': z
+        .number()
+        .describe(
+          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+        )
+        .optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
+export const TextFieldApi = {
   name: 'TextField',
   schema: z
     .object({
-      ...CommonProps,
-      'label': DynamicStringSchema.describe('The text label for the input field.'),
-      'value': DynamicStringSchema.describe('The value of the text field.').optional(),
+      'checks': z
+        .array(CheckRuleSchema)
+        .describe(
+          'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+        )
+        .optional(),
+      'label': DynamicStringSchema.describe(
+        'REF:#/$defs/DynamicString|The text label for the input field.',
+      ),
+      'value': DynamicStringSchema.describe(
+        'REF:#/$defs/DynamicString|The value of the text field.',
+      ).optional(),
       'placeholder': DynamicStringSchema.describe(
-        'The placeholder text for the input field.',
+        'REF:#/$defs/DynamicString|The placeholder text for the input field.',
       ).optional(),
       'variant': z
         .enum(['longText', 'number', 'shortText', 'obscured'])
         .default('shortText')
         .describe('The type of input field to display.')
         .optional(),
-      'validationRegexp': z
-        .string()
-        .describe('A regular expression used for validation of the input.')
+      'weight': z
+        .number()
+        .describe(
+          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+        )
         .optional(),
-      ...CheckableSchema.shape,
     })
     .strict(),
-};
+} satisfies ComponentApi;
 
-export const SliderApi: ComponentApi = {
+export const CheckBoxApi = {
+  name: 'CheckBox',
+  schema: z
+    .object({
+      'checks': z
+        .array(CheckRuleSchema)
+        .describe(
+          'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+        )
+        .optional(),
+      'label': DynamicStringSchema.describe(
+        'REF:#/$defs/DynamicString|The text to display next to the checkbox.',
+      ),
+      'value': DynamicBooleanSchema.describe(
+        'REF:#/$defs/DynamicBoolean|The current state of the checkbox (true for checked, false for unchecked).',
+      ),
+      'weight': z
+        .number()
+        .describe(
+          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+        )
+        .optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
+export const ChoicePickerApi = {
+  name: 'ChoicePicker',
+  schema: z
+    .object({
+      'checks': z
+        .array(CheckRuleSchema)
+        .describe(
+          'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+        )
+        .optional(),
+      'label': DynamicStringSchema.describe(
+        'REF:#/$defs/DynamicString|The label for the group of options.',
+      ).optional(),
+      'variant': z
+        .enum(['multipleSelection', 'mutuallyExclusive'])
+        .default('mutuallyExclusive')
+        .describe('A hint for how the choice picker should be displayed and behave.')
+        .optional(),
+      'options': z
+        .array(
+          z.object({
+            'label': DynamicStringSchema.describe(
+              'REF:#/$defs/DynamicString|The text to display for this option.',
+            ),
+            'value': z.string().describe('The stable value associated with this option.'),
+          }),
+        )
+        .describe('The list of available options to choose from.'),
+      'value': DynamicStringListSchema.describe(
+        'REF:#/$defs/DynamicStringList|The list of currently selected values. This should be bound to a string array in the data model.',
+      ),
+      'displayStyle': z
+        .enum(['checkbox', 'chips'])
+        .default('checkbox')
+        .describe('The display style of the component.')
+        .optional(),
+      'filterable': z
+        .boolean()
+        .default(false)
+        .describe('If true, displays a search input to filter the options.')
+        .optional(),
+      'weight': z
+        .number()
+        .describe(
+          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+        )
+        .optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
+export const SliderApi = {
   name: 'Slider',
   schema: z
     .object({
-      ...CommonProps,
-      'label': DynamicStringSchema.describe('The label for the slider.').optional(),
+      'checks': z
+        .array(CheckRuleSchema)
+        .describe(
+          'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+        )
+        .optional(),
+      'label': DynamicStringSchema.describe(
+        'REF:#/$defs/DynamicString|The label for the slider.',
+      ).optional(),
       'min': z.number().default(0).describe('The minimum value of the slider.').optional(),
       'max': z.number().describe('The maximum value of the slider.'),
-      'steps': z.number().describe('The number of discrete step intervals.').optional(),
-      'value': DynamicNumberSchema.describe('The current value of the slider.'),
-      ...CheckableSchema.shape,
+      'value': DynamicNumberSchema.describe(
+        'REF:#/$defs/DynamicNumber|The current value of the slider.',
+      ),
+      'steps': z
+        .number()
+        .int()
+        .describe(
+          'The number of discrete divisions in the slider range. If specified, the slider will snap to discrete values.',
+        )
+        .optional(),
+      'weight': z
+        .number()
+        .describe(
+          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+        )
+        .optional(),
     })
     .strict(),
-};
+} satisfies ComponentApi;
 
-export {
-  ImageApi,
-  IconApi,
-  AudioPlayerApi,
-  RowApi,
-  ColumnApi,
-  ListApi,
-  CardApi,
-  TabsApi,
-  ModalApi,
-  DividerApi,
-  ButtonApi,
-  CheckBoxApi,
-  ChoicePickerApi,
-  DateTimeInputApi,
-};
+export const DateTimeInputApi = {
+  name: 'DateTimeInput',
+  schema: z
+    .object({
+      'checks': z
+        .array(CheckRuleSchema)
+        .describe(
+          'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+        )
+        .optional(),
+      'value': DynamicStringSchema.describe(
+        'REF:#/$defs/DynamicString|The selected date and/or time value in ISO 8601 format. If not yet set, initialize with an empty string.',
+      ),
+      'enableDate': z
+        .boolean()
+        .default(false)
+        .describe('If true, allows the user to select a date.')
+        .optional(),
+      'enableTime': z
+        .boolean()
+        .default(false)
+        .describe('If true, allows the user to select a time.')
+        .optional(),
+      'min': DynamicStringSchema.describe(
+        'REF:#/$defs/DynamicString|The minimum allowed date/time in ISO 8601 format.',
+      ).optional(),
+      'max': DynamicStringSchema.describe(
+        'REF:#/$defs/DynamicString|The maximum allowed date/time in ISO 8601 format.',
+      ).optional(),
+      'label': DynamicStringSchema.describe(
+        'REF:#/$defs/DynamicString|The text label for the input field.',
+      ).optional(),
+      'weight': z
+        .number()
+        .describe(
+          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+        )
+        .optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
 
 export const BASIC_COMPONENTS: ComponentApi[] = [
   TextApi,

@@ -18,12 +18,20 @@ import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
 import {z} from 'zod';
 import {Catalog} from '../catalog/types.js';
+import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
 import {SurfaceComponentsModel} from './surface-components-model.js';
 import {ComponentModel} from './component-model.js';
 
 describe('SurfaceComponentsModel', () => {
   let model: SurfaceComponentsModel;
-  const defaultCatalog = new Catalog('default', []);
+  const defaultCatalog = new Catalog(
+    'default',
+    [],
+    [],
+    undefined,
+    undefined,
+    V09_CHILD_REF_OPTIONS,
+  );
 
   beforeEach(() => {
     model = new SurfaceComponentsModel();
@@ -134,7 +142,14 @@ describe('SurfaceComponentsModel', () => {
         name: 'Text',
         schema: z.object({text: z.string()}),
       };
-      testCatalog = new Catalog('test-cat', [boxApi, containerApi, textApi]);
+      testCatalog = new Catalog(
+        'test-cat',
+        [boxApi, containerApi, textApi],
+        [],
+        undefined,
+        undefined,
+        V09_CHILD_REF_OPTIONS,
+      );
       model.setCatalog(testCatalog);
     });
 
@@ -251,19 +266,26 @@ describe('SurfaceComponentsModel', () => {
     });
 
     it('extracts references and validates topology across mixed catalogs', () => {
-      const customCatalog = new Catalog('custom-cat', [
-        {
-          name: 'CustomCard',
-          schema: z.object({
-            bodySlot: z.string().describe('ChildComponentId'),
-            footerSlot: z.string().describe('ChildComponentId').optional(),
-          }),
-        },
-        {
-          name: 'CustomChart',
-          schema: z.object({title: z.string()}),
-        },
-      ]);
+      const customCatalog = new Catalog(
+        'custom-cat',
+        [
+          {
+            name: 'CustomCard',
+            schema: z.object({
+              bodySlot: z.string().describe('ChildComponentId'),
+              footerSlot: z.string().describe('ChildComponentId').optional(),
+            }),
+          },
+          {
+            name: 'CustomChart',
+            schema: z.object({title: z.string()}),
+          },
+        ],
+        [],
+        undefined,
+        undefined,
+        V09_CHILD_REF_OPTIONS,
+      );
 
       // root uses customCatalog ('CustomCard' with bodySlot pointing to 'c1' and footerSlot pointing to 'c2')
       const root = new ComponentModel(
@@ -296,14 +318,21 @@ describe('SurfaceComponentsModel', () => {
     });
 
     it('detects cycles between components from different catalogs', () => {
-      const customCatalog = new Catalog('custom-cat', [
-        {
-          name: 'CustomContainer',
-          schema: z.object({
-            contentId: z.string().describe('ChildComponentId'),
-          }),
-        },
-      ]);
+      const customCatalog = new Catalog(
+        'custom-cat',
+        [
+          {
+            name: 'CustomContainer',
+            schema: z.object({
+              contentId: z.string().describe('ChildComponentId'),
+            }),
+          },
+        ],
+        [],
+        undefined,
+        undefined,
+        V09_CHILD_REF_OPTIONS,
+      );
 
       // root (CustomContainer from customCatalog) -> c1 (Box from testCatalog) -> root (cycle!)
       const root = new ComponentModel('root', 'CustomContainer', {contentId: 'c1'}, customCatalog);

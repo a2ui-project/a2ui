@@ -140,8 +140,7 @@ class BaseVersionAdapter(VersionAdapter, ABC):
         update_types = [k for k in self.valid_actions if k in message]
         if len(update_types) > 1:
             raise A2uiValidationError(
-                "Message contains multiple conflicting update actions and Message"
-                f" contains multiple update types: {update_types}"
+                f"Message contains multiple conflicting update actions: {update_types}"
             )
         if not update_types:
             if self.raise_on_empty_actions:

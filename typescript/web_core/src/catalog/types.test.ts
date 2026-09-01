@@ -94,6 +94,51 @@ describe('Catalog Types', () => {
       },
     );
   });
+
+  it('safely computes componentRefMap with default fallback when refOptions is omitted', () => {
+    const mockComponent = {
+      name: 'Container',
+      schema: z.object({
+        child: z.string().describe('ComponentId'),
+      }),
+    } satisfies ComponentApi;
+
+    const catalog = new Catalog('guid-1234', [mockComponent]);
+    assert.doesNotThrow(() => {
+      const refMap = catalog.componentRefMap;
+      assert.ok(refMap.Container);
+      assert.deepStrictEqual(Array.from(refMap.Container.singleRefs), ['child']);
+      assert.deepStrictEqual(Array.from(refMap.Container.listRefs), []);
+    });
+  });
+
+  it('uses custom standardDefs for catalog JSON schema serialization', () => {
+    const mockComponent = {
+      name: 'CustomButton',
+      schema: z.object({
+        label: z.string().describe('REF:#/$defs/CustomString'),
+      }),
+    } satisfies ComponentApi;
+
+    const customDefs = {
+      CustomString: {type: 'string', description: 'Custom string type'},
+    };
+
+    const catalog = new Catalog(
+      'https://example.com/custom-cat.json',
+      [mockComponent],
+      [],
+      undefined,
+      undefined,
+      undefined,
+      customDefs,
+    );
+
+    const schema = catalog.catalogSchema;
+    const defs = schema['$defs'] as Record<string, any>;
+    assert.ok(defs);
+    assert.deepStrictEqual(defs.CustomString, customDefs.CustomString);
+  });
 });
 
 describe('InferredComponentApiSchemaType', () => {

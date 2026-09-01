@@ -153,7 +153,7 @@ export const FunctionCallSchema = z
   })
   .and(
     z.any().superRefine((x, ctx) => {
-      const schemas = [FunctionCallSchema, IndexSystemFunctionSchema];
+      const schemas = [z.record(z.string(), z.any()), IndexSystemFunctionSchema];
       const {errors, failed} = schemas.reduce<{
         errors: z.ZodIssue[];
         failed: number;
@@ -292,39 +292,7 @@ export const AccessibilityAttributesSchema = z
 export type AccessibilityAttributes = z.infer<typeof AccessibilityAttributesSchema>;
 
 export const ExtensionsSchema = z
-  .record(z.string(), z.union([z.any(), z.never()]))
-  .superRefine((value, ctx) => {
-    for (const key in value) {
-      let evaluated = false;
-      if (key.match(new RegExp('^[\\p{XID_Start}_][\\p{XID_Continue}]*$'))) {
-        evaluated = true;
-        const result = z.any().safeParse(value[key]);
-        if (!result.success) {
-          ctx.addIssue({
-            path: [key],
-            code: 'custom',
-            message: `Invalid input: Key matching regex /${key}/ must match schema`,
-            params: {
-              issues: result.error.issues,
-            },
-          });
-        }
-      }
-      if (!evaluated) {
-        const result = z.never().safeParse(value[key]);
-        if (!result.success) {
-          ctx.addIssue({
-            path: [key],
-            code: 'custom',
-            message: `Invalid input: must match catchall schema`,
-            params: {
-              issues: result.error.issues,
-            },
-          });
-        }
-      }
-    }
-  })
+  .record(z.string(), z.any())
   .describe(
     "Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions.",
   );

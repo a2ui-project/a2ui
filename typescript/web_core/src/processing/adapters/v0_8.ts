@@ -16,7 +16,6 @@
 
 import {BaseVersionAdapter, ProtocolVersion} from './base.js';
 import {InternalComponentPayload, InternalOperation} from '../operations.js';
-import {A2uiValidationError} from '../../errors.js';
 import {A2uiMessageSchema} from '../../v0_8/schema/server-to-client.js';
 
 function normalizeV08Component(comp: unknown): InternalComponentPayload {
@@ -61,6 +60,10 @@ export class V0Point8Adapter extends BaseVersionAdapter {
   readonly version: ProtocolVersion = 'v0.8';
   protected readonly schema = A2uiMessageSchema;
 
+  protected getNativeActionKeys(): string[] {
+    return ['beginRendering', 'surfaceUpdate', 'dataModelUpdate', 'deleteSurface'];
+  }
+
   protected override preparePayloadForValidation(
     msgObj: Record<string, unknown>,
   ): Record<string, unknown> {
@@ -70,23 +73,6 @@ export class V0Point8Adapter extends BaseVersionAdapter {
   }
 
   protected extractOperationsFromObject(msgObj: Record<string, unknown>): InternalOperation[] {
-    const updateTypes = [
-      'beginRendering',
-      'surfaceUpdate',
-      'dataModelUpdate',
-      'deleteSurface',
-    ].filter(k => k in msgObj);
-    if (updateTypes.length === 0) {
-      throw new A2uiValidationError(
-        'A2UI Protocol message must contain exactly one update action: beginRendering, surfaceUpdate, dataModelUpdate, or deleteSurface.',
-      );
-    }
-    if (updateTypes.length > 1) {
-      throw new A2uiValidationError(
-        `Message contains multiple update types: ${updateTypes.join(', ')}.`,
-      );
-    }
-
     const ops: InternalOperation[] = [];
     if ('beginRendering' in msgObj) {
       const cs = msgObj.beginRendering as Record<string, unknown>;

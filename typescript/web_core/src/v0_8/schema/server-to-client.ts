@@ -15,27 +15,7 @@
  */
 
 import {z} from 'zod';
-import {
-  AudioPlayerSchema,
-  ButtonSchema,
-  CardSchema,
-  CheckboxSchema,
-  ColumnSchema,
-  DateTimeInputSchema,
-  DividerSchema,
-  IconSchema,
-  ImageSchema,
-  ListSchema,
-  ModalSchema,
-  MultipleChoiceSchema,
-  RowSchema,
-  SliderSchema,
-  TabsSchema,
-  TextFieldSchema,
-  TextSchema,
-  VideoSchema,
-  DataValueSchema,
-} from './common-types.js';
+import {DataValueSchema} from './common-types.js';
 
 const _validateValueProperty = (val: any, ctx: z.RefinementCtx) => {
   let count = 0;
@@ -55,30 +35,13 @@ export const ValueMapSchema = DataValueSchema.describe(
   "A single data entry. Exactly one 'value*' property should be provided alongside the key.",
 );
 
-export const AnyComponentSchema = z
-  .object({
-    Text: TextSchema.optional(),
-    Image: ImageSchema.optional(),
-    Icon: IconSchema.optional(),
-    Video: VideoSchema.optional(),
-    AudioPlayer: AudioPlayerSchema.optional(),
-    Row: z.lazy(() => RowSchema).optional(),
-    Column: z.lazy(() => ColumnSchema).optional(),
-    List: z.lazy(() => ListSchema).optional(),
-    Card: z.lazy(() => CardSchema).optional(),
-    Tabs: TabsSchema.optional(),
-    Divider: DividerSchema.optional(),
-    Modal: ModalSchema.optional(),
-    Button: ButtonSchema.optional(),
-    Checkbox: CheckboxSchema.optional(),
-    TextField: TextFieldSchema.optional(),
-    DateTimeInput: DateTimeInputSchema.optional(),
-    MultipleChoice: MultipleChoiceSchema.optional(),
-    Slider: SliderSchema.optional(),
-  })
-  .catchall(z.any());
-
-export const ComponentPropertiesSchema = AnyComponentSchema;
+export const ComponentPropertiesSchema = z
+  .record(z.any())
+  .refine(
+    val => Object.keys(val).length === 1,
+    "A wrapper object that MUST contain exactly one key, which is the name of the component type (e.g., 'Heading').",
+  );
+export const AnyComponentSchema = ComponentPropertiesSchema;
 
 export const ComponentInstanceSchema = z
   .object({

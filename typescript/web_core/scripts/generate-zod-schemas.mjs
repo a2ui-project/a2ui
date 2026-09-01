@@ -90,6 +90,13 @@ function transformGeneratedZodCode(code, options = {}) {
     );
   }
 
+  // 7. Special-case handling for Extensions metadata
+  if (options.name === 'Extensions') {
+    clean = `export const ExtensionsSchema = z.record(z.string(), z.any()).describe("Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions.");
+export type Extensions = z.infer<typeof ExtensionsSchema>;`;
+    return clean;
+  }
+
   return clean;
 }
 
@@ -153,7 +160,7 @@ function prepareRef(node, parentDefName) {
     if (idx !== -1) {
       const targetName = node.$ref.substring(idx + 8);
       if (targetName === 'anyFunction') {
-        return {enum: ['__REF__FunctionCallSchema__']};
+        return {type: 'object', additionalProperties: true};
       }
       if (parentDefName === 'DynamicValue' && targetName === 'FunctionCall') {
         return {enum: ['__REF__z.lazy(() => FunctionCallSchema)__']};

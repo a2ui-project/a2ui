@@ -32,19 +32,27 @@ import {
   analyzeChildRefSchema,
   buildComponentRefMap,
   ChildRefAnalysis,
+  ChildRefAnalysisOptions,
+  ComponentChildRefs,
   ComponentRefMap,
   isChildListSchema,
   isChildOrChildListSchema,
   isChildSchema,
 } from '../catalog/reference-map.js';
+import {V08_CHILD_REF_OPTIONS} from '../v0_8/standard_defs.js';
+import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
+import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 
-export type {ChildRefAnalysis, ComponentRefMap};
+export type {ChildRefAnalysis, ChildRefAnalysisOptions, ComponentChildRefs, ComponentRefMap};
 export {
   analyzeChildRefSchema,
   buildComponentRefMap,
   isChildListSchema,
   isChildOrChildListSchema,
   isChildSchema,
+  V08_CHILD_REF_OPTIONS,
+  V09_CHILD_REF_OPTIONS,
+  V10_CHILD_REF_OPTIONS,
 };
 
 function* extractPointers(val: any, currentPath: string): Generator<[string, string]> {
@@ -110,9 +118,9 @@ export function* getComponentReferences(
     return;
   }
 
-  const refTuple = refFieldsMap[compType];
-  const singleRefs = refTuple ? refTuple[0] : new Set<string>();
-  const listRefs = refTuple ? refTuple[1] : new Set<string>();
+  const childRefs = refFieldsMap[compType];
+  const singleRefs = childRefs ? childRefs.singleRefs : new Set<string>();
+  const listRefs = childRefs ? childRefs.listRefs : new Set<string>();
 
   for (const [key, value] of Object.entries(props)) {
     if (singleRefs.has(key) || listRefs.has(key)) {

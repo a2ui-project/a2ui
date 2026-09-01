@@ -19,20 +19,9 @@ import {computed, isSignal, getValue} from '../../../reactivity/signals.js';
 import {createFunctionImplementation, FunctionImplementation} from '../../../catalog/types.js';
 import {format} from 'date-fns';
 import {
-  AddApi,
-  SubtractApi,
-  MultiplyApi,
-  DivideApi,
-  EqualsApi,
-  NotEqualsApi,
-  GreaterThanApi,
-  LessThanApi,
   AndApi,
   OrApi,
   NotApi,
-  ContainsApi,
-  StartsWithApi,
-  EndsWithApi,
   RequiredApi,
   RegexApi,
   LengthApi,
@@ -46,83 +35,6 @@ import {
   OpenUrlApi,
 } from './basic_functions_api.js';
 import {A2uiExpressionError} from '../../../errors.js';
-
-// Arithmetic
-/**
- * Implementation of the addition function.
- * Adds two numbers 'a' and 'b'.
- */
-export const AddImplementation = createFunctionImplementation(AddApi, args => args.a + args.b);
-/**
- * Implementation of the subtraction function.
- * Subtracts 'b' from 'a'.
- */
-export const SubtractImplementation = createFunctionImplementation(
-  SubtractApi,
-  args => args.a - args.b,
-);
-/**
- * Implementation of the multiplication function.
- * Multiplies 'a' and 'b'.
- */
-export const MultiplyImplementation = createFunctionImplementation(
-  MultiplyApi,
-  args => args.a * args.b,
-);
-/**
- * Implementation of the division function.
- * Divides 'a' by 'b'. Returns NaN if inputs are invalid, and Infinity if dividing by zero.
- */
-export const DivideImplementation = createFunctionImplementation(DivideApi, args => {
-  const a = args.a;
-  const b = args.b;
-  if (a === undefined || a === null || b === undefined || b === null) {
-    return NaN;
-  }
-  const numA = Number(a);
-  const numB = Number(b);
-  if (Number.isNaN(numA) || Number.isNaN(numB)) {
-    return NaN;
-  }
-  if (numB === 0) {
-    return Infinity;
-  }
-  return numA / numB;
-});
-
-// Comparison
-/**
- * Implementation of the equality comparison.
- * Checks if 'a' is strictly equal to 'b'.
- */
-export const EqualsImplementation = createFunctionImplementation(
-  EqualsApi,
-  args => args.a === args.b,
-);
-/**
- * Implementation of the inequality comparison.
- * Checks if 'a' is not strictly equal to 'b'.
- */
-export const NotEqualsImplementation = createFunctionImplementation(
-  NotEqualsApi,
-  args => args.a !== args.b,
-);
-/**
- * Implementation of the greater-than comparison.
- * Checks if 'a' is greater than 'b'.
- */
-export const GreaterThanImplementation = createFunctionImplementation(
-  GreaterThanApi,
-  args => args.a > args.b,
-);
-/**
- * Implementation of the less-than comparison.
- * Checks if 'a' is less than 'b'.
- */
-export const LessThanImplementation = createFunctionImplementation(
-  LessThanApi,
-  args => args.a < args.b,
-);
 
 // Logical
 /**
@@ -144,29 +56,6 @@ export const OrImplementation = createFunctionImplementation(OrApi, args => {
  * Returns the negation of the value.
  */
 export const NotImplementation = createFunctionImplementation(NotApi, args => !args.value);
-
-// String
-/**
- * Implementation of the string contains function.
- * Checks if 'string' contains 'substring'.
- */
-export const ContainsImplementation = createFunctionImplementation(ContainsApi, args =>
-  args.string.includes(args.substring),
-);
-/**
- * Implementation of the string starts-with function.
- * Checks if 'string' starts with 'prefix'.
- */
-export const StartsWithImplementation = createFunctionImplementation(StartsWithApi, args =>
-  args.string.startsWith(args.prefix),
-);
-/**
- * Implementation of the string ends-with function.
- * Checks if 'string' ends with 'suffix'.
- */
-export const EndsWithImplementation = createFunctionImplementation(EndsWithApi, args =>
-  args.string.endsWith(args.suffix),
-);
 
 // Validation
 /**
@@ -454,20 +343,9 @@ export const OpenUrlImplementation = createFunctionImplementation(OpenUrlApi, ar
 export function createBasicCatalogFunctions(options?: {locale?: string}): FunctionImplementation[] {
   const locale = options?.locale;
   return [
-    AddImplementation,
-    SubtractImplementation,
-    MultiplyImplementation,
-    DivideImplementation,
-    EqualsImplementation,
-    NotEqualsImplementation,
-    GreaterThanImplementation,
-    LessThanImplementation,
     AndImplementation,
     OrImplementation,
     NotImplementation,
-    ContainsImplementation,
-    StartsWithImplementation,
-    EndsWithImplementation,
     RequiredImplementation,
     RegexImplementation,
     LengthImplementation,

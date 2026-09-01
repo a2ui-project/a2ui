@@ -178,7 +178,7 @@
         surfaceId: "s1"
   expectError:
     category: "ValidationError"
-    message: "Message contains multiple update types"
+    message: "Message contains multiple conflicting update actions"
 
 - name: test_batch_message_array_and_wrapper
   description: Tests that message processor correctly processes message list arrays and wrapped container payloads.

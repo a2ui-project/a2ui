@@ -20,32 +20,42 @@ import {Signal} from '../reactivity/signals.js';
 import {A2uiExpressionError} from '../errors.js';
 import {loadCatalogFromSchema} from './schema_loader.js';
 import {generateCatalogSchema} from './schema_generator.js';
+import {
+  buildComponentRefMap,
+  type ChildRefAnalysisOptions,
+  type ComponentChildRefs,
+  type ComponentRefMap,
+} from './reference-map.js';
+import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
 
-export type A2uiReturnType =
-  | 'string'
-  | 'number'
-  | 'boolean'
-  | 'array'
-  | 'object'
-  | 'validationResult'
-  | 'any'
-  | 'void';
+export type {ComponentChildRefs};
 
-export type InferA2uiReturnType<T extends A2uiReturnType> = T extends 'string'
-  ? string
-  : T extends 'number'
-    ? number
-    : T extends 'boolean'
-      ? boolean
-      : T extends 'array'
-        ? any[]
-        : T extends 'object'
-          ? Record<string, any>
-          : T extends 'validationResult'
-            ? {valid: boolean; message?: string}
-            : T extends 'void'
-              ? void
-              : any;
+/**
+ * Registry mapping A2UI function return type identifiers to their TypeScript runtime types.
+ * Core defines version-agnostic primitives. Specific protocol versions (such as v1.0)
+ * or custom catalogs can augment this interface using TypeScript module declaration merging.
+ */
+export interface A2uiReturnTypeMap {
+  string: string;
+  number: number;
+  boolean: boolean;
+  array: any[];
+  object: Record<string, any>;
+  any: any;
+  void: void;
+}
+
+/**
+ * Union of valid A2UI function return type identifiers.
+ */
+export type A2uiReturnType = keyof A2uiReturnTypeMap | (string & {});
+
+/**
+ * Infers the TypeScript runtime return type for a given A2UI return type identifier.
+ */
+export type InferA2uiReturnType<T extends string> = T extends keyof A2uiReturnTypeMap
+  ? A2uiReturnTypeMap[T]
+  : unknown;
 
 /**
  * A definition of a UI function's API.
@@ -70,9 +80,27 @@ export interface FunctionImplementation extends FunctionApi {
   ): unknown | Signal<unknown>;
 }
 
+/**
+ * Recursively unwraps dynamic wire AST nodes (DataBinding, FunctionCall)
+ * into their evaluated runtime values.
+ */
+export type ResolvedDynamic<T> = T extends {path: string} | {call: string}
+  ? never
+  : T extends (infer U)[]
+    ? ResolvedDynamic<U>[]
+    : T extends Record<string, any>
+      ? {[K in keyof T]: ResolvedDynamic<T[K]>}
+      : T;
+
+/**
+ * Extracts and resolves the execution-time argument types from a function's Zod validation schema.
+ */
+export type ResolvedFunctionArgs<Schema extends z.ZodTypeAny> = ResolvedDynamic<z.infer<Schema>>;
+
 export function createFunctionImplementation<
-  Schema extends z.ZodTypeAny,
-  TReturn extends A2uiReturnType,
+  Schema extends z.ZodTypeAny = z.ZodTypeAny,
+  TReturn extends A2uiReturnType = A2uiReturnType,
+  TArgs = ResolvedFunctionArgs<Schema>,
 >(
   api: {
     name: string;
@@ -80,9 +108,10 @@ export function createFunctionImplementation<
     schema: Schema;
     allowedCallers?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
     requiresUserActivation?: boolean;
+    description?: string;
   },
   execute: (
-    args: z.infer<Schema>,
+    args: TArgs,
     context: DataContext,
     abortSignal?: AbortSignal,
   ) => InferA2uiReturnType<TReturn> | Signal<InferA2uiReturnType<TReturn>>,
@@ -93,12 +122,12 @@ export function createFunctionImplementation<
     schema: api.schema,
     allowedCallers: api.allowedCallers,
     requiresUserActivation: api.requiresUserActivation,
+    description: api.description,
     execute: execute as (args: Record<string, any>, ctx: DataContext, ab?: AbortSignal) => unknown,
   };
 }
 
 import {FunctionInvoker} from './function_invoker.js';
-import {buildComponentRefMap, ComponentRefMap} from './reference-map.js';
 
 /**
  * A definition of a UI component's API.
@@ -153,6 +182,10 @@ export declare interface CatalogInterface<
   readonly themeSchema?: z.ZodObject<any>;
   /** System instructions or usage guidelines for this catalog. */
   readonly instructions?: string;
+  /** Optional child reference configuration for graph and topology analysis. */
+  readonly refOptions?: ChildRefAnalysisOptions;
+  /** Optional standard $defs dictionary for JSON schema reconstruction. */
+  readonly standardDefs?: Record<string, unknown>;
   /** Invoker callback that delegates to this catalog's registered functions. */
   readonly invoker: FunctionInvoker;
   /** Dynamically reconstructed standard A2UI catalog JSON Schema document. */
@@ -200,6 +233,16 @@ export class Catalog<
   readonly instructions?: string;
 
   /**
+   * Optional child reference configuration for graph and topology analysis.
+   */
+  readonly refOptions?: ChildRefAnalysisOptions;
+
+  /**
+   * Optional standard $defs dictionary for JSON schema reconstruction.
+   */
+  readonly standardDefs?: Record<string, unknown>;
+
+  /**
    * A ready-to-use FunctionInvoker callback that delegates to this catalog's functions.
    * Can be passed directly to a DataContext.
    */
@@ -212,7 +255,9 @@ export class Catalog<
    */
   get catalogSchema(): Record<string, unknown> {
     if (!this.cachedCatalogSchema) {
-      this.cachedCatalogSchema = generateCatalogSchema(this);
+      this.cachedCatalogSchema = generateCatalogSchema(this, {
+        standardDefs: this.standardDefs,
+      });
     }
     return this.cachedCatalogSchema;
   }
@@ -224,7 +269,8 @@ export class Catalog<
    */
   get componentRefMap(): ComponentRefMap {
     if (!this._componentRefMap) {
-      this._componentRefMap = buildComponentRefMap(this);
+      const options = this.refOptions ?? V09_CHILD_REF_OPTIONS;
+      this._componentRefMap = buildComponentRefMap(this, options);
     }
     return this._componentRefMap;
   }
@@ -235,6 +281,8 @@ export class Catalog<
     functions: F[] = [],
     themeSchema?: z.ZodObject<any>,
     instructions?: string,
+    refOptions?: ChildRefAnalysisOptions,
+    standardDefs?: Record<string, unknown>,
   ) {
     this.id = id;
 
@@ -252,6 +300,8 @@ export class Catalog<
 
     this.themeSchema = themeSchema;
     this.instructions = instructions;
+    this.refOptions = refOptions;
+    this.standardDefs = standardDefs;
 
     this.invoker = (name, rawArgs, ctx, abortSignal) => {
       const fn = this.functions.get(name);
