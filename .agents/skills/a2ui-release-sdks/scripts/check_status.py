@@ -245,6 +245,11 @@ def main():
         print(f"   Local Version:   {local_v}")
         print(f"   Registry Version:{registry_v if registry_v else 'Not Found / Unpublished'}")
         print(f"   Unreleased Entries: {len(unreleased_entries)}")
+        if unreleased_entries:
+            print("   Unreleased Changes:")
+            for entry in unreleased_entries:
+                clean_entry = re.sub(r"^[-*]\s*", "", entry)
+                print(f"     • {clean_entry}")
         print(f"   Action:          {action}")
 
     print("\n==================================================================")
