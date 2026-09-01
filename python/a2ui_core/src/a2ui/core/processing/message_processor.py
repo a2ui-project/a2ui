@@ -186,7 +186,7 @@ class MessageProcessor:
                 f"Function not found: {op.call}",
             )
 
-        allowed_callers = getattr(fn, "allowed_callers", None) or "rendererOrAgent"
+        allowed_callers = getattr(fn, "allowed_callers", None) or "rendererOnly"
         if allowed_callers not in ("agentOnly", "rendererOrAgent"):
             return make_error(
                 RpcErrorCode.INVALID_FUNCTION_CALL,
