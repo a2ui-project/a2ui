@@ -25,27 +25,36 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read
+
 jobs:
   create-release-pr:
     name: Check Status & Open Release PR
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node
-        uses: ./.github/actions/setup-node
+        uses: $/.github/actions/setup-node
 
       - name: Setup Python
-        uses: ./.github/actions/setup-python
+        uses: $/.github/actions/setup-python
 
       - name: Run Release PR Creator Script
         env:
           GH_TOKEN: ${{ secrets.A2UI_UPSTREAM_TOKEN }}
+          DRY_RUN_INPUT: ${{ inputs.dry_run }}
         run: |
           EXTRA_ARGS=""
-          if [ "${{ github.event.inputs.dry_run }}" == "true" ]; then
+          if [ "$DRY_RUN_INPUT" == "true" ]; then
             EXTRA_ARGS="--dry-run"
           fi
           ./.agents/skills/a2ui-release-sdks/scripts/check_status.py --create-pr $EXTRA_ARGS

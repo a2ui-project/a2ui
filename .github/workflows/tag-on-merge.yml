@@ -24,6 +24,9 @@ on:
       - "agent_sdks/python/**/pyproject.toml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   tag-release:
     name: Create & Push Namespaced Release Tags
@@ -31,13 +34,17 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 2
+          persist-credentials: false
 
       - name: Setup Python
-        uses: ./.github/actions/setup-python
+        uses: $/.github/actions/setup-python
 
       - name: Detect Version Bumps & Create Git Tags
+        env:
+          GH_TOKEN: ${{ secrets.A2UI_UPSTREAM_TOKEN }}
         run: |
           ./.agents/skills/a2ui-release-sdks/scripts/bootstrap_tags.py --push --force

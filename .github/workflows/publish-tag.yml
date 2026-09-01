@@ -29,6 +29,9 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read
+
 jobs:
   publish:
     name: Build & Publish Tagged Package
@@ -37,28 +40,34 @@ jobs:
       contents: write
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node
-        uses: ./.github/actions/setup-node
+        uses: $/.github/actions/setup-node
 
       - name: Setup Python
-        uses: ./.github/actions/setup-python
+        uses: $/.github/actions/setup-python
 
       - name: Authenticate Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@71f986410dfbc7add45192d630463a9182d5f8b2 # v2
         continue-on-error: true
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Execute Tagged Release Script
+        env:
+          TAG_INPUT: ${{ inputs.tag_name }}
+          REF_NAME: ${{ github.ref_name }}
+          DRY_RUN_INPUT: ${{ inputs.dry_run }}
         run: |
-          TAG_NAME="${{ github.event.inputs.tag_name || github.ref_name }}"
+          TAG_NAME="${TAG_INPUT:-$REF_NAME}"
           DRY_RUN_ARG=""
-          if [ "${{ github.event.inputs.dry_run }}" == "true" ]; then
+          if [ "$DRY_RUN_INPUT" == "true" ]; then
             DRY_RUN_ARG="--dry-run"
           fi
 
@@ -73,8 +82,13 @@ jobs:
           fi
 
       - name: Create GitHub Release
-        if: github.event.inputs.dry_run != 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
-          generate_release_notes: true
+        env:
+          GH_TOKEN: ${{ secrets.A2UI_UPSTREAM_TOKEN }}
+          TAG_INPUT: ${{ inputs.tag_name }}
+          REF_NAME: ${{ github.ref_name }}
+          DRY_RUN_INPUT: ${{ inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN_INPUT" != "true" ]; then
+            TAG_NAME="${TAG_INPUT:-$REF_NAME}"
+            gh release create "$TAG_NAME" -R a2ui-project/a2ui --generate-notes
+          fi
