@@ -17,12 +17,12 @@ Ensure you have the following installed before you begin:
 
 ## Quick Start: Run the Sample
 
-Before diving into the protocol details, let's get a working example running. The A2UI repo includes a ready-to-go MCP recipe demo.
+Before diving into the protocol details, let's get a working example running. The A2UI repository includes a ready-to-go MCP recipe demo.
 
 ```bash
 # Clone the repo (if you haven't already)
 git clone https://github.com/a2ui-project/a2ui.git
-cd a2ui/samples/mcp/a2ui-over-mcp-recipe
+cd a2ui/samples/community/mcp/a2ui-over-mcp-recipe
 
 # Start the MCP server (SSE transport on port 8000)
 uv run .
@@ -33,20 +33,18 @@ uv run .
 In a separate terminal, launch the [MCP Inspector](https://github.com/modelcontextprotocol/inspector) to interact with the server:
 
 ```bash
-npx @modelcontextprotocol/inspector
+npx @modelcontextprotocol/inspector@latest --web --transport sse --server-url http://localhost:8000/sse
 ```
 
-In the Inspector:
+Open `http://localhost:6274`:
 
-1. Set **Transport Type** to `SSE`
-2. Connect to `http://localhost:8000/sse`
-3. Click **List Resources** → you'll see "Recipe Form" resource.
-4. Read the `a2ui://recipe-form` resource → the resource content is the A2UI JSON that renders the simple form.
-5. Click **List Tools** → you'll see `get_recipe_a2ui`
-6. Run the tool → the response contains A2UI JSON that renders a recipe card
+1. Click **List Resources** → you will see `a2ui://recipe-form` and `a2ui://recipe-card`.
+2. Read a resource → the content contains the static A2UI presentation template (`createSurface` and `updateComponents`) with data bindings.
+3. Click **List Tools** → you will see `get_recipe_form_a2ui` and `get_recipe_a2ui`, both carrying `_meta.ui` links to their respective presentation template resource.
+4. Run `get_recipe_form_a2ui` → the tool returns the initial form selection state wrapped in an `updateDataModel` message.
+5. Run `get_recipe_a2ui` with custom parameters → the tool returns dynamic recipe details wrapped in an `updateDataModel` message.
 
-> NOTE: Note
->
+> [!NOTE]
 > The sample uses a local path reference to the A2UI Agent SDK. For your own projects, install from PyPI:
 >
 > ```bash
@@ -55,16 +53,16 @@ In the Inspector:
 
 ### Option B: Running the Recipe Client Web App
 
-For a fully rendered interactive experience that visually demonstrates A2UI over MCP, run the included web application:
+To run the interactive web client:
 
 > [!NOTE]
-> **Package Manager Usage:** Running the built-in sample applications within the A2UI repository requires Yarn (`yarn install` / `yarn dev`) as configured by Corepack workspaces. For your own regular usage and standalone projects outside this repository, use the package manager of your choice (e.g. npm, pnpm).
+> Running built-in sample applications within the A2UI repository uses Yarn workspaces (`yarn install` / `yarn dev`). Outside this repository, you can use any package manager (npm, pnpm, yarn).
 
 1. In a new terminal window, navigate to the client directory:
     ```bash
     cd client
     ```
-2. Install Node.js dependencies:
+2. Install dependencies:
     ```bash
     yarn install
     ```
@@ -72,68 +70,63 @@ For a fully rendered interactive experience that visually demonstrates A2UI over
     ```bash
     yarn dev
     ```
-4. Open your browser to the URL displayed in your terminal (usually `http://localhost:5173`).
+4. Open your browser to `http://localhost:5173`.
 
-You will see a premium, responsive dual-column interface where the left column renders the Selection Form from MCP Resource (`a2ui://recipe-form`). Picking options and clicking **"Get Recipe"** executes the MCP Tool (`get_recipe_a2ui`), dynamically rendering the returned custom A2UI recipe card in the right column.
+When the application loads, the client connects to the MCP server via SSE and executes `get_recipe_form_a2ui`. It reads `_meta.ui` to fetch and cache the `a2ui://recipe-form` presentation template, then applies the returned `updateDataModel` to populate default choices (`Grilled`, `Chicken`). Picking options and clicking **"Get Recipe"** executes `get_recipe_a2ui`, fetching `a2ui://recipe-card` and dynamically rendering the recipe details in the right column.
 
 ![Dynamic Recipe Studio demo showing selection form on the left and dynamic recipe card generation on the right](../assets/recipe_sample.gif)
 
 See all samples at [`samples/community/mcp/`](../../../samples/community/mcp).
 
-## How It Works
+## Decoupled Architecture: Separating Presentation from Data
 
-There are two primary ways an MCP server can deliver A2UI content to a client:
+A2UI over MCP separates user interfaces into two layers:
 
-1. **Via Reading a Resource (`resources/read`)**: The client reads an MCP resource directly (e.g., `a2ui://recipe-form`). The server returns the A2UI JSON payload directly.
-2. **Via Calling a Tool (`tools/call`)**: The client calls an MCP tool (e.g., `get_recipe_a2ui`). The server returns the A2UI JSON payload wrapped as an **Embedded Resource** inside the tool response.
-
-In both cases, the client detects the `application/a2ui+json` MIME type and routes the payload to an A2UI renderer.
+1. **Static Presentation Templates via MCP Resources (`resources/read`)**:
+   Layouts containing component trees (`createSurface` and `updateComponents`) with data bindings (such as `/title`, `/cookTime`, `/image`) are served as MCP resources under custom URIs (e.g., `a2ui://recipe-form`, `a2ui://recipe-card`) with MIME type `application/a2ui+json`. Because templates contain no hardcoded data values, the client can fetch and cache them locally.
+2. **Dynamic Data Updates via MCP Tools (`tools/call`)**:
+   When a tool executes, the server returns only the dynamic values needed by the template, packaged as an A2UI `updateDataModel` message.
+3. **Tool UI Metadata (`_meta.ui`)**:
+   The tool links to its presentation template by including a `_meta.ui` object in its tool definition and in its `CallToolResult`:
+    ```json
+    "_meta": {
+      "ui": {
+        "resourceUri": "a2ui://recipe-card",
+        "mimeType": "application/a2ui+json"
+      }
+    }
+    ```
+4. **Client-Side Resolution & Hydration**:
+   The client host inspects `_meta.ui.resourceUri`, checks its local template cache (or fetches the resource from the server on first load), initializes the surface layout, and applies the dynamic `updateDataModel` from the tool response.
 
 > [!IMPORTANT]
 > **MIME Type Uniformity**
-> Regardless of the delivery channel (whether fetched directly as a Resource or returned inside a Tool's `CallToolResult`), the A2UI JSON payload is always identified by the `application/a2ui+json` MIME type. In Tool responses, the payload must be wrapped inside an `EmbeddedResource` carrying this MIME type. This uniform identification allows client-side middleware to seamlessly intercept and route both static resources and dynamic tool responses to A2UI.
+> Both static template resources and dynamic tool payloads use the `application/a2ui+json` MIME type. In tool responses, data model updates are returned inside an `EmbeddedResource` alongside a fallback `TextContent`. This identification allows client applications to route payloads directly to A2UI processors.
 
-### 1. Resource-based Delivery Flow (`resources/read`)
-
-```
-Client → resources/read → MCP Server
-                             ↓
-                 Retrieve A2UI JSON
-                             ↓
-Client ← ResourceContents ← MCP Server
-          (application/a2ui+json)
-   ↓
-A2UI Renderer displays UI
-```
-
-### 2. Tool-based Delivery Flow (`tools/call`)
+### Delivery Flow
 
 ```
-Client → tools/call → MCP Server
-                         ↓
-              Generate A2UI JSON
-                         ↓
-         Wrap as EmbeddedResource
-              (application/a2ui+json)
-                         ↓
-Client ← CallToolResult ← MCP Server
-   ↓
-A2UI Renderer displays UI
+1. Tool Invocation
+Client → tools/call (e.g. get_recipe_a2ui) → MCP Server
+                                                  ↓
+                                        Compute dynamic values
+                                                  ↓
+Client ← CallToolResult (updateDataModel) ← MCP Server
+         + _meta.ui: { resourceUri: "a2ui://recipe-card" }
+
+2. Template Resolution (Cached After First Fetch)
+If "a2ui://recipe-card" is not in client cache:
+  Client → resources/read ("a2ui://recipe-card") → MCP Server
+  Client ← Template (createSurface, updateComponents) ← MCP Server
+
+3. Surface Hydration
+Client applies updateDataModel from tool response to the surface.
+A2UI Renderer updates display.
 ```
 
-## Resources vs. Tools: Separation of Utility Focus
+### 1. Defining Presentation Templates as MCP Resources
 
-When designing an A2UI integration over MCP, you should choose between **Resources** and **Tools** depending on whether the UI payload is static or dynamic.
-
-### 1. Static UI via MCP Resources (`resources/read`)
-
-For simple, static user interfaces that do not depend on user prompt inputs or conversation history, you should serve A2UI directly as an MCP Resource.
-
-- **Concept**: The client reads a pre-defined A2UI resource using a standard resource URI (e.g., `a2ui://recipe-form`).
-- **Use Case**: Ideal for static configuration forms, selection screens, settings dashboards, or stable layouts.
-- **Benefit**: Extremely simple to implement, low overhead, and doesn't require the LLM/Agent to make a tool call to fetch the structure.
-
-**Python Server Example:**
+Expose static layout templates via `resources/list` and `resources/read`:
 
 ```python
 @app.list_resources()
@@ -143,59 +136,129 @@ async def list_resources() -> list[types.Resource]:
             uri="a2ui://recipe-form",
             name="Recipe Form",
             mimeType="application/a2ui+json",
-            description="Static form allowing users to pick options.",
-        )
+            description="Static form allowing users to pick cuisine and protein.",
+        ),
+        types.Resource(
+            uri="a2ui://recipe-card",
+            name="Recipe Card",
+            mimeType="application/a2ui+json",
+            description="Static recipe card layout template.",
+        ),
     ]
+
 
 @app.read_resource()
 async def read_resource(uri: str) -> list[ReadResourceContents]:
-    if uri == "a2ui://recipe-form":
+    if str(uri) == "a2ui://recipe-form":
         return [
             ReadResourceContents(
                 content=json.dumps(recipe_form_json),
                 mime_type="application/a2ui+json",
             )
         ]
+    if str(uri) == "a2ui://recipe-card":
+        return [
+            ReadResourceContents(
+                content=json.dumps(recipe_a2ui_json),
+                mime_type="application/a2ui+json",
+            )
+        ]
     raise ValueError(f"Unknown resource: {uri}")
 ```
 
-### 2. Dynamic UI via MCP Tools (`tools/call`)
+### 2. Declaring Tool UI Metadata
 
-For user interfaces that need to be generated dynamically based on the conversational context, user parameters, or real-time data, you should serve A2UI inside an MCP Tool's response.
+Declare the presentation resource URI on the tool definition:
 
-- **Concept**: The client/Agent calls a tool with specific arguments (e.g., chosen ingredients, preferences), and the server returns a customized A2UI JSON wrapped inside an `EmbeddedResource` in the `CallToolResult`.
-- **Use Case**: Ideal for content that depends on live database queries, previous inputs, interactive step-by-step wizard state, or personalized recommendations (e.g., a customized recipe card).
-- **Benefit**: Maximizes flexibility, context-awareness, and supports highly dynamic flows.
-- **Best Practice (Fallback Text)**: Always include a `TextContent` alongside your `EmbeddedResource` in the `CallToolResult`. Clients that don't support A2UI will fall back to displaying this text to the user.
+```python
+types.Tool(
+    name="get_recipe_a2ui",
+    title="Get Recipe A2UI",
+    description="Returns recipe data and links to the recipe-card template.",
+    inputSchema={
+        "type": "object",
+        "properties": {
+            "cookingStyle": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Selected cooking styles",
+            },
+            "protein": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Selected proteins",
+            },
+        },
+        "additionalProperties": True,
+    },
+    _meta={
+        "ui": {
+            "resourceUri": "a2ui://recipe-card",
+            "mimeType": "application/a2ui+json",
+        }
+    },
+)
+```
 
-**Python Server Example:**
+### 3. Returning Dynamic Data via Tool Execution
+
+In the tool call handler, return the dynamic state as an `updateDataModel` message with `_meta.ui`:
 
 ```python
 @app.call_tool()
-async def handle_call_tool(name: str, arguments: dict[str, Any]) -> types.CallToolResult:
+async def handle_call_tool(
+    name: str, arguments: dict[str, Any]
+) -> types.CallToolResult:
     if name == "get_recipe_a2ui":
-        # Resolve dynamic selections from client parameters
-        style = arguments.get("cookingStyle", "Baked")
-        protein = arguments.get("protein", "Salmon")
+        # Resolve selected recipe from user arguments
+        style_list = arguments.get("cookingStyle", ["Baked"])
+        protein_list = arguments.get("protein", ["Salmon"])
+        style = style_list[0] if style_list else "Baked"
+        protein = protein_list[0] if protein_list else "Salmon"
+        recipe = RECIPES.get((style, protein))
 
-        # Retrieve customized recipe database entry
-        recipe_data = RECIPES.get((style, protein))
+        # Generate lightweight updateDataModel payload
+        data_model_update = [
+            {
+                "version": "v0.9",
+                "updateDataModel": {
+                    "surfaceId": "recipe-card",
+                    "path": "/",
+                    "value": {
+                        "title": recipe["title"],
+                        "rating": recipe["rating"],
+                        "reviews": recipe["reviews"],
+                        "cookTime": recipe["cookTime"],
+                        "prepTime": recipe["prepTime"],
+                        "servings": recipe["servings"],
+                        "image": recipe["image"],
+                    },
+                },
+            }
+        ]
 
-        # Customize base A2UI schema dynamically
-        custom_recipe_json = copy.deepcopy(recipe_a2ui_json)
-        custom_recipe_json[1]["updateComponents"]["components"][0]["text"] = recipe_data["title"]
-
-        # Return customized recipe card as EmbeddedResource
-        return types.CallToolResult(content=[
-            types.EmbeddedResource(
-                type="resource",
-                resource=types.TextResourceContents(
-                    uri="a2ui://recipe-card",
-                    mimeType="application/a2ui+json",
-                    text=json.dumps(custom_recipe_json),
-                )
-            )
-        ])
+        return types.CallToolResult(
+            content=[
+                types.TextContent(
+                    type="text",
+                    text=f"Generated recipe: {recipe['title']}",
+                ),
+                types.EmbeddedResource(
+                    type="resource",
+                    resource=types.TextResourceContents(
+                        uri="a2ui://recipe-card/data",
+                        mimeType="application/a2ui+json",
+                        text=json.dumps(data_model_update),
+                    ),
+                ),
+            ],
+            _meta={
+                "ui": {
+                    "resourceUri": "a2ui://recipe-card",
+                    "mimeType": "application/a2ui+json",
+                }
+            },
+        )
 ```
 
 ## Catalog Negotiation
@@ -222,7 +285,7 @@ MCP is a stateful session protocol, so the most efficient approach is to declare
         "clientCapabilities": {
           "v0.9": {
             "supportedCatalogIds": [
-              "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+              "https://a2ui.org/specification/v0_9/basic_catalog.json"
             ]
           }
         }
@@ -251,7 +314,7 @@ If your server must remain stateless, the client can pass A2UI capabilities in t
         "clientCapabilities": {
           "v0.9": {
             "supportedCatalogIds": [
-              "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+              "https://a2ui.org/specification/v0_9/basic_catalog.json"
             ],
             "inlineCatalogs": []
           }

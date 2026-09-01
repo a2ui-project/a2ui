@@ -18,6 +18,7 @@ import 'package:a2ui_core/src/core/component_model.dart';
 import 'package:a2ui_core/src/core/messages.dart';
 import 'package:a2ui_core/src/core/minimal_catalog.dart';
 import 'package:a2ui_core/src/core/surface_model.dart';
+import 'package:a2ui_core/src/primitives/errors.dart';
 import 'package:a2ui_core/src/processing/processor.dart';
 import 'package:test/test.dart';
 
@@ -139,6 +140,130 @@ void main() {
       expect(surfaces, contains('s1'));
       expect(surfaces, isNot(contains('s2')));
       expect(surfaces?['s1'], {'foo': 'bar'});
+    });
+    test('applies a fully valid batch of components', () {
+      processor.processMessages([
+        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+        UpdateComponentsMessage(
+          surfaceId: 's1',
+          components: [
+            {'id': 'root', 'component': 'Text', 'text': 'first'},
+            {'id': 'second', 'component': 'Text', 'text': 'second'},
+          ],
+        ),
+      ]);
+
+      final SurfaceModel<ComponentApi>? surface = processor.groupModel
+          .getSurface('s1');
+      expect(surface?.componentsModel.get('root'), isNotNull);
+      expect(surface?.componentsModel.get('second'), isNotNull);
+    });
+
+    test('rejects a batch with a component missing an id without mutating '
+        'the surface', () {
+      processor.processMessages([
+        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+      ]);
+      final SurfaceModel<ComponentApi> surface = processor.groupModel
+          .getSurface('s1')!;
+
+      expect(
+        () => processor.processMessages([
+          UpdateComponentsMessage(
+            surfaceId: 's1',
+            components: [
+              {'id': 'root', 'component': 'Text', 'text': 'valid'},
+              {'component': 'Text', 'text': 'no id'},
+            ],
+          ),
+        ]),
+        throwsA(isA<A2uiValidationError>()),
+      );
+
+      expect(surface.componentsModel.get('root'), isNull);
+      expect(surface.componentsModel.all, isEmpty);
+    });
+
+    test('rejects a batch that creates a component without a type without '
+        'mutating the surface', () {
+      processor.processMessages([
+        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+      ]);
+      final SurfaceModel<ComponentApi> surface = processor.groupModel
+          .getSurface('s1')!;
+
+      expect(
+        () => processor.processMessages([
+          UpdateComponentsMessage(
+            surfaceId: 's1',
+            components: [
+              {'id': 'root', 'component': 'Text', 'text': 'valid'},
+              {'id': 'typeless', 'text': 'no component type'},
+            ],
+          ),
+        ]),
+        throwsA(isA<A2uiValidationError>()),
+      );
+
+      expect(surface.componentsModel.all, isEmpty);
+    });
+
+    test('leaves previously applied components untouched when a later batch '
+        'is rejected', () {
+      processor.processMessages([
+        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+        UpdateComponentsMessage(
+          surfaceId: 's1',
+          components: [
+            {'id': 'root', 'component': 'Text', 'text': 'original'},
+          ],
+        ),
+      ]);
+      final SurfaceModel<ComponentApi> surface = processor.groupModel
+          .getSurface('s1')!;
+
+      expect(
+        () => processor.processMessages([
+          UpdateComponentsMessage(
+            surfaceId: 's1',
+            components: [
+              {'id': 'root', 'component': 'Text', 'text': 'updated'},
+              {'component': 'Text', 'text': 'no id'},
+            ],
+          ),
+        ]),
+        throwsA(isA<A2uiValidationError>()),
+      );
+
+      final ComponentModel? root = surface.componentsModel.get('root');
+      expect(root, isNotNull);
+      expect(root?.properties['text'], 'original');
+      expect(surface.componentsModel.all, hasLength(1));
+    });
+
+    test('updating an existing component without repeating its type is '
+        'allowed', () {
+      processor.processMessages([
+        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+        UpdateComponentsMessage(
+          surfaceId: 's1',
+          components: [
+            {'id': 'root', 'component': 'Text', 'text': 'original'},
+          ],
+        ),
+        UpdateComponentsMessage(
+          surfaceId: 's1',
+          components: [
+            {'id': 'root', 'text': 'updated'},
+          ],
+        ),
+      ]);
+
+      final SurfaceModel<ComponentApi>? surface = processor.groupModel
+          .getSurface('s1');
+      final ComponentModel? root = surface?.componentsModel.get('root');
+      expect(root?.type, 'Text');
+      expect(root?.properties['text'], 'updated');
     });
   });
 }
