@@ -47,7 +47,7 @@ struct OpenURLFunctionTests {
 
   // MARK: - Evaluation
 
-  @Test func opensValidHTTPSUrl() throws {
+  @Test func opensValidHTTPSURL() throws {
     let handler = MockOpenURLHandler()
     let function = OpenURLFunction(handler: handler)
 
@@ -60,7 +60,7 @@ struct OpenURLFunctionTests {
     #expect(handler.openedURL?.absoluteString == "https://example.com/foo?bar=baz")
   }
 
-  @Test func opensValidHTTPUrl() throws {
+  @Test func opensValidHTTPURL() throws {
     let handler = MockOpenURLHandler()
     let function = OpenURLFunction(handler: handler)
 
@@ -72,7 +72,7 @@ struct OpenURLFunctionTests {
     #expect(handler.openedURL?.absoluteString == "http://insecure.com")
   }
 
-  @Test func resolvesRelativeUrlWhenBaseUrlIsProvided() throws {
+  @Test func resolvesRelativeURLWhenBaseURLIsProvided() throws {
     let handler = MockOpenURLHandler()
     let baseURL = try #require(URL(string: "https://google.com/search"))
     let function = OpenURLFunction(handler: handler, baseURL: baseURL)
@@ -85,7 +85,7 @@ struct OpenURLFunctionTests {
     #expect(handler.openedURL?.absoluteString == "https://google.com/search?q=swift")
   }
 
-  @Test func throwsErrorWhenMissingUrlArgument() {
+  @Test func throwsErrorWhenMissingURLArgument() {
     let function = OpenURLFunction()
 
     #expect(throws: FunctionError.self) {
@@ -117,7 +117,7 @@ struct OpenURLFunctionTests {
     }
   }
 
-  @Test func throwsErrorWhenRelativeUrlHasNoSchemeAndNoBaseUrl() {
+  @Test func throwsErrorWhenRelativeURLHasNoSchemeAndNoBaseURL() {
     let function = OpenURLFunction()
 
     #expect(throws: FunctionError.self) {
