@@ -41,6 +41,17 @@ stateDiagram-v2
 
 ---
 
+## Git Tagging & Atomic Release Guarantees
+
+To ensure that published release artifacts match the **exact Git commit** of the audited Version Bump PR (preventing subsequent commits on `main` from polluting a release):
+
+- **Tag Naming Convention**:
+  - **TypeScript**: `@a2ui/<short_name>-v<version>` (e.g. `@a2ui/web_core-v0.10.7`, `@a2ui/react-v0.11.0`)
+  - **Python**: `<pkg_name>-v<version>` (e.g. `a2ui-core-v0.1.1`, `a2ui-agent-sdk-v0.5.0`)
+- **Atomic Build Guarantee**: Release tags point directly to the merged Version Bump PR commit hash (`C1`). Release workflows checkout the exact tag commit (`git checkout tags/<tag>`) before building, guaranteeing 100% parity between `CHANGELOG.md`, version strings, Git history, and published registry artifacts.
+
+---
+
 ## Phase 0: Automated State Discovery
 
 To inspect the current release state across all packages at once, execute the status checker script:
