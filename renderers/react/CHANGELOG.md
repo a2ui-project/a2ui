@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.11.0
+
 - (v0_9) Component implementations may supply a `view` that renders from a resolved `ComponentNode` (see `NodeViewProps` and `useSignalValue`) ([#2077](https://github.com/a2ui-project/a2ui/pull/2077)).
 - (v0_9) `A2uiSurface` renders through the node layer: each component re-renders only when its own data changes. Implementations without a `view` keep rendering through `render` ([#2393](https://github.com/a2ui-project/a2ui/pull/2393)).
 - **BREAKING CHANGE**: (v0_9) On schema-marked references, `buildChild`'s `basePath` argument selects among the instances the payload creates; it no longer creates an instance at a caller-chosen path. The rendered notice for such a request names the paths where instances exist and reports `UNRESOLVED_CHILD_REFERENCE` through `onError` ([#2393](https://github.com/a2ui-project/a2ui/pull/2393)).
