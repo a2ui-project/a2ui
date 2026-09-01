@@ -280,3 +280,37 @@ on:
 | **`.github/workflows/release-pr.yml`**                      | **Implemented** | Created GitHub Action workflow for weekly scheduled cron (`0 9 * * 1`) and `workflow_dispatch` running `create_release.py --create-pr`.                                                                                                                                                                    |
 | **`.github/workflows/tag-on-merge.yml`**                    | **Implemented** | Created GitHub Action workflow to auto-create and push `javascript/` and `python/` Git tags when version PR merges to `main`.                                                                                                                                                                              |
 | **`.github/workflows/publish-tag.yml`**                     | **Implemented** | Created GitHub Action workflow to build and publish tagged packages on tag push (`javascript/**`, `python/**`). Supports `dry_run` input.                                                                                                                                                                  |
+| **`scripts/release/tests/test_create_release.py`**          | **Implemented** | Created automated unit test suite covering SemVer calculation, HTTP 404 registry handling, tag formatting, and version file mutations (11/11 passing).                                                                                                                                                     |
+
+---
+
+## 8. Authentication Security, Permissions & Error Recovery
+
+To guarantee reliable execution across developer workstations and automated CI/CD runners, the pipeline establishes explicit credential verification and diagnostic recovery paths:
+
+### 1. Google Cloud CLI & Application Default Credentials (ADC)
+
+- **Local Developer Pre-Flight Verification**: Publishing scripts (`./renderers/release.sh` and `./agent_sdks/python/release.sh`) execute `gcloud auth print-access-token > /dev/null 2>&1` before invoking build or upload tools.
+- **Diagnostic Error Handling**: If authentication token is missing or expired, scripts exit immediately with code 1 and output step-by-step resolution instructions:
+  ```text
+  ❌ ERROR: Google Cloud CLI authentication token is missing or expired.
+     To fix, run: gcloud auth login --update-adc
+  ```
+- **Required GCP IAM Roles**:
+  - `roles/artifactregistry.writer` (for pushing Python wheels to `us-python.pkg.dev` and npm packages to `us-npm.pkg.dev`)
+  - `roles/storage.objectAdmin` (for uploading Exit Gate release manifests to `gs://oss-exit-gate-prod-projects-bucket/...`)
+
+### 2. Keyless Workload Identity Federation (WIF) in CI/CD
+
+- Automated release publishing in `.github/workflows/publish-tag.yml` uses Keyless OIDC authentication via `google-github-actions/auth@v2` with `id-token: write` permissions.
+- **Required Repository Secrets**:
+  - `GCP_WORKLOAD_IDENTITY_PROVIDER`: Workload identity pool provider resource name.
+  - `GCP_SERVICE_ACCOUNT`: Target IAM service account configured with Artifact Registry and GCS permissions.
+
+### 3. GitHub CLI (`gh`) & Token Scopes
+
+- Automated PR creation (`./scripts/release/create_release.py --create-pr`) retrieves token from `A2UI_UPSTREAM_TOKEN` or `GH_TOKEN`.
+- **Required Token Scopes**:
+  - `repo`: Full control of repositories (required to create branches and open Pull Requests).
+  - `workflow`: Updating GitHub Action workflow files if included in version bumps.
+- **Auth Failure Recovery**: If `gh pr create` encounters an HTTP 401/403 permission error (e.g. read-only token), `create_release.py` outputs clear scope requirements and logs the created branch name (`release/sdks-weekly`) so maintainers can push and open the PR manually.
