@@ -122,6 +122,7 @@ a2ui/core/
 ├── basic_catalog/                  # Bundled default components & operators (Protocol-version-agnostic)
 ├── catalog/                        # Catalog declarations
 │   ├── catalog                     # Catalog base class (Version-agnostic component/function container)
+│   ├── common_types                # Canonical public authoring primitives (DynamicString, DataBinding, Action, etc.)
 │   ├── components                  # Component declarations
 │   └── functions                   # Function declarations
 ├── state/                          # Reactive Layout State Models
@@ -202,22 +203,48 @@ interface ComponentApi {
 }
 ```
 
-##### Common Types & Schema Representation
+##### Canonical Common Types Authoring Layer (`a2ui.core.catalog.common_types`)
 
-A2UI balances two requirements for catalog schemas and core data types:
+To ensure developers authoring component catalogs never have to migrate import paths when new A2UI protocol versions are released, the Core SDK strictly separates the **Public Authoring Surface** from **Private Wire Validation Assets**:
 
-1. **Catalog Portability**: Component catalogs are version-agnostic and do not hardcode specific protocol version URLs or `protocolVersion` properties. In JSON Schema, catalogs point to relative building blocks via `"$ref": "common_types.json#/$defs/<TypeName>"`.
-2. **Version-Specific Common Types Declarations**: Each protocol version (v0.8, v0.9, v0.9.1, v1.0) declares its own canonical `common_types.json` schema file in `schema/<version>/common_types.json`.
+1. **Canonical Public Primitives (`a2ui.core.catalog.common_types`)**:
+   - The Core SDK exports a single, version-agnostic set of common-type schema builders and types from the root catalog namespace (`@a2ui/core`, `a2ui.catalog`, `package:a2ui_core`).
+   - Standard authoring primitives include:
+     - `DynamicString`: Evaluates to `string | DataBinding | FunctionCall`
+     - `DynamicNumber`: Evaluates to `number | DataBinding | FunctionCall`
+     - `DynamicBoolean`: Evaluates to `boolean | DataBinding | FunctionCall`
+     - `DynamicStringList`: Evaluates to `string[] | DataBinding | FunctionCall`
+     - `DataBinding`: Data model pointer binding (`{ path: string, ... }`)
+     - `FunctionCall`: Client function invocation (`{ call: string, args: Record<string, any>, returnType?: string }`)
+     - `Action`: User action dispatch event (`{ name: string, context?: Record<string, any> }`)
+     - `ChildList`: Child component slot references
+     - `AccessibilityAttributes`: Standard accessibility metadata
+   - Component authors write all schemas against these root canonical types:
 
-###### Version-Scoped Schema Registry & Active Version Pruning
+     ```typescript
+     // ✅ Canonical Developer Experience (Zero version migration across A2UI upgrades)
+     import {DynamicString, DynamicNumber, Action, ChildList, ComponentApi} from '@a2ui/core';
 
-To support portable catalogs while strictly enforcing protocol version boundaries, the Core SDK implements a **Version-Scoped Schema Registry**:
+     export const CardComponent: ComponentApi = {
+       name: 'Card',
+       schema: z.object({
+         title: DynamicString.describe('Card title'),
+         elevation: DynamicNumber.default(1),
+         onClick: Action.optional(),
+         children: ChildList.optional(),
+       }),
+     };
+     ```
 
-- **Per-Version Validator Contexts**: The `A2uiValidator` maintains distinct validation contexts for each supported `A2uiProtocolVersion` (v0.8, v0.9, v0.9.1, v1.0).
-- **Relative Schema Binding**: Within each version context, the relative URI `"common_types.json"` is bound directly to that protocol version's canonical `common_types.json` schema.
-- **Active Version Validation**: When evaluating incoming messages, the validator identifies the message's active protocol version (e.g. from the message envelope or configuration) and validates against the corresponding versioned registry context:
-  - If a **v0.9** message attempts to use a feature only introduced in v1.0 (such as the `@index` / `IndexSystemFunction` or v1.0 action/binding fields), validation **fails** because `schema/v0_9/common_types.json` does not contain or permit those definitions.
-  - If a **v1.0** message uses the feature, validation **passes** because `schema/v1_0/common_types.json` declares it.
+2. **Metadata Tagging & Portable Wire Emission**:
+   - Canonical authoring builders automatically attach schema metadata tags (`REF:common_types.json#/$defs/<TypeName>`).
+   - When the SDK generates JSON Schemas for catalog distribution or `clientCapabilities.inlineCatalogs`, it emits relative `$ref: "common_types.json#/$defs/<TypeName>"` pointers with **no version numbers** and **no `protocolVersion` constraints**.
+
+3. **Private Versioned Validation Registries (`a2ui.core.schema.v*`)**:
+   - The version-specific schema definitions (`schema/v0_8/common_types.json`, `schema/v0_9/common_types.json`, `schema/v1_0/common_types.json`) are **private internal assets** encapsulated within the validation engine.
+   - The `A2uiValidator` manages **Version-Scoped Schema Registries**:
+     - When validating a **v0.9** message, `"common_types.json"` is bound to the private v0.9 schema. Any v1.0 features (such as `@index` / `IndexSystemFunction` or v1.0 binding fields) **fail validation immediately** at the wire boundary.
+     - When validating a **v1.0** message, `"common_types.json"` is bound to the private v1.0 schema, and validation **passes**.
 
 ###### In-Memory Representation Across SDK Languages
 
@@ -227,7 +254,7 @@ Depending on the SDK implementation language, schemas are represented in memory 
    - Component schemas embed SDK common-type builder objects directly into resolved in-memory schema trees.
    - Common-type builders attach metadata tags (`REF:common_types.json#/$defs/<TypeName>`).
    - When generating JSON schemas or `clientCapabilities.inlineCatalogs`, the SDK serializer inspects metadata tags and projects the tree into version-agnostic relative `$ref: "common_types.json#/$defs/<TypeName>"` JSON pointers without a `protocolVersion` field.
-   - At runtime, the Version-Scoped Schema Registry dynamically validates the relative `$ref`s against the active version's `common_types.json`.
+   - At runtime, the Version-Scoped Schema Registry dynamically validates the relative `$ref`s against the active message version's `common_types.json`.
 
 2. **Reference Dict Representation (Python)**:
    - Component schemas are held as dict structures containing raw `$ref: "common_types.json#/$defs/<TypeName>"` string pointers alongside the version-specific `common_types_schema` dictionary.
