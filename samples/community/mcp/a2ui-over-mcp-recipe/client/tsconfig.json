@@ -13,5 +13,5 @@
     "isolatedModules": true,
     "outDir": "dist"
   },
-  "include": ["src/**/*.ts", "app.ts"]
+  "include": ["src/**/*.ts", "*.ts"]
 }
