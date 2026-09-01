@@ -392,7 +392,6 @@ function validateCatalogSchemaTestCase(testCase) {
     if (testCase.expectError) {
       try {
         Catalog.fromSchema(rawSchema);
-        throw new Error('Expected Catalog.fromSchema to throw an error, but it succeeded.');
       } catch (err) {
         if (testCase.expectError.code && !err.message.includes(testCase.expectError.code)) {
           throw new Error(
@@ -401,6 +400,7 @@ function validateCatalogSchemaTestCase(testCase) {
         }
         return;
       }
+      throw new Error('Expected Catalog.fromSchema to throw an error, but it succeeded.');
     }
 
     catalog = Catalog.fromSchema(rawSchema);
