@@ -36,12 +36,20 @@ let package = Package(
       name: "BasicCatalog",
       targets: ["BasicCatalog"]
     ),
+    .library(
+      name: "BasicCatalogSwiftUI",
+      targets: ["BasicCatalogSwiftUI"]
+    ),
   ],
   dependencies: [
     .package(
       url: "https://github.com/ajevans99/swift-json-schema",
       from: "0.13.1"
-    )
+    ),
+    .package(
+      url: "https://github.com/jpsim/Yams",
+      from: "6.2.2"
+    ),
   ],
   targets: [
     // ── Core ──
@@ -78,6 +86,16 @@ let package = Package(
       dependencies: ["A2UICore"],
       path: "swift/swiftui/Sources/A2UISwiftUI"
     ),
+    .target(
+      name: "BasicCatalogSwiftUI",
+      dependencies: [
+        "A2UICore",
+        "A2UISwiftUI",
+        "BasicCatalog",
+        .product(name: "OrderedJSON", package: "swift-json-schema"),
+      ],
+      path: "swift/swiftui/Sources/BasicCatalog"
+    ),
 
     // ── Tests ──
     .testTarget(
@@ -92,13 +110,28 @@ let package = Package(
     ),
     .testTarget(
       name: "A2UISwiftUITests",
-      dependencies: ["A2UISwiftUI", "A2UICore"],
+      dependencies: [
+        "A2UISwiftUI",
+        "A2UICore",
+        "BasicCatalog",
+        "BasicCatalogSwiftUI",
+      ],
       path: "swift/swiftui/Tests/A2UISwiftUITests"
     ),
     .testTarget(
       name: "BasicCatalogTests",
       dependencies: ["BasicCatalog"],
       path: "swift/core/Tests/BasicCatalogTests"
+    ),
+    .testTarget(
+      name: "A2UIConformanceTests",
+      dependencies: [
+        "A2UICore",
+        "A2UIJSON",
+        "BasicCatalog",
+        .product(name: "Yams", package: "Yams"),
+      ],
+      path: "swift/core/Tests/A2UIConformanceTests"
     ),
   ]
 )

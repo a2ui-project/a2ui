@@ -14,12 +14,22 @@
 
 import JSONSchema
 
-/// The framework-agnostic definition of a UI component.
+/// The framework-agnostic definition contract of a UI component.
 ///
 /// Pairs a component name (as it appears in A2UI JSON) with the
 /// JSON Schema that validates the component's properties.
 /// Mirrors `ComponentApi` in the core blueprint.
-public struct ComponentAPI: Sendable, Equatable {
+public protocol ComponentAPI: Sendable {
+  /// The component name as it appears in A2UI JSON (e.g., "Button").
+  var name: String { get }
+
+  /// The compiled JSON Schema used for validation and capability
+  /// generation.
+  var schema: Schema { get }
+}
+
+/// A standard value type conforming to ``ComponentAPI`` for schema-only components.
+public struct AnyComponentAPI: ComponentAPI, Sendable, Equatable {
   /// The component name as it appears in A2UI JSON (e.g., "Button").
   public var name: String
 

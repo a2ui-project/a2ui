@@ -26,7 +26,7 @@ permissions:
 jobs:
   run-audit:
     name: Execute Antigravity Compliance Audit
-    runs-on: ubuntu-latest-extra-capacity
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     # Requires issue write permissions to create compliance audit reports
     permissions:
