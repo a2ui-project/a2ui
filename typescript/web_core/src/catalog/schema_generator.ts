@@ -21,8 +21,15 @@ import {V08_STANDARD_DEFS} from '../v0_8/standard_defs.js';
 import {V09_STANDARD_DEFS} from '../v0_9/standard_defs.js';
 import {V10_STANDARD_DEFS} from '../v1_0/standard_defs.js';
 
+const STANDARD_DEFS_BY_VERSION: Readonly<Record<string, Record<string, unknown>>> = {
+  'v0.8': V08_STANDARD_DEFS,
+  'v0.9': V09_STANDARD_DEFS,
+  'v0.9.1': V09_STANDARD_DEFS,
+  'v1.0': V10_STANDARD_DEFS,
+};
+
 /**
- * Resolves the appropriate standard $defs dictionary based on options, catalog configuration, or catalog identifier.
+ * Resolves the appropriate standard $defs dictionary based on options, catalog configuration, or default protocol version.
  */
 function getStandardDefsForCatalog(
   catalog: CatalogInterface<any, any>,
@@ -34,21 +41,8 @@ function getStandardDefsForCatalog(
   if (catalog.standardDefs) {
     return catalog.standardDefs;
   }
-  const version = options?.protocolVersion;
-  if (version === 'v0.8' || version === '0.8') {
-    return V08_STANDARD_DEFS;
-  }
-  if (version === 'v1.0' || version === '1.0') {
-    return V10_STANDARD_DEFS;
-  }
-  if (version === 'v0.9' || version === 'v0.9.1' || version === '0.9' || version === '0.9.1') {
-    return V09_STANDARD_DEFS;
-  }
-  if (catalog.id.includes('v0_8') || catalog.id.includes('v0.8')) {
-    return V08_STANDARD_DEFS;
-  }
-  if (catalog.id.includes('v1_0') || catalog.id.includes('v1.0')) {
-    return V10_STANDARD_DEFS;
+  if (options?.protocolVersion && options.protocolVersion in STANDARD_DEFS_BY_VERSION) {
+    return STANDARD_DEFS_BY_VERSION[options.protocolVersion];
   }
   return V09_STANDARD_DEFS;
 }
