@@ -21,6 +21,7 @@ This skill guides the process of auditing concrete codebase implementations to v
    - If any command listed in the readme is invalid, deprecated, or has wrong arguments, list it as a discrepancy.
 
 3. **Audit Code-vs-Docs Public API and Settings**:
+   - Make sure the glossary is respected. Verify that terms used in code, documentation and blueprints are consistent with [the glossary](../../../docs/public/concepts/glossary.md). If you find deviations, suggest fixes. If you see an important term is used in documentation and/or API, but is missing from the glossary, suggest an update for the glossary.
    - Inspect the codebase's public API entrypoints (classes, interfaces, types, methods).
    - Compare them against any descriptions, structural maps, or code snippets in the `docs/` folder.
    - Look for renamed classes, changed signatures, or removed options that are still described in the docs.
@@ -30,7 +31,15 @@ This skill guides the process of auditing concrete codebase implementations to v
    - Audit inline comments and docstrings (e.g. JSDoc in TS, docstrings in Python, triple-slash comments in Dart/Swift) for public APIs.
    - Flag any mismatch where code parameter names, types, return behaviors, or exceptions thrown deviate from what the docstring claims.
 
-5. **Format the Report**:
+5. **Links and Duplicates**:
+   - When an artifact (code, document, issue, PR, comment and so on) is referenced, make sure it has a link.
+   - When a glossary term is used - link the first occurrence of the term to the glossary entry if it exists.
+   - Make sure there is no duplications of content. If you find some, delete the duplicate and leave a reference.
+
+6. **Conciseness and Clarity**:
+   - Verify that documentation and code comments follow the [natural-writing](../natural-writing/SKILL.md) skill, and flag text that breaks its rules.
+
+7. **Format the Report**:
    - Build a Markdown report summarizing the findings:
      - Table of audited directories.
      - **Documentation Drift**: Mismatches between documentation guides (`docs/`) and codebase implementations.

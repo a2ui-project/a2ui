@@ -30,7 +30,7 @@ on:
 jobs:
   validate:
     name: Validate Specifications
-    runs-on: ubuntu-latest-extra-capacity
+    runs-on: ubuntu-latest
     permissions:
       contents: read
 

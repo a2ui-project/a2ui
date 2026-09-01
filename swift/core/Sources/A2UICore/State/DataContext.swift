@@ -24,7 +24,11 @@ public final class DataContext: @unchecked Sendable {
   /// A reference to the function handler to evaluate dynamic function calls.
   public weak var functionHandler: FunctionHandler?
 
-  public init(dataModel: DataModel, path: String, functionHandler: FunctionHandler) {
+  public init(
+    dataModel: DataModel,
+    path: String,
+    functionHandler: FunctionHandler
+  ) {
     self.dataModel = dataModel
     self.path = path
     self.functionHandler = functionHandler
@@ -41,7 +45,11 @@ public final class DataContext: @unchecked Sendable {
     guard let handler = functionHandler else { return nil }
     let absPath = JSONValue.absolutePath(for: relativePath, in: self.path)
 
-    return DataContext(dataModel: dataModel, path: absPath, functionHandler: handler)
+    return DataContext(
+      dataModel: dataModel,
+      path: absPath,
+      functionHandler: handler
+    )
   }
 
   /// Resolves a dynamic value to its current literal `JSONValue`.

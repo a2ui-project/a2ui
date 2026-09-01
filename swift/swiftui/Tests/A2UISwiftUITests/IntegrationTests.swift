@@ -14,6 +14,7 @@
 
 import A2UICore
 import A2UIJSON
+import BasicCatalog
 import JSONSchema
 import OrderedJSON
 import SwiftUI
@@ -22,7 +23,7 @@ import Testing
 // MARK: - Test Catalog for Integration Tests
 
 /// Builds a catalog with button, text, and textField component schemas for integration tests.
-func makeIntegrationCatalog() throws -> Catalog {
+func makeIntegrationCatalog() throws -> AnyCatalog {
   let remote = A2UICommonSchema.allSchemas
   let buttonSchema = try Schema(
     instance: """
@@ -61,10 +62,34 @@ func makeIntegrationCatalog() throws -> Catalog {
         "properties": {
           "id": {"type": "string"},
           "component": {"type": "string"},
-          "value": {"$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString"},
-          "placeholder": {"$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString"}
+          "value": {
+            "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString"
+          },
+          "placeholder": {
+            "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DynamicString"
+          }
         },
         "required": ["id", "component"]
+      }
+      """,
+    remoteSchemas: remote
+  )
+
+  let iconSchema = try Schema(
+    instance: """
+      {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "component": {"type": "string"},
+          "name": {
+            "oneOf": [
+              {"type": "string"},
+              {"$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/DataBinding"}
+            ]
+          }
+        },
+        "required": ["id", "component", "name"]
       }
       """,
     remoteSchemas: remote
@@ -73,9 +98,10 @@ func makeIntegrationCatalog() throws -> Catalog {
   return Catalog(
     id: "default",
     components: [
-      ComponentAPI(name: "button", schema: buttonSchema),
-      ComponentAPI(name: "text", schema: textSchema),
-      ComponentAPI(name: "textField", schema: textFieldSchema),
+      AnyComponentAPI(name: "button", schema: buttonSchema),
+      AnyComponentAPI(name: "text", schema: textSchema),
+      AnyComponentAPI(name: "textField", schema: textFieldSchema),
+      AnyComponentAPI(name: "icon", schema: iconSchema),
     ]
   )
 }
@@ -111,7 +137,7 @@ struct IntegrationTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
@@ -123,7 +149,14 @@ struct IntegrationTests {
     processor.process(
       message: try parse(
         """
-        {"version": "v0.9.1", "updateDataModel": {"surfaceId": "s1", "path": "/buttonLabel", "value": "Submit"}}
+        {
+          "version": "v0.9.1",
+          "updateDataModel": {
+            "surfaceId": "s1",
+            "path": "/buttonLabel",
+            "value": "Submit"
+          }
+        }
         """))
     processor.process(
       message: try parse(
@@ -147,7 +180,7 @@ struct IntegrationTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
@@ -185,7 +218,7 @@ struct IntegrationTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
@@ -217,14 +250,17 @@ struct IntegrationTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
     processor.process(
       message: try parse(
         """
-        {"version": "v0.9.1", "createSurface": {"surfaceId": "form-surface", "catalogId": "default"}}
+        {
+          "version": "v0.9.1",
+          "createSurface": {"surfaceId": "form-surface", "catalogId": "default"}
+        }
         """))
 
     // Step 1: Create form with text fields bound to data model
@@ -259,17 +295,38 @@ struct IntegrationTests {
     processor.process(
       message: try parse(
         """
-        {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/name", "value": "Alice"}}
+        {
+          "version": "v0.9.1",
+          "updateDataModel": {
+            "surfaceId": "form-surface",
+            "path": "/form/name",
+            "value": "Alice"
+          }
+        }
         """))
     processor.process(
       message: try parse(
         """
-        {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/email", "value": "alice@example.com"}}
+        {
+          "version": "v0.9.1",
+          "updateDataModel": {
+            "surfaceId": "form-surface",
+            "path": "/form/email",
+            "value": "alice@example.com"
+          }
+        }
         """))
     processor.process(
       message: try parse(
         """
-        {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/submitLabel", "value": "Submit Form"}}
+        {
+          "version": "v0.9.1",
+          "updateDataModel": {
+            "surfaceId": "form-surface",
+            "path": "/form/submitLabel",
+            "value": "Submit Form"
+          }
+        }
         """))
 
     // Verify data model state
@@ -285,7 +342,14 @@ struct IntegrationTests {
     processor.process(
       message: try parse(
         """
-        {"version": "v0.9.1", "updateDataModel": {"surfaceId": "form-surface", "path": "/form/name", "value": "Bob"}}
+        {
+          "version": "v0.9.1",
+          "updateDataModel": {
+            "surfaceId": "form-surface",
+            "path": "/form/name",
+            "value": "Bob"
+          }
+        }
         """))
     #expect(vm.dataModel.get("/form/name")?.stringValue == "Bob")
   }
@@ -296,7 +360,7 @@ struct IntegrationTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
@@ -323,7 +387,7 @@ struct IntegrationTests {
     let catalog = try makeIntegrationCatalog()
     let handler = IntegrationActionHandler()
     let processor = MessageProcessor(
-      catalogs: ["default": catalog],
+      catalogs: [catalog],
       actionHandler: handler
     )
 
@@ -344,10 +408,187 @@ struct IntegrationTests {
     processor.process(
       message: try parse(
         """
-        {"version": "v0.9.1", "updateDataModel": {"surfaceId": "s1", "path": "/title", "value": "Dynamic Title"}}
+        {
+          "version": "v0.9.1",
+          "updateDataModel": {
+            "surfaceId": "s1",
+            "path": "/title",
+            "value": "Dynamic Title"
+          }
+        }
         """))
 
     let vm = processor.surfaceGroupModel.surfacesMap["s1"]
     #expect(vm?.dataModel.get("/title")?.stringValue == "Dynamic Title")
+  }
+
+  @Test func iconComponentResolvesDynamicDataBinding() async throws {
+    let catalog = try makeIntegrationCatalog()
+    let handler = IntegrationActionHandler()
+    let processor = MessageProcessor(
+      catalogs: [catalog],
+      actionHandler: handler
+    )
+
+    processor.process(
+      message: try parse(
+        """
+        {"version": "v0.9.1", "createSurface": {"surfaceId": "s1", "catalogId": "default"}}
+        """))
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v0.9.1",
+          "updateDataModel": {
+            "surfaceId": "s1",
+            "path": "/icon",
+            "value": "check"
+          }
+        }
+        """))
+    processor.process(
+      message: try parse(
+        """
+        {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components": [
+          {
+            "id": "root",
+            "component": "icon",
+            "name": {"path": "/icon"}
+          }
+        ]}}
+        """))
+
+    await Task.yield()
+    let vm = try #require(processor.surfaceGroupModel.surfacesMap["s1"])
+    let root = try #require(vm.rootNode)
+    let binding = try #require(root.properties["name"] as? DataBinding<String>)
+    #expect(binding.value == "check")
+  }
+
+  @Test func advancedFormValidatorChecksProduceValidationErrors() async throws {
+    let processor = MessageProcessor(
+      catalogs: BasicCatalog.allCatalogs
+    )
+
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v0.9.1",
+          "createSurface": {
+            "surfaceId": "form-validator",
+            "catalogId": "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
+          }
+        }
+        """))
+
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v0.9.1",
+          "updateDataModel": {
+            "surfaceId": "form-validator",
+            "value": {
+              "formData": {
+                "email": "invalid-email",
+                "phone": "123",
+                "zip": "ABC"
+              }
+            }
+          }
+        }
+        """))
+
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v0.9.1",
+          "updateComponents": {
+            "surfaceId": "form-validator",
+            "components": [
+              {
+                "id": "root",
+                "component": "Column",
+                "children": ["emailField", "phoneField", "zipField"]
+              },
+              {
+                "id": "emailField",
+                "component": "TextField",
+                "label": "Email",
+                "value": {"path": "/formData/email"},
+                "checks": [
+                  {
+                    "condition": {
+                      "call": "email",
+                      "args": {"value": {"path": "/formData/email"}}
+                    },
+                    "message": "Invalid email format"
+                  }
+                ]
+              },
+              {
+                "id": "phoneField",
+                "component": "TextField",
+                "label": "Phone",
+                "value": {"path": "/formData/phone"},
+                "checks": [
+                  {
+                    "condition": {
+                      "call": "regex",
+                      "args": {
+                        "value": {"path": "/formData/phone"},
+                        "pattern": "^\\\\d{3}-\\\\d{3}-\\\\d{4}$"
+                      }
+                    },
+                    "message": "Invalid phone format"
+                  }
+                ]
+              },
+              {
+                "id": "zipField",
+                "component": "TextField",
+                "label": "Zip Code",
+                "value": {"path": "/formData/zip"},
+                "checks": [
+                  {
+                    "condition": {
+                      "call": "regex",
+                      "args": {
+                        "value": {"path": "/formData/zip"},
+                        "pattern": "^\\\\d{5}$"
+                      }
+                    },
+                    "message": "Must be exactly 5 digits"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+        """))
+
+    await Task.yield()
+    let vm = try #require(processor.surfaceGroupModel.surfacesMap["form-validator"])
+    let root = try #require(vm.rootNode)
+    let children = root.children(for: "children")
+    try #require(children.count == 3)
+
+    let emailNode = children[0]
+    #expect(emailNode.id == "emailField")
+    #expect(!emailNode.isValid)
+    #expect(emailNode.validationErrors == ["Invalid email format"])
+
+    let phoneNode = children[1]
+    #expect(phoneNode.id == "phoneField")
+    #expect(!phoneNode.isValid)
+    #expect(phoneNode.validationErrors == ["Invalid phone format"])
+
+    let zipNode = children[2]
+    #expect(zipNode.id == "zipField")
+    #expect(!zipNode.isValid)
+    #expect(zipNode.validationErrors == ["Must be exactly 5 digits"])
   }
 }

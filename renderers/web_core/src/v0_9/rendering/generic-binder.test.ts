@@ -17,7 +17,7 @@
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
 import {z} from 'zod';
-import {GenericBinder} from './generic-binder.js';
+import {GenericBinder, scrapeSchemaBehavior} from './generic-binder.js';
 import {ComponentContext} from './component-context.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {Catalog} from '../catalog/types.js';
@@ -316,5 +316,89 @@ describe('GenericBinder Checkable Trait', () => {
       extra: 'another_prop',
     };
     assert.strictEqual(notificationCount, 1);
+  });
+
+  describe('scrapeSchemaBehavior schema inference', () => {
+    it('should infer behavior from schema descriptions', () => {
+      // Description-based matching
+      assert.deepStrictEqual(
+        scrapeSchemaBehavior(z.any().describe('REF:common_types.json#/$defs/Action')),
+        {
+          type: 'ACTION',
+        },
+      );
+      assert.deepStrictEqual(scrapeSchemaBehavior(z.any().describe('#/$defs/ChildList')), {
+        type: 'STRUCTURAL',
+      });
+      assert.deepStrictEqual(scrapeSchemaBehavior(z.any().describe('#/$defs/DynamicString')), {
+        type: 'DYNAMIC',
+      });
+      assert.deepStrictEqual(
+        scrapeSchemaBehavior(z.any().describe('REF:common_types.json#/$defs/DataBinding')),
+        {
+          type: 'DYNAMIC',
+        },
+      );
+
+      // Checks property is CHECKABLE, while unannotated fields are STATIC
+      const objSchema = z.object({
+        checks: z.any(),
+        customProp: z.any(),
+      });
+
+      const behavior = scrapeSchemaBehavior(objSchema);
+      assert.strictEqual(behavior.type, 'OBJECT');
+      assert.strictEqual((behavior as any).shape.checks.type, 'CHECKABLE');
+      assert.strictEqual((behavior as any).shape.customProp.type, 'STATIC');
+
+      // Do not short-circuit to DYNAMIC if property is a nested ZodObject or ZodArray
+      const nestedSchema = z.object({
+        value: z.object({
+          nestedField: z.string().describe('#/$defs/DynamicString'),
+        }),
+        text: z.array(z.string().describe('#/$defs/DynamicString')),
+      });
+      const nestedBehavior = scrapeSchemaBehavior(nestedSchema);
+      assert.strictEqual(nestedBehavior.type, 'OBJECT');
+      assert.strictEqual((nestedBehavior as any).shape.value.type, 'OBJECT');
+      assert.strictEqual((nestedBehavior as any).shape.text.type, 'ARRAY');
+    });
+  });
+
+  describe('Static behavior for unannotated schemas', () => {
+    it('should pass unannotated properties through as static values without guessing bindings', () => {
+      const {surface} = setupSurfaceAndMocks();
+
+      const unannotatedSchema = z.object({
+        customProp: z.any(),
+        items: z.any(),
+        handleClick: z.any(),
+      });
+
+      const compModel = new ComponentModel('c10', 'Custom', {
+        customProp: {path: '/rawTitle'},
+        items: {componentId: 'card-view', path: '/cards'},
+        handleClick: {
+          event: {
+            name: 'custom_click',
+            context: {userId: {path: '/user/id'}},
+          },
+        },
+      });
+      surface.componentsModel.addComponent(compModel);
+
+      const context = new ComponentContext(surface, 'c10');
+      const binder = new GenericBinder<any>(context, unannotatedSchema);
+
+      // Data is passed through as-is rather than being misinterpreted as reactive bindings
+      assert.deepStrictEqual(binder.snapshot.customProp, {path: '/rawTitle'});
+      assert.deepStrictEqual(binder.snapshot.items, {componentId: 'card-view', path: '/cards'});
+      assert.deepStrictEqual(binder.snapshot.handleClick, {
+        event: {
+          name: 'custom_click',
+          context: {userId: {path: '/user/id'}},
+        },
+      });
+    });
   });
 });

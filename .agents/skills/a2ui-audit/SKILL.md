@@ -6,8 +6,7 @@ description: Main coordination skill to run the blueprint compliance, documentat
 # A2UI Compliance Verification Skill
 
 This skill coordinates the execution of specification compliance, documentation
-sync, and test quality audits, and publishes the combined results to the GitHub
-repository.
+sync, and test quality audits, and publishes the combined results as a GitHub issue.
 
 Other than writing a report and creating an issue, this skill is purely a
 read-only skill; no changes are to be made to the codebase. Do not attempt to
@@ -47,6 +46,7 @@ fix issues.
      ```bash
      python3 .agents/skills/a2ui-audit/scripts/create_compliance_report.py compliance_report.md --repo a2ui-project/a2ui
      ```
+   - The publishing script will create the GitHub issue, automatically inject copyable remediation prompt blocks referencing the newly created issue URL under each recommendation item, and update the issue body.
    - Ensure the helper script runs successfully.
    - Clean up the temporary file `compliance_report.md` after completion.
 
@@ -63,10 +63,11 @@ When compiling `compliance_report.md`, use the following structure:
 
 ## Recommendations
 
-1. **[Priority]**: [Clear title and detailed explanation of the fix needed, specifying affected directories or modules.]
-2. **[Priority]**: [Clear title and detailed explanation of the fix needed, specifying affected directories or modules.]
+1. **[Priority]**: **[Title]**
+   - [Clear detailed explanation of the fix needed, specifying affected directories or modules.]
 
-> 🤖 **Automated Remediation**: Comment `/fix <number>` (e.g., `/fix 1`) on this issue to have an agent create a draft PR for that recommendation.
+2. **[Priority]**: **[Title]**
+   - [Clear detailed explanation of the fix needed, specifying affected directories or modules.]
 
 ## Codebase Blueprint Compliance Audit
 
