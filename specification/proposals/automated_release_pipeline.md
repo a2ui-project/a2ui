@@ -110,6 +110,50 @@ sequenceDiagram
 
 ---
 
+### Changelog Conventions & SemVer Bump Calculation Rules
+
+To distinguish between **PATCH**, **MINOR**, and **MAJOR** releases, developers and scripts adhere to standardized conventions in `CHANGELOG.md` under `## Unreleased`:
+
+#### 1. `CHANGELOG.md` Formatting Conventions
+
+Developers structure items under `## Unreleased` using subheadings or prefixes:
+
+```markdown
+## Unreleased
+
+### Breaking Changes
+
+- **BREAKING CHANGE**: Rename API parameter Y to Z [#124]
+
+### Features
+
+- feat: Add support for custom layout binders [#130]
+- Add new `useSignalValue` hook ([#2077])
+
+### Bug Fixes
+
+- fix: Resolve DateTimeInput styling on WebKit ([#2200])
+```
+
+#### 2. Automated SemVer Bump Calculation Matrix
+
+The script (`create_release_pr.py`) evaluates items under `## Unreleased` using the following priority rules:
+
+| Unreleased Changelog Content                            | Pre-1.0 Version Bump (`0.x.y`)   | Post-1.0 Version Bump (`X.y.z`) |
+| :------------------------------------------------------ | :------------------------------- | :------------------------------ |
+| Contains `BREAKING CHANGE:` or `### Breaking Changes`   | **MINOR** (`0.10.2` -> `0.11.0`) | **MAJOR** (`1.2.3` -> `2.0.0`)  |
+| Contains `feat:` or `### Features` or new capability    | **MINOR** (`0.10.2` -> `0.11.0`) | **MINOR** (`1.2.3` -> `1.3.0`)  |
+| Contains only `fix:`, bug fixes, performance, refactors | **PATCH** (`0.10.2` -> `0.10.3`) | **PATCH** (`1.2.3` -> `1.2.4`)  |
+
+#### 3. Human SemVer Override Mechanism
+
+If the script calculates a `PATCH` bump (e.g. `0.10.3`) but maintainers decide the release warrants a `MINOR` bump (`0.11.0`):
+
+- Maintainers simply edit `"version"` in `package.json` / `version.py` directly on the open Release PR before merging.
+- The downstream tag creation and publishing workflows automatically respect whatever version number is merged into `main`.
+
+---
+
 ### Step 2: Human Review & Edit Options
 
 Maintainers review the generated release PR and can modify notes or version bump types via 3 mechanisms:
