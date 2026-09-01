@@ -9,9 +9,10 @@ This document specifies the design for generating and using Pydantic v2 models a
 A2UI builders let developers construct user interfaces in Python using clean, object-oriented syntax. Historically, these builders focused primarily on outward serialization: converting nested Python objects into flat lists of A2UI wire protocol components.
 
 However, real-world systems require bidirectional capability:
-* Deserializing existing wire payloads and template files into an active, navigable Python object tree.
-* Modifying that tree in place.
-* Re-serializing the tree back to protocol messages without losing unknown properties or metadata.
+
+- Deserializing existing wire payloads and template files into an active, navigable Python object tree.
+- Modifying that tree in place.
+- Re-serializing the tree back to protocol messages without losing unknown properties or metadata.
 
 Furthermore, catalog versions are not updated synchronously across agents, clients, and middleware. The generated classes and deserializer must support forward and backward compatibility by default.
 
@@ -39,21 +40,27 @@ Furthermore, catalog versions are not updated synchronously across agents, clien
 ## 3. Supported use cases
 
 ### Use case 1: Greenfield layout creation
+
 A developer writes a new UI in Python. IDEs provide autocompletion for component properties and enum options. Typos produce immediate errors.
 
 ### Use case 2: Read, mutate, and write (template editing)
+
 A backend service reads an A2UI message payload from an LLM or template store, navigates the object tree, updates specific properties, and produces updated wire messages.
 
 ### Use case 3: Middleware and proxy pass-through
+
 A proxy service receives an A2UI payload containing new properties from a newer catalog version, attaches telemetry, and forwards the message to a client without dropping the unrecognized properties.
 
 ### Use case 4: Tree traversal and querying
+
 A compliance tool inspects an existing UI tree to verify that all interactive components declare accessibility labels.
 
 ### Use case 5: Macro sub-tree injection
+
 A macro accepts a child component sub-tree from an LLM and inserts it into a container template before serialization.
 
 ### Use case 6: Unrecognized container with typed child subtrees
+
 An agent receives an unknown container component (`VideoPlayer`) holding known children (`Column`, `Text`). The agent parses `VideoPlayer` as `UnknownComponent`, parses `Column` and `Text` into typed models, preserves the full hierarchy, and re-emits all components losslessly.
 
 ---
@@ -414,19 +421,21 @@ Supporting bidirectional deserialization expands the scope of what was originall
 
 ### B. Pros and cons of supporting deserialization
 
-| Advantages (Pros) | Trade-offs & Costs (Cons) |
-| :--- | :--- |
-| **Enables read-modify-write workflows:** Agents can ingest existing templates, update specific properties, and emit updated surfaces without starting from scratch. | **Higher cognitive surface area:** Developers must understand the relationship between the primary AST root, component IDs, and `unlinked_roots`. |
-| **Enables middleware & proxies:** Intermediary services can inspect, filter, or decorate A2UI payloads without losing unrecognized properties. | **Memory overhead during deserialization:** Maintaining the wire dictionary index and constructing Pydantic models uses more memory than raw JSON pass-through. |
-| **Consistent developer ergonomics:** Reconstructed ASTs look and behave identically to hand-crafted Python object trees. | **ID mutation subtleties:** Modifying child relationships manually in Python requires care when re-assigning IDs. |
-| **Automated validation of incoming payloads:** Malformed structures or missing required properties are rejected immediately during deserialization. | **Catalog synchronization requirements:** Deserializing into typed classes requires maintaining generated catalog packages in sync with deployed catalogs. |
+| Advantages (Pros)                                                                                                                                                   | Trade-offs & Costs (Cons)                                                                                                                                       |
+| :------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Enables read-modify-write workflows:** Agents can ingest existing templates, update specific properties, and emit updated surfaces without starting from scratch. | **Higher cognitive surface area:** Developers must understand the relationship between the primary AST root, component IDs, and `unlinked_roots`.               |
+| **Enables middleware & proxies:** Intermediary services can inspect, filter, or decorate A2UI payloads without losing unrecognized properties.                      | **Memory overhead during deserialization:** Maintaining the wire dictionary index and constructing Pydantic models uses more memory than raw JSON pass-through. |
+| **Consistent developer ergonomics:** Reconstructed ASTs look and behave identically to hand-crafted Python object trees.                                            | **ID mutation subtleties:** Modifying child relationships manually in Python requires care when re-assigning IDs.                                               |
+| **Automated validation of incoming payloads:** Malformed structures or missing required properties are rejected immediately during deserialization.                 | **Catalog synchronization requirements:** Deserializing into typed classes requires maintaining generated catalog packages in sync with deployed catalogs.      |
 
 ---
 
 ### C. Edge cases and limitations where deserialization struggles
 
 #### 1. Shared child references (DAG topologies vs. pure trees)
+
 The flat A2UI wire format allows multiple parent components to reference the same child ID (forming a Directed Acyclic Graph). For example, a header and a footer might both reference an action button ID:
+
 ```json
 [
   {"id": "card", "component": "Card", "child": "btn_1"},
@@ -435,25 +444,34 @@ The flat A2UI wire format allows multiple parent components to reference the sam
   {"id": "txt_1", "component": "Text", "text": "Submit"}
 ]
 ```
+
 In a hierarchical Python object tree, components are expected to have a single parent. When deserializing:
-* If `btn_1` is shared by reference (`card.child is drawer.child`), mutating properties on one affects both, but tree traversals must avoid serializing `btn_1` twice.
-* If `btn_1` is cloned, mutating `card.child` leaves `drawer.child` unchanged, breaking the shared wire reference.
+
+- If `btn_1` is shared by reference (`card.child is drawer.child`), mutating properties on one affects both, but tree traversals must avoid serializing `btn_1` twice.
+- If `btn_1` is cloned, mutating `card.child` leaves `drawer.child` unchanged, breaking the shared wire reference.
 
 #### 2. The "ghost component" problem on unknown container deletion
+
 If a wire payload contains an unknown container holding known children:
+
 ```
 Card -> VideoPlayer (unknown) -> Column -> Text
 ```
+
 During deserialization, `Column -> Text` is preserved in `surface.unlinked_roots`.
 
 If a developer subsequently replaces the card's child in Python:
+
 ```python
 card.child = Text(text="Replaced Video")
 ```
+
 The deserializer cannot know whether the subtrees in `surface.unlinked_roots` were children of the deleted `VideoPlayer` or independent disconnected widgets. If the developer does not clear `surface.unlinked_roots`, calling `surface.to_messages()` will still output `Column` and `Text` as unused "ghost components" on the wire.
 
 #### 3. Dynamic template loops (`DynamicChildList`)
+
 In A2UI, repeating lists use `DynamicChildList` to bind an array data path to a template component ID:
+
 ```json
 {
   "id": "list_1",
@@ -464,22 +482,28 @@ In A2UI, repeating lists use `DynamicChildList` to bind an array data path to a 
   }
 }
 ```
+
 During deserialization, `user_card_template` is a prototype definition, not a concrete rendered child list. The deserializer must recognize `template` as a template slot rather than expecting a flat list of concrete components.
 
 #### 4. Malformed cyclic wire graphs
+
 Corrupted or hostile wire payloads can define circular parent-child references:
+
 ```json
 [
   {"id": "comp_A", "component": "Card", "child": "comp_B"},
   {"id": "comp_B", "component": "Card", "child": "comp_A"}
 ]
 ```
+
 Without cycle tracking (`context["_visited"]`), recursive validation causes an unrecoverable `RecursionError` (stack overflow). The deserializer must explicitly catch repeated IDs in the current branch and raise an `A2UIValidationError`.
 
 #### 5. String literal vs. path binding ambiguity
+
 If an un-annotated or loosely typed field receives a string value like `"/user/name"`, the deserializer must determine whether it is a plain text literal or an un-enveloped data binding path. Strict schema typing is required to prevent incorrect coercions.
 
 #### 6. Cross-version property renaming
+
 If an upstream catalog renames a property (such as `label` to `title`), deserializing older payloads into newer Pydantic models will store `label` in `__pydantic_extra__` and leave `title` as `None`. Code expecting `node.title` will not find the value unless custom schema migration hooks are provided.
 
 ---
