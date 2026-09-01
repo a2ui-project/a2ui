@@ -25,11 +25,11 @@ import sys
 import subprocess
 from pathlib import Path
 
-# Add script directory to sys.path to import check_status
+# Add script directory to sys.path to import release_manager
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from check_status import PACKAGES, get_local_version, WORKSPACE_ROOT
+from release_manager import PACKAGES, get_local_version, WORKSPACE_ROOT
 
 SHORT_NAME_MAP = {
     "agent_sdks/python/a2ui_core": "a2ui_core",

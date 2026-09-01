@@ -57,7 +57,7 @@ To ensure that published release artifacts match the **exact Git commit** of the
 To inspect the current release state across all packages at once, execute the status checker script:
 
 ```bash
-./.agents/skills/a2ui-release-sdks/scripts/check_status.py
+./.agents/skills/a2ui-release-sdks/scripts/release_manager.py
 ```
 
 This script evaluates each package independently by directory path, compares local versions against PyPI / NPM registries, parses `CHANGELOG.md` files, checks git logs, and reports the active state for every package.
@@ -121,7 +121,7 @@ Emit status summary to the user: _"Package `<name>` is fully up to date."_ No ac
 3. **Automated PR Execution**:
    - Alternatively, execute the centralized release manager script to perform version bumps, lockfile updates, and PR creation automatically:
      ```bash
-     ./.agents/skills/a2ui-release-sdks/scripts/check_status.py --create-pr
+     ./.agents/skills/a2ui-release-sdks/scripts/release_manager.py --create-pr
      ```
 
 ---

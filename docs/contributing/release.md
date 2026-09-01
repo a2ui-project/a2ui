@@ -58,7 +58,7 @@ The publishing scripts (`./renderers/release.sh` and `./agent_sdks/python/releas
 Check the current release status across all packages using the automated checker:
 
 ```bash
-./.agents/skills/a2ui-release-sdks/scripts/check_status.py
+./.agents/skills/a2ui-release-sdks/scripts/release_manager.py
 ```
 
 To execute a release for any package once merged to `main`, run the release script for the package directory:
