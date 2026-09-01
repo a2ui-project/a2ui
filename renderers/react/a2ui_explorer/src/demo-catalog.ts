@@ -14,15 +14,18 @@
  * limitations under the License.
  */
 
-import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
-import {renderMarkdown} from '@a2ui/markdown-it';
+import {Catalog} from '@a2ui/web_core/v0_9';
+import {BASIC_FUNCTIONS} from '@a2ui/web_core/v0_9/basic_catalog';
+import {basicCatalog} from '@a2ui/react/v0_9';
+import {customSliderComponent} from './custom-slider';
+import {customGridComponent} from './custom-grid';
 
-declare global {
-  var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
-}
-
-// Configures the React 18 testing environment to expect and support act() blocks.
-// Without this flag, React warns in the console during state transitions and mounting.
-globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-
-setMarkdownRenderer(renderMarkdown);
+/**
+ * A catalog specific to the React demo explorer, extending the basic catalog
+ * with custom components.
+ */
+export const demoCatalog = new Catalog(
+  basicCatalog.id,
+  [...basicCatalog.components.values(), customSliderComponent, customGridComponent],
+  BASIC_FUNCTIONS,
+);
