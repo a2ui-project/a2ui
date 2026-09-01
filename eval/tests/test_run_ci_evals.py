@@ -220,7 +220,10 @@ def test_generate_markdown_summary_valid() -> None:
     summary = generate_markdown_summary(log_data, 100.0, 90.0)
     assert "### Evaluation Summary: test_task" in summary
     assert "- **Status**: PASS" in summary
-    assert "- **Inference Format / Strategy**: `direct` (Direct JSON (direct_json))" in summary
+    assert (
+        "- **Inference Format / Strategy**: `direct` (Direct JSON (direct_json))"
+        in summary
+    )
     assert "- **Model**: `test_model`" in summary
     assert "- **Pass Percentage**: `100.00%` (Threshold: `90.00%`)" in summary
     assert "| sample_1 | PASS | C | 5.00s | PASS |" in summary

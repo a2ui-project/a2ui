@@ -56,7 +56,9 @@ def _fix_message_versions(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]
             ver = msg["version"]
             if isinstance(ver, str) and ver and ver[0].isdigit():
                 fixed_ver = f"v{ver}"
-                logger.info(f"Fixed un-prefixed version string '{ver}' to '{fixed_ver}'")
+                logger.info(
+                    f"Fixed un-prefixed version string '{ver}' to '{fixed_ver}'"
+                )
                 msg["version"] = fixed_ver
     return messages
 
