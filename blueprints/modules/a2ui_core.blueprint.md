@@ -196,6 +196,7 @@ To allow developers to author components and functions without coupling to speci
 
 - **Authoring Surface**: Public building blocks (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DataBinding`, `FunctionCall`, `Action`, `ChildList`, etc.) implemented as re-exported aliases of the latest supported version (`schema/v1_0/common_types`).
 - **Subschema References & Wire Emission**: Across both schema-builder languages (TypeScript Zod, Dart `json_schema_builder`, Swift) and subschema-dict languages (Python), component schemas emit or retain version-agnostic relative pointers (`"$ref": "common_types.json#/$defs/<TypeName>"`), omitting version strings and `protocolVersion` constraints.
+- **Legacy Absolute URI Compatibility**: When loading or validating legacy catalogs containing historical absolute references (e.g. `"https://a2ui.org/specification/v0_9/common_types.json#/$defs/<TypeName>"` or `v0_9_1`), SDKs MUST accept them as valid and resolve them identically to relative `"common_types.json#/$defs/<TypeName>"` references by registering legacy canonical URLs as schema aliases in the registry.
 - **Runtime Version Enforcement**: The `A2uiValidator` internally resolves `"common_types.json"` against the active message version's private schema bundle (`schema/v0_9/` vs `schema/v1_0/`), enforcing protocol version boundaries at the wire boundary without requiring developer-facing code migrations.
 
 ```typescript
@@ -481,14 +482,15 @@ export class A2uiValidator {
 }
 ```
 
-##### Relative Common Types Registration Rule
+##### Relative Common Types Registration & Schema Aliasing Rule
 
-When `A2uiValidator` initializes its underlying JSON Schema referencing registry (e.g., Ajv in TypeScript, `referencing.Registry` in Python, `JsonSchemaValidator` in Dart, Swift schema validator), it **MUST register the active protocol version's `common_types_schema` under the root relative key `"common_types.json"`** in addition to its canonical absolute URI (`https://a2ui.org/...`).
+When `A2uiValidator` initializes its underlying JSON Schema referencing registry (e.g., Ajv in TypeScript, `referencing.Registry` in Python, `JsonSchemaValidator` in Dart, Swift schema validator), it **MUST register the active protocol version's `common_types_schema` under the root relative key `"common_types.json"`**, as well as historical absolute URIs (`https://a2ui.org/specification/v0_9/common_types.json` and `https://a2ui.org/specification/v0_9_1/common_types.json`).
 
 This guarantees:
 
 1. **Catalog Portability**: Relative pointers (`"$ref": "common_types.json#/$defs/<TypeName>"`) in catalog definitions resolve cleanly regardless of the catalog's base `$id` URI.
-2. **Version Boundary Enforcement**: Validating against the active protocol version's schema ensures that incoming messages cannot use newer common types constructs not supported by that version.
+2. **Legacy Catalog Compatibility**: Existing v0.9 and v0.9.1 catalogs referencing absolute canonical URLs compile and validate seamlessly without modification.
+3. **Version Boundary Enforcement**: Validating against the active protocol version's schema ensures that incoming messages cannot use newer common types constructs not supported by that version.
 
 #### Validation Implementation Matrix
 
