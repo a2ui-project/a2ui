@@ -190,22 +190,9 @@ export interface Catalog<TComponent extends ComponentApi, TFunction extends Func
 }
 ```
 
-#### `ComponentApi`
+#### Canonical Common Types Authoring Layer (`a2ui.core.catalog.common_types`)
 
-The framework-agnostic definition of a component. It defines the name and the exact JSON schema footprint of the component, without any rendering logic. It acts as the single source of truth for the component's contract.
-
-```typescript
-interface ComponentApi {
-  /** The name of the component as it appears in the A2UI JSON (e.g., 'Button'). */
-  readonly name: string;
-  /** The technical definition used for validation and generating renderer capabilities. */
-  readonly schema: Schema;
-}
-```
-
-##### Canonical Common Types Authoring Layer (`a2ui.core.catalog.common_types`)
-
-To ensure developers authoring component catalogs never have to migrate import paths when new A2UI protocol versions are released, the Core SDK strictly separates the **Public Authoring Surface** from **Private Wire Validation Assets**:
+To ensure developers authoring component and function catalogs never have to migrate import paths when new A2UI protocol versions are released, the Core SDK strictly separates the **Public Authoring Surface** from **Private Wire Validation Assets**:
 
 1. **Canonical Public Primitives (`a2ui.core.catalog.common_types`)**:
    - The Core SDK exports a single, version-agnostic set of common-type schema builders and types from the root catalog namespace (`@a2ui/core`, `a2ui.catalog`, `package:a2ui_core`).
@@ -219,7 +206,7 @@ To ensure developers authoring component catalogs never have to migrate import p
      - `Action`: User action dispatch event (`{ name: string, context?: Record<string, any> }`)
      - `ChildList`: Child component slot references
      - `AccessibilityAttributes`: Standard accessibility metadata
-   - Component authors write all schemas against these root canonical types:
+   - Component and function authors write all schemas against these root canonical types:
 
      ```typescript
      // ✅ Canonical Developer Experience (Zero version migration across A2UI upgrades)
@@ -246,19 +233,32 @@ To ensure developers authoring component catalogs never have to migrate import p
      - When validating a **v0.9** message, `"common_types.json"` is bound to the private v0.9 schema. Any v1.0 features (such as `@index` / `IndexSystemFunction` or v1.0 binding fields) **fail validation immediately** at the wire boundary.
      - When validating a **v1.0** message, `"common_types.json"` is bound to the private v1.0 schema, and validation **passes**.
 
-###### In-Memory Representation Across SDK Languages
+##### In-Memory Representation Across SDK Languages
 
 Depending on the SDK implementation language, schemas are represented in memory in one of two ways:
 
 1. **Resolved Tree Representation (TypeScript Zod, Dart `json_schema_builder`, Swift Result Builders)**:
-   - Component schemas embed SDK common-type builder objects directly into resolved in-memory schema trees.
+   - Component and function schemas embed SDK common-type builder objects directly into resolved in-memory schema trees.
    - Common-type builders attach metadata tags (`REF:common_types.json#/$defs/<TypeName>`).
    - When generating JSON schemas or `clientCapabilities.inlineCatalogs`, the SDK serializer inspects metadata tags and projects the tree into version-agnostic relative `$ref: "common_types.json#/$defs/<TypeName>"` JSON pointers without a `protocolVersion` field.
    - At runtime, the Version-Scoped Schema Registry dynamically validates the relative `$ref`s against the active message version's `common_types.json`.
 
 2. **Reference Dict Representation (Python)**:
-   - Component schemas are held as dict structures containing raw `$ref: "common_types.json#/$defs/<TypeName>"` string pointers alongside the version-specific `common_types_schema` dictionary.
+   - Component and function schemas are held as dict structures containing raw `$ref: "common_types.json#/$defs/<TypeName>"` string pointers alongside the version-specific `common_types_schema` dictionary.
    - The version-scoped `Registry` resolves relative `$ref` strings against the active runtime protocol version schema.
+
+#### `ComponentApi`
+
+The framework-agnostic definition of a component. It defines the name and the exact JSON schema footprint of the component, without any rendering logic. It acts as the single source of truth for the component's contract.
+
+```typescript
+interface ComponentApi {
+  /** The name of the component as it appears in the A2UI JSON (e.g., 'Button'). */
+  readonly name: string;
+  /** The technical definition used for validation and generating renderer capabilities. */
+  readonly schema: Schema;
+}
+```
 
 #### `FunctionApi` & `FunctionImplementation`
 
