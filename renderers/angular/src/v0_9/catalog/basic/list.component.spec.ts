@@ -18,8 +18,9 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {Component, input} from '@angular/core';
 import {ListComponent} from './list.component';
 import {ComponentModel} from '@a2ui/web_core/v0_9';
-import {ComponentBinder} from '../../core/component-binder.service';
-import {setComponentProps, createBoundProperty} from '@a2ui/angular/testing';
+import {A2uiRendererService} from '../../core/a2ui-renderer.service';
+import {ComponentBinder, Child} from '../../core/component-binder.service';
+import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
 
 @Component({
   selector: 'dummy-text-for-list',
@@ -37,7 +38,9 @@ class DummyTextComponent {
 describe('ListComponent', () => {
   let component: ListComponent;
   let fixture: ComponentFixture<ListComponent>;
-  let defaultProps: any;
+  let defaultProps: ComponentToProps<ListComponent> & {
+    listStyle?: any;
+  };
 
   beforeEach(async () => {
     const mockCatalog = {
@@ -82,7 +85,7 @@ describe('ListComponent', () => {
       direction: createBoundProperty<'vertical' | 'horizontal' | undefined>('vertical'),
       listStyle: createBoundProperty<'none' | 'ordered' | 'unordered' | undefined>('none'),
     };
-    setComponentProps(fixture, defaultProps);
+    setComponentProps(fixture, defaultProps as any);
   });
 
   it('should create', () => {
@@ -97,7 +100,7 @@ describe('ListComponent', () => {
         {id: 'child-1', basePath: '/'},
         {id: 'child-2', basePath: '/'},
       ]),
-    });
+    } as any);
     fixture.detectChanges();
     const hosts = fixture.nativeElement.querySelectorAll('a2ui-v09-component-host');
     expect(hosts.length).toBe(2);
@@ -108,7 +111,7 @@ describe('ListComponent', () => {
       ...defaultProps,
       children: createBoundProperty([{id: 'child-1', basePath: '/'}]),
       listStyle: createBoundProperty<'none' | 'ordered' | 'unordered' | undefined>('ordered'),
-    });
+    } as any);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('ol')).toBeTruthy();
   });
@@ -118,7 +121,7 @@ describe('ListComponent', () => {
       ...defaultProps,
       children: createBoundProperty([{id: 'child-1', basePath: '/'}]),
       listStyle: createBoundProperty<'none' | 'ordered' | 'unordered' | undefined>('unordered'),
-    });
+    } as any);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('ul')).toBeTruthy();
   });
@@ -128,7 +131,7 @@ describe('ListComponent', () => {
       ...defaultProps,
       children: createBoundProperty([{id: 'child-1', basePath: '/'}]),
       listStyle: createBoundProperty('div' as 'none' | 'ordered' | 'unordered' | undefined),
-    });
+    } as any);
     fixture.detectChanges();
     const divList = fixture.nativeElement.querySelector('.a2ui-list');
     expect(divList.tagName.toLowerCase()).toBe('div');
@@ -139,7 +142,7 @@ describe('ListComponent', () => {
       ...defaultProps,
       children: createBoundProperty([{id: 'child-1', basePath: '/'}]),
       direction: createBoundProperty<'vertical' | 'horizontal' | undefined>('horizontal'),
-    });
+    } as any);
     fixture.detectChanges();
     const list = fixture.nativeElement.querySelector('.a2ui-list');
     expect(list.classList).toContain('horizontal');
