@@ -209,6 +209,7 @@
     },
     "FunctionCommon": {
       "type": "object",
+      "description": "Baseline envelope properties common to all function calls. Function-specific argument schemas ('args') are defined individually by each function in the active catalog.",
       "properties": {
         "call": {
           "type": "string",
