@@ -22,3 +22,5 @@ from a2ui.core.exceptions import A2uiIntegrityError as A2uiIntegrityError
 from a2ui.core.exceptions import A2uiRecursionError as A2uiRecursionError
 from a2ui.core.exceptions import A2uiCompileError as A2uiCompileError
 from a2ui.core.processing import ExecutionContext as ExecutionContext
+from a2ui.core.exceptions import A2uiRpcError as A2uiRpcError
+from a2ui.core.exceptions import RpcErrorCode as RpcErrorCode

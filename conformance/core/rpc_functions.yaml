@@ -267,3 +267,18 @@
   expect:
     error:
       message: "callFunction"
+
+- name: test_rpc_agent_function_response_inbound
+  description: Verifies inbound agentFunctionResponse message processing by MessageProcessor.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      agentFunctionResponse:
+        functionCallId: "call-201"
+        value:
+          status: "verified"
+  expect:
+    response: null

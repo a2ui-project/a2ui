@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+import json
 import pytest
 from typing import Any, Literal
 from pydantic import BaseModel, Field
@@ -28,6 +30,7 @@ from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.catalog import (
     Catalog,
     ComponentApi,
+    FunctionImplementation,
     ModelComponentApi,
 )
 from a2ui.core.schema.v0_9.constants import PROTOCOL_VERSION
@@ -1004,3 +1007,198 @@ def test_message_processor_v0_9_1_version_payload(mock_catalog):
     surface = processor.model.get_surface("s_v091")
     assert surface is not None
     assert surface.id == "s_v091"
+
+
+def test_message_processor_rpc_error_handling(mock_catalog):
+    from a2ui.core.exceptions import A2uiRpcError
+
+    processor = MessageProcessor(catalogs=[mock_catalog])
+    loop = asyncio.new_event_loop()
+    try:
+        fut = loop.create_future()
+        processor.register_pending_future("call_123", fut)
+        processor.process_messages([{
+            "version": "v1.0",
+            "agentFunctionResponse": {
+                "functionCallId": "call_123",
+                "error": {"code": "INVALID_PARAMS", "message": "Missing param"},
+            },
+        }])
+        assert fut.done()
+        with pytest.raises(A2uiRpcError) as exc_info:
+            fut.result()
+        assert exc_info.value.code == "INVALID_PARAMS"
+        assert exc_info.value.function_call_id == "call_123"
+        assert "Agent function error [INVALID_PARAMS]: Missing param" in str(
+            exc_info.value
+        )
+    finally:
+        loop.close()
+
+
+def test_message_processor_call_renderer_function_async_coroutine():
+    from a2ui.core.basic_catalog import v1_0
+
+    cat = v1_0.BasicCatalog()
+
+    async def async_fn(
+        args: dict[str, Any], context: Any = None, abort_signal: Any = None
+    ) -> str:
+        return f"Hello {args.get('name', 'world')}"
+
+    fn_impl = FunctionImplementation(
+        name="asyncUrl",
+        execute=async_fn,
+        allowed_callers="rendererOrAgent",
+    )
+    cat.functions["asyncUrl"] = fn_impl
+
+    processor = MessageProcessor(catalogs=[cat])
+    resp = processor.process_messages([{
+        "version": "v1.0",
+        "callRendererFunction": {
+            "functionCallId": "async_call_1",
+            "callFunction": {"call": "asyncUrl", "args": {}},
+        },
+    }])
+    assert len(resp) == 1
+    assert resp[0]["rendererFunctionResponse"]["functionCallId"] == "async_call_1"
+
+
+def test_message_processor_cleanup_pending_agent_calls(mock_catalog):
+    from a2ui.core.exceptions import A2uiRpcError
+
+    processor = MessageProcessor(catalogs=[mock_catalog])
+    loop = asyncio.new_event_loop()
+    try:
+        fut1 = loop.create_future()
+        fut2 = loop.create_future()
+        processor.register_pending_future("call_1", fut1)
+        processor.register_pending_future("call_2", fut2)
+
+        processor.cleanup_pending_agent_call("call_1")
+        assert "call_1" not in processor._pending_agent_calls
+
+        processor.cleanup_all_pending_agent_calls("Surface closed")
+        assert len(processor._pending_agent_calls) == 0
+        assert fut2.done()
+        with pytest.raises(A2uiRpcError) as exc_info:
+            fut2.result()
+        assert exc_info.value.code == "CANCELLED"
+        assert exc_info.value.function_call_id == "call_2"
+        assert "Surface closed" in str(exc_info.value)
+    finally:
+        loop.close()
+
+
+def test_a2ui_rpc_error_requires_function_call_id():
+    from a2ui.core.exceptions import A2uiRpcError, RpcErrorCode
+
+    err = A2uiRpcError(
+        "Execution failed",
+        function_call_id="fc_42",
+        code=RpcErrorCode.EXECUTION_ERROR,
+    )
+    assert err.function_call_id == "fc_42"
+    assert err.code == RpcErrorCode.EXECUTION_ERROR
+    assert str(err) == "Execution failed"
+
+
+def test_message_processor_create_call_agent_function_message_catalog_id_handling(
+    mock_catalog,
+):
+    processor = MessageProcessor(catalogs=[mock_catalog])
+    msg_with_cat = processor.create_call_agent_function_message(
+        surface_id="s1",
+        function_call_id="call_999",
+        call="submitForm",
+        version="v1.0",
+        catalog_id="https://a2ui.org/mock.json",
+    )
+    call_fn_with_cat = msg_with_cat["callAgentFunction"]["callFunction"]
+    assert call_fn_with_cat["catalogId"] == "https://a2ui.org/mock.json"
+    assert call_fn_with_cat["call"] == "submitForm"
+
+    msg_without_cat = processor.create_call_agent_function_message(
+        surface_id="s1",
+        function_call_id="call_999",
+        call="submitForm",
+        version="v1.0",
+        catalog_id=None,
+    )
+    call_fn_without_cat = msg_without_cat["callAgentFunction"]["callFunction"]
+    assert "catalogId" not in call_fn_without_cat
+    assert call_fn_without_cat["call"] == "submitForm"
+
+    # Verify JSON serialization never emits `"catalogId": null` or `"catalogId"` when None
+    json_str = json.dumps(msg_without_cat)
+    assert '"catalogId"' not in json_str
+    assert "null" not in json_str
+
+
+def test_message_processor_pending_callback_handling(mock_catalog):
+    processor = MessageProcessor(catalogs=[mock_catalog])
+
+    # 1-param callback test
+    single_param_received = []
+
+    def single_param_cb(val):
+        single_param_received.append(val)
+
+    processor.register_pending_agent_call("call_cb1", single_param_cb)
+    processor.process_messages([{
+        "version": "v1.0",
+        "agentFunctionResponse": {
+            "functionCallId": "call_cb1",
+            "value": {"status": "ok"},
+        },
+    }])
+    assert single_param_received == [{"status": "ok"}]
+
+    # 2-param callback test receiving error response
+    two_param_received = []
+
+    def two_param_cb(val, err):
+        two_param_received.append((val, err))
+
+    processor.register_pending_agent_call("call_cb2_err", two_param_cb)
+    processor.process_messages([{
+        "version": "v1.0",
+        "agentFunctionResponse": {
+            "functionCallId": "call_cb2_err",
+            "error": {"code": "EXECUTION_ERROR", "message": "Failed to connect"},
+        },
+    }])
+    assert len(two_param_received) == 1
+    assert two_param_received[0][0] is None
+    assert two_param_received[0][1] == {
+        "code": "EXECUTION_ERROR",
+        "message": "Failed to connect",
+    }
+
+    # Callback raising exception should be safely suppressed
+    def throwing_cb(val, err):
+        raise RuntimeError("Callback failure test")
+
+    processor.register_pending_agent_call("call_cb3", throwing_cb)
+    # Should not raise exception
+    processor.process_messages([{
+        "version": "v1.0",
+        "agentFunctionResponse": {
+            "functionCallId": "call_cb3",
+            "value": {"status": "ok"},
+        },
+    }])
+
+    # Callback cleanup/cancellation test
+    cleanup_received = []
+
+    def cleanup_cb(val, err):
+        cleanup_received.append((val, err))
+
+    processor.register_pending_agent_call("call_cb4", cleanup_cb)
+    processor.cleanup_all_pending_agent_calls("Surface destroyed")
+    assert len(cleanup_received) == 1
+    assert cleanup_received[0][0] is None
+    assert cleanup_received[0][1]["code"] == "CANCELLED"
+    assert "Surface destroyed" in cleanup_received[0][1]["message"]

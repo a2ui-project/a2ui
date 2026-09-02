@@ -22,10 +22,13 @@ from ...schema.v1_0 import (
     MSG_TYPE_UPDATE_COMPONENTS,
     MSG_TYPE_UPDATE_DATA_MODEL,
     MSG_TYPE_CALL_RENDERER_FUNCTION,
+    MSG_TYPE_AGENT_FUNCTION_RESPONSE,
+    AgentFunctionResponseMessage,
     AgentToRendererMessageListWrapper,
     CallRendererFunction,
 )
 from ..operations import (
+    InternalAgentFunctionResponseOp,
     InternalCallRendererFunctionOp,
     InternalCreateSurfaceOp,
     InternalDeleteSurfaceOp,
@@ -57,6 +60,7 @@ class V1Point0Adapter(BaseVersionAdapter):
             MSG_TYPE_UPDATE_DATA_MODEL,
             MSG_TYPE_DELETE_SURFACE,
             MSG_TYPE_CALL_RENDERER_FUNCTION,
+            MSG_TYPE_AGENT_FUNCTION_RESPONSE,
         }
 
     def _extract_operations_for_action(
@@ -138,6 +142,18 @@ class V1Point0Adapter(BaseVersionAdapter):
                     catalog_id=cf.catalog_id,
                     args=cf.args or {},
                     user_activation_present=user_activation,
+                )
+            )
+        elif action == MSG_TYPE_AGENT_FUNCTION_RESPONSE:
+            af_resp = AgentFunctionResponseMessage.model_validate(message)
+            resp_data = af_resp.agent_function_response
+            res.append(
+                InternalAgentFunctionResponseOp(
+                    function_call_id=resp_data.function_call_id,
+                    value=resp_data.value,
+                    error=resp_data.error.model_dump(by_alias=True)
+                    if resp_data.error
+                    else None,
                 )
             )
         return res
