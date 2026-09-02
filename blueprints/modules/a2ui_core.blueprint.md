@@ -204,10 +204,6 @@ interface ComponentApi {
   readonly name: string;
   /** The technical definition used for validation and generating renderer capabilities. */
   readonly schema: Schema;
-  /** Optional flag indicating whether this component is deprecated in the catalog. */
-  readonly deprecated?: boolean;
-  /** Optional human-readable deprecation reason and migration guidance. */
-  readonly xDeprecatedReason?: string;
 }
 ```
 
@@ -220,10 +216,6 @@ interface FunctionApi {
   readonly name: string;
   readonly returnType: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';
   readonly schema: Schema; // The expected arguments
-  /** Optional flag indicating whether this function is deprecated in the catalog. */
-  readonly deprecated?: boolean;
-  /** Optional human-readable deprecation reason and migration guidance. */
-  readonly xDeprecatedReason?: string;
 }
 
 /**

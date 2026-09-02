@@ -372,7 +372,7 @@ The `catalogId` is a unique text identifier used for negotiation between the cli
 
 ### Versioning Guidelines
 
-Catalogs should be trated like APIs where version skew between agents and renderers is expected. Catalogs must maintain forward and backward compatibility across versions so that agents, renderers, and templates can evolve without breaking active sessions or stored transcripts.
+Catalogs should be treated like APIs where version skew between agents and renderers is expected. Catalogs must maintain forward and backward compatibility across versions so that agents, renderers, and templates can evolve without breaking active sessions or stored transcripts.
 
 #### Catalog Schema Evolution Rules
 
