@@ -17,8 +17,8 @@
 import {html, nothing, css} from 'lit';
 import {customElement} from 'lit/decorators.js';
 import {VideoApi} from './basic_components.js';
-import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
-import {createComponentImplementation} from '../../catalog/types.js';
+import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import {createComponentImplementation} from '../../universal/index.js';
 
 @customElement('a2ui-video')
 export class A2uiVideoElement extends BasicCatalogA2uiLitElement<typeof VideoApi> {

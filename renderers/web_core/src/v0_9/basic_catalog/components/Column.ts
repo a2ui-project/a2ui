@@ -21,8 +21,8 @@ import {ColumnApi} from './basic_components.js';
 import {
   BasicCatalogA2uiLitElement,
   type ResolvedChildList,
-} from '../basic-catalog-a2ui-lit-element.js';
-import {createComponentImplementation} from '../../catalog/types.js';
+} from './basic-catalog-a2ui-lit-element.js';
+import {createComponentImplementation} from '../../universal/index.js';
 
 const JUSTIFY_MAP: Record<string, string> = {
   start: 'flex-start',

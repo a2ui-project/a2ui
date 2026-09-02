@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import {ComponentApi} from '../catalog/types.js';
-import {A2uiLitElement, ResolvedChildList, A2uiChildRef} from '../catalog/a2ui-lit-element.js';
-import {injectBasicCatalogStyles, computeColorVariant} from './styles/default.js';
+import {ComponentApi} from '../../catalog/types.js';
+import {A2uiLitElement, ResolvedChildList, A2uiChildRef} from '../../universal/index.js';
+import {injectBasicCatalogStyles, computeColorVariant} from '../styles/default.js';
 
 export type {ResolvedChildList, A2uiChildRef, A2uiChildRef as ResolvedChildRef};
 

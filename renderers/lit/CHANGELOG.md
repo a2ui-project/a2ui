@@ -1,5 +1,6 @@
 ## Unreleased
 
+- (v0_9) Import `A2uiLitElement`, `A2uiController`, and `createComponentImplementation` from `@a2ui/web_core/v0_9/universal`. [#2488](https://github.com/a2ui-project/a2ui/pull/2488)
 - (v0_9) Replace wildcard re-exports in `@a2ui/lit/v0_9` with explicit named exports.
 - (v0_9) Move universal basic catalog component implementations (`A2uiText`, `A2uiButton`, `A2uiCard`, etc.) to `@a2ui/web_core/v0_9/basic_catalog` and re-export them from `@a2ui/lit/v0_9` and `@a2ui/lit/v0_9/catalogs/basic` for backwards compatibility. [#2190](https://github.com/a2ui-project/a2ui/pull/2190)
 - **BREAKING CHANGE**: (v0_9) Align Basic Catalog component DOM structures, behaviors, and styling contracts with the Angular reference implementation: [#2205](https://github.com/a2ui-project/a2ui/pull/2205)

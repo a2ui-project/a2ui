@@ -15,7 +15,7 @@
  */
 
 import type {z} from 'zod';
-import type {ComponentApi, WebComponentImplementation} from './types.js';
+import type {ComponentApi, WebComponentImplementation} from '../catalog/types.js';
 
 /**
  * Creates a WebComponentImplementation pairing a ComponentApi with a custom element constructor.
