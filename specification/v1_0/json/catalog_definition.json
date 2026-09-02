@@ -103,12 +103,6 @@
           "type": "array",
           "items": {"type": "string"},
           "contains": {"const": "call"}
-        },
-        "unevaluatedProperties": {
-          "type": "boolean"
-        },
-        "additionalProperties": {
-          "type": "boolean"
         }
       },
       "required": ["type", "properties", "required"]
