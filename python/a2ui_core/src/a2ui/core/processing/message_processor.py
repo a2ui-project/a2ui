@@ -32,14 +32,24 @@ from ..exceptions import (
     A2uiValidationError,
 )
 from ..schema import AgentToRendererMessage, ProtocolVersion
+from ..schema.v1_0 import (
+    FunctionResponse,
+    FunctionResponseError,
+    RendererFunctionResponseMessage,
+)
 from .adapters import VersionAdapterFactory
 from .operations import (
+    InternalCallRendererFunctionOp,
     InternalCreateSurfaceOp,
     InternalDeleteSurfaceOp,
     InternalOperation,
     InternalUpdateComponentsOp,
     InternalUpdateDataModelOp,
+    RpcErrorCode,
 )
+
+
+from .execution_context import ExecutionContext
 
 
 class MessageProcessor:
@@ -67,12 +77,26 @@ class MessageProcessor:
             | Mapping[str, Any]
             | Sequence[Mapping[str, Any]]
         ),
-    ) -> None:
+        context: ExecutionContext | None = None,
+    ) -> list[dict[str, Any]]:
         """Accepts a list of parsed JSON messages and executes them in order."""
         adapter = VersionAdapterFactory.resolve_from_payload(messages)
-        operations = adapter.extract_operations(messages)
+        operations = adapter.extract_operations(messages, context=context)
+        responses: list[dict[str, Any]] = []
         for op in operations:
-            self._process_operation(op)
+            resp = self._process_operation(op)
+            if resp:
+                responses.append(resp)
+        return responses
+
+    def _resolve_catalog(self, catalog_id: str | None = None) -> Any | None:
+        """Finds catalog by catalog_id or returns default (first registered) catalog."""
+        if catalog_id is not None:
+            for cat in self.catalogs:
+                if getattr(cat, "catalog_id", None) == catalog_id:
+                    return cat
+            return None
+        return self.catalogs[0] if self.catalogs else None
 
     def get_renderer_capabilities(
         self,
@@ -116,7 +140,7 @@ class MessageProcessor:
         )
         return {"version": ver_str, "surfaces": surfaces}
 
-    def _process_operation(self, op: InternalOperation) -> None:
+    def _process_operation(self, op: InternalOperation) -> dict[str, Any] | None:
         """Dispatches canonical internal operations."""
         if isinstance(op, InternalCreateSurfaceOp):
             self._process_create_surface_op(op)
@@ -126,6 +150,76 @@ class MessageProcessor:
             self._process_update_components_op(op)
         elif isinstance(op, InternalUpdateDataModelOp):
             self._process_update_data_model_op(op)
+        elif isinstance(op, InternalCallRendererFunctionOp):
+            return self._process_call_renderer_function_op(op)
+        return None
+
+    def _process_call_renderer_function_op(
+        self, op: InternalCallRendererFunctionOp
+    ) -> dict[str, Any]:
+        """Executes an agent-initiated function call on the renderer."""
+        call_id = op.function_call_id
+        version = op.version
+        matched_catalog = None
+
+        def make_error(code: RpcErrorCode, msg: str) -> dict[str, Any]:
+            resp = RendererFunctionResponseMessage(
+                version=cast(Any, version),
+                rendererFunctionResponse=FunctionResponse(  # type: ignore[call-arg]
+                    functionCallId=call_id,
+                    error=FunctionResponseError(code=code.value, message=msg),
+                ),
+            )
+            return resp.model_dump(by_alias=True, exclude_unset=True)
+
+        matched_catalog = self._resolve_catalog(op.catalog_id)
+        if not matched_catalog:
+            return make_error(
+                RpcErrorCode.INVALID_FUNCTION_CALL,
+                f"Catalog not found: {op.catalog_id}",
+            )
+
+        fn = (
+            matched_catalog.get_function(op.call)
+            if hasattr(matched_catalog, "get_function")
+            else getattr(matched_catalog, "functions", {}).get(op.call)
+        )
+        if not fn:
+            return make_error(
+                RpcErrorCode.INVALID_FUNCTION_CALL,
+                f"Function not found: {op.call}",
+            )
+
+        allowed_callers = getattr(fn, "allowed_callers", None) or "rendererOnly"
+        if allowed_callers not in ("agentOnly", "rendererOrAgent"):
+            return make_error(
+                RpcErrorCode.INVALID_FUNCTION_CALL,
+                f"Function '{op.call}' cannot be called by agent"
+                f" (allowedCallers is {allowed_callers}).",
+            )
+
+        requires_user_activation = getattr(fn, "requires_user_activation", False)
+        if requires_user_activation and not op.user_activation_present:
+            return make_error(
+                RpcErrorCode.INVALID_FUNCTION_CALL,
+                f"Function '{op.call}' requires user activation context to execute.",
+            )
+
+        try:
+            val = fn.execute(op.args) if hasattr(fn, "execute") else None
+            resp = RendererFunctionResponseMessage(
+                version=cast(Any, version),
+                rendererFunctionResponse=FunctionResponse(  # type: ignore[call-arg]
+                    functionCallId=call_id,
+                    value=val,
+                ),
+            )
+            return resp.model_dump(by_alias=True, exclude_unset=True)
+        except Exception as e:
+            return make_error(
+                RpcErrorCode.EXECUTION_ERROR,
+                str(e),
+            )
 
     def _process_create_surface_op(self, op: InternalCreateSurfaceOp) -> None:
         surface_id = op.surface_id
@@ -133,19 +227,10 @@ class MessageProcessor:
         theme = op.theme or {}
         send_data_model = op.send_data_model
 
-        if catalog_id:
-            matched_catalog = None
-            for cat in self.catalogs:
-                if getattr(cat, "catalog_id", None) == catalog_id:
-                    matched_catalog = cat
-                    break
-            if not matched_catalog:
+        surface_catalog = self._resolve_catalog(catalog_id)
+        if not surface_catalog:
+            if catalog_id is not None:
                 raise A2uiCatalogError(f"Catalog not found: {catalog_id}")
-            surface_catalog = matched_catalog
-        elif self.catalogs:
-            # v0.8 fallback: catalog_id is missing -> default to registered catalogs
-            surface_catalog = self.catalogs[0]
-        else:
             raise A2uiCatalogError("No default catalog available for surface.")
 
         if self.model.get_surface(surface_id):
@@ -216,11 +301,7 @@ class MessageProcessor:
                 )
             comp_cat_id = comp_dict.get("catalogId")
             if comp_cat_id:
-                matched_catalog = None
-                for cat in self.catalogs:
-                    if getattr(cat, "catalog_id", None) == comp_cat_id:
-                        matched_catalog = cat
-                        break
+                matched_catalog = self._resolve_catalog(comp_cat_id)
                 if not matched_catalog:
                     raise A2uiCatalogError(f"Catalog not found: {comp_cat_id}")
                 component_catalogs[comp_id] = matched_catalog

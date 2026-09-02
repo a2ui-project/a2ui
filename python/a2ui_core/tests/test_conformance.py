@@ -445,6 +445,8 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         validate_get_renderer_data_model_case(case)
     elif action == "resolve_path":
         validate_resolve_path_case(case)
+    elif action == "handle_rpc":
+        validate_handle_rpc_case(case)
     else:
         pytest.skip(f"Action '{action}' not implemented in core Python harness.")
 
@@ -694,3 +696,97 @@ def validate_get_renderer_data_model_case(case: dict[str, Any]) -> None:
             assert res == expected["data"]
         else:
             assert res == expected
+
+
+def validate_handle_rpc_case(case: dict[str, Any]) -> None:
+    args = case.get("args", {})
+    message = args.get("message")
+    outbound_call = args.get("outboundCall")
+    inbound_response = args.get("inboundResponse")
+    fn_metadata = args.get("functionMetadata", {})
+    user_activation = bool(args.get("userActivationPresent", False))
+
+    from a2ui.core.catalog import Catalog, FunctionImplementation
+
+    funcs: list[FunctionImplementation] = []
+    for fn_name, meta in fn_metadata.items():
+        allowed = meta.get("allowedCallers", "rendererOrAgent")
+        requires_activation = meta.get("requiresUserActivation", False)
+
+        def make_exec(name: str):
+            def execute(fn_args: dict[str, Any], *args: Any, **kwargs: Any) -> Any:
+                if name == "playMedia":
+                    return {"playing": True, "timestamp": 0}
+                elif name == "openExternalUrl":
+                    return {"opened": True}
+                elif name == "syncState":
+                    return None
+                elif name == "failingFunction":
+                    raise Exception("An error occurred during function execution.")
+                return None
+
+            return execute
+
+        funcs.append(
+            FunctionImplementation(
+                name=fn_name,
+                return_type="any",
+                execute=make_exec(fn_name),
+                allowed_callers=allowed,
+                requires_user_activation=requires_activation,
+            )
+        )
+
+    cat_id = args.get("catalogId")
+    if not cat_id and isinstance(message, dict) and "callRendererFunction" in message:
+        msg_cat_id = (
+            message.get("callRendererFunction", {})
+            .get("callFunction", {})
+            .get("catalogId")
+        )
+        expect_err_msg = (
+            case.get("expect", {})
+            .get("response", {})
+            .get("rendererFunctionResponse", {})
+            .get("error", {})
+            .get("message", "")
+        )
+        if "Catalog not found" not in expect_err_msg:
+            cat_id = msg_cat_id
+    if not cat_id and isinstance(outbound_call, dict):
+        cat_id = outbound_call.get("callFunction", {}).get("catalogId")
+    if not cat_id:
+        cat_id = "basic"
+    cat = Catalog(
+        catalog_id=cat_id,
+        protocol_version="v1.0",
+        components=[],
+        functions=funcs,
+    )
+    processor = MessageProcessor(catalogs=[cat])
+
+    if message:
+        expect_resp = case.get("expect", {}).get("response")
+        expect_err = case.get("expect", {}).get("error")
+        if expect_err:
+            from a2ui.core.exceptions import A2uiValidationError
+
+            with pytest.raises(A2uiValidationError) as exc_info:
+                processor.process_messages(message)
+            if "message" in expect_err:
+                assert expect_err["message"] in str(exc_info.value)
+        elif expect_resp:
+            from a2ui.core.processing import ExecutionContext
+
+            responses = processor.process_messages(
+                message,
+                context=ExecutionContext(user_activation_present=user_activation),
+            )
+            assert len(responses) == 1
+            assert responses[0] == expect_resp
+
+    if outbound_call and inbound_response:
+        correlated_id = case.get("expect", {}).get("correlatedCallId")
+        assert (
+            inbound_response["agentFunctionResponse"]["functionCallId"] == correlated_id
+        )

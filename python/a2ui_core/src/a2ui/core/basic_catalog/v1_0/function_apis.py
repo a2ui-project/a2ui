@@ -214,6 +214,7 @@ class OpenUrlApi(FunctionApi):
     name = "openUrl"
     schema = OpenUrlArgs
     return_type = "void"
+    requires_user_activation = True
 
 
 class AndArgs(StrictBaseModel):

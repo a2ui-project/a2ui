@@ -15,11 +15,12 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..schema.v0_9 import (
+from ..schema.v1_0 import (
     MSG_TYPE_CREATE_SURFACE,
     MSG_TYPE_DELETE_SURFACE,
     MSG_TYPE_UPDATE_COMPONENTS,
     MSG_TYPE_UPDATE_DATA_MODEL,
+    MSG_TYPE_CALL_RENDERER_FUNCTION,
 )
 
 
@@ -56,9 +57,30 @@ class InternalDeleteSurfaceOp:
     type: str = MSG_TYPE_DELETE_SURFACE
 
 
+from enum import Enum
+
+
+class RpcErrorCode(str, Enum):
+    INVALID_FUNCTION_CALL = "INVALID_FUNCTION_CALL"
+    EXECUTION_ERROR = "EXECUTION_ERROR"
+    UNKNOWN_FUNCTION = "UNKNOWN_FUNCTION"
+
+
+@dataclass
+class InternalCallRendererFunctionOp:
+    function_call_id: str
+    call: str
+    version: str
+    catalog_id: str | None = None
+    args: dict[str, Any] = field(default_factory=dict)
+    user_activation_present: bool = False
+    type: str = MSG_TYPE_CALL_RENDERER_FUNCTION
+
+
 InternalOperation = (
     InternalCreateSurfaceOp
     | InternalUpdateComponentsOp
     | InternalUpdateDataModelOp
     | InternalDeleteSurfaceOp
+    | InternalCallRendererFunctionOp
 )
