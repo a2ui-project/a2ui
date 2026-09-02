@@ -933,4 +933,3 @@ def validate_select_catalog_case(case: dict[str, Any]) -> None:
 
             if "expectSelected" in case:
                 assert selected == case["expectSelected"]
->>>>>>> 4c35484a (feat(python): implement Step 3.3 Multi-Catalog Resolution Engine)
