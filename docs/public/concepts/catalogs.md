@@ -150,9 +150,13 @@ A2UI Catalogs must be standalone (no references to external files) to simplify L
 
 While the final catalog must be freestanding, you may still author your catalogs modularly using JSON Schema `$ref` pointing to external documents during local development.
 
-To automate bundling and registering these external file references, this catalog registration process is called **"Linking"** and is consolidated under a single, multi-platform Node.js script (**`register-catalogs.js`**).
+To automate bundling and registering these external file references, this catalog registration process is called **"Linking"** and is performed by [`tools/build_catalog/assemble_catalog.py`](https://github.com/a2ui-project/a2ui/blob/main/tools/build_catalog/README.md). It resolves local and remote `$ref`s, merges multiple input catalogs, and emits a single freestanding catalog:
 
-This linking script is natively wrapped inside **Xcode Build Phases** (for iOS/macOS client builds) and **Gradle tasks** (for Android client builds) to compile, aggregate, and link static and dynamic schemas seamlessly during your application's build phase.
+```bash
+uv run tools/build_catalog/assemble_catalog.py <INPUTS ...> --output-name <OUTPUT_NAME>
+```
+
+Run this step as part of your application's build (for example, from an **Xcode Build Phase** for iOS/macOS clients or a **Gradle task** for Android clients) so that the catalog you ship is always fully linked.
 
 ### Composition & Imports
 
@@ -160,62 +164,67 @@ You do not have to define everything from scratch. You can define a catalog whic
 
 #### Example: Extending the Basic Catalog
 
-This catalog imports all elements from the Basic Catalog and adds a new `SuggestionChips` component.
+`components` is a map of component name to component schema, so a catalog cannot import another catalog's entire `components` map inline. Instead, declare only the components you add, and pull in the whole Basic Catalog at link time with `--extend-basic-catalog`.
 
 ```json
 {
   "$id": "https://github.com/.../hello_world_with_all_basic/v1/catalog.json",
   "catalogId": "https://github.com/.../hello_world_with_all_basic/v1/catalog.json",
   "components": {
-    "allOf": [
-      {"$ref": "basic_catalog_definition.json#/components"},
-      {
-        "SuggestionChips": {
-          "type": "object",
-          "description": "A list of suggested prompts",
-          "properties": {
-            "suggestions": {
-              "type": "array",
-              "description": "The suggested prompts."
-            }
-          },
-          "required": ["suggestions"]
+    "SuggestionChips": {
+      "type": "object",
+      "description": "A list of suggested prompts",
+      "properties": {
+        "suggestions": {
+          "type": "array",
+          "description": "The suggested prompts."
         }
-      }
-    ]
+      },
+      "required": ["suggestions"]
+    }
   }
 }
 ```
 
-**Make sure to link and resolve external references during compilation using your platform's Xcode Build Phase or Gradle task (running `register-catalogs.js`).**
+Link it with:
+
+```bash
+uv run tools/build_catalog/assemble_catalog.py hello_world_with_all_basic.json \
+  --output-name hello_world_with_all_basic --extend-basic-catalog
+```
+
+The assembled catalog contains every Basic Catalog component plus `SuggestionChips`.
 
 #### Example: Cherry-picking Components
 
-This catalog imports only `Text` from the Basic Catalog to build a simple Popup surface.
+To import individual components, add a `$ref` under the component's own name in the `components` map. This catalog imports only `Text` from the Basic Catalog to build a simple Popup surface.
 
 ```json
 {
   "$id": "https://github.com/.../hello_world_with_some_basic/v1/catalog.json",
   "catalogId": "https://github.com/.../hello_world_with_some_basic/v1/catalog.json",
   "components": {
-    "allOf": [
-      {"$ref": "catalogs/basic/catalog.json#/components/Text"},
-      {
-        "Popup": {
-          "type": "object",
-          "description": "A modal overlay that displays an icon and text.",
-          "properties": {
-            "text": {"$ref": "common_types.json#/$defs/ComponentId"}
-          },
-          "required": ["text"]
-        }
-      }
-    ]
+    "Text": {"$ref": "basic_catalog.json#/components/Text"},
+    "Popup": {
+      "type": "object",
+      "description": "A modal overlay that displays an icon and text.",
+      "properties": {
+        "text": {"$ref": "common_types.json#/$defs/ComponentId"}
+      },
+      "required": ["text"]
+    }
   }
 }
 ```
 
-**Make sure to link and resolve external references during compilation using your platform's Xcode Build Phase or Gradle task (running `register-catalogs.js`).**
+Link it with:
+
+```bash
+uv run tools/build_catalog/assemble_catalog.py hello_world_with_some_basic.json \
+  --output-name hello_world_with_some_basic
+```
+
+The assembled catalog contains `Text` and `Popup`, with the referenced schemas inlined under `$defs`.
 
 ### Implementing Renderers
 
