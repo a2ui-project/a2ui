@@ -18,9 +18,8 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {Component, input} from '@angular/core';
 import {ListComponent} from './list.component';
 import {ComponentModel} from '@a2ui/web_core/v0_9';
-import {A2uiRendererService} from '../../core/a2ui-renderer.service';
-import {ComponentBinder, Child} from '../../core/component-binder.service';
-import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import {ComponentBinder} from '../../core/component-binder.service';
+import {setComponentProps, createBoundProperty} from '@a2ui/angular/testing';
 
 @Component({
   selector: 'dummy-text-for-list',
@@ -38,7 +37,7 @@ class DummyTextComponent {
 describe('ListComponent', () => {
   let component: ListComponent;
   let fixture: ComponentFixture<ListComponent>;
-  let defaultProps: ComponentToProps<ListComponent>;
+  let defaultProps: any;
 
   beforeEach(async () => {
     const mockCatalog = {

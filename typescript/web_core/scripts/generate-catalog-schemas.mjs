@@ -104,7 +104,7 @@ function findReferencedDefName(schema, commonDefs) {
     const name = extractRefName(schema.$ref);
     if (name && commonDefs[name]) return name;
   }
-  return findInSchemaList(schema.allOf, commonDefs) || findInSchemaList(schema.oneOf, commonDefs);
+  return findInSchemaList(schema.allOf, commonDefs);
 }
 
 /**
@@ -195,7 +195,17 @@ function generatePropertyZod(propName, propSchema, requiredList = [], commonDefs
     return isRequired ? code : `${code}.optional()`;
   }
 
-  // 2. Arrays
+  // 2. OneOf / AnyOf unions
+  const unionBranches = propSchema.oneOf || propSchema.anyOf;
+  if (Array.isArray(unionBranches) && unionBranches.length > 0) {
+    const branches = unionBranches.map(branch =>
+      generatePropertyZod('', branch, [''], commonDefs, usedImports),
+    );
+    const unionCode = branches.length === 1 ? branches[0] : `z.union([${branches.join(', ')}])`;
+    return applyModifiers(unionCode, propSchema, isRequired);
+  }
+
+  // 3. Arrays
   if (propSchema.type === 'array') {
     return applyModifiers(
       generateArrayZod(propSchema, commonDefs, usedImports),

@@ -377,8 +377,8 @@ export class GenericBinder<T> {
         };
 
         rules.forEach((rule: any, index: number) => {
-          const condition = rule.condition || rule; // Support both {condition, message} and direct logic expr if message is missing
-          const message = rule.message || 'Validation failed';
+          const condition = rule?.condition !== undefined ? rule.condition : rule;
+          const message = typeof rule?.message === 'string' ? rule.message : 'Validation failed';
           ruleResults[index].message = message;
 
           const bound = this.context.dataContext.subscribeDynamicValue(condition, newVal => {

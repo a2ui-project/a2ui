@@ -23,6 +23,7 @@ import {
   DynamicNumberSchema,
   DynamicStringSchema,
   DynamicValueSchema,
+  FunctionCallSchema,
 } from '../../schema/common-types.js';
 
 /**
@@ -188,7 +189,13 @@ export const OpenUrlApi = {
   name: 'openUrl' as const,
   returnType: 'void' as const,
   schema: z.object({
-    'url': DataBindingSchema.describe('REF:#/$defs/DataBinding|The URL to open.'),
+    'url': z
+      .union([
+        z.string(),
+        DataBindingSchema.describe('REF:#/$defs/DataBinding'),
+        FunctionCallSchema.describe('REF:#/$defs/FunctionCall'),
+      ])
+      .describe('The URL to open.'),
   }),
 };
 
