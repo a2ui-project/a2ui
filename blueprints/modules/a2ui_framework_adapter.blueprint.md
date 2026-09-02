@@ -24,7 +24,7 @@ The A2UI client architecture has a well-defined data flow that bridges language-
 This establishes a fundamental split:
 
 - **The Framework-Agnostic Layer (Data Layer / Core SDK)**: Handles JSON parsing, state management, JSON pointers, and schemas. This logic is identical across all UI frameworks within a given language.
-- **The Framework-Specific Layer (View Layer / Framework Adapter)**: Handles turning the structured state into actual pixels (React Nodes, Flutter Widgets, iOS Views) while enforcing catalog resilience—including graceful degradation, component error boundaries, open enum handling, and fallback rendering for unknown or deprecated components.
+- **The Framework-Specific Layer (View Layer / Framework Adapter)**: Handles turning the structured state into actual pixels (React Nodes, Flutter Widgets, iOS Views).
 
 ---
 
