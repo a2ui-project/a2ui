@@ -43,22 +43,93 @@ const HEADER = `/*
 // Generated from specification/*/json/common_types.json via scripts/generate-superset-common-types.mjs
 
 /**
- * @fileoverview Shared runtime types and helper schemas for A2UI rendering engines.
+ * @fileoverview Shared runtime types and helper schemas for A2UI rendering
+ * engines.
  *
- * Defines unversioned, internal types, schemas, and helper utilities consumed by
- * shared runtime modules (such as GenericBinder, DataContext, ExpressionParser,
- * and SchemaLoader).
+ * Defines unversioned, internal types, schemas, and helper utilities consumed
+ * by shared runtime modules (such as GenericBinder, DataContext,
+ * ExpressionParser, and SchemaLoader).
  *
  * This module represents the runtime superset of the modern protocol lineage
- * (v0.9, v0.9.1, and v1.0), aligned with the v1.0 dynamic value evaluation model.
- * Version-isolated wire validation and catalog schemas are maintained separately
- * in \`src/v0_8/\`, \`src/v0_9/\`, and \`src/v1_0/\`.
+ * (v0.9 and above), aligned with the most recent dynamic value evaluation
+ * model. Version-isolated wire validation and catalog schemas are maintained
+ * separately in src/v<version>/ directories, e.g. src/v1_0/.
  */
 `;
 
 function escapeStr(str) {
   if (!str) return '';
   return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
+}
+
+function getLatestDescription(schemas) {
+  const descriptions = schemas.map(s => s.description).filter(Boolean);
+  return descriptions.length > 0 ? descriptions[descriptions.length - 1] : undefined;
+}
+
+function mergeUnionSchemas(schemas) {
+  const branches = [];
+  const seen = new Set();
+  for (const s of schemas) {
+    const items = s.oneOf || [s];
+    for (const item of items) {
+      const key = JSON.stringify(item);
+      if (!seen.has(key)) {
+        seen.add(key);
+        branches.push(JSON.parse(JSON.stringify(item)));
+      }
+    }
+  }
+  return {oneOf: branches};
+}
+
+function collectAllPropertyNames(schemas) {
+  const names = new Set();
+  for (const s of schemas) {
+    if (s.properties) {
+      Object.keys(s.properties).forEach(p => names.add(p));
+    }
+  }
+  return names;
+}
+
+function findRequiredInAllProperties(schemas, propNames) {
+  const required = [];
+  for (const prop of propNames) {
+    const isRequiredEverywhere = schemas.every(
+      s => !s.properties || !s.properties[prop] || (s.required && s.required.includes(prop)),
+    );
+    if (isRequiredEverywhere && schemas.some(s => s.required && s.required.includes(prop))) {
+      required.push(prop);
+    }
+  }
+  return required;
+}
+
+function mergeObjectSchemas(schemas) {
+  const merged = {type: 'object', properties: {}};
+  const propNames = collectAllPropertyNames(schemas);
+
+  for (const prop of propNames) {
+    const propSchemas = schemas.map(s => s.properties && s.properties[prop]).filter(Boolean);
+    merged.properties[prop] = deepMergeSchemas(propSchemas);
+  }
+
+  const required = findRequiredInAllProperties(schemas, propNames);
+  if (required.length > 0) {
+    merged.required = required;
+  }
+  return merged;
+}
+
+function mergeEnumSchemas(schemas) {
+  const enumValues = new Set();
+  for (const s of schemas) {
+    if (Array.isArray(s.enum)) {
+      s.enum.forEach(v => enumValues.add(v));
+    }
+  }
+  return {type: 'string', enum: Array.from(enumValues)};
 }
 
 /**
@@ -71,82 +142,23 @@ function deepMergeSchemas(schemas) {
   if (!schemas || schemas.length === 0) return {};
   if (schemas.length === 1) return JSON.parse(JSON.stringify(schemas[0]));
 
-  const merged = {};
+  const description = getLatestDescription(schemas);
+  let merged;
 
-  // Preserve latest description
-  const descriptions = schemas.map(s => s.description).filter(Boolean);
-  if (descriptions.length > 0) {
-    merged.description = descriptions[descriptions.length - 1];
+  if (schemas.some(s => s.oneOf)) {
+    merged = mergeUnionSchemas(schemas);
+  } else if (schemas.every(s => s.type === 'object' || s.properties)) {
+    merged = mergeObjectSchemas(schemas);
+  } else if (schemas.some(s => Array.isArray(s.enum))) {
+    merged = mergeEnumSchemas(schemas);
+  } else {
+    merged = Object.assign({}, ...schemas);
   }
 
-  // 1. Union branches (oneOf / anyOf)
-  const hasOneOf = schemas.some(s => s.oneOf);
-  if (hasOneOf) {
-    const branches = [];
-    const seen = new Set();
-    for (const s of schemas) {
-      const items = s.oneOf || [s];
-      for (const item of items) {
-        const key = JSON.stringify(item);
-        if (!seen.has(key)) {
-          seen.add(key);
-          branches.push(JSON.parse(JSON.stringify(item)));
-        }
-      }
-    }
-    merged.oneOf = branches;
-    return merged;
+  if (description) {
+    merged.description = description;
   }
-
-  // 2. Object schemas
-  const allObjects = schemas.every(s => s.type === 'object' || s.properties);
-  if (allObjects) {
-    merged.type = 'object';
-    merged.properties = {};
-    const allPropNames = new Set();
-    for (const s of schemas) {
-      if (s.properties) {
-        Object.keys(s.properties).forEach(p => allPropNames.add(p));
-      }
-    }
-
-    for (const propName of allPropNames) {
-      const propSchemas = schemas.map(s => s.properties && s.properties[propName]).filter(Boolean);
-      merged.properties[propName] = deepMergeSchemas(propSchemas);
-    }
-
-    const requiredInAll = [];
-    for (const propName of allPropNames) {
-      const isReqEverywhere = schemas.every(
-        s =>
-          !s.properties || !s.properties[propName] || (s.required && s.required.includes(propName)),
-      );
-      if (isReqEverywhere && schemas.some(s => s.required && s.required.includes(propName))) {
-        requiredInAll.push(propName);
-      }
-    }
-    if (requiredInAll.length > 0) {
-      merged.required = requiredInAll;
-    }
-
-    return merged;
-  }
-
-  // 3. String enum schemas
-  const hasEnum = schemas.some(s => Array.isArray(s.enum));
-  if (hasEnum) {
-    const enumValues = new Set();
-    for (const s of schemas) {
-      if (Array.isArray(s.enum)) {
-        s.enum.forEach(v => enumValues.add(v));
-      }
-    }
-    merged.enum = Array.from(enumValues);
-    merged.type = 'string';
-    return merged;
-  }
-
-  return Object.assign({}, ...schemas, merged);
+  return merged;
 }
 
 // 1. Discover all version directories containing common_types.json (excluding legacy v0.8)
@@ -222,6 +234,116 @@ for (const name of graph.keys()) {
   visit(name);
 }
 
+function generateRefZod(refString, parentDefName) {
+  const idx = refString.indexOf('#/$defs/');
+  if (idx === -1) return null;
+  const targetName = refString.substring(idx + 8);
+  if (targetName === 'anyFunction') {
+    return 'z.record(z.any())';
+  }
+  if (parentDefName === 'DynamicValue' && targetName === 'FunctionCall') {
+    return 'FunctionCallSchema';
+  }
+  return `${targetName}Schema`;
+}
+
+function generateUnionZod(schema, parentDefName, indent) {
+  const branches = (schema.oneOf || schema.anyOf).map(b =>
+    generateZod(b, parentDefName, indent + '  '),
+  );
+  let code = `z.union([\n${branches.map(b => `${indent}  ${b},`).join('\n')}\n${indent}])`;
+  if (schema.description) {
+    code += `.describe('${escapeStr(schema.description)}')`;
+  }
+  return code;
+}
+
+function generateAllOfZod(schema, parentDefName, indent) {
+  if (schema.allOf.length === 2 && schema.allOf[0].$ref && schema.allOf[1].properties) {
+    const baseName = schema.allOf[0].$ref.replace('#/$defs/', '');
+    return `${baseName}Schema`;
+  }
+  const branches = schema.allOf.map(b => generateZod(b, parentDefName, indent));
+  return branches.join('.and(') + ')'.repeat(branches.length - 1);
+}
+
+function generateEnumZod(schema) {
+  let code = `z.enum([${schema.enum.map(e => `'${escapeStr(e)}'`).join(', ')}])`;
+  if (schema.default !== undefined) {
+    code += `.default('${escapeStr(schema.default)}')`;
+  }
+  if (schema.description) {
+    code += `.describe('${escapeStr(schema.description)}')`;
+  }
+  return code;
+}
+
+function generateLiteralZod(schema) {
+  let code = `z.literal('${escapeStr(schema.const)}')`;
+  if (schema.description) {
+    code += `.describe('${escapeStr(schema.description)}')`;
+  }
+  return code;
+}
+
+function generatePrimitiveZod(schema) {
+  let code;
+  if (schema.type === 'string') {
+    code = 'z.string()';
+    if (schema.default !== undefined) code += `.default('${escapeStr(schema.default)}')`;
+  } else if (schema.type === 'number') {
+    code = 'z.number()';
+    if (schema.default !== undefined) code += `.default(${schema.default})`;
+  } else if (schema.type === 'integer') {
+    code = 'z.number().int()';
+    if (schema.default !== undefined) code += `.default(${schema.default})`;
+  } else if (schema.type === 'boolean') {
+    code = 'z.boolean()';
+    if (schema.default !== undefined) code += `.default(${schema.default})`;
+  } else {
+    return null;
+  }
+  if (schema.description) {
+    code += `.describe('${escapeStr(schema.description)}')`;
+  }
+  return code;
+}
+
+function generateArrayZod(schema, parentDefName, indent) {
+  const itemCode = generateZod(schema.items, parentDefName, indent);
+  let code = `z.array(${itemCode})`;
+  if (schema.minItems !== undefined) code += `.min(${schema.minItems})`;
+  if (schema.description) code += `.describe('${escapeStr(schema.description)}')`;
+  return code;
+}
+
+function generateObjectZod(schema, parentDefName, indent) {
+  if (!schema.properties || Object.keys(schema.properties).length === 0) {
+    let code = 'z.record(z.string(), z.any())';
+    if (schema.description) code += `.describe('${escapeStr(schema.description)}')`;
+    return code;
+  }
+
+  const req = new Set(schema.required || []);
+  const props = [];
+  for (const [propName, propDef] of Object.entries(schema.properties)) {
+    let propZod = generateZod(propDef, parentDefName, indent + '  ');
+    if (!req.has(propName)) {
+      propZod += '.optional()';
+    }
+    props.push(`${indent}  '${propName}': ${propZod},`);
+  }
+
+  let code = `z.object({\n${props.join('\n')}\n${indent}})`;
+  if (schema.unevaluatedProperties === false || schema.additionalProperties === false) {
+    code += '.strict()';
+  }
+  if (schema.description) {
+    code += `.describe('${escapeStr(schema.description)}')`;
+  }
+  return code;
+}
+
 /**
  * Generates clean TypeScript Zod code directly from a JSON Schema node.
  */
@@ -229,131 +351,32 @@ function generateZod(schema, parentDefName, indent = '') {
   if (!schema || typeof schema !== 'object') {
     return 'z.any()';
   }
-
-  // $ref pointer
   if (typeof schema.$ref === 'string') {
-    const idx = schema.$ref.indexOf('#/$defs/');
-    if (idx !== -1) {
-      const targetName = schema.$ref.substring(idx + 8);
-      if (targetName === 'anyFunction') {
-        return 'z.record(z.any())';
-      }
-      if (parentDefName === 'DynamicValue' && targetName === 'FunctionCall') {
-        return 'FunctionCallSchema';
-      }
-      return `${targetName}Schema`;
-    }
+    const refCode = generateRefZod(schema.$ref, parentDefName);
+    if (refCode) return refCode;
   }
-
-  // oneOf / anyOf unions
   if (Array.isArray(schema.oneOf) || Array.isArray(schema.anyOf)) {
-    const branches = (schema.oneOf || schema.anyOf).map(b =>
-      generateZod(b, parentDefName, indent + '  '),
-    );
-    let code = `z.union([\n${branches.map(b => `${indent}  ${b},`).join('\n')}\n${indent}])`;
-    if (schema.description) {
-      code += `.describe('${escapeStr(schema.description)}')`;
-    }
-    return code;
+    return generateUnionZod(schema, parentDefName, indent);
   }
-
-  // allOf intersections / extensions
   if (Array.isArray(schema.allOf)) {
-    if (schema.allOf.length === 2 && schema.allOf[0].$ref && schema.allOf[1].properties) {
-      const baseName = schema.allOf[0].$ref.replace('#/$defs/', '');
-      return `${baseName}Schema`;
-    }
-    const branches = schema.allOf.map(b => generateZod(b, parentDefName, indent));
-    return branches.join('.and(') + ')'.repeat(branches.length - 1);
+    return generateAllOfZod(schema, parentDefName, indent);
   }
-
-  // Enum
   if (Array.isArray(schema.enum)) {
-    let code = `z.enum([${schema.enum.map(e => `'${escapeStr(e)}'`).join(', ')}])`;
-    if (schema.default !== undefined) {
-      code += `.default('${escapeStr(schema.default)}')`;
-    }
-    if (schema.description) {
-      code += `.describe('${escapeStr(schema.description)}')`;
-    }
-    return code;
+    return generateEnumZod(schema);
   }
-
-  // Const / Literal
   if (schema.const !== undefined) {
-    let code = `z.literal('${escapeStr(schema.const)}')`;
-    if (schema.description) {
-      code += `.describe('${escapeStr(schema.description)}')`;
-    }
-    return code;
+    return generateLiteralZod(schema);
   }
-
-  // Primitive Types
-  if (schema.type === 'string') {
-    let code = 'z.string()';
-    if (schema.default !== undefined) code += `.default('${escapeStr(schema.default)}')`;
-    if (schema.description) code += `.describe('${escapeStr(schema.description)}')`;
-    return code;
+  const primCode = generatePrimitiveZod(schema);
+  if (primCode) {
+    return primCode;
   }
-
-  if (schema.type === 'number') {
-    let code = 'z.number()';
-    if (schema.default !== undefined) code += `.default(${schema.default})`;
-    if (schema.description) code += `.describe('${escapeStr(schema.description)}')`;
-    return code;
-  }
-
-  if (schema.type === 'integer') {
-    let code = 'z.number().int()';
-    if (schema.default !== undefined) code += `.default(${schema.default})`;
-    if (schema.description) code += `.describe('${escapeStr(schema.description)}')`;
-    return code;
-  }
-
-  if (schema.type === 'boolean') {
-    let code = 'z.boolean()';
-    if (schema.default !== undefined) code += `.default(${schema.default})`;
-    if (schema.description) code += `.describe('${escapeStr(schema.description)}')`;
-    return code;
-  }
-
-  // Arrays
   if (schema.type === 'array') {
-    const itemCode = generateZod(schema.items, parentDefName, indent);
-    let code = `z.array(${itemCode})`;
-    if (schema.minItems !== undefined) code += `.min(${schema.minItems})`;
-    if (schema.description) code += `.describe('${escapeStr(schema.description)}')`;
-    return code;
+    return generateArrayZod(schema, parentDefName, indent);
   }
-
-  // Objects
   if (schema.type === 'object' || schema.properties) {
-    if (!schema.properties || Object.keys(schema.properties).length === 0) {
-      let code = 'z.record(z.string(), z.any())';
-      if (schema.description) code += `.describe('${escapeStr(schema.description)}')`;
-      return code;
-    }
-
-    const req = new Set(schema.required || []);
-    const props = [];
-    for (const [propName, propDef] of Object.entries(schema.properties)) {
-      let propZod = generateZod(propDef, parentDefName, indent + '  ');
-      if (!req.has(propName)) {
-        propZod += '.optional()';
-      }
-      props.push(`${indent}  '${propName}': ${propZod},`);
-    }
-
-    let code = `z.object({\n${props.join('\n')}\n${indent}})`;
-    if (schema.unevaluatedProperties === false || schema.additionalProperties === false) {
-      code += '.strict()';
-    }
-    if (schema.description) {
-      code += `.describe('${escapeStr(schema.description)}')`;
-    }
-    return code;
+    return generateObjectZod(schema, parentDefName, indent);
   }
-
   return 'z.any()';
 }
 

@@ -151,22 +151,26 @@ for (const name of graph.keys()) {
   visit(name);
 }
 
+function resolveRefTarget(refString, parentDefName) {
+  const idx = refString.indexOf('#/$defs/');
+  if (idx === -1) return null;
+  const targetName = refString.substring(idx + 8);
+  if (targetName === 'anyFunction') {
+    return {type: 'object', additionalProperties: true};
+  }
+  if (parentDefName === 'DynamicValue' && targetName === 'FunctionCall') {
+    return {enum: ['__REF__z.lazy(() => FunctionCallSchema)__']};
+  }
+  return {enum: ['__REF__' + targetName + 'Schema__']};
+}
+
 // Helper to recursively prepare JSON Schema nodes by resolving local/remote #/$defs references
 function prepareRef(node, parentDefName) {
   if (!node || typeof node !== 'object') return node;
   if (Array.isArray(node)) return node.map(n => prepareRef(n, parentDefName));
   if (typeof node.$ref === 'string') {
-    const idx = node.$ref.indexOf('#/$defs/');
-    if (idx !== -1) {
-      const targetName = node.$ref.substring(idx + 8);
-      if (targetName === 'anyFunction') {
-        return {type: 'object', additionalProperties: true};
-      }
-      if (parentDefName === 'DynamicValue' && targetName === 'FunctionCall') {
-        return {enum: ['__REF__z.lazy(() => FunctionCallSchema)__']};
-      }
-      return {enum: ['__REF__' + targetName + 'Schema__']};
-    }
+    const resolved = resolveRefTarget(node.$ref, parentDefName);
+    if (resolved) return resolved;
   }
   const res = {};
   for (const [k, v] of Object.entries(node)) {

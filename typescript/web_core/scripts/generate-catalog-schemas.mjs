@@ -179,6 +179,24 @@ function generateArrayZod(propSchema, commonDefs, usedImports) {
   return code;
 }
 
+function generateRefPropertyZod(defName, desc, isRequired, usedImports) {
+  usedImports.add(`${defName}Schema`);
+  const marker = desc ? `REF:#/$defs/${defName}|${escapeStr(desc)}` : `REF:#/$defs/${defName}`;
+  const code = `${defName}Schema.describe('${marker}')`;
+  return isRequired ? code : `${code}.optional()`;
+}
+
+function generateUnionPropertyZod(branches, propSchema, isRequired, commonDefs, usedImports) {
+  const generatedBranches = branches.map(branch =>
+    generatePropertyZod('', branch, [''], commonDefs, usedImports),
+  );
+  const unionCode =
+    generatedBranches.length === 1
+      ? generatedBranches[0]
+      : `z.union([${generatedBranches.join(', ')}])`;
+  return applyModifiers(unionCode, propSchema, isRequired);
+}
+
 /**
  * Generates Zod expression for a component or function property schema.
  */
@@ -189,20 +207,13 @@ function generatePropertyZod(propName, propSchema, requiredList = [], commonDefs
   // 1. Schema-driven $ref resolution via common_types $defs
   const defName = findReferencedDefName(propSchema, commonDefs);
   if (defName) {
-    usedImports.add(`${defName}Schema`);
-    const marker = desc ? `REF:#/$defs/${defName}|${escapeStr(desc)}` : `REF:#/$defs/${defName}`;
-    const code = `${defName}Schema.describe('${marker}')`;
-    return isRequired ? code : `${code}.optional()`;
+    return generateRefPropertyZod(defName, desc, isRequired, usedImports);
   }
 
   // 2. OneOf / AnyOf unions
   const unionBranches = propSchema.oneOf || propSchema.anyOf;
   if (Array.isArray(unionBranches) && unionBranches.length > 0) {
-    const branches = unionBranches.map(branch =>
-      generatePropertyZod('', branch, [''], commonDefs, usedImports),
-    );
-    const unionCode = branches.length === 1 ? branches[0] : `z.union([${branches.join(', ')}])`;
-    return applyModifiers(unionCode, propSchema, isRequired);
+    return generateUnionPropertyZod(unionBranches, propSchema, isRequired, commonDefs, usedImports);
   }
 
   // 3. Arrays
@@ -214,19 +225,19 @@ function generatePropertyZod(propName, propSchema, requiredList = [], commonDefs
     );
   }
 
-  // 3. Enums
+  // 4. Enums
   if (Array.isArray(propSchema.enum)) {
     const enumCode = `z.enum([${propSchema.enum.map(v => `'${v}'`).join(', ')}])`;
     return applyModifiers(enumCode, propSchema, isRequired);
   }
 
-  // 4. Primitive types
+  // 5. Primitive types
   const primCode = generatePrimitiveZod(propSchema);
   if (primCode) {
     return applyModifiers(primCode, propSchema, isRequired);
   }
 
-  // 5. Objects
+  // 6. Objects
   if (propSchema.type === 'object') {
     return applyModifiers(
       generateObjectSchemaZod(propSchema, commonDefs, usedImports),

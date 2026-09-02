@@ -18,16 +18,17 @@
 // Generated from specification/*/json/common_types.json via scripts/generate-superset-common-types.mjs
 
 /**
- * @fileoverview Shared runtime types and helper schemas for A2UI rendering engines.
+ * @fileoverview Shared runtime types and helper schemas for A2UI rendering
+ * engines.
  *
- * Defines unversioned, internal types, schemas, and helper utilities consumed by
- * shared runtime modules (such as GenericBinder, DataContext, ExpressionParser,
- * and SchemaLoader).
+ * Defines unversioned, internal types, schemas, and helper utilities consumed
+ * by shared runtime modules (such as GenericBinder, DataContext,
+ * ExpressionParser, and SchemaLoader).
  *
  * This module represents the runtime superset of the modern protocol lineage
- * (v0.9, v0.9.1, and v1.0), aligned with the v1.0 dynamic value evaluation model.
- * Version-isolated wire validation and catalog schemas are maintained separately
- * in `src/v0_8/`, `src/v0_9/`, and `src/v1_0/`.
+ * (v0.9 and above), aligned with the most recent dynamic value evaluation
+ * model. Version-isolated wire validation and catalog schemas are maintained
+ * separately in src/v<version>/ directories, e.g. src/v1_0/.
  */
 import {z} from 'zod';
 import {
