@@ -259,6 +259,31 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
     return messages;
   }
 
+  /// Checks a surface's theme against [catalog]'s theme schema.
+  ///
+  /// A catalog that declares no theme schema constrains nothing, so any theme
+  /// passes. A null [theme] is the surface declaring none, which is always
+  /// allowed.
+  ///
+  /// Visible only so `MessageProcessor` can check a theme when the surface is
+  /// created, which is the only point the theme arrives.
+  ///
+  /// Throws [A2uiValidationError] if the theme does not match the schema.
+  @internal
+  void validateTheme(Map<String, Object?>? theme, Catalog<C, F> catalog) {
+    final Schema? schema = catalog.themeSchema;
+    if (schema == null || theme == null) return;
+
+    final List<ValidationError> errors = schema.validateSync(theme);
+    if (errors.isNotEmpty) {
+      throw A2uiValidationError(
+        "Theme does not match the theme schema in catalog '${catalog.id}': "
+        '${errors.map((e) => e.toErrorString()).join('; ')}',
+        details: theme,
+      );
+    }
+  }
+
   /// Checks one component against [catalog]'s schema for its type.
   ///
   /// Visible only so `MessageProcessor` can validate a component as it

@@ -27,23 +27,26 @@ class MessageProcessor<T extends ComponentApi> {
   final SurfaceGroupModel<T> groupModel;
   final List<Catalog<T, FunctionImplementation>> catalogs;
 
-  /// Validates messages as they are processed, when supplied.
+  /// Validates messages as they are processed.
   ///
   /// Validation is phased rather than a single pass: [processPayload] checks
-  /// envelopes as it parses, and [processMessages] checks each component
-  /// against its surface's catalog as the component arrives. Both use the
-  /// surfaces this processor already holds, which a payload-scoped validator
-  /// cannot see.
+  /// envelopes as it parses, [processMessages] checks a surface's theme when
+  /// the surface is created and each component against its surface's catalog
+  /// as the component arrives. All of it uses the surfaces this processor
+  /// already holds, which a payload-scoped validator cannot see.
   ///
-  /// Omit it to process without catalog validation, which is what callers that
-  /// validate upstream, or hold catalogs that declare no components, want.
-  final A2uiValidator<T, FunctionImplementation>? validator;
+  /// Defaults to a validator over [catalogs]. Supply one to configure it — to
+  /// give it `common_types.json`, or to accept a different protocol version.
+  final A2uiValidator<T, FunctionImplementation> validator;
 
   MessageProcessor({
     required this.catalogs,
-    this.validator,
+    A2uiValidator<T, FunctionImplementation>? validator,
     void Function(A2uiClientAction)? onAction,
-  }) : groupModel = SurfaceGroupModel<T>() {
+  }) : validator =
+           validator ??
+           A2uiValidator<T, FunctionImplementation>(catalogs: catalogs),
+       groupModel = SurfaceGroupModel<T>() {
     if (onAction != null) {
       groupModel.onAction.addListener(onAction);
     }
@@ -58,10 +61,7 @@ class MessageProcessor<T extends ComponentApi> {
   /// Throws [A2uiValidationError] for a malformed envelope, before any message
   /// reaches the models.
   List<A2uiMessage> processPayload(List<Map<String, Object?>> payload) {
-    final A2uiValidator<T, FunctionImplementation> parser =
-        validator ??
-        A2uiValidator<T, FunctionImplementation>(catalogs: catalogs);
-    final List<A2uiMessage> messages = parser.parseMessages(payload);
+    final List<A2uiMessage> messages = validator.parseMessages(payload);
     processMessages(messages);
     return messages;
   }
@@ -95,6 +95,10 @@ class MessageProcessor<T extends ComponentApi> {
     if (groupModel.getSurface(message.surfaceId) != null) {
       throw A2uiStateError('Surface ${message.surfaceId} already exists.');
     }
+
+    // The theme arrives once, with the surface, so it is checked here rather
+    // than on every later message.
+    validator.validateTheme(message.theme, catalog);
 
     final surface = SurfaceModel<T>(
       message.surfaceId,
@@ -137,8 +141,8 @@ class MessageProcessor<T extends ComponentApi> {
       // catalog here, while the batch can still be rejected whole. A component
       // that names none is an update to one this surface already holds, which
       // the catalog was consulted for when it first arrived.
-      if (validator != null && type != null) {
-        validator!.validateComponent(compJson, surface.catalog);
+      if (type != null) {
+        validator.validateComponent(compJson, surface.catalog);
       }
     }
 

@@ -2,14 +2,11 @@
 
 ## 0.2.0
 
-- `MessageProcessor` can now drive validation itself, in phases, using the
-  surfaces it already holds. `processPayload` parses a raw payload and
-  validates envelopes as it goes, and a `MessageProcessor` given a `validator`
-  checks each arriving component against its surface's catalog before the batch
-  is applied. The
-  `validator` is optional, so a caller that validates upstream is unaffected,
-  and `A2uiValidator.validate` remains the entry point for agents, which have
-  no `MessageProcessor`.
+- **Breaking:** `MessageProcessor` validates messages as it processes them.
+  A message that does not match its catalog now throws instead of being
+  applied. The constructor takes an optional `validator`, defaulting to an
+  `A2uiValidator` over `catalogs`, and `processPayload` parses and validates a
+  raw payload.
 - **Breaking:** `A2uiValidator.validate` and `validateAgainstCatalogs` are now
   synchronous, returning `List<A2uiMessage>` and `void` instead of futures.
   Callers must drop `await`. They returned futures only because

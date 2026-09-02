@@ -20,7 +20,6 @@ import 'package:a2ui_core/src/core/minimal_catalog.dart';
 import 'package:a2ui_core/src/core/surface_model.dart';
 import 'package:a2ui_core/src/primitives/errors.dart';
 import 'package:a2ui_core/src/processing/processor.dart';
-import 'package:a2ui_core/src/validation/validator.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -58,17 +57,13 @@ void main() {
       expect(processor.groupModel.getSurface('s1'), isNotNull);
     });
 
-    test('a validator rejects a component the catalog does not declare', () {
-      final MessageProcessor<ComponentApi> validating = MessageProcessor(
-        catalogs: [catalog],
-        validator: A2uiValidator(catalogs: [catalog]),
-      );
-      validating.processMessages([
+    test('rejects a component the catalog does not declare', () {
+      processor.processMessages([
         CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
       ]);
 
       expect(
-        () => validating.processMessages([
+        () => processor.processMessages([
           UpdateComponentsMessage(
             surfaceId: 's1',
             components: [
@@ -80,26 +75,55 @@ void main() {
       );
       // The rejected batch left the surface untouched.
       expect(
-        validating.groupModel.getSurface('s1')?.componentsModel.get('a'),
+        processor.groupModel.getSurface('s1')?.componentsModel.get('a'),
         isNull,
       );
     });
 
-    test('without a validator the same component is accepted', () {
+    test('rejects a component that does not match its schema', () {
       processor.processMessages([
         CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
-        UpdateComponentsMessage(
-          surfaceId: 's1',
-          components: [
-            {'id': 'a', 'component': 'NoSuchComponent'},
-          ],
-        ),
       ]);
 
       expect(
-        processor.groupModel.getSurface('s1')?.componentsModel.get('a'),
-        isNotNull,
+        () => processor.processMessages([
+          // `Text` requires `text`.
+          UpdateComponentsMessage(
+            surfaceId: 's1',
+            components: [
+              {'id': 'a', 'component': 'Text'},
+            ],
+          ),
+        ]),
+        throwsA(isA<A2uiValidationError>()),
       );
+    });
+
+    test('rejects a theme that does not match the catalog theme schema', () {
+      expect(
+        () => processor.processMessages([
+          // `primaryColor` must match `^#[0-9a-fA-F]{6}$`.
+          CreateSurfaceMessage(
+            surfaceId: 's1',
+            catalogId: catalog.id,
+            theme: {'primaryColor': 'blue'},
+          ),
+        ]),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(processor.groupModel.getSurface('s1'), isNull);
+    });
+
+    test('accepts a theme that matches the catalog theme schema', () {
+      processor.processMessages([
+        CreateSurfaceMessage(
+          surfaceId: 's1',
+          catalogId: catalog.id,
+          theme: {'primaryColor': '#00ff00'},
+        ),
+      ]);
+
+      expect(processor.groupModel.getSurface('s1'), isNotNull);
     });
 
     test('creates surface', () {
