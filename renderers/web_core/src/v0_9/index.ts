@@ -23,9 +23,15 @@
 
 export * from './catalog/function_invoker.js';
 export * from './catalog/types.js';
-export * from './catalog/a2ui-controller.js';
-export * from './catalog/a2ui-lit-element.js';
-export * from './catalog/render-a2ui-node.js';
+export {
+  A2uiLitElement,
+  type ResolvedChildList,
+  type A2uiChildRef,
+  type ResolvedChildRef,
+  A2uiController,
+  renderA2uiNode,
+  type WebComponentImplementation,
+} from './universal/index.js';
 export * from './common/events.js';
 export * from './processing/message-processor.js';
 export * from './rendering/component-context.js';

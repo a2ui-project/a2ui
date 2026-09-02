@@ -14,34 +14,13 @@
  * limitations under the License.
  */
 
+export * from './components/index.js';
+export {basicCatalog} from './catalog.js';
 export * from './expressions/expression_parser.js';
 export * from './functions/basic_functions.js';
 export * from './functions/basic_functions_api.js';
-export * from './components/basic_components.js';
 export {injectBasicCatalogStyles, computeColorVariant} from './styles/default.js';
 export type {ColorVariantLightDarkOptions, ColorVariantHoverOptions} from './styles/default.js';
-export * from './basic-catalog-a2ui-lit-element.js';
-
-export * from './components/Text.js';
-export * from './components/Button.js';
-export * from './components/TextField.js';
-export * from './components/Row.js';
-export * from './components/Column.js';
-export * from './components/List.js';
-export * from './components/Image.js';
-export * from './components/Icon.js';
-export * from './components/Video.js';
-export * from './components/AudioPlayer.js';
-export * from './components/Card.js';
-export * from './components/Divider.js';
-export * from './components/CheckBox.js';
-export * from './components/Slider.js';
-export * from './components/DateTimeInput.js';
-export * from './components/ChoicePicker.js';
-export * from './components/Tabs.js';
-export * from './components/Modal.js';
-
-export {basicCatalog} from './catalog.js';
 export {Context} from './context/context.js';
 export type {
   MarkdownRenderer,
