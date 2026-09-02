@@ -28,6 +28,9 @@ from ...state.validation_helpers import validate_recursion_and_paths
 from ...schema import AgentToRendererMessage, ProtocolVersion
 
 
+from ..execution_context import ExecutionContext
+
+
 def _clean_loc_part(x: str) -> str:
     """Extracts base message class names from Pydantic validator wrapper strings."""
     if x.startswith("function-after[") or x.startswith("function-before["):
@@ -63,7 +66,7 @@ class VersionAdapter(ABC):
             | Mapping[str, Any]
             | Sequence[Mapping[str, Any]]
         ),
-        user_activation_present: bool = False,
+        context: ExecutionContext | None = None,
     ) -> list[InternalOperation]:
         """Converts a raw message payload or payload list into canonical internal operations."""
         pass
@@ -180,7 +183,7 @@ class BaseVersionAdapter(VersionAdapter, ABC):
             | Mapping[str, Any]
             | Sequence[Mapping[str, Any]]
         ),
-        user_activation_present: bool = False,
+        context: ExecutionContext | None = None,
     ) -> list[InternalOperation]:
         """Unwraps payloads and delegates validated action messages to action handlers."""
         if not payload:
@@ -198,18 +201,14 @@ class BaseVersionAdapter(VersionAdapter, ABC):
                     self._extract_single_action(item)
             ops: list[InternalOperation] = []
             for item in raw_payload:
-                ops.extend(
-                    self.extract_operations(
-                        item, user_activation_present=user_activation_present
-                    )
-                )
+                ops.extend(self.extract_operations(item, context=context))
             return ops
 
         if isinstance(raw_payload, dict):
             if "messages" in raw_payload and isinstance(raw_payload["messages"], list):
                 return self.extract_operations(
                     raw_payload["messages"],
-                    user_activation_present=user_activation_present,
+                    context=context,
                 )
 
             action = self._extract_single_action(raw_payload)
@@ -254,7 +253,7 @@ class BaseVersionAdapter(VersionAdapter, ABC):
             return self._extract_operations_for_action(
                 action,
                 raw_payload,
-                user_activation_present=user_activation_present,
+                context=context,
             )
 
         return []
@@ -264,7 +263,7 @@ class BaseVersionAdapter(VersionAdapter, ABC):
         self,
         action: str,
         message: dict[str, Any],
-        user_activation_present: bool = False,
+        context: ExecutionContext | None = None,
     ) -> list[InternalOperation]:
         """Subclasses override this to extract version-specific internal operations."""
         pass

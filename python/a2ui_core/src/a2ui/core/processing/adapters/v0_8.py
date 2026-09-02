@@ -31,6 +31,9 @@ from ..operations import (
 )
 
 
+from ..execution_context import ExecutionContext
+
+
 class V0Point8Adapter(BaseVersionAdapter):
     """Protocol version adapter for specification v0.8."""
 
@@ -59,7 +62,7 @@ class V0Point8Adapter(BaseVersionAdapter):
         self,
         action: str,
         message: dict[str, Any],
-        user_activation_present: bool = False,
+        context: ExecutionContext | None = None,
     ) -> list[InternalOperation]:
         res: list[InternalOperation] = []
         if action == MSG_TYPE_BEGIN_RENDERING:

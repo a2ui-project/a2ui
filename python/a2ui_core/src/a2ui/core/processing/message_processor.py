@@ -49,6 +49,9 @@ from .operations import (
 )
 
 
+from .execution_context import ExecutionContext
+
+
 class MessageProcessor:
     """Core state engine that validates payloads, manages surfaces, and applies mutation ops."""
 
@@ -74,13 +77,11 @@ class MessageProcessor:
             | Mapping[str, Any]
             | Sequence[Mapping[str, Any]]
         ),
-        user_activation_present: bool = False,
+        context: ExecutionContext | None = None,
     ) -> list[dict[str, Any]]:
         """Accepts a list of parsed JSON messages and executes them in order."""
         adapter = VersionAdapterFactory.resolve_from_payload(messages)
-        operations = adapter.extract_operations(
-            messages, user_activation_present=user_activation_present
-        )
+        operations = adapter.extract_operations(messages, context=context)
         responses: list[dict[str, Any]] = []
         for op in operations:
             resp = self._process_operation(op)

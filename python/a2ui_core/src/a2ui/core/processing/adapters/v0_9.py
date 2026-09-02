@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any
+import copy
+from typing import Any, cast
 from .base import BaseVersionAdapter
 from ...schema import ProtocolVersion
 from ...schema.v0_9 import (
@@ -29,6 +30,7 @@ from ..operations import (
     InternalUpdateComponentsOp,
     InternalUpdateDataModelOp,
 )
+from ..execution_context import ExecutionContext
 
 
 class V0Point9Adapter(BaseVersionAdapter):
@@ -42,11 +44,9 @@ class V0Point9Adapter(BaseVersionAdapter):
     def supported_versions(self) -> set[str]:
         return {"v0.9", "v0.9.1"}
 
-    def prepare_payload_for_validation(
-        self, raw_payload: dict[str, Any]
-    ) -> dict[str, Any]:
-        payload = dict(raw_payload)
-        if payload.get("version") in ("v0.9.1", "0.9.1"):
+    def prepare_payload_for_validation(self, message: dict[str, Any]) -> dict[str, Any]:
+        payload = copy.deepcopy(message)
+        if payload.get("version") == "v0.9.1":
             payload["version"] = "v0.9"
         return payload
 
@@ -67,7 +67,7 @@ class V0Point9Adapter(BaseVersionAdapter):
         self,
         action: str,
         message: dict[str, Any],
-        user_activation_present: bool = False,
+        context: ExecutionContext | None = None,
     ) -> list[InternalOperation]:
         res: list[InternalOperation] = []
         if action == MSG_TYPE_CREATE_SURFACE:

@@ -737,15 +737,26 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
             )
         )
 
-    cat_id = (
-        "media_catalog"
-        if "playMedia" in fn_metadata
-        else "system_catalog"
-        if "internalStateReset" in fn_metadata
-        else "store_catalog"
-        if "queryInventory" in fn_metadata
-        else "basic"
-    )
+    cat_id = args.get("catalogId")
+    if not cat_id and isinstance(message, dict) and "callRendererFunction" in message:
+        msg_cat_id = (
+            message.get("callRendererFunction", {})
+            .get("callFunction", {})
+            .get("catalogId")
+        )
+        expect_err_msg = (
+            case.get("expect", {})
+            .get("response", {})
+            .get("rendererFunctionResponse", {})
+            .get("error", {})
+            .get("message", "")
+        )
+        if "Catalog not found" not in expect_err_msg:
+            cat_id = msg_cat_id
+    if not cat_id and isinstance(outbound_call, dict):
+        cat_id = outbound_call.get("callFunction", {}).get("catalogId")
+    if not cat_id:
+        cat_id = "basic"
     cat = Catalog(
         catalog_id=cat_id,
         protocol_version="v1.0",
@@ -765,8 +776,11 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
             if "message" in expect_err:
                 assert expect_err["message"] in str(exc_info.value)
         elif expect_resp:
+            from a2ui.core.processing import ExecutionContext
+
             responses = processor.process_messages(
-                message, user_activation_present=user_activation
+                message,
+                context=ExecutionContext(user_activation_present=user_activation),
             )
             assert len(responses) == 1
             assert responses[0] == expect_resp
