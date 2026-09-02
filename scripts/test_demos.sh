@@ -33,7 +33,7 @@ if [ "$1" = "--build-only" ]; then
 fi
 
 echo "========================================="
-echo " A2UI Getting Started Demos Verification"
+echo " A2UI Quickstart Demos E2E Verification"
 echo " Target: $DEMO_TARGET (Build only: $BUILD_ONLY)"
 echo "========================================="
 

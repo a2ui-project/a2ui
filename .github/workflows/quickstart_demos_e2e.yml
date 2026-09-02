@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Getting Started Demos CI
+name: Quickstart Demos E2E
 
 on:
   pull_request:
@@ -21,7 +21,7 @@ on:
       - "renderers/**"
       - "agent_sdks/**"
       - "scripts/test_demos.sh"
-      - ".github/workflows/demos_ci.yml"
+      - ".github/workflows/quickstart_demos_e2e.yml"
   push:
     branches:
       - main
@@ -53,7 +53,7 @@ permissions:
 
 jobs:
   verify-demos:
-    name: Verify Demo (${{ matrix.demo }})
+    name: Quickstart E2E (${{ matrix.demo }})
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
