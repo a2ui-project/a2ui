@@ -429,9 +429,6 @@ export function generateCatalogSchema<
   processComponents(catalog, schema, defs, options);
   processFunctions(catalog, schema, defs);
 
-  const referenced = new Set<string>();
-  collectReferencedDefs(schema, referenced);
-
   const standardDefs = getStandardDefsForCatalog(catalog, options);
 
   // Fixed-point iteration to discover all transitive $defs references

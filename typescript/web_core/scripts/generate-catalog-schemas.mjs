@@ -439,7 +439,8 @@ export function generateFunctionsFile(version, catalogJson, commonDefs, options 
     out += `  ${name},\n`;
   }
   out += `];\n\n`;
-  out += `export const V09_SPEC_FUNCTION_APIS = BASIC_FUNCTION_APIS;\n`;
+  const versionPrefix = version ? `${version.toUpperCase().replace(/[^A-Z0-9]/g, '')}_` : '';
+  out += `export const ${versionPrefix}SPEC_FUNCTION_APIS = BASIC_FUNCTION_APIS;\n`;
 
   return out;
 }
@@ -448,7 +449,7 @@ export function generateFunctionsFile(version, catalogJson, commonDefs, options 
  * Generates component and function TypeScript APIs from a catalog schema and common types definitions.
  *
  * @param {object} options
- * @param {string} [options.version] Protocol version identifier.
+ * @param {string} options.version Protocol version identifier.
  * @param {string} options.catalogPath Path to catalog.json.
  * @param {string} options.commonTypesPath Path to common_types.json.
  * @param {string} [options.componentsOutPath] Path to output component APIs file.
@@ -457,7 +458,7 @@ export function generateFunctionsFile(version, catalogJson, commonDefs, options 
  * @param {string} [options.typesImportPath] Relative import path for catalog types.
  */
 export function generateCatalogApi({
-  version = '',
+  version,
   catalogPath,
   commonTypesPath,
   componentsOutPath,
