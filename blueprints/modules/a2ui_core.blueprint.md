@@ -20,12 +20,12 @@ The A2UI Core SDK acts as the central state coordinator. It is designed to repre
 
 Its core responsibilities include:
 
-1. **Catalog Representation:** Define `Catalog` structures and pure technical component metadata/schemas (`ComponentApi`, `FunctionApi`).
-2. **Protocol Definitions:** Model strongly-typed inbound and outbound message structures (e.g., `RendererToAgent`, `AgentToRenderer`, etc.).
+1. **Catalog Representation:** Define `Catalog` structures and pure technical component metadata/schemas (`ComponentApi`, `FunctionApi`), including loading a catalog from, and serializing it back to, an A2UI **catalog document** (JSON).
+2. **Protocol Definitions:** Model strongly-typed inbound and outbound message structures (e.g., `RendererToAgent`, `AgentToRenderer`, etc.), including the `A2uiRendererCapabilities` negotiation payload, for every supported protocol version.
 3. **Surface State Containers:** Track mutable, long-lived rendering states via `SurfaceModel`, `ComponentModel`, and `DataModel`.
 4. **Message Processor:** Parse inbound message sequences to mutate local state containers via `MessageProcessor`.
 5. **JSON Pointer Scope:** Standardize relative pointer evaluation and reactivity via scoped context managers.
-6. **Validation:** Performs structural JSON Schema checks, reference checks, loop/recursion analysis, and layout integrity checks.
+6. **Validation:** Performs structural JSON Schema checks, reference checks, loop/recursion analysis, and layout integrity checks. `a2ui_core` owns the **only** validator implementation; it supports every protocol version and is consumed unchanged by renderers and Agent SDKs, which MUST NOT ship a parallel validator.
 7. **Resolution:** Resolves bound context paths and binds state variables to components for local evaluation.
 8. **Multi-Version Protocol Branching:** Supports multiple versions of the protocol.
 
@@ -124,9 +124,13 @@ a2ui/core/
 │   ├── v0_9/                       # Conforms to spec v0.9, v0.9.1
 │   └── v1_0/                       # Conforms to spec v1.0
 ├── catalog/                        # Catalog declarations
-│   ├── catalog                     # Catalog base class
-│   ├── components                  # Component declarations
-│   └── functions                   # Function declarations
+│   ├── catalog                     # Catalog base class (incl. fromJson / toJson)
+│   ├── components                  # ComponentApi + schema-only JsonComponentApi
+│   ├── functions                   # FunctionApi + FunctionImplementation
+│   └── catalog_document            # Catalog document reader/writer & `REF:` expansion
+├── capabilities/                   # Renderer capability negotiation payloads
+│   ├── renderer_capabilities       # A2uiRendererCapabilities builder & parser
+│   └── inline_catalog              # InlineCatalog / FunctionDefinition models
 ├── state/                          # Reactive Layout State Models
 │   ├── component_model             # Component property structures
 │   ├── data_model                  # Value dictionary binding paths
@@ -141,7 +145,7 @@ a2ui/core/
 │       ├── v0_8                    # v0.8 adapter
 │       ├── v0_9                    # v0.9 adapter
 │       └── v1_0                    # v1.0 adapter
-├── validation/                     # Layout validation layer
+├── validation/                     # Layout validation layer (all protocol versions)
 │   ├── validator                   # Core A2uiValidator class
 │   └── catalog_schema_validator    # JSON schema catalog validator
 ├── resolution/                     # View Tree Resolution & Rendering Engine
@@ -188,7 +192,8 @@ export interface Catalog<TComponent extends ComponentApi, TFunction extends Func
   readonly id: string;
   readonly protocolVersion: A2uiProtocolVersion;
   readonly components: ReadonlyMap<string, TComponent>;
-  readonly functions?: ReadonlyMap<string, TFunction>;
+  /** Empty when the catalog declares no functions; never absent. */
+  readonly functions: ReadonlyMap<string, TFunction>;
   readonly themeSchema?: Record<string, any>;
 }
 ```
@@ -205,6 +210,10 @@ interface ComponentApi {
   readonly schema: Schema;
 }
 ```
+
+A `ComponentApi` carries **no** rendering hook. A renderer supplies a `ComponentImplementation extends ComponentApi` that adds the view-building method (see the [Framework Adapter Blueprint](a2ui_framework_adapter.blueprint.md)).
+
+Because a catalog can also be loaded from a JSON document (see [Catalog Documents](#catalog-documents-json-representation)) rather than declared in code, the core library MUST provide a **schema-only** `ComponentApi` — conventionally `JsonComponentApi` — that is constructed from a name plus a raw JSON Schema. This is the component type an agent uses: it describes and validates components it never renders, so no implementation exists behind it.
 
 #### `FunctionApi` & `FunctionImplementation`
 
@@ -227,20 +236,40 @@ interface FunctionImplementation extends FunctionApi {
   execute(args: Record<string, any>, context: DataContext): unknown | Observable<unknown>;
 }
 
-class Catalog<T extends ComponentApi> {
+class Catalog<TComponent extends ComponentApi, TFunction extends FunctionApi> {
   readonly id: string; // Unique catalog ID (string identifier)
-  readonly components: ReadonlyMap<string, T>;
-  readonly functions?: ReadonlyMap<string, FunctionImplementation>;
+  readonly protocolVersion: A2uiProtocolVersion;
+  readonly components: ReadonlyMap<string, TComponent>;
+  readonly functions: ReadonlyMap<string, TFunction>;
   readonly themeSchema?: Schema;
 
   constructor(
     id: string,
-    components: T[],
-    functions?: FunctionImplementation[],
+    protocolVersion: A2uiProtocolVersion,
+    components: TComponent[],
+    functions?: TFunction[],
     themeSchema?: Schema,
   ) {
     // Initializes the properties
   }
+
+  getComponent(name: string): TComponent | undefined;
+  getFunction(name: string): TFunction | undefined;
+
+  /** Builds a schema-only catalog from an A2UI catalog document. See "Catalog Documents". */
+  static fromJson(
+    document: Record<string, any>,
+    options?: {protocolVersion?: A2uiProtocolVersion; catalogId?: string; source?: string},
+  ): Catalog<ComponentApi, FunctionApi>;
+
+  /** Serializes this catalog back into an A2UI catalog document. */
+  toJson(): Record<string, any>;
+
+  /**
+   * The raw document this catalog was loaded from, when it was loaded via `fromJson()`;
+   * otherwise the document produced by `toJson()`. Implementations may cache it.
+   */
+  readonly catalogSchema: Record<string, any>;
 }
 ```
 
@@ -255,9 +284,85 @@ Functions generally fall into a few common patterns:
 
 If a function returns a reactive stream, it MUST use an idiomatic listening mechanism that supports standard unsubscription. To properly support an AI agent, functions SHOULD include a schema to generate accurate renderer capabilities.
 
+##### API / Implementation Symmetry
+
+Functions follow **exactly** the same API/Implementation split as components, and both type parameters are threaded through `Catalog`:
+
+| Layer                 | Components                | Functions                | Declares execution? |
+| :-------------------- | :------------------------ | :----------------------- | :------------------ |
+| Pure declaration      | `ComponentApi`            | `FunctionApi`            | No                  |
+| Executable/renderable | `ComponentImplementation` | `FunctionImplementation` | Yes                 |
+
+Rules:
+
+1. `FunctionApi` MUST NOT declare `execute`. Only `FunctionImplementation` does.
+2. `Catalog` is generic over both: `Catalog<TComponent extends ComponentApi, TFunction extends FunctionApi>`.
+3. A **renderer** binds `Catalog<ComponentImplementation, FunctionImplementation>` — everything is executable.
+4. An **agent** binds `Catalog<ComponentApi, FunctionApi>` — declaration only. An agent must never need a stub implementation whose `execute` throws in order to hold a catalog; the type system makes that state unrepresentable.
+5. Every downstream generic that carries a catalog (`MessageProcessor`, `SurfaceGroupModel`, `SurfaceModel`, `A2uiValidator`, `NodeResolver`) carries both parameters.
+
+#### Catalog Documents (JSON Representation)
+
+A **catalog document** is the JSON form of a catalog. It is what a catalog file on disk contains, what `inlineCatalogs` inside `A2uiRendererCapabilities` carries, and what an agent loads when it is handed a catalog it does not have compiled-in definitions for.
+
+Both directions of this conversion belong to `a2ui_core`, on `Catalog` itself, so that renderers, Agent SDKs and tooling all produce and consume the identical shape. Agent SDKs MUST NOT carry their own catalog-document reader or writer.
+
+```jsonc
+{
+  "catalogId": "https://a2ui.dev/catalogs/basic.json",
+  "protocolVersion": "v1.0", // absent before v1.0
+  "components": {
+    "Button": {
+      "allOf": [
+        {"$ref": "common_types.json#/$defs/ComponentCommon"},
+        {
+          "properties": {
+            "component": {"const": "Button"},
+            "label": {"$ref": "common_types.json#/$defs/DynamicString"},
+          },
+          "required": ["component", "label"],
+        },
+      ],
+    },
+  },
+  "functions": [{"name": "now", "returnType": "string", "parameters": {"type": "object"}}],
+  "theme": {"primaryColor": {"type": "string"}},
+}
+```
+
+##### Declared Identity
+
+`catalogId` and `protocolVersion` are declared **in the document**. `Catalog.fromJson()` accepts an optional expected `catalogId` and `protocolVersion` from the caller:
+
+- If the document declares a value and the caller supplied one, they MUST agree; a conflict raises `A2uiCatalogError` rather than silently loading a catalog the renderer never negotiated.
+- If the document declares a value and the caller supplied none, the declared value wins.
+- A missing declaration is not an error: `catalogId` is not defined in v0.8 and `protocolVersion` is not defined before v1.0. If neither the document nor the caller supplies a `catalogId`, raise `A2uiCatalogError`.
+- A declared field of the wrong JSON type (e.g. a non-string `catalogId`) raises `A2uiValidationError`.
+
+##### Serialization Rules (`toJson`)
+
+1. **Component envelope**: each component schema is wrapped as `allOf: [{$ref: 'common_types.json#/$defs/ComponentCommon'}, {properties: {component: {const: <Name>}, ...ownProperties}, required: ['component', ...ownRequired]}]`.
+2. **Flatten before expanding**: flatten any `allOf` in the component's own schema _before_ expanding `REF:` markers. A shared fragment (e.g. `Checkable`) carries both a `REF:` marker and the properties it contributes; expanding first replaces it with a bare `$ref` and drops those properties from the component's property list.
+3. **Reference expansion**: schema nodes tagged with a `description` starting with `REF:` (e.g. `REF:common_types.json#/$defs/DynamicString`) are replaced by a real JSON Schema `$ref` object with the tag stripped. This applies uniformly to component, function and theme schemas.
+4. **Functions**: emitted as a list of `{name, returnType, parameters}` (`FunctionDefinition`), where `parameters` is the JSON Schema of the arguments.
+5. **Theme**: emitted as the `properties` map of the catalog theme schema.
+6. Empty `functions` and an absent `themeSchema` are omitted rather than emitted as empty values.
+
+##### Deserialization Rules (`fromJson`)
+
+1. Every entry in `components` becomes a schema-only `ComponentApi` (`JsonComponentApi`); every entry in `functions` becomes a `FunctionApi`. The result is a `Catalog<ComponentApi, FunctionApi>` — no implementations are fabricated.
+2. If the document declares `$defs/anyComponent` (or `$defs/anyFunction`) as a `oneOf` list of `#/components/<Name>` (or `#/functions/<Name>`) references, that list is the **allowlist**: entries not referenced from it are ignored. When the `$defs` entry is absent, every declared entry is loaded.
+3. A function entry without an explicit `returnType` defaults to `any`.
+4. The raw document is retained and exposed as `catalogSchema`, so callers that need the exact bytes they were given (prompt generation, conformance comparison) do not have to re-serialize.
+
 #### The Basic Catalog Standard (Core APIs)
 
 The standard A2UI Basic Catalog specifies a set of core components (Button, Text, Row, Column) and functions.
+
+`a2ui_core` MUST expose a ready-to-use `BasicCatalog` for each supported protocol version, as an API-only `Catalog<ComponentApi, FunctionApi>` (plus, in renderer packages, the matching implementations). Consequences for consumers:
+
+- The name is **`BasicCatalog`** in every language binding. Do not introduce per-language aliases such as `MinimalCatalog`; a divergent name breaks catalog-negotiation parity and conformance comparison across implementations.
+- Agent SDKs consume `BasicCatalog` directly from `a2ui_core`. Nothing needs to be bundled with an Agent SDK, and no `BundledCatalogProvider` class is required to reach it.
 
 ##### Strict API / Implementation Separation
 
@@ -272,7 +377,7 @@ For a detailed walkthrough on how to visually and functionally implement each ba
 
 To ensure all components are properly implemented and match the exact API signature, platforms with strong type systems should utilize their advanced typing features. This ensures that a provided renderer not only exists, but its `name` and `schema` strictly match the official Catalog Definition, catching mismatches at compile time rather than runtime.
 
-###### Statically Typed Languages (e.g. Kotlin/Swift)
+###### Statically Typed Languages (e.g. Kotlin/Swift/Dart)
 
 In languages like Kotlin, you can define a strict interface or class that demands concrete instances of the specific component APIs defined by the Core Library.
 
@@ -321,6 +426,7 @@ _Example of composing a catalog:_
 # Pseudocode
 myCustomCatalog = Catalog(
   id="https://mycompany.com/catalogs/custom_catalog.json",
+  protocolVersion=A2uiProtocolVersion.V1_0,
   functions=basicCatalog.functions,
   components=basicCatalog.components + [MyCompanyLogoComponent()],
   themeSchema=basicCatalog.themeSchema # Inherit theme schema
@@ -336,14 +442,14 @@ myCustomCatalog = Catalog(
 The "Controller" that accepts the raw stream of A2UI messages, parses them, and mutates the Models. It also handles the aggregation of renderer state for synchronization.
 
 ```typescript
-class MessageProcessor<T extends ComponentApi> {
-  readonly model: SurfaceGroupModel<T>;
+class MessageProcessor<TComponent extends ComponentApi, TFunction extends FunctionApi> {
+  readonly model: SurfaceGroupModel<TComponent, TFunction>;
 
-  constructor(catalogs: Catalog<T>[], actionHandler: ActionListener);
+  constructor(catalogs: Catalog<TComponent, TFunction>[], actionHandler?: ActionListener);
 
   // Accepts validated, strongly-typed message objects, not raw JSON
   processMessages(messages: AgentToRendererMessage[]): void;
-  addLifecycleListener(l: SurfaceLifecycleListener<T>): () => void;
+  addLifecycleListener(l: SurfaceLifecycleListener<TComponent, TFunction>): () => void;
 
   // Returns a strictly typed capabilities object ready for JSON serialization
   getRendererCapabilities(options?: CapabilitiesOptions): A2uiRendererCapabilities;
@@ -367,18 +473,62 @@ When a surface is created with `sendDataModel: true`, the renderer is responsibl
 3.  The **Transport Layer** (e.g., A2A, MCP) calls `getRendererDataModel()` before sending any message to the agent.
 4.  If a non-empty data model map is returned, it is included in the transport's metadata field (e.g., `A2uiRendererDataModel` in A2A metadata).
 
+- **Validation**: `processMessages()` MUST run the payload through `A2uiValidator` before any state model is mutated. Validation is not an optional pre-step a caller may skip — a processor that mutates first and validates later can leave a surface half-updated by an invalid payload.
 - **Surface Lifecycle**: It is an error to receive a `createSurface` message for a `surfaceId` that is already active; `surfaceId` must be globally unique per client session. The processor MUST throw an error or report a validation failure if this occurs.
 - **Component Lifecycle**: If an `updateComponents` message provides an existing `id` but a _different_ `type`, the processor MUST remove the old component and create a fresh one to ensure framework renderers correctly reset their internal state.
 
-#### Generating Renderer Capabilities and Schema Types
+#### Renderer Capabilities (`a2ui.core.capabilities`)
 
-To dynamically generate the `A2uiRendererCapabilities` payload (specifically `inlineCatalogs`), the processor must convert internal component schemas into valid JSON Schemas.
+The capability payload is a **protocol type, not a renderer-local helper**, so its models live in `a2ui_core` and are shared by both sides of the negotiation: a renderer builds one to advertise what it can draw, and an agent parses one to learn which catalogs it may generate against. Neither a Framework Adapter nor an Agent SDK may define its own copy of these structures.
+
+These types mirror the reference web implementation at `renderers/web_core/src/v0_9/schema/client-capabilities.ts`, and are declared per protocol version under `schema/<version>/renderer_capabilities` (the v0.9 spelling `A2uiClientCapabilities` is the same payload).
+
+```typescript
+/** A raw JSON Schema fragment. */
+export type JsonSchema = Record<string, any>;
+
+/** Describes a function's interface within an inline catalog. */
+export interface FunctionDefinition {
+  name: string;
+  description?: string;
+  parameters: JsonSchema;
+  returnType: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';
+}
+
+/** A catalog declared inline in the capability payload. Same shape as a catalog document. */
+export interface InlineCatalog {
+  catalogId: string;
+  protocolVersion?: A2uiProtocolVersion;
+  components?: Record<string, JsonSchema>;
+  functions?: FunctionDefinition[];
+  theme?: Record<string, JsonSchema>;
+}
+
+/** What a renderer supports for one protocol version. */
+export interface A2uiVersionCapabilities {
+  supportedCatalogIds: string[];
+  inlineCatalogs?: InlineCatalog[];
+}
+
+/**
+ * Keyed by protocol version ('v0.8' | 'v0.9' | 'v0.9.1' | 'v1.0'). At least one
+ * version entry MUST be present.
+ */
+export type A2uiRendererCapabilities = Partial<
+  Record<A2uiProtocolVersion, A2uiVersionCapabilities>
+>;
+```
+
+**Both directions are core responsibilities:**
+
+- **Outbound (renderer → agent)**: `MessageProcessor.getRendererCapabilities()` builds the payload from the processor's catalogs.
+- **Inbound (agent → catalogs)**: core parses a received payload into typed capabilities and resolves each `InlineCatalog` into a `Catalog<ComponentApi, FunctionApi>`. An `InlineCatalog` is a catalog document, so this is `Catalog.fromJson()` — there is exactly one code path. A payload with no recognized version key, or a malformed inline catalog, raises `A2uiValidationError`.
 
 **Schema Types Location**: Foundational schema types _should_ be defined in a dedicated directory like `schema`. You can see the `renderers/web_core/src/v1_0/schema/common-types.ts` file in the reference web implementation as an example.
 
 **Detectable Common Types**: Shared definitions (like `DynamicString`) must emit external JSON Schema `$ref` pointers. This is achieved by "tagging" the schemas using their `description` property (e.g., `REF:common_types.json#/$defs/DynamicString`).
 
-When `getRendererCapabilities()` converts internal schemas to generate `inlineCatalogs`:
+When `getRendererCapabilities()` converts internal schemas to generate `inlineCatalogs`, it MUST delegate to the same catalog-document serializer described in [Catalog Documents](#catalog-documents-json-representation) — an inline catalog and a catalog file are the same bytes for the same catalog:
 
 1. Components: Translate each component schema into a raw JSON Schema. Wrap it in the standard A2UI component envelope (`allOf` containing `ComponentCommon`).
 2. Functions: Map each function in the catalog to a `FunctionDefinition` object, converting its argument schema to JSON Schema.
@@ -434,11 +584,23 @@ agentProcessor.processMessages(generatedLlmPayloadMessages);
 
 ### C. Validation Layer (`a2ui.core.validation`)
 
+Validation lives in `a2ui_core` and nowhere else. Renderers, Agent SDKs and tooling all use `A2uiValidator` directly; an Agent SDK MUST NOT ship its own payload validator or its own validation error type — the error raised is always `A2uiValidationError` from [`a2ui.core.exceptions`](#f-exceptions-a2uicoreexceptions).
+
+#### Multi-Version Validation
+
+A single `A2uiValidator` instance MUST be able to validate against **any** supported protocol version (`v0.8`, `v0.9`, `v0.9.1`, `v1.0`), not just the newest one:
+
+1. The envelope schema is selected per version from the versioned schema models under `schema/<version>/`.
+2. If `ValidationConfig.targetVersion` is set, payloads are validated against that version and a payload declaring a different `version` tag is rejected.
+3. If `targetVersion` is unset, the version is resolved from the message envelope's own `version` tag; an unrecognized tag raises `A2uiValidationError`.
+4. Version-specific field naming (e.g. `theme` in v0.8/v0.9 vs. `surfaceProperties` in v1.0+) is resolved through the same `VersionAdapter` the `MessageProcessor` uses, so validation and processing can never disagree about a field's location.
+
 #### `ValidationConfig` & `A2uiValidator`
 
 ```typescript
 export interface ValidationConfig {
-  targetVersion?: string;
+  /** Pin validation to one protocol version. When unset, resolved per message envelope. */
+  targetVersion?: A2uiProtocolVersion;
   allowOrphanComponents?: boolean;
   allowDanglingReferences?: boolean;
   allowMissingRoot?: boolean;
@@ -447,7 +609,7 @@ export interface ValidationConfig {
 
 /** Stateless validator executing envelope structure, component property schema, theme schema, and path syntax checks. */
 export class A2uiValidator {
-  constructor(catalogs: Catalog<any, any>[], validationConfig?: ValidationConfig);
+  constructor(catalogs: Catalog<ComponentApi, FunctionApi>[], validationConfig?: ValidationConfig);
 
   /** Single public entry point: performs catalog property schema validation. */
   validate(messages: AgentToRendererMessage[]): void;
@@ -463,29 +625,35 @@ export class A2uiValidator {
 }
 ```
 
+> [!NOTE]
+> **Agent-side use**: an agent validating a partially generated LLM payload relaxes the graph checks (`allowOrphanComponents`, `allowDanglingReferences`, `allowMissingRoot`) rather than skipping validation, so an in-flight streamed surface is not rejected for being incomplete while its component properties are still schema-checked.
+
 #### Validation Implementation Matrix
 
 The matrix below details the specific validation checks, their responsible component/method in `a2ui_core`, and the specific error class raised upon failure:
 
-| Validation Category      | Specific Validation Check                                                                         | Responsible Component / Implementation                                    | Raised Error Type     |
-| :----------------------- | :------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------ | :-------------------- |
-| **Protocol Envelope**    | Single update type per message (`createSurface`, `updateComponents`, etc.)                        | `A2uiValidator` (Zod envelope schema)                                     | `A2uiValidationError` |
-| **Protocol Envelope**    | Valid `version` tag (`v0.8`, `v0.9`, `v1.0`) & required envelope keys                             | `A2uiValidator` (Zod envelope schema)                                     | `A2uiValidationError` |
-| **Surface Lifecycle**    | Surface non-existence on `createSurface` (no duplicates)                                          | `MessageProcessor.processCreateSurface()` (`SurfaceGroupModel`)           | `A2uiIntegrityError`  |
-| **Surface Lifecycle**    | Surface existence on `updateComponents`, `updateDataModel`, `deleteSurface`                       | `MessageProcessor.processUpdateComponents()` / `processUpdateDataModel()` | `A2uiIntegrityError`  |
-| **Catalog Negotiation**  | `createSurface.catalogId` and component/function `catalogId` match negotiated renderer capability | `new MessageProcessor({ catalogs: [negotiatedCatalog] })`                 | `A2uiCatalogError`    |
-| **Catalog Resolution**   | `createSurface.catalogId` and component/function `catalogId` exist in supported catalogs list     | `MessageProcessor.processCreateSurface()`                                 | `A2uiCatalogError`    |
-| **Component Keys**       | Required `id` and `component` (type name) on creation                                             | `A2uiValidator` (Zod envelope schema)                                     | `A2uiValidationError` |
-| **Component Properties** | Property schema validation against catalog definition                                             | `A2uiValidator(CatalogSchemaValidator.validateComponents())`              | `A2uiValidationError` |
-| **Theme / Properties**   | `Theme` / `surfaceProperties` validation against catalog schema                                   | `A2uiValidator(CatalogSchemaValidator.validateSurfaceProperties())`       | `A2uiValidationError` |
-| **Graph Integrity**      | Duplicate component IDs within surface                                                            | `SurfaceComponentsModel.upsertComponent()`                                | `A2uiIntegrityError`  |
-| **Graph Integrity**      | Missing root component (`id="root"`)                                                              | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`  |
-| **Graph Integrity**      | Dangling component references (pointers to missing IDs)                                           | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`  |
-| **Graph Topology**       | Self-reference detection (`comp_id == ref_id`)                                                    | `SurfaceComponentsModel.upsertComponent()`                                | `A2uiIntegrityError`  |
-| **Graph Topology**       | Circular reference / cycle detection (DFS stack)                                                  | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiIntegrityError`  |
-| **Graph Topology**       | Unreachable / orphan component detection                                                          | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`  |
-| **Depth & Syntax**       | Global recursion depth limit (>50) & function nesting (>5)                                        | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiRecursionError`  |
-| **Depth & Syntax**       | JSON Pointer path syntax validation                                                               | `A2uiValidator.validatePathSyntax()`                                      | `A2uiValidationError` |
+| Validation Category       | Specific Validation Check                                                                         | Responsible Component / Implementation                                    | Raised Error Type     |
+| :------------------------ | :------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------ | :-------------------- |
+| **Protocol Envelope**     | Single update type per message (`createSurface`, `updateComponents`, etc.)                        | `A2uiValidator` (Zod envelope schema)                                     | `A2uiValidationError` |
+| **Protocol Envelope**     | Valid `version` tag (`v0.8`, `v0.9`, `v1.0`) & required envelope keys                             | `A2uiValidator` (Zod envelope schema)                                     | `A2uiValidationError` |
+| **Surface Lifecycle**     | Surface non-existence on `createSurface` (no duplicates)                                          | `MessageProcessor.processCreateSurface()` (`SurfaceGroupModel`)           | `A2uiIntegrityError`  |
+| **Surface Lifecycle**     | Surface existence on `updateComponents`, `updateDataModel`, `deleteSurface`                       | `MessageProcessor.processUpdateComponents()` / `processUpdateDataModel()` | `A2uiIntegrityError`  |
+| **Catalog Negotiation**   | `createSurface.catalogId` and component/function `catalogId` match negotiated renderer capability | `new MessageProcessor({ catalogs: [negotiatedCatalog] })`                 | `A2uiCatalogError`    |
+| **Catalog Resolution**    | `createSurface.catalogId` and component/function `catalogId` exist in supported catalogs list     | `MessageProcessor.processCreateSurface()`                                 | `A2uiCatalogError`    |
+| **Component Keys**        | Required `id` and `component` (type name) on creation                                             | `A2uiValidator` (Zod envelope schema)                                     | `A2uiValidationError` |
+| **Component Properties**  | Property schema validation against catalog definition                                             | `A2uiValidator(CatalogSchemaValidator.validateComponents())`              | `A2uiValidationError` |
+| **Theme / Properties**    | `Theme` / `surfaceProperties` validation against catalog schema                                   | `A2uiValidator(CatalogSchemaValidator.validateSurfaceProperties())`       | `A2uiValidationError` |
+| **Graph Integrity**       | Duplicate component IDs within surface                                                            | `SurfaceComponentsModel.upsertComponent()`                                | `A2uiIntegrityError`  |
+| **Graph Integrity**       | Missing root component (`id="root"`)                                                              | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`  |
+| **Graph Integrity**       | Dangling component references (pointers to missing IDs)                                           | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`  |
+| **Graph Topology**        | Self-reference detection (`comp_id == ref_id`)                                                    | `SurfaceComponentsModel.upsertComponent()`                                | `A2uiIntegrityError`  |
+| **Graph Topology**        | Circular reference / cycle detection (DFS stack)                                                  | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiIntegrityError`  |
+| **Graph Topology**        | Unreachable / orphan component detection                                                          | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`  |
+| **Depth & Syntax**        | Global recursion depth limit (>50) & function nesting (>5)                                        | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiRecursionError`  |
+| **Depth & Syntax**        | JSON Pointer path syntax validation                                                               | `A2uiValidator.validatePathSyntax()`                                      | `A2uiValidationError` |
+| **Catalog Document**      | Declared `catalogId` / `protocolVersion` conflict with the expected values                        | `Catalog.fromJson()`                                                      | `A2uiCatalogError`    |
+| **Catalog Document**      | Missing `catalogId` (neither declared nor supplied); malformed document field types               | `Catalog.fromJson()`                                                      | `A2uiValidationError` |
+| **Renderer Capabilities** | No recognized protocol version key, or malformed `inlineCatalogs` entry                           | `A2uiRendererCapabilities` parsing (`a2ui.core.capabilities`)             | `A2uiValidationError` |
 
 ---
 
@@ -564,17 +732,17 @@ Developers must create data classes, structs, or interfaces (e.g., `data class` 
 The root containers for active surfaces and their catalogs, data, and components.
 
 ```typescript
-interface SurfaceLifecycleListener<T extends ComponentApi> {
-  onSurfaceCreated?: (s: SurfaceModel<T>) => void;
+interface SurfaceLifecycleListener<TComponent extends ComponentApi, TFunction extends FunctionApi> {
+  onSurfaceCreated?: (s: SurfaceModel<TComponent, TFunction>) => void;
   onSurfaceDeleted?: (id: string) => void;
 }
 
-class SurfaceGroupModel<T extends ComponentApi> {
-  addSurface(surface: SurfaceModel<T>): void;
+class SurfaceGroupModel<TComponent extends ComponentApi, TFunction extends FunctionApi> {
+  addSurface(surface: SurfaceModel<TComponent, TFunction>): void;
   deleteSurface(id: string): void;
-  getSurface(id: string): SurfaceModel<T> | undefined;
+  getSurface(id: string): SurfaceModel<TComponent, TFunction> | undefined;
 
-  readonly onSurfaceCreated: EventSource<SurfaceModel<T>>;
+  readonly onSurfaceCreated: EventSource<SurfaceModel<TComponent, TFunction>>;
   readonly onSurfaceDeleted: EventSource<string>;
   readonly onAction: EventSource<A2uiRendererAction>;
 }
@@ -592,10 +760,10 @@ interface A2uiRendererAction {
 
 type ActionListener = (action: A2uiRendererAction) => void | Promise<void>;
 
-class SurfaceModel<T extends ComponentApi> {
+class SurfaceModel<TComponent extends ComponentApi, TFunction extends FunctionApi> {
   readonly id: string;
 ...
-  readonly catalog: Catalog<T>;
+  readonly catalog: Catalog<TComponent, TFunction>;
   readonly dataModel: DataModel;
   readonly componentsModel: SurfaceComponentsModel;
   readonly theme?: Record<string, any>;
