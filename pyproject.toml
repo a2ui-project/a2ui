@@ -21,6 +21,9 @@ dependencies = []
 
 [tool.uv]
 package = false
+# Samples still construct 0.3 Part(root=DataPart). The agent SDK accepts
+# a2a-sdk 1.x; keep the workspace resolved on 0.3 until those samples migrate.
+constraint-dependencies = ["a2a-sdk>=0.3.0,<0.4.0"]
 
 [tool.uv.extra-build-dependencies]
 a2ui-agent-sdk = ["a2ui-core"]

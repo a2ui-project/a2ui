@@ -24,10 +24,8 @@ from a2a.types import (
     AgentCapabilities,
     AgentCard,
     AgentSkill,
-    DataPart,
-    Part,
-    TextPart,
 )
+from a2ui.a2a.parts import make_text_part
 from google.adk.agents import run_config
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.artifacts import InMemoryArtifactService
@@ -229,13 +227,9 @@ class RestaurantAgent:
             yield {
                 "is_task_complete": True,
                 "parts": [
-                    Part(
-                        root=TextPart(
-                            text=(
-                                "I'm sorry, I'm facing an internal configuration error"
-                                " with my UI components. Please contact support."
-                            )
-                        )
+                    make_text_part(
+                        "I'm sorry, I'm facing an internal configuration error"
+                        " with my UI components. Please contact support."
                     )
                 ],
             }
@@ -398,13 +392,9 @@ class RestaurantAgent:
         yield {
             "is_task_complete": True,
             "parts": [
-                Part(
-                    root=TextPart(
-                        text=(
-                            "I'm sorry, I'm having trouble generating the interface for"
-                            " that request right now. Please try again in a moment."
-                        )
-                    )
+                make_text_part(
+                    "I'm sorry, I'm having trouble generating the interface for"
+                    " that request right now. Please try again in a moment."
                 )
             ],
         }

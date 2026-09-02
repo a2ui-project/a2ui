@@ -34,10 +34,8 @@ from a2a.types import (
     AgentCapabilities,
     AgentCard,
     AgentSkill,
-    DataPart,
-    Part,
-    TextPart,
 )
+from a2ui.a2a.parts import make_text_part
 
 from google.genai import types
 from prompt_builder import get_text_prompt, ROLE_DESCRIPTION, WORKFLOW_DESCRIPTION, UI_DESCRIPTION
@@ -362,20 +360,16 @@ class ContactAgent:
                 if final_response_content:
                     yield {
                         "is_task_complete": True,
-                        "parts": [Part(root=TextPart(text=final_response_content))],
+                        "parts": [make_text_part(final_response_content)],
                     }
                     return
 
             yield {
                 "is_task_complete": True,
                 "parts": [
-                    Part(
-                        root=TextPart(
-                            text=(
-                                "I encountered an error and couldn't process your"
-                                " request."
-                            )
-                        )
+                    make_text_part(
+                        "I encountered an error and couldn't process your"
+                        " request."
                     )
                 ],
             }
@@ -575,13 +569,9 @@ class ContactAgent:
         yield {
             "is_task_complete": True,
             "parts": [
-                Part(
-                    root=TextPart(
-                        text=(
-                            "I'm sorry, I'm having trouble generating the interface for"
-                            " that request right now. Please try again in a moment."
-                        )
-                    )
+                make_text_part(
+                    "I'm sorry, I'm having trouble generating the interface for"
+                    " that request right now. Please try again in a moment."
                 )
             ],
         }
