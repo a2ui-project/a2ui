@@ -14,6 +14,19 @@
  * limitations under the License.
  */
 
+/**
+ * @fileoverview Shared runtime types and helper schemas for A2UI rendering engines.
+ *
+ * Defines unversioned, internal types, schemas, and helper utilities consumed by
+ * shared runtime modules (such as GenericBinder, DataContext, ExpressionParser,
+ * and SchemaLoader).
+ *
+ * This module represents the runtime superset of the modern protocol lineage
+ * (v0.9, v0.9.1, and v1.0), aligned with the v1.0 dynamic value evaluation model.
+ * Version-isolated wire validation and catalog schemas are maintained separately
+ * in `src/v0_8/`, `src/v0_9/`, and `src/v1_0/`.
+ */
+
 import {z} from 'zod';
 
 export const DataBindingSchema = z
@@ -63,7 +76,7 @@ export const DynamicValueSchema = z
     z.number(),
     z.boolean(),
     z.array(z.any()),
-    z.record(z.string(), z.any()),
+    z.record(z.string(), z.any()).refine(obj => !obj || (!('path' in obj) && !('call' in obj))),
     DataBindingSchema,
     FunctionCallSchema,
   ])
@@ -223,6 +236,16 @@ export const AccessibilityAttributesSchema = z
     ),
     'description': DynamicStringSchema.optional().describe(
       'Additional information provided by assistive technologies about an element.',
+    ),
+    'live': z
+      .enum(['off', 'polite', 'assertive'])
+      .describe(
+        "Controls screen reader announcements for dynamic updates (WAI-ARIA aria-live). 'polite' waits for user pause; 'assertive' interrupts immediately for alerts.",
+      )
+      .default('off')
+      .optional(),
+    'hidden': DynamicBooleanSchema.optional().describe(
+      'Controls whether assistive technologies hide the element.',
     ),
   })
   .describe('Attributes to enhance accessibility.');
