@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
+
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:meta/meta.dart';
 
@@ -19,6 +21,7 @@ import '../core/catalog.dart';
 import '../core/messages.dart';
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
+import 'common_types.g.dart';
 import 'component_graph.dart';
 import 'component_refs.dart';
 import 'schema_resolution.dart';
@@ -105,13 +108,15 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
   /// The protocol version this validator accepts.
   final A2uiProtocolVersion protocolVersion;
 
-  /// The shared `common_types.json` definitions, when the caller has them.
+  /// The shared `common_types.json` definitions this validator resolves
+  /// against.
   ///
   /// Catalogs reference this document for `ChildList`, `DynamicString` and
-  /// the other shared types. Supplying it lets [validateAgainstCatalogs]
-  /// enforce those definitions; without it they are treated as unconstrained,
-  /// because this SDK never fetches a schema over the network.
-  final Map<String, Object?>? commonTypesSchema;
+  /// the other shared types, so [validateAgainstCatalogs] needs it to check
+  /// them. It defaults to [commonTypesFor] of [protocolVersion], the copy this
+  /// package publishes; pass a different document to override it, or an empty
+  /// map to leave the shared types unchecked.
+  final Map<String, Object?> commonTypesSchema;
 
   /// Child-referencing properties per catalog id, derived on first use.
   final Map<String, Map<String, ComponentRefFields>> _refFields = {};
@@ -121,9 +126,23 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
 
   A2uiValidator({
     List<Catalog<C, F>> catalogs = const [],
-    this.commonTypesSchema,
+    Map<String, Object?>? commonTypesSchema,
     this.protocolVersion = A2uiProtocolVersion.v0_9,
-  }) : catalogs = {for (final Catalog<C, F> c in catalogs) c.id: c};
+  }) : catalogs = {for (final Catalog<C, F> c in catalogs) c.id: c},
+       commonTypesSchema = commonTypesSchema ?? commonTypesFor(protocolVersion);
+
+  /// The `common_types.json` document this package publishes for [version].
+  ///
+  /// A copy of `specification/<version>/json/common_types.json`, embedded at
+  /// build time by `tool/generate_common_types.dart` so that a package
+  /// installed from pub.dev can resolve the shared types without reading the
+  /// specification repository. Each call returns a fresh document, so a caller
+  /// may edit the result.
+  static Map<String, Object?> commonTypesFor(A2uiProtocolVersion version) =>
+      switch (version) {
+        A2uiProtocolVersion.v0_9 =>
+          jsonDecode(commonTypesV0_9Json) as Map<String, Object?>,
+      };
 
   /// Creates a validator for [version].
   ///

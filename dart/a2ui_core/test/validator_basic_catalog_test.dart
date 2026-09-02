@@ -37,14 +37,13 @@ Map<String, Object?> _readJson(String relativePath) =>
 Map<String, Object?> basicCatalogDocument() =>
     _readJson('../specification/v0_9_1/catalogs/basic/catalog.json');
 
-Map<String, Object?> commonTypesDocument() =>
-    _readJson('../specification/v0_9/json/common_types.json');
-
+/// A validator over the published basic catalog.
+///
+/// Supplies no shared types, so these tests run against the
+/// `common_types.json` the package publishes — the same document a caller
+/// installing from pub.dev gets.
 A2uiValidator<CatalogComponent, CatalogFunction> basicValidator() =>
-    A2uiValidator(
-      catalogs: [Catalog.fromJson(basicCatalogDocument())],
-      commonTypesSchema: commonTypesDocument(),
-    );
+    A2uiValidator(catalogs: [Catalog.fromJson(basicCatalogDocument())]);
 
 /// A payload declaring one surface against the basic catalog.
 List<Map<String, Object?>> render(List<Map<String, Object?>> components) => [

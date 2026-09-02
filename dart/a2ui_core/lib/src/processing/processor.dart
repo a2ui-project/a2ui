@@ -35,8 +35,10 @@ class MessageProcessor<T extends ComponentApi> {
   /// as the component arrives. All of it uses the surfaces this processor
   /// already holds, which a payload-scoped validator cannot see.
   ///
-  /// Defaults to a validator over [catalogs]. Supply one to configure it — to
-  /// give it `common_types.json`, or to accept a different protocol version.
+  /// Defaults to a validator over [catalogs], resolving the shared types
+  /// against the `common_types.json` this package publishes. Supply one to
+  /// configure it — to override that document, or to accept a different
+  /// protocol version.
   final A2uiValidator<T, FunctionImplementation> validator;
 
   MessageProcessor({

@@ -19,6 +19,9 @@
 - Added `A2uiRendererCapabilities` and `A2uiVersionCapabilities`.
 - Added `A2uiValidator`, which validates a payload in three synchronous
   stages, and `A2uiValidator.commonTypesSchema`.
+- The package now publishes the specification's `common_types.json` as
+  `A2uiValidator.commonTypesFor`, and `commonTypesSchema` defaults to it, so
+  the shared types are checked without the caller supplying the document.
 - Added the `A2uiParseError`, `A2uiCompileError`, `A2uiCatalogError`,
   `A2uiIntegrityError` and `A2uiRecursionError` categories.
 - Fixed `DataModel.set` silently dropping a write whose parent path resolves to

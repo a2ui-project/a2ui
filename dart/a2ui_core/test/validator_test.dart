@@ -110,11 +110,16 @@ Map<String, Object?> commonTypes() => {
   },
 };
 
+/// A validator over [testCatalog].
+///
+/// Overrides the shared types rather than taking the published document, so
+/// these tests exercise the definitions above: an empty map leaves them
+/// unresolvable, which is the case the SDK skips rather than rejects.
 A2uiValidator<CatalogComponent, CatalogFunction> newValidator({
   bool withCommonTypes = false,
 }) => A2uiValidator(
   catalogs: [testCatalog()],
-  commonTypesSchema: withCommonTypes ? commonTypes() : null,
+  commonTypesSchema: withCommonTypes ? commonTypes() : const {},
 );
 
 Map<String, Object?> text(String id, [String value = 'x']) => {
@@ -798,9 +803,9 @@ void main() {
     });
 
     test('treats an unresolvable reference as unconstrained', () {
-      // Without `common_types.json`, `ChildList` cannot be resolved. The
-      // surrounding constraints still apply, but the reference itself is
-      // skipped rather than failing the payload.
+      // Given shared types that define no `ChildList`, the reference to it
+      // cannot be resolved. The surrounding constraints still apply, but the
+      // reference itself is skipped rather than failing the payload.
       final A2uiValidator<CatalogComponent, CatalogFunction> validator =
           newValidator();
       final List<A2uiMessage> messages = validator.parseMessages([
