@@ -172,3 +172,72 @@ class _RefResolver {
     }
   }
 }
+
+/// Inlines a catalog document's own `#/...` references in place.
+///
+/// Every local pointer is replaced by what it names in [rootCatalog], so a
+/// component schema stands alone once ingested and needs no document beside it
+/// to be understood. References that leave the document — `common_types.json`
+/// and anything else absolute — are preserved untouched, because the catalog
+/// cannot reach them and dropping them would silently widen the schema. They
+/// are resolved later, against the definitions the validator is given.
+///
+/// A pointer already being expanded is left as a reference rather than
+/// followed again, so a recursive definition terminates instead of growing
+/// without bound.
+Object? inlineLocalRefs(
+  Object? node,
+  Map<String, Object?> rootCatalog, [
+  Set<String>? expanding,
+]) {
+  final Set<String> visited = expanding ?? <String>{};
+
+  if (node is List) {
+    return [
+      for (final Object? item in node)
+        inlineLocalRefs(item, rootCatalog, visited),
+    ];
+  }
+  if (node is! Map) return node;
+
+  final Map<String, Object?> object = node.cast<String, Object?>();
+  final Object? ref = object[r'$ref'];
+
+  if (ref is String && ref.startsWith('#/')) {
+    if (visited.contains(ref)) return object;
+
+    final Object? target = _followLocalPointer(ref, rootCatalog);
+    if (target is! Map) return object;
+
+    final Object? resolved = inlineLocalRefs(
+      target.cast<String, Object?>(),
+      rootCatalog,
+      {...visited, ref},
+    );
+    if (resolved is! Map) return object;
+
+    // Keywords beside the `$ref` still apply, and win over the definition.
+    return <String, Object?>{
+      ...resolved.cast<String, Object?>(),
+      for (final MapEntry<String, Object?> entry in object.entries)
+        if (entry.key != r'$ref')
+          entry.key: inlineLocalRefs(entry.value, rootCatalog, visited),
+    };
+  }
+
+  return <String, Object?>{
+    for (final MapEntry<String, Object?> entry in object.entries)
+      entry.key: inlineLocalRefs(entry.value, rootCatalog, visited),
+  };
+}
+
+/// Follows a `#/a/b` pointer through [document], or null if it names nothing.
+Object? _followLocalPointer(String ref, Map<String, Object?> document) {
+  Object? current = document;
+  for (final String segment in ref.substring(2).split('/')) {
+    final String key = segment.replaceAll('~1', '/').replaceAll('~0', '~');
+    if (current is! Map || !current.containsKey(key)) return null;
+    current = current[key];
+  }
+  return current;
+}

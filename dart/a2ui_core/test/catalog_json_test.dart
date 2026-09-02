@@ -155,6 +155,22 @@ void main() {
   });
 
   group('Catalog.catalogSchema', () {
+    test('inlines the document\'s own definitions into each schema', () {
+      final SchemaCatalog catalog = Catalog.fromJson(loadBasicCatalogJson());
+      final Object text = catalog.components['Text']!.schema.value;
+
+      // `#/$defs/CatalogComponentCommon` is expanded in place, leaving no
+      // pointer into the document behind ...
+      expect(jsonEncode(text), isNot(contains(r'"$ref":"#/')));
+      expect(jsonEncode(text), contains('weight'));
+      // ... while references the catalog cannot reach are left for the
+      // validator, rather than dropped as unconstrained.
+      expect(
+        jsonEncode(text),
+        contains('common_types.json#/\$defs/DynamicString'),
+      );
+    });
+
     test('round trips the source document', () {
       final Map<String, Object?> source = loadBasicCatalogJson();
       final Map<String, Object?> rendered = Catalog.fromJson(

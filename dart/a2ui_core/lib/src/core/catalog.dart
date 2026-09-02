@@ -16,6 +16,7 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import '../primitives/cancellation.dart';
 import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
+import '../validation/schema_resolution.dart';
 import 'contexts.dart';
 
 /// A definition of a UI component's API.
@@ -125,18 +126,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   final Map<String, F> functions;
   final Schema? themeSchema;
 
-  /// The document this catalog was parsed from, if any.
-  final Map<String, Object?>? _sourceSchema;
-
   Catalog({
     required this.id,
     required List<C> components,
     List<F> functions = const [],
     this.themeSchema,
-    Map<String, Object?>? sourceSchema,
   }) : components = {for (final c in components) c.name: c},
-       functions = {for (final f in functions) f.name: f},
-       _sourceSchema = sourceSchema;
+       functions = {for (final f in functions) f.name: f};
 
   /// Parses a catalog document into a schema-only [Catalog].
   ///
@@ -167,12 +163,16 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       );
     }
 
+    // Local references are expanded here, once, so each component and function
+    // schema stands alone afterwards. The document is then no longer needed,
+    // and [catalogSchema] rebuilds it from the parts rather than caching it.
+    final document = inlineLocalRefs(json, json)! as Map<String, Object?>;
+
     return SchemaCatalog(
       id: rawId,
-      components: _parseComponents(json['components'], rawId),
-      functions: _parseFunctions(json['functions'], rawId),
-      themeSchema: _parseTheme(json),
-      sourceSchema: json,
+      components: _parseComponents(document['components'], rawId),
+      functions: _parseFunctions(document['functions'], rawId),
+      themeSchema: _parseTheme(document),
     );
   }
 
@@ -272,85 +272,55 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
   /// The catalog document for this catalog, as JSON.
   ///
-  /// A parsed catalog returns its source document with `components`,
-  /// `functions` and `$defs` narrowed to what it still holds, so a pruned
-  /// catalog renders a pruned document. Otherwise the document is
-  /// synthesised from the schemas.
-  Map<String, Object?> get catalogSchema {
-    final Map<String, Object?>? source = _sourceSchema;
-    if (source == null) return _synthesizeSchema();
-
-    final Map<String, Object?> document = _deepCopy(source);
-    document['catalogId'] = id;
-    final Object? sourceComponents = source['components'];
-    if (sourceComponents is Map) {
-      document['components'] = <String, Object?>{
-        for (final String name in components.keys)
-          if (sourceComponents.containsKey(name))
-            name: _deepCopyValue(sourceComponents[name]),
-      };
-    }
-    final Object? sourceFunctions = source['functions'];
-    if (sourceFunctions is Map) {
-      document['functions'] = <String, Object?>{
-        for (final String name in functions.keys)
-          if (sourceFunctions.containsKey(name))
-            name: _deepCopyValue(sourceFunctions[name]),
-      };
-    } else if (sourceFunctions is List) {
-      document['functions'] = [
-        for (final Object? entry in sourceFunctions)
-          if (entry is Map && functions.containsKey(entry['name']))
-            _deepCopyValue(entry),
-      ];
-    }
-    _narrowAnyOneOf(document, 'anyComponent', '#/components/', components.keys);
-    _narrowAnyOneOf(document, 'anyFunction', '#/functions/', functions.keys);
-    return document;
-  }
-
-  /// Drops `$defs/<name>/oneOf` entries whose `$ref` names a pruned entry.
-  static void _narrowAnyOneOf(
-    Map<String, Object?> document,
-    String defName,
-    String refPrefix,
-    Iterable<String> kept,
-  ) {
-    final Object? defs = document[r'$defs'];
-    if (defs is! Map) return;
-    final Object? any = defs[defName];
-    if (any is! Map) return;
-    final Object? oneOf = any['oneOf'];
-    if (oneOf is! List) return;
-    final Set<String> keptRefs = {
-      for (final String name in kept) '$refPrefix$name',
-    };
-    any['oneOf'] = [
-      for (final Object? entry in oneOf)
-        if (entry is! Map ||
-            entry[r'$ref'] is! String ||
-            !(entry[r'$ref']! as String).startsWith(refPrefix) ||
-            keptRefs.contains(entry[r'$ref']))
-          entry,
-    ];
-  }
-
-  Map<String, Object?> _synthesizeSchema() => {
+  /// The catalog as a document, rebuilt from the components and functions it
+  /// currently holds.
+  ///
+  /// Nothing is cached: a pruned catalog renders a pruned document, with the
+  /// `anyComponent` and `anyFunction` unions covering exactly what is left.
+  /// Component and function schemas carry their local definitions inline, so
+  /// the document needs no `$defs` beyond the theme and those two unions.
+  Map<String, Object?> get catalogSchema => {
     'catalogId': id,
     'components': {
       for (final MapEntry<String, C> entry in components.entries)
-        entry.key: entry.value.schema.value,
+        entry.key: _deepCopyValue(entry.value.schema.value),
     },
     if (functions.isNotEmpty)
-      'functions': [
-        for (final F function in functions.values)
-          {
-            'name': function.name,
-            'returnType': function.returnType.jsonValue,
-            'parameters': function.argumentSchema.value,
+      'functions': {
+        // The document form of a function is the schema of a call to it, so
+        // this rebuilds that shape rather than listing the parts: `anyFunction`
+        // and every `DynamicString` reach these through `#/functions/<name>`,
+        // and a different shape would silently stop matching.
+        for (final MapEntry<String, F> entry in functions.entries)
+          entry.key: <String, Object?>{
+            'type': 'object',
+            'properties': <String, Object?>{
+              'call': <String, Object?>{'const': entry.key},
+              'args': _deepCopyValue(entry.value.argumentSchema.value),
+              'returnType': <String, Object?>{
+                'const': entry.value.returnType.jsonValue,
+              },
+            },
+            'required': <Object?>['call', 'args'],
+            'unevaluatedProperties': false,
           },
-      ],
-    if (themeSchema != null) r'$defs': {'theme': themeSchema!.value},
+      },
+    r'$defs': {
+      if (themeSchema != null) 'theme': _deepCopyValue(themeSchema!.value),
+      'anyComponent': {
+        'oneOf': [
+          for (final String name in components.keys)
+            {r'$ref': '#/components/$name'},
+        ],
+      },
+      if (functions.isNotEmpty)
+        'anyFunction': {
+          'oneOf': [
+            for (final String name in functions.keys)
+              {r'$ref': '#/functions/$name'},
+          ],
+        },
+    },
   };
 
   /// A copy of this catalog with the given components and functions.
@@ -366,13 +336,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     components: (components ?? this.components.values).toList(),
     functions: (functions ?? this.functions.values).toList(),
     themeSchema: themeSchema ?? this.themeSchema,
-    sourceSchema: _sourceSchema,
   );
-
-  static Map<String, Object?> _deepCopy(Map<String, Object?> map) => {
-    for (final MapEntry<String, Object?> entry in map.entries)
-      entry.key: _deepCopyValue(entry.value),
-  };
 
   static Object? _deepCopyValue(Object? value) {
     if (value is Map) {
