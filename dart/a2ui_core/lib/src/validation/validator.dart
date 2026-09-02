@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import 'package:json_schema_builder/json_schema_builder.dart';
+import 'package:meta/meta.dart';
 
 import '../core/catalog.dart';
 import '../core/messages.dart';
@@ -242,7 +243,7 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
       final Catalog<C, F>? catalog = _catalogFor(surface);
       if (catalog == null) continue;
       for (final Map<String, Object?> component in surface.components) {
-        _validateComponent(component, catalog);
+        validateComponent(component, catalog);
       }
     }
   }
@@ -258,7 +259,17 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
     return messages;
   }
 
-  void _validateComponent(
+  /// Checks one component against [catalog]'s schema for its type.
+  ///
+  /// Visible only so `MessageProcessor` can validate a component as it
+  /// arrives, rather than only as part of a whole payload. Outside this
+  /// package, validate through [validate] or a `MessageProcessor` holding a
+  /// validator, not through this.
+  ///
+  /// Throws [A2uiValidationError] if the component names no type, names one
+  /// the catalog does not declare, or does not match its schema.
+  @internal
+  void validateComponent(
     Map<String, Object?> component,
     Catalog<C, F> catalog,
   ) {

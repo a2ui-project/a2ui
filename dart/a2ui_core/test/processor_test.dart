@@ -20,6 +20,7 @@ import 'package:a2ui_core/src/core/minimal_catalog.dart';
 import 'package:a2ui_core/src/core/surface_model.dart';
 import 'package:a2ui_core/src/primitives/errors.dart';
 import 'package:a2ui_core/src/processing/processor.dart';
+import 'package:a2ui_core/src/validation/validator.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -30,6 +31,75 @@ void main() {
     setUp(() {
       catalog = MinimalCatalog();
       processor = MessageProcessor(catalogs: [catalog]);
+    });
+
+    test('processPayload rejects a malformed envelope before processing', () {
+      expect(
+        () => processor.processPayload([
+          {
+            'version': 'v1.0',
+            'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
+          },
+        ]),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(processor.groupModel.getSurface('s1'), isNull);
+    });
+
+    test('processPayload parses and processes a valid payload', () {
+      final List<A2uiMessage> messages = processor.processPayload([
+        {
+          'version': 'v0.9',
+          'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
+        },
+      ]);
+
+      expect(messages, hasLength(1));
+      expect(processor.groupModel.getSurface('s1'), isNotNull);
+    });
+
+    test('a validator rejects a component the catalog does not declare', () {
+      final MessageProcessor<ComponentApi> validating = MessageProcessor(
+        catalogs: [catalog],
+        validator: A2uiValidator(catalogs: [catalog]),
+      );
+      validating.processMessages([
+        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+      ]);
+
+      expect(
+        () => validating.processMessages([
+          UpdateComponentsMessage(
+            surfaceId: 's1',
+            components: [
+              {'id': 'a', 'component': 'NoSuchComponent'},
+            ],
+          ),
+        ]),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      // The rejected batch left the surface untouched.
+      expect(
+        validating.groupModel.getSurface('s1')?.componentsModel.get('a'),
+        isNull,
+      );
+    });
+
+    test('without a validator the same component is accepted', () {
+      processor.processMessages([
+        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+        UpdateComponentsMessage(
+          surfaceId: 's1',
+          components: [
+            {'id': 'a', 'component': 'NoSuchComponent'},
+          ],
+        ),
+      ]);
+
+      expect(
+        processor.groupModel.getSurface('s1')?.componentsModel.get('a'),
+        isNotNull,
+      );
     });
 
     test('creates surface', () {

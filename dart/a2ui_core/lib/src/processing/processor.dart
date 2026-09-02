@@ -20,19 +20,50 @@ import '../core/messages.dart';
 import '../core/surface_group_model.dart';
 import '../core/surface_model.dart';
 import '../primitives/errors.dart';
+import '../validation/validator.dart';
 
 /// The central processor for A2UI messages.
 class MessageProcessor<T extends ComponentApi> {
   final SurfaceGroupModel<T> groupModel;
   final List<Catalog<T, FunctionImplementation>> catalogs;
 
+  /// Validates messages as they are processed, when supplied.
+  ///
+  /// Validation is phased rather than a single pass: [processPayload] checks
+  /// envelopes as it parses, and [processMessages] checks each component
+  /// against its surface's catalog as the component arrives. Both use the
+  /// surfaces this processor already holds, which a payload-scoped validator
+  /// cannot see.
+  ///
+  /// Omit it to process without catalog validation, which is what callers that
+  /// validate upstream, or hold catalogs that declare no components, want.
+  final A2uiValidator<T, FunctionImplementation>? validator;
+
   MessageProcessor({
     required this.catalogs,
+    this.validator,
     void Function(A2uiClientAction)? onAction,
   }) : groupModel = SurfaceGroupModel<T>() {
     if (onAction != null) {
       groupModel.onAction.addListener(onAction);
     }
+  }
+
+  /// Parses a raw payload, then processes it.
+  ///
+  /// Envelope validation happens here, as the payload is parsed: every message
+  /// must declare a protocol version this SDK implements and be a well-formed
+  /// message of it. Returns the parsed messages.
+  ///
+  /// Throws [A2uiValidationError] for a malformed envelope, before any message
+  /// reaches the models.
+  List<A2uiMessage> processPayload(List<Map<String, Object?>> payload) {
+    final A2uiValidator<T, FunctionImplementation> parser =
+        validator ??
+        A2uiValidator<T, FunctionImplementation>(catalogs: catalogs);
+    final List<A2uiMessage> messages = parser.parseMessages(payload);
+    processMessages(messages);
+    return messages;
   }
 
   /// Processes a list of messages.
@@ -100,6 +131,14 @@ class MessageProcessor<T extends ComponentApi> {
         throw A2uiValidationError(
           "Cannot create component $id without a 'component' type.",
         );
+      }
+
+      // A component that names a type is checked against the surface's
+      // catalog here, while the batch can still be rejected whole. A component
+      // that names none is an update to one this surface already holds, which
+      // the catalog was consulted for when it first arrived.
+      if (validator != null && type != null) {
+        validator!.validateComponent(compJson, surface.catalog);
       }
     }
 
