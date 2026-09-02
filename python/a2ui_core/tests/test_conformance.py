@@ -781,9 +781,7 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
             expect_resp = expect_dict["response"]
             responses = processor.process_messages(
                 message,
-                context=ExecutionContext(
-                    user_activation_present=user_activation
-                ),
+                context=ExecutionContext(user_activation_present=user_activation),
             )
             if expect_resp is None:
                 assert len(responses) == 0
