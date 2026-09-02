@@ -723,8 +723,6 @@ A2UI catalogs form the primary contract between agents and clients. Because agen
 5. **Graceful Degradation**: Renderers should provide a graceful fallback for unknown components and other errors instead of failing the entire view hierarchy or surface.
 6. **Round Trip Unknown Component/Field Preservation**: Intermediary services such as orchestrators should preserve unknown properties when serializing/deserializing messages.
 
-For technical implementation details on how SDK data models and rendering view layers enforce these rules, see the [A2UI Core SDK Blueprint](../../../blueprints/modules/a2ui_core.blueprint.md) and the [A2UI Framework Adapter Blueprint](../../../blueprints/modules/a2ui_framework_adapter.blueprint.md).
-
 #### Deprecating Catalog Properties
 
 - **`deprecated`** (boolean, optional): Standard JSON Schema annotation indicating that a component, function, or property is deprecated.
