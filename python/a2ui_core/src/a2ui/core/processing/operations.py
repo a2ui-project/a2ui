@@ -58,15 +58,6 @@ class InternalDeleteSurfaceOp:
     type: str = MSG_TYPE_DELETE_SURFACE
 
 
-from enum import Enum
-
-
-class RpcErrorCode(str, Enum):
-    INVALID_FUNCTION_CALL = "INVALID_FUNCTION_CALL"
-    EXECUTION_ERROR = "EXECUTION_ERROR"
-    UNKNOWN_FUNCTION = "UNKNOWN_FUNCTION"
-
-
 @dataclass
 class InternalCallRendererFunctionOp:
     function_call_id: str

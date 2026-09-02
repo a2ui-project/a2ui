@@ -802,7 +802,8 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
             function_call_id=outbound_call["functionCallId"],
             call=outbound_call["callFunction"]["call"],
             version="v1.0",
-            catalog_id=outbound_call["callFunction"].get("catalogId"),
+            catalog_id=outbound_call["callFunction"].get("catalogId")
+            or "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
             args=outbound_call["callFunction"].get("args"),
         )
         assert outbound_msg["callAgentFunction"]["functionCallId"] == correlated_id
@@ -810,9 +811,11 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
         import asyncio
 
         loop = asyncio.new_event_loop()
-        fut = loop.create_future()
-        processor.register_pending_agent_call(outbound_call["functionCallId"], fut)
-        processor.process_messages(inbound_response)
-        assert fut.done()
-        assert fut.result() == case.get("expect", {}).get("result")
-        loop.close()
+        try:
+            fut = loop.create_future()
+            processor.register_pending_future(outbound_call["functionCallId"], fut)
+            processor.process_messages(inbound_response)
+            assert fut.done()
+            assert fut.result() == case.get("expect", {}).get("result")
+        finally:
+            loop.close()
