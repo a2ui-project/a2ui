@@ -28,6 +28,7 @@ Its core responsibilities include:
 6. **Validation:** Performs structural JSON Schema checks, reference checks, loop/recursion analysis, and layout integrity checks.
 7. **Resolution:** Resolves bound context paths and binds state variables to components for local evaluation.
 8. **Multi-Version Protocol Branching:** Supports multiple versions of the protocol.
+9. **Catalog Evolution & Compatibility:** Enforces catalog rules across versions, including deprecation metadata exposure, unknown component and field preservation, open enum handling, and round-trip fidelity.
 
 ---
 
@@ -203,6 +204,10 @@ interface ComponentApi {
   readonly name: string;
   /** The technical definition used for validation and generating renderer capabilities. */
   readonly schema: Schema;
+  /** Optional flag indicating whether this component is deprecated in the catalog. */
+  readonly deprecated?: boolean;
+  /** Optional human-readable deprecation reason and migration guidance. */
+  readonly xDeprecatedReason?: string;
 }
 ```
 
@@ -215,6 +220,10 @@ interface FunctionApi {
   readonly name: string;
   readonly returnType: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';
   readonly schema: Schema; // The expected arguments
+  /** Optional flag indicating whether this function is deprecated in the catalog. */
+  readonly deprecated?: boolean;
+  /** Optional human-readable deprecation reason and migration guidance. */
+  readonly xDeprecatedReason?: string;
 }
 
 /**
@@ -369,6 +378,8 @@ When a surface is created with `sendDataModel: true`, the renderer is responsibl
 
 - **Surface Lifecycle**: It is an error to receive a `createSurface` message for a `surfaceId` that is already active; `surfaceId` must be globally unique per client session. The processor MUST throw an error or report a validation failure if this occurs.
 - **Component Lifecycle**: If an `updateComponents` message provides an existing `id` but a _different_ `type`, the processor MUST remove the old component and create a fresh one to ensure framework renderers correctly reset their internal state.
+- **Unknown Component & Property Preservation**: The processor MUST NOT reject or drop unrecognized components or properties. Unrecognized components must still be registered in `SurfaceComponentsModel` with their IDs, types, and properties preserved. Extra or unrecognized properties on known components must be stored intact on `ComponentModel.properties` to ensure round-trip fidelity for intermediaries (orchestrators) and allow framework renderers to degrade gracefully.
+- **Open Enum Tolerance**: Message processing must not fail when enum properties contain unfamiliar variants introduced by newer agents, storing them as raw string values for downstream renderer fallback.
 
 #### Generating Renderer Capabilities and Schema Types
 
@@ -486,6 +497,15 @@ The matrix below details the specific validation checks, their responsible compo
 | **Graph Topology**       | Unreachable / orphan component detection                                                          | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`  |
 | **Depth & Syntax**       | Global recursion depth limit (>50) & function nesting (>5)                                        | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiRecursionError`  |
 | **Depth & Syntax**       | JSON Pointer path syntax validation                                                               | `A2uiValidator.validatePathSyntax()`                                      | `A2uiValidationError` |
+| **Open Enums**           | Enum properties validated permissively (unrecognized variants tolerated)                          | `A2uiValidator(CatalogSchemaValidator.validateComponents())`              | Allowed (No Error)    |
+| **Unknown Properties**   | Extra / unrecognized component properties tolerated without error                                 | `A2uiValidator(CatalogSchemaValidator.validateComponents())`              | Allowed (No Error)    |
+
+> [!IMPORTANT]
+> **Catalog Compatibility & Validation Invariants:**
+>
+> - **Unknown Properties & Functions (Rule 1)**: Component schema validation must be permissive with unknown properties (`additionalProperties: true` or passthrough). Extra properties MUST NOT raise `A2uiValidationError`. Similarly, references to unknown functions should be tolerated at validation time.
+> - **Strict Type Invariance (Rule 3)**: Known properties must strictly match their declared catalog schema types. Changing the data type of an existing property (e.g., string to number) must raise an `A2uiValidationError`.
+> - **Open Enums (Rule 4)**: Enums defined in catalogs must be treated as open by the validator. New or unknown enum variants must pass validation cleanly so downstream renderers can apply fallback handling.
 
 ---
 
@@ -650,6 +670,9 @@ class ComponentModel {
 }
 ```
 
+> **Round-Trip Unknown Component & Field Preservation (Rule 6)**:
+> `SurfaceComponentsModel` must store unrecognized component types, and `ComponentModel.properties` must retain all received property keys verbatim—including unknown or future catalog fields. When messages or state snapshots are serialized or forwarded (e.g., by intermediary orchestrator services or debugging tools), unknown components and properties must never be pruned or filtered.
+
 ##### `DataModel`
 
 A dedicated store for application data.
@@ -751,4 +774,31 @@ export class A2uiRecursionError extends A2uiError {
     this.name = 'A2uiRecursionError';
   }
 }
+
+---
+
+### G. Catalog Evolution & Compatibility Contract
+
+To satisfy the [A2UI Catalog Rules](../../specification/v1_0/docs/a2ui_protocol.md#catalog-rules) governing the agent-client boundary, `a2ui_core` implementations must satisfy the following requirements:
+
+1. **Ignore Unknown Functions/Fields**:
+   - When parsing or validating inbound messages, unknown or unrecognized component properties must not cause validation failures (`A2uiValidationError`).
+   - Unrecognized functions referenced by dynamic bindings must not crash core state; resolution must fail gracefully or evaluate to null.
+
+2. **Deprecate Rather than Delete**:
+   - The catalog parsing layer must expose `deprecated: boolean` and `x-deprecated-reason: string` on `ComponentApi`, `FunctionApi`, and property definitions.
+   - Core SDKs should provide hooks for developer tooling, linters, or capability reporting without blocking execution of deprecated elements.
+
+3. **Strict Type Invariance**:
+   - For all known components and properties, types must remain invariant across catalog versions. If an update alters the primitive or structural data type of an existing known property, the validation layer must report an `A2uiValidationError` or reject the mutation to prevent state corruption.
+
+4. **Open Enums**:
+   - Catalog schema validators must treat enum definitions as open. Receiving an unrecognized enum variant in a component property must not trigger validation failure, ensuring the value reaches the state layer so framework renderers can apply fallback strategies.
+
+5. **Graceful Degradation**:
+   - Core state containers (`SurfaceComponentsModel`, `ComponentModel`) and `NodeResolver` must store and navigate unrecognized components and malformed subtrees without throwing fatal processing exceptions, allowing framework renderers to catch and render fallback UI.
+
+6. **Round Trip Unknown Component/Field Preservation**:
+   - `SurfaceComponentsModel` must retain unknown component types, and `ComponentModel.properties` must store unrecognized properties verbatim.
+   - Serializing state containers or proxying messages (such as in intermediary orchestrator services or debugging tools) must preserve unknown components and fields intact without pruning.
 ```
