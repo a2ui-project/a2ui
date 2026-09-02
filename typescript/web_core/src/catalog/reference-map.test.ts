@@ -73,10 +73,10 @@ describe('reference-map schema introspection', () => {
     assert.strictEqual(isChildOrChildListSchema(nonChildRef, V09_CHILD_REF_OPTIONS), false);
   });
 
-  it('identifies Zod schemas for ComponentId and ChildList', () => {
+  it('identifies Zod schemas for ComponentId and ChildList via REF pointers and structure', () => {
     const singleChildApi = z
       .string()
-      .describe('The unique identifier for a component, used for references.');
+      .describe('REF:#/$defs/ComponentId|Custom child reference slot.');
     const childListUnion = z.union([
       z.array(singleChildApi),
       z.object({componentId: z.string(), path: z.string()}),
@@ -92,13 +92,27 @@ describe('reference-map schema introspection', () => {
     assert.strictEqual(isChildOrChildListSchema(normalString, V09_CHILD_REF_OPTIONS), false);
   });
 
+  it('identifies Zod schemas stamped with markChildRef metadata without description', () => {
+    const markedChild = z.string();
+    (markedChild._def as any).a2uiChildRef = 'component-id';
+
+    const markedList = z.union([z.array(z.string()), z.any()]);
+    (markedList._def as any).a2uiChildRef = 'child-list';
+
+    assert.strictEqual(isChildSchema(markedChild, V10_CHILD_REF_OPTIONS), true);
+    assert.strictEqual(isChildListSchema(markedChild, V10_CHILD_REF_OPTIONS), false);
+
+    assert.strictEqual(isChildListSchema(markedList, V10_CHILD_REF_OPTIONS), true);
+    assert.strictEqual(isChildSchema(markedList, V10_CHILD_REF_OPTIONS), false);
+  });
+
   it('builds dynamic ref map for custom components with non-standard property names', () => {
     const customSplitPaneApi = {
       name: 'CustomSplitPane',
       schema: z.object({
-        topSlot: z.string().describe('ComponentId'),
-        bottomSlot: z.string().describe('ComponentId'),
-        sidePanels: z.array(z.string().describe('ComponentId')),
+        topSlot: z.string().describe('REF:#/$defs/ComponentId'),
+        bottomSlot: z.string().describe('REF:#/$defs/ComponentId'),
+        sidePanels: z.array(z.string().describe('REF:#/$defs/ComponentId')),
       }),
     };
 

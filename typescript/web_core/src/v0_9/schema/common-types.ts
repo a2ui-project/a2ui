@@ -27,7 +27,7 @@ function markChildRef<T extends z.ZodTypeAny>(schema: T, ref: ChildRefKind): T {
 }
 
 export function childRefKindOf(schema: z.ZodTypeAny): ChildRefKind | undefined {
-  return (schema._def as {a2uiChildRef?: ChildRefKind}).a2uiChildRef;
+  return (schema?._def as {a2uiChildRef?: ChildRefKind} | undefined)?.a2uiChildRef;
 }
 
 export interface RefSchemaOptions {

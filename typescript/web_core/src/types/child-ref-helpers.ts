@@ -39,7 +39,7 @@ export function markChildRef<T extends z.ZodTypeAny>(schema: T, ref: ChildRefKin
  * @returns The child reference kind or undefined if not marked.
  */
 export function childRefKindOf(schema: z.ZodTypeAny): ChildRefKind | undefined {
-  return (schema._def as {a2uiChildRef?: ChildRefKind}).a2uiChildRef;
+  return (schema?._def as {a2uiChildRef?: ChildRefKind} | undefined)?.a2uiChildRef;
 }
 
 /**

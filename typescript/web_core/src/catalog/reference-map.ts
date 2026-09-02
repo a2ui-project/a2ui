@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {childRefKindOf} from '../types/child-ref-helpers.js';
 import type {Catalog, ComponentApi} from './types.js';
 
 /**
@@ -249,41 +250,35 @@ function analyzeUnionOptions(
 }
 
 function isChildListDescription(desc: string, childListNames: ReadonlySet<string>): boolean {
+  if (!desc) return false;
   if (desc.startsWith('REF:')) {
     const refTarget = extractRefDefName(desc.substring(4).split('|')[0]);
     if (childListNames.has(refTarget)) return true;
   }
-  if (/^Static child IDs or dynamic child template/i.test(desc)) {
+  const refTarget = extractRefDefName(desc.split('|')[0]);
+  if (refTarget && childListNames.has(refTarget)) {
     return true;
   }
   const trimmed = desc.trim();
-  for (const name of childListNames) {
-    if (trimmed === name || desc.includes(name)) {
-      return true;
-    }
+  if (childListNames.has(trimmed)) {
+    return true;
   }
   return false;
 }
 
 function isChildDescription(desc: string, childNames: ReadonlySet<string>): boolean {
+  if (!desc) return false;
   if (desc.startsWith('REF:')) {
     const refTarget = extractRefDefName(desc.substring(4).split('|')[0]);
     if (childNames.has(refTarget)) return true;
   }
-  if (
-    /^The unique identifier for a component/i.test(desc) ||
-    /child component (?:id|identifier)/i.test(desc)
-  ) {
+  const refTarget = extractRefDefName(desc.split('|')[0]);
+  if (refTarget && childNames.has(refTarget)) {
     return true;
   }
   const trimmed = desc.trim();
-  for (const name of childNames) {
-    if (trimmed === name) {
-      return true;
-    }
-    if (name !== 'Child' && desc.includes(name)) {
-      return true;
-    }
+  if (childNames.has(trimmed)) {
+    return true;
   }
   return false;
 }
@@ -311,11 +306,6 @@ function analyzeZodArray(elem: any, options: ChildRefAnalysisOptions): ChildRefA
   if (elemRes.isChild || elemRes.isChildList) {
     return {isChild: false, isChildList: true};
   }
-  const elemDesc: string = elem?.description ?? elem?._def?.description ?? '';
-  const childNames = options.childRefNames;
-  if (isChildDescription(elemDesc, childNames)) {
-    return {isChild: false, isChildList: true};
-  }
   return {isChild: false, isChildList: false};
 }
 
@@ -323,10 +313,10 @@ function analyzeZodArray(elem: any, options: ChildRefAnalysisOptions): ChildRefA
  * Analyzes a property schema (Zod schema or JSON Schema definition) to determine
  * if it represents a single component child reference (ComponentId) or child list (ChildList).
  *
- * Inspects $ref pointer targets (e.g. `common_types.json#/$defs/ChildList`,
- * `common_types.json#/$defs/ComponentId`, `common_types.json#/$defs/Child`),
- * schema descriptions, structural unions (`{ componentId, path }` templates),
- * and arrays of component IDs.
+ * Inspects explicit metadata stamps (`markChildRef`), $ref pointer targets (e.g.
+ * `common_types.json#/$defs/ChildList`, `common_types.json#/$defs/ComponentId`,
+ * `common_types.json#/$defs/Child`), schema descriptions with REF: prefixes,
+ * structural unions (`{ componentId, path }` templates), and arrays of component IDs.
  *
  * @param schema Zod schema, JSON Schema object, or property schema definition.
  * @param options Required configuration specifying recognized child definition names.
@@ -340,12 +330,28 @@ export function analyzeChildRefSchema(
     return {isChild: false, isChildList: false};
   }
 
+  const directKind = childRefKindOf(schema as any);
+  if (directKind === 'component-id') {
+    return {isChild: true, isChildList: false};
+  }
+  if (directKind === 'child-list') {
+    return {isChild: false, isChildList: true};
+  }
+
   const descMatch = checkDescriptionChildRef(getDescriptions(schema), options);
   if (descMatch) return descMatch;
 
   const current = unwrapZodType(schema);
   if (!current?._def) {
     return checkJsonSchemaRef(schema as Record<string, any>, options);
+  }
+
+  const unwrappedKind = childRefKindOf(current);
+  if (unwrappedKind === 'component-id') {
+    return {isChild: true, isChildList: false};
+  }
+  if (unwrappedKind === 'child-list') {
+    return {isChild: false, isChildList: true};
   }
 
   const typeName = current._def.typeName;

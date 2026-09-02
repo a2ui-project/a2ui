@@ -642,7 +642,7 @@ describe('MessageProcessor', () => {
     it('enforces allowDanglingReferences constraint', () => {
       const containerApi: ComponentApi = {
         name: 'Container',
-        schema: z.object({child: z.string().describe('Child component ID')}),
+        schema: z.object({child: z.string().describe('REF:common_types.json#/$defs/ComponentId')}),
       };
       const cat = new Catalog(
         'cat-refs',
