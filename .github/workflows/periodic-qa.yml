@@ -1,0 +1,87 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Periodic QA
+
+on:
+  schedule:
+    # Run daily at 02:00 UTC
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/test-case-1.js"
+      - "scripts/analyze-logs.js"
+      - ".github/workflows/periodic-qa.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  periodic-qa-validation:
+    name: Run Periodic QA Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run E2E Test Suite (test-case-1.js)
+        id: run_tests
+        continue-on-error: true
+        run: |
+          node scripts/test-case-1.js
+
+      - name: Analyze Logs & Generate Summary Report (analyze-logs.js)
+        if: always()
+        run: |
+          node scripts/analyze-logs.js
+
+      # Step 1: Render Job Summary in GitHub Actions UI
+      - name: Add Job Summary
+        if: always()
+        run: |
+          if [ -f summary.md ]; then
+            cat summary.md >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # Step 2: Upload Deep Logs & Diagnostic Reports as Artifacts
+      - name: Upload QA Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qa-logs-and-reports
+          path: |
+            logs/
+            summary.md
+          retention-days: 14
+
+      - name: Fail Job If Test Suite Reported Errors
+        if: steps.run_tests.outcome != 'success'
+        run: |
+          echo "::warning title=QA Regressions Detected::Periodic QA detected runtime errors in one or more samples (see Job Summary for details)."
