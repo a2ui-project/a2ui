@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      https://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,12 +14,10 @@
  * limitations under the License.
  */
 
+// AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
+// Generated from specification/v0_9/json/ via scripts/generate-zod-schemas.mjs
 import {z} from 'zod';
 
-/**
- * Reports a user-initiated action from a component.
- * Matches 'action' in specification/v0_9/json/client_to_server.json.
- */
 export const A2uiClientActionSchema = z
   .object({
     name: z
@@ -36,9 +34,6 @@ export const A2uiClientActionSchema = z
   })
   .strict();
 
-/**
- * Reports a client-side validation failure.
- */
 export const A2uiValidationErrorSchema = z
   .object({
     code: z.literal('VALIDATION_FAILED'),
@@ -54,9 +49,6 @@ export const A2uiValidationErrorSchema = z
   })
   .strict();
 
-/**
- * Reports a generic client-side error.
- */
 export const A2uiGenericErrorSchema = z
   .object({
     code: z.string().refine(c => c !== 'VALIDATION_FAILED'),
@@ -67,16 +59,8 @@ export const A2uiGenericErrorSchema = z
   })
   .passthrough();
 
-/**
- * Reports a client-side error.
- * Matches 'error' in specification/v0_9/json/client_to_server.json.
- */
 export const A2uiClientErrorSchema = z.union([A2uiValidationErrorSchema, A2uiGenericErrorSchema]);
 
-/**
- * A message sent from the A2UI client to the server.
- * Matches specification/v0_9/json/client_to_server.json.
- */
 export const A2uiClientMessageSchema = z
   .object({
     version: z.enum(['v0.9', 'v0.9.1']),
@@ -85,10 +69,6 @@ export const A2uiClientMessageSchema = z
     z.union([z.object({action: A2uiClientActionSchema}), z.object({error: A2uiClientErrorSchema})]),
   );
 
-/**
- * Schema for the client data model synchronization.
- * Matches specification/v0_9/json/client_data_model.json.
- */
 export const A2uiClientDataModelSchema = z
   .object({
     version: z.enum(['v0.9', 'v0.9.1']),
@@ -106,7 +86,6 @@ export type A2uiClientDataModel = z.infer<typeof A2uiClientDataModelSchema>;
 export const A2uiClientMessageListSchema = z
   .array(A2uiClientMessageSchema)
   .describe('A list of client messages.');
-
 export type A2uiClientMessageList = z.infer<typeof A2uiClientMessageListSchema>;
 
 export const A2uiClientMessageListWrapperSchema = z
@@ -115,5 +94,4 @@ export const A2uiClientMessageListWrapperSchema = z
   })
   .strict()
   .describe('An object wrapping a list of client messages.');
-
 export type A2uiClientMessageListWrapper = z.infer<typeof A2uiClientMessageListWrapperSchema>;

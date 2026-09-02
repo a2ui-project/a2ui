@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      https://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+// AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
+// Generated from specification/v0_9/json/ via scripts/generate-zod-schemas.mjs
 export * from './common-types.js';
 export * from './server-to-client.js';
-export * from './client-capabilities.js';
 export * from './client-to-server.js';
+export * from './client-capabilities.js';

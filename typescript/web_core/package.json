@@ -115,6 +115,7 @@
         "src/v0_9/standard_defs.ts",
         "src/v1_0/standard_defs.ts",
         "src/types/common-types.ts",
+        "src/v0_9/schema/*.ts",
         "src/v0_9/basic_catalog/components/basic_components.ts",
         "src/v0_9/basic_catalog/functions/basic_functions_api.ts",
         "src/v1_0/schema/*.ts",
