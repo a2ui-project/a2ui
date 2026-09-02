@@ -28,7 +28,7 @@ from a2ui.core.catalog import Catalog
 from a2ui.core import A2uiCatalogError
 
 
-from .catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
+from .catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider, HttpCatalogProvider
 from .constants import (
     A2UI_SCHEMA_BLOCK_START,
     A2UI_SCHEMA_BLOCK_END,
@@ -76,7 +76,7 @@ class CatalogConfig:
         if not parsed.scheme or parsed.scheme == "file":
             catalog_provider = FileSystemCatalogProvider(parsed.path)
         elif parsed.scheme in ["http", "https"]:
-            raise NotImplementedError("HTTP support is coming soon.")
+            catalog_provider = HttpCatalogProvider(catalog_path)
         else:
             raise A2uiCatalogError(f"Unsupported catalog URL scheme: {catalog_path}")
 

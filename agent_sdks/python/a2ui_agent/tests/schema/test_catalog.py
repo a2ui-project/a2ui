@@ -59,8 +59,9 @@ def test_resolve_examples_path_handling():
         resolve_examples_path("https://a2ui.org/examples")
 
 
-def test_catalog_config_from_path_schemes():
+def test_catalog_config_from_path_schemes(mocker=None):
     from a2ui.schema.catalog import CatalogConfig
+    from a2ui.schema.catalog_provider import HttpCatalogProvider
     # Test local path
     config = CatalogConfig.from_path(
         name="test_file", catalog_path="relative_path/to/catalog.json"
@@ -73,11 +74,12 @@ def test_catalog_config_from_path_schemes():
     )
     assert config.provider.path == "/absolute_path/to/catalog.json"
 
-    # Test HTTP raises NotImplementedError
-    with pytest.raises(NotImplementedError, match="HTTP support is coming soon."):
-        CatalogConfig.from_path(
-            name="test_http", catalog_path="http://a2ui.org/catalog.json"
-        )
+    # Test HTTP loads HttpCatalogProvider
+    config = CatalogConfig.from_path(
+        name="test_http", catalog_path="http://a2ui.org/catalog.json"
+    )
+    assert isinstance(config.provider, HttpCatalogProvider)
+    assert config.provider.url == "http://a2ui.org/catalog.json"
 
     # Test unsupported scheme raises ValueError
     with pytest.raises(ValueError, match="Unsupported catalog URL scheme"):
@@ -110,3 +112,38 @@ def test_basic_catalog_id_retrieval_methods():
 
     with pytest.raises(ValueError, match="Unsupported version: 0.7"):
         BasicCatalog.get_catalog_id("0.7")
+
+
+def test_http_catalog_provider_success():
+    from unittest.mock import patch, MagicMock
+    from a2ui.schema.catalog_provider import HttpCatalogProvider
+
+    mock_response = MagicMock()
+    mock_response.__enter__.return_value = mock_response
+    mock_response.read.return_value = b'{"catalogId": "my_remote_catalog"}'
+    mock_response.headers = {"Content-Type": "application/agent-plugin+json"}
+
+    provider = HttpCatalogProvider("http://example.com/catalog.json")
+
+    with patch("urllib.request.urlopen", return_value=mock_response):
+        data = provider.load()
+        assert data == {"catalogId": "my_remote_catalog"}
+
+
+def test_catalog_part_helpers():
+    from a2ui.a2a.parts import is_catalog_part, create_catalog_part, CATALOG_MIME_TYPE
+    from a2a.types import Part, DataPart
+
+    catalog_data = {"catalogId": "test_catalog"}
+    part = create_catalog_part(catalog_data)
+
+    assert isinstance(part, Part)
+    assert isinstance(part.root, DataPart)
+    assert part.root.data == catalog_data
+    assert part.root.metadata.get("mimeType") == CATALOG_MIME_TYPE
+    assert is_catalog_part(part) is True
+
+    # Test is_catalog_part with non-catalog part
+    non_catalog_part = Part(root=DataPart(data={}, metadata={"mimeType": "application/json"}))
+    assert is_catalog_part(non_catalog_part) is False
+

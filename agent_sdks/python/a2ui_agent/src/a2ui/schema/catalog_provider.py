@@ -15,10 +15,15 @@
 """Module for providing A2UI catalog schemas and resources."""
 
 import json
+import logging
+import urllib.request
 from abc import ABC, abstractmethod
 from json.decoder import JSONDecodeError
 from typing import Any, Dict, cast
+from urllib.error import URLError
 from .constants import ENCODING
+
+logger = logging.getLogger(__name__)
 
 
 class A2uiCatalogProvider(ABC):
@@ -46,3 +51,28 @@ class FileSystemCatalogProvider(A2uiCatalogProvider):
                 return cast(Dict[str, Any], json.load(f))
         except (FileNotFoundError, JSONDecodeError) as e:
             raise IOError(f"Could not load schema from {self.path}: {e}") from e
+
+
+class HttpCatalogProvider(A2uiCatalogProvider):
+    """Loads catalog definition from a remote HTTP/HTTPS URL."""
+
+    def __init__(self, url: str):
+        self.url = url
+
+    def load(self) -> Dict[str, Any]:
+        try:
+            req = urllib.request.Request(
+                self.url, headers={"User-Agent": "A2UI-Agent-SDK/1.0"}
+            )
+            with urllib.request.urlopen(req, timeout=10) as response:
+                content_type = response.headers.get("Content-Type", "").split(";")[0].strip()
+                recognized_types = ("application/json", "application/agent-plugin+json")
+                if content_type and content_type not in recognized_types:
+                    logger.warning(
+                        f"Response Content-Type '{content_type}' is not a recognized "
+                        "catalog entry type (expected 'application/json' or "
+                        "'application/agent-plugin+json')."
+                    )
+                return cast(Dict[str, Any], json.loads(response.read().decode(ENCODING)))
+        except Exception as e:
+            raise IOError(f"Could not load schema from {self.url}: {e}") from e

@@ -268,6 +268,16 @@ Each directory has its own README with detailed documentation.
 
 ---
 
+## Customizing Agent URLs
+
+By default, the samples expect agents to be running on specific ports (e.g., `10002` for Restaurant Finder). If you need to run agents on different ports (for example, to support restricted port forwarding in remote environments), you can configure the URLs using environment variables before building or running the client:
+
+```bash
+export VITE_RESTAURANT_AGENT_URL="http://localhost:8000"
+```
+
+These variables are picked up by Vite during development or build time.
+
 ## Troubleshooting
 
 === "Lit"
