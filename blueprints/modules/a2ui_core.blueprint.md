@@ -33,12 +33,7 @@ Its core responsibilities include:
 
 #### Package Boundary & Non-Goals
 
-Not in core:
-
-- `CatalogTransformer`, `ComponentPruningTransformer`, `FunctionPruningTransformer`, and the `CatalogConfig` pipeline that applies them
-- Prompt generation
-- Response parsing
-- Capability negotiation
+Core implements the responsibilities above and nothing beyond them. Functionality that the [Agent SDK](a2ui_agent.blueprint.md) or [Framework Adapter](a2ui_framework_adapter.blueprint.md) blueprint assigns to its own layer does not belong in core, even where core defines the types that functionality would operate on. Those two blueprints are the reference for what each layer owns.
 
 ---
 
