@@ -29,41 +29,7 @@ export const useBasicCatalogStyles = () => {
   }, []);
 };
 
-export const mapJustify = (j?: string) => {
-  switch (j) {
-    case 'center':
-      return 'center';
-    case 'end':
-      return 'flex-end';
-    case 'spaceAround':
-      return 'space-around';
-    case 'spaceBetween':
-      return 'space-between';
-    case 'spaceEvenly':
-      return 'space-evenly';
-    case 'start':
-      return 'flex-start';
-    case 'stretch':
-      return 'stretch';
-    default:
-      return 'flex-start';
-  }
-};
-
-export const mapAlign = (a?: string) => {
-  switch (a) {
-    case 'start':
-      return 'flex-start';
-    case 'center':
-      return 'center';
-    case 'end':
-      return 'flex-end';
-    case 'stretch':
-      return 'stretch';
-    default:
-      return 'stretch';
-  }
-};
+export {mapJustify, mapAlign} from '@a2ui/web_core/v0_9/basic_catalog';
 
 export const getBaseLeafStyle = (): React.CSSProperties => ({
   boxSizing: 'border-box',

@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
-import {ComponentHostComponent} from '../../core/component-host.component';
-import {Child} from '../../core/component-binder.service';
-import {BasicCatalogComponent} from './basic-catalog-component';
-import {JUSTIFY_MAP, ALIGN_MAP} from './utils';
-import {ColumnApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import { Component, computed, ChangeDetectionStrategy } from '@angular/core';
+import { mapJustify, mapAlign, ColumnApi } from '@a2ui/web_core/v0_9/basic_catalog';
+import { ComponentHostComponent } from '../../core/component-host.component';
+import { Child } from '../../core/component-binder.service';
+import { BasicCatalogComponent } from './basic-catalog-component';
 
 /**
  * Angular implementation of the A2UI Column component (v0.9).
@@ -51,14 +50,8 @@ import {ColumnApi} from '@a2ui/web_core/v0_9/basic_catalog';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ColumnComponent extends BasicCatalogComponent<typeof ColumnApi> {
-  protected readonly justify = computed(() => {
-    const val = this.props()['justify']?.value();
-    return val ? JUSTIFY_MAP[val] || val : undefined;
-  });
-  protected readonly align = computed(() => {
-    const val = this.props()['align']?.value();
-    return val ? ALIGN_MAP[val] || val : undefined;
-  });
+  protected readonly justify = computed(() => mapJustify(this.props()['justify']?.value()));
+  protected readonly align = computed(() => mapAlign(this.props()['align']?.value()));
 
   protected readonly children = computed(() => this.props()['children'].value() || []);
 
