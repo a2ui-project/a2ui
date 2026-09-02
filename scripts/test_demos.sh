@@ -37,17 +37,32 @@ echo " A2UI Getting Started Demos Verification"
 echo " Target: $DEMO_TARGET (Build only: $BUILD_ONLY)"
 echo "========================================="
 
-# 1. Build common renderer packages first
-echo ""
-echo "--> Building web renderers (@a2ui/web_core, lit, react, angular)..."
-(
-  cd "$REPO_ROOT"
-  yarn workspace @a2ui/web_core build
-  yarn workspace @a2ui/markdown-it build
-  yarn workspace @a2ui/lit build
-  yarn workspace @a2ui/react build
-  yarn workspace @a2ui/angular build
-)
+# 1. Build common renderer packages first (only for web demos)
+if [ "$DEMO_TARGET" != "flutter" ]; then
+  echo ""
+  echo "--> Building web renderers..."
+  (
+    cd "$REPO_ROOT"
+    yarn workspace @a2ui/web_core build
+    yarn workspace @a2ui/markdown-it build
+    case "$DEMO_TARGET" in
+      lit)
+        yarn workspace @a2ui/lit build
+        ;;
+      react)
+        yarn workspace @a2ui/react build
+        ;;
+      angular)
+        yarn workspace @a2ui/angular build
+        ;;
+      all)
+        yarn workspace @a2ui/lit build
+        yarn workspace @a2ui/react build
+        yarn workspace @a2ui/angular build
+        ;;
+    esac
+  )
+fi
 
 # 2. Build specified client(s)
 build_lit() {
@@ -77,8 +92,9 @@ build_angular() {
 build_flutter() {
   echo ""
   echo "--> [4/4] Building Flutter Web Demo..."
-  cd "$REPO_ROOT/samples/client/flutter/restaurant_finder/app"
+  cd "$REPO_ROOT"
   flutter pub get
+  cd "$REPO_ROOT/samples/client/flutter/restaurant_finder/app"
   flutter build web
   echo "✔ Flutter web demo built successfully."
 }
