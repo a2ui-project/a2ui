@@ -14,4 +14,12 @@
  * limitations under the License.
  */
 
-export {A2uiController} from '@a2ui/web_core/v0_9/universal';
+export {
+  A2uiLitElement,
+  type ResolvedChildList,
+  type A2uiChildRef,
+  type ResolvedChildRef,
+} from './a2ui-lit-element.js';
+export {A2uiController} from './a2ui-controller.js';
+export {renderA2uiNode} from './render-a2ui-node.js';
+export type {WebComponentImplementation} from './web_component_implementation.js';

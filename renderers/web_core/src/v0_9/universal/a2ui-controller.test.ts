@@ -18,13 +18,8 @@ import * as assert from 'node:assert';
 import {describe, it, before, beforeEach, after, afterEach} from 'node:test';
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../test/dom-setup.js';
 
-import type {
-  MessageProcessor,
-  ComponentContext,
-  Catalog,
-  WebComponentImplementation,
-  SurfaceModel,
-} from '../index.js';
+import type {MessageProcessor, ComponentContext, Catalog, SurfaceModel} from '../index.js';
+import type {WebComponentImplementation} from './web_component_implementation.js';
 import type {TextApi as TextApiType} from '../basic_catalog/index.js';
 import type {A2uiLitElement as A2uiLitElementType} from './a2ui-lit-element.js';
 import type {A2uiController as A2uiControllerType} from './a2ui-controller.js';

@@ -14,4 +14,18 @@
  * limitations under the License.
  */
 
-export {A2uiController} from '@a2ui/web_core/v0_9/universal';
+import type {z} from 'zod';
+import type {ComponentApi} from '../catalog/types.js';
+
+/**
+ * An implementation of a UI component using Web Components (Custom Elements).
+ * Extends ComponentApi to include the Custom Element's tag name.
+ *
+ * @template Schema the Zod schema type for the component's properties.
+ */
+export interface WebComponentImplementation<
+  Schema extends z.ZodTypeAny = z.ZodTypeAny,
+> extends ComponentApi<Schema> {
+  /** The HTML tag name of the Custom Element registered for this component. */
+  readonly tagName: string;
+}
