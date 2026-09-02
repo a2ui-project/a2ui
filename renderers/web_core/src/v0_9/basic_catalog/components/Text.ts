@@ -18,11 +18,11 @@ import {html, nothing, css} from 'lit';
 import {customElement} from 'lit/decorators.js';
 import {consume} from '@lit/context';
 import {TextApi} from './basic_components.js';
-import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
+import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import {Context} from '../context/context.js';
 import type {MarkdownRenderer} from '../context/markdown.js';
 import {markdown} from '../directives/directives.js';
-import {createComponentImplementation} from '../../catalog/types.js';
+import {createComponentImplementation} from '../../universal/index.js';
 
 const NON_MARKDOWN_VARIANTS = new Set<string>(['h1', 'h2', 'h3', 'h4', 'h5', 'caption']);
 
