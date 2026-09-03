@@ -25,14 +25,18 @@ export function createCodegenCommand(): Command {
   const cmd = new Command('codegen');
   cmd
     .description('Generates typesafe A2UI component libraries from catalog schemas.')
-    .requiredOption('--catalog <path>', 'Path to the catalog JSON Schema file.')
-    .requiredOption('--out <dir>', 'Output directory where generated files will be written.')
+    .requiredOption('-c, --catalog <path>', 'Path to the catalog JSON Schema file.')
+    .requiredOption(
+      '-o, --out <dir>',
+      'Output directory or file where generated code will be written.',
+    )
     .option('--lang <language>', 'Target language for code generation (python).', 'python')
     .option(
       '--base-import <module>',
       'Base module from which ComponentBuilderNode, DataBinding, etc. are imported.',
       'a2ui.builder.base',
     )
+    .option('--catalog-name <name>', 'Override the inferred catalog module name.')
     .action(async options => {
       const catalogPath = path.resolve(process.cwd(), options.catalog);
       if (!fs.existsSync(catalogPath)) {
@@ -63,6 +67,7 @@ export function createCodegenCommand(): Command {
       if (options.lang === 'python') {
         const emitter = new PythonEmitter(analysed, {
           baseImport: options.baseImport,
+          catalogName: options.catalogName,
         });
         const written = emitter.emit(outPath);
         console.log(`Successfully generated ${written.length} file(s):`);

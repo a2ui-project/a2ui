@@ -131,9 +131,11 @@ __metadata:
   resolution: "@a2ui/cli@workspace:javascript/a2ui_cli"
   dependencies:
     "@a2ui/web_core": "workspace:*"
+    "@types/js-yaml": "npm:^4.0.9"
     "@types/node": "npm:^25.9.3"
     commander: "npm:^12.1.0"
     eslint: "npm:^10.4.1"
+    js-yaml: "npm:^5.4.1"
     prettier: "npm:^3.8.1"
     typescript: "npm:5.9.3"
     wireit: "npm:^0.15.0-pre.2"
@@ -18742,6 +18744,17 @@ __metadata:
   bin:
     js-yaml: bin/js-yaml.js
   checksum: 10c0/058b30473d6915ca5b4feb11e2f7d4d97242f98d00a798ed48dd90b46b7c640398afe9128c5db22c5300f8c6528fe2a174b9a93f351a70ebc28c6203938d8bff
+  languageName: node
+  linkType: hard
+
+"js-yaml@npm:^5.4.1":
+  version: 5.4.1
+  resolution: "js-yaml@npm:5.4.1"
+  dependencies:
+    argparse: "npm:^2.0.1"
+  bin:
+    js-yaml: bin/js-yaml.mjs
+  checksum: 10c0/efe9dfaf222809694d375ad5ecca825561d2432eb55bc0f628911c0dfa4dbce98a71dcbc3252f630208bbdf5f4e9ac363847e4a7f49845b577ae2548b8fcf147
   languageName: node
   linkType: hard
 

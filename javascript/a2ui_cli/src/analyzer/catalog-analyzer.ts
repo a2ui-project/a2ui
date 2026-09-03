@@ -149,7 +149,7 @@ export class CatalogAnalyzer {
 
     return {
       name: fn.name,
-      description: schema?.description,
+      description: (fn as any).description || schema?.description,
       parameters,
       requiredParameters: requiredParams,
       returnType: returnTypeDesc,
