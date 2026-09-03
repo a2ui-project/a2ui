@@ -1,0 +1,223 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Conformance cases for the client-side expression parser that backs
+# `formatString` in the basic catalog, as described in
+# specification/v0_9/docs/basic_catalog_implementation_guide.md.
+#
+# `input` is the template string handed to the parser. `expect` is the sequence
+# of parsed parts: literal strings, data bindings ({path: ...}) and function
+# calls ({call: ..., args: ..., returnType: ...}). Harnesses compare the parsed
+# parts with adjacent literals joined, so a case fixes what a template means,
+# not how an implementation happens to split its literal runs.
+
+- name: test_expr_plain_text_is_one_literal
+  description: A template with no interpolation yields the input unchanged.
+  action: parse_expression_template
+  input: "hello world"
+  expect: ["hello world"]
+
+- name: test_expr_empty_template
+  description: An empty template yields a single empty literal.
+  action: parse_expression_template
+  input: ""
+  expect: [""]
+
+- name: test_expr_relative_path
+  description: A bare identifier is a relative data binding.
+  action: parse_expression_template
+  input: "${user}"
+  expect: [{path: "user"}]
+
+- name: test_expr_absolute_path
+  description: An identifier starting with a slash is an absolute data binding.
+  action: parse_expression_template
+  input: "value is ${/user/name}"
+  expect: ["value is ", {path: "/user/name"}]
+
+- name: test_expr_path_with_punctuation
+  description: Dots, dashes and underscores are part of a path.
+  action: parse_expression_template
+  input: "${my-path.with_underscores}"
+  expect: [{path: "my-path.with_underscores"}]
+
+- name: test_expr_literal_between_bindings
+  description: Literal text surrounding interpolations is preserved.
+  action: parse_expression_template
+  input: "a ${x} b ${y} c"
+  expect: ["a ", {path: "x"}, " b ", {path: "y"}, " c"]
+
+- name: test_expr_adjacent_bindings
+  description: Interpolations with nothing between them stay separate parts.
+  action: parse_expression_template
+  input: "${x}${y}"
+  expect: [{path: "x"}, {path: "y"}]
+
+- name: test_expr_single_quoted_string
+  description: Single-quoted literals parse to their contents.
+  action: parse_expression_template
+  input: "${'hello world'}"
+  expect: ["hello world"]
+
+- name: test_expr_double_quoted_string
+  description: Double-quoted literals parse to their contents.
+  action: parse_expression_template
+  input: '${"hello world"}'
+  expect: ["hello world"]
+
+- name: test_expr_string_escapes
+  description: Backslash escapes inside string literals are unescaped.
+  action: parse_expression_template
+  input: "${'line\\nbreak'}"
+  expect: ["line\nbreak"]
+
+- name: test_expr_string_escaped_quote
+  description: An escaped quote does not terminate the literal.
+  action: parse_expression_template
+  input: "${'it\\'s'}"
+  expect: ["it's"]
+
+- name: test_expr_integer_literal
+  description: Integer literals parse to numbers.
+  action: parse_expression_template
+  input: "${42}"
+  expect: [42]
+
+- name: test_expr_decimal_literal
+  description: Decimal literals parse to numbers.
+  action: parse_expression_template
+  input: "${1.5}"
+  expect: [1.5]
+
+- name: test_expr_leading_zeros
+  description: Leading zeros do not change the value.
+  action: parse_expression_template
+  input: "${007}"
+  expect: [7]
+
+- name: test_expr_boolean_literals
+  description: The true and false keywords parse to booleans.
+  action: parse_expression_template
+  input: "${true} ${false}"
+  expect: [true, " ", false]
+
+- name: test_expr_keyword_prefix_is_a_path
+  description: An identifier that merely starts with a keyword is a path.
+  action: parse_expression_template
+  input: "${trueish}"
+  expect: [{path: "trueish"}]
+
+- name: test_expr_function_call_no_args
+  description: A function call with no arguments parses to an empty args map.
+  action: parse_expression_template
+  input: "${now()}"
+  expect: [{call: "now", args: {}, returnType: "any"}]
+
+- name: test_expr_function_call_named_args
+  description: Function arguments are named and comma separated.
+  action: parse_expression_template
+  input: "sum is ${add(a: 10, b: 20)}"
+  expect: ["sum is ", {call: "add", args: {a: 10, b: 20}, returnType: "any"}]
+
+- name: test_expr_function_call_mixed_arg_types
+  description: Arguments may be literals, paths or nested calls.
+  action: parse_expression_template
+  input: "${format(value: /amount, suffix: ' USD', fallback: zero())}"
+  expect:
+    - call: "format"
+      args:
+        value: {path: "/amount"}
+        suffix: " USD"
+        fallback: {call: "zero", args: {}, returnType: "any"}
+      returnType: "any"
+
+- name: test_expr_nested_function_calls
+  description: Function arguments may themselves be function calls.
+  action: parse_expression_template
+  input: "${outer(a: inner(b: 1))}"
+  expect:
+    - call: "outer"
+      args:
+        a: {call: "inner", args: {b: 1}, returnType: "any"}
+      returnType: "any"
+
+- name: test_expr_nested_interpolation
+  description: An interpolation inside an interpolation resolves to the inner expression.
+  action: parse_expression_template
+  input: "${${'hello'}}"
+  expect: ["hello"]
+
+- name: test_expr_whitespace_around_expression
+  description: Whitespace inside the interpolation braces is ignored.
+  action: parse_expression_template
+  input: "${   /user/name   }"
+  expect: [{path: "/user/name"}]
+
+- name: test_expr_escaped_marker_is_literal
+  description: An escaped marker resolves to a literal "${" and is not interpolated.
+  action: parse_expression_template
+  input: "\\${not_interpolated}"
+  expect: ["${not_interpolated}"]
+
+- name: test_expr_escaped_marker_between_text
+  description: An escaped marker inside surrounding text stays literal.
+  action: parse_expression_template
+  input: "before \\${x} after"
+  expect: ["before ${x} after"]
+
+- name: test_expr_escaped_and_real_marker
+  description: An escaped marker and a real interpolation can appear in one template.
+  action: parse_expression_template
+  input: "\\${literal} ${real}"
+  expect: ["${literal} ", {path: "real"}]
+
+- name: test_expr_error_unclosed_interpolation
+  description: A template whose interpolation is never closed is rejected.
+  action: parse_expression_template
+  input: "hello ${world"
+  expect_error:
+    category: "ParseError"
+    message: "Unclosed interpolation"
+
+- name: test_expr_error_missing_closing_paren
+  description: A function call whose parentheses are unbalanced is rejected.
+  action: parse_expression_template
+  input: "${add(a: 1, b: 2}"
+  expect_error:
+    category: "ParseError"
+    message: "after function arguments"
+
+- name: test_expr_error_missing_arg_colon
+  description: A function argument without a colon is rejected.
+  action: parse_expression_template
+  input: "${add(a 1)}"
+  expect_error:
+    category: "ParseError"
+    message: "after argument name"
+
+- name: test_expr_error_trailing_characters
+  description: Characters after a complete expression are rejected.
+  action: parse_expression_template
+  input: "${true false}"
+  expect_error:
+    category: "ParseError"
+    message: "Unexpected characters"
+
+- name: test_expr_error_invalid_number_two_points
+  description: A number literal with two decimal points is rejected as a protocol error.
+  action: parse_expression_template
+  input: "${1.2.3}"
+  expect_error:
+    category: "ParseError"
+    message: "Invalid number literal"
