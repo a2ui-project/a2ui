@@ -24,6 +24,9 @@ import {A2uiExpressionError} from '../../errors.js';
  * It supports literals (strings, numbers, booleans), path-based data bindings, and
  * nested function calls with named arguments.
  */
+/** Digits, optionally followed by a decimal point and more digits. */
+const NUMBER_LITERAL = /^\d+(?:\.\d+)?$/;
+
 export class ExpressionParser {
   /** The maximum allowed recursion depth for nested expressions to prevent stack overflows. */
   private static readonly MAX_DEPTH = 10;
@@ -245,11 +248,12 @@ export class ExpressionParser {
       scanner.advance();
     }
     const text = scanner.input.substring(start, scanner.pos);
-    const value = Number(text);
-    if (!Number.isFinite(value)) {
+    // The grammar is spelled out here rather than delegated to the platform's
+    // number parser, so that every implementation accepts the same literals.
+    if (!NUMBER_LITERAL.test(text)) {
       throw new A2uiExpressionError(`Invalid number literal: '${text}'`);
     }
-    return value;
+    return Number(text);
   }
 
   private isAlnum(c: string): boolean {

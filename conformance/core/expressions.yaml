@@ -214,6 +214,17 @@
     category: "ParseError"
     message: "Unexpected characters"
 
+- name: test_expr_error_number_with_trailing_point
+  description: >
+    A number literal must have digits on both sides of its decimal point. The
+    grammar is fixed here rather than left to each platform's number parser,
+    which disagree on this input.
+  action: parse_expression_template
+  input: "${1.}"
+  expect_error:
+    category: "ParseError"
+    message: "Invalid number literal"
+
 - name: test_expr_error_invalid_number_two_points
   description: A number literal with two decimal points is rejected as a protocol error.
   action: parse_expression_template
