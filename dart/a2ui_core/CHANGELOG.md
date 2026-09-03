@@ -6,6 +6,12 @@
   A message that does not match its catalog now throws instead of being
   applied. Added `processPayload` and an optional `validator` constructor
   parameter.
+- **Breaking:** `MessageProcessor` checks each batch of components as a graph
+  against the surface it joins, so duplicate ids, references naming no
+  component, cycles and over-deep chains now throw. References resolve against
+  the components the surface already holds, so an incremental update that
+  names a component arriving in a later message is rejected where it was
+  previously applied.
 - **Breaking:** `Catalog` now takes two type parameters,
   `Catalog<C extends ComponentApi, F extends FunctionApi>`.
 - **Breaking:** `ComponentApi` and `FunctionApi` are concrete classes with

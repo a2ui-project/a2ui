@@ -20,6 +20,7 @@ import '../core/messages.dart';
 import '../core/surface_group_model.dart';
 import '../core/surface_model.dart';
 import '../primitives/errors.dart';
+import '../validation/component_graph.dart';
 import '../validation/validator.dart';
 
 /// The central processor for A2UI messages.
@@ -31,9 +32,11 @@ class MessageProcessor<T extends ComponentApi> {
   ///
   /// Validation is phased rather than a single pass: [processPayload] checks
   /// envelopes as it parses, [processMessages] checks a surface's theme when
-  /// the surface is created and each component against its surface's catalog
-  /// as the component arrives. All of it uses the surfaces this processor
-  /// already holds, which a payload-scoped validator cannot see.
+  /// the surface is created, and each batch of components against its
+  /// surface's catalog and against the surface's existing component graph as
+  /// the batch arrives. The graph checks resolve references against what the
+  /// surface already holds, which a payload-scoped validator cannot see, so an
+  /// incremental update is checked rather than waved through.
   ///
   /// Defaults to a validator over [catalogs], resolving the shared types
   /// against the `common_types.json` this package publishes. Supply one to
@@ -147,6 +150,23 @@ class MessageProcessor<T extends ComponentApi> {
         validator.validateComponent(compJson, surface.catalog);
       }
     }
+
+    // The batch as a graph, against the surface it is about to join: duplicate
+    // ids, references that name no component here or on the surface, cycles
+    // and over-deep chains. Resolving against the surface is what a
+    // payload-scoped validator cannot do, so an incremental update is checked
+    // here rather than waved through.
+    validator.validateComponentBatch(
+      [
+        for (final Map<String, dynamic> c in message.components)
+          c.cast<String, Object?>(),
+      ],
+      [for (final ComponentModel c in surface.componentsModel.all) c.toJson()],
+      surface.catalog,
+    );
+
+    // Data-model paths and nested function calls, which need no surface state.
+    checkPathsAndRecursion(message.toJson());
 
     // Pass 2: mutation. Only reached when the whole batch is valid.
     for (final Map<String, dynamic> compJson in message.components) {

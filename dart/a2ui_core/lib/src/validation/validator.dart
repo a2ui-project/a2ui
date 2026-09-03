@@ -207,7 +207,7 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
           message.components,
           const {},
           requireRoot: false,
-          allowDangling: true,
+          knownIds: null,
         );
       }
     }
@@ -225,7 +225,10 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
         surface.components,
         refFields,
         requireRoot: surface.created,
-        allowDangling: !surface.created,
+        // A payload that creates the surface must satisfy every reference
+        // itself. One that does not cannot know what the client already
+        // holds, so `MessageProcessor` makes that check instead.
+        knownIds: surface.created ? const <String>{} : null,
       );
       checkComponentTopology(
         surface.components,
@@ -276,6 +279,51 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
     validateStructure(messages);
     validateAgainstCatalogs(messages);
     return messages;
+  }
+
+  /// Checks one batch of components against the surface that will receive it.
+  ///
+  /// [incoming] is the batch; [existing] is what the surface already holds, as
+  /// `ComponentModel.toJson` renders it. References resolve against both, so a
+  /// batch may point at a component the client already has while a reference
+  /// to nothing at all is still caught — a check [validateStructure] cannot
+  /// make, because a payload does not carry the surface's history.
+  ///
+  /// Cycles and depth are measured over the merged graph rather than the batch
+  /// alone, so a batch that closes a loop through existing components fails
+  /// here too.
+  ///
+  /// Visible only so `MessageProcessor` can run it while a batch can still be
+  /// rejected whole.
+  ///
+  /// Throws [A2uiIntegrityError] for a duplicate id or a reference to no
+  /// component, and [A2uiRecursionError] for a cycle or an over-deep chain.
+  @internal
+  void validateComponentBatch(
+    List<Map<String, Object?>> incoming,
+    List<Map<String, Object?>> existing,
+    Catalog<C, F> catalog,
+  ) {
+    final Map<String, ComponentRefFields> refFields = _refFieldsFor(catalog);
+    checkComponentIntegrity(
+      incoming,
+      refFields,
+      // The root may arrive in a later message, so its absence is not an
+      // error at this point; the surface is not yet claimed to be complete.
+      requireRoot: false,
+      knownIds: {
+        for (final Map<String, Object?> component in existing)
+          if (component['id'] is String) component['id']! as String,
+      },
+    );
+    checkComponentTopology(
+      [...existing, ...incoming],
+      refFields,
+      requireRoot: false,
+      // A component left unreachable by an update is the residue of a
+      // replacement rather than a defect.
+      allowOrphans: true,
+    );
   }
 
   /// Checks a surface's theme against [catalog]'s theme schema.

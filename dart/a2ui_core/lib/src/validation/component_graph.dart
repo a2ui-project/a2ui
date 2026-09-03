@@ -36,9 +36,11 @@ final RegExp _pathPattern = RegExp(
 
 /// Checks component ids and references within one surface.
 ///
-/// [requireRoot] and [allowDangling] distinguish a full render, which must
-/// declare every component it names, from an incremental update, which may
-/// reference components the client already holds.
+/// [knownIds] names components the caller knows the surface already holds, so
+/// an incremental update may reference them. A caller that cannot know passes
+/// null, and reference checking is skipped rather than guessed at; a full
+/// render passes an empty set, so every reference must be satisfied by
+/// [components] itself.
 ///
 /// Throws [A2uiIntegrityError] for duplicate ids, a missing root, or a
 /// reference to a component that does not exist.
@@ -46,7 +48,7 @@ void checkComponentIntegrity(
   List<Map<String, Object?>> components,
   Map<String, ComponentRefFields> refFields, {
   required bool requireRoot,
-  required bool allowDangling,
+  required Set<String>? knownIds,
 }) {
   final ids = <String>{};
   for (final component in components) {
@@ -60,7 +62,7 @@ void checkComponentIntegrity(
     }
   }
 
-  if (allowDangling) return;
+  if (knownIds == null) return;
 
   if (requireRoot && !ids.contains(_rootComponentId)) {
     throw A2uiIntegrityError(
@@ -74,7 +76,7 @@ void checkComponentIntegrity(
       component,
       refFields,
     )) {
-      if (!ids.contains(reference.id)) {
+      if (!ids.contains(reference.id) && !knownIds.contains(reference.id)) {
         throw A2uiIntegrityError(
           "Component '$owner' references non-existent component "
           "'${reference.id}' in field '${reference.field}'",
