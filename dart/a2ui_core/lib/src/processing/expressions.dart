@@ -235,7 +235,12 @@ class ExpressionParser {
         (_isDigit(scanner.peek()) || scanner.peek() == '.')) {
       scanner.advance();
     }
-    return num.parse(scanner.input.substring(start, scanner.pos));
+    final String text = scanner.input.substring(start, scanner.pos);
+    final num? value = num.tryParse(text);
+    if (value == null) {
+      throw A2uiExpressionError("Invalid number literal: '$text'");
+    }
+    return value;
   }
 
   bool _isAlnum(String c) {

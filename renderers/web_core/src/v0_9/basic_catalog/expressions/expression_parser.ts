@@ -244,7 +244,12 @@ export class ExpressionParser {
     while (!scanner.isAtEnd() && (this.isDigit(scanner.peek()) || scanner.peek() === '.')) {
       scanner.advance();
     }
-    return Number(scanner.input.substring(start, scanner.pos));
+    const text = scanner.input.substring(start, scanner.pos);
+    const value = Number(text);
+    if (!Number.isFinite(value)) {
+      throw new A2uiExpressionError(`Invalid number literal: '${text}'`);
+    }
+    return value;
   }
 
   private isAlnum(c: string): boolean {
