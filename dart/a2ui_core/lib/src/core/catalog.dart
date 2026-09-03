@@ -205,7 +205,14 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         for (final Object? entry in raw)
           if (entry is Map)
             FunctionApi(
-              name: entry['name']! as String,
+              name:
+                  (entry['name'] is String &&
+                          (entry['name'] as String).isNotEmpty)
+                      ? entry['name'] as String
+                      : throw A2uiCatalogError(
+                        "Function definition missing 'name' string.",
+                        catalogId: catalogId,
+                      ),
               argumentSchema: Schema.fromMap(
                 _asSchemaMap(entry['parameters'] ?? const <String, Object?>{}),
               ),

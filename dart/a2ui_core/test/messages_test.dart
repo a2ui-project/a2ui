@@ -48,6 +48,20 @@ void main() {
       expect(cs.sendDataModel, false);
     });
 
+    test('parses createSurface with generic Map theme', () {
+      final msg = A2uiMessage.fromJson({
+        'version': 'v0.9',
+        'createSurface': {
+          'surfaceId': 's1',
+          'catalogId': 'cat1',
+          'theme': <dynamic, dynamic>{'primaryColor': '#FF0000'},
+        },
+      });
+
+      final cs = msg as CreateSurfaceMessage;
+      expect(cs.theme, {'primaryColor': '#FF0000'});
+    });
+
     test('parses updateComponents', () {
       final msg = A2uiMessage.fromJson({
         'version': 'v0.9',

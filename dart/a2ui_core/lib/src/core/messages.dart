@@ -57,7 +57,7 @@ abstract class A2uiMessage {
             version: version,
             surfaceId: _required<String>(body, 'surfaceId', key),
             catalogId: _required<String>(body, 'catalogId', key),
-            theme: _optional<Map<String, dynamic>>(body, 'theme', key),
+            theme: _optional<Map>(body, 'theme', key)?.cast<String, dynamic>(),
             sendDataModel: _optional<bool>(body, 'sendDataModel', key) ?? false,
           );
         case 'updateComponents':
