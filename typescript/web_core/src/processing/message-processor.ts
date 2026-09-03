@@ -35,6 +35,12 @@ import {
 
 import {ProtocolVersion, VersionAdapterResolver} from './adapters/base.js';
 import {RendererCapabilities} from '../v1_0/schema/index.js';
+import type {ServerToClientMessage as V08ServerToClientMessage} from '../v0_8/types/types.js';
+import type {
+  A2uiMessage as V09A2uiMessage,
+  A2uiMessageListWrapper as V09A2uiMessageListWrapper,
+} from '../v0_9/schema/server-to-client.js';
+import type {AgentToRendererMessage as V10AgentToRendererMessage} from '../v1_0/schema/agent-to-renderer.js';
 import {
   getComponentReferences,
   RELAXED_VALIDATION,
@@ -42,6 +48,25 @@ import {
   validateRecursionAndPaths,
   ValidationConfig,
 } from '../validating/integrity-checker.js';
+
+/**
+ * Union of individual message types supported by the MessageProcessor across protocol versions.
+ */
+export type ProcessableMessage =
+  | V08ServerToClientMessage
+  | V09A2uiMessage
+  | V10AgentToRendererMessage
+  | InternalOperation;
+
+/**
+ * Valid payload format for `MessageProcessor.processMessages`, which can be a single message,
+ * an array of messages, a message list wrapper, or an internal operation.
+ */
+export type ProcessableMessagePayload =
+  | ProcessableMessage
+  | readonly ProcessableMessage[]
+  | V09A2uiMessageListWrapper
+  | {readonly messages: readonly ProcessableMessage[]};
 
 export type {RendererCapabilities, ValidationConfig};
 export {STRICT_VALIDATION, RELAXED_VALIDATION};
@@ -326,7 +351,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    *
    * @param messages The messages or operations to process.
    */
-  processMessages(messages: unknown): void {
+  processMessages(messages: ProcessableMessagePayload): void {
     if (!messages || (Array.isArray(messages) && messages.length === 0)) return;
 
     if (this.validationConfig) {
@@ -362,7 +387,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
   }
 
-  private validateTargetVersion(messages: unknown): void {
+  private validateTargetVersion(messages: ProcessableMessagePayload): void {
     const expected = this.validationConfig?.targetVersion;
     if (!expected) return;
 

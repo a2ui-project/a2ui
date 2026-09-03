@@ -21,6 +21,7 @@ import {
   formatZodIssue,
   STRICT_VALIDATION,
   RELAXED_VALIDATION,
+  ProcessableMessagePayload,
 } from './message-processor.js';
 import {Catalog, ComponentApi, FunctionImplementation} from '../catalog/types.js';
 import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_components.js';
@@ -955,7 +956,7 @@ describe('MessageProcessor', () => {
       const proc = new MessageProcessor([basicCatalog], undefined, {
         validationConfig: STRICT_VALIDATION,
       });
-      const payload = [
+      const payload: ProcessableMessagePayload = [
         {
           version: 'v1.0',
           createSurface: {
@@ -992,7 +993,7 @@ describe('MessageProcessor', () => {
       const proc = new MessageProcessor([basicCatalog], undefined, {
         validationConfig: STRICT_VALIDATION,
       });
-      const payload = {
+      const payload: ProcessableMessagePayload = {
         version: 'v1.0',
         createSurface: {
           surfaceId: 'main',
@@ -1025,7 +1026,7 @@ describe('MessageProcessor', () => {
         validationConfig: RELAXED_VALIDATION,
       });
 
-      const orphanPayload = [
+      const orphanPayload: ProcessableMessagePayload = [
         {
           version: 'v1.0',
           createSurface: {
@@ -1070,7 +1071,7 @@ describe('MessageProcessor', () => {
       });
 
       // Split across multiple update messages in relaxed intermediate or batched update
-      const splitPayload = [
+      const splitPayload: ProcessableMessagePayload = [
         {
           version: 'v1.0',
           updateComponents: {
@@ -1103,7 +1104,7 @@ describe('MessageProcessor', () => {
         validationConfig: STRICT_VALIDATION,
       });
 
-      const v09Payload = [
+      const v09Payload: ProcessableMessagePayload = [
         {
           version: 'v0.9',
           createSurface: {
@@ -1139,8 +1140,8 @@ describe('MessageProcessor', () => {
         nested = {layer: nested};
       }
 
-      const recursivePayload = {
-        version: 'v1.0',
+      const recursivePayload: ProcessableMessagePayload = {
+        version: 'v0.9',
         createSurface: {
           surfaceId: 's_deep',
           catalogId: 'https://a2ui.org/catalog',
