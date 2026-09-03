@@ -27,12 +27,10 @@ import {
 } from '../reactivity/signals.js';
 
 /**
- * Represents a reactive connection to a specific path in the data model.
+ * Reactive subscription to a specific path in the data model.
  */
 export interface DataSubscription<T> extends BaseSubscription {
-  /**
-   * The current value at the subscribed path.
-   */
+  /** Current value at the subscribed path. */
   readonly value: T | undefined;
 }
 
@@ -48,8 +46,9 @@ function isNumeric(value: string): boolean {
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 /**
- * A standalone, observable data store representing the renderer-side state.
- * It handles JSON Pointer path resolution and subscription management.
+ * Observable data store representing the renderer-side state.
+ *
+ * Handles JSON Pointer path resolution, mutation, and reactive subscriptions.
  */
 export class DataModel {
   private data: Record<string, unknown> = {};
@@ -57,10 +56,9 @@ export class DataModel {
   private readonly subscriptions: Set<() => void> = new Set(); // To track direct subscriptions for dispose
 
   /**
-   * Creates a new data model.
+   * Initializes a new `DataModel` instance.
    *
-   * @param initialData The initial data for the model. Defaults to an empty
-   *     object.
+   * @param initialData Initial data for the model. Defaults to an empty object.
    */
   constructor(initialData: Record<string, unknown> = {}) {
     this.data = initialData;
@@ -204,6 +202,7 @@ export class DataModel {
    *
    * @param path The path to resolve.
    * @param contextPath The base path (optional).
+   * @returns The resolved absolute path.
    */
   static resolvePath(path: string, contextPath?: string): string {
     if (path.startsWith('/')) {
@@ -301,7 +300,7 @@ export class DataModel {
   }
 
   /**
-   * Clears all internal subscriptions.
+   * Clears all internal subscriptions and active signals.
    */
   dispose(): void {
     for (const dispose of this.subscriptions) {

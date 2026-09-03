@@ -16,31 +16,20 @@
 
 import {BaseVersionAdapter, ProtocolVersion} from './base.js';
 import {InternalComponentPayload, InternalOperation} from '../operations.js';
-import {A2uiValidationError} from '../../errors.js';
 import {A2uiMessageSchema} from '../../v0_9/schema/server-to-client.js';
 
+/**
+ * Protocol version adapter for specification v0.9 and v0.9.1.
+ */
 export class V0Point9Adapter extends BaseVersionAdapter {
   readonly version: ProtocolVersion = 'v0.9';
   protected readonly schema = A2uiMessageSchema;
 
-  protected extractOperationsFromObject(msgObj: Record<string, unknown>): InternalOperation[] {
-    const updateTypes = [
-      'createSurface',
-      'updateComponents',
-      'updateDataModel',
-      'deleteSurface',
-    ].filter(k => k in msgObj);
-    if (updateTypes.length === 0) {
-      throw new A2uiValidationError(
-        'A2UI Protocol message must contain exactly one update action: createSurface, updateComponents, updateDataModel, or deleteSurface.',
-      );
-    }
-    if (updateTypes.length > 1) {
-      throw new A2uiValidationError(
-        `Message contains multiple conflicting update actions: ${updateTypes.join(', ')}.`,
-      );
-    }
+  protected getNativeActionKeys(): string[] {
+    return ['createSurface', 'updateComponents', 'updateDataModel', 'deleteSurface'];
+  }
 
+  protected extractOperationsFromObject(msgObj: Record<string, unknown>): InternalOperation[] {
     const ops: InternalOperation[] = [];
     if ('createSurface' in msgObj) {
       const cs = msgObj.createSurface as Record<string, unknown>;

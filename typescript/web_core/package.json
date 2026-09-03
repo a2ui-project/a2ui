@@ -96,13 +96,47 @@
   },
   "wireit": {
     "generate-zod-schemas": {
-      "command": "node scripts/generate-zod-schemas.mjs",
+      "command": "node scripts/generate-standard-defs.mjs && node scripts/generate-zod-schemas.mjs && node scripts/generate-superset-common-types.mjs && node src/v0_9/scripts/generate-catalog.mjs && node src/v1_0/scripts/generate-catalog.mjs && prettier --write \"src/**/*.ts\"",
       "files": [
+        "../../specification/v0_8/json/*.json",
+        "../../specification/v0_9/catalogs/**/*.json",
+        "../../specification/v0_9/json/*.json",
         "../../specification/v1_0/json/*.json",
-        "scripts/generate-zod-schemas.mjs"
+        "../../specification/v1_0/catalogs/**/*.json",
+        "scripts/generate-standard-defs.mjs",
+        "scripts/generate-zod-schemas.mjs",
+        "scripts/generate-superset-common-types.mjs",
+        "scripts/generate-catalog-schemas.mjs",
+        "scripts/zod-generator-core.mjs",
+        "src/types/helpers.ts",
+        "src/types/child-ref-helpers.ts",
+        "src/v0_9/schema/helpers.ts",
+        "src/v1_0/schema/helpers.ts",
+        "src/v0_9/scripts/generate-schemas.mjs",
+        "src/v1_0/scripts/generate-schemas.mjs",
+        "src/v0_9/scripts/generate-catalog.mjs",
+        "src/v1_0/scripts/generate-catalog.mjs"
       ],
       "output": [
-        "src/v1_0/schema/*.ts"
+        "src/v0_8/standard_defs.ts",
+        "src/v0_9/standard_defs.ts",
+        "src/v1_0/standard_defs.ts",
+        "src/types/common-types.ts",
+        "src/v0_9/schema/common-types.ts",
+        "src/v0_9/schema/server-to-client.ts",
+        "src/v0_9/schema/client-to-server.ts",
+        "src/v0_9/schema/client-capabilities.ts",
+        "src/v0_9/schema/index.ts",
+        "src/v0_9/basic_catalog/components/basic_components.ts",
+        "src/v0_9/basic_catalog/functions/basic_functions_api.ts",
+        "src/v1_0/schema/common-types.ts",
+        "src/v1_0/schema/agent-to-renderer.ts",
+        "src/v1_0/schema/renderer-to-agent.ts",
+        "src/v1_0/schema/renderer-capabilities.ts",
+        "src/v1_0/schema/catalog-definition.ts",
+        "src/v1_0/schema/index.ts",
+        "src/v1_0/basic_catalog/components/basic_components.ts",
+        "src/v1_0/basic_catalog/functions/basic_functions_api.ts"
       ]
     },
     "copy-spec": {
@@ -184,7 +218,7 @@
     "eslint": "^10.4.1",
     "google-artifactregistry-auth": "^3.5.0",
     "gts": "^7.0.0",
-    "js-yaml": "^4.1.0",
+    "js-yaml": "^4.3.0",
     "json-schema-to-zod": "^2.8.1",
     "rxjs": "^7.8.2",
     "typescript": "5.9.3",

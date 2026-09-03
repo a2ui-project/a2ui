@@ -20,59 +20,106 @@ import {Signal} from '../reactivity/signals.js';
 import {A2uiExpressionError} from '../errors.js';
 import {loadCatalogFromSchema} from './schema_loader.js';
 import {generateCatalogSchema} from './schema_generator.js';
+import {
+  buildComponentRefMap,
+  type ComponentChildRefs,
+  type ComponentRefMap,
+} from './reference-map.js';
+import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
 
-export type A2uiReturnType =
-  | 'string'
-  | 'number'
-  | 'boolean'
-  | 'array'
-  | 'object'
-  | 'validationResult'
-  | 'any'
-  | 'void';
-
-export type InferA2uiReturnType<T extends A2uiReturnType> = T extends 'string'
-  ? string
-  : T extends 'number'
-    ? number
-    : T extends 'boolean'
-      ? boolean
-      : T extends 'array'
-        ? any[]
-        : T extends 'object'
-          ? Record<string, any>
-          : T extends 'validationResult'
-            ? {valid: boolean; message?: string}
-            : T extends 'void'
-              ? void
-              : any;
+export type {ComponentChildRefs};
 
 /**
- * A definition of a UI function's API.
+ * Registry mapping A2UI function return type identifiers to their TypeScript runtime types.
+ *
+ * Core defines version-agnostic primitives. Specific protocol versions (such as v1.0)
+ * or custom catalogs can augment this interface using TypeScript module declaration merging.
+ */
+export interface A2uiReturnTypeMap {
+  string: string;
+  number: number;
+  boolean: boolean;
+  array: unknown[];
+  object: Record<string, unknown>;
+  any: unknown;
+  void: void;
+}
+
+/**
+ * Union of valid A2UI function return type identifiers.
+ */
+export type A2uiReturnType = keyof A2uiReturnTypeMap | (string & {});
+
+/**
+ * Infers the TypeScript runtime return type for a given A2UI return type identifier.
+ */
+export type InferA2uiReturnType<T extends string> = T extends keyof A2uiReturnTypeMap
+  ? A2uiReturnTypeMap[T]
+  : unknown;
+
+/**
+ * Specification and schema for an A2UI function API.
  */
 export interface FunctionApi {
+  /** Name of the function as it appears in A2UI JSON payloads. */
   readonly name: string;
+  /** Return type identifier for the function. */
   readonly returnType: A2uiReturnType;
+  /** Zod schema validating the function's input arguments. */
   readonly schema: z.ZodTypeAny;
+  /** Allowed caller contexts for the function. */
   readonly allowedCallers?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
+  /** Whether the function requires explicit user interaction before execution. */
   readonly requiresUserActivation?: boolean;
+  /** Human-readable description of the function's purpose. */
   readonly description?: string;
 }
 
 /**
- * A function implementation that can be registered with the evaluator or basic catalog.
+ * Executable function implementation registered with an evaluator or catalog.
  */
 export interface FunctionImplementation extends FunctionApi {
+  /**
+   * Executes the function logic with the provided arguments and context.
+   *
+   * @param args Validated input arguments for the function.
+   * @param context Data context for expression and state resolution.
+   * @param abortSignal Optional abort signal to cancel async execution.
+   * @returns The resolved function output value or reactive Signal.
+   */
   execute(
-    args: Record<string, any>,
+    args: Record<string, unknown>,
     context: DataContext,
     abortSignal?: AbortSignal,
   ): unknown | Signal<unknown>;
 }
 
+/**
+ * Recursively unwraps dynamic wire AST nodes into their evaluated runtime values.
+ */
+export type ResolvedDynamic<T> = T extends {path: string} | {call: string}
+  ? never
+  : T extends (infer U)[]
+    ? ResolvedDynamic<U>[]
+    : T extends object
+      ? {[K in keyof T]: ResolvedDynamic<T[K]>}
+      : T;
+
+/**
+ * Extracts and resolves execution-time argument types from a function's Zod validation schema.
+ */
+export type ResolvedFunctionArgs<Schema extends z.ZodTypeAny> = ResolvedDynamic<z.infer<Schema>>;
+
+/**
+ * Creates a typed FunctionImplementation from an API definition and an execution callback.
+ *
+ * @param api The function API definition containing name, schema, and metadata.
+ * @param execute The execution handler callback.
+ * @returns A complete FunctionImplementation object.
+ */
 export function createFunctionImplementation<
-  Schema extends z.ZodTypeAny,
-  TReturn extends A2uiReturnType,
+  Schema extends z.ZodTypeAny = z.ZodTypeAny,
+  TReturn extends A2uiReturnType = A2uiReturnType,
 >(
   api: {
     name: string;
@@ -80,9 +127,10 @@ export function createFunctionImplementation<
     schema: Schema;
     allowedCallers?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
     requiresUserActivation?: boolean;
+    description?: string;
   },
   execute: (
-    args: z.infer<Schema>,
+    args: ResolvedFunctionArgs<Schema>,
     context: DataContext,
     abortSignal?: AbortSignal,
   ) => InferA2uiReturnType<TReturn> | Signal<InferA2uiReturnType<TReturn>>,
@@ -93,29 +141,31 @@ export function createFunctionImplementation<
     schema: api.schema,
     allowedCallers: api.allowedCallers,
     requiresUserActivation: api.requiresUserActivation,
-    execute: execute as (args: Record<string, any>, ctx: DataContext, ab?: AbortSignal) => unknown,
+    description: api.description,
+    execute: execute as (
+      args: Record<string, unknown>,
+      ctx: DataContext,
+      ab?: AbortSignal,
+    ) => unknown,
   };
 }
 
 import {FunctionInvoker} from './function_invoker.js';
-import {buildComponentRefMap, ComponentRefMap} from './reference-map.js';
 
 /**
- * A definition of a UI component's API.
- * This interface defines the contract for a component's capabilities and properties,
- * independent of any specific rendering implementation.
+ * Contract for a component's capabilities and properties, independent of rendering implementation.
  *
- * @template Schema the Zod schema type for the component's properties.
+ * @template Schema The Zod schema type for the component's properties.
  */
 export interface ComponentApi<Schema extends z.ZodTypeAny = z.ZodTypeAny> {
-  /** The name of the component as it appears in the A2UI JSON (e.g., 'Button'). */
+  /** Name of the component as it appears in A2UI JSON (e.g., 'Button'). */
   name: string;
 
   /**
-   * The Zod schema describing the **properties** of this component.
+   * Zod schema describing the properties of this component.
    *
-   * - MUST include catalog-specific common properties (e.g. 'weight', 'accessibility').
-   * - MUST NOT include 'component' or 'id' as those are handled by the framework/envelope.
+   * Must include catalog-specific common properties (e.g. 'weight', 'accessibility')
+   * and must omit envelope fields like 'component' or 'id'.
    */
   readonly schema: Schema;
 
@@ -129,15 +179,16 @@ export interface ComponentApi<Schema extends z.ZodTypeAny = z.ZodTypeAny> {
 /**
  * Infers the schema type from a ComponentApi.
  *
- * This type uses `z.infer` on the `schema` property of a `ComponentApi` object.
- * It is used to access the schema props of a component with type safety.
+ * Uses `z.infer` on the `schema` property of a `ComponentApi` object to access
+ * component properties with type safety.
  */
 export type InferredComponentApiSchemaType<Api extends ComponentApi> = z.infer<Api['schema']>;
 
 /**
- * Interface for Catalog to prevent property renaming in 1P (Closure Compiler).
+ * Public structural interface for `Catalog`.
  *
- * This must declare all publicly accessed properties of Catalog.
+ * Declares all publicly accessed properties of `Catalog` to prevent property
+ * renaming during compilation.
  */
 export declare interface CatalogInterface<
   T extends ComponentApi = ComponentApi,
@@ -150,7 +201,7 @@ export declare interface CatalogInterface<
   /** Map of registered function definitions. */
   readonly functions: ReadonlyMap<string, F>;
   /** Schema for theme parameters used by this catalog. */
-  readonly themeSchema?: z.ZodObject<any>;
+  readonly themeSchema?: z.ZodObject<z.ZodRawShape>;
   /** System instructions or usage guidelines for this catalog. */
   readonly instructions?: string;
   /** Invoker callback that delegates to this catalog's registered functions. */
@@ -162,7 +213,7 @@ export declare interface CatalogInterface<
 }
 
 /**
- * A collection of available components and functions.
+ * Collection of available components and functions.
  *
  * The `F` parameter distinguishes catalogs that carry executable function
  * implementations (`FunctionImplementation`, the default and the only kind a
@@ -176,11 +227,13 @@ export class Catalog<
   T extends ComponentApi,
   F extends FunctionApi = FunctionImplementation,
 > implements CatalogInterface<T, F> {
+  /** Unique identifier for the catalog. */
   readonly id: string;
 
   /**
-   * A map of available components.
-   * This is readonly to encourage immutable extension patterns.
+   * Map of available components keyed by component name.
+   *
+   * Readonly to encourage immutable extension patterns.
    */
   readonly components: ReadonlyMap<string, T>;
 
@@ -190,9 +243,9 @@ export class Catalog<
   readonly functions: ReadonlyMap<string, F>;
 
   /**
-   * The schema for theme parameters used by this catalog.
+   * Schema for theme parameters used by this catalog.
    */
-  readonly themeSchema?: z.ZodObject<any>;
+  readonly themeSchema?: z.ZodObject<z.ZodRawShape>;
 
   /**
    * Optional system instructions or usage guidelines for this catalog.
@@ -200,8 +253,7 @@ export class Catalog<
   readonly instructions?: string;
 
   /**
-   * A ready-to-use FunctionInvoker callback that delegates to this catalog's functions.
-   * Can be passed directly to a DataContext.
+   * Function invoker callback that delegates to this catalog's registered functions.
    */
   readonly invoker: FunctionInvoker;
 
@@ -224,7 +276,7 @@ export class Catalog<
    */
   get componentRefMap(): ComponentRefMap {
     if (!this._componentRefMap) {
-      this._componentRefMap = buildComponentRefMap(this);
+      this._componentRefMap = buildComponentRefMap(this, V09_CHILD_REF_OPTIONS);
     }
     return this._componentRefMap;
   }
@@ -284,9 +336,10 @@ export class Catalog<
   }
 
   /**
-   * Constructs a fully-typed schema-only Catalog directly from raw A2UI catalog schema.
+   * Constructs a schema-only Catalog directly from a raw A2UI catalog schema.
    *
    * @param catalogSchema Raw catalog schema or client capabilities payload object.
+   * @returns A new Catalog populated with component and function schemas.
    */
   static fromSchema(catalogSchema: Record<string, any>): Catalog<ComponentApi, FunctionApi> {
     return loadCatalogFromSchema(catalogSchema);

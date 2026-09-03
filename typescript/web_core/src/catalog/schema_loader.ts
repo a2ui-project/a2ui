@@ -49,24 +49,24 @@ const COMMON_TYPE_SCHEMAS: Record<string, z.ZodTypeAny> = {
  * Follows RFC 6901 pointer unescaping (~1 -> /, ~0 -> ~).
  */
 function resolveJsonPointer(
-  rootDoc: Record<string, any>,
+  rootDoc: Record<string, unknown>,
   pointer: string,
-): Record<string, any> | undefined {
+): Record<string, unknown> | undefined {
   if (!pointer.startsWith('#/')) return undefined;
   const segments = pointer
     .slice(2)
     .split('/')
     .map(s => s.replace(/~1/g, '/').replace(/~0/g, '~'));
 
-  let curr: any = rootDoc;
+  let curr: unknown = rootDoc;
   for (const seg of segments) {
     if (curr && typeof curr === 'object' && seg in curr) {
-      curr = curr[seg];
+      curr = (curr as Record<string, unknown>)[seg];
     } else {
       return undefined;
     }
   }
-  return typeof curr === 'object' && curr !== null ? curr : undefined;
+  return typeof curr === 'object' && curr !== null ? (curr as Record<string, unknown>) : undefined;
 }
 
 function resolveProtocolRef(ref: string): z.ZodTypeAny | undefined {
@@ -94,8 +94,8 @@ function convertEnumToZod(values: unknown[]): z.ZodTypeAny {
 }
 
 function convertPropertyToZod(
-  propSchema: Record<string, any>,
-  rootDoc?: Record<string, any>,
+  propSchema: Record<string, unknown>,
+  rootDoc?: Record<string, unknown>,
   visitedPointers = new Set<string>(),
 ): z.ZodTypeAny {
   if (!propSchema || typeof propSchema !== 'object') {
@@ -108,9 +108,10 @@ function convertPropertyToZod(
     const resolvedProtocol = resolveProtocolRef(ref);
     if (resolvedProtocol) {
       const defName = ref.split(/#\/(?:\$defs|definitions)\//)[1];
-      const desc = propSchema.description
-        ? `REF:common_types.json#/$defs/${defName}|${propSchema.description}`
-        : resolvedProtocol.description;
+      const desc =
+        typeof propSchema.description === 'string'
+          ? `REF:common_types.json#/$defs/${defName}|${propSchema.description}`
+          : resolvedProtocol.description;
       return desc ? resolvedProtocol.describe(desc) : resolvedProtocol;
     }
 
@@ -120,7 +121,7 @@ function convertPropertyToZod(
       const localTarget = resolveJsonPointer(rootDoc, ref);
       if (localTarget) {
         let zodType = convertPropertyToZod(localTarget, rootDoc, visitedPointers);
-        if (propSchema.description) {
+        if (typeof propSchema.description === 'string') {
           zodType = zodType.describe(propSchema.description);
         }
         return zodType;
@@ -128,25 +129,45 @@ function convertPropertyToZod(
     }
   }
 
-  // oneOf / anyOf inspection (e.g. Icon.name which has enum + DataBinding)
+  // oneOf / anyOf inspection (e.g. Icon.name which has enum + DataBinding, or arbitrary type unions)
   if (Array.isArray(propSchema.oneOf) || Array.isArray(propSchema.anyOf)) {
-    const branches: Record<string, any>[] = (propSchema.oneOf || propSchema.anyOf) as any[];
+    const rawBranches = (propSchema.oneOf || propSchema.anyOf) as unknown[];
+    const branches = rawBranches.filter(
+      (b): b is Record<string, unknown> => typeof b === 'object' && b !== null,
+    );
     const enumBranch = branches.find(b => Array.isArray(b.enum));
     const hasBinding = branches.some(
       b => typeof b.$ref === 'string' && b.$ref.includes('DataBinding'),
     );
-    if (enumBranch) {
+    if (enumBranch && Array.isArray(enumBranch.enum)) {
       let enumZod = convertEnumToZod(enumBranch.enum);
       if (propSchema.default !== undefined) {
         enumZod = enumZod.default(propSchema.default);
       }
       const desc =
-        propSchema.description ||
+        (typeof propSchema.description === 'string' ? propSchema.description : undefined) ||
         (hasBinding ? 'REF:common_types.json#/$defs/DynamicString' : undefined);
       if (desc) {
         enumZod = enumZod.describe(desc);
       }
       return enumZod;
+    }
+
+    if (branches.length > 0) {
+      const zodBranches = branches.map(b => convertPropertyToZod(b, rootDoc, visitedPointers));
+      let unionZod: z.ZodTypeAny;
+      if (zodBranches.length === 1) {
+        unionZod = zodBranches[0];
+      } else {
+        unionZod = z.union([zodBranches[0], zodBranches[1], ...zodBranches.slice(2)]);
+      }
+      if (propSchema.default !== undefined) {
+        unionZod = unionZod.default(propSchema.default);
+      }
+      if (typeof propSchema.description === 'string') {
+        unionZod = unionZod.describe(propSchema.description);
+      }
+      return unionZod;
     }
   }
 
@@ -156,7 +177,7 @@ function convertPropertyToZod(
     if (propSchema.default !== undefined) {
       enumZod = enumZod.default(propSchema.default);
     }
-    if (propSchema.description) {
+    if (typeof propSchema.description === 'string') {
       enumZod = enumZod.describe(propSchema.description);
     }
     return enumZod;
@@ -164,65 +185,77 @@ function convertPropertyToZod(
 
   // Arrays
   if (propSchema.type === 'array') {
-    const itemSchema = propSchema.items
-      ? convertPropertyToZod(propSchema.items, rootDoc, visitedPointers)
-      : z.any();
-    let arr = z.array(itemSchema);
-    if (propSchema.description) arr = arr.describe(propSchema.description) as any;
+    const itemSchema =
+      propSchema.items && typeof propSchema.items === 'object'
+        ? convertPropertyToZod(
+            propSchema.items as Record<string, unknown>,
+            rootDoc,
+            visitedPointers,
+          )
+        : z.unknown();
+    let arr: z.ZodTypeAny = z.array(itemSchema);
+    if (typeof propSchema.description === 'string') {
+      arr = arr.describe(propSchema.description);
+    }
     return arr;
   }
 
   // Primitives
   switch (propSchema.type) {
     case 'string': {
-      let s = z.string();
-      if (propSchema.default !== undefined) s = s.default(propSchema.default) as any;
-      if (propSchema.description) s = s.describe(propSchema.description) as any;
+      let s: z.ZodTypeAny = z.string();
+      if (propSchema.default !== undefined) s = s.default(propSchema.default);
+      if (typeof propSchema.description === 'string') s = s.describe(propSchema.description);
       return s;
     }
     case 'integer': {
       let n: z.ZodTypeAny = z.number().int();
-      if (propSchema.default !== undefined) n = n.default(propSchema.default) as any;
-      if (propSchema.description) n = n.describe(propSchema.description) as any;
+      if (propSchema.default !== undefined) n = n.default(propSchema.default);
+      if (typeof propSchema.description === 'string') n = n.describe(propSchema.description);
       return n;
     }
     case 'number': {
       let n: z.ZodTypeAny = z.number();
-      if (propSchema.default !== undefined) n = n.default(propSchema.default) as any;
-      if (propSchema.description) n = n.describe(propSchema.description) as any;
+      if (propSchema.default !== undefined) n = n.default(propSchema.default);
+      if (typeof propSchema.description === 'string') n = n.describe(propSchema.description);
       return n;
     }
     case 'boolean': {
-      let b = z.boolean();
-      if (propSchema.default !== undefined) b = b.default(propSchema.default) as any;
-      if (propSchema.description) b = b.describe(propSchema.description) as any;
+      let b: z.ZodTypeAny = z.boolean();
+      if (propSchema.default !== undefined) b = b.default(propSchema.default);
+      if (typeof propSchema.description === 'string') b = b.describe(propSchema.description);
       return b;
     }
     case 'object': {
-      let obj = z.record(z.any());
-      if (propSchema.description) obj = obj.describe(propSchema.description) as any;
+      let obj: z.ZodTypeAny = z.record(z.unknown());
+      if (typeof propSchema.description === 'string') obj = obj.describe(propSchema.description);
       return obj;
     }
     default: {
-      let anyZ = z.any();
-      if (propSchema.description) anyZ = anyZ.describe(propSchema.description);
-      return anyZ;
+      let unk: z.ZodTypeAny = z.unknown();
+      if (typeof propSchema.description === 'string') unk = unk.describe(propSchema.description);
+      return unk;
     }
   }
 }
 
 function convertPropertiesToShape(
-  properties: Record<string, any>,
+  properties: Record<string, unknown>,
   requiredSet: Set<string>,
   omitEnvelopeFields = false,
-  rootDoc?: Record<string, any>,
+  rootDoc?: Record<string, unknown>,
 ): Record<string, z.ZodTypeAny> {
   const shape: Record<string, z.ZodTypeAny> = {};
   for (const [propName, propSchema] of Object.entries(properties)) {
     if (omitEnvelopeFields && (propName === 'component' || propName === 'id')) {
       continue;
     }
-    const zodField = convertPropertyToZod(propSchema as any, rootDoc);
+    const zodField = convertPropertyToZod(
+      typeof propSchema === 'object' && propSchema !== null
+        ? (propSchema as Record<string, unknown>)
+        : {},
+      rootDoc,
+    );
     shape[propName] = requiredSet.has(propName) ? zodField : zodField.optional();
   }
   return shape;
@@ -233,11 +266,11 @@ function convertPropertiesToShape(
  * resolving local document $defs and canonical protocol ComponentCommon references.
  */
 function collectComponentSubSchemas(
-  schema: Record<string, any>,
-  rootDoc: Record<string, any>,
+  schema: Record<string, unknown>,
+  rootDoc: Record<string, unknown>,
   visitedPointers = new Set<string>(),
-): Record<string, any>[] {
-  const result: Record<string, any>[] = [];
+): Record<string, unknown>[] {
+  const result: Record<string, unknown>[] = [];
   if (!schema || typeof schema !== 'object') return result;
 
   if (Array.isArray(schema.allOf)) {
@@ -276,23 +309,25 @@ function collectComponentSubSchemas(
 }
 
 function convertComponentJsonSchemaToZod(
-  rawSchema: Record<string, any>,
-  rootDoc: Record<string, any>,
+  rawSchema: Record<string, unknown>,
+  rootDoc: Record<string, unknown>,
   omitEnvelopeFields = true,
-): z.ZodObject<any> {
+): z.ZodObject<z.ZodRawShape> {
   const shape: Record<string, z.ZodTypeAny> = {};
   const schemasToMerge = collectComponentSubSchemas(rawSchema, rootDoc);
 
   const requiredSet = new Set<string>();
   for (const s of schemasToMerge) {
     if (Array.isArray(s.required)) {
-      s.required.forEach((r: string) => requiredSet.add(r));
+      s.required.forEach((r: unknown) => {
+        if (typeof r === 'string') requiredSet.add(r);
+      });
     }
   }
 
   for (const s of schemasToMerge) {
     const propShape = convertPropertiesToShape(
-      s.properties || {},
+      (s.properties as Record<string, unknown>) || {},
       requiredSet,
       omitEnvelopeFields,
       rootDoc,
@@ -301,24 +336,43 @@ function convertComponentJsonSchemaToZod(
   }
 
   const obj = z.object(shape);
-  return rawSchema.additionalProperties === true ||
-    (typeof rawSchema.additionalProperties === 'object' && rawSchema.additionalProperties !== null)
-    ? obj.passthrough()
-    : obj.strict();
+  const allowExtra =
+    rawSchema.unevaluatedProperties === true ||
+    (typeof rawSchema.unevaluatedProperties === 'object' &&
+      rawSchema.unevaluatedProperties !== null) ||
+    rawSchema.additionalProperties === true ||
+    (typeof rawSchema.additionalProperties === 'object' && rawSchema.additionalProperties !== null);
+  return allowExtra ? obj.passthrough() : obj.strict();
 }
 
 function convertFunctionArgsJsonSchemaToZod(
-  rawSchema: Record<string, any>,
-  rootDoc?: Record<string, any>,
-): z.ZodObject<any> {
-  const requiredSet = new Set<string>(Array.isArray(rawSchema.required) ? rawSchema.required : []);
-  const shape = convertPropertiesToShape(rawSchema.properties || {}, requiredSet, false, rootDoc);
-  return z.object(shape).strict();
+  rawSchema: Record<string, unknown>,
+  rootDoc?: Record<string, unknown>,
+): z.ZodObject<z.ZodRawShape> {
+  const requiredSet = new Set<string>(
+    Array.isArray(rawSchema.required)
+      ? rawSchema.required.filter((r): r is string => typeof r === 'string')
+      : [],
+  );
+  const shape = convertPropertiesToShape(
+    (rawSchema.properties as Record<string, unknown>) || {},
+    requiredSet,
+    false,
+    rootDoc,
+  );
+  const obj = z.object(shape);
+  const allowExtra =
+    rawSchema.unevaluatedProperties === true ||
+    (typeof rawSchema.unevaluatedProperties === 'object' &&
+      rawSchema.unevaluatedProperties !== null) ||
+    rawSchema.additionalProperties === true ||
+    (typeof rawSchema.additionalProperties === 'object' && rawSchema.additionalProperties !== null);
+  return allowExtra ? obj.passthrough() : obj.strict();
 }
 
 function parseFunctionDefinitions(
-  rawFunctions: any,
-  rootDoc?: Record<string, any>,
+  rawFunctions: unknown,
+  rootDoc?: Record<string, unknown>,
   permittedNames?: Set<string>,
 ): FunctionApi[] {
   const result: FunctionApi[] = [];
@@ -326,18 +380,18 @@ function parseFunctionDefinitions(
 
   if (Array.isArray(rawFunctions)) {
     for (const fn of rawFunctions) {
-      if (fn && typeof fn.name === 'string') {
+      if (fn && typeof fn === 'object' && typeof fn.name === 'string') {
         if (permittedNames && !permittedNames.has(fn.name)) {
           continue;
         }
         const paramSchema =
           fn.parameters && typeof fn.parameters === 'object'
-            ? convertFunctionArgsJsonSchemaToZod(fn.parameters, rootDoc)
-            : z.record(z.any());
+            ? convertFunctionArgsJsonSchemaToZod(fn.parameters as Record<string, unknown>, rootDoc)
+            : z.record(z.unknown());
         result.push({
           name: fn.name,
-          description: fn.description,
-          returnType: fn.returnType ?? 'any',
+          description: typeof fn.description === 'string' ? fn.description : undefined,
+          returnType: (typeof fn.returnType === 'string' ? fn.returnType : 'any') as any,
           allowedCallers: fn.allowedCallers,
           requiresUserActivation: fn.requiresUserActivation,
           schema: paramSchema,
@@ -347,24 +401,36 @@ function parseFunctionDefinitions(
     return result;
   }
 
-  if (typeof rawFunctions === 'object') {
+  if (typeof rawFunctions === 'object' && rawFunctions !== null) {
     for (const [name, defn] of Object.entries(rawFunctions)) {
       if (permittedNames && !permittedNames.has(name)) {
         continue;
       }
-      const d = defn as any;
-      const argsSchema = d.properties?.args ?? d.args ?? d.parameters;
+      if (!defn || typeof defn !== 'object') continue;
+      const d = defn as Record<string, unknown>;
+      const props = d.properties as Record<string, unknown> | undefined;
+      const argsSchema = props?.args ?? d.args ?? d.parameters;
       const paramSchema =
         argsSchema && typeof argsSchema === 'object'
-          ? convertFunctionArgsJsonSchemaToZod(argsSchema, rootDoc)
-          : z.record(z.any());
+          ? convertFunctionArgsJsonSchemaToZod(argsSchema as Record<string, unknown>, rootDoc)
+          : z.record(z.unknown());
+      const returnType =
+        (typeof d.returnType === 'string' ? d.returnType : undefined) ??
+        (typeof (props?.returnType as Record<string, unknown> | undefined)?.const === 'string'
+          ? (props?.returnType as Record<string, unknown>).const
+          : 'any');
+      const allowedCallers =
+        d.allowedCallers ?? (props?.allowedCallers as Record<string, unknown> | undefined)?.const;
+      const requiresUserActivation =
+        d.requiresUserActivation ??
+        (props?.requiresUserActivation as Record<string, unknown> | undefined)?.const;
+
       result.push({
         name,
-        description: d.description,
-        returnType: d.returnType ?? d.properties?.returnType?.const ?? 'any',
-        allowedCallers: d.allowedCallers ?? d.properties?.allowedCallers?.const,
-        requiresUserActivation:
-          d.requiresUserActivation ?? d.properties?.requiresUserActivation?.const,
+        description: typeof d.description === 'string' ? d.description : undefined,
+        returnType: returnType as any,
+        allowedCallers: allowedCallers as any,
+        requiresUserActivation: requiresUserActivation as boolean | undefined,
         schema: paramSchema,
       });
     }
@@ -396,9 +462,10 @@ function extractPermittedNames(oneOf: unknown, prefix: string): Set<string> | un
  *
  * @param catalogSchema Raw catalog schema or capabilities definition object.
  * @returns Fully-typed Catalog instance configured with components, functions, and metadata.
+ * @throws {Error} If the catalog ID is missing or not a string.
  */
 export function loadCatalogFromSchema(
-  catalogSchema: Record<string, any>,
+  catalogSchema: Record<string, unknown>,
 ): Catalog<ComponentApi, FunctionApi> {
   const catalogId = catalogSchema.catalogId ?? catalogSchema.$id ?? catalogSchema.id;
   if (!catalogId || typeof catalogId !== 'string') {
@@ -406,16 +473,15 @@ export function loadCatalogFromSchema(
   }
 
   // Filter permitted components via anyComponent.oneOf if declared
-  const permittedNames = extractPermittedNames(
-    catalogSchema.$defs?.anyComponent?.oneOf,
-    '#/components/',
-  );
+  const defs = catalogSchema.$defs as Record<string, unknown> | undefined;
+  const anyComp = defs?.anyComponent as Record<string, unknown> | undefined;
+  const permittedNames = extractPermittedNames(anyComp?.oneOf, '#/components/');
 
   const components: ComponentApi[] = [];
-  const componentsMap = catalogSchema.components ?? {};
+  const componentsMap = (catalogSchema.components as Record<string, unknown>) ?? {};
   for (const [name, rawCompSchema] of Object.entries(componentsMap)) {
     if (!permittedNames || permittedNames.has(name)) {
-      const rawComp = rawCompSchema as Record<string, any>;
+      const rawComp = (rawCompSchema as Record<string, unknown>) || {};
       const zodSchema = convertComponentJsonSchemaToZod(rawComp, catalogSchema);
       components.push({
         name,
@@ -431,10 +497,8 @@ export function loadCatalogFromSchema(
   }
 
   // Filter permitted functions via anyFunction.oneOf if declared
-  const permittedFunctionNames = extractPermittedNames(
-    catalogSchema.$defs?.anyFunction?.oneOf,
-    '#/functions/',
-  );
+  const anyFunc = defs?.anyFunction as Record<string, unknown> | undefined;
+  const permittedFunctionNames = extractPermittedNames(anyFunc?.oneOf, '#/functions/');
 
   const functions = parseFunctionDefinitions(
     catalogSchema.functions,
@@ -442,10 +506,13 @@ export function loadCatalogFromSchema(
     permittedFunctionNames,
   );
 
-  const rawTheme = catalogSchema.theme ?? catalogSchema.themeSchema ?? catalogSchema.$defs?.theme;
+  const rawTheme =
+    catalogSchema.theme ??
+    catalogSchema.themeSchema ??
+    (defs?.theme as Record<string, unknown> | undefined);
   const themeSchema =
     rawTheme && typeof rawTheme === 'object'
-      ? convertComponentJsonSchemaToZod(rawTheme, catalogSchema, false)
+      ? convertComponentJsonSchemaToZod(rawTheme as Record<string, unknown>, catalogSchema, false)
       : undefined;
   const instructions =
     typeof catalogSchema.instructions === 'string' ? catalogSchema.instructions : undefined;

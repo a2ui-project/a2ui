@@ -18,19 +18,24 @@ import {DynamicValue} from '../types/common-types.js';
 import {A2uiExpressionError} from '../errors.js';
 
 /**
- * A parser for A2UI expressions, supporting string interpolation and functional calls.
+ * Parses A2UI expressions, supporting string interpolation and function calls.
  *
- * The parser converts strings with `${...}` placeholders into arrays of `DynamicValue`s.
- * It supports literals (strings, numbers, booleans), path-based data bindings, and
+ * Converts strings with `${...}` placeholders into arrays of `DynamicValue` objects.
+ * Supports literals (strings, numbers, booleans), path-based data bindings, and
  * nested function calls with named arguments.
  */
 export class ExpressionParser {
-  /** The maximum allowed recursion depth for nested expressions to prevent stack overflows. */
+  /** Maximum allowed recursion depth for nested expressions to prevent stack overflows. */
   private static readonly MAX_DEPTH = 10;
 
   /**
    * Parses an input string into an array of DynamicValues.
-   * If the input contains no interpolation, it returns the raw string as a single literal.
+   *
+   * If the input contains no interpolation placeholders, returns the raw string as a single literal.
+   *
+   * @param input Raw string to parse.
+   * @param depth Current recursion depth.
+   * @returns An array of parsed dynamic values and literals.
    */
   public parse(input: string, depth = 0): DynamicValue[] {
     if (depth > ExpressionParser.MAX_DEPTH) {
@@ -179,11 +184,11 @@ export class ExpressionParser {
     funcName: string,
     scanner: Scanner,
     depth: number,
-  ): {call: string; args: Record<string, any>; returnType: 'any'} {
+  ): {call: string; args: Record<string, unknown>; returnType: 'any'} {
     scanner.match('(');
     scanner.skipWhitespace();
 
-    const args: Record<string, any> = {};
+    const args: Record<string, unknown> = {};
 
     while (!scanner.isAtEnd() && scanner.peek() !== ')') {
       const argName = this.scanIdentifier(scanner);

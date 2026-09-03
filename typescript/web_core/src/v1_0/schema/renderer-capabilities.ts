@@ -15,31 +15,23 @@
  */
 
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
-// Generated from specification/v1_0/json/ via scripts/generate-zod-schemas.mjs
+// Generated from specification/v1.0/json/ via src/v1_0/scripts/generate-schemas.mjs
 import {z} from 'zod';
 
 /** Zod schema validating the strict v1.0 protocol renderer capabilities payload. */
 export const V10RendererCapabilitiesSchema = z
   .object({
-    supportedCatalogIds: z
+    'supportedCatalogIds': z
       .array(z.string())
       .describe(
-        'An array of string identifiers for each of the component and function catalogs supported by the renderer.',
+        'An array of string identifiers for each of the component and function catalogs supported by the renderer. Multiple catalogs can be mixed in a single surface.',
       ),
-    inlineCatalogs: z
+    'inlineCatalogs': z
       .array(z.record(z.string(), z.any()))
-      .describe('An array of inline catalog definitions.')
+      .describe(
+        "An array of inline catalog definitions, which can contain both components and functions. This should only be provided if the agent declares 'acceptsInlineCatalogs: true' in its capabilities.",
+      )
       .optional(),
   })
-  .strict();
+  .describe('The capabilities structure for version 1.0 of the A2UI protocol.');
 export type V10RendererCapabilities = z.infer<typeof V10RendererCapabilitiesSchema>;
-
-/** Zod schema validating multi-version renderer capabilities maps across protocol versions. */
-export const RendererCapabilitiesSchema = z
-  .object({
-    'v1.0': V10RendererCapabilitiesSchema.optional(),
-    supportedCatalogIds: z.array(z.string()).optional(),
-    inlineCatalogs: z.array(z.record(z.string(), z.any())).optional(),
-  })
-  .catchall(z.any());
-export type RendererCapabilities = z.infer<typeof RendererCapabilitiesSchema>;

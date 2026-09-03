@@ -15,78 +15,39 @@
  */
 
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
-// Generated from specification/v1_0/json/ via scripts/generate-zod-schemas.mjs
+// Generated from specification/v1.0/json/ via src/v1_0/scripts/generate-schemas.mjs
 import {z} from 'zod';
 import {ExtensionsSchema} from './common-types.js';
 
 export const FunctionCallValidationSchemaSchema = z
   .record(z.string(), z.any())
   .and(
-    z.any().superRefine((x, ctx) => {
-      const schemas = [
-        z.object({
-          'type': z.literal('object'),
-          'description': z.string().optional(),
-          'properties': z
-            .object({
-              'call': z.object({'const': z.string()}),
-              'catalogId': z
-                .record(z.string(), z.any())
-                .describe('Optional catalog ID override for this function call.')
-                .optional(),
-              'args': z
-                .record(z.string(), z.any())
-                .describe(
-                  'A JSON Schema describing the expected arguments (args) for this function.',
-                )
-                .optional(),
-            })
-            .strict(),
-          'required': z.array(z.string()),
-          'unevaluatedProperties': z.boolean().optional(),
-          'additionalProperties': z.boolean().optional(),
-        }),
-        z.object({
-          'type': z.literal('object'),
-          'description': z.string().optional(),
-          'allOf': z.array(z.record(z.string(), z.any())).min(1),
-          'unevaluatedProperties': z.boolean().optional(),
-          'additionalProperties': z.boolean().optional(),
-        }),
-      ];
-      const {errors, failed} = schemas.reduce<{
-        errors: z.ZodIssue[];
-        failed: number;
-      }>(
-        ({errors, failed}, schema) =>
-          (result =>
-            result.error
-              ? {
-                  errors: [...errors, ...result.error.issues],
-                  failed: failed + 1,
-                }
-              : {errors, failed})(schema.safeParse(x)),
-        {errors: [], failed: 0},
-      );
-      const passed = schemas.length - failed;
-      if (passed !== 1) {
-        ctx.addIssue(
-          errors.length
-            ? {
-                path: [],
-                code: 'invalid_union',
-                errors: [errors],
-                message: 'Invalid input: Should pass single schema. Passed ' + passed,
-              }
-            : ({
-                path: [],
-                code: 'custom',
-                errors: [errors],
-                message: 'Invalid input: Should pass single schema. Passed ' + passed,
-              } as any),
-        );
-      }
-    }),
+    z.union([
+      z.object({
+        'type': z.literal('object'),
+        'description': z.string().optional(),
+        'properties': z
+          .object({
+            'call': z.object({'const': z.string()}),
+            'catalogId': z
+              .record(z.string(), z.any())
+              .describe('Optional catalog ID override for this function call.')
+              .optional(),
+            'args': z.record(z.string(), z.any()).optional(),
+          })
+          .strict(),
+        'required': z.array(z.string()),
+        'unevaluatedProperties': z.boolean().optional(),
+        'additionalProperties': z.boolean().optional(),
+      }),
+      z.object({
+        'type': z.literal('object'),
+        'description': z.string().optional(),
+        'allOf': z.array(z.record(z.string(), z.any())).min(1),
+        'unevaluatedProperties': z.boolean().optional(),
+        'additionalProperties': z.boolean().optional(),
+      }),
+    ]),
   )
   .describe('JSON Schema structure that validates a wire-level FunctionCall object.');
 export type FunctionCallValidationSchema = z.infer<typeof FunctionCallValidationSchemaSchema>;
@@ -145,7 +106,7 @@ export const ComponentDefinitionSchema = z
   .record(z.string(), z.any())
   .and(
     z.intersection(
-      z.any(),
+      z.record(z.string(), z.any()),
       z.object({
         'allowedParents': z
           .array(z.string())

@@ -17,6 +17,88 @@
 
 import {zodToJsonSchema} from 'zod-to-json-schema';
 import {ComponentApi, FunctionApi, CatalogInterface} from './types.js';
+import {V08_STANDARD_DEFS} from '../v0_8/standard_defs.js';
+import {V09_STANDARD_DEFS} from '../v0_9/standard_defs.js';
+import {V10_STANDARD_DEFS} from '../v1_0/standard_defs.js';
+
+const STANDARD_DEFS_BY_VERSION: Readonly<Record<string, Record<string, unknown>>> = {
+  'v0.8': V08_STANDARD_DEFS,
+  'v0.9': V09_STANDARD_DEFS,
+  'v0.9.1': V09_STANDARD_DEFS,
+  'v1.0': V10_STANDARD_DEFS,
+};
+
+/**
+ * Resolves the appropriate standard $defs dictionary based on options or catalog configuration.
+ */
+function getStandardDefsForCatalog(
+  _catalog: CatalogInterface<ComponentApi, FunctionApi>,
+  options?: GenerateCatalogSchemaOptions,
+): Record<string, unknown> {
+  if (options?.standardDefs) {
+    return options.standardDefs;
+  }
+  if (options?.protocolVersion && options.protocolVersion in STANDARD_DEFS_BY_VERSION) {
+    return STANDARD_DEFS_BY_VERSION[options.protocolVersion];
+  }
+  return V09_STANDARD_DEFS;
+}
+
+/**
+ * Transforms a schema node with a REF description into a `$ref` definition node.
+ */
+function transformRefDescriptionNode(obj: Record<string, unknown>): boolean {
+  if (typeof obj.description !== 'string' || !obj.description.startsWith('REF:')) {
+    return false;
+  }
+  const content = obj.description.substring(4);
+  const pipeIndex = content.indexOf('|');
+  const ref = pipeIndex === -1 ? content : content.substring(0, pipeIndex);
+  const desc = pipeIndex === -1 ? '' : content.substring(pipeIndex + 1);
+
+  const savedDefault = obj.default;
+  for (const key of Object.keys(obj)) {
+    delete obj[key];
+  }
+  obj['$ref'] = ref.startsWith('#') ? ref : `#/$defs/${ref.split('/').pop()}`;
+  if (savedDefault !== undefined) {
+    obj['default'] = savedDefault;
+  }
+  if (desc) {
+    obj['description'] = desc;
+  }
+  return true;
+}
+
+/**
+ * Normalizes property schema structures like anyOf and additionalProperties.
+ */
+function cleanSchemaProperties(obj: Record<string, unknown>): void {
+  if (Array.isArray(obj.anyOf)) {
+    obj.oneOf = obj.anyOf;
+    delete obj.anyOf;
+  }
+
+  if (
+    obj.additionalProperties &&
+    typeof obj.additionalProperties === 'object' &&
+    Object.keys(obj.additionalProperties).length === 0
+  ) {
+    obj.additionalProperties = true;
+  }
+
+  if (
+    obj.unevaluatedProperties &&
+    typeof obj.unevaluatedProperties === 'object' &&
+    Object.keys(obj.unevaluatedProperties).length === 0
+  ) {
+    obj.unevaluatedProperties = true;
+  }
+
+  if ('$schema' in obj) {
+    delete obj['$schema'];
+  }
+}
 
 /**
  * Cleans auto-generated Zod schema artifacts and transforms REF markers into explicit `$ref` objects.
@@ -30,37 +112,23 @@ export function cleanSchemaNode(node: unknown, visited = new Set<unknown>()): vo
   if (typeof node !== 'object' || node === null) return;
   if (visited.has(node)) return;
   visited.add(node);
-  const obj = node as Record<string, unknown>;
-
-  // If the node itself is a REF target (marked via description), transform it.
-  if (typeof obj.description === 'string' && obj.description.startsWith('REF:')) {
-    const content = obj.description.substring(4);
-    const pipeIndex = content.indexOf('|');
-    const ref = pipeIndex === -1 ? content : content.substring(0, pipeIndex);
-    const desc = pipeIndex === -1 ? '' : content.substring(pipeIndex + 1);
-
-    for (const key of Object.keys(obj)) {
-      delete obj[key];
-    }
-    obj['$ref'] = ref;
-    if (desc) {
-      obj['description'] = desc;
-    }
-    return;
-  }
-
-  if ('$schema' in obj) {
-    delete obj['$schema'];
-  }
 
   if (Array.isArray(node)) {
     for (const item of node) {
       cleanSchemaNode(item, visited);
     }
-  } else {
-    for (const key of Object.keys(obj)) {
-      cleanSchemaNode(obj[key], visited);
-    }
+    return;
+  }
+
+  const obj = node as Record<string, unknown>;
+  if (transformRefDescriptionNode(obj)) {
+    return;
+  }
+
+  cleanSchemaProperties(obj);
+
+  for (const key of Object.keys(obj)) {
+    cleanSchemaNode(obj[key], visited);
   }
 }
 
@@ -68,15 +136,23 @@ export function cleanSchemaNode(node: unknown, visited = new Set<unknown>()): vo
  * Configuration options for catalog JSON schema generation.
  */
 export interface GenerateCatalogSchemaOptions {
-  /** Optional reference URI to a base component schema envelope (e.g. `common_types.json#/$defs/ComponentCommon`). */
+  /** Reference URI to a base component schema envelope (e.g. `common_types.json#/$defs/ComponentCommon`). */
   componentEnvelopeRef?: string;
+  /** Explicit standard $defs dictionary to use when serializing catalog components and functions. */
+  standardDefs?: Record<string, unknown>;
+  /** Explicit protocol version for standard $defs resolution ('v0.8' | 'v0.9' | 'v0.9.1' | 'v1.0'). */
+  protocolVersion?: 'v0.8' | 'v0.9' | 'v0.9.1' | 'v1.0' | string;
 }
 
-function processTheme(catalog: CatalogInterface<any, any>, defs: Record<string, unknown>): void {
+function processTheme(
+  catalog: CatalogInterface<ComponentApi, FunctionApi>,
+  defs: Record<string, unknown>,
+): void {
   if (!catalog.themeSchema) return;
 
   const themeRaw = zodToJsonSchema(catalog.themeSchema, {
     target: 'jsonSchema2019-09',
+    $refStrategy: 'none',
   }) as Record<string, unknown>;
   cleanSchemaNode(themeRaw);
 
@@ -88,58 +164,79 @@ function processTheme(catalog: CatalogInterface<any, any>, defs: Record<string, 
     delete themeRaw.$defs;
   }
 
+  const isV08 = catalog.id.includes('v0_8') || catalog.id.includes('v0.8');
+
   const themeObj: Record<string, unknown> = {
     type: 'object',
     properties: (themeRaw.properties as Record<string, unknown>) || {},
     ...(Array.isArray(themeRaw.required) && themeRaw.required.length > 0
       ? {required: themeRaw.required}
       : {}),
-    ...(themeRaw.additionalProperties !== undefined
-      ? {additionalProperties: themeRaw.additionalProperties}
-      : {}),
+    ...(isV08
+      ? {}
+      : {
+          additionalProperties:
+            themeRaw.additionalProperties !== undefined ? themeRaw.additionalProperties : true,
+        }),
   };
   defs['theme'] = themeObj;
+}
+
+/**
+ * Extracts raw Zod properties, required fields, and definitions from a component API schema.
+ */
+function extractZodComponentSchema(
+  comp: ComponentApi,
+  defs: Record<string, unknown>,
+): {
+  props: Record<string, unknown>;
+  reqList: string[];
+  additionalProps: boolean | Record<string, unknown> | undefined;
+} {
+  if (!comp.schema || typeof comp.schema !== 'object' || !('safeParse' in comp.schema)) {
+    return {props: {}, reqList: [], additionalProps: undefined};
+  }
+  const rawZod = zodToJsonSchema(comp.schema, {
+    target: 'jsonSchema2019-09',
+    $refStrategy: 'none',
+  }) as Record<string, unknown>;
+  cleanSchemaNode(rawZod);
+
+  if (rawZod.definitions && typeof rawZod.definitions === 'object') {
+    Object.assign(defs, rawZod.definitions);
+  } else if (rawZod.$defs && typeof rawZod.$defs === 'object') {
+    Object.assign(defs, rawZod.$defs);
+  }
+
+  const props = (rawZod.properties as Record<string, unknown>) || {};
+  const reqList = Array.isArray(rawZod.required)
+    ? (rawZod.required as string[]).filter(r => r !== 'component' && r !== 'id')
+    : [];
+  const rawExtra = rawZod.unevaluatedProperties ?? rawZod.additionalProperties;
+  const additionalProps =
+    typeof rawExtra === 'boolean' || (typeof rawExtra === 'object' && rawExtra !== null)
+      ? (rawExtra as boolean | Record<string, unknown>)
+      : undefined;
+
+  return {props, reqList, additionalProps};
 }
 
 function processSingleComponent(
   name: string,
   comp: ComponentApi,
   defs: Record<string, unknown>,
+  _catalog: CatalogInterface<ComponentApi, FunctionApi>,
   options?: GenerateCatalogSchemaOptions,
 ): Record<string, unknown> {
-  let props: Record<string, unknown> = {};
-  let reqList: string[] = [];
-  let additionalProps: boolean | Record<string, unknown> | undefined = undefined;
+  const {props, reqList, additionalProps} = extractZodComponentSchema(comp, defs);
 
-  if (comp.schema && typeof comp.schema === 'object' && 'safeParse' in comp.schema) {
-    const rawZod = zodToJsonSchema(comp.schema, {
-      target: 'jsonSchema2019-09',
-    }) as Record<string, unknown>;
-    cleanSchemaNode(rawZod);
-
-    if (rawZod.definitions && typeof rawZod.definitions === 'object') {
-      Object.assign(defs, rawZod.definitions);
-    } else if (rawZod.$defs && typeof rawZod.$defs === 'object') {
-      Object.assign(defs, rawZod.$defs);
-    }
-
-    props = (rawZod.properties as Record<string, unknown>) || {};
-    reqList = Array.isArray(rawZod.required)
-      ? (rawZod.required as string[]).filter(r => r !== 'component')
-      : [];
-    additionalProps =
-      typeof rawZod.additionalProperties === 'boolean' ||
-      (typeof rawZod.additionalProperties === 'object' && rawZod.additionalProperties !== null)
-        ? (rawZod.additionalProperties as boolean | Record<string, unknown>)
-        : undefined;
-  }
-
-  const {component: _ignored, ...sanitizedProps} = props;
+  const {component: _ignoredComp, id: _ignoredId, ...sanitizedProps} = props;
   const innerProperties = {
-    component: {const: name},
+    id: {$ref: '#/$defs/ComponentId'},
     ...sanitizedProps,
+    component: {const: name},
   };
-  const innerRequired = ['component', ...reqList];
+  const innerRequired = ['id', ...reqList, 'component'];
 
   let compSchemaObj: Record<string, unknown>;
   if (options?.componentEnvelopeRef) {
@@ -150,16 +247,16 @@ function processSingleComponent(
           type: 'object',
           properties: innerProperties,
           required: innerRequired,
-          ...(additionalProps !== undefined ? {additionalProperties: additionalProps} : {}),
         },
       ],
+      unevaluatedProperties: additionalProps !== undefined ? additionalProps : false,
     };
   } else {
     compSchemaObj = {
       type: 'object',
       properties: innerProperties,
       required: innerRequired,
-      ...(additionalProps !== undefined ? {additionalProperties: additionalProps} : {}),
+      unevaluatedProperties: additionalProps !== undefined ? additionalProps : false,
     };
   }
 
@@ -174,7 +271,7 @@ function processSingleComponent(
 }
 
 function processComponents(
-  catalog: CatalogInterface<any, any>,
+  catalog: CatalogInterface<ComponentApi, FunctionApi>,
   schema: Record<string, unknown>,
   defs: Record<string, unknown>,
   options?: GenerateCatalogSchemaOptions,
@@ -186,7 +283,7 @@ function processComponents(
 
   const componentsMap: Record<string, unknown> = {};
   for (const [name, comp] of catalog.components.entries()) {
-    componentsMap[name] = processSingleComponent(name, comp, defs, options);
+    componentsMap[name] = processSingleComponent(name, comp, defs, catalog, options);
   }
 
   schema['components'] = componentsMap;
@@ -202,14 +299,19 @@ function processComponents(
 }
 
 function processSingleFunction(
-  name: string,
+  _name: string,
   fn: FunctionApi,
   defs: Record<string, unknown>,
 ): Record<string, unknown> {
+  if ('rawSchema' in fn && fn.rawSchema && typeof fn.rawSchema === 'object') {
+    return fn.rawSchema as Record<string, unknown>;
+  }
+
   let paramSchemaObj: Record<string, unknown>;
   if (fn.schema && typeof fn.schema === 'object' && 'safeParse' in fn.schema) {
     const rawZod = zodToJsonSchema(fn.schema, {
       target: 'jsonSchema2019-09',
+      $refStrategy: 'none',
     }) as Record<string, unknown>;
     cleanSchemaNode(rawZod);
 
@@ -226,35 +328,28 @@ function processSingleFunction(
     paramSchemaObj = {type: 'object', properties: {}};
   }
 
-  const returnType = fn.returnType ?? 'any';
-  const fnProperties: Record<string, unknown> = {
-    call: {const: name},
-    args: paramSchemaObj,
-  };
-  const fnRequired = ['call', 'args'];
-
-  const fnObj: Record<string, unknown> = {
-    type: 'object',
-    properties: fnProperties,
-    required: fnRequired,
-    returnType,
-  };
-
-  if (fn.description) {
-    fnObj['description'] = fn.description;
-  }
-  if (fn.allowedCallers) {
-    fnObj['allowedCallers'] = fn.allowedCallers;
-  }
-  if (fn.requiresUserActivation !== undefined) {
-    fnObj['requiresUserActivation'] = fn.requiresUserActivation;
+  if (fn.description && paramSchemaObj.description === undefined) {
+    paramSchemaObj.description = fn.description;
   }
 
-  return fnObj;
+  if (paramSchemaObj.type === 'object') {
+    const rawExtra = paramSchemaObj.unevaluatedProperties ?? paramSchemaObj.additionalProperties;
+    const additionalProps =
+      typeof rawExtra === 'boolean' || (typeof rawExtra === 'object' && rawExtra !== null)
+        ? (rawExtra as boolean | Record<string, unknown>)
+        : undefined;
+
+    if (paramSchemaObj.additionalProperties !== undefined) {
+      delete paramSchemaObj.additionalProperties;
+    }
+    paramSchemaObj.unevaluatedProperties = additionalProps !== undefined ? additionalProps : false;
+  }
+
+  return paramSchemaObj;
 }
 
 function processFunctions(
-  catalog: CatalogInterface<any, any>,
+  catalog: CatalogInterface<ComponentApi, FunctionApi>,
   schema: Record<string, unknown>,
   defs: Record<string, unknown>,
 ): void {
@@ -272,6 +367,33 @@ function processFunctions(
       $ref: `#/functions/${name}`,
     })),
   };
+}
+
+function collectReferencedDefs(
+  node: unknown,
+  referenced: Set<string>,
+  visited = new Set<unknown>(),
+): void {
+  if (typeof node !== 'object' || node === null) return;
+  if (visited.has(node)) return;
+  visited.add(node);
+
+  if (typeof (node as Record<string, unknown>)['$ref'] === 'string') {
+    const ref = (node as Record<string, unknown>)['$ref'] as string;
+    if (ref.startsWith('#/$defs/')) {
+      referenced.add(ref.substring('#/$defs/'.length));
+    }
+  }
+
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      collectReferencedDefs(item, referenced, visited);
+    }
+  } else {
+    for (const val of Object.values(node as Record<string, unknown>)) {
+      collectReferencedDefs(val, referenced, visited);
+    }
+  }
 }
 
 /**
@@ -305,6 +427,33 @@ export function generateCatalogSchema<
   processTheme(catalog, defs);
   processComponents(catalog, schema, defs, options);
   processFunctions(catalog, schema, defs);
+
+  const standardDefs = getStandardDefsForCatalog(catalog, options);
+
+  // Fixed-point iteration to discover all transitive $defs references
+  let defsCountBefore: number;
+  do {
+    defsCountBefore = Object.keys(defs).length;
+    const referenced = new Set<string>();
+    collectReferencedDefs(schema, referenced);
+    collectReferencedDefs(defs, referenced);
+
+    if (
+      referenced.has('DynamicString') ||
+      referenced.has('DynamicNumber') ||
+      referenced.has('DynamicBoolean') ||
+      referenced.has('DynamicValue')
+    ) {
+      referenced.add('DataBinding');
+      referenced.add('FunctionCall');
+    }
+
+    for (const refName of referenced) {
+      if (refName in standardDefs && !(refName in defs)) {
+        defs[refName] = standardDefs[refName];
+      }
+    }
+  } while (Object.keys(defs).length > defsCountBefore);
 
   if (Object.keys(defs).length > 0) {
     schema['$defs'] = defs;

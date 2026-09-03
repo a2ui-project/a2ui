@@ -19,20 +19,9 @@ import {computed, isSignal, getValue} from '../../../reactivity/signals.js';
 import {createFunctionImplementation, FunctionImplementation} from '../../../catalog/types.js';
 import {format} from 'date-fns';
 import {
-  AddApi,
-  SubtractApi,
-  MultiplyApi,
-  DivideApi,
-  EqualsApi,
-  NotEqualsApi,
-  GreaterThanApi,
-  LessThanApi,
   AndApi,
   OrApi,
   NotApi,
-  ContainsApi,
-  StartsWithApi,
-  EndsWithApi,
   RequiredApi,
   RegexApi,
   LengthApi,
@@ -47,131 +36,35 @@ import {
 } from './basic_functions_api.js';
 import {A2uiExpressionError} from '../../../errors.js';
 
-// Arithmetic
-/**
- * Implementation of the addition function.
- * Adds two numbers 'a' and 'b'.
- */
-export const AddImplementation = createFunctionImplementation(AddApi, args => args.a + args.b);
-/**
- * Implementation of the subtraction function.
- * Subtracts 'b' from 'a'.
- */
-export const SubtractImplementation = createFunctionImplementation(
-  SubtractApi,
-  args => args.a - args.b,
-);
-/**
- * Implementation of the multiplication function.
- * Multiplies 'a' and 'b'.
- */
-export const MultiplyImplementation = createFunctionImplementation(
-  MultiplyApi,
-  args => args.a * args.b,
-);
-/**
- * Implementation of the division function.
- * Divides 'a' by 'b'. Returns NaN if inputs are invalid, and Infinity if dividing by zero.
- */
-export const DivideImplementation = createFunctionImplementation(DivideApi, args => {
-  const a = args.a;
-  const b = args.b;
-  if (a === undefined || a === null || b === undefined || b === null) {
-    return NaN;
-  }
-  const numA = Number(a);
-  const numB = Number(b);
-  if (Number.isNaN(numA) || Number.isNaN(numB)) {
-    return NaN;
-  }
-  if (numB === 0) {
-    return Infinity;
-  }
-  return numA / numB;
-});
-
-// Comparison
-/**
- * Implementation of the equality comparison.
- * Checks if 'a' is strictly equal to 'b'.
- */
-export const EqualsImplementation = createFunctionImplementation(
-  EqualsApi,
-  args => args.a === args.b,
-);
-/**
- * Implementation of the inequality comparison.
- * Checks if 'a' is not strictly equal to 'b'.
- */
-export const NotEqualsImplementation = createFunctionImplementation(
-  NotEqualsApi,
-  args => args.a !== args.b,
-);
-/**
- * Implementation of the greater-than comparison.
- * Checks if 'a' is greater than 'b'.
- */
-export const GreaterThanImplementation = createFunctionImplementation(
-  GreaterThanApi,
-  args => args.a > args.b,
-);
-/**
- * Implementation of the less-than comparison.
- * Checks if 'a' is less than 'b'.
- */
-export const LessThanImplementation = createFunctionImplementation(
-  LessThanApi,
-  args => args.a < args.b,
-);
-
 // Logical
 /**
- * Implementation of the logical AND function.
+ * Evaluates logical AND across an array of values.
+ *
  * Returns true if all values in the array are truthy.
  */
 export const AndImplementation = createFunctionImplementation(AndApi, args => {
   return args.values.every((v: unknown) => !!v);
 });
 /**
- * Implementation of the logical OR function.
+ * Evaluates logical OR across an array of values.
+ *
  * Returns true if at least one value in the array is truthy.
  */
 export const OrImplementation = createFunctionImplementation(OrApi, args => {
   return args.values.some((v: unknown) => !!v);
 });
 /**
- * Implementation of the logical NOT function.
+ * Evaluates logical NOT on a single value.
+ *
  * Returns the negation of the value.
  */
 export const NotImplementation = createFunctionImplementation(NotApi, args => !args.value);
 
-// String
-/**
- * Implementation of the string contains function.
- * Checks if 'string' contains 'substring'.
- */
-export const ContainsImplementation = createFunctionImplementation(ContainsApi, args =>
-  args.string.includes(args.substring),
-);
-/**
- * Implementation of the string starts-with function.
- * Checks if 'string' starts with 'prefix'.
- */
-export const StartsWithImplementation = createFunctionImplementation(StartsWithApi, args =>
-  args.string.startsWith(args.prefix),
-);
-/**
- * Implementation of the string ends-with function.
- * Checks if 'string' ends with 'suffix'.
- */
-export const EndsWithImplementation = createFunctionImplementation(EndsWithApi, args =>
-  args.string.endsWith(args.suffix),
-);
-
 // Validation
 /**
- * Implementation of the required validation function.
- * Checks if the value is not null, undefined, empty string, or empty array.
+ * Validates that a value is present and non-empty.
+ *
+ * Checks that the value is not null, undefined, an empty string, or an empty array.
  */
 export const RequiredImplementation = createFunctionImplementation(RequiredApi, args => {
   const val = args.value;
@@ -181,9 +74,9 @@ export const RequiredImplementation = createFunctionImplementation(RequiredApi, 
   return true;
 });
 /**
- * Implementation of the regex validation function.
- * Checks if the value matches the regular expression pattern.
- * Throws A2uiExpressionError if the pattern is invalid.
+ * Validates that a string value matches a regular expression pattern.
+ *
+ * @throws {A2uiExpressionError} If the pattern is invalid.
  */
 export const RegexImplementation = createFunctionImplementation(RegexApi, args => {
   try {
@@ -193,8 +86,7 @@ export const RegexImplementation = createFunctionImplementation(RegexApi, args =
   }
 });
 /**
- * Implementation of the length validation function.
- * Checks if the length of the string or array is within [min, max] range.
+ * Validates that string or array length falls within an optional minimum and maximum range.
  */
 export const LengthImplementation = createFunctionImplementation(LengthApi, args => {
   const val = args.value;
@@ -207,8 +99,7 @@ export const LengthImplementation = createFunctionImplementation(LengthApi, args
   return true;
 });
 /**
- * Implementation of the numeric validation function.
- * Checks if the value is a number and within [min, max] range.
+ * Validates that a numeric value falls within an optional minimum and maximum range.
  */
 export const NumericImplementation = createFunctionImplementation(NumericApi, args => {
   if (isNaN(args.value)) return false;
@@ -217,9 +108,7 @@ export const NumericImplementation = createFunctionImplementation(NumericApi, ar
   return true;
 });
 /**
- * Implementation of the email validation function.
- * Uses a simple regex to check if the value looks like an email address.
- * Note: This is a basic check and not fully compliant with all email standards.
+ * Validates that a string matches basic email address syntax.
  */
 export const EmailImplementation = createFunctionImplementation(EmailApi, args => {
   // TODO(gspencergoog): Use a "real" email validation function, preferably
@@ -230,10 +119,14 @@ export const EmailImplementation = createFunctionImplementation(EmailApi, args =
 
 // Formatting
 /**
- * Coerces a value to a string following the a2ui_protocol.md §"Type conversion" rules:
- * - Numbers/Booleans: Standard string representation.
- * - null/undefined: An empty string "".
- * - Objects/Arrays: Stringified as JSON.
+ * Coerces a value to a string following the protocol type conversion rules.
+ *
+ * - Numbers and Booleans: Standard string representation.
+ * - `null` and `undefined`: An empty string `""`.
+ * - Objects and Arrays: Stringified as JSON.
+ *
+ * @param value The value to coerce.
+ * @returns The string representation.
  */
 function coerceToString(value: unknown): string {
   if (value === null || value === undefined) return '';
@@ -248,7 +141,8 @@ function coerceToString(value: unknown): string {
 }
 
 /**
- * Implementation of the string formatting function.
+ * Formats a template string by resolving embedded expressions against dynamic context.
+ *
  * Parses a template string and resolves any embedded expressions using the provided context.
  * Returns a computed signal that updates when referenced signals change.
  */
@@ -300,7 +194,10 @@ function getNumberFormat(
 }
 
 /**
- * Creates the number formatting function implementation.
+ * Creates the number formatting function implementation for a specific locale.
+ *
+ * @param locale Optional BCP 47 language tag.
+ * @returns The function implementation.
  */
 export function createFormatNumberImplementation(locale?: string): FunctionImplementation {
   return createFunctionImplementation(FormatNumberApi, args => {
@@ -315,8 +212,7 @@ export function createFormatNumberImplementation(locale?: string): FunctionImple
 }
 
 /**
- * Implementation of the number formatting function.
- * Formats a number using Intl.NumberFormat with specified decimals and grouping.
+ * Formats a number using `Intl.NumberFormat` with specified decimals and grouping.
  */
 export const FormatNumberImplementation = createFormatNumberImplementation();
 
@@ -344,7 +240,10 @@ function getCurrencyFormat(
 }
 
 /**
- * Creates the currency formatting function implementation.
+ * Creates the currency formatting function implementation for a specific locale.
+ *
+ * @param locale Optional BCP 47 language tag.
+ * @returns The function implementation.
  */
 export function createFormatCurrencyImplementation(locale?: string): FunctionImplementation {
   return createFunctionImplementation(FormatCurrencyApi, args => {
@@ -361,14 +260,13 @@ export function createFormatCurrencyImplementation(locale?: string): FunctionImp
 }
 
 /**
- * Implementation of the currency formatting function.
- * Formats a number as currency using Intl.NumberFormat.
- * Falls back to toFixed if formatting fails.
+ * Formats a number as currency using `Intl.NumberFormat`.
+ *
+ * Falls back to fixed decimal notation if formatting fails.
  */
 export const FormatCurrencyImplementation = createFormatCurrencyImplementation();
 /**
- * Implementation of the date formatting function.
- * Formats a date using date-fns or returns ISO string.
+ * Formats a date using date-fns pattern string or returns an ISO timestamp.
  */
 export const FormatDateImplementation = createFunctionImplementation(FormatDateApi, args => {
   if (!args.value) return '';
@@ -396,7 +294,10 @@ function getPluralRules(locale: string | undefined): Intl.PluralRules {
 }
 
 /**
- * Creates the pluralization function implementation.
+ * Creates the pluralization function implementation for a specific locale.
+ *
+ * @param locale Optional BCP 47 language tag.
+ * @returns The function implementation.
  */
 export function createPluralizeImplementation(locale?: string): FunctionImplementation {
   return createFunctionImplementation(PluralizeApi, args => {
@@ -411,15 +312,15 @@ export function createPluralizeImplementation(locale?: string): FunctionImplemen
 }
 
 /**
- * Implementation of the pluralization function.
- * Selects the appropriate plural form based on the value using Intl.PluralRules.
+ * Selects the appropriate plural form based on a quantity using `Intl.PluralRules`.
  */
 export const PluralizeImplementation = createPluralizeImplementation();
 
 // Actions
 /**
- * Implementation of the open URL action.
- * Opens the specified URL in a new window/tab.
+ * Opens a specified URL in a new browser tab.
+ *
+ * @throws {A2uiExpressionError} If the URL is invalid or uses an unsupported scheme.
  */
 export const OpenUrlImplementation = createFunctionImplementation(OpenUrlApi, args => {
   if (args.url && typeof window !== 'undefined' && window.open) {
@@ -448,26 +349,15 @@ export const OpenUrlImplementation = createFunctionImplementation(OpenUrlApi, ar
 /**
  * Creates standard function implementations for the Basic Catalog.
  *
- * @param options Configuration options.
- * @param options.locale Optional locale to close-over.
+ * @param options Configuration options containing optional locale.
+ * @returns Array of function implementations.
  */
 export function createBasicCatalogFunctions(options?: {locale?: string}): FunctionImplementation[] {
   const locale = options?.locale;
   return [
-    AddImplementation,
-    SubtractImplementation,
-    MultiplyImplementation,
-    DivideImplementation,
-    EqualsImplementation,
-    NotEqualsImplementation,
-    GreaterThanImplementation,
-    LessThanImplementation,
     AndImplementation,
     OrImplementation,
     NotImplementation,
-    ContainsImplementation,
-    StartsWithImplementation,
-    EndsWithImplementation,
     RequiredImplementation,
     RegexImplementation,
     LengthImplementation,
@@ -484,6 +374,7 @@ export function createBasicCatalogFunctions(options?: {locale?: string}): Functi
 
 /**
  * Standard function implementations for the Basic Catalog.
- * These functions cover arithmetic, comparison, logic, string manipulation, validation, and formatting.
+ *
+ * Includes logical, validation, formatting, and action functions.
  */
 export const BASIC_FUNCTIONS: FunctionImplementation[] = createBasicCatalogFunctions();

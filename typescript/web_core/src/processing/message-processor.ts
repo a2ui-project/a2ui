@@ -33,8 +33,14 @@ import {
   InternalDeleteSurfaceOp,
 } from './operations.js';
 
-import {ProtocolVersion, VersionAdapter} from './adapters/base.js';
+import {ProtocolVersion, VersionAdapterResolver} from './adapters/base.js';
 import {RendererCapabilities} from '../v1_0/schema/index.js';
+import type {ServerToClientMessage as V08ServerToClientMessage} from '../v0_8/types/types.js';
+import type {
+  A2uiMessage as V09A2uiMessage,
+  A2uiMessageListWrapper as V09A2uiMessageListWrapper,
+} from '../v0_9/schema/server-to-client.js';
+import type {AgentToRendererMessage as V10AgentToRendererMessage} from '../v1_0/schema/agent-to-renderer.js';
 import {
   getComponentReferences,
   RELAXED_VALIDATION,
@@ -43,26 +49,37 @@ import {
   ValidationConfig,
 } from '../validating/integrity-checker.js';
 
-export type {RendererCapabilities, ValidationConfig};
-export {STRICT_VALIDATION, RELAXED_VALIDATION};
+/**
+ * Union of individual message types supported by the MessageProcessor across protocol versions.
+ */
+export type ProcessableMessage =
+  | V08ServerToClientMessage
+  | V09A2uiMessage
+  | V10AgentToRendererMessage
+  | InternalOperation;
 
 /**
- * Interface for version adapter resolution services.
+ * Valid payload format for `MessageProcessor.processMessages`, which can be a single message,
+ * an array of messages, a message list wrapper, or an internal operation.
  */
-export interface VersionAdapterResolver {
-  getAdapter(version: string): VersionAdapter;
-  resolveFromPayload(payload: unknown): VersionAdapter;
-}
+export type ProcessableMessagePayload =
+  | ProcessableMessage
+  | readonly ProcessableMessage[]
+  | V09A2uiMessageListWrapper
+  | {readonly messages: readonly ProcessableMessage[]};
+
+export type {RendererCapabilities, ValidationConfig};
+export {STRICT_VALIDATION, RELAXED_VALIDATION};
 
 /**
  * Options for generating renderer capabilities.
  */
 export interface CapabilitiesOptions {
-  /** If true, the full definition of all catalogs will be included. */
+  /** Whether full definitions of all catalogs will be included inline. */
   includeInlineCatalogs?: boolean;
-  /** The protocol version to generate capabilities for. Defaults to the processor's configured version. */
+  /** Protocol version to generate capabilities for. Defaults to the processor's configured version. */
   version?: ProtocolVersion;
-  /** The base schema $ref to wrap component definitions in inline catalogs. Defaults to 'common_types.json#/$defs/ComponentCommon'. */
+  /** Base schema `$ref` to wrap component definitions in inline catalogs. Defaults to 'common_types.json#/$defs/ComponentCommon'. */
   componentEnvelopeRef?: string;
 }
 
@@ -70,7 +87,7 @@ export interface CapabilitiesOptions {
  * Options for configuring a MessageProcessor instance.
  */
 export interface MessageProcessorOptions {
-  /** The default protocol version to use for capability generation and data model reporting. Defaults to 'v0.9'. */
+  /** Default protocol version to use for capability generation and data model reporting. Defaults to 'v0.9'. */
   version?: ProtocolVersion;
   /** Custom version adapter resolver or registry. Defaults to VersionAdapterFactory. */
   adapterRegistry?: VersionAdapterResolver;
@@ -100,6 +117,12 @@ interface ZodIssueWithExpectedReceived {
   received?: unknown;
 }
 
+/**
+ * Formats a Zod validation issue into a descriptive, human-readable error string.
+ *
+ * @param err Zod validation issue to format.
+ * @returns Human-readable formatted error message.
+ */
 export function formatZodIssue(err: z.ZodIssue): string {
   const path = err.path.join('.') || 'root';
   const issueWithKeys = err as ZodIssueWithKeys;
@@ -141,8 +164,9 @@ export function formatZodIssue(err: z.ZodIssue): string {
 }
 
 /**
- * The central processor for A2UI messages.
- * @template T The concrete type of the ComponentApi.
+ * Central processor for A2UI protocol messages and surface state management.
+ *
+ * @template T Concrete type of the ComponentApi.
  */
 export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
@@ -151,10 +175,10 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private readonly validationConfig?: ValidationConfig;
 
   /**
-   * Creates a new message processor.
+   * Initializes a new `MessageProcessor` instance.
    *
-   * @param catalogs A list of available catalogs.
-   * @param actionHandler A global handler for actions from all surfaces.
+   * @param catalogs List of available component catalogs.
+   * @param actionHandler Global handler for actions dispatched from all surfaces.
    * @param options Configuration options for the processor.
    */
   constructor(
@@ -233,9 +257,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     const rawSchema = generateCatalogSchema(catalog, {componentEnvelopeRef});
     const components = (rawSchema.components as Record<string, unknown>) || {};
 
+    const rawFunctions = rawSchema.functions as Record<string, Record<string, unknown>> | undefined;
     const functions: Array<Record<string, unknown>> = [];
     for (const fn of catalog.functions.values()) {
-      const fnDef = (rawSchema.functions as Record<string, any>)?.[fn.name];
+      const fnDef = rawFunctions?.[fn.name] as
+        | {properties?: {args?: Record<string, unknown>}}
+        | undefined;
       functions.push({
         name: fn.name,
         description: fn.description,
@@ -244,9 +271,10 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       });
     }
 
-    const theme = (rawSchema.$defs as Record<string, any>)?.theme?.properties as
-      | Record<string, unknown>
+    const rawDefs = rawSchema.$defs as
+      | Record<string, {properties?: Record<string, unknown>}>
       | undefined;
+    const theme = rawDefs?.theme?.properties;
 
     return {
       catalogId: catalog.id,
@@ -256,6 +284,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     };
   }
 
+  /**
+   * Serializes active surface data models configured for client-to-agent reporting.
+   *
+   * @param version Protocol version to embed in the payload envelope.
+   * @returns Serialized data model payload, or undefined if no surfaces stream data models.
+   */
   getRendererDataModel(
     version: ProtocolVersion = this.version,
   ): Record<string, unknown> | undefined {
@@ -279,6 +313,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
   /**
    * Gets a read-only map of active surfaces managed by this processor.
+   *
+   * @returns Map of surface models keyed by surface identifier.
    */
   getSurfaces(): ReadonlyMap<string, SurfaceModel<T>> {
     return this.model.surfacesMap;
@@ -288,6 +324,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Retrieves an active surface by its ID.
    *
    * @param id The surface ID.
+   * @returns The matching surface model, or undefined if not found.
    */
   getSurface(id: string): SurfaceModel<T> | undefined {
     return this.model.getSurface(id);
@@ -295,6 +332,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
   /**
    * Subscribes to surface creation events.
+   *
+   * @param handler Callback invoked when a surface is created.
+   * @returns A subscription object to unsubscribe.
    */
   onSurfaceCreated(handler: (surface: SurfaceModel<T>) => void): Subscription {
     return this.model.onSurfaceCreated.subscribe(handler);
@@ -302,6 +342,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
   /**
    * Subscribes to surface deletion events.
+   *
+   * @param handler Callback invoked when a surface is deleted.
+   * @returns A subscription object to unsubscribe.
    */
   onSurfaceDeleted(handler: (id: string) => void): Subscription {
     return this.model.onSurfaceDeleted.subscribe(handler);
@@ -312,8 +355,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    *
    * @param messages The messages or operations to process.
    */
-  processMessages(messages: unknown): void {
-    if (!messages) return;
+  processMessages(messages: ProcessableMessagePayload): void {
+    if (!messages || (Array.isArray(messages) && messages.length === 0)) return;
 
     if (this.validationConfig) {
       validateRecursionAndPaths(messages);
@@ -348,7 +391,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
   }
 
-  private validateTargetVersion(messages: unknown): void {
+  private validateTargetVersion(messages: ProcessableMessagePayload): void {
     const expected = this.validationConfig?.targetVersion;
     if (!expected) return;
 
@@ -372,6 +415,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
   }
 
+  /**
+   * Processes a single canonical internal operation.
+   *
+   * @param op The internal operation to execute.
+   */
   processOperation(op: InternalOperation): void {
     if (
       this.validationConfig?.allowedMessages &&
@@ -630,7 +678,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       if (componentApi.allowedParents && componentApi.allowedParents.length > 0) {
         const parents = parentMap.get(id);
         if (!parents || parents.length === 0) {
-          if (!componentApi.allowedParents.includes('Surface')) {
+          const isRoot = id === 'root';
+          const enforceTopLevel =
+            isRoot ||
+            (this.validationConfig && this.validationConfig.allowOrphanComponents === false);
+          if (enforceTopLevel && !componentApi.allowedParents.includes('Surface')) {
             throw new A2uiValidationError(
               `Component '${id}' (${componentType}) cannot be placed under parent 'Surface' (Surface). Allowed parents: ${JSON.stringify(componentApi.allowedParents)}.`,
             );

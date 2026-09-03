@@ -16,7 +16,6 @@
 
 import {BaseVersionAdapter, ProtocolVersion} from './base.js';
 import {InternalComponentPayload, InternalOperation} from '../operations.js';
-import {A2uiValidationError} from '../../errors.js';
 import {AgentToRendererMessageSchema} from '../../v1_0/schema/agent-to-renderer.js';
 
 /**
@@ -26,19 +25,18 @@ export class V1Point0Adapter extends BaseVersionAdapter {
   readonly version: ProtocolVersion = 'v1.0';
   protected readonly schema = AgentToRendererMessageSchema;
 
-  protected extractOperationsFromObject(msgObj: Record<string, unknown>): InternalOperation[] {
-    const updateTypes = [
+  protected getNativeActionKeys(): string[] {
+    return [
       'createSurface',
       'updateComponents',
       'updateDataModel',
       'deleteSurface',
-    ].filter(k => k in msgObj);
-    if (updateTypes.length > 1) {
-      throw new A2uiValidationError(
-        `Message contains multiple conflicting update actions: ${updateTypes.join(', ')}.`,
-      );
-    }
+      'callRendererFunction',
+      'agentFunctionResponse',
+    ];
+  }
 
+  protected extractOperationsFromObject(msgObj: Record<string, unknown>): InternalOperation[] {
     const ops: InternalOperation[] = [];
     if ('createSurface' in msgObj) {
       const cs = msgObj.createSurface as Record<string, unknown>;

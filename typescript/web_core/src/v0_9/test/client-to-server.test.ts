@@ -16,7 +16,7 @@
 
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
-import {A2uiClientMessageSchema, A2uiClientDataModelSchema} from './client-to-server.js';
+import {A2uiClientMessageSchema, A2uiClientDataModelSchema} from '../schema/client-to-server.js';
 
 describe('Client-to-Server Schema Verification', () => {
   const versions = ['v0.9', 'v0.9.1'];

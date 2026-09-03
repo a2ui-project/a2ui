@@ -20,12 +20,13 @@ export interface Subscription {
   unsubscribe(): void;
 }
 
-/** A function that handles emitted events. */
+/** Handler callback for emitted events. */
 export type EventListener<T> = (data: T) => void | Promise<void>;
 
 /**
- * Public interface exposed by models.
- * Allows ONLY subscribing to events.
+ * Readonly event subscription interface exposed by models.
+ *
+ * Provides a subscription mechanism for event listeners without allowing event emission.
  */
 export interface EventSource<T> {
   /**
@@ -38,8 +39,7 @@ export interface EventSource<T> {
 }
 
 /**
- * Internal implementation used by the model.
- * Implements EventSource but also provides the 'emit' method.
+ * Event emitter implementation supporting subscriptions and asynchronous broadcasting.
  */
 export class EventEmitter<T> implements EventSource<T> {
   private listeners = new Set<EventListener<T>>();
@@ -73,7 +73,7 @@ export class EventEmitter<T> implements EventSource<T> {
   }
 
   /**
-   * Removes all listeners.
+   * Removes all registered listeners and disposes the emitter.
    */
   dispose(): void {
     this.listeners.clear();

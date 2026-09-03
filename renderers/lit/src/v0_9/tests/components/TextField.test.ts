@@ -77,8 +77,12 @@ describe('TextField Component', () => {
               component: 'TextField',
               label: 'Email',
               value: '',
-              isValid: false,
-              validationErrors: ['Email is invalid'],
+              checks: [
+                {
+                  condition: false,
+                  message: 'Email is invalid',
+                },
+              ],
             },
           ],
         },

@@ -15,9 +15,9 @@
  */
 
 /**
- * A base interface for event details.
- * All A2UI event payloads should extend this to ensure they have an eventType property
- * that matches the event name.
+ * Base interface for custom event payload details.
+ *
+ * Ensures event detail structures carry a discriminator `eventType` matching the event name.
  */
 export interface BaseEventDetail<EventType extends string> {
   readonly eventType: EventType;

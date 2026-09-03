@@ -42,6 +42,12 @@ export interface ValidationEventDetail extends BaseEventDetail<'a2ui-validation-
 export class A2UIValidationEvent extends CustomEvent<ValidationEventDetail> {
   static readonly EVENT_NAME = 'a2ui-validation-input';
 
+  /**
+   * Creates a new `A2UIValidationEvent` instance.
+   *
+   * @param detail Event detail payload without the `eventType` discriminator.
+   * @param eventInitDict Optional standard `EventInit` dictionary.
+   */
   constructor(detail: Omit<ValidationEventDetail, 'eventType'>, eventInitDict?: EventInit) {
     super(A2UIValidationEvent.EVENT_NAME, {
       bubbles: true,

@@ -17,7 +17,7 @@
 import {DataContext} from '../rendering/data-context.js';
 
 /**
- * A function that invokes a catalog function by name and returns its result synchronously or as a Signal.
+ * Invokes a catalog function by name and returns its result synchronously or as a Signal.
  *
  * @param name The name of the function to invoke.
  * @param args The arguments to pass to the function.

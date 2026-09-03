@@ -15,30 +15,15 @@
  */
 
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
-// Generated from specification/v1_0/json/ via scripts/generate-zod-schemas.mjs
+// Generated from specification/v1.0/json/ via src/v1_0/scripts/generate-schemas.mjs
 import {z} from 'zod';
 import {
   CallIdSchema,
-  ComponentCommonSchema,
+  ComponentsListSchema,
   ExtensionsSchema,
   FunctionCallSchema,
   FunctionResponseSchema,
 } from './common-types.js';
-
-/** Zod schema validating any component payload in a v1.0 message (excluding Surface). */
-export const AnyComponentSchema = ComponentCommonSchema.extend({
-  component: z.string(),
-})
-  .passthrough()
-  .refine(comp => comp.component !== 'Surface', {
-    message:
-      'Component type cannot be "Surface". "Surface" is a top-level protocol container defined in createSurface, not a child component.',
-  });
-export type AnyComponent = z.infer<typeof AnyComponentSchema>;
-
-/** Zod schema validating a non-empty array of UI component payloads. */
-export const ComponentsListSchema = z.array(AnyComponentSchema).min(1);
-export type ComponentsList = z.infer<typeof ComponentsListSchema>;
 
 export const CreateSurfaceMessageSchema = z
   .object({
@@ -169,7 +154,6 @@ export const AgentFunctionResponseMessageSchema = z
   .strict();
 export type AgentFunctionResponseMessage = z.infer<typeof AgentFunctionResponseMessageSchema>;
 
-/** Union schema validating any incoming v1.0 agent-to-renderer message envelope. */
 export const AgentToRendererMessageSchema = z.union([
   CreateSurfaceMessageSchema,
   UpdateComponentsMessageSchema,

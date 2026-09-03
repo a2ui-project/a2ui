@@ -14,9 +14,33 @@
  * limitations under the License.
  */
 
+import {z} from 'zod';
+
 export * from './expressions/expression_parser.js';
 export * from './functions/basic_functions.js';
 export * from './functions/basic_functions_api.js';
 export * from './components/basic_components.js';
 export {injectBasicCatalogStyles, computeColorVariant} from './styles/default.js';
 export type {ColorVariantLightDarkOptions, ColorVariantHoverOptions} from './styles/default.js';
+
+export const ThemeSchema = z
+  .object({
+    'primaryColor': z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/)
+      .describe(
+        "The primary brand color used for highlights (e.g., primary buttons, active borders). Renderers may generate variants of this color for different contexts. Format: Hexadecimal code (e.g., '#00BFFF').",
+      )
+      .optional(),
+    'iconUrl': z
+      .string()
+      .describe('A URL for an image that identifies the agent or tool associated with the surface.')
+      .optional(),
+    'agentDisplayName': z
+      .string()
+      .describe(
+        'Text to be displayed next to the surface to identify the agent or tool that created it.',
+      )
+      .optional(),
+  })
+  .passthrough();
