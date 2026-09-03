@@ -152,12 +152,21 @@ def query_commerce_agent(client: genai.Client, system_instruction: str, prompt: 
         temperature=0.2,
     )
 
-    response = client.models.generate_content(
-        model="gemini-3.6-flash",
-        contents=prompt,
-        config=config,
-    )
-    return response.text or ""
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model="gemini-3.6-flash",
+                contents=prompt,
+                config=config,
+            )
+            return response.text or ""
+        except Exception as err:
+            if "503" in str(err) and attempt < max_retries - 1:
+                print(f"   Gemini API 503 spike, retrying attempt {attempt+2}/{max_retries}...")
+                time.sleep(2 * (attempt + 1))
+                continue
+            raise err
 
 
 def main():
@@ -184,7 +193,17 @@ def main():
     client = genai.Client(api_key=api_key)
 
     merged_schema = copy.deepcopy(basic_cat.catalog_schema)
-    merged_schema.setdefault("components", {}).update(commerce_cat.catalog_schema.get("components", {}))
+    commerce_comps = commerce_cat.catalog_schema.get("components", {})
+    merged_schema.setdefault("components", {}).update(commerce_comps)
+
+    # Ensure all custom components are registered in $defs.anyComponent.oneOf
+    one_of = merged_schema.setdefault("$defs", {}).setdefault("anyComponent", {}).setdefault("oneOf", [])
+    existing_refs = {item.get("$ref") for item in one_of if isinstance(item, dict)}
+    for comp_name in commerce_comps.keys():
+        ref = f"#/components/{comp_name}"
+        if ref not in existing_refs:
+            one_of.append({"$ref": ref})
+
     combined_cat = A2uiCatalog(
         version=basic_cat.version,
         name="combined",
@@ -260,20 +279,24 @@ def main():
                     body = json.loads(self.rfile.read(length))
                     user_prompt = body.get("prompt", "")
 
-                    raw_resp = query_commerce_agent(client, skills_text, user_prompt)
                     try:
+                        raw_resp = query_commerce_agent(client, skills_text, user_prompt)
                         validated = parser_inst.compile(raw_resp)
                         res_data = {"status": "success", "raw": raw_resp, "a2ui_messages": validated}
                     except Exception as err:
-                        res_data = {"status": "partial", "raw": raw_resp, "error": str(err)}
+                        print(f"Error querying commerce agent: {err}")
+                        res_data = {"status": "error", "error": str(err)}
 
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json")
                     self.end_headers()
                     self.wfile.write(json.dumps(res_data).encode("utf-8"))
 
+        class ReusableTCPServer(socketserver.TCPServer):
+            allow_reuse_address = True
+
         print(f"\n4. E-Commerce Backend Server running at http://localhost:{args.port}")
-        with socketserver.TCPServer(("", args.port), CommerceHandler) as httpd:
+        with ReusableTCPServer(("", args.port), CommerceHandler) as httpd:
             try:
                 httpd.serve_forever()
             except KeyboardInterrupt:

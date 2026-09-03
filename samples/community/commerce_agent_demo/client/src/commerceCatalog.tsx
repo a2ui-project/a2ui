@@ -1,6 +1,6 @@
 import React from 'react';
 import {z} from 'zod';
-import {Catalog} from '@a2ui/web_core/v0_9';
+import {Catalog, childList} from '@a2ui/web_core/v0_9';
 import {createComponentImplementation} from '@a2ui/react/v0_9';
 
 // 1. ProductCard
@@ -129,7 +129,9 @@ export const ProductCard = createComponentImplementation(
 export const ProductGridApi = {
   name: 'ProductGrid',
   schema: z.object({
-    children: z.array(z.any()).optional(),
+    children: childList({
+      description: 'List of ProductCard component IDs to display in grid.',
+    }),
     columns: z.number().optional(),
   }),
 };

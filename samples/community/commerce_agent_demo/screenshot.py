@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Playwright screenshot script for E-Commerce Assistant Demo UI."""
+"""Playwright screenshot script for E-Commerce Assistant Demo UI & Inspectors."""
 
 import os
 import sys
@@ -24,11 +24,8 @@ SCREENSHOTS_DIR = os.path.join(BASE_DIR, "screenshots")
 os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
 
 
-def capture_screenshot(
-    url: str = "http://localhost:5180", output_filename: str = "app_preview.png"
-):
-    """Navigates to demo app URL, submits a query, and captures a PNG screenshot."""
-    target_path = os.path.join(SCREENSHOTS_DIR, output_filename)
+def capture_screenshots(url: str = "http://localhost:5180"):
+    """Navigates to demo app, submits a query, and captures Canvas & Inspector tab screenshots."""
     print(f"Connecting to demo app at {url}...")
 
     with sync_playwright() as p:
@@ -37,19 +34,37 @@ def capture_screenshot(
 
         try:
             page.goto(url, wait_until="networkidle", timeout=15000)
-            time.sleep(1)
+            # Wait for bootstrap sequence to complete
+            time.sleep(4)
 
             # Click quick prompt button
-            page.click("text=🔍 Search Electronics")
+            page.get_by_text("Search Electronics").click()
             print("Submitted query 'Search Electronics'...")
 
             # Wait for A2UI components to render on surface canvas
-            time.sleep(20)
+            time.sleep(28)
 
-            page.screenshot(path=target_path, full_page=True)
-            print(f"Successfully saved screenshot to: {target_path}")
+            # 1. Capture Rendered Surface Canvas
+            canvas_path = os.path.join(SCREENSHOTS_DIR, "app_preview.png")
+            page.screenshot(path=canvas_path, full_page=True)
+            print(f"Saved Rendered Canvas screenshot to: {canvas_path}")
+
+            # 2. Capture A2UI JSON Inspector Tab
+            page.get_by_text("A2UI JSON Messages").click()
+            time.sleep(1)
+            json_path = os.path.join(SCREENSHOTS_DIR, "json_inspector.png")
+            page.screenshot(path=json_path, full_page=True)
+            print(f"Saved JSON Inspector screenshot to: {json_path}")
+
+            # 3. Capture Raw Express DSL Inspector Tab
+            page.get_by_text("Raw Express DSL").click()
+            time.sleep(1)
+            express_path = os.path.join(SCREENSHOTS_DIR, "express_inspector.png")
+            page.screenshot(path=express_path, full_page=True)
+            print(f"Saved Express Inspector screenshot to: {express_path}")
+
         except Exception as e:
-            print(f"Error capturing screenshot: {e}")
+            print(f"Error capturing screenshots: {e}")
             sys.exit(1)
         finally:
             browser.close()
@@ -57,4 +72,4 @@ def capture_screenshot(
 
 if __name__ == "__main__":
     target_url = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:5180"
-    capture_screenshot(target_url)
+    capture_screenshots(target_url)

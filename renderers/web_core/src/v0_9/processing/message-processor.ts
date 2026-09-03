@@ -326,11 +326,21 @@ export class MessageProcessor<T extends ComponentApi> {
     }
 
     if (this.model.getSurface(surfaceId)) {
-      throw new A2uiStateError(`Surface ${surfaceId} already exists.`);
+      this.model.deleteSurface(surfaceId);
     }
 
     const surface = new SurfaceModel<T>(surfaceId, catalog, theme, sendDataModel ?? false);
     this.model.addSurface(surface);
+
+    if ('components' in payload && Array.isArray((payload as any).components)) {
+      this.processUpdateComponentsMessage({
+        version: (message as any).version ?? 'v1.0',
+        updateComponents: {
+          surfaceId,
+          components: (payload as any).components,
+        },
+      } as any);
+    }
   }
 
   private processDeleteSurfaceMessage(message: DeleteSurfaceMessage): void {

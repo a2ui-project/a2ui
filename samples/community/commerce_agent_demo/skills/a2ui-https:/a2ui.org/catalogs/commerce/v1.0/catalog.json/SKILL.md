@@ -35,7 +35,7 @@ Use these exact positional signatures to instantiate components. Do not output p
   - inStock: Whether the product is currently in stock.
   - rating: Average star rating (e.g. 4.8).
   - action: Action event triggered when clicking View Details or Add to Cart.
-• ProductGrid(children (static), columns? (static))
+• ProductGrid(children, columns? (static))
   - Description: Responsive grid layout container for displaying product cards.
   - children: List of ProductCard component IDs to display in grid.
   - columns: Number of grid columns (default: 3).

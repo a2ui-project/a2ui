@@ -46,6 +46,7 @@ export const TextField = createComponentImplementation(TextFieldApi, ({props}) =
           id={uniqueId}
           className={inputClasses}
           value={props.value || ''}
+          placeholder={props.placeholder}
           onChange={onChange}
         />
       ) : (
@@ -54,6 +55,7 @@ export const TextField = createComponentImplementation(TextFieldApi, ({props}) =
           type={type}
           className={inputClasses}
           value={props.value || ''}
+          placeholder={props.placeholder}
           onChange={onChange}
         />
       )}

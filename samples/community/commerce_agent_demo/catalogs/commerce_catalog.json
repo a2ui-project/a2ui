@@ -36,10 +36,7 @@
       "description": "Responsive grid layout container for displaying product cards.",
       "properties": {
         "children": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ComponentId"
-          },
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList",
           "description": "List of ProductCard component IDs to display in grid."
         },
         "columns": {

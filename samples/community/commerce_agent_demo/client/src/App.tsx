@@ -28,6 +28,11 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [surfaceId, setSurfaceId] = useState<string>('main');
 
+  // Inspector & Code Tabs
+  const [activeTab, setActiveTab] = useState<'canvas' | 'json' | 'express'>('canvas');
+  const [rawExpress, setRawExpress] = useState<string>('');
+  const [a2uiMessages, setA2uiMessages] = useState<any[]>([]);
+
   // Bootstrap Tracker State
   const [bootstrapStatus, setBootstrapStatus] = useState<'initializing' | 'ready'>('initializing');
   const [bootstrapSteps, setBootstrapSteps] = useState<BootstrapStep[]>([
@@ -64,10 +69,8 @@ export default function App() {
 
   const runBootstrapSequence = async () => {
     setBootstrapStatus('initializing');
-    // Reset steps
     setBootstrapSteps(prev => prev.map(s => ({...s, status: 'pending'})));
 
-    // Step 1: Catalogs
     await new Promise(r => setTimeout(r, 400));
     setBootstrapSteps(prev =>
       prev.map(s => (s.id === 'catalogs' ? {...s, status: 'in_progress'} : s)),
@@ -77,7 +80,6 @@ export default function App() {
       prev.map(s => (s.id === 'catalogs' ? {...s, status: 'completed'} : s)),
     );
 
-    // Step 2: Skills
     setBootstrapSteps(prev =>
       prev.map(s => (s.id === 'skills' ? {...s, status: 'in_progress'} : s)),
     );
@@ -86,7 +88,6 @@ export default function App() {
       prev.map(s => (s.id === 'skills' ? {...s, status: 'completed'} : s)),
     );
 
-    // Step 3: Agent
     setBootstrapSteps(prev =>
       prev.map(s => (s.id === 'agent' ? {...s, status: 'in_progress'} : s)),
     );
@@ -95,7 +96,6 @@ export default function App() {
       prev.map(s => (s.id === 'agent' ? {...s, status: 'completed'} : s)),
     );
 
-    // Step 4: Tools
     setBootstrapSteps(prev =>
       prev.map(s => (s.id === 'tools' ? {...s, status: 'in_progress'} : s)),
     );
@@ -109,14 +109,20 @@ export default function App() {
 
   // Superset Catalogs combining basicCatalog (both v0.9 & v1.0 URIs) and commerceCatalog for client rendering
   const processor = useMemo(() => {
-    const basicCatalogV1 = new Catalog(
+    const supersetCatalogV1 = new Catalog(
       'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
-      Array.from(basicCatalog.components.values()),
-      basicCatalog.functions,
+      [
+        ...Array.from(basicCatalog.components.values()),
+        ...Array.from(commerceCatalog.components.values()),
+      ],
+      [
+        ...Array.from(basicCatalog.functions.values()),
+        ...Array.from(commerceCatalog.functions.values()),
+      ],
     );
 
     return new MessageProcessor(
-      [basicCatalog, basicCatalogV1, commerceCatalog],
+      [basicCatalog, supersetCatalogV1, commerceCatalog],
       (action: any) => {
         console.log('Intercepted A2UI Action:', action);
       },
@@ -165,6 +171,21 @@ export default function App() {
       });
 
       const data = await response.json();
+
+      if (data.raw) {
+        setRawExpress(data.raw);
+      }
+
+      if (data.a2ui_messages && Array.isArray(data.a2ui_messages)) {
+        setA2uiMessages(data.a2ui_messages);
+        processor.processMessages(data.a2ui_messages);
+        for (const messageEnvelope of data.a2ui_messages) {
+          if (messageEnvelope.createSurface?.surfaceId) {
+            setSurfaceId(messageEnvelope.createSurface.surfaceId);
+          }
+        }
+      }
+
       const assistantMsg: ChatMessage = {
         id: `ast_${Date.now()}`,
         sender: 'assistant',
@@ -175,15 +196,6 @@ export default function App() {
       };
 
       setMessages(prev => [...prev, assistantMsg]);
-
-      if (data.a2ui_messages && Array.isArray(data.a2ui_messages)) {
-        processor.processMessages(data.a2ui_messages);
-        for (const messageEnvelope of data.a2ui_messages) {
-          if (messageEnvelope.createSurface?.surfaceId) {
-            setSurfaceId(messageEnvelope.createSurface.surfaceId);
-          }
-        }
-      }
     } catch (err: any) {
       setMessages(prev => [
         ...prev,
@@ -449,37 +461,190 @@ export default function App() {
           </div>
         </div>
 
-        {/* Right Canvas: Real A2UI React Surface Rendering */}
-        <div style={{flex: 1, padding: '24px', overflowY: 'auto', background: '#f8fafc'}}>
-          <h3 style={{margin: '0 0 16px 0', fontSize: '18px', color: '#0f172a'}}>
-            Dynamic A2UI Surface Canvas
-          </h3>
-          {activeSurface ? (
-            <div
+        {/* Right Canvas: Real A2UI React Surface Rendering & Inspector Tabs */}
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            background: '#f8fafc',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Inspector Tab Header Bar */}
+          <div
+            style={{
+              background: '#ffffff',
+              borderBottom: '1px solid #e2e8f0',
+              padding: '12px 24px 0 24px',
+              display: 'flex',
+              gap: '16px',
+            }}
+          >
+            <button
+              onClick={() => setActiveTab('canvas')}
               style={{
-                border: '1px solid #e2e8f0',
-                borderRadius: '12px',
-                padding: '24px',
-                background: '#ffffff',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                minHeight: '400px',
+                padding: '8px 16px',
+                border: 'none',
+                borderBottom:
+                  activeTab === 'canvas'
+                    ? '3px solid #2563eb'
+                    : '3px solid transparent',
+                background: 'transparent',
+                fontWeight: activeTab === 'canvas' ? 700 : 500,
+                color: activeTab === 'canvas' ? '#2563eb' : '#64748b',
+                fontSize: '14px',
+                cursor: 'pointer',
               }}
             >
-              <A2uiSurface surface={activeSurface} />
-            </div>
-          ) : (
-            <div
+              🎨 Rendered Canvas
+            </button>
+            <button
+              onClick={() => setActiveTab('json')}
               style={{
-                border: '2px dashed #cbd5e1',
-                borderRadius: '12px',
-                padding: '48px',
-                textAlign: 'center',
-                color: '#64748b',
+                padding: '8px 16px',
+                border: 'none',
+                borderBottom:
+                  activeTab === 'json'
+                    ? '3px solid #2563eb'
+                    : '3px solid transparent',
+                background: 'transparent',
+                fontWeight: activeTab === 'json' ? 700 : 500,
+                color: activeTab === 'json' ? '#2563eb' : '#64748b',
+                fontSize: '14px',
+                cursor: 'pointer',
               }}
             >
-              Submit a prompt to view generated interactive A2UI components here.
-            </div>
-          )}
+              📄 A2UI JSON Messages ({a2uiMessages.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('express')}
+              style={{
+                padding: '8px 16px',
+                border: 'none',
+                borderBottom:
+                  activeTab === 'express'
+                    ? '3px solid #2563eb'
+                    : '3px solid transparent',
+                background: 'transparent',
+                fontWeight: activeTab === 'express' ? 700 : 500,
+                color: activeTab === 'express' ? '#2563eb' : '#64748b',
+                fontSize: '14px',
+                cursor: 'pointer',
+              }}
+            >
+              ⚡ Raw Express DSL
+            </button>
+          </div>
+
+          {/* Tab Content Panel */}
+          <div style={{flex: 1, padding: '24px', overflowY: 'auto'}}>
+            {activeTab === 'canvas' && (
+              <>
+                <h3 style={{margin: '0 0 16px 0', fontSize: '18px', color: '#0f172a'}}>
+                  Dynamic A2UI Surface Canvas
+                </h3>
+                {activeSurface ? (
+                  <div
+                    style={{
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      padding: '24px',
+                      background: '#ffffff',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                      minHeight: '400px',
+                    }}
+                  >
+                    <A2uiSurface surface={activeSurface} />
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      border: '2px dashed #cbd5e1',
+                      borderRadius: '12px',
+                      padding: '48px',
+                      textAlign: 'center',
+                      color: '#64748b',
+                    }}
+                  >
+                    Submit a prompt to view generated interactive A2UI components here.
+                  </div>
+                )}
+              </>
+            )}
+
+            {activeTab === 'json' && (
+              <div>
+                <h3 style={{margin: '0 0 16px 0', fontSize: '18px', color: '#0f172a'}}>
+                  Validated A2UI JSON Envelopes Payload
+                </h3>
+                {a2uiMessages.length > 0 ? (
+                  <pre
+                    style={{
+                      background: '#0f172a',
+                      color: '#38bdf8',
+                      padding: '20px',
+                      borderRadius: '12px',
+                      fontSize: '13px',
+                      lineHeight: 1.5,
+                      overflowX: 'auto',
+                      maxHeight: '600px',
+                    }}
+                  >
+                    {JSON.stringify(a2uiMessages, null, 2)}
+                  </pre>
+                ) : (
+                  <div
+                    style={{
+                      border: '2px dashed #cbd5e1',
+                      borderRadius: '12px',
+                      padding: '48px',
+                      textAlign: 'center',
+                      color: '#64748b',
+                    }}
+                  >
+                    No A2UI JSON payload received yet. Submit a query to inspect.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'express' && (
+              <div>
+                <h3 style={{margin: '0 0 16px 0', fontSize: '18px', color: '#0f172a'}}>
+                  Raw Express DSL Generated by Gemini LLM
+                </h3>
+                {rawExpress ? (
+                  <pre
+                    style={{
+                      background: '#1e1e1e',
+                      color: '#d4d4d4',
+                      padding: '20px',
+                      borderRadius: '12px',
+                      fontSize: '13px',
+                      lineHeight: 1.5,
+                      overflowX: 'auto',
+                      maxHeight: '600px',
+                    }}
+                  >
+                    {rawExpress}
+                  </pre>
+                ) : (
+                  <div
+                    style={{
+                      border: '2px dashed #cbd5e1',
+                      borderRadius: '12px',
+                      padding: '48px',
+                      textAlign: 'center',
+                      color: '#64748b',
+                    }}
+                  >
+                    No Express DSL text generated yet. Submit a query to inspect.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
