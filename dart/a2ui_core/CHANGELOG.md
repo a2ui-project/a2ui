@@ -9,7 +9,8 @@
 - **Breaking:** `Catalog` now takes two type parameters,
   `Catalog<C extends ComponentApi, F extends FunctionApi>`.
 - **Breaking:** `ComponentApi` and `FunctionApi` are concrete classes with
-  generative constructors. Subclasses pass `name`, `schema` or
+  generative constructors, and `FunctionImplementation` forwards to
+  `FunctionApi`'s. Subclasses of all three pass `name`, `schema` or
   `argumentSchema`, and `returnType` to `super` rather than overriding
   getters.
 - **Behaviour change:** `A2uiMessage.fromJson` throws `A2uiValidationError`
