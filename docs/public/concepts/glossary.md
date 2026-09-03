@@ -79,6 +79,16 @@ While a catalog provides a complete specification of all UI components and funct
 
 - `FunctionPruningTransformer`: a utility class that filters the catalog based on a list of allowed function names.
 
+### Capabilities Object
+
+Set of catalogs that are available for use. Through this set, agent or renderer advertises what it supports, so the other side knows what it may send.
+
+For example, if a renderer supports Basic, Hotels and Flights catalogs, it will advertise them in its capabilities object.
+
+A capabilities object is exchanged through transport metadata or an initialization payload, not as an [A2UI message](#a2ui-message). The exact placement is transport-specific.
+
+The objects are named differently in earlier versions of the protocol: v0.9 and v0.9.1 call them client and server capabilities, and v0.8 defines only a client-side schema.
+
 ### Surface
 
 An area of UI, constructed by A2UI agent and managed by the A2UI renderer,
