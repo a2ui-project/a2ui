@@ -103,6 +103,55 @@ class TestSkillConformance(unittest.TestCase):
         actual_cat = skills[f"a2ui-{cat_id}/SKILL.md"]
         self.assertEqual(actual_cat, expected_cat)
 
+    def test_skill_generator_with_fake_prompt_generator(self):
+        """Asserts generate_skill() with a FakePromptGenerator matches golden file exactly."""
+        from typing import Any, Optional
+        from a2ui.inference_format import InferenceFormat
+        from a2ui.prompt.generator import PromptGenerator
+
+        class FakePromptGen(PromptGenerator):
+            def generate_base_rules(self) -> str:
+                return "FAKE_BASE_RULES"
+
+            def generate_catalog_instructions(
+                self, include_schema: bool = True, catalog: Optional[Any] = None
+            ) -> str:
+                cat_id = catalog.catalog_id if catalog else "unknown"
+                return f"FAKE_CATALOG_INSTRUCTIONS FOR {cat_id}"
+
+            def generate_examples(
+                self, catalog: Optional[Any] = None, validate: bool = False
+            ) -> str:
+                return "FAKE_EXAMPLES"
+
+        class FakeFormat(InferenceFormat):
+            @property
+            def format_name(self) -> str:
+                return "fake"
+
+            @property
+            def prompt_generator(self) -> PromptGenerator:
+                return FakePromptGen()
+
+            @property
+            def parser(self) -> Any:
+                return None
+
+        fake_fmt = FakeFormat()
+        skills = generate_skill(
+            catalogs=[self.catalog],
+            inference_format=fake_fmt,
+            include_examples=True,
+            modular=False,
+        )
+
+        golden_path = os.path.join(GOLDENS_DIR, "fake_monolithic.skill.md")
+        with open(golden_path, "r", encoding="utf-8") as f:
+            expected = f.read()
+
+        actual = skills["a2ui/SKILL.md"]
+        self.assertEqual(actual, expected)
+
 
 if __name__ == "__main__":
     unittest.main()
