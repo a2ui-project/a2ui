@@ -520,26 +520,14 @@ class ExpressPromptGenerator(PromptGenerator):
             self.helper = CatalogSchemaHelper(catalog) if catalog else None
             self.parser = ExpressParser(catalog) if catalog else None
 
-        parts = [role_description]
-
-        rules = EXPRESS_RULES
-        if workflow_description:
-            rules += f"\n\n{workflow_description}"
-        parts.append(f"## Workflow Description:\n{rules}")
-
-        if ui_description:
-            parts.append(f"## UI Description:\n{ui_description}")
-
-        if include_schema and self.helper:
-            prompt = self._build_schema_prompt()
-            parts.append(prompt)
-
-        if include_examples and self._format and self._format.examples_path and catalog:
-            raw_examples = catalog.load_examples(
-                self._format.examples_path, validate=validate_examples
-            )
-            if raw_examples:
-                formatted_examples = self.transform_examples(raw_examples)
-                parts.append(f"### Examples:\n{formatted_examples}")
-
-        return "\n\n".join(parts)
+        return super().generate(
+            role_description=role_description,
+            workflow_description=workflow_description,
+            ui_description=ui_description,
+            client_ui_capabilities=client_ui_capabilities,
+            allowed_components=allowed_components,
+            allowed_messages=allowed_messages,
+            include_schema=include_schema,
+            include_examples=include_examples,
+            validate_examples=validate_examples,
+        )

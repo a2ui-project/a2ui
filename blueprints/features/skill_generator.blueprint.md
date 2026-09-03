@@ -41,32 +41,28 @@ For managed agent sandbox environments (such as `.agents/` or `/.agents/`), gene
 
 Every language implementation (`a2ui-python`, `a2ui-swift`, `a2ui-kotlin`, `a2ui-node`, `a2ui-go`) MUST expose an equivalent API:
 
-### **1. Skill & SkillSet Domain Objects**
-- **`Skill`**: Encapsulates a single generated skill file (`name`, `description`, `metadata`, `content`, `filename`). Provides `.to_markdown()` for frontmatter serialization and property mutators.
-- **`SkillSet`**: Collection of `Skill` objects representing a modular package (`a2ui-core`, `a2ui-basic`, `a2ui-commerce`). Provides `.export_to_directory(output_dir)`, `.to_dict()`, `.get(key)`, and dictionary iteration.
+### **1. Skill & SkillSet Composition Domain Objects**
+- **`Skill`**: Format-agnostic skill document container (`name`, `description`, `content`, `metadata`, `filename`). Provides `.to_markdown()` for frontmatter serialization.
+  - `Skill.from_format(fmt, name="a2ui")`: Compiles any format into a single monolithic Skill.
+  - `Skill.from_catalog(catalog, fmt, name=None, description=None)`: Compiles a catalog into a clean, LLM-optimized catalog Skill (`a2ui-basic`, `a2ui-commerce`).
+  - `Skill.core_syntax(fmt, name="a2ui-core")`: Compiles core grammar rules into a base core Skill.
+- **`SkillSet`**: Collection of `Skill` objects representing a modular package (`a2ui-core`, `a2ui-basic`, `a2ui-commerce`).
+  - `SkillSet.from_format(fmt, catalogs=None)`: Generates standard modular skill package for any format.
+  - `.export_to_directory(output_dir)`: Writes modular skills to disk.
+  - `.to_dict()` / `[key]`: Dictionary serialization and indexing.
 
-### **2. Simplified SkillGenerator Core Engine**
-```typescript
-class SkillGenerator {
-  constructor(inferenceFormat: InferenceFormat);
-
-  // Generates a monolithic Skill domain object
-  generate(options?: { name?: string; catalogs?: A2uiCatalog[] }): Skill;
-
-  // Generates a SkillSet containing modular Skill objects
-  generateModular(options?: { catalogs?: A2uiCatalog[] }): SkillSet;
-}
+### **2. LLM-Optimized Frontmatter Spec**
+Skill frontmatter headers MUST be concise, LLM-friendly, and omit internal SDK metadata details:
+```yaml
+---
+name: a2ui-basic
+description: UI component catalog signatures for basic. Use when building basic user interface components.
+---
 ```
 
-### **3. Top-Level Helper Function**
-```typescript
-function generateSkill(options?: {
-  inferenceFormat?: InferenceFormat;
-  catalogs?: A2uiCatalog[];
-  outputDir?: string;
-  modular?: boolean;
-}): Record<string, string>;
-```
+### **3. PromptGenerator Deduplication Contract**
+- `PromptGenerator.generate()` serves as the single template method assembling `generate_base_rules()`, `generate_catalog_instructions()`, and `generate_examples()`.
+- Format-specific prompt generators ONLY implement granular sub-methods without duplicating system prompt assembly.
 
 ---
 

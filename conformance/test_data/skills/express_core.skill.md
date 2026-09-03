@@ -1,9 +1,6 @@
 ---
 name: a2ui-core
 description: Core A2UI protocol instructions and syntax rules for UI generation.
-metadata:
-  protocol_version: 0.9.1
-  inference_format: express
 ---
 
 # A2UI Express DSL Output Contract

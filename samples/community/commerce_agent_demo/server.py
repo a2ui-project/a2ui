@@ -36,7 +36,7 @@ from google.genai import types
 
 from a2ui.inference_formats.experimental.express import ExpressFormat
 from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
-from a2ui.skill import generate_skill
+from a2ui.skill import SkillGenerator, generate_skill
 
 
 # 1. Paths & Database

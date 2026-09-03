@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for A2UI SkillGenerator."""
+"""Unit tests for A2UI Skill and SkillSet composition API."""
 
 import os
 import unittest
@@ -41,8 +41,8 @@ SPEC_DIR = os.path.abspath(
 CATALOG_PATH = os.path.join(SPEC_DIR, "catalogs", "basic", "catalog.json")
 
 
-class TestSkillGenerator(unittest.TestCase):
-    """Tests SkillGenerator functionality."""
+class TestSkillCompositionAPI(unittest.TestCase):
+    """Tests Skill and SkillSet domain composition factory methods."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -52,45 +52,59 @@ class TestSkillGenerator(unittest.TestCase):
     def tearDown(self):
         self.temp_dir.cleanup()
 
-    def test_unified_skill_generation(self):
-        """Verifies unified skill generation with Express format."""
+    def test_skill_from_format_monolithic(self):
+        """Verifies Skill.from_format() creating a monolithic Skill object."""
         express_fmt = ExpressFormat(catalog=self.catalog)
-        generator = SkillGenerator(express_fmt)
+        skill_obj = Skill.from_format(express_fmt, name="a2ui-custom-monolithic")
 
-        skill_obj = generator.generate(name="a2ui-test")
-        self.assertEqual(skill_obj.name, "a2ui-test")
-
+        self.assertEqual(skill_obj.name, "a2ui-custom-monolithic")
+        self.assertIn("a2ui-custom-monolithic", skill_obj.filename)
         content = skill_obj.to_markdown()
         self.assertTrue(content.startswith("---"))
         self.assertIn("A2UI Express DSL Output Contract", content)
 
-    def test_modular_skill_generation(self):
-        """Verifies modular skill generation (core + catalog skills)."""
+    def test_skill_from_catalog(self):
+        """Verifies Skill.from_catalog() creating a catalog skill with clean LLM name."""
         express_fmt = ExpressFormat(catalog=self.catalog)
-        generator = SkillGenerator(express_fmt)
+        skill_obj = Skill.from_catalog(self.catalog, express_fmt)
 
-        skill_set = generator.generate_modular(catalogs=[self.catalog])
+        self.assertEqual(skill_obj.name, "a2ui-basic")
+        self.assertIn("a2ui-basic/SKILL.md", skill_obj.filename)
+        content = skill_obj.to_markdown()
+        self.assertIn("Positional Component Signatures", content)
+
+    def test_skill_core_syntax(self):
+        """Verifies Skill.core_syntax() creating base grammar skill."""
+        express_fmt = ExpressFormat(catalog=self.catalog)
+        core_skill = Skill.core_syntax(express_fmt, name="a2ui-base-core")
+
+        self.assertEqual(core_skill.name, "a2ui-base-core")
+        self.assertIn("A2UI Express DSL Output Contract", core_skill.content)
+
+    def test_skillset_from_format_modular(self):
+        """Verifies SkillSet.from_format() generating modular skill package."""
+        express_fmt = ExpressFormat(catalog=self.catalog)
+        skill_set = SkillSet.from_format(express_fmt)
+
         self.assertIn("a2ui-core/SKILL.md", skill_set)
+        self.assertIn("a2ui-basic/SKILL.md", skill_set)
         self.assertEqual(len(skill_set), 2)
 
-        core_skill = skill_set.get("a2ui-core")
-        self.assertIsNotNone(core_skill)
-        self.assertEqual(core_skill.name, "a2ui-core")
+        core_sk = skill_set["a2ui-core"]
+        self.assertEqual(core_sk.name, "a2ui-core")
 
-    def test_write_to_directory(self):
-        """Verifies skill files are written to target directory."""
+        basic_sk = skill_set["a2ui-basic"]
+        self.assertEqual(basic_sk.name, "a2ui-basic")
+
+    def test_export_to_directory(self):
+        """Verifies exporting SkillSet to directory."""
         express_fmt = ExpressFormat(catalog=self.catalog)
-        generate_skill(
-            catalogs=[self.catalog],
-            inference_format=express_fmt,
-            output_dir=self.temp_dir.name,
-        )
+        skill_set = SkillSet.from_format(express_fmt)
+        exported = skill_set.export_to_directory(self.temp_dir.name)
 
-        expected_file = os.path.join(self.temp_dir.name, "a2ui", "SKILL.md")
-        self.assertTrue(os.path.exists(expected_file))
-        with open(expected_file, "r", encoding="utf-8") as f:
-            content = f.read()
-        self.assertIn("name: a2ui", content)
+        self.assertIn("a2ui-core/SKILL.md", exported)
+        self.assertTrue(os.path.exists(os.path.join(self.temp_dir.name, "a2ui-core", "SKILL.md")))
+        self.assertTrue(os.path.exists(os.path.join(self.temp_dir.name, "a2ui-basic", "SKILL.md")))
 
 
 if __name__ == "__main__":

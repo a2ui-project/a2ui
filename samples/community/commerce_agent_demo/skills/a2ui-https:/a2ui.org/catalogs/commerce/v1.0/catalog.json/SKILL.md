@@ -43,4 +43,3 @@ Use these exact positional signatures to instantiate components. Do not output p
 ## Positional Function Signatures
 
 Use these exact positional signatures to instantiate check rules or logic functions:
-

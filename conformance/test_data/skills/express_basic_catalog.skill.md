@@ -1,10 +1,7 @@
 ---
-name: a2ui-https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-description: UI component catalog signatures for https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json.
-metadata:
-  protocol_version: 0.9.1
-  inference_format: express
-  catalog: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+name: a2ui-basic
+description: UI component catalog signatures for basic. Use when building basic user
+  interface components.
 ---
 
 ## Positional Component Signatures

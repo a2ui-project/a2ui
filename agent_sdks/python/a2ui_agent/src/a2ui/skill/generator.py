@@ -12,15 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""SkillGenerator implementation for generating A2UI skill packages."""
+"""SkillGenerator convenience wrapper for generating A2UI skill packages."""
 
 import os
 from typing import Any, Optional, Union
-import yaml
 
 from a2ui.inference_format import InferenceFormat
 from a2ui.inference_formats.experimental.express.format import ExpressFormat
-from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
+from a2ui.schema.catalog import A2uiCatalog
 from a2ui.skill.skill import Skill, SkillSet
 
 
@@ -37,127 +36,14 @@ class SkillGenerator:
         catalogs: Optional[list[Union[str, A2uiCatalog]]] = None,
     ) -> Skill:
         """Generates a single unified (monolithic) Skill domain object."""
-        fmt = self.inference_format
-        resolved_catalogs = self._resolve_catalogs(catalogs, fmt)
-
-        cat_ids = [c.catalog_id for c in resolved_catalogs if getattr(c, "catalog_id", None)]
-        fmt_name = fmt.__class__.__name__.replace("Format", "").lower()
-
-        meta = {
-            "protocol_version": "0.9.1",
-            "inference_format": fmt_name,
-            "catalogs": cat_ids,
-        }
-        frontmatter = self._build_frontmatter(name, "Generates interactive user interface components for user requests.", meta)
-
-        prompt_gen = fmt.prompt_generator
-        base_rules = prompt_gen.generate_base_rules()
-
-        cat_blocks = []
-        ex_blocks = []
-        for c in resolved_catalogs:
-            inst = prompt_gen.generate_catalog_instructions(catalog=c)
-            if inst:
-                cat_blocks.append(inst)
-            ex = prompt_gen.generate_examples(catalog=c)
-            if ex:
-                ex_blocks.append(ex)
-
-        body_parts = []
-        if base_rules:
-            body_parts.append(base_rules)
-        if cat_blocks:
-            body_parts.extend(cat_blocks)
-        if ex_blocks:
-            body_parts.append("### Examples:\n\n" + "\n\n".join(ex_blocks))
-
-        content = frontmatter + "\n\n" + "\n\n".join(body_parts) + "\n"
-        return self._parse_skill_markdown(content, filename=f"{name}/SKILL.md")
+        return Skill.from_format(self.inference_format, name=name, catalogs=catalogs)
 
     def generate_modular(
         self,
         catalogs: Optional[list[Union[str, A2uiCatalog]]] = None,
     ) -> SkillSet:
         """Generates a SkillSet containing modular Skill objects (a2ui-core, a2ui-basic, etc.)."""
-        fmt = self.inference_format
-        cat_list = self._resolve_catalogs(catalogs, fmt)
-        fmt_name = fmt.__class__.__name__.replace("Format", "").lower()
-        prompt_gen = fmt.prompt_generator
-
-        skill_set = SkillSet()
-
-        # 1. Core Syntax Skill
-        core_fm = self._build_frontmatter(
-            "a2ui-core",
-            "Core A2UI protocol instructions and syntax rules for UI generation.",
-            {"protocol_version": "0.9.1", "inference_format": fmt_name},
-        )
-        base_rules = prompt_gen.generate_base_rules()
-        core_content = core_fm + "\n\n" + base_rules + "\n"
-        skill_set.add(self._parse_skill_markdown(core_content, filename="a2ui-core/SKILL.md"))
-
-        # 2. Catalog Skills
-        for c in cat_list:
-            cat_id = getattr(c, "catalog_id", "catalog")
-            cat_skill_name = f"a2ui-{cat_id}"
-            cat_fm = self._build_frontmatter(
-                cat_skill_name,
-                getattr(c, "description", None) or f"UI component catalog signatures for {cat_id}.",
-                {"protocol_version": "0.9.1", "inference_format": fmt_name, "catalog": cat_id},
-            )
-            cat_body = prompt_gen.generate_catalog_instructions(catalog=c)
-            ex = prompt_gen.generate_examples(catalog=c)
-            if ex:
-                cat_body += f"\n\n### Examples:\n\n{ex}"
-
-            cat_content = cat_fm + "\n\n" + cat_body + "\n"
-            skill_set.add(self._parse_skill_markdown(cat_content, filename=f"{cat_skill_name}/SKILL.md"))
-
-        return skill_set
-
-    def _resolve_catalogs(
-        self,
-        catalogs: Optional[list[Union[str, Any]]],
-        fmt: InferenceFormat,
-    ) -> list[A2uiCatalog]:
-        resolved = []
-        if catalogs:
-            for c in catalogs:
-                if isinstance(c, str):
-                    resolved.append(A2uiCatalog.from_json_file(c))
-                elif isinstance(c, CatalogConfig):
-                    resolved.append(A2uiCatalog.from_config(c))
-                elif isinstance(c, A2uiCatalog):
-                    resolved.append(c)
-
-        if not resolved and hasattr(fmt, "_supported_catalogs") and fmt._supported_catalogs:
-            resolved.extend(fmt._supported_catalogs)
-        if hasattr(fmt, "catalog") and fmt.catalog:
-            if fmt.catalog not in resolved:
-                resolved.append(fmt.catalog)
-
-        return resolved
-
-    def _build_frontmatter(self, name: str, description: str, metadata: dict[str, Any]) -> str:
-        fm_dict = {"name": name, "description": description, "metadata": metadata}
-        return f"---\n{yaml.dump(fm_dict, sort_keys=False).strip()}\n---"
-
-    def _parse_skill_markdown(self, markdown_text: str, filename: str = "SKILL.md") -> Skill:
-        if markdown_text.startswith("---"):
-            parts = markdown_text.split("---", 2)
-            if len(parts) >= 3:
-                try:
-                    fm_data = yaml.safe_load(parts[1].strip()) or {}
-                    return Skill(
-                        name=fm_data.get("name", "a2ui"),
-                        description=fm_data.get("description", ""),
-                        content=parts[2].strip(),
-                        metadata=fm_data.get("metadata", {}),
-                        filename=filename,
-                    )
-                except Exception:
-                    pass
-        return Skill(name="a2ui", description="", content=markdown_text, filename=filename)
+        return SkillSet.from_format(self.inference_format, catalogs=catalogs)
 
 
 def generate_skill(

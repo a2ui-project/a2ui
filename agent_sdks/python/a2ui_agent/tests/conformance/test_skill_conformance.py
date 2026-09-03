@@ -99,8 +99,7 @@ class TestSkillConformance(unittest.TestCase):
         actual_core = skills["a2ui-core/SKILL.md"]
         self.assertEqual(actual_core, expected_core)
 
-        cat_id = self.catalog.catalog_id
-        actual_cat = skills[f"a2ui-{cat_id}/SKILL.md"]
+        actual_cat = skills.get("a2ui-basic/SKILL.md") or skills.get("a2ui-basic")
         self.assertEqual(actual_cat, expected_cat)
 
     def test_skill_generator_with_fake_prompt_generator(self):
