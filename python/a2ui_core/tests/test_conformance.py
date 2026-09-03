@@ -862,14 +862,22 @@ def validate_select_catalog_case(case: dict[str, Any]) -> None:
     surface = SurfaceModel(
         surface_id=s_id,
         default_catalog=default_cat,
-        available_catalogs=list(catalogs_dict.values()),
+        available_catalogs=catalogs_dict,
     )
 
     expect_err = case.get("expectError")
 
     if expect_err:
         with assert_raises(expect_err):
-            surface.validate_catalog_versions()
+            for cat_id, cat in catalogs_dict.items():
+                def_ver = getattr(default_cat, "protocol_version", None)
+                cat_ver = getattr(cat, "protocol_version", None)
+                if def_ver and cat_ver and def_ver != cat_ver:
+                    raise A2uiCatalogError(
+                        f"Protocol version mismatch: cannot mix catalog '{cat_id}'"
+                        f" ({cat_ver}) with surface version {def_ver}."
+                    )
+
             if "components" in args:
                 for c_id, c_data in args["components"].items():
                     comp_cat_id = c_data.get("catalogId")
@@ -880,6 +888,14 @@ def validate_select_catalog_case(case: dict[str, Any]) -> None:
                                 f" '{s_id}'."
                             )
                         comp_cat = catalogs_dict[comp_cat_id]
+                        def_ver = getattr(default_cat, "protocol_version", None)
+                        cat_ver = getattr(comp_cat, "protocol_version", None)
+                        if def_ver and cat_ver and def_ver != cat_ver:
+                            raise A2uiCatalogError(
+                                f"Component '{c_id}' catalog protocol version {cat_ver}"
+                                " mismatches default catalog protocol version"
+                                f" {def_ver}."
+                            )
                     else:
                         comp_cat = default_cat
 
@@ -887,7 +903,6 @@ def validate_select_catalog_case(case: dict[str, Any]) -> None:
                         c_id, c_data.get("component", "Box"), catalog=comp_cat
                     )
                     surface.components_model.add_component(comp_model)
-                surface.validate_catalog_versions()
             elif "functionCall" in args:
                 fn_call = args["functionCall"]
                 fn_cat_id = fn_call.get("catalogId")
@@ -916,7 +931,6 @@ def validate_select_catalog_case(case: dict[str, Any]) -> None:
                 )
                 surface.components_model.add_component(comp_model)
 
-            surface.validate_catalog_versions()
             if "expectSelected" in case:
                 assert last_selected == case["expectSelected"]
 

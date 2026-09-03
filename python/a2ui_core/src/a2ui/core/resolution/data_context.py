@@ -268,37 +268,13 @@ class DataContext(Generic[TComponent, TFunction]):
     ) -> Any:
         from ..exceptions import A2uiCatalogError
 
-        if self.surface and hasattr(self.surface, "validate_catalog_versions"):
-            self.surface.validate_catalog_versions()
-
         target_catalog: Catalog[TComponent, TFunction] | None = None
         if catalog_id is not None:
-            if (
-                self.surface
-                and self.surface.default_catalog
-                and getattr(self.surface.default_catalog, "catalog_id", None)
-                == catalog_id
-            ):
-                target_catalog = self.surface.default_catalog
-            elif self.surface and hasattr(self.surface, "available_catalogs"):
-                for cat in self.surface.available_catalogs:
-                    if getattr(cat, "catalog_id", None) == catalog_id:
-                        target_catalog = cat
-                        break
+            target_catalog = self.surface.available_catalogs.get(catalog_id)
             if not target_catalog:
                 raise A2uiCatalogError(f"Catalog not found: {catalog_id}")
         else:
-            if self.surface and self.surface.default_catalog:
-                target_catalog = self.surface.default_catalog
-            elif (
-                self.surface
-                and hasattr(self.surface, "available_catalogs")
-                and self.surface.available_catalogs
-            ):
-                target_catalog = self.surface.available_catalogs[0]
-
-        if not target_catalog:
-            raise A2uiCatalogError("No catalog available for function execution.")
+            target_catalog = self.surface.default_catalog
 
         try:
             PayloadValidator(catalog=target_catalog).validate_function(

@@ -33,18 +33,16 @@ class SurfaceModel(Generic[TComponent, TFunction]):
         self,
         surface_id: str,
         default_catalog: Catalog[TComponent, TFunction],
-        available_catalogs: Sequence[Catalog[TComponent, TFunction]] | None = None,
+        available_catalogs: dict[str, Catalog[TComponent, TFunction]] | None = None,
         theme: dict[str, Any] | None = None,
         send_data_model: bool = False,
         data_model: DataModel | None = None,
     ) -> None:
         self.id = surface_id
         self.default_catalog = default_catalog
-        self.available_catalogs: list[Catalog[TComponent, TFunction]] = list(
-            available_catalogs or [default_catalog]
+        self.available_catalogs: dict[str, Catalog[TComponent, TFunction]] = (
+            dict(available_catalogs) if available_catalogs else {}
         )
-        if default_catalog not in self.available_catalogs:
-            self.available_catalogs.append(default_catalog)
         self.theme = theme or {}
         self.send_data_model = send_data_model
 
@@ -53,35 +51,6 @@ class SurfaceModel(Generic[TComponent, TFunction]):
         self.root_id: str | None = None
         self.on_action = EventSource()
         self.on_error = EventSource()
-
-    def validate_catalog_versions(self) -> None:
-        """Verifies that all active catalogs mixed within this surface share the same protocolVersion."""
-        cats_to_check: list[Catalog[Any, Any]] = [self.default_catalog]
-        for cat in self.available_catalogs:
-            if cat not in cats_to_check:
-                cats_to_check.append(cat)
-        for comp in self.components_model.get_all().values():
-            if isinstance(comp.catalog, Catalog) and comp.catalog not in cats_to_check:
-                cats_to_check.append(comp.catalog)
-
-        cats_tuple = tuple(sorted(cats_to_check, key=lambda c: id(c)))
-        if getattr(self, "_validated_catalogs_cache", None) == cats_tuple:
-            return
-
-        versions = {
-            cat.protocol_version.value
-            if hasattr(cat.protocol_version, "value")
-            else str(cat.protocol_version)
-            for cat in cats_to_check
-            if getattr(cat, "protocol_version", None) is not None
-        }
-        if len(versions) > 1:
-            vers_str = ", ".join(sorted(versions))
-            raise A2uiCatalogError(
-                f"Mixed catalogs on surface '{self.id}' have mismatched protocol"
-                f" versions: {vers_str}."
-            )
-        self._validated_catalogs_cache = cats_tuple
 
     def dispatch_action(
         self, payload: dict[str, Any], source_component_id: str
@@ -115,13 +84,6 @@ class SurfaceModel(Generic[TComponent, TFunction]):
         if "surfaceId" not in err_payload:
             err_payload["surfaceId"] = self.id
         self.on_error.emit(err_payload)
-
-    @property
-    def catalogs(self) -> dict[str, Catalog[TComponent, TFunction]]:
-        res: dict[str, Catalog[TComponent, TFunction]] = {}
-        for comp in self.components_model.get_all().values():
-            res[comp.id] = cast(Catalog[TComponent, TFunction], comp.catalog)
-        return res
 
     def dispose(self) -> None:
         """Disposes of the surface and its resources."""

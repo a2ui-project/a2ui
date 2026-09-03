@@ -85,9 +85,6 @@ class NodeGraph(Generic[TComponent, TFunction]):
         props_signal: Signal[dict[str, Any]] = Signal({})
 
         if component_model:
-            if hasattr(self.surface, "validate_catalog_versions"):
-                self.surface.validate_catalog_versions()
-
             node = ComponentNode(
                 instance_id, component_id, component_model.type, data_path, props_signal
             )
