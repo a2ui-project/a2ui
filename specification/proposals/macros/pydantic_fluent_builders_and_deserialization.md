@@ -16,6 +16,13 @@ However, real-world systems require bidirectional capability:
 
 Furthermore, catalog versions are not updated synchronously across agents, clients, and middleware. The generated classes and deserializer must support forward and backward compatibility by default.
 
+### Implementation phasing
+
+To deliver value quickly without unnecessary migration risk, this design is divided into two phases:
+
+1. **Phase 1: Pydantic foundation and fluent authoring (Immediate):** Migrate `ComponentBuilderNode` and builder types to Pydantic v2 `BaseModel`, adopt open enums, typed child slots, and strict authoring validation via `@a2ui/cli` code generation. All authoring and serialization functions continue to work without breaking changes.
+2. **Phase 2: Bidirectional AST deserialization (Follow-up):** Introduce `deserialize_surface`, `WrapValidator` slot resolution, `UnknownComponent` fallback, and strongly-typed unlinked subtrees as a non-breaking, purely additive extension.
+
 ---
 
 ## 2. Requirements
@@ -67,13 +74,13 @@ An agent receives an unknown container component (`VideoPlayer`) holding known c
 
 ## 4. Architecture and implementation
 
-### A. The slot resolution validator (`a2ui.builder.base`)
+### A. Base models and slot resolution (`a2ui.builder.base`)
 
-To enable single-pass deserialization, child component references use a Pydantic `WrapValidator`. When deserializing flat wire JSON, the validator receives the string ID, retrieves the raw component dictionary from the validation context (`info.context["components"]`), records the ID in `info.context["_visited"]`, and validates it recursively into the target component class.
+In **Phase 1**, `ComponentBuilderNode` is established as a Pydantic `BaseModel` with strict attribute validation, and child slots are typed directly:
 
 ```python
-from typing import Annotated, Any, Sequence, TypeAlias
-from pydantic import BaseModel, ConfigDict, ValidationInfo, WrapValidator
+from typing import Any, Sequence, TypeAlias
+from pydantic import BaseModel, ConfigDict
 
 
 class ComponentBuilderNode(BaseModel):
@@ -88,6 +95,18 @@ class ComponentBuilderNode(BaseModel):
 
     component: str
     id: str | None = None
+
+
+# Phase 1: Direct type aliases for fluent authoring
+Slot: TypeAlias = ComponentBuilderNode
+SlotList: TypeAlias = Sequence[Slot]
+```
+
+In **Phase 2**, to enable single-pass deserialization, child component slots are upgraded to use a Pydantic `WrapValidator`. When deserializing flat wire JSON, the validator receives the string ID, retrieves the raw component dictionary from the validation context (`info.context["components"]`), records the ID in `info.context["_visited"]`, and validates it recursively into the target component class:
+
+```python
+from typing import Annotated, Any, Sequence, TypeAlias
+from pydantic import ValidationInfo, WrapValidator
 
 
 def _resolve_slot(
@@ -111,6 +130,7 @@ def _resolve_slot(
     return handler(val)
 
 
+# Phase 2: WrapValidator slot definition (transparent to direct model instantiation)
 Slot: TypeAlias = Annotated[ComponentBuilderNode, WrapValidator(_resolve_slot)]
 SlotList: TypeAlias = Sequence[Slot]
 ```
@@ -514,3 +534,66 @@ If an upstream catalog renames a property (such as `label` to `title`), deserial
 2. **Why `WrapValidator` over pre-expansion:** Pre-expanding dictionaries into temporary JSON trees creates unnecessary Python dictionary overhead and relies on string-matching heuristics. `WrapValidator` operates directly during Pydantic's native type validation pass, ensuring only fields explicitly declared as slots are resolved.
 3. **Why `extra="forbid"` for authoring and `extra="allow"` for unknown components:** Strict validation on standard models prevents typo bugs when writing code, while permissive parsing on `UnknownComponent` ensures unknown wire elements are preserved during round-trips.
 4. **Why typed unlinked subtrees:** When an unknown container obscures slot relationships, parsing disconnected components into typed Pydantic models preserves developer ergonomics, inspection tooling, and unified serialization without degrading to raw untyped dictionaries.
+
+---
+
+## 8. Phased implementation roadmap
+
+### Phase 1: Pydantic foundation and fluent authoring (Immediate)
+
+Phase 1 focuses on authoring ergonomics, IDE verification, and strict type safety during outward UI generation.
+
+#### Scope of Phase 1
+
+1. **Pydantic base models (`a2ui.builder.base`):**
+   - Convert `ComponentBuilderNode` from `@dataclass` to `pydantic.BaseModel`.
+   - Configure `model_config = ConfigDict(extra="forbid", populate_by_name=True, validate_assignment=True)`.
+   - Convert supporting types (`Action`, `DataBinding`, `AccessibilityAttributes`, `FunctionCall`, `CheckRule`, `DynamicChildList`) to Pydantic models.
+   - Define the initial slot type aliases: `Slot: TypeAlias = ComponentBuilderNode` and `SlotList: TypeAlias = Sequence[Slot]`.
+2. **Code generator migration (`@a2ui/cli`):**
+   - Update the Python emitter to generate Pydantic v2 `BaseModel` classes instead of `@dataclass(kw_only=True)`.
+   - Emit open enums (`Literal[...] | str`) for all component enum properties to handle future catalog additions.
+   - Type child slots as `child: Slot` and multi-child slots as `children: SlotList = ()`.
+   - Re-generate the basic catalog builders (`a2ui.builder.catalogs.basic`).
+3. **Outward serialization preservation:**
+   - Retain existing `to_dict()`, `flatten_component_tree()`, and `Surface.to_messages()` behavior.
+   - Maintain compatibility with all existing macro definitions and demo servers.
+
+#### Phase 1 developer benefits
+
+- **Typo detection at edit and run time:** Writing `Button(lable="Save")` or `Text(vairant="h1")` raises an immediate Pydantic `ValidationError`.
+- **Open enum evolution:** Client code accepts new enum strings introduced by updated catalogs without failing validation.
+- **Ecosystem alignment:** Builders integrate directly with Python AI frameworks that use Pydantic models.
+
+---
+
+### Phase 2: Bidirectional AST deserialization (Follow-up)
+
+Phase 2 adds incoming payload parsing, turning flat wire payloads into navigable, mutable object trees.
+
+#### Scope of Phase 2
+
+1. **Contextual slot resolution:**
+   - Upgrade `Slot` in `a2ui.builder.base` to use `Annotated[ComponentBuilderNode, WrapValidator(_resolve_slot)]`.
+   - Resolve wire string IDs to concrete child instances in a single pass using validation context (`info.context["components"]`).
+2. **Catalog evolution models:**
+   - Introduce `UnknownComponent(ComponentBuilderNode)` with `model_config = ConfigDict(extra="allow")`.
+   - Generate the discriminated union `Component = Annotated[Union[..., UnknownComponent], Field(discriminator="component")]`.
+3. **Deserialization entrypoint:**
+   - Implement `deserialize_surface(payload) -> Surface`.
+   - Reconstruct primary hierarchies and preserve unlinked subtrees in `surface.unlinked_roots`.
+
+---
+
+### Non-breaking API guarantees
+
+Transitioning from Phase 1 to Phase 2 introduces zero breaking changes to existing authoring code:
+
+| Element                     | Phase 1 (Authoring)                | Phase 2 (Deserialization Added)                                        | Compatibility Impact                                                                                                                              |
+| :-------------------------- | :--------------------------------- | :--------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Constructor signatures**  | `Card(child=Column(...))`          | `Card(child=Column(...))`                                              | **Non-breaking:** Constructor signatures and kwargs remain identical.                                                                             |
+| **`Slot` type alias**       | `Slot = ComponentBuilderNode`      | `Slot = Annotated[ComponentBuilderNode, WrapValidator(_resolve_slot)]` | **Non-breaking:** In Pydantic, passing a model instance directly passes through the `WrapValidator`. Existing Python instantiation is unaffected. |
+| **`deserialize_surface()`** | Not present                        | Added as a new function                                                | **Non-breaking:** Additive API; existing code does not call it.                                                                                   |
+| **`UnknownComponent`**      | Not present                        | Added to catalog module                                                | **Non-breaking:** Additive fallback class for unrecognized wire payloads.                                                                         |
+| **`Surface` constructor**   | `Surface(root, surface_id="main")` | `Surface(root, surface_id="main", unlinked_roots=())`                  | **Non-breaking:** `unlinked_roots` defaults to empty, preserving backwards compatibility.                                                         |
+| **Serialization**           | `surface.to_messages()`            | `surface.to_messages()`                                                | **Non-breaking:** Existing flattening logic produces identical wire messages.                                                                     |
