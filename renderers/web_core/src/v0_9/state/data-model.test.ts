@@ -455,4 +455,55 @@ describe('DataModel', () => {
     }, /Cannot use non-numeric segment/);
     assert.strictEqual(model.get('/items/01'), undefined);
   });
+
+  // Test unbounded array index protection (see https://github.com/a2ui-project/a2ui/issues/2386)
+
+  it('rejects excessively large array indices to prevent OOM and thread hangs (Issue #2386)', () => {
+    // Leaf index on existing array
+    assert.throws(
+      () => model.set('/items/999999999', 'x'),
+      /exceeds maximum supported index \(10000\)/,
+    );
+    assert.throws(
+      () => model.set('/items/10001', 'x'),
+      /exceeds maximum supported index \(10000\)/,
+    );
+
+    // Intermediate index on existing array
+    assert.throws(
+      () => model.set('/items/999999999/name', 'x'),
+      /exceeds maximum supported index \(10000\)/,
+    );
+    assert.throws(
+      () => model.set('/items/10001/name', 'x'),
+      /exceeds maximum supported index \(10000\)/,
+    );
+
+    // Auto-vivification on uninitialized path
+    assert.throws(
+      () => model.set('/newArray/10000000', 'x'),
+      /exceeds maximum supported index \(10000\)/,
+    );
+    assert.throws(
+      () => model.set('/newArray/10000000/field', 'x'),
+      /exceeds maximum supported index \(10000\)/,
+    );
+  });
+
+  it('allows valid array indices within supported limit', () => {
+    model.set('/items/10000', 'max_element');
+    assert.strictEqual(model.get('/items/10000'), 'max_element');
+  });
+
+  it('notifies bound signals without unbounded array clone overhead', () => {
+    let notifiedVal: any = null;
+    const sub = model.subscribe<any[]>('/items', v => (notifiedVal = v));
+
+    model.set('/items/500', 'test_val');
+    assert.strictEqual(model.get('/items/500'), 'test_val');
+    assert.ok(Array.isArray(notifiedVal));
+    assert.strictEqual(notifiedVal[500], 'test_val');
+
+    sub.unsubscribe();
+  });
 });

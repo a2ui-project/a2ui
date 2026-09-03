@@ -41,6 +41,12 @@ function isNumeric(value: string): boolean {
 }
 
 /**
+ * The maximum array index that auto-vivification and array mutations will expand to.
+ * Prevents OOM and thread hangs from excessively large indices.
+ */
+export const MAX_ARRAY_INDEX = 10000;
+
+/**
  * Keys forbidden in path resolution to prevent prototype pollution
  * vulnerabilities. Accessing or mutating these keys via object paths can allow
  * attackers to modify Object.prototype or Function.prototype.
@@ -99,8 +105,8 @@ export class DataModel {
    * @param value The value to set at the specified path.
    * @returns This `DataModel` instance for chaining.
    * @throws {A2uiDataError} If path is null, undefined, invalid for
-   *     arrays/primitives, or contains forbidden segments (`__proto__`,
-   *     `constructor`, `prototype`).
+   *     arrays/primitives, exceeds max array bounds, or contains forbidden
+   *     segments (`__proto__`, `constructor`, `prototype`).
    */
   set(path: string, value: any): this {
     if (path === null || path === undefined) {
@@ -131,10 +137,17 @@ export class DataModel {
           );
         }
 
+        const index = parseInt(segment, 10);
+        if (index > MAX_ARRAY_INDEX) {
+          throw new A2uiDataError(
+            `Cannot set path '${path}': array index '${segment}' exceeds maximum supported index (${MAX_ARRAY_INDEX}).`,
+            path,
+          );
+        }
+
         // If we encounter a primitive where a container is expected, we cannot
         // proceed. We allow undefined/null to be overwritten by a new
         // container.
-        const index = parseInt(segment, 10);
         const val = current[index];
         if (val !== undefined && val !== null && typeof val !== 'object') {
           throw new A2uiDataError(
@@ -145,7 +158,18 @@ export class DataModel {
 
         if (val === undefined || val === null) {
           const nextSegment = i < segments.length - 1 ? segments[i + 1] : lastSegment;
-          current[index] = isNumeric(nextSegment) ? [] : {};
+          if (isNumeric(nextSegment)) {
+            const nextIdx = parseInt(nextSegment, 10);
+            if (nextIdx > MAX_ARRAY_INDEX) {
+              throw new A2uiDataError(
+                `Cannot set path '${path}': array index '${nextSegment}' exceeds maximum supported index (${MAX_ARRAY_INDEX}).`,
+                path,
+              );
+            }
+            current[index] = [];
+          } else {
+            current[index] = {};
+          }
         }
       } else {
         // Ensure we only inspect own properties to prevent inherited
@@ -167,18 +191,38 @@ export class DataModel {
 
         if (!hasOwnProp || current[segment] === undefined || current[segment] === null) {
           const nextSegment = i < segments.length - 1 ? segments[i + 1] : lastSegment;
-          current[segment] = isNumeric(nextSegment) ? [] : {};
+          if (isNumeric(nextSegment)) {
+            const nextIdx = parseInt(nextSegment, 10);
+            if (nextIdx > MAX_ARRAY_INDEX) {
+              throw new A2uiDataError(
+                `Cannot set path '${path}': array index '${nextSegment}' exceeds maximum supported index (${MAX_ARRAY_INDEX}).`,
+                path,
+              );
+            }
+            current[segment] = [];
+          } else {
+            current[segment] = {};
+          }
         }
       }
 
       current = current[segment];
     }
 
-    if (Array.isArray(current) && !isNumeric(lastSegment)) {
-      throw new A2uiDataError(
-        `Cannot use non-numeric segment '${lastSegment}' on an array in path '${path}'.`,
-        path,
-      );
+    if (Array.isArray(current)) {
+      if (!isNumeric(lastSegment)) {
+        throw new A2uiDataError(
+          `Cannot use non-numeric segment '${lastSegment}' on an array in path '${path}'.`,
+          path,
+        );
+      }
+      const lastIndex = parseInt(lastSegment, 10);
+      if (lastIndex > MAX_ARRAY_INDEX) {
+        throw new A2uiDataError(
+          `Cannot set path '${path}': array index '${lastSegment}' exceeds maximum supported index (${MAX_ARRAY_INDEX}).`,
+          path,
+        );
+      }
     }
 
     if (value === undefined) {
@@ -336,7 +380,7 @@ export class DataModel {
     if (sig) {
       const val = this.get(path);
       if (Array.isArray(val)) {
-        setValue(sig, [...val]);
+        setValue(sig, val.slice());
       } else if (typeof val === 'object' && val !== null) {
         setValue(sig, {...val});
       } else {
