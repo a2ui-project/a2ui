@@ -51,15 +51,7 @@ CATEGORY_TO_EXCEPTION = {
 
 SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "v1.0", "0.8", "0.9", "1.0"}
 
-# Transition skip list for core test cases pending feature implementation or version adapters
-SKIP_TEST_NAMES: set[str] = {
-    "test_index_function_in_collection_loop",
-    "test_index_function_with_offset",
-    "test_index_function_nested_path",
-    "test_index_function_outside_loop_error",
-    "test_validation_result_dynamic_object_return",
-    "test_validation_result_boolean_fallback",
-}
+SKIP_TEST_NAMES: set[str] = set()
 
 # Transition skip list containing specific test suite files or basenames to skip entirely.
 SKIP_TEST_SUITES: set[str] = set()
@@ -183,6 +175,15 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
         if version == "v1.0"
         else (v08_catalog if version == "v0.8" else v09_catalog)
     )
+    v10_basic_alias = Catalog(
+        catalog_id="basic",
+        protocol_version="v1.0",
+        components=list(v10_catalog.components.values()),
+        functions=list(v10_catalog.functions.values()),
+    )
+
+    if version == "v1.0":
+        catalogs_map["basic"] = v10_basic_alias
 
     def add_catalog_id(cat_id: str, ver: str | None = None):
         if cat_id and (
@@ -491,11 +492,60 @@ def _assert_expected_surface_state(
                     comp_items = []
                 for c_id, c_exp in comp_items:
                     comp = surface.components_model.get(c_id)
+                    node = None
+                    if comp is None and isinstance(c_exp, dict):
+                        from a2ui.core.resolution.node_graph import NodeGraph
+
+                        graph = NodeGraph(surface)
+                        for n in graph.active_nodes.values():
+                            data_p = getattr(n, "data_path", "")
+                            parts = [p for p in data_p.strip("/").split("/") if p]
+                            if parts and parts[-1].isdigit():
+                                if f"{n.component_id}_{parts[-1]}" == c_id:
+                                    node = n
+                                    break
                     assert (
-                        comp is not None
+                        comp is not None or node is not None
                     ), f"Component '{c_id}' missing from surface '{s_id}'"
-                    if "component" in c_exp:
-                        assert comp.type == c_exp["component"]
+                    if isinstance(c_exp, dict):
+                        c_type = comp.type if comp else (node.type if node else "")
+                        if "component" in c_exp:
+                            assert c_type == c_exp["component"]
+                        if node:
+                            node_props = node.props.value
+                            for p_key, p_val in c_exp.items():
+                                if p_key in ("id", "component"):
+                                    continue
+                                assert str(node_props.get(p_key)) == str(p_val), (
+                                    f"Property '{p_key}' mismatch on component"
+                                    f" '{c_id}': got {node_props.get(p_key)}, expected"
+                                    f" {p_val}"
+                                )
+
+            if "validationResult" in s_exp:
+                from a2ui.core.resolution.node_graph import NodeGraph
+
+                graph = NodeGraph(surface)
+                val_res_exp = s_exp["validationResult"]
+                for c_id, exp_vr in val_res_exp.items():
+                    node = next(
+                        (
+                            n
+                            for n in graph.active_nodes.values()
+                            if getattr(n, "component_id", None) == c_id
+                            or getattr(n, "instance_id", None) == c_id
+                        ),
+                        None,
+                    )
+                    assert (
+                        node is not None
+                    ), f"Component node '{c_id}' missing from surface '{s_id}'"
+                    node_props = node.props.value
+                    vr = node_props.get("validationResult")
+                    assert vr == exp_vr, (
+                        f"ValidationResult mismatch for '{c_id}': got {vr}, expected"
+                        f" {exp_vr}"
+                    )
 
 
 def validate_pure_validation_case(case: dict[str, Any]) -> None:
@@ -507,7 +557,7 @@ def validate_pure_validation_case(case: dict[str, Any]) -> None:
     if not steps:
         steps = [case]
 
-    for step in steps:
+    for idx, step in enumerate(steps):
         messages = step.get("messages") or step.get("payload")
         if not messages and "message" in step:
             messages = [step["message"]]
@@ -519,8 +569,20 @@ def validate_pure_validation_case(case: dict[str, Any]) -> None:
         if expect_error:
             with assert_raises(expect_error):
                 processor.process_messages(messages)
+                if "@index" in str(messages):
+                    from a2ui.core.resolution.node_graph import NodeGraph
+
+                    for s in processor.model.surfaces.values():
+                        g = NodeGraph(s)
+                        for n in g.active_nodes.values():
+                            _ = n.props.value
         else:
             processor.process_messages(messages)
+            expected = step.get("expect")
+            if not expected and idx == len(steps) - 1:
+                expected = case.get("expect")
+            if expected:
+                _assert_expected_surface_state(processor, expected)
 
 
 def validate_process_messages_case(case: dict[str, Any]) -> None:
