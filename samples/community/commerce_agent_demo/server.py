@@ -142,35 +142,92 @@ def generate_modular_skills():
 
     # Combine skill contents into full system instruction
     combined_instructions = "\n\n".join(skills.values())
-    return combined_instructions, basic_cat, commerce_cat
+    return skills, combined_instructions, basic_cat, commerce_cat
 
 
-def query_commerce_agent(client: genai.Client, system_instruction: str, prompt: str) -> str:
-    """Queries Gemini Managed Agent API with modular commerce skills."""
-    print(f"2. Executing Agent query: '{prompt}'...")
-    config = types.GenerateContentConfig(
-        system_instruction=system_instruction,
-        temperature=0.2,
-    )
+def build_managed_agent_environment(skills_dict: dict[str, str]) -> dict:
+    """Builds remote environment sources containing .agents/AGENTS.md and .agents/skills/."""
+    sources = [
+        {
+            "type": "inline",
+            "target": ".agents/AGENTS.md",
+            "content": (
+                "You are Apex Commerce AI Assistant. Always construct interactive user interfaces using "
+                "A2UI Express DSL. Follow the modular skill rules defined under .agents/skills/."
+            ),
+        }
+    ]
 
-    max_retries = 3
+    for fname, content in skills_dict.items():
+        if "core" in fname:
+            target_path = ".agents/skills/a2ui-core/SKILL.md"
+        elif "basic" in fname:
+            target_path = ".agents/skills/a2ui-basic/SKILL.md"
+        elif "commerce" in fname:
+            target_path = ".agents/skills/a2ui-commerce/SKILL.md"
+        else:
+            clean_name = fname.rstrip("/SKILL.md").split("/")[-1]
+            target_path = f".agents/skills/{clean_name}/SKILL.md"
+
+        sources.append({
+            "type": "inline",
+            "target": target_path,
+            "content": content,
+        })
+
+    return {
+        "type": "remote",
+        "sources": sources,
+    }
+
+
+def query_managed_agent(
+    client: genai.Client,
+    prompt: str,
+    session_id: Optional[str] = None,
+    env_config: Optional[dict] = None,
+    system_instruction: Optional[str] = None,
+) -> tuple[str, str]:
+    """Queries Managed Agent using client.interactions.create with antigravity-preview-05-2026."""
+    print(f"Executing Managed Agent API query ('antigravity-preview-05-2026'): '{prompt}'...")
+    max_retries = 5
+
+    kwargs: dict[str, Any] = {
+        "agent": "antigravity-preview-05-2026",
+        "input": prompt,
+    }
+
+    if env_config:
+        kwargs["environment"] = env_config
+    if session_id:
+        kwargs["previous_interaction_id"] = session_id
+    if system_instruction:
+        kwargs["system_instruction"] = system_instruction
+
     for attempt in range(max_retries):
         try:
-            response = client.models.generate_content(
-                model="gemini-3.6-flash",
-                contents=prompt,
-                config=config,
-            )
-            return response.text or ""
+            interaction = client.interactions.create(**kwargs)
+            resp_text = getattr(interaction, "output_text", None) or interaction.outputs or ""
+            return str(resp_text), interaction.id
         except Exception as err:
-            if "503" in str(err) and attempt < max_retries - 1:
-                print(f"   Gemini API 503 spike, retrying attempt {attempt+2}/{max_retries}...")
-                time.sleep(2 * (attempt + 1))
+            err_str = str(err).lower()
+            if ("503" in err_str or "429" in err_str or "rate" in err_str or "quota" in err_str) and attempt < max_retries - 1:
+                wait_time = 5 * (attempt + 1)
+                print(f"   Managed Agent API rate limit retry attempt {attempt+2}/{max_retries} (waiting {wait_time}s)...")
+                time.sleep(wait_time)
                 continue
             raise err
 
 
+# Global server session state
+import threading
+ACTIVE_MANAGED_AGENT_SESSION_ID: Optional[str] = None
+BOOTSTRAP_LOCK = threading.Lock()
+
+
 def main():
+    global ACTIVE_MANAGED_AGENT_SESSION_ID
+
     parser = argparse.ArgumentParser(description="E-Commerce Managed Agent Server")
     parser.add_argument("--api-key", help="Gemini API Key")
     parser.add_argument("--prompt", default="Show me available headphones and mechanical keyboards with prices and stock.", help="User prompt")
@@ -179,7 +236,7 @@ def main():
     parser.add_argument("--serve", action="store_true", help="Launch backend web server")
     args = parser.parse_args()
 
-    skills_text, basic_cat, commerce_cat = generate_modular_skills()
+    skills_dict, skills_text, basic_cat, commerce_cat = generate_modular_skills()
 
     if args.dry_run:
         print("\n--- Modular Skill Generation Preview ---")
@@ -215,9 +272,13 @@ def main():
     express_fmt = ExpressFormat(catalog=combined_cat, version="v0.9.1", emit_create_surface=False)
     parser_inst = express_fmt.parser
 
+    env_config = build_managed_agent_environment(skills_dict)
+
     if not args.serve:
-        raw_output = query_commerce_agent(client, skills_text, args.prompt)
-        print("\n--- Agent Response Output ---")
+        raw_output, session_id = query_managed_agent(
+            client, args.prompt, env_config=env_config, system_instruction=skills_text
+        )
+        print("\n--- Managed Agent Response Output ---")
         print(raw_output)
 
         try:
@@ -230,37 +291,64 @@ def main():
     if args.serve:
         class CommerceHandler(http.server.SimpleHTTPRequestHandler):
             def do_GET(self):
+                global ACTIVE_MANAGED_AGENT_SESSION_ID
+
                 if self.path == "/api/bootstrap":
-                    bootstrap_data = {
-                        "status": "ready",
-                        "model": "gemini-3.6-flash",
-                        "steps": [
-                            {
-                                "id": "catalogs",
-                                "name": "Catalog Loader",
-                                "status": "completed",
-                                "detail": "Loaded basic & commerce catalog JSON definitions",
-                            },
-                            {
-                                "id": "skills",
-                                "name": "SkillGenerator",
-                                "status": "completed",
-                                "detail": "Compiled 3 modular skill packages (a2ui-core, a2ui-basic, a2ui-commerce)",
-                            },
-                            {
-                                "id": "agent",
-                                "name": "Gemini Managed Agent",
-                                "status": "completed",
-                                "detail": "Initialized gemini-3.6-flash with system instructions & tools",
-                            },
-                            {
-                                "id": "tools",
-                                "name": "Tool Registry",
-                                "status": "completed",
-                                "detail": "Registered search_products and check_inventory tools",
-                            },
-                        ],
-                    }
+                    try:
+                        with BOOTSTRAP_LOCK:
+                            if ACTIVE_MANAGED_AGENT_SESSION_ID:
+                                session_id = ACTIVE_MANAGED_AGENT_SESSION_ID
+                                print(f"   Reusing existing Managed Agent session ID: {session_id}")
+                            else:
+                                print("1. Bootstrapping Managed Agent antigravity-preview-05-2026...")
+                                raw_init, session_id = query_managed_agent(
+                                    client,
+                                    "Initialize A2UI Commerce session.",
+                                    env_config=env_config,
+                                    system_instruction=skills_text,
+                                )
+                                ACTIVE_MANAGED_AGENT_SESSION_ID = session_id
+                                print(f"   Managed Agent bootstrapped with session ID: {session_id}")
+
+                        bootstrap_data = {
+                            "status": "ready",
+                            "model": "antigravity-preview-05-2026",
+                            "session_id": session_id,
+                            "steps": [
+                                {
+                                    "id": "catalogs",
+                                    "name": "Catalog Loader",
+                                    "status": "completed",
+                                    "detail": "Loaded basic & commerce catalog JSON definitions",
+                                },
+                                {
+                                    "id": "skills",
+                                    "name": "SkillGenerator",
+                                    "status": "completed",
+                                    "detail": "Compiled 3 modular skill packages into .agents/skills/",
+                                },
+                                {
+                                    "id": "agent",
+                                    "name": "Managed Agent (antigravity-preview-05-2026)",
+                                    "status": "completed",
+                                    "detail": f"Bootstrapped remote environment interaction ({session_id[:16]}...)",
+                                },
+                                {
+                                    "id": "tools",
+                                    "name": "Tool Registry",
+                                    "status": "completed",
+                                    "detail": "Registered search_products and check_inventory tools",
+                                },
+                            ],
+                        }
+                    except Exception as b_err:
+                        print(f"Error bootstrapping Managed Agent: {b_err}")
+                        bootstrap_data = {
+                            "status": "error",
+                            "model": "antigravity-preview-05-2026",
+                            "error": str(b_err),
+                        }
+
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json")
                     self.end_headers()
@@ -304,18 +392,28 @@ def main():
                     super().do_GET()
 
             def do_POST(self):
+                global ACTIVE_MANAGED_AGENT_SESSION_ID
+
                 if self.path == "/api/chat":
                     length = int(self.headers.get("Content-Length", 0))
                     body = json.loads(self.rfile.read(length))
                     user_prompt = body.get("prompt", "")
+                    client_session_id = body.get("session_id") or ACTIVE_MANAGED_AGENT_SESSION_ID
 
                     try:
-                        raw_resp = query_commerce_agent(client, skills_text, user_prompt)
+                        raw_resp, new_session_id = query_managed_agent(
+                            client,
+                            user_prompt,
+                            session_id=client_session_id,
+                            env_config=env_config,
+                        )
+                        ACTIVE_MANAGED_AGENT_SESSION_ID = new_session_id
                         validated = parser_inst.compile(raw_resp)
                         res_data = {
                             "status": "success",
                             "raw": raw_resp,
                             "a2ui_messages": validated,
+                            "session_id": new_session_id,
                             "loaded_skills": [
                                 {"id": "a2ui-core", "name": "a2ui-core", "description": "Express DSL Grammar & Syntax Rules"},
                                 {"id": "a2ui-basic", "name": "a2ui-basic", "description": "Standard Basic Component Catalog"},
@@ -323,7 +421,7 @@ def main():
                             ],
                         }
                     except Exception as err:
-                        print(f"Error querying commerce agent: {err}")
+                        print(f"Error querying Managed Agent: {err}")
                         res_data = {"status": "error", "error": str(err)}
 
                     self.send_response(200)
@@ -331,7 +429,7 @@ def main():
                     self.end_headers()
                     self.wfile.write(json.dumps(res_data).encode("utf-8"))
 
-        class ReusableTCPServer(socketserver.TCPServer):
+        class ReusableTCPServer(socketserver.ThreadingTCPServer):
             allow_reuse_address = True
 
         print(f"\n4. E-Commerce Backend Server running at http://localhost:{args.port}")

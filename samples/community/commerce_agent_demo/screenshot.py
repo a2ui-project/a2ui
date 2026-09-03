@@ -33,9 +33,11 @@ def capture_screenshots(url: str = "http://localhost:5180"):
         page = browser.new_page(viewport={"width": 1280, "height": 800})
 
         try:
-            page.goto(url, wait_until="networkidle", timeout=15000)
-            # Wait for bootstrap sequence to complete
-            time.sleep(4)
+            page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            
+            # Wait for Managed Agent bootstrap sequence to finish online
+            page.wait_for_selector("text=Agent Status: Online & Ready", timeout=45000)
+            time.sleep(1)
 
             # Click quick prompt button
             page.locator("button:has-text('Search Electronics')").click()

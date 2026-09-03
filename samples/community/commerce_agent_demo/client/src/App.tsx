@@ -49,6 +49,7 @@ export default function App() {
   // Skills Viewer State
   const [skills, setSkills] = useState<SkillItem[]>([]);
   const [activeSkillTab, setActiveSkillTab] = useState<string>('a2ui-core');
+  const [agentSessionId, setAgentSessionId] = useState<string | null>(null);
 
   // Bootstrap Tracker State
   const [bootstrapStatus, setBootstrapStatus] = useState<'initializing' | 'ready'>('initializing');
@@ -63,13 +64,13 @@ export default function App() {
       id: 'skills',
       name: '2. SkillGenerator',
       status: 'pending',
-      detail: 'Compiling modular skills (a2ui-core, a2ui-basic, a2ui-commerce)',
+      detail: 'Compiling modular skills into .agents/skills/',
     },
     {
       id: 'agent',
-      name: '3. Gemini Managed Agent',
+      name: '3. Managed Agent',
       status: 'pending',
-      detail: 'Configuring gemini-3.6-flash model & instructions',
+      detail: 'Bootstrapping antigravity-preview-05-2026 remote interaction',
     },
     {
       id: 'tools',
@@ -96,40 +97,51 @@ export default function App() {
     setBootstrapStatus('initializing');
     setBootstrapSteps(prev => prev.map(s => ({...s, status: 'pending'})));
 
-    await new Promise(r => setTimeout(r, 400));
+    await new Promise(r => setTimeout(r, 200));
     setBootstrapSteps(prev =>
       prev.map(s => (s.id === 'catalogs' ? {...s, status: 'in_progress'} : s)),
     );
-    await new Promise(r => setTimeout(r, 600));
-    setBootstrapSteps(prev =>
-      prev.map(s => (s.id === 'catalogs' ? {...s, status: 'completed'} : s)),
-    );
 
-    setBootstrapSteps(prev =>
-      prev.map(s => (s.id === 'skills' ? {...s, status: 'in_progress'} : s)),
-    );
-    await new Promise(r => setTimeout(r, 700));
-    setBootstrapSteps(prev =>
-      prev.map(s => (s.id === 'skills' ? {...s, status: 'completed'} : s)),
-    );
+    try {
+      setBootstrapSteps(prev =>
+        prev.map(s => (s.id === 'catalogs' ? {...s, status: 'completed'} : s)),
+      );
+      setBootstrapSteps(prev =>
+        prev.map(s => (s.id === 'skills' ? {...s, status: 'in_progress'} : s)),
+      );
 
-    setBootstrapSteps(prev =>
-      prev.map(s => (s.id === 'agent' ? {...s, status: 'in_progress'} : s)),
-    );
-    await new Promise(r => setTimeout(r, 800));
-    setBootstrapSteps(prev =>
-      prev.map(s => (s.id === 'agent' ? {...s, status: 'completed'} : s)),
-    );
+      const res = await fetch('/api/bootstrap');
+      const data = await res.json();
 
-    setBootstrapSteps(prev =>
-      prev.map(s => (s.id === 'tools' ? {...s, status: 'in_progress'} : s)),
-    );
-    await new Promise(r => setTimeout(r, 500));
-    setBootstrapSteps(prev =>
-      prev.map(s => (s.id === 'tools' ? {...s, status: 'completed'} : s)),
-    );
+      setBootstrapSteps(prev =>
+        prev.map(s => (s.id === 'skills' ? {...s, status: 'completed'} : s)),
+      );
 
-    setBootstrapStatus('ready');
+      const sessIdShort = data.session_id ? `${data.session_id.substring(0, 16)}...` : '';
+
+      setBootstrapSteps(prev =>
+        prev.map(s =>
+          s.id === 'agent'
+            ? {
+                ...s,
+                status: 'completed',
+                detail: `antigravity-preview-05-2026 (${sessIdShort})`,
+              }
+            : s,
+        ),
+      );
+
+      setBootstrapSteps(prev =>
+        prev.map(s => (s.id === 'tools' ? {...s, status: 'completed'} : s)),
+      );
+
+      if (data.session_id) {
+        setAgentSessionId(data.session_id);
+      }
+      setBootstrapStatus('ready');
+    } catch (err: any) {
+      console.error('Error bootstrapping Managed Agent:', err);
+    }
   };
 
   // Superset Catalogs combining basicCatalog (both v0.9 & v1.0 URIs) and commerceCatalog for client rendering
@@ -205,10 +217,14 @@ export default function App() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({prompt: textToSend}),
+        body: JSON.stringify({prompt: textToSend, session_id: agentSessionId}),
       });
 
       const data = await response.json();
+
+      if (data.session_id) {
+        setAgentSessionId(data.session_id);
+      }
 
       if (data.raw) {
         setRawExpress(data.raw);
