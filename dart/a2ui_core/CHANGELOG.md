@@ -20,6 +20,11 @@
 - Added `A2uiProtocolVersion`. Every entry point accepts protocol v0.9 only.
 - Added `Catalog.fromJson`, `Catalog.catalogSchema` and `Catalog.copyWith`, plus
   the `SchemaCatalog` alias for `Catalog<ComponentApi, FunctionApi>`.
+- `Catalog` carries the document's `$id`, `title` and `description` as
+  `schemaId`, `title` and `description`, and `catalogSchema` emits them along
+  with `$schema`, so a catalog document round trips with its identity intact.
+- The shared `conformance/core/catalog.yaml` suite gains a `catalog_schema`
+  action, exercised by `test/conformance/catalog_schema_conformance_test.dart`.
 - Added `A2uiRendererCapabilities` and `A2uiVersionCapabilities`.
 - Added `A2uiValidator`, which validates a payload in three synchronous
   stages, and `A2uiValidator.commonTypesSchema`.

@@ -99,8 +99,25 @@ typedef SchemaCatalog = Catalog<ComponentApi, FunctionApi>;
 /// For a catalog that declares no functions, pass `Never`
 /// (see https://dart.dev/language/built-in-types).
 class Catalog<C extends ComponentApi, F extends FunctionApi> {
+  /// The JSON Schema dialect a catalog document declares.
+  static const String jsonSchemaDialect =
+      'https://json-schema.org/draft/2020-12/schema';
+
   /// The catalog id, from the document's `catalogId` field.
   final String id;
+
+  /// The document's `$id`, when it declares one.
+  ///
+  /// Kept separate from [id]: `catalogId` names the catalog, `$id` is the base
+  /// that relative references in the document resolve against. Published
+  /// catalogs give them the same value, but nothing requires it.
+  final String? schemaId;
+
+  /// The document's `title`, when it declares one.
+  final String? title;
+
+  /// The document's `description`, when it declares one.
+  final String? description;
 
   final Map<String, C> components;
   final Map<String, F> functions;
@@ -111,6 +128,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     required List<C> components,
     List<F> functions = const [],
     this.themeSchema,
+    this.schemaId,
+    this.title,
+    this.description,
   }) : components = {for (final c in components) c.name: c},
        functions = {for (final f in functions) f.name: f};
 
@@ -153,6 +173,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       components: _parseComponents(document['components'], rawId),
       functions: _parseFunctions(document['functions'], rawId),
       themeSchema: _parseTheme(document),
+      schemaId: document[r'$id'] as String?,
+      title: document['title'] as String?,
+      description: document['description'] as String?,
     );
   }
 
@@ -254,7 +277,15 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// `anyComponent` and `anyFunction` unions covering exactly what is left.
   /// Component and function schemas carry their local definitions inline, so
   /// the document needs no `$defs` beyond the theme and those two unions.
+  ///
+  /// `$schema` is always emitted; `$id`, `title` and `description` are emitted
+  /// when the parsed document declared them, so a document round trips through
+  /// [Catalog.fromJson] with its identity intact.
   Map<String, Object?> get catalogSchema => {
+    r'$schema': jsonSchemaDialect,
+    if (schemaId != null) r'$id': schemaId,
+    if (title != null) 'title': title,
+    if (description != null) 'description': description,
     'catalogId': id,
     'components': {
       for (final MapEntry<String, C> entry in components.entries)
@@ -311,6 +342,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     components: (components ?? this.components.values).toList(),
     functions: (functions ?? this.functions.values).toList(),
     themeSchema: themeSchema ?? this.themeSchema,
+    schemaId: schemaId,
+    title: title,
+    description: description,
   );
 
   static Object? _deepCopyValue(Object? value) {

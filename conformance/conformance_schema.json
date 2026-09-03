@@ -93,7 +93,8 @@
           "verify_cuttable_keys",
           "accessibility_check",
           "data_model",
-          "process_messages"
+          "process_messages",
+          "catalog_schema"
         ]
       }
     },
@@ -125,7 +126,8 @@
           {"$ref": "#/$defs/VerifyCuttableKeysTest"},
           {"$ref": "#/$defs/AccessibilityCheckTest"},
           {"$ref": "#/$defs/DataModelTest"},
-          {"$ref": "#/$defs/ProcessMessagesTest"}
+          {"$ref": "#/$defs/ProcessMessagesTest"},
+          {"$ref": "#/$defs/CatalogSchemaTest"}
         ]
       }
     ]
@@ -543,6 +545,61 @@
         }
       },
       "required": ["steps"]
+    },
+    "CatalogSchemaTest": {
+      "type": "object",
+      "description": "Rebuilding a catalog document from a parsed catalog. The case names a source document rather than an SDK's own bundled catalog, so every implementation converts the same input and the assertions compare like with like.",
+      "properties": {
+        "action": {"const": "catalog_schema"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "allowed_components": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Prune the catalog to these components before rebuilding, so the case can check that a narrowed catalog renders a narrowed document."
+            }
+          }
+        },
+        "expect": {
+          "type": "object",
+          "description": "Assertions about the rebuilt document. Each is optional; a case states only what it means to check.",
+          "properties": {
+            "metadata": {
+              "type": "object",
+              "description": "Top-level keys the rebuilt document must carry verbatim, such as `$schema`, `$id`, `title` and `catalogId`."
+            },
+            "absent_metadata": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Top-level keys the rebuilt document must not declare, because the source document did not."
+            },
+            "components": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Every component name the rebuilt document declares, and no others."
+            },
+            "functions": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Every function name the rebuilt document declares, and no others."
+            },
+            "unions_cover_all": {
+              "type": "boolean",
+              "description": "`$defs/anyComponent` and `$defs/anyFunction` reference exactly the components and functions the document declares, and `anyFunction` is absent when there are none."
+            },
+            "self_contained": {
+              "type": "boolean",
+              "description": "Every `#/` reference in the document resolves within it. References that leave the document, such as to `common_types.json`, are the validator's to resolve and are exempt."
+            },
+            "reparses_identically": {
+              "type": "boolean",
+              "description": "Parsing the rebuilt document and rebuilding it again yields the same document, so the conversion is a fixed point."
+            }
+          }
+        }
+      },
+      "required": ["expect"]
     },
     "ProcessMessagesTest": {
       "type": "object",
