@@ -82,10 +82,84 @@ export interface InternalDeleteSurfaceOp {
 }
 
 /**
+ * Canonical operation to execute a renderer function requested by the agent.
+ */
+export interface InternalCallRendererFunctionOp {
+  /** Discriminator type for remote function calls on the renderer. */
+  readonly type: 'callRendererFunction';
+  /** Unique identifier for the function call. */
+  readonly functionCallId: string;
+  /** Function name to execute. */
+  readonly call: string;
+  /** Protocol version string. */
+  readonly version: string;
+  /** Optional catalog ID where the function is defined. */
+  readonly catalogId?: string;
+  /** Arguments passed to the function. */
+  readonly args?: Record<string, unknown>;
+  /** Whether user activation gesture context was present for the call. */
+  readonly isUserActivated?: boolean;
+}
+
+/**
+ * Canonical operation to resolve a pending renderer-initiated agent function call.
+ */
+export interface InternalAgentFunctionResponseOp {
+  /** Discriminator type for inbound agent function responses. */
+  readonly type: 'agentFunctionResponse';
+  /** Unique identifier matching the initiating function call. */
+  readonly functionCallId: string;
+  /** Return value from agent function execution. */
+  readonly value?: unknown;
+  /** Error information if agent function execution failed. */
+  readonly error?: {
+    code: string;
+    message: string;
+  };
+}
+
+/**
  * Union of all version-agnostic internal operations processed by MessageProcessor.
  */
 export type InternalOperation =
   | InternalCreateSurfaceOp
   | InternalUpdateComponentsOp
   | InternalUpdateDataModelOp
-  | InternalDeleteSurfaceOp;
+  | InternalDeleteSurfaceOp
+  | InternalCallRendererFunctionOp
+  | InternalAgentFunctionResponseOp;
+
+/**
+ * List of all canonical internal operation type discriminators.
+ */
+export const INTERNAL_OPERATION_TYPES = [
+  'createSurface',
+  'updateComponents',
+  'updateDataModel',
+  'deleteSurface',
+  'callRendererFunction',
+  'agentFunctionResponse',
+] as const;
+
+/**
+ * Discriminator string identifying the type of an internal operation.
+ */
+export type InternalOperationType = (typeof INTERNAL_OPERATION_TYPES)[number];
+
+/**
+ * Type guard to check if a value is a canonical InternalOperation object.
+ *
+ * @param payload The value to inspect.
+ * @returns True if the payload conforms to an InternalOperation shape.
+ */
+export function isInternalOperation(payload: unknown): payload is InternalOperation {
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'type' in payload &&
+    typeof (payload as Record<string, unknown>).type === 'string' &&
+    (INTERNAL_OPERATION_TYPES as readonly string[]).includes(
+      (payload as Record<string, unknown>).type as string,
+    )
+  );
+}

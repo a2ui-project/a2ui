@@ -327,19 +327,27 @@ export class RpcHandler {
   private resolveFunctionImplementation(
     catalogId: string | undefined,
     call: string,
-    context: DataContext,
+    context?: DataContext,
   ): {funcImpl: FunctionImplementation} | {error: string} {
-    const targetCatalogId = catalogId || context?.surface?.catalog?.id;
-    if (!targetCatalogId) {
-      return {error: 'No catalogId provided and surface catalog is unavailable.'};
+    let catalog: Catalog<any> | undefined;
+    if (catalogId) {
+      catalog = this.catalogs.find(c => c.id === catalogId);
+      if (!catalog) {
+        return {error: `Catalog not found: ${catalogId}`};
+      }
+    } else if (context?.surface?.catalog) {
+      catalog = context.surface.catalog;
+    } else if (this.catalogs.length > 0) {
+      catalog = this.catalogs[0];
     }
-    const catalog = this.catalogs.find(c => c.id === targetCatalogId);
+
     if (!catalog) {
-      return {error: `Catalog '${targetCatalogId}' not found.`};
+      return {error: 'No catalog available for function resolution.'};
     }
+
     const funcImpl = catalog.functions?.get(call);
     if (!funcImpl) {
-      return {error: `Function '${call}' not found in catalog '${targetCatalogId}'.`};
+      return {error: `Function not found: ${call}`};
     }
     return {funcImpl};
   }

@@ -31,6 +31,7 @@ import {
   InternalUpdateComponentsOp,
   InternalUpdateDataModelOp,
   InternalDeleteSurfaceOp,
+  isInternalOperation,
 } from './operations.js';
 
 import {ProtocolVersion, VersionAdapterResolver} from './adapters/base.js';
@@ -40,7 +41,20 @@ import type {
   A2uiMessage as V09A2uiMessage,
   A2uiMessageListWrapper as V09A2uiMessageListWrapper,
 } from '../v0_9/schema/server-to-client.js';
-import type {AgentToRendererMessage as V10AgentToRendererMessage} from '../v1_0/schema/agent-to-renderer.js';
+import type {
+  AgentToRendererMessage as V10AgentToRendererMessage,
+  CallRendererFunctionMessage,
+} from '../v1_0/schema/agent-to-renderer.js';
+import type {RendererFunctionResponseMessage} from '../v1_0/schema/renderer-to-agent.js';
+import type {FunctionCall} from '../v1_0/schema/common-types.js';
+import {
+  RpcHandler,
+  CallOptions,
+  OutboundMessageListener,
+  RpcError,
+  RpcErrorCode,
+} from '../v1_0/rpc/rpc-handler.js';
+import {DataContext} from '../rendering/data-context.js';
 import {
   getComponentReferences,
   RELAXED_VALIDATION,
@@ -68,8 +82,16 @@ export type ProcessableMessagePayload =
   | V09A2uiMessageListWrapper
   | {readonly messages: readonly ProcessableMessage[]};
 
-export type {RendererCapabilities, ValidationConfig};
-export {STRICT_VALIDATION, RELAXED_VALIDATION};
+export type {RendererCapabilities, ValidationConfig, OutboundMessageListener, CallOptions};
+export {STRICT_VALIDATION, RELAXED_VALIDATION, RpcError, RpcErrorCode};
+
+/**
+ * Contextual execution options for message processing.
+ */
+export interface ProcessMessagesOptions {
+  /** Whether execution occurs in an active user gesture context. */
+  isUserActivated?: boolean;
+}
 
 /**
  * Options for generating renderer capabilities.
@@ -93,6 +115,10 @@ export interface MessageProcessorOptions {
   adapterRegistry?: VersionAdapterResolver;
   /** Validation configuration rules. */
   validationConfig?: ValidationConfig;
+  /** Listener receiving outbound renderer messages intended for the agent. Required for callAgentFunction. */
+  outboundListener?: OutboundMessageListener;
+  /** Default timeout in milliseconds for callAgentFunction requests (default: 30000ms). */
+  defaultTimeoutMs?: number;
 }
 
 /**
@@ -102,21 +128,6 @@ export interface MessageProcessorOptions {
  * property keys or invalid enum options) are preserved even when running in
  * optimized/minified production builds where Zod's internal error map messages
  * may degrade into generic strings (e.g. "Expected undefined, received undefined").
- */
-interface ZodIssueWithKeys {
-  keys?: string[];
-}
-
-interface ZodIssueWithOptions {
-  options?: string[];
-  received?: unknown;
-}
-
-interface ZodIssueWithExpectedReceived {
-  expected?: unknown;
-  received?: unknown;
-}
-
 /**
  * Formats a Zod validation issue into a descriptive, human-readable error string.
  *
@@ -125,42 +136,38 @@ interface ZodIssueWithExpectedReceived {
  */
 export function formatZodIssue(err: z.ZodIssue): string {
   const path = err.path.join('.') || 'root';
-  const issueWithKeys = err as ZodIssueWithKeys;
-  const issueWithOptions = err as ZodIssueWithOptions;
-  const issueWithExpected = err as ZodIssueWithExpectedReceived;
 
-  // 1. Unrecognized keys on .strict() schemas
-  if ('keys' in err && Array.isArray(issueWithKeys.keys) && issueWithKeys.keys.length > 0) {
-    const keysStr = issueWithKeys.keys.map((k: string) => `'${k}'`).join(', ');
-    return `${path}: Unrecognized key(s) in object: ${keysStr}`;
+  switch (err.code) {
+    case z.ZodIssueCode.invalid_union: {
+      const unionIssues = (err as z.ZodInvalidUnionIssue).unionErrors?.flatMap(uErr => uErr.issues);
+      if (unionIssues && unionIssues.length > 0) {
+        return unionIssues.map(formatZodIssue).join('; ');
+      }
+      return `${path}: Invalid union`;
+    }
+
+    case z.ZodIssueCode.unrecognized_keys: {
+      const keysStr = (err as z.ZodUnrecognizedKeysIssue).keys.map(k => `'${k}'`).join(', ');
+      return `${path}: Unrecognized key(s) in object: ${keysStr}`;
+    }
+
+    case z.ZodIssueCode.invalid_enum_value: {
+      const issue = err as z.ZodInvalidEnumValueIssue;
+      const optionsStr = issue.options.map(o => String(o)).join(' | ');
+      return `${path}: Invalid enum value. Expected ${optionsStr}, received '${String(issue.received)}'`;
+    }
+
+    case z.ZodIssueCode.invalid_type: {
+      const issue = err as z.ZodInvalidTypeIssue;
+      return `${path}: Expected ${issue.expected}, received ${issue.received}`;
+    }
+
+    case z.ZodIssueCode.custom:
+      return `${path}: ${err.message}`;
+
+    default:
+      return err.message ? `${path}: ${err.message}` : `${path}: Validation error (${err.code})`;
   }
-
-  // 2. Invalid enum values
-  if (err.code === 'invalid_enum_value' && Array.isArray(issueWithOptions.options)) {
-    const optionsStr = issueWithOptions.options.join(' | ');
-    return `${path}: Invalid enum value. Expected ${optionsStr}, received '${String(issueWithOptions.received)}'`;
-  }
-
-  // 3. Fallback when message is corrupted into "Expected undefined, received undefined"
-  if (err.message && !err.message.includes('Expected undefined, received undefined')) {
-    return `${path}: ${err.message}`;
-  }
-
-  if (
-    'expected' in err &&
-    issueWithExpected.expected !== undefined &&
-    issueWithExpected.received !== undefined
-  ) {
-    return (
-      path +
-      ': Expected ' +
-      String(issueWithExpected.expected) +
-      ', received ' +
-      String(issueWithExpected.received)
-    );
-  }
-
-  return `${path}: Validation error (${err.code || 'invalid'})`;
 }
 
 /**
@@ -171,6 +178,7 @@ export function formatZodIssue(err: z.ZodIssue): string {
 export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
   readonly version: ProtocolVersion;
+  readonly rpc: RpcHandler;
   private readonly adapterRegistry: VersionAdapterResolver;
   private readonly validationConfig?: ValidationConfig;
 
@@ -189,6 +197,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     this.model = new SurfaceGroupModel<T>();
     this.version = options?.version ?? 'v0.9';
     this.adapterRegistry = options?.adapterRegistry ?? defaultVersionAdapterFactory;
+    this.rpc = new RpcHandler({
+      catalogs: this.catalogs,
+      outboundListener: options?.outboundListener,
+      defaultTimeoutMs: options?.defaultTimeoutMs,
+    });
     if (options?.validationConfig) {
       this.validationConfig = {
         allowOrphanComponents: false,
@@ -203,6 +216,29 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     if (this.actionHandler) {
       this.model.onAction.subscribe(this.actionHandler);
     }
+  }
+
+  /**
+   * Invokes a remote function on the server agent using an options bag.
+   *
+   * @param surfaceId The ID of the surface requesting execution.
+   * @param call The function call details.
+   * @param options Optional invocation options (custom functionCallId, timeoutMs).
+   * @returns A promise resolving to the agent function return value.
+   */
+  callAgentFunction<TRes = unknown>(
+    surfaceId: string,
+    call: FunctionCall,
+    options?: CallOptions,
+  ): Promise<TRes> {
+    return this.rpc.callAgentFunction<TRes>(surfaceId, call, options);
+  }
+
+  /**
+   * Disposes the MessageProcessor, tearing down active surfaces and rejecting pending RPC calls.
+   */
+  dispose(): void {
+    this.rpc.dispose();
   }
 
   /**
@@ -351,11 +387,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   }
 
   /**
-   * Processes a list of messages, a message wrapper, or raw operations.
+   * Processes a list of messages, a message wrapper, or raw operations synchronously.
    *
    * @param messages The messages or operations to process.
+   * @param options Contextual execution options.
    */
-  processMessages(messages: ProcessableMessagePayload): void {
+  processMessages(messages: ProcessableMessagePayload, options?: ProcessMessagesOptions): void {
     if (!messages || (Array.isArray(messages) && messages.length === 0)) return;
 
     if (this.validationConfig) {
@@ -366,15 +403,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       this.validateTargetVersion(messages);
     }
 
-    if (
-      typeof messages === 'object' &&
-      'type' in (messages as Record<string, unknown>) &&
-      typeof (messages as Record<string, unknown>).type === 'string' &&
-      ['createSurface', 'updateComponents', 'updateDataModel', 'deleteSurface'].includes(
-        (messages as Record<string, unknown>).type as string,
-      )
-    ) {
-      this.processOperation(messages as InternalOperation);
+    if (isInternalOperation(messages)) {
+      this.processOperation(messages, options);
       return;
     }
 
@@ -387,8 +417,52 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     const operations = adapter.extractOperations(messages);
     for (const op of operations) {
-      this.processOperation(op);
+      this.processOperation(op, options);
     }
+  }
+
+  /**
+   * Asynchronously processes messages, executing RPC calls and returning all produced responses.
+   *
+   * @param messages The messages or operations to process.
+   * @param options Contextual execution options.
+   * @returns Array of rendererFunctionResponse messages produced during execution.
+   */
+  async processMessagesAsync(
+    messages: ProcessableMessagePayload,
+    options?: ProcessMessagesOptions,
+  ): Promise<RendererFunctionResponseMessage[]> {
+    if (!messages || (Array.isArray(messages) && messages.length === 0)) return [];
+
+    if (this.validationConfig) {
+      validateRecursionAndPaths(messages);
+    }
+
+    if (this.validationConfig?.targetVersion) {
+      this.validateTargetVersion(messages);
+    }
+
+    const responses: RendererFunctionResponseMessage[] = [];
+
+    if (isInternalOperation(messages)) {
+      const resp = await this.processOperationAsync(messages, options);
+      if (resp) responses.push(resp);
+      return responses;
+    }
+
+    let adapter;
+    try {
+      adapter = this.adapterRegistry.resolveFromPayload(messages);
+    } catch {
+      adapter = this.adapterRegistry.getAdapter(this.version);
+    }
+
+    const operations = adapter.extractOperations(messages);
+    for (const op of operations) {
+      const resp = await this.processOperationAsync(op, options);
+      if (resp) responses.push(resp);
+    }
+    return responses;
   }
 
   private validateTargetVersion(messages: ProcessableMessagePayload): void {
@@ -419,8 +493,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Processes a single canonical internal operation.
    *
    * @param op The internal operation to execute.
+   * @param options Contextual execution options.
    */
-  processOperation(op: InternalOperation): void {
+  processOperation(op: InternalOperation, options?: ProcessMessagesOptions): void {
     if (
       this.validationConfig?.allowedMessages &&
       !this.validationConfig.allowedMessages.includes(op.type)
@@ -443,6 +518,90 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       case 'updateDataModel':
         this.processUpdateDataModelOp(op);
         break;
+      case 'agentFunctionResponse':
+        this.rpc.handleAgentFunctionResponse({
+          version: 'v1.0',
+          agentFunctionResponse: {
+            functionCallId: op.functionCallId,
+            value: op.value,
+            error: op.error,
+          },
+        });
+        break;
+      case 'callRendererFunction': {
+        const surface = this.model.surfacesMap.values().next().value;
+        const dataContext = surface ? new DataContext(surface, '/') : ({} as DataContext);
+        const isUserActivated = options?.isUserActivated ?? op.isUserActivated ?? false;
+        const callMsg: CallRendererFunctionMessage = {
+          version: (op.version as any) || 'v1.0',
+          callRendererFunction: {
+            functionCallId: op.functionCallId,
+            callFunction: {
+              call: op.call,
+              catalogId: op.catalogId,
+              args: op.args,
+            },
+          },
+        };
+        this.rpc.handleCallRendererFunction(callMsg, dataContext, isUserActivated);
+        break;
+      }
+    }
+  }
+
+  private async processOperationAsync(
+    op: InternalOperation,
+    options?: ProcessMessagesOptions,
+  ): Promise<RendererFunctionResponseMessage | null> {
+    if (
+      this.validationConfig?.allowedMessages &&
+      !this.validationConfig.allowedMessages.includes(op.type)
+    ) {
+      throw new A2uiValidationError(
+        `Operation '${op.type}' is not permitted by ValidationConfig.allowedMessages`,
+      );
+    }
+
+    switch (op.type) {
+      case 'createSurface':
+        this.processCreateSurfaceOp(op);
+        return null;
+      case 'deleteSurface':
+        this.processDeleteSurfaceOp(op);
+        return null;
+      case 'updateComponents':
+        this.processUpdateComponentsOp(op);
+        return null;
+      case 'updateDataModel':
+        this.processUpdateDataModelOp(op);
+        return null;
+      case 'agentFunctionResponse':
+        this.rpc.handleAgentFunctionResponse({
+          version: 'v1.0',
+          agentFunctionResponse: {
+            functionCallId: op.functionCallId,
+            value: op.value,
+            error: op.error,
+          },
+        });
+        return null;
+      case 'callRendererFunction': {
+        const surface = this.model.surfacesMap.values().next().value;
+        const dataContext = surface ? new DataContext(surface, '/') : ({} as DataContext);
+        const isUserActivated = options?.isUserActivated ?? op.isUserActivated ?? false;
+        const callMsg: CallRendererFunctionMessage = {
+          version: (op.version as any) || 'v1.0',
+          callRendererFunction: {
+            functionCallId: op.functionCallId,
+            callFunction: {
+              call: op.call,
+              catalogId: op.catalogId,
+              args: op.args,
+            },
+          },
+        };
+        return await this.rpc.handleCallRendererFunction(callMsg, dataContext, isUserActivated);
+      }
     }
   }
 

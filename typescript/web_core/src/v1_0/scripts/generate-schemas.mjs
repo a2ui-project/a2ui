@@ -117,7 +117,7 @@ function generateCommonTypes() {
   .record(z.string(), z.unknown())
   .superRefine((value, ctx) => {
     for (const key in value) {
-      if (!key.match(/^[\\p{XID_Start}_][\\p{XID_Continue}]*$/u)) {
+      if (!key.match(/^[\\p{XID_Start}_][\\p{XID_Continue}:-]*$/u)) {
         ctx.addIssue({
           path: [key],
           code: z.ZodIssueCode.custom,
@@ -130,6 +130,34 @@ function generateCommonTypes() {
     "REF:#/$defs/Extensions|Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions.",
   );
 export type Extensions = z.infer<typeof ExtensionsSchema>;`;
+    }
+
+    if (name === 'FunctionResponse') {
+      code = `export const FunctionResponseSchema = z
+  .object({
+    'functionCallId': CallIdSchema,
+    'value': z.any().describe('The return value of the function.').optional(),
+    'error': z
+      .object({'code': z.string(), 'message': z.string()})
+      .strict()
+      .describe('An error object indicating failure of the function execution.')
+      .optional(),
+  })
+  .strict()
+  .superRefine((val, ctx) => {
+    const hasValue = 'value' in val;
+    const hasError = 'error' in val;
+    if ((hasValue && hasError) || (!hasValue && !hasError)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'FunctionResponse must have either "value" or "error", but not both or neither.',
+      });
+    }
+  })
+  .describe(
+    'REF:#/$defs/FunctionResponse|The return response matching a callAgentFunction or callRendererFunction invocation.',
+  );
+export type FunctionResponse = z.infer<typeof FunctionResponseSchema>;`;
     }
 
     commonTs += code + '\n\n';

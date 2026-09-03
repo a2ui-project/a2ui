@@ -122,7 +122,7 @@ export const ExtensionsSchema = z
   .record(z.string(), z.unknown())
   .superRefine((value, ctx) => {
     for (const key in value) {
-      if (!key.match(/^[\p{XID_Start}_][\p{XID_Continue}]*$/u)) {
+      if (!key.match(/^[\p{XID_Start}_][\p{XID_Continue}:-]*$/u)) {
         ctx.addIssue({
           path: [key],
           code: z.ZodIssueCode.custom,
@@ -287,43 +287,16 @@ export const FunctionResponseSchema = z
       .optional(),
   })
   .strict()
-  .and(
-    z.any().superRefine((x, ctx) => {
-      const schemas = [z.any(), z.any()];
-      const {errors, failed} = schemas.reduce<{
-        errors: z.ZodIssue[];
-        failed: number;
-      }>(
-        ({errors, failed}, schema) =>
-          (result =>
-            result.error
-              ? {
-                  errors: [...errors, ...result.error.issues],
-                  failed: failed + 1,
-                }
-              : {errors, failed})(schema.safeParse(x)),
-        {errors: [], failed: 0},
-      );
-      const passed = schemas.length - failed;
-      if (passed !== 1) {
-        ctx.addIssue(
-          errors.length
-            ? {
-                path: [],
-                code: 'invalid_union',
-                errors: [errors],
-                message: 'Invalid input: Should pass single schema. Passed ' + passed,
-              }
-            : ({
-                path: [],
-                code: 'custom',
-                errors: [errors],
-                message: 'Invalid input: Should pass single schema. Passed ' + passed,
-              } as any),
-        );
-      }
-    }),
-  )
+  .superRefine((val, ctx) => {
+    const hasValue = 'value' in val;
+    const hasError = 'error' in val;
+    if ((hasValue && hasError) || (!hasValue && !hasError)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'FunctionResponse must have either "value" or "error", but not both or neither.',
+      });
+    }
+  })
   .describe(
     'REF:#/$defs/FunctionResponse|The return response matching a callAgentFunction or callRendererFunction invocation.',
   );
