@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {readFileSync, writeFileSync} from 'node:fs';
+import {readFileSync, writeFileSync, readdirSync, existsSync} from 'node:fs';
 import {join, dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -315,34 +315,36 @@ const v08Code = generateDefsFile(
 );
 writeFileSync(join(rootDir, 'src', 'v0_8', 'standard_defs.ts'), v08Code);
 
-// 2. v0_9 standard_defs.ts
-const v09CommonJson = JSON.parse(
-  readFileSync(join(specDir, 'v0_9', 'json', 'common_types.json'), 'utf8'),
-);
-const v09Code = generateDefsFile(
-  'V09',
-  'v0.9 and v0.9.1',
-  {
-    childRefNames: new Set(['ComponentId', 'Child', 'ChildComponentId']),
-    childListRefNames: new Set(['ChildList', 'TemplateChildList']),
-  },
-  v09CommonJson.$defs,
-);
-writeFileSync(join(rootDir, 'src', 'v0_9', 'standard_defs.ts'), v09Code);
+const activeVersions = readdirSync(specDir)
+  .filter(
+    d =>
+      d !== 'v0_8' &&
+      existsSync(join(specDir, d, 'json', 'common_types.json')) &&
+      existsSync(join(rootDir, 'src', d)),
+  )
+  .sort();
 
-// 3. v1_0 standard_defs.ts
-const v10CommonJson = JSON.parse(
-  readFileSync(join(specDir, 'v1_0', 'json', 'common_types.json'), 'utf8'),
-);
-const v10Code = generateDefsFile(
-  'V10',
-  'v1.0',
-  {
-    childRefNames: new Set(['ComponentId', 'Child', 'ChildComponentId']),
-    childListRefNames: new Set(['ChildList', 'TemplateChildList', 'ChildrenItem', 'TemplateItem']),
-  },
-  v10CommonJson.$defs,
-);
-writeFileSync(join(rootDir, 'src', 'v1_0', 'standard_defs.ts'), v10Code);
+for (const v of activeVersions) {
+  const commonJson = JSON.parse(
+    readFileSync(join(specDir, v, 'json', 'common_types.json'), 'utf8'),
+  );
+  const versionPrefix = v.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const versionLabel = v === 'v0_9' ? 'v0.9 and v0.9.1' : v.replace('_', '.');
+  const code = generateDefsFile(
+    versionPrefix,
+    versionLabel,
+    {
+      childRefNames: new Set(['ComponentId', 'Child', 'ChildComponentId']),
+      childListRefNames: new Set([
+        'ChildList',
+        'TemplateChildList',
+        'ChildrenItem',
+        'TemplateItem',
+      ]),
+    },
+    commonJson.$defs,
+  );
+  writeFileSync(join(rootDir, 'src', v, 'standard_defs.ts'), code);
+}
 
-console.log('Successfully generated standard_defs.ts for v0.8, v0.9, and v1.0.');
+console.log(`Successfully generated standard_defs.ts for v0.8 and [${activeVersions.join(', ')}].`);

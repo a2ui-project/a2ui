@@ -57,343 +57,6 @@ function transformZodSyntax(code) {
   return clean;
 }
 
-const V09_CUSTOM_SCHEMAS = {
-  ComponentId: `export const ComponentIdSchema = markChildRef(
-  z.string().describe('REF:#/$defs/ComponentId'),
-  'component-id',
-);
-export type ComponentId = z.infer<typeof ComponentIdSchema>;`,
-
-  DataBinding: `export const DataBindingSchema = z
-  .object({
-    'path': z.string().describe('A JSON Pointer path to a value in the data model.'),
-  })
-  .describe('REF:#/$defs/DataBinding');
-export type DataBinding = z.infer<typeof DataBindingSchema>;`,
-
-  FunctionCall: `export const FunctionCallSchema = z
-  .object({
-    'call': z.string().describe('The name of the function to call.'),
-    'args': z.record(z.any()).describe('Arguments passed to the function.').optional(),
-    'catalogId': z
-      .string()
-      .describe('The catalog ID for this function, overriding any surface-level default catalogId.')
-      .optional(),
-  })
-  .describe('REF:#/$defs/FunctionCall');
-export type FunctionCall = z.infer<typeof FunctionCallSchema>;`,
-
-  DynamicString: `export const DynamicStringSchema = z
-  .union([z.string(), DataBindingSchema, FunctionCallSchema])
-  .describe('REF:#/$defs/DynamicString');
-export type DynamicString = z.infer<typeof DynamicStringSchema>;`,
-
-  DynamicNumber: `export const DynamicNumberSchema = z
-  .union([z.number(), DataBindingSchema, FunctionCallSchema])
-  .describe('REF:#/$defs/DynamicNumber');
-export type DynamicNumber = z.infer<typeof DynamicNumberSchema>;`,
-
-  DynamicBoolean: `export const DynamicBooleanSchema = z
-  .union([z.boolean(), DataBindingSchema, FunctionCallSchema])
-  .describe('REF:#/$defs/DynamicBoolean');
-export type DynamicBoolean = z.infer<typeof DynamicBooleanSchema>;`,
-
-  DynamicStringList: `export const DynamicStringListSchema = z
-  .union([z.array(z.string()), DataBindingSchema, FunctionCallSchema])
-  .describe('REF:#/$defs/DynamicStringList');
-export type DynamicStringList = z.infer<typeof DynamicStringListSchema>;`,
-
-  DynamicValue: `export const DynamicValueSchema = z
-  .union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.array(z.any()),
-    DataBindingSchema,
-    z.lazy(() => FunctionCallSchema),
-  ])
-  .describe('REF:#/$defs/DynamicValue');
-export type DynamicValue = z.infer<typeof DynamicValueSchema>;`,
-
-  ChildList: `export const ChildListSchema = markChildRef(
-  z.union([z.array(ComponentIdSchema), TemplateChildListSchema]),
-  'child-list',
-);
-export type ChildList = z.infer<typeof ChildListSchema>;`,
-
-  Action: `export const ActionEventSchema = z
-  .object({
-    'name': z.string().describe('The name of the action to be dispatched to the server.'),
-    'context': z
-      .record(DynamicValueSchema)
-      .describe(
-        'A JSON object containing the key-value pairs for the action context. Values can be literals or paths. Use literal values unless the value must be dynamically bound to the data model. Do NOT use paths for static IDs.',
-      )
-      .optional(),
-  })
-  .describe('REF:#/$defs/ActionEvent');
-
-export const ActionEventWrapperSchema = z
-  .object({
-    'event': ActionEventSchema,
-  })
-  .describe('REF:#/$defs/ActionEventWrapper');
-
-export const ActionFunctionCallWrapperSchema = z
-  .object({
-    'functionCall': FunctionCallSchema,
-  })
-  .describe('REF:#/$defs/ActionFunctionCallWrapper');
-
-export const ActionSchema = z.union([ActionEventWrapperSchema, ActionFunctionCallWrapperSchema]).describe('REF:#/$defs/Action');
-export type Action = z.infer<typeof ActionSchema>;`,
-
-  AccessibilityAttributes: `export const AccessibilityAttributesSchema = z
-  .object({
-    'label': DynamicStringSchema.describe(
-      "REF:#/$defs/DynamicString|A short string, typically 1 to 3 words, used by assistive technologies to convey the purpose or intent of an element. For example, an input field might have an accessible label of 'User ID' or a button might be labeled 'Submit'.",
-    ).optional(),
-    'description': DynamicStringSchema.describe(
-      "REF:#/$defs/DynamicString|Additional information provided by assistive technologies about an element such as instructions, format requirements, or result of an action. For example, a mute button might have a label of 'Mute' and a description of 'Silences notifications about this conversation'.",
-    ).optional(),
-  })
-  .describe('REF:#/$defs/AccessibilityAttributes');
-export type AccessibilityAttributes = z.infer<typeof AccessibilityAttributesSchema>;`,
-};
-
-const V10_CUSTOM_SCHEMAS = {
-  ComponentId: `export const ComponentIdSchema = markChildRef(
-  z
-    .string()
-    .describe(
-      'REF:#/$defs/ComponentId|The unique identifier for a component, used for both definitions and references within the same surface.',
-    ),
-  'component-id',
-);
-export type ComponentId = z.infer<typeof ComponentIdSchema>;`,
-
-  CallId: `export const CallIdSchema = z.string().describe('REF:#/$defs/CallId|The unique identifier for a function call.');
-export type CallId = z.infer<typeof CallIdSchema>;`,
-
-  TemplateChildList: `export const TemplateChildListSchema = z
-  .object({
-    'componentId': z.lazy(() => ComponentIdSchema),
-    'path': z
-      .string()
-      .describe('The path to the list of component property objects in the data model.'),
-  })
-  .strict()
-  .describe(
-    'REF:#/$defs/TemplateChildList|A template for generating a dynamic list of children from a data model list. The \`componentId\` is the component to use as a template.',
-  );
-export type TemplateChildList = z.infer<typeof TemplateChildListSchema>;`,
-
-  Child: `export const ChildSchema = ComponentIdSchema;
-export type Child = z.infer<typeof ChildSchema>;`,
-
-  ChildList: `export const ChildListSchema = markChildRef(
-  z
-    .union([
-      z.array(ComponentIdSchema).describe('A static list of child component IDs.'),
-      TemplateChildListSchema,
-    ])
-    .describe('REF:#/$defs/ChildList'),
-  'child-list',
-);
-export type ChildList = z.infer<typeof ChildListSchema>;`,
-
-  DataBinding: `export const DataBindingSchema = z
-  .object({
-    'path': z.string().describe('A JSON Pointer path to a value in the data model.'),
-  })
-  .strict()
-  .describe(
-    'REF:#/$defs/DataBinding|A JSON Pointer path to a value in the data model.',
-  );
-export type DataBinding = z.infer<typeof DataBindingSchema>;`,
-
-  FunctionCommon: `export const FunctionCommonSchema = z
-  .object({
-    'catalogId': z
-      .string()
-      .describe('The catalog ID for this function, overriding any surface-level default catalogId.')
-      .optional(),
-  })
-  .strict();
-export type FunctionCommon = z.infer<typeof FunctionCommonSchema>;`,
-
-  FunctionCall: `export const FunctionCallSchema = z
-  .object({
-    'call': z.string().describe('The name of the function to call.'),
-    'catalogId': z.string().optional().describe('The ID of the catalog containing the function.'),
-    'args': z.record(z.any()).optional().describe('Arguments passed to the function.'),
-    'returnType': z
-      .enum(['string', 'number', 'boolean', 'array', 'object', 'validationResult', 'any', 'void'])
-      .optional(),
-  })
-  .describe('REF:#/$defs/FunctionCall|Invokes a named function on the client.');
-export type FunctionCall = z.infer<typeof FunctionCallSchema>;`,
-
-  DynamicString: `export const DynamicStringSchema = z
-  .union([z.string(), DataBindingSchema, z.lazy(() => FunctionCallSchema)])
-  .describe('REF:#/$defs/DynamicString|Represents a dynamic string value.');
-export type DynamicString = z.infer<typeof DynamicStringSchema>;`,
-
-  DynamicNumber: `export const DynamicNumberSchema = z
-  .union([z.number(), DataBindingSchema, z.lazy(() => FunctionCallSchema)])
-  .describe(
-    'REF:#/$defs/DynamicNumber|Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number.',
-  );
-export type DynamicNumber = z.infer<typeof DynamicNumberSchema>;`,
-
-  DynamicBoolean: `export const DynamicBooleanSchema = z
-  .union([z.boolean(), DataBindingSchema, z.lazy(() => FunctionCallSchema)])
-  .describe(
-    'REF:#/$defs/DynamicBoolean|A boolean value that can be a literal, a path, or a function call returning a boolean.',
-  );
-export type DynamicBoolean = z.infer<typeof DynamicBooleanSchema>;`,
-
-  DynamicStringList: `export const DynamicStringListSchema = z
-  .union([z.array(z.string()), DataBindingSchema, z.lazy(() => FunctionCallSchema)])
-  .describe(
-    'REF:#/$defs/DynamicStringList|Represents a value that can be either a literal array of strings, a path to a string array in the data model, or a function call returning a string array.',
-  );
-export type DynamicStringList = z.infer<typeof DynamicStringListSchema>;`,
-
-  DynamicValue: `export const DynamicValueSchema = z
-  .union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.array(z.any()),
-    z.record(z.string(), z.any()).refine(obj => !obj || (!('path' in obj) && !('call' in obj))),
-    DataBindingSchema,
-    z.lazy(() => FunctionCallSchema),
-  ])
-  .describe(
-    'REF:#/$defs/DynamicValue|A value that can be a literal, a path, or a function call returning any type.',
-  );
-export type DynamicValue = z.infer<typeof DynamicValueSchema>;`,
-
-  CheckRule: `export const CheckRuleSchema = z
-  .object({
-    'condition': DynamicBooleanSchema,
-    'message': z.string().describe('The error message to display if the check fails.'),
-  })
-  .describe(
-    'REF:#/$defs/CheckRule|A check rule consisting of a condition and an error message.',
-  );
-export type CheckRule = z.infer<typeof CheckRuleSchema>;`,
-
-  Checkable: `export const CheckableSchema = z
-  .object({
-    'checks': z.array(CheckRuleSchema).optional().describe('A list of checks to perform.'),
-    'isValid': z.boolean().optional().describe('Whether the checks currently pass.'),
-    'validationErrors': z
-      .array(z.string())
-      .optional()
-      .describe('Current validation error messages.'),
-  })
-  .describe(
-    'REF:#/$defs/Checkable|Properties for components that support client-side checks.',
-  );
-export type Checkable = z.infer<typeof CheckableSchema>;`,
-
-  Action: `export const ActionSchema = z
-  .union([
-    z
-      .object({
-        'event': z.object({
-          'name': z.string(),
-          'context': z.record(DynamicValueSchema).optional(),
-        }),
-      })
-      .describe('Triggers a server-side event.'),
-    z
-      .object({
-        'functionCall': FunctionCallSchema,
-      })
-      .describe('Executes a local client-side function.'),
-  ])
-  .describe(
-    'REF:#/$defs/Action|Triggers a server-side event or a local client-side function.',
-  );
-export type Action = z.infer<typeof ActionSchema>;`,
-
-  AccessibilityAttributes: `export const AccessibilityAttributesSchema = z
-  .object({
-    'label': DynamicStringSchema.optional().describe(
-      'A short string used by assistive technologies to convey the purpose of an element.',
-    ),
-    'description': DynamicStringSchema.optional().describe(
-      'Additional information provided by assistive technologies about an element.',
-    ),
-    'live': z
-      .enum(['off', 'polite', 'assertive'])
-      .describe(
-        "Controls screen reader announcements for dynamic updates (WAI-ARIA aria-live). 'polite' waits for user pause; 'assertive' interrupts immediately for alerts.",
-      )
-      .default('off')
-      .optional(),
-    'hidden': DynamicBooleanSchema.optional().describe(
-      'Controls whether assistive technologies hide the element.',
-    ),
-  })
-  .describe(
-    'REF:#/$defs/AccessibilityAttributes|Attributes to enhance accessibility.',
-  );
-export type AccessibilityAttributes = z.infer<typeof AccessibilityAttributesSchema>;`,
-
-  ComponentCommon: `export const ComponentCommonSchema = z.object({
-  'id': ComponentIdSchema,
-  'accessibility': AccessibilityAttributesSchema.optional(),
-  'catalogId': z
-    .string()
-    .describe('The catalog ID for this component, overriding any surface-level default catalogId.')
-    .optional(),
-  'metadata': z
-    .object({
-      'extensions': ExtensionsSchema.optional(),
-    })
-    .strict()
-    .describe('Optional component-level metadata for vendor extensions.')
-    .optional(),
-});
-export type ComponentCommon = z.infer<typeof ComponentCommonSchema>;`,
-
-  IndexSystemFunction: `export const IndexSystemFunctionSchema = z
-  .object({
-    'call': z.literal('@index'),
-    'args': z
-      .object({
-        'offset': DynamicNumberSchema.optional(),
-      })
-      .strict()
-      .optional(),
-  })
-  .strict()
-  .describe(
-    'Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context.',
-  );
-export type IndexSystemFunction = z.infer<typeof IndexSystemFunctionSchema>;`,
-
-  Surface: `export const SurfaceSchema = z
-  .object({
-    'component': z.literal('Surface').optional(),
-    'child': z.literal('root').optional(),
-  })
-  .strict()
-  .describe(
-    "The reserved canonical container component representing an A2UI surface. The Surface component is immutable and always has 'child': 'root'.",
-  );
-export type Surface = z.infer<typeof SurfaceSchema>;`,
-
-  FunctionResponse: `export const FunctionResponseSchema = z
-  .union([z.any(), z.any()])
-  .describe('The return response matching a callAgentFunction or callRendererFunction invocation.');
-export type FunctionResponse = z.infer<typeof FunctionResponseSchema>;`,
-};
-
 /**
  * Handles type-specific overrides and constraints.
  *
@@ -402,13 +65,6 @@ export type FunctionResponse = z.infer<typeof FunctionResponseSchema>;`,
  * @returns {string} Modified code.
  */
 function applyNameSpecificFixups(code, options = {}) {
-  if (options.version === 'v0_9' && V09_CUSTOM_SCHEMAS[options.name]) {
-    return V09_CUSTOM_SCHEMAS[options.name];
-  }
-  if (options.version === 'v1_0' && V10_CUSTOM_SCHEMAS[options.name]) {
-    return V10_CUSTOM_SCHEMAS[options.name];
-  }
-
   let clean = code;
 
   // json-schema-to-zod does not translate JSON Schema if/then conditional assertions
@@ -466,40 +122,45 @@ function getDependencies(node, deps = new Set()) {
 }
 
 /**
- * Builds a topological ordering of schema definition names.
+ * Analyzes the schema definition dependency graph, detects cycles using DFS,
+ * and produces a valid topological ordering along with the set of cyclic/lazy edges.
  *
  * @param {Record<string, object>} defs Map of definition names to JSON Schema objects.
- * @returns {string[]} Topologically sorted definition names.
+ * @returns {{topologicalOrder: string[], lazyEdges: Set<string>}}
  */
-function buildTopologicalOrder(defs) {
+function analyzeDependencies(defs) {
   const graph = new Map();
   for (const [name, def] of Object.entries(defs)) {
-    const deps = getDependencies(def);
-    if (name === 'DynamicValue') {
-      deps.delete('FunctionCall');
-    }
-    graph.set(name, deps);
+    graph.set(name, getDependencies(def));
   }
 
+  const visiting = new Set();
   const visited = new Set();
   const topologicalOrder = [];
+  const lazyEdges = new Set();
 
-  function visit(name) {
-    if (visited.has(name)) return;
-    visited.add(name);
-    const deps = graph.get(name) || new Set();
-    for (const dep of deps) {
-      if (graph.has(dep)) {
+  function visit(node) {
+    if (visited.has(node) || visiting.has(node)) return;
+
+    visiting.add(node);
+    for (const dep of graph.get(node) || []) {
+      if (visiting.has(dep)) {
+        // Cycle detected: dep must be lazily evaluated in node
+        lazyEdges.add(`${node}->${dep}`);
+      } else if (!visited.has(dep) && graph.has(dep)) {
         visit(dep);
       }
     }
-    topologicalOrder.push(name);
+    visiting.delete(node);
+    visited.add(node);
+    topologicalOrder.push(node);
   }
 
   for (const name of graph.keys()) {
     visit(name);
   }
-  return topologicalOrder;
+
+  return {topologicalOrder, lazyEdges};
 }
 
 /**
@@ -507,9 +168,14 @@ function buildTopologicalOrder(defs) {
  *
  * @param {string} refString The $ref pointer string.
  * @param {string} parentDefName The enclosing definition name.
+ * @param {Set<string>} [lazyEdges] Set of detected cycle edges.
+ * @param {string[]} [topologicalOrder] Topologically sorted definition names.
  * @returns {object|null} Modified JSON Schema node or null.
  */
-function resolveRefTarget(refString, parentDefName) {
+function resolveRefTarget(refString, parentDefName, lazyEdges, topologicalOrder) {
+  if (refString.startsWith('https://') || refString.startsWith('http://')) {
+    return {type: 'object', additionalProperties: true};
+  }
   if (refString === 'catalog.json#/$defs/theme') {
     return {};
   }
@@ -525,8 +191,16 @@ function resolveRefTarget(refString, parentDefName) {
   if (targetName === 'anyFunction' || targetName === 'anyComponent') {
     return {type: 'object', additionalProperties: true};
   }
-  if (parentDefName === 'DynamicValue' && targetName === 'FunctionCall') {
-    return {enum: ['__REF__z.lazy(() => FunctionCallSchema)__']};
+  if (
+    lazyEdges &&
+    (lazyEdges.has(`${parentDefName}->${targetName}`) ||
+      (topologicalOrder &&
+        topologicalOrder.indexOf(targetName) > topologicalOrder.indexOf(parentDefName)))
+  ) {
+    return {enum: [`__REF__z.lazy(() => ${targetName}Schema)__`]};
+  }
+  if (targetName === 'ComponentId') {
+    return {enum: ['__REF__ComponentIdSchema__']};
   }
   return {enum: ['__REF__' + targetName + 'Schema__']};
 }
@@ -536,18 +210,41 @@ function resolveRefTarget(refString, parentDefName) {
  *
  * @param {object} node Schema node.
  * @param {string} parentDefName Enclosing definition name.
+ * @param {Set<string>} [lazyEdges] Set of detected cycle edges.
+ * @param {string[]} [topologicalOrder] Topologically sorted definition names.
  * @returns {object} Prepared schema node.
  */
-function prepareRef(node, parentDefName) {
+function prepareRef(node, parentDefName, lazyEdges, topologicalOrder) {
   if (!node || typeof node !== 'object') return node;
-  if (Array.isArray(node)) return node.map(n => prepareRef(n, parentDefName));
+  if (Array.isArray(node)) {
+    return node.map(n => prepareRef(n, parentDefName, lazyEdges, topologicalOrder));
+  }
   if (typeof node.$ref === 'string') {
-    const resolved = resolveRefTarget(node.$ref, parentDefName);
+    const resolved = resolveRefTarget(node.$ref, parentDefName, lazyEdges, topologicalOrder);
     if (resolved) return resolved;
   }
   const res = {};
   for (const [k, v] of Object.entries(node)) {
-    res[k] = prepareRef(v, parentDefName);
+    // Simplify oneOf to anyOf for union schemas so jsonSchemaToZod emits clean z.union([...])
+    if (
+      k === 'oneOf' &&
+      Array.isArray(v) &&
+      parentDefName !== 'FunctionCall' &&
+      parentDefName !== 'FunctionResponse'
+    ) {
+      res['anyOf'] = v.map(n => prepareRef(n, parentDefName, lazyEdges, topologicalOrder));
+    } else if (k === 'oneOf' && parentDefName === 'FunctionCall') {
+      // Omit external catalog anyFunction hook from FunctionCall object definition
+      continue;
+    } else if (k === 'patternProperties' && parentDefName === 'Extensions') {
+      continue;
+    } else {
+      res[k] = prepareRef(v, parentDefName, lazyEdges, topologicalOrder);
+    }
+  }
+  if (parentDefName === 'Extensions' && !res.type) {
+    res.type = 'object';
+    res.additionalProperties = true;
   }
   return res;
 }
@@ -593,7 +290,11 @@ function findCommonRefs(node, commonDefNames, refs = new Set()) {
  */
 function generateCommonTypes(specDir, destDir, version, prefixCode = '', suffixCode = '') {
   const commonJson = JSON.parse(readFileSync(join(specDir, 'common_types.json'), 'utf8'));
-  const topologicalOrder = buildTopologicalOrder(commonJson.$defs);
+  const {topologicalOrder, lazyEdges} = analyzeDependencies(commonJson.$defs);
+  const recursiveSchemas = new Set([
+    ...Array.from(lazyEdges).map(e => e.split('->')[0]),
+    ...Array.from(lazyEdges).map(e => e.split('->')[1]),
+  ]);
 
   let commonTs = getHeader(version) + "import {z} from 'zod';\n\n";
 
@@ -607,8 +308,14 @@ function generateCommonTypes(specDir, destDir, version, prefixCode = '', suffixC
   ];
 
   for (const name of defKeys) {
-    const rawDef = commonJson.$defs[name];
-    const prep = prepareRef(rawDef, name);
+    const rawDef = JSON.parse(JSON.stringify(commonJson.$defs[name]));
+    // Dynamically inject REF pointer tag into description
+    const desc = rawDef.description
+      ? `REF:#/$defs/${name}|${rawDef.description}`
+      : `REF:#/$defs/${name}`;
+    rawDef.description = desc;
+
+    const prep = prepareRef(rawDef, name, lazyEdges, topologicalOrder);
     let code = jsonSchemaToZod(prep, {
       module: 'esm',
       name: `${name}Schema`,
@@ -616,11 +323,51 @@ function generateCommonTypes(specDir, destDir, version, prefixCode = '', suffixC
       noImport: true,
     });
     code = transformGeneratedZodCode(code, {name, version});
+
+    if (name === 'ComponentId') {
+      const parts = code.split('\nexport type ');
+      const schemaExp = parts[0].replace(`export const ComponentIdSchema = `, '').trim();
+      const typePart = parts[1] || 'ComponentId = z.infer<typeof ComponentIdSchema>';
+      code = `export const ComponentIdSchema = markChildRef(\n  ${schemaExp},\n  'component-id',\n);\nexport type ${typePart}`;
+    } else if (name === 'ChildList') {
+      const parts = code.split('\nexport type ');
+      const schemaExp = parts[0].replace(`export const ChildListSchema = `, '').trim();
+      const typePart = parts[1] || 'ChildList = z.infer<typeof ChildListSchema>';
+      code = `export const ChildListSchema = markChildRef(\n  ${schemaExp},\n  'child-list',\n);\nexport type ${typePart}`;
+    } else if (name === 'Child') {
+      code = `export const ChildSchema = ComponentIdSchema;\nexport type Child = z.infer<typeof ChildSchema>;`;
+    }
+
+    if (recursiveSchemas.has(name)) {
+      code = code.replace(
+        new RegExp(`export const ${name}Schema =`),
+        `export const ${name}Schema: z.ZodType<any> =`,
+      );
+    }
+
+    if (name === 'DynamicValue' && version === 'v1_0') {
+      code = code.replace(
+        'z.record(z.string(), z.any())',
+        "z.record(z.string(), z.any()).refine((obj) => !obj || (!('path' in obj) && !('call' in obj)))",
+      );
+    }
+
+    if (name === 'Extensions') {
+      code = `export const ExtensionsSchema = z.record(z.string(), z.any()).describe("REF:#/$defs/Extensions|Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions.");\nexport type Extensions = z.infer<typeof ExtensionsSchema>;`;
+    }
+
     commonTs += code + '\n\n';
   }
 
   if (suffixCode) {
     commonTs += suffixCode + '\n';
+  }
+
+  const commonEntries = defKeys.map(k => `  ${k}: ${k}Schema,`).join('\n');
+  if (version === 'v0_9') {
+    commonTs += `\nexport const CommonSchemas = {\n${commonEntries}\n  AnyComponent: AnyComponentSchema,\n};\n`;
+  } else {
+    commonTs += `\nexport const CommonSchemas = {\n${commonEntries}\n};\n`;
   }
 
   writeFileSync(join(destDir, 'common-types.ts'), commonTs);
@@ -708,23 +455,6 @@ export const AnyComponentSchema = z
   .passthrough()
   .describe('A generic A2UI component definition.');
 export type AnyComponent = z.infer<typeof AnyComponentSchema>;
-
-export const CommonSchemas = {
-  ComponentId: ComponentIdSchema,
-  ChildList: ChildListSchema,
-  DataBinding: DataBindingSchema,
-  DynamicValue: DynamicValueSchema,
-  DynamicString: DynamicStringSchema,
-  DynamicNumber: DynamicNumberSchema,
-  DynamicBoolean: DynamicBooleanSchema,
-  DynamicStringList: DynamicStringListSchema,
-  FunctionCall: FunctionCallSchema,
-  CheckRule: CheckRuleSchema,
-  Checkable: CheckableSchema,
-  Action: ActionSchema,
-  AccessibilityAttributes: AccessibilityAttributesSchema,
-  AnyComponent: AnyComponentSchema,
-};
 `;
 
 /**
@@ -742,12 +472,7 @@ function generateV09Schemas(root) {
 
   // 2. server-to-client.ts
   const s2cJson = JSON.parse(readFileSync(join(specDir, 'server_to_client.json'), 'utf8'));
-  const s2cMsgNames = [
-    'CreateSurfaceMessage',
-    'UpdateComponentsMessage',
-    'UpdateDataModelMessage',
-    'DeleteSurfaceMessage',
-  ];
+  const s2cMsgNames = s2cJson.oneOf.map(ref => ref.$ref.replace('#/$defs/', ''));
 
   let s2cTs = getHeader('v0_9') + "import {z} from 'zod';\n\n";
 
@@ -767,10 +492,7 @@ function generateV09Schemas(root) {
   }
 
   s2cTs += `export const A2uiMessageSchema = z.union([
-  CreateSurfaceMessageSchema,
-  UpdateComponentsMessageSchema,
-  UpdateDataModelMessageSchema,
-  DeleteSurfaceMessageSchema,
+  ${s2cMsgNames.map(m => `${m}Schema`).join(',\n  ')},
 ]);
 export type A2uiMessage = z.infer<typeof A2uiMessageSchema>;
 
@@ -788,76 +510,73 @@ export type A2uiMessageListWrapper = z.infer<typeof A2uiMessageListWrapperSchema
   writeFileSync(join(destDir, 'server-to-client.ts'), s2cTs);
 
   // 3. client-to-server.ts
-  const c2sTs =
-    getHeader('v0_9') +
-    `import {z} from 'zod';
+  const c2sJson = JSON.parse(readFileSync(join(specDir, 'client_to_server.json'), 'utf8'));
+  const cdmJson = JSON.parse(readFileSync(join(specDir, 'client_data_model.json'), 'utf8'));
 
-export const A2uiClientActionSchema = z
-  .object({
-    name: z
-      .string()
-      .describe("The name of the action, taken from the component's action.event.name property."),
-    surfaceId: z.string().describe('The id of the surface where the event originated.'),
-    sourceComponentId: z.string().describe('The id of the component that triggered the event.'),
-    timestamp: z.string().datetime().describe('An ISO 8601 timestamp of when the event occurred.'),
-    context: z
-      .record(z.any())
-      .describe(
-        "A JSON object containing the key-value pairs from the component's action.event.context, after resolving all data bindings.",
-      ),
-  })
-  .strict();
+  let c2sTs = getHeader('v0_9') + "import {z} from 'zod';\n\n";
 
-export const A2uiValidationErrorSchema = z
-  .object({
-    code: z.literal('VALIDATION_FAILED'),
-    surfaceId: z.string().describe('The id of the surface where the error occurred.'),
-    path: z
-      .string()
-      .describe(
-        "The JSON pointer to the field that failed validation (e.g. '/components/0/text').",
-      ),
-    message: z
-      .string()
-      .describe('A short one or two sentence description of why validation failed.'),
-  })
-  .strict();
+  const actionPrep = prepareRef(c2sJson.properties.action, 'A2uiClientAction');
+  let actionCode = jsonSchemaToZod(actionPrep, {
+    module: 'esm',
+    name: 'A2uiClientActionSchema',
+    type: 'A2uiClientAction',
+    noImport: true,
+  });
+  actionCode = transformGeneratedZodCode(actionCode, {name: 'A2uiClientAction', version: 'v0_9'});
+  actionCode = actionCode.replace(/\.passthrough\(\)/g, '.strict()');
+  c2sTs += actionCode + '\n\n';
 
-export const A2uiGenericErrorSchema = z
-  .object({
-    code: z.string().refine(c => c !== 'VALIDATION_FAILED'),
-    message: z
-      .string()
-      .describe('A short one or two sentence description of why the error occurred.'),
-    surfaceId: z.string().describe('The id of the surface where the error occurred.'),
-  })
-  .passthrough();
+  const valErrorPrep = prepareRef(c2sJson.properties.error.oneOf[0], 'A2uiValidationError');
+  let valErrorCode = jsonSchemaToZod(valErrorPrep, {
+    module: 'esm',
+    name: 'A2uiValidationErrorSchema',
+    noImport: true,
+  });
+  valErrorCode = transformGeneratedZodCode(valErrorCode, {
+    name: 'A2uiValidationError',
+    version: 'v0_9',
+  });
+  c2sTs += valErrorCode + '\n\n';
 
-export const A2uiClientErrorSchema = z.union([A2uiValidationErrorSchema, A2uiGenericErrorSchema]);
+  const genErrorPrep = prepareRef(c2sJson.properties.error.oneOf[1], 'A2uiGenericError');
+  let genErrorCode = jsonSchemaToZod(genErrorPrep, {
+    module: 'esm',
+    name: 'A2uiGenericErrorSchema',
+    noImport: true,
+  });
+  genErrorCode = transformGeneratedZodCode(genErrorCode, {
+    name: 'A2uiGenericError',
+    version: 'v0_9',
+  });
+  genErrorCode = genErrorCode.replace(
+    'code: z.any()',
+    "code: z.string().refine(c => c !== 'VALIDATION_FAILED')",
+  );
+  c2sTs += genErrorCode + '\n\n';
 
-export const A2uiClientMessageSchema = z
+  c2sTs += `export const A2uiClientErrorSchema = z.union([A2uiValidationErrorSchema, A2uiGenericErrorSchema]);\nexport type A2uiClientError = z.infer<typeof A2uiClientErrorSchema>;\n\n`;
+
+  c2sTs += `export const A2uiClientMessageSchema = z
   .object({
     version: z.enum(['v0.9', 'v0.9.1']),
   })
   .and(
     z.union([z.object({action: A2uiClientActionSchema}), z.object({error: A2uiClientErrorSchema})]),
   );
+export type A2uiClientMessage = z.infer<typeof A2uiClientMessageSchema>;\n\n`;
 
-export const A2uiClientDataModelSchema = z
-  .object({
-    version: z.enum(['v0.9', 'v0.9.1']),
-    surfaces: z
-      .record(z.object({}).passthrough())
-      .describe('A map of surface IDs to their current data models.'),
-  })
-  .strict();
+  const cdmPrep = prepareRef(cdmJson, 'A2uiClientDataModel');
+  let cdmCode = jsonSchemaToZod(cdmPrep, {
+    module: 'esm',
+    name: 'A2uiClientDataModelSchema',
+    type: 'A2uiClientDataModel',
+    noImport: true,
+  });
+  cdmCode = transformGeneratedZodCode(cdmCode, {name: 'A2uiClientDataModel', version: 'v0_9'});
+  cdmCode = cdmCode.replace(/z\.literal\("v0\.9"\)/g, 'z.enum(["v0.9", "v0.9.1"])');
+  c2sTs += cdmCode + '\n\n';
 
-export type A2uiClientAction = z.infer<typeof A2uiClientActionSchema>;
-export type A2uiClientError = z.infer<typeof A2uiClientErrorSchema>;
-export type A2uiClientMessage = z.infer<typeof A2uiClientMessageSchema>;
-export type A2uiClientDataModel = z.infer<typeof A2uiClientDataModelSchema>;
-
-export const A2uiClientMessageListSchema = z
+  c2sTs += `export const A2uiClientMessageListSchema = z
   .array(A2uiClientMessageSchema)
   .describe('A list of client messages.');
 export type A2uiClientMessageList = z.infer<typeof A2uiClientMessageListSchema>;
@@ -873,30 +592,39 @@ export type A2uiClientMessageListWrapper = z.infer<typeof A2uiClientMessageListW
   writeFileSync(join(destDir, 'client-to-server.ts'), c2sTs);
 
   // 4. client-capabilities.ts
-  const ccTs =
+  const ccJson = JSON.parse(readFileSync(join(specDir, 'client_capabilities.json'), 'utf8'));
+  let ccTs =
     getHeader('v0_9') +
-    `export type JsonSchema = Record<string, any>;
+    `import {z} from 'zod';\n\nexport type JsonSchema = Record<string, any>;\n\n`;
 
-export interface FunctionDefinition {
-  name: string;
-  description?: string;
-  parameters: JsonSchema;
-  returnType: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';
-}
+  for (const [name, def] of Object.entries(ccJson.$defs)) {
+    const typeName = name === 'Catalog' ? 'InlineCatalog' : name;
+    const prep = prepareRef(def, name);
+    let code = jsonSchemaToZod(prep, {
+      module: 'esm',
+      name: `${typeName}Schema`,
+      type: typeName,
+      noImport: true,
+    });
+    code = transformGeneratedZodCode(code, {name: typeName, version: 'v0_9'});
+    ccTs += code + '\n\n';
+  }
 
-export interface InlineCatalog {
-  catalogId: string;
-  components?: Record<string, JsonSchema>;
-  functions?: FunctionDefinition[];
-  theme?: Record<string, JsonSchema>;
-}
+  const v09CapsPrep = prepareRef(ccJson.properties['v0.9'], 'A2uiVersionCapabilities');
+  let v09CapsCode = jsonSchemaToZod(v09CapsPrep, {
+    module: 'esm',
+    name: 'A2uiVersionCapabilitiesSchema',
+    type: 'A2uiVersionCapabilities',
+    noImport: true,
+  });
+  v09CapsCode = transformGeneratedZodCode(v09CapsCode, {
+    name: 'A2uiVersionCapabilities',
+    version: 'v0_9',
+  });
+  v09CapsCode = v09CapsCode.replace(/CatalogSchema/g, 'InlineCatalogSchema');
+  ccTs += v09CapsCode + '\n\n';
 
-export interface A2uiVersionCapabilities {
-  supportedCatalogIds: string[];
-  inlineCatalogs?: InlineCatalog[];
-}
-
-export type A2uiClientCapabilities =
+  ccTs += `export type A2uiClientCapabilities =
   | {
       'v0.9': A2uiVersionCapabilities;
       'v0.9.1'?: A2uiVersionCapabilities;
@@ -993,26 +721,6 @@ export function childList(options: RefSchemaOptions = {}): typeof ChildListSchem
   }
   return ChildListSchema.describe(\`REF:#/$defs/ChildList|\${options.description}\`);
 }
-
-export const CommonSchemas = {
-  ComponentId: ComponentIdSchema,
-  Child: ChildSchema,
-  ChildList: ChildListSchema,
-  DataBinding: DataBindingSchema,
-  DynamicValue: DynamicValueSchema,
-  DynamicString: DynamicStringSchema,
-  DynamicNumber: DynamicNumberSchema,
-  DynamicBoolean: DynamicBooleanSchema,
-  DynamicStringList: DynamicStringListSchema,
-  FunctionCall: FunctionCallSchema,
-  CheckRule: CheckRuleSchema,
-  Checkable: CheckableSchema,
-  Action: ActionSchema,
-  AccessibilityAttributes: AccessibilityAttributesSchema,
-  ComponentCommon: ComponentCommonSchema,
-  Extensions: ExtensionsSchema,
-  Surface: SurfaceSchema,
-};
 `;
 
 /**
@@ -1133,25 +841,24 @@ export type RendererToAgentMessage = z.infer<typeof RendererToAgentMessageSchema
 
   // 4. renderer-capabilities.ts
   const rcJson = JSON.parse(readFileSync(join(specDir, 'renderer_capabilities.json'), 'utf8'));
-  if (rcJson?.properties?.['v1.0']?.properties?.inlineCatalogs?.items?.$ref) {
-    rcJson.properties['v1.0'].properties.inlineCatalogs.items = {
-      type: 'object',
-      additionalProperties: true,
-    };
-  }
+  const v10Props = rcJson.properties['v1.0'];
+  const v10Prep = prepareRef(v10Props, 'V10RendererCapabilities');
+  let v10Code = jsonSchemaToZod(v10Prep, {
+    module: 'esm',
+    name: 'V10RendererCapabilitiesSchema',
+    type: 'V10RendererCapabilities',
+    noImport: true,
+  });
+  v10Code = transformGeneratedZodCode(v10Code, {
+    name: 'V10RendererCapabilities',
+    version: 'v1_0',
+  });
+  v10Code = v10Code.replace(/\.passthrough\(\)/g, '.strict()');
 
-  const rcTs =
-    getHeader('v1_0') +
-    `import {z} from 'zod';
-
-/** Zod schema validating the strict v1.0 protocol renderer capabilities payload. */
-export const V10RendererCapabilitiesSchema = z.object({
-  supportedCatalogIds: z.array(z.string()).describe("An array of string identifiers for each of the component and function catalogs supported by the renderer."),
-  inlineCatalogs: z.array(z.record(z.string(), z.any())).describe("An array of inline catalog definitions.").optional(),
-}).strict();
-export type V10RendererCapabilities = z.infer<typeof V10RendererCapabilitiesSchema>;
-
-/** Zod schema validating multi-version renderer capabilities maps across protocol versions. */
+  let rcTs = getHeader('v1_0') + "import {z} from 'zod';\n\n";
+  rcTs += `/** Zod schema validating the strict v1.0 protocol renderer capabilities payload. */\n`;
+  rcTs += v10Code + '\n\n';
+  rcTs += `/** Zod schema validating multi-version renderer capabilities maps across protocol versions. */
 export const RendererCapabilitiesSchema = z.object({
   "v1.0": V10RendererCapabilitiesSchema.optional(),
   supportedCatalogIds: z.array(z.string()).optional(),

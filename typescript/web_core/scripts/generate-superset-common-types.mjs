@@ -71,8 +71,17 @@ function mergeUnionSchemas(schemas) {
   const branches = [];
   const seen = new Set();
   for (const s of schemas) {
-    const items = s.oneOf || [s];
-    for (const item of items) {
+    const items = s.oneOf || s.anyOf || [s];
+    for (let item of items) {
+      if (
+        item &&
+        Array.isArray(item.allOf) &&
+        item.allOf.length === 2 &&
+        item.allOf[0].$ref &&
+        item.allOf[1].properties
+      ) {
+        item = {$ref: item.allOf[0].$ref};
+      }
       const key = JSON.stringify(item);
       if (!seen.has(key)) {
         seen.add(key);
@@ -145,7 +154,7 @@ function deepMergeSchemas(schemas) {
   const description = getLatestDescription(schemas);
   let merged;
 
-  if (schemas.some(s => s.oneOf)) {
+  if (schemas.some(s => s.oneOf || s.anyOf)) {
     merged = mergeUnionSchemas(schemas);
   } else if (schemas.every(s => s.type === 'object' || s.properties)) {
     merged = mergeObjectSchemas(schemas);
@@ -202,54 +211,70 @@ function getDependencies(node, deps = new Set()) {
   return deps;
 }
 
-const graph = new Map();
-for (const [name, def] of Object.entries(mergedDefs)) {
-  const deps = getDependencies(def);
-  if (name === 'FunctionCall') {
-    deps.delete('DynamicValue');
-    deps.delete('IndexSystemFunction');
+function analyzeDependencies(defs) {
+  const graph = new Map();
+  for (const [name, def] of Object.entries(defs)) {
+    graph.set(name, getDependencies(def));
   }
-  if (name === 'DynamicValue') {
-    deps.delete('FunctionCall');
-  }
-  graph.set(name, deps);
-}
 
-const visited = new Set();
-const topologicalOrder = [];
+  const visiting = new Set();
+  const visited = new Set();
+  const topologicalOrder = [];
+  const lazyEdges = new Set();
 
-function visit(name) {
-  if (visited.has(name)) return;
-  visited.add(name);
-  const deps = graph.get(name) || new Set();
-  for (const dep of deps) {
-    if (graph.has(dep)) {
-      visit(dep);
+  function visit(node) {
+    if (visited.has(node) || visiting.has(node)) return;
+
+    visiting.add(node);
+    for (const dep of graph.get(node) || []) {
+      if (visiting.has(dep)) {
+        lazyEdges.add(`${node}->${dep}`);
+      } else if (!visited.has(dep) && graph.has(dep)) {
+        visit(dep);
+      }
     }
+    visiting.delete(node);
+    visited.add(node);
+    topologicalOrder.push(node);
   }
-  topologicalOrder.push(name);
+
+  for (const name of graph.keys()) {
+    visit(name);
+  }
+
+  return {topologicalOrder, lazyEdges};
 }
 
-for (const name of graph.keys()) {
-  visit(name);
-}
+const {topologicalOrder, lazyEdges} = analyzeDependencies(mergedDefs);
+const recursiveSchemas = new Set([
+  ...Array.from(lazyEdges).map(e => e.split('->')[0]),
+  ...Array.from(lazyEdges).map(e => e.split('->')[1]),
+]);
 
-function generateRefZod(refString, parentDefName) {
+function generateRefZod(refString, parentDefName, lazyEdges, topologicalOrder) {
+  if (refString.startsWith('https://') || refString.startsWith('http://')) {
+    return 'z.record(z.string(), z.any())';
+  }
   const idx = refString.indexOf('#/$defs/');
   if (idx === -1) return null;
   const targetName = refString.substring(idx + 8);
   if (targetName === 'anyFunction') {
-    return 'z.record(z.any())';
+    return 'z.record(z.string(), z.any())';
   }
-  if (parentDefName === 'DynamicValue' && targetName === 'FunctionCall') {
-    return 'FunctionCallSchema';
+  if (
+    lazyEdges &&
+    (lazyEdges.has(`${parentDefName}->${targetName}`) ||
+      (topologicalOrder &&
+        topologicalOrder.indexOf(targetName) > topologicalOrder.indexOf(parentDefName)))
+  ) {
+    return `z.lazy(() => ${targetName}Schema)`;
   }
   return `${targetName}Schema`;
 }
 
-function generateUnionZod(schema, parentDefName, indent) {
+function generateUnionZod(schema, parentDefName, indent, lazyEdges, topologicalOrder) {
   const branches = (schema.oneOf || schema.anyOf).map(b =>
-    generateZod(b, parentDefName, indent + '  '),
+    generateZod(b, parentDefName, indent + '  ', lazyEdges, topologicalOrder),
   );
   let code = `z.union([\n${branches.map(b => `${indent}  ${b},`).join('\n')}\n${indent}])`;
   if (schema.description) {
@@ -258,12 +283,13 @@ function generateUnionZod(schema, parentDefName, indent) {
   return code;
 }
 
-function generateAllOfZod(schema, parentDefName, indent) {
+function generateAllOfZod(schema, parentDefName, indent, lazyEdges, topologicalOrder) {
   if (schema.allOf.length === 2 && schema.allOf[0].$ref && schema.allOf[1].properties) {
-    const baseName = schema.allOf[0].$ref.replace('#/$defs/', '');
-    return `${baseName}Schema`;
+    return generateRefZod(schema.allOf[0].$ref, parentDefName, lazyEdges, topologicalOrder);
   }
-  const branches = schema.allOf.map(b => generateZod(b, parentDefName, indent));
+  const branches = schema.allOf.map(b =>
+    generateZod(b, parentDefName, indent, lazyEdges, topologicalOrder),
+  );
   return branches.join('.and(') + ')'.repeat(branches.length - 1);
 }
 
@@ -309,15 +335,15 @@ function generatePrimitiveZod(schema) {
   return code;
 }
 
-function generateArrayZod(schema, parentDefName, indent) {
-  const itemCode = generateZod(schema.items, parentDefName, indent);
+function generateArrayZod(schema, parentDefName, indent, lazyEdges, topologicalOrder) {
+  const itemCode = generateZod(schema.items, parentDefName, indent, lazyEdges, topologicalOrder);
   let code = `z.array(${itemCode})`;
   if (schema.minItems !== undefined) code += `.min(${schema.minItems})`;
   if (schema.description) code += `.describe('${escapeStr(schema.description)}')`;
   return code;
 }
 
-function generateObjectZod(schema, parentDefName, indent) {
+function generateObjectZod(schema, parentDefName, indent, lazyEdges, topologicalOrder) {
   if (!schema.properties || Object.keys(schema.properties).length === 0) {
     let code = 'z.record(z.string(), z.any())';
     if (schema.description) code += `.describe('${escapeStr(schema.description)}')`;
@@ -327,7 +353,7 @@ function generateObjectZod(schema, parentDefName, indent) {
   const req = new Set(schema.required || []);
   const props = [];
   for (const [propName, propDef] of Object.entries(schema.properties)) {
-    let propZod = generateZod(propDef, parentDefName, indent + '  ');
+    let propZod = generateZod(propDef, parentDefName, indent + '  ', lazyEdges, topologicalOrder);
     if (!req.has(propName)) {
       propZod += '.optional()';
     }
@@ -347,19 +373,19 @@ function generateObjectZod(schema, parentDefName, indent) {
 /**
  * Generates clean TypeScript Zod code directly from a JSON Schema node.
  */
-function generateZod(schema, parentDefName, indent = '') {
+function generateZod(schema, parentDefName, indent = '', lazyEdges, topologicalOrder) {
   if (!schema || typeof schema !== 'object') {
     return 'z.any()';
   }
   if (typeof schema.$ref === 'string') {
-    const refCode = generateRefZod(schema.$ref, parentDefName);
+    const refCode = generateRefZod(schema.$ref, parentDefName, lazyEdges, topologicalOrder);
     if (refCode) return refCode;
   }
   if (Array.isArray(schema.oneOf) || Array.isArray(schema.anyOf)) {
-    return generateUnionZod(schema, parentDefName, indent);
+    return generateUnionZod(schema, parentDefName, indent, lazyEdges, topologicalOrder);
   }
   if (Array.isArray(schema.allOf)) {
-    return generateAllOfZod(schema, parentDefName, indent);
+    return generateAllOfZod(schema, parentDefName, indent, lazyEdges, topologicalOrder);
   }
   if (Array.isArray(schema.enum)) {
     return generateEnumZod(schema);
@@ -372,10 +398,10 @@ function generateZod(schema, parentDefName, indent = '') {
     return primCode;
   }
   if (schema.type === 'array') {
-    return generateArrayZod(schema, parentDefName, indent);
+    return generateArrayZod(schema, parentDefName, indent, lazyEdges, topologicalOrder);
   }
   if (schema.type === 'object' || schema.properties) {
-    return generateObjectZod(schema, parentDefName, indent);
+    return generateObjectZod(schema, parentDefName, indent, lazyEdges, topologicalOrder);
   }
   return 'z.any()';
 }
@@ -406,23 +432,16 @@ const defKeys = [
 const generatedSchemaNames = [];
 
 for (const name of defKeys) {
-  const rawDef = mergedDefs[name];
-  let zodCode = generateZod(rawDef, name);
+  const rawDef = JSON.parse(JSON.stringify(mergedDefs[name]));
+  const desc = rawDef.description
+    ? `REF:common_types.json#/$defs/${name}|${escapeStr(rawDef.description)}`
+    : `REF:common_types.json#/$defs/${name}`;
+  rawDef.description = desc;
 
-  // Apply special-case transforms
-  if (name === 'DynamicValue') {
-    zodCode = `z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.array(z.any()),
-    z.record(z.string(), z.any()).refine(obj => !obj || (!('path' in obj) && !('call' in obj))),
-    DataBindingSchema,
-    FunctionCallSchema,
-  ]).describe('REF:common_types.json#/$defs/DynamicValue|A value that can be a literal, a path, or a function call returning any type.')`;
-  } else if (name === 'ComponentId') {
+  let zodCode;
+  if (name === 'ComponentId') {
     zodCode = `markChildRef(
-  z.string().describe('REF:common_types.json#/$defs/ComponentId|The unique identifier for a component.'),
+  z.string().describe('${desc}'),
   'component-id',
 )`;
   } else if (name === 'ChildList') {
@@ -433,65 +452,27 @@ for (const name of defKeys) {
       'componentId': ComponentIdSchema,
       'path': z.string().describe('The path to the list of component property objects in the data model.'),
     }).describe('A template for generating a dynamic list of children.'),
-  ]).describe('REF:common_types.json#/$defs/ChildList'),
+  ]).describe('${desc}'),
   'child-list',
 )`;
   } else if (name === 'Extensions') {
     zodCode = `z.record(z.string(), z.any()).describe("Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions.")`;
-  } else if (name === 'DataBinding') {
-    zodCode = `z.object({
-  'path': z.string().describe('A JSON Pointer path to a value in the data model.'),
-}).describe('REF:common_types.json#/$defs/DataBinding|A JSON Pointer path to a value in the data model.')`;
-  } else if (name === 'FunctionCall') {
-    zodCode = `z.object({
-  'call': z.string().describe('The name of the function to call.'),
-  'catalogId': z.string().optional().describe('The ID of the catalog containing the function.'),
-  'args': z.record(z.any()).optional().describe('Arguments passed to the function.'),
-  'returnType': z
-    .enum(['string', 'number', 'boolean', 'array', 'object', 'validationResult', 'any', 'void'])
-    .optional(),
-}).describe('REF:common_types.json#/$defs/FunctionCall|Invokes a named function on the client.')`;
-  } else if (name === 'DynamicString') {
-    zodCode = `z.union([z.string(), DataBindingSchema, FunctionCallSchema]).describe('REF:common_types.json#/$defs/DynamicString|Represents a dynamic string value.')`;
-  } else if (name === 'DynamicNumber') {
-    zodCode = `z.union([z.number(), DataBindingSchema, FunctionCallSchema]).describe('REF:common_types.json#/$defs/DynamicNumber|Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number.')`;
-  } else if (name === 'DynamicBoolean') {
-    zodCode = `z.union([z.boolean(), DataBindingSchema, FunctionCallSchema]).describe('REF:common_types.json#/$defs/DynamicBoolean|A boolean value that can be a literal, a path, or a function call returning a boolean.')`;
-  } else if (name === 'DynamicStringList') {
-    zodCode = `z.union([z.array(z.string()), DataBindingSchema, FunctionCallSchema]).describe('REF:common_types.json#/$defs/DynamicStringList|Represents a value that can be either a literal array of strings, a path to a string array in the data model, or a function call returning a string array.')`;
-  } else if (name === 'Action') {
-    zodCode = `z.union([
-    z.object({
-      'event': z.object({
-        'name': z.string(),
-        'context': z.record(DynamicValueSchema).optional(),
-      }),
-    }).describe('Triggers a server-side event.'),
-    z.object({
-      'functionCall': FunctionCallSchema,
-    }).describe('Executes a local client-side function.'),
-  ]).describe('REF:common_types.json#/$defs/Action|Triggers a server-side event or a local client-side function.')`;
-  } else if (name === 'CheckRule') {
-    zodCode = `z.object({
-  'condition': DynamicBooleanSchema,
-  'message': z.string().describe('The error message to display if the check fails.'),
-}).describe('REF:common_types.json#/$defs/CheckRule|A check rule consisting of a condition and an error message.')`;
-  } else if (name === 'Checkable') {
-    zodCode = `z.object({
-  'checks': z.array(CheckRuleSchema).optional().describe('A list of checks to perform.'),
-  'isValid': z.boolean().optional().describe('Whether the checks currently pass.'),
-  'validationErrors': z.array(z.string()).optional().describe('Current validation error messages.'),
-}).describe('REF:common_types.json#/$defs/Checkable|Properties for components that support client-side checks.')`;
-  } else if (name === 'AccessibilityAttributes') {
-    zodCode = `z.object({
-  'label': DynamicStringSchema.optional().describe('A short string used by assistive technologies to convey the purpose of an element.'),
-  'description': DynamicStringSchema.optional().describe('Additional information provided by assistive technologies about an element.'),
-  'live': z.enum(['off', 'polite', 'assertive']).describe("Controls screen reader announcements for dynamic updates (WAI-ARIA aria-live). 'polite' waits for user pause; 'assertive' interrupts immediately for alerts.").default('off').optional(),
-  'hidden': DynamicBooleanSchema.optional().describe('Controls whether assistive technologies hide the element.'),
-}).describe('REF:common_types.json#/$defs/AccessibilityAttributes|Attributes to enhance accessibility.')`;
+  } else {
+    zodCode = generateZod(rawDef, name, '', lazyEdges, topologicalOrder);
+    if (name === 'DynamicValue') {
+      zodCode = zodCode.replace(
+        'z.record(z.string(), z.any())',
+        "z.record(z.string(), z.any()).refine(obj => !obj || (!('path' in obj) && !('call' in obj)))",
+      );
+    }
   }
 
-  outTs += `export const ${name}Schema = ${zodCode};\n`;
+  if (recursiveSchemas.has(name)) {
+    outTs += `export const ${name}Schema: z.ZodType<any> = ${zodCode};\n`;
+  } else {
+    outTs += `export const ${name}Schema = ${zodCode};\n`;
+  }
+
   if (rawDef.description) {
     outTs += `/** ${rawDef.description.replace(/\n/g, ' ')} */\n`;
   }
