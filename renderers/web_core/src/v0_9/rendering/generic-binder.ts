@@ -16,6 +16,7 @@
 
 import {z} from 'zod';
 import {ComponentContext} from './component-context.js';
+import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
 import {
   Action,
   ChildList,
@@ -290,14 +291,15 @@ export class GenericBinder<T> {
       return cached.closure;
     }
     const closure = () => {
-      const resolveDeepSync = (val: any): any => {
+      const resolveDeepSync = (val: any, d = 0): any => {
         if (typeof val !== 'object' || val === null) return val;
         if ('path' in val || 'call' in val) {
-          return this.context.dataContext.resolveDynamicValue(val);
+          return this.context.dataContext.resolveDynamicValue(val, d);
         }
-        if (Array.isArray(val)) return val.map(resolveDeepSync);
+        if (d > MAX_DYNAMIC_VALUE_DEPTH) return undefined;
+        if (Array.isArray(val)) return val.map(item => resolveDeepSync(item, d + 1));
         const res: any = {};
-        for (const [k, v] of Object.entries(val)) res[k] = resolveDeepSync(v);
+        for (const [k, v] of Object.entries(val)) res[k] = resolveDeepSync(v, d + 1);
         return res;
       };
       this.context.dispatchAction(resolveDeepSync(value));

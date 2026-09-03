@@ -19,7 +19,7 @@ import {describe, it, beforeEach} from 'node:test';
 import {signal, computed, peekValue, getValue, setValue} from '../reactivity/signals.js';
 import {z} from 'zod';
 import {DataModel} from '../state/data-model.js';
-import {DataContext} from './data-context.js';
+import {DataContext, MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
 import {A2uiExpressionError} from '../errors.js';
 
 const createTestDataContext = (
@@ -540,6 +540,75 @@ describe('DataContext', () => {
       assert.ok(dispatchedError);
       assert.strictEqual((dispatchedError as any).code, 'EXPRESSION_ERROR');
       assert.strictEqual((dispatchedError as any).message, 'Generic inner failure');
+    });
+
+    it('guards against excessive recursion in resolveDynamicValue (Issue #2388)', () => {
+      assert.strictEqual(MAX_DYNAMIC_VALUE_DEPTH, 20);
+      let nested: any = {path: '/val'};
+      for (let i = 0; i <= MAX_DYNAMIC_VALUE_DEPTH + 10; i++) {
+        nested = {call: 'wrap', args: {v: nested}};
+      }
+
+      let dispatchedError: any = null;
+      const ctx = createTestDataContext(
+        model,
+        '/',
+        (_name: string, args: any) => args.v,
+        err => {
+          dispatchedError = err;
+        },
+      );
+
+      const result = ctx.resolveDynamicValue(nested);
+      assert.strictEqual(result, undefined);
+      assert.ok(dispatchedError);
+      assert.strictEqual(dispatchedError.code, 'EXPRESSION_ERROR');
+      assert.ok(dispatchedError.message.includes('Maximum dynamic value nesting depth exceeded'));
+    });
+
+    it('guards against excessive recursion in resolveSignal / subscribeDynamicValue without call stack overflow (Issue #2388)', () => {
+      let nested: any = {path: '/val'};
+      for (let i = 0; i < 1000; i++) {
+        nested = {call: 'wrap', args: {v: nested}};
+      }
+
+      let dispatchedError: any = null;
+      const ctx = createTestDataContext(
+        model,
+        '/',
+        (_name: string, args: any) => args.v,
+        err => {
+          dispatchedError = err;
+        },
+      );
+
+      const sub = ctx.subscribeDynamicValue(nested, () => {});
+      assert.strictEqual(sub.value, undefined);
+      assert.ok(dispatchedError);
+      assert.strictEqual(dispatchedError.code, 'EXPRESSION_ERROR');
+      assert.ok(dispatchedError.message.includes('Maximum dynamic value nesting depth exceeded'));
+      sub.unsubscribe();
+    });
+
+    it('evaluates legitimate nested expressions within depth limit correctly', () => {
+      let nested: any = 5;
+      for (let i = 0; i < 5; i++) {
+        nested = {call: 'inc', args: {v: nested}};
+      }
+
+      let dispatchedError: any = null;
+      const ctx = createTestDataContext(
+        model,
+        '/',
+        (_name: string, args: any) => (args.v ?? 0) + 1,
+        err => {
+          dispatchedError = err;
+        },
+      );
+
+      const result = ctx.resolveDynamicValue(nested);
+      assert.strictEqual(result, 10);
+      assert.strictEqual(dispatchedError, null);
     });
   });
 });
