@@ -115,19 +115,9 @@ function getDefaultStyleSheet(): CSSStyleSheet {
 }
 
 /**
- * Injects CSS variables for the A2UI basic catalog into the document.
+ * Injects CSS variables for the A2UI basic catalog into the document stylesheet collection.
  *
- * This method is used by the A2UI-provided basic catalogs of each renderer
- * so design token values can be shared across all of them.
- *
- * It is only meant to be used by the basic catalog implementations provided
- * by `@a2ui/lit`, `@a2ui/angular` and `@a2ui/react`, and should not be
- * considered as part of the A2UI spec. This package is just a convenient
- * location for it.
- *
- * Users may redefine the values of the CSS variables exposed in the default
- * stylesheet above (and the specific ones exposed by each basic catalog
- * package) to customize the appearance of the items of the basic catalog.
+ * Design token values are shared across renderer packages.
  */
 export function injectBasicCatalogStyles() {
   if (typeof document === 'undefined') return;
@@ -160,10 +150,11 @@ export interface ColorVariantHoverOptions {
 }
 
 /**
- * Computes the formula for light or dark variants of a color.
- * @param type The type of variant to compute ('light' or 'dark').
- * @param options Options containing the base color variable and optional percentage.
- * @returns The CSS formula string.
+ * Computes the CSS formula for light or dark variants of a base color.
+ *
+ * @param type The variant type ('light' | 'dark').
+ * @param options Options containing base color variable and optional percentage.
+ * @returns CSS `color-mix` formula string.
  */
 export function computeColorVariant(
   type: 'light' | 'dark',
@@ -171,19 +162,20 @@ export function computeColorVariant(
 ): string;
 
 /**
- * Computes the formula for hover variants of a color.
- * @param type The type of variant to compute ('hover').
- * @param options Options containing the dark and light variant variable names.
- * @returns The CSS formula string.
+ * Computes the CSS formula for hover variants of a color using `light-dark()`.
+ *
+ * @param type The variant type ('hover').
+ * @param options Options containing dark and light variant variable names.
+ * @returns CSS `light-dark` formula string.
  */
 export function computeColorVariant(type: 'hover', options: ColorVariantHoverOptions): string;
 
 /**
- * Computes the formula for light, dark, or hover variants of a color.
- * By default, light variants are mixed with white and dark variants with black.
- * @param type The type of variant to compute ('light', 'dark', 'hover').
+ * Computes the CSS formula for light, dark, or hover variants of a color.
+ *
+ * @param type The variant type ('light', 'dark', 'hover').
  * @param options Options containing variable names, percentages, and optional mix color.
- * @returns The CSS formula string.
+ * @returns Generated CSS formula string.
  */
 export function computeColorVariant(
   type: 'light' | 'dark' | 'hover',

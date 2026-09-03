@@ -14,20 +14,24 @@
  * limitations under the License.
  */
 
-/**
- * This interface is needed for typescript to allow us to access the V8-only
- * `captureStackTrace` property in Errors.
- */
+/** Internal extension of `ErrorConstructor` adding V8 `captureStackTrace` support. */
 interface V8ErrorConstructor extends ErrorConstructor {
   captureStackTrace(targetObject: object, constructorOpt?: Function): void;
 }
 
 /**
- * Base class for all A2UI specific errors.
+ * Base class for all A2UI v0.8 specific errors.
  */
 export class A2uiError extends Error {
+  /** Machine-readable string identifying the error category. */
   public readonly code: string;
 
+  /**
+   * Initializes a new `A2uiError` instance.
+   *
+   * @param message Human-readable error description.
+   * @param code Machine-readable error category code.
+   */
   constructor(message: string, code: string = 'UNKNOWN_ERROR') {
     super(message);
     this.name = this.constructor.name;
@@ -41,9 +45,15 @@ export class A2uiError extends Error {
 }
 
 /**
- * Thrown when JSON validation fails or schemas are mismatched.
+ * Error thrown when JSON validation fails or schemas are mismatched.
  */
 export class A2uiValidationError extends A2uiError {
+  /**
+   * Initializes a new `A2uiValidationError` instance.
+   *
+   * @param message Human-readable error description.
+   * @param details Additional error details or issues.
+   */
   constructor(
     message: string,
     public readonly details?: any,
@@ -53,9 +63,15 @@ export class A2uiValidationError extends A2uiError {
 }
 
 /**
- * Thrown during DataModel mutations (invalid paths, type mismatches).
+ * Error thrown during DataModel mutations (invalid paths, type mismatches).
  */
 export class A2uiDataError extends A2uiError {
+  /**
+   * Initializes a new `A2uiDataError` instance.
+   *
+   * @param message Human-readable error description.
+   * @param path Target data path.
+   */
   constructor(
     message: string,
     public readonly path?: string,
@@ -65,9 +81,15 @@ export class A2uiDataError extends A2uiError {
 }
 
 /**
- * Thrown during string interpolation and function evaluation.
+ * Error thrown during string interpolation and function evaluation.
  */
 export class A2uiExpressionError extends A2uiError {
+  /**
+   * Initializes a new `A2uiExpressionError` instance.
+   *
+   * @param message Human-readable error description.
+   * @param expression Evaluated expression string.
+   */
   constructor(
     message: string,
     public readonly expression?: string,
@@ -77,9 +99,14 @@ export class A2uiExpressionError extends A2uiError {
 }
 
 /**
- * Thrown for structural issues in the UI tree (missing surfaces, duplicate components).
+ * Error thrown for structural issues in the UI tree (missing surfaces, duplicate components).
  */
 export class A2uiStateError extends A2uiError {
+  /**
+   * Initializes a new `A2uiStateError` instance.
+   *
+   * @param message Human-readable error description.
+   */
   constructor(message: string) {
     super(message, 'STATE_ERROR');
   }

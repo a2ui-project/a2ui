@@ -16,7 +16,7 @@
 
 import re
 import json
-from typing import Any, Dict, List, Tuple, Union, Optional
+from typing import Any
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 
@@ -49,7 +49,7 @@ class CatalogSchemaHelperWrapper:
             except (ImportError, TypeError):
                 self._helper = None
 
-    def get_available_components(self) -> List[str]:
+    def get_available_components(self) -> list[str]:
         if hasattr(self.catalog, "catalog_schema") and isinstance(
             self.catalog.catalog_schema, dict
         ):
@@ -76,12 +76,12 @@ class CatalogSchemaHelperWrapper:
             return self._helper.get_component_required(comp_type)
         return []
 
-    def get_property_type(self, comp_type: str, prop_name: str) -> Optional[str]:
+    def get_property_type(self, comp_type: str, prop_name: str) -> str | None:
         if self._helper:
             return self._helper.get_property_type(comp_type, prop_name)
         return None
 
-    def get_child_list_property(self, comp_type: str) -> Optional[str]:
+    def get_child_list_property(self, comp_type: str) -> str | None:
         props = self.get_component_properties(comp_type)
         if isinstance(props, dict):
             keys = list(props.keys())
@@ -96,7 +96,7 @@ class CatalogSchemaHelperWrapper:
             return "children"
         return None
 
-    def get_single_child_property(self, comp_type: str) -> Optional[str]:
+    def get_single_child_property(self, comp_type: str) -> str | None:
         props = self.get_component_properties(comp_type)
         if isinstance(props, dict):
             keys = list(props.keys())
@@ -132,7 +132,7 @@ class SExprParser:
         self.tokens = self._tokenize(text)
         self.pos = 0
 
-    def _tokenize(self, text: str) -> List[str]:
+    def _tokenize(self, text: str) -> list[str]:
         """Tokenizes S-expression string handling parens, brackets, quotes, keywords, comments, and paths."""
         token_spec = [
             ("COMMENT", r";[^\n]*"),
@@ -181,7 +181,7 @@ class SExprParser:
                 tokens.append(value)
         return tokens
 
-    def parse(self) -> List[Any]:
+    def parse(self) -> list[Any]:
         """Parses tokens into nested S-expression lists."""
         expressions = []
         while self.pos < len(self.tokens):
@@ -242,7 +242,7 @@ class AtomCompiler:
         node_counter: Auto-incrementing node ID generator counter.
     """
 
-    def __init__(self, catalog: Union[Catalog[Any, Any], A2uiCatalog, Any]):
+    def __init__(self, catalog: Catalog[Any, Any] | A2uiCatalog | Any):
         """Initializes an AtomCompiler instance.
 
         Args:
@@ -278,7 +278,7 @@ class AtomCompiler:
         available = self.schema_helper.get_available_components()
         return name in available
 
-    def _get_primitive_text_component(self) -> Optional[Tuple[str, str]]:
+    def _get_primitive_text_component(self) -> tuple[str, str] | None:
         """Dynamically finds a single-string primitive component from catalog schema."""
         available = self.schema_helper.get_available_components()
         for comp in available:
@@ -310,8 +310,8 @@ class AtomCompiler:
     def _auto_wrap_text_child(
         self,
         text_val: str,
-        components: List[Dict[str, Any]],
-        data_model: Dict[str, Any],
+        components: list[dict[str, Any]],
+        data_model: dict[str, Any],
     ) -> str:
         """Auto-wraps a raw text string child into a primitive text component dynamically inspected from catalog."""
         if not text_val or not isinstance(text_val, str):
@@ -339,7 +339,7 @@ class AtomCompiler:
 
     def compile(
         self, text: str, surface_id: str = "main", is_final: bool = True
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Compiles raw Atom S-expression text into an A2UI message dictionary.
 
         Args:
@@ -387,8 +387,8 @@ class AtomCompiler:
         if not exprs:
             raise ValueError("No valid Atom expressions found.")
 
-        data_model: Dict[str, Any] = {}
-        components: List[Dict[str, Any]] = []
+        data_model: dict[str, Any] = {}
+        components: list[dict[str, Any]] = []
 
         for expr in exprs:
             if not isinstance(expr, list) or not expr:
@@ -595,7 +595,7 @@ class AtomCompiler:
         return val
 
     def _extract_and_remove_embedded_components(
-        self, node: Any, expr: List[Any]
+        self, node: Any, expr: list[Any]
     ) -> bool:
         """Extracts component expressions embedded within data nodes into main AST expr list."""
         if isinstance(node, list) and node:
@@ -611,7 +611,7 @@ class AtomCompiler:
                 node.remove(sub)
         return False
 
-    def _parse_data_node(self, expr: List[Any], data_model: Dict[str, Any]) -> None:
+    def _parse_data_node(self, expr: list[Any], data_model: dict[str, Any]) -> None:
         """Parses (data $/path/key val ...) into data_model structure."""
         head = str(expr[0])
         pairs = []
@@ -672,9 +672,9 @@ class AtomCompiler:
 
     def _compile_component(
         self,
-        expr: List[Any],
-        components: List[Dict[str, Any]],
-        data_model: Optional[Dict[str, Any]] = None,
+        expr: list[Any],
+        components: list[dict[str, Any]],
+        data_model: dict[str, Any] | None = None,
         is_root: bool = False,
     ) -> str:
         """Recursively processes S-expression component nodes into flat JSON adjacency list."""
@@ -689,9 +689,9 @@ class AtomCompiler:
             if is_root and not any(c.get("id") == "root" for c in components)
             else self._next_id()
         )
-        comp_dict: Dict[str, Any] = {"id": comp_id, "component": comp_type}
+        comp_dict: dict[str, Any] = {"id": comp_id, "component": comp_type}
 
-        children: List[str] = []
+        children: list[str] = []
         i = 1
         pos_arg_index = 0
         comp_props = self.schema_helper.get_component_properties(comp_type)
@@ -1132,7 +1132,7 @@ class AtomCompiler:
         components.insert(0, comp_dict)
         return comp_id
 
-    def _resolve_val(self, val: Any, components: List[Dict[str, Any]]) -> Any:
+    def _resolve_val(self, val: Any, components: list[dict[str, Any]]) -> Any:
         """Resolves primitive values, dynamic bindings, and helper expressions."""
         if isinstance(val, dict):
             if "functionCall" in val and isinstance(val["functionCall"], dict):
@@ -1286,7 +1286,7 @@ class AtomCompiler:
                 return {"path": path_str}
         return val
 
-    def _compile_event(self, expr: List[Any]) -> Dict[str, Any]:
+    def _compile_event(self, expr: list[Any]) -> dict[str, Any]:
         event_name = ""
         if len(expr) > 1 and not str(expr[1]).startswith(":"):
             event_name = str(expr[1]).strip("`").strip("'")
@@ -1340,7 +1340,7 @@ class AtomCompiler:
                         context["id"] = item
                     pos_idx += 1
                 i += 1
-        ev_obj: Dict[str, Any] = {"name": event_name}
+        ev_obj: dict[str, Any] = {"name": event_name}
         resolved_context = (
             {k: self._resolve_val(v, []) for k, v in context.items()} if context else {}
         )
@@ -1349,8 +1349,8 @@ class AtomCompiler:
         return {"event": ev_obj}
 
     def _compile_template(
-        self, expr: List[Any], components: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        self, expr: list[Any], components: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         template_child_id = ""
         items_path = None
         item_var = None
@@ -1393,17 +1393,17 @@ class AtomCompiler:
                             sub_path = p.split(f"{item_var}/", 1)[-1]
                             v["path"] = f"item/{sub_path}"
 
-        res: Dict[str, Any] = {"componentId": template_child_id}
+        res: dict[str, Any] = {"componentId": template_child_id}
         if items_path:
             res["items_path"] = items_path
         return res
 
     def _compile_tabs(
         self,
-        val: List[Any],
-        components: List[Dict[str, Any]],
-        data_model: Dict[str, Any],
-    ) -> List[Dict[str, Any]]:
+        val: list[Any],
+        components: list[dict[str, Any]],
+        data_model: dict[str, Any],
+    ) -> list[dict[str, Any]]:
         tabs_list = []
         for item in val:
             if isinstance(item, list):

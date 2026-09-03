@@ -16,7 +16,7 @@
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import List, Any
+from typing import Any
 from .response_part import ResponsePart
 
 
@@ -36,7 +36,7 @@ class Parser(ABC):
         """
         pass
 
-    def parse_response(self, content: str) -> List[ResponsePart]:
+    def parse_response(self, content: str) -> list[ResponsePart]:
         """Parses full response content into standard JSON payload parts by unwrapping and compiling.
 
         Args:
@@ -66,7 +66,7 @@ class Parser(ABC):
         return parts
 
     @abstractmethod
-    def unwrap(self, content: str) -> List[ResponsePart]:
+    def unwrap(self, content: str) -> list[ResponsePart]:
         """Tokenizes response content into raw format-content parts.
 
         Args:
@@ -80,7 +80,7 @@ class Parser(ABC):
     @abstractmethod
     def compile(
         self, format_content: str, *, is_final: bool = True
-    ) -> List[dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Compiles raw format-content (inference format string) to structured A2UI messages.
 
         Args:
@@ -97,7 +97,7 @@ class Parser(ABC):
         """Whether the parser supports streaming token chunk compilation."""
         return False
 
-    def process_chunk(self, chunk: str) -> List[ResponsePart]:
+    def process_chunk(self, chunk: str) -> list[ResponsePart]:
         """Processes a streamed token chunk (incremental parsing).
 
         Args:
@@ -115,7 +115,7 @@ class Parser(ABC):
         """Decompiles a structured A2UI payload into this format's raw notation."""
         pass
 
-    def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
+    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         """Wraps multiple decompiled blocks with the format's enclosing tags/markers."""
         return "\n".join(blocks)
 
@@ -141,7 +141,7 @@ def has_a2ui_parts(content: str) -> bool:
     return A2UI_OPEN_TAG in content and A2UI_CLOSE_TAG in content
 
 
-def parse_response(content: str) -> List[ResponsePart]:
+def parse_response(content: str) -> list[ResponsePart]:
     """Parses the LLM response into a list of ResponsePart objects (legacy).
 
     Args:

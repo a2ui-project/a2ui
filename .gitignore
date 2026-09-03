@@ -146,3 +146,7 @@ eval/iterative_format_optimizer/skills/inference-format-optimizer/logs/
 
 # VS Code workspaces
 *.code-workspace
+
+# Specification test temporary files
+specification/*/test/temp_data.json
+specification/*/test/catalog.json

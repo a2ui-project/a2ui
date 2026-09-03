@@ -74,7 +74,12 @@ describe('Button Component', () => {
               id: 'btn_disabled',
               component: 'Button',
               child: 'txt1',
-              isValid: false,
+              checks: [
+                {
+                  condition: false,
+                  message: 'Disabled',
+                },
+              ],
               action: {event: {name: 'ignored'}},
             },
             {

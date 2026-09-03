@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from typing import Any, Optional, List, AsyncIterable, TYPE_CHECKING
+from typing import Any, AsyncIterable, TYPE_CHECKING
 from a2ui.parser.parser import Parser
 
 if TYPE_CHECKING:
@@ -31,7 +31,7 @@ A2UI_MIME_TYPE = "application/a2ui+json"
 DEPRECATED_A2UI_MIME_TYPE = "application/json+a2ui"
 
 
-def create_a2ui_part(a2ui_data: dict[str, Any], version: Optional[str] = None) -> Part:
+def create_a2ui_part(a2ui_data: dict[str, Any], version: str | None = None) -> Part:
     """Creates an A2A Part containing A2UI data.
 
     Args:
@@ -72,7 +72,7 @@ def is_a2ui_part(part: Part) -> bool:
     )
 
 
-def get_a2ui_datapart(part: Part) -> Optional[DataPart]:
+def get_a2ui_datapart(part: Part) -> DataPart | None:
     """Extracts the DataPart containing A2UI data from an A2A Part, if present.
 
     Args:
@@ -89,9 +89,9 @@ def get_a2ui_datapart(part: Part) -> Optional[DataPart]:
 def parse_content_to_parts(
     content: str,
     parser: Parser,
-    fallback_text: Optional[str] = None,
-    version: Optional[str] = None,
-) -> List[Part]:
+    fallback_text: str | None = None,
+    version: str | None = None,
+) -> list[Part]:
     """Helper to parse LLM response content into A2A Parts using a Parser instance.
 
     Args:
@@ -130,10 +130,10 @@ def parse_content_to_parts(
 
 def parse_response_to_parts(
     content: str,
-    validator: Optional[Any] = None,
-    fallback_text: Optional[str] = None,
-    version: Optional[str] = None,
-) -> List[Part]:
+    validator: Any | None = None,
+    fallback_text: str | None = None,
+    version: str | None = None,
+) -> list[Part]:
     """Deprecated compatibility wrapper around parse_response_to_parts.
 
     Please use parse_content_to_parts instead, providing a Parser instance.
@@ -180,7 +180,7 @@ def parse_response_to_parts(
 async def stream_response_to_parts(
     parser: "DirectJsonStreamParser",
     token_stream: AsyncIterable[str],
-    version: Optional[str] = None,
+    version: str | None = None,
 ) -> AsyncIterable[Part]:
     """Helper to parse a stream of LLM tokens into A2A Parts incrementally.
 

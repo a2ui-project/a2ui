@@ -14,7 +14,7 @@
 
 import copy
 import re
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable
 from ..common.events import Subscription
 
 # Regex to check if path segment is numeric (representing array index)
@@ -24,12 +24,12 @@ NUMERIC_PATTERN = re.compile(r"^(?:0|[1-9][0-9]*)$")
 class DataModel:
     """An atomic RFC 6901 JSON Pointer reactive store."""
 
-    def __init__(self, initial_data: Optional[Dict[str, Any]] = None):
+    def __init__(self, initial_data: dict[str, Any] | None = None):
         self._data = copy.deepcopy(initial_data or {})
-        self._listeners: Dict[str, Set[Callable[[Any], None]]] = {}
+        self._listeners: dict[str, set[Callable[[Any], None]]] = {}
 
     @staticmethod
-    def _parse_pointer(path: str) -> List[str]:
+    def _parse_pointer(path: str) -> list[str]:
         """Splits a JSON Pointer path into individual unescaped tokens."""
         if not path or path == "/":
             return []
@@ -41,7 +41,7 @@ class DataModel:
         return [t.replace("~1", "/").replace("~0", "~") for t in tokens]
 
     @staticmethod
-    def _build_pointer(tokens: List[str]) -> str:
+    def _build_pointer(tokens: list[str]) -> str:
         """Assembles unescaped tokens back into an absolute JSON Pointer."""
         if not tokens:
             return "/"
@@ -156,7 +156,7 @@ class DataModel:
                 except Exception:
                     pass
 
-    def _trigger_cascade(self, tokens: List[str]) -> None:
+    def _trigger_cascade(self, tokens: list[str]) -> None:
         """Notifies listeners cascading both bubble-up (parents) and cascade-down (children)."""
         # 1. Bubble Up: Notify all parent paths
         for length in range(len(tokens) + 1):

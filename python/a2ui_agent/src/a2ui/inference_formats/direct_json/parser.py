@@ -14,7 +14,7 @@
 
 """Parser and compiler implementation for standard A2UI JSON schema responses."""
 
-from typing import List, Optional, Any
+from typing import Any
 from a2ui.parser.parser import Parser
 from a2ui.parser.response_part import ResponsePart
 from a2ui.schema.catalog import A2uiCatalog
@@ -24,7 +24,7 @@ from a2ui.parser.payload_fixer import parse_and_fix
 from a2ui.inference_formats.direct_json.decompiler import _DirectJsonDecompiler
 
 
-def unwrap_response(content: str) -> List[ResponsePart]:
+def unwrap_response(content: str) -> list[ResponsePart]:
     """Tokenizes the LLM response into a list of ResponsePart objects, extracting raw format content.
 
     Args:
@@ -44,7 +44,7 @@ def unwrap_response(content: str) -> List[ResponsePart]:
     parts = lexer.tokenize(content)
 
     has_blocks = False
-    valid_parts: List[ResponsePart] = []
+    valid_parts: list[ResponsePart] = []
 
     for part in parts:
         if part.a2ui_raw is not None:
@@ -79,7 +79,7 @@ class DirectJsonParser(Parser):
             catalog: The A2uiCatalog mapping schema identifiers.
         """
         self._catalog = catalog
-        self._stream_parser: Optional[Any] = None
+        self._stream_parser: Any | None = None
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
         from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
@@ -88,7 +88,7 @@ class DirectJsonParser(Parser):
             return A2UI_OPEN_TAG in content and A2UI_CLOSE_TAG in content
         return A2UI_OPEN_TAG in content
 
-    def unwrap(self, content: str) -> List[ResponsePart]:
+    def unwrap(self, content: str) -> list[ResponsePart]:
         """Tokenizes response content into raw format-content parts.
 
         Args:
@@ -101,7 +101,7 @@ class DirectJsonParser(Parser):
 
     def compile(
         self, format_content: str, *, is_final: bool = True
-    ) -> List[dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Validates and compiles raw A2UI JSON schema content.
 
         Args:
@@ -118,7 +118,7 @@ class DirectJsonParser(Parser):
     def supports_streaming(self) -> bool:
         return True
 
-    def process_chunk(self, chunk: str) -> List[ResponsePart]:
+    def process_chunk(self, chunk: str) -> list[ResponsePart]:
         """Processes streamed token chunks incrementally.
 
         Args:
@@ -137,6 +137,6 @@ class DirectJsonParser(Parser):
         """Decompiles a structured A2UI payload into this format's raw notation."""
         return _DirectJsonDecompiler().decompile(val)
 
-    def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
+    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         """Wraps multiple decompiled blocks with the format's enclosing tags/markers."""
         return _DirectJsonDecompiler().wrap_decompiled_blocks(blocks)

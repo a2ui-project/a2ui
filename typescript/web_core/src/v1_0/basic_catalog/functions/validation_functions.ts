@@ -26,8 +26,9 @@ import {
 import {ValidationResultInput as ValidationResult} from '../../schema/catalog-definition.js';
 
 /**
- * Implementation of v1.0 required validation function.
- * Returns a ValidationResult object.
+ * Validates that a value is present and non-empty for v1.0 catalogs.
+ *
+ * Returns a validation result object with an error message if invalid.
  */
 export const RequiredV1Point0Implementation = createFunctionImplementation(
   RequiredV1Point0Api,
@@ -46,8 +47,9 @@ export const RequiredV1Point0Implementation = createFunctionImplementation(
 );
 
 /**
- * Implementation of v1.0 regex validation function.
- * Returns a ValidationResult object.
+ * Validates that a string matches a regular expression pattern for v1.0 catalogs.
+ *
+ * @throws {A2uiExpressionError} If the pattern is invalid.
  */
 export const RegexV1Point0Implementation = createFunctionImplementation(
   RegexV1Point0Api,
@@ -65,8 +67,7 @@ export const RegexV1Point0Implementation = createFunctionImplementation(
 );
 
 /**
- * Implementation of v1.0 length validation function.
- * Returns a ValidationResult object.
+ * Validates that string or array length falls within an optional range for v1.0 catalogs.
  */
 export const LengthV1Point0Implementation = createFunctionImplementation(
   LengthV1Point0Api,
@@ -95,8 +96,7 @@ export const LengthV1Point0Implementation = createFunctionImplementation(
 );
 
 /**
- * Implementation of v1.0 numeric validation function.
- * Returns a ValidationResult object.
+ * Validates that a numeric value falls within an optional range for v1.0 catalogs.
  */
 export const NumericV1Point0Implementation = createFunctionImplementation(
   NumericV1Point0Api,
@@ -123,8 +123,7 @@ export const NumericV1Point0Implementation = createFunctionImplementation(
 );
 
 /**
- * Implementation of v1.0 email validation function.
- * Returns a ValidationResult object.
+ * Validates that a string matches basic email address syntax for v1.0 catalogs.
  */
 export const EmailV1Point0Implementation = createFunctionImplementation(
   EmailV1Point0Api,
@@ -137,6 +136,7 @@ export const EmailV1Point0Implementation = createFunctionImplementation(
   },
 );
 
+/** Standard validation function implementations for v1.0 catalogs. */
 export const V10_VALIDATION_FUNCTION_IMPLEMENTATIONS = [
   RequiredV1Point0Implementation,
   RegexV1Point0Implementation,

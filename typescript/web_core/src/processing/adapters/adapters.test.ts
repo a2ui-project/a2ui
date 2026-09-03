@@ -317,7 +317,7 @@ describe('MessageProcessor Dependency Injection', () => {
       adapterRegistry: customRegistry,
     });
 
-    processor.processMessages({version: 'vCustom'});
+    processor.processMessages({version: 'vCustom'} as any);
     assert.strictEqual(customRegistryInvoked, true);
     assert.notStrictEqual(processor.getSurface('injected_surface'), undefined);
   });

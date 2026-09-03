@@ -65,30 +65,19 @@ interface NodeRecord {
 }
 
 /**
- * The tree engine of the node layer: turns a surface's flat component map
- * into a live tree of resolved {@link ComponentNode}s rooted at
- * {@link rootNode}. Child references become `ComponentNode` objects, template
- * `ChildList`s spawn one node per array item, not-yet-arrived components
- * appear as placeholder nodes and are upgraded in place, and every node's
- * binder and data subscriptions are torn down when its parent stops
- * referencing it or the resolver is disposed.
+ * Resolves a surface model's flat component dictionary into a reactive tree of `ComponentNode`s.
  *
- * Construction requires a catalog whose functions are executable
- * (`F extends FunctionImplementation`). A schema-only catalog
- * (`Catalog<C, FunctionApi>`) fails this bound at compile time: without
- * implementations, function-derived values cannot resolve and the tree this
- * class produces would be wrong. Hosts without implementations (agent-side
- * code) operate on `SurfaceModel` directly and never construct a resolver.
+ * Child references become `ComponentNode` objects, template `ChildList`s spawn one node per array item,
+ * not-yet-arrived components appear as placeholder nodes and are upgraded in place, and every node's
+ * binder and data subscriptions are torn down when its parent stops referencing it or the resolver is disposed.
  *
- * Node identity is parent-scoped: each referencing position gets its own
- * node, so one component id mounted at two positions yields two nodes and
- * dropping one position never tears down the other.
+ * Construction requires a catalog whose functions are executable (`F extends FunctionImplementation`).
  */
 export class NodeResolver<
   C extends ComponentApi = ComponentApi,
   F extends FunctionImplementation = FunctionImplementation,
 > {
-  /** The resolved root of the tree; undefined until the root component arrives. */
+  /** The resolved root of the tree, or undefined until the root component arrives. */
   readonly rootNode: Signal<ComponentNode<C> | undefined>;
 
   private readonly surface: SurfaceModel<C, F>;
@@ -104,6 +93,13 @@ export class NodeResolver<
   private rootRecord?: NodeRecord;
   private _disposed = false;
 
+  /**
+   * Creates a new `NodeResolver` instance.
+   *
+   * @param surface Surface model to observe.
+   * @param catalog Catalog containing component schemas and function implementations.
+   * @throws {A2uiStateError} If the catalog instance differs from the surface's catalog.
+   */
   constructor(surface: SurfaceModel<C, F>, catalog: Catalog<C, F>) {
     if ((catalog as unknown) !== (surface.catalog as unknown)) {
       throw new A2uiStateError(
@@ -157,16 +153,21 @@ export class NodeResolver<
     }
   }
 
-  /** Number of live nodes (including placeholders). Exposed for tests and devtools. */
+  /** Total count of live nodes in the tree, including placeholders. */
   get activeNodeCount(): number {
     return this.records.size;
   }
 
+  /** Whether this resolver has been disposed. */
   get disposed(): boolean {
     return this._disposed;
   }
 
-  /** Tears down the whole tree and stops tracking the surface. Idempotent. */
+  /**
+   * Tears down the entire node tree and disconnects model event listeners.
+   *
+   * This operation is idempotent.
+   */
   dispose(): void {
     if (this._disposed) {
       return;

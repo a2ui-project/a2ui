@@ -18,7 +18,7 @@ import argparse
 import json
 import os
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Allow intra-package imports when run directly as a script
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -69,18 +69,26 @@ CORE_SRC_ROOT = os.path.join(REPO_ROOT, "python/a2ui_core/src/a2ui/core")
 
 def _generate_constants_code(
     version: str,
-    a2r_data: Dict[str, Any],
-    r2a_data: Dict[str, Any],
+    a2r_data: dict[str, Any],
+    r2a_data: dict[str, Any],
 ) -> str:
     """Dynamically generates constants.py based on the version's schema definitions."""
     dir_name = version_to_underscore(version)
     spec_dot = ensure_v_prefix(version)
+    if dir_name == "v0_9":
+        ver_type_str = 'Literal["v0.9", "v0.9.1"]'
+        sup_vers_str = 'Final[set[str]] = {"v0.9", "v0.9.1"}'
+    else:
+        ver_type_str = f'Literal["{spec_dot}"]'
+        sup_vers_str = f'Final[set[str]] = {{"{spec_dot}"}}'
+
     lines = [
         FILE_HEADER,
         "from typing import Final, Literal",
         "",
         f'PROTOCOL_VERSION: Final[Literal["{spec_dot}"]] = "{spec_dot}"',
-        f'PROTOCOL_VERSION_TYPE = Literal["{spec_dot}"]',
+        f"PROTOCOL_VERSION_TYPE = {ver_type_str}",
+        f"SUPPORTED_PROTOCOL_VERSIONS: {sup_vers_str}",
         "",
         'ROOT_ID = "root"',
         'CATALOG_COMPONENTS_KEY = "components"',
@@ -117,7 +125,7 @@ def _generate_constants_code(
 
     # Outbound message type constants
     lines.append("# Outbound message types")
-    outbound_keys: List[str] = []
+    outbound_keys: list[str] = []
     if defs:
         for mname, mschema in defs.items():
             if mname.endswith("Message"):
@@ -161,10 +169,12 @@ def _generate_constants_code(
 
 def generate_version_schemas(
     version: str,
-    spec_root: Optional[str] = None,
-    out_root: Optional[str] = None,
+    spec_root: str | None = None,
+    out_root: str | None = None,
 ) -> None:
-    """Generates all Pydantic schema files for a given protocol version."""
+    dir_name = version_to_underscore(version)
+    if dir_name == "v0_9_1":
+        return
     codegen = PydanticCodegen(version)
     codegen.allow_inline = False
     dir_name = version_to_underscore(version)
@@ -203,7 +213,7 @@ def generate_version_schemas(
             r2a_data = json.load(f)
 
     is_modern = is_modern_terminology(version, a2r_name)
-    modules: Dict[str, str] = {}
+    modules: dict[str, str] = {}
 
     # 1. Generate constants.py
     constants_code = _generate_constants_code(version, a2r_data, r2a_data)
@@ -212,7 +222,7 @@ def generate_version_schemas(
 
     # 2. Generate common_types.py
     common_types_path = os.path.join(json_dir, "common_types.json")
-    common_data: Optional[Dict[str, Any]] = None
+    common_data: dict[str, Any] | None = None
     if os.path.exists(common_types_path):
         with open(common_types_path, "r", encoding="utf-8") as f:
             common_data = json.load(f)
@@ -327,11 +337,13 @@ def generate_version_schemas(
 
 def generate_basic_catalog(
     version: str,
-    spec_root: Optional[str] = None,
-    out_root: Optional[str] = None,
+    spec_root: str | None = None,
+    out_root: str | None = None,
 ) -> None:
     """Generates basic catalog components, functions, styles, and catalog classes for a given version."""
     dir_name = version_to_underscore(version)
+    if dir_name == "v0_9_1":
+        return
     s_root = spec_root or SPEC_ROOT
     o_root = out_root or CORE_SRC_ROOT
 
@@ -359,7 +371,7 @@ def generate_basic_catalog(
     common_types_json_path = next(
         (p for p in common_types_possible if os.path.exists(p)), None
     )
-    common_data: Optional[Dict[str, Any]] = None
+    common_data: dict[str, Any] | None = None
     if common_types_json_path:
         with open(common_types_json_path, "r", encoding="utf-8") as f:
             common_data = json.load(f)
@@ -399,8 +411,8 @@ def generate_basic_catalog(
 
 
 def update_root_schema_init(
-    known_versions: List[str],
-    out_root: Optional[str] = None,
+    known_versions: list[str],
+    out_root: str | None = None,
 ) -> None:
     """Dynamically regenerates src/a2ui/core/schema/__init__.py with all known versions."""
     o_root = out_root or CORE_SRC_ROOT
@@ -416,6 +428,8 @@ def update_root_schema_init(
     enum_members = []
     for _, s_dot, e_name in version_triples:
         enum_members.append(f'    {e_name} = "{s_dot}"')
+        if e_name == "V0_9" and not any(e == "V0_9_1" for _, _, e in version_triples):
+            enum_members.append('    V0_9_1 = "v0.9.1"')
 
     agent_union_items = []
     renderer_union_items = []
@@ -437,7 +451,11 @@ def update_root_schema_init(
         if os.path.exists(os.path.join(o_root, "schema", d, "server_to_client.py"))
         and os.path.exists(os.path.join(o_root, "schema", d, "common_types.py"))
     ]
-    preferred_reexport = s2c_compat_dirs[-1] if s2c_compat_dirs else latest_dir
+    preferred_reexport = (
+        "v0_9"
+        if "v0_9" in s2c_compat_dirs
+        else (s2c_compat_dirs[-1] if s2c_compat_dirs else latest_dir)
+    )
     legacy_reexports = f"""# Re-exports from primary schema namespace for backwards compatibility
 from .{preferred_reexport}.common_types import *
 from .{preferred_reexport}.constants import *
@@ -482,9 +500,15 @@ from .common_types import (
 )
 """
 
+    agent_union_str = " | ".join([x.strip().rstrip(",") for x in agent_union_items])
+    renderer_union_str = " | ".join(
+        [x.strip().rstrip(",") for x in renderer_union_items]
+    )
+
     content = f"""{FILE_HEADER}
+from collections.abc import Mapping, Sequence
 from enum import Enum
-from typing import Any, Union
+from typing import Any
 
 # Versioned schema namespaces
 {chr(10).join(imports_lines)}
@@ -493,21 +517,51 @@ from typing import Any, Union
 class A2uiProtocolVersion(str, Enum):
 {chr(10).join(enum_members)}
 
+ProtocolVersion = A2uiProtocolVersion
+
 
 # Multi-version envelope unions (v1.0+ primary terminology)
-AgentToRendererMessage = Union[
-{chr(10).join(agent_union_items)}
-]
+AgentToRendererMessage = {agent_union_str}
 
-RendererToAgentMessage = Union[
-{chr(10).join(renderer_union_items)}
-]
+AgentToRendererMessageListWrapper = (
+    v0_8.A2uiMessageListWrapper
+    | v0_9.A2uiMessageListWrapper
+    | v1_0.AgentToRendererMessageListWrapper
+)
+
+AgentToRendererMessagePayload = (
+    AgentToRendererMessageListWrapper
+    | Sequence[AgentToRendererMessage]
+    | AgentToRendererMessage
+    | Mapping[str, Any]
+    | Sequence[Mapping[str, Any]]
+)
+
+RendererToAgentMessage = {renderer_union_str}
+
+RendererToAgentMessageListWrapper = (
+    v0_8.A2uiClientMessageListWrapper
+    | v0_9.A2uiClientMessageListWrapper
+    | v1_0.RendererToAgentMessageListWrapper
+)
+
+RendererToAgentMessagePayload = (
+    RendererToAgentMessageListWrapper
+    | Sequence[RendererToAgentMessage]
+    | RendererToAgentMessage
+    | Mapping[str, Any]
+    | Sequence[Mapping[str, Any]]
+)
 
 # Aliases for cross-version consistency
 ServerToClientMessage = AgentToRendererMessage
 ClientToServerMessage = RendererToAgentMessage
 A2uiMessage = AgentToRendererMessage
 A2uiClientMessage = RendererToAgentMessage
+ServerToClientMessageListWrapper = AgentToRendererMessageListWrapper
+ClientToServerMessageListWrapper = RendererToAgentMessageListWrapper
+ServerToClientMessagePayload = AgentToRendererMessagePayload
+ClientToServerMessagePayload = RendererToAgentMessagePayload
 {primary_action}
 A2uiClientAction = A2uiRendererAction
 A2uiClientUserAction = A2uiRendererAction

@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Mapping, Sequence
 import re
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any
 from pydantic import ValidationError
 from ..operations import InternalOperation
 from ...exceptions import (
@@ -24,7 +25,10 @@ from ...exceptions import (
     A2uiValidationError,
 )
 from ...state.validation_helpers import validate_recursion_and_paths
-from ...schema import ProtocolVersion, AgentToRendererMessagePayload
+from ...schema import AgentToRendererMessage, ProtocolVersion
+
+
+from ..execution_context import ExecutionContext
 
 
 def _clean_loc_part(x: str) -> str:
@@ -46,7 +50,7 @@ class VersionAdapter(ABC):
         pass
 
     @property
-    def supported_versions(self) -> Set[str]:
+    def supported_versions(self) -> set[str]:
         """Set of version string literals accepted by this adapter."""
         ver_str = (
             self.version.value if hasattr(self.version, "value") else str(self.version)
@@ -55,8 +59,15 @@ class VersionAdapter(ABC):
 
     @abstractmethod
     def extract_operations(
-        self, payload: AgentToRendererMessagePayload
-    ) -> List[InternalOperation]:
+        self,
+        payload: (
+            AgentToRendererMessage
+            | Sequence[AgentToRendererMessage]
+            | Mapping[str, Any]
+            | Sequence[Mapping[str, Any]]
+        ),
+        context: ExecutionContext | None = None,
+    ) -> list[InternalOperation]:
         """Converts a raw message payload or payload list into canonical internal operations."""
         pass
 
@@ -66,7 +77,7 @@ class BaseVersionAdapter(VersionAdapter, ABC):
 
     @property
     @abstractmethod
-    def valid_actions(self) -> Set[str]:
+    def valid_actions(self) -> set[str]:
         """The set of valid message action keys supported by this protocol version."""
         pass
 
@@ -81,13 +92,13 @@ class BaseVersionAdapter(VersionAdapter, ABC):
         """Returns the Pydantic wrapper model for envelope validation of this protocol version."""
         pass
 
-    def prepare_payload_for_validation(self, msg_obj: Dict[str, Any]) -> Dict[str, Any]:
+    def prepare_payload_for_validation(self, msg_obj: dict[str, Any]) -> dict[str, Any]:
         """Normalizes the message object before running schema validation."""
         return msg_obj
 
     def _format_validation_errors(
-        self, error: ValidationError, messages: List[Dict[str, Any]]
-    ) -> List[A2uiErrorDetail]:
+        self, error: ValidationError, messages: list[dict[str, Any]]
+    ) -> list[A2uiErrorDetail]:
         """Formats Pydantic validation errors while filtering out irrelevant union branches."""
         details = []
         branch_to_action = {}
@@ -135,13 +146,12 @@ class BaseVersionAdapter(VersionAdapter, ABC):
             details.append(A2uiErrorDetail(path_str, code, msg))
         return details
 
-    def _extract_single_action(self, message: Dict[str, Any]) -> Optional[str]:
+    def _extract_single_action(self, message: dict[str, Any]) -> str | None:
         """Validates presence of exactly one action key from valid_actions."""
         update_types = [k for k in self.valid_actions if k in message]
         if len(update_types) > 1:
             raise A2uiValidationError(
-                "Message contains multiple conflicting update actions and Message"
-                f" contains multiple update types: {update_types}"
+                f"Message contains multiple conflicting update actions: {update_types}"
             )
         if not update_types:
             if self.raise_on_empty_actions:
@@ -155,7 +165,7 @@ class BaseVersionAdapter(VersionAdapter, ABC):
             self._get_surface_id(message[action])
         return action
 
-    def _get_surface_id(self, action_dict: Dict[str, Any]) -> str:
+    def _get_surface_id(self, action_dict: dict[str, Any]) -> str:
         """Extracts surfaceId and validates that it is a string."""
         if "surfaceId" in action_dict:
             val = action_dict["surfaceId"]
@@ -165,8 +175,15 @@ class BaseVersionAdapter(VersionAdapter, ABC):
         return ""
 
     def extract_operations(
-        self, payload: AgentToRendererMessagePayload
-    ) -> List[InternalOperation]:
+        self,
+        payload: (
+            AgentToRendererMessage
+            | Sequence[AgentToRendererMessage]
+            | Mapping[str, Any]
+            | Sequence[Mapping[str, Any]]
+        ),
+        context: ExecutionContext | None = None,
+    ) -> list[InternalOperation]:
         """Unwraps payloads and delegates validated action messages to action handlers."""
         if not payload:
             return []
@@ -181,14 +198,17 @@ class BaseVersionAdapter(VersionAdapter, ABC):
             for item in raw_payload:
                 if isinstance(item, dict):
                     self._extract_single_action(item)
-            ops: List[InternalOperation] = []
+            ops: list[InternalOperation] = []
             for item in raw_payload:
-                ops.extend(self.extract_operations(item))
+                ops.extend(self.extract_operations(item, context=context))
             return ops
 
         if isinstance(raw_payload, dict):
             if "messages" in raw_payload and isinstance(raw_payload["messages"], list):
-                return self.extract_operations(raw_payload["messages"])
+                return self.extract_operations(
+                    raw_payload["messages"],
+                    context=context,
+                )
 
             action = self._extract_single_action(raw_payload)
             if not action:
@@ -229,13 +249,20 @@ class BaseVersionAdapter(VersionAdapter, ABC):
                 summary = "; ".join(f"{d.path}: {d.message}" for d in details)
                 raise A2uiValidationError(f"Invalid {self.version} message: {summary}")
 
-            return self._extract_operations_for_action(action, raw_payload)
+            return self._extract_operations_for_action(
+                action,
+                raw_payload,
+                context=context,
+            )
 
         return []
 
     @abstractmethod
     def _extract_operations_for_action(
-        self, action: str, message: Dict[str, Any]
-    ) -> List[InternalOperation]:
-        """Extracts internal operations for a validated message action."""
+        self,
+        action: str,
+        message: dict[str, Any],
+        context: ExecutionContext | None = None,
+    ) -> list[InternalOperation]:
+        """Subclasses override this to extract version-specific internal operations."""
         pass

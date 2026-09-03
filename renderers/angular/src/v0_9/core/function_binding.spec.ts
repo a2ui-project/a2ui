@@ -17,8 +17,9 @@
 import {DataContext, SurfaceModel} from '@a2ui/web_core/v0_9';
 import {TestBed} from '@angular/core/testing';
 import {DestroyRef, EnvironmentInjector} from '@angular/core';
-import {BasicCatalogBase} from '../catalog/basic/basic-catalog';
+import {BASIC_FUNCTIONS, BasicCatalogBase} from '../catalog/basic/basic-catalog';
 import {assertAngularSignal, initializeAngularReactivity} from './reactivity';
+import {z} from 'zod';
 
 describe('Function Bindings', () => {
   let mockDestroyRef: jasmine.SpyObj<DestroyRef>;
@@ -31,7 +32,15 @@ describe('Function Bindings', () => {
 
   describe('add', () => {
     it('should update output correctly when bound input updates using function call binding', () => {
-      const catalog = new BasicCatalogBase();
+      const addFunction = {
+        name: 'add',
+        returnType: 'number' as const,
+        schema: z.object({a: z.number(), b: z.number()}),
+        execute: (args: Record<string, any>) => (args['a'] as number) + (args['b'] as number),
+      };
+      const catalog = new BasicCatalogBase({
+        functions: [...BASIC_FUNCTIONS, addFunction as any],
+      });
 
       // Create Surface Model and DataContext
       const surface = new SurfaceModel('surface_1', catalog);

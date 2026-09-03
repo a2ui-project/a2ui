@@ -15,7 +15,7 @@
 """Decompilation engine for A2UI Atom format."""
 
 import json
-from typing import Any, Dict, List, Union, Optional
+from typing import Any
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 
@@ -27,7 +27,7 @@ class AtomDecompiler:
         catalog: The catalog containing component and function schemas.
     """
 
-    def __init__(self, catalog: Optional[Union[Catalog[Any, Any], A2uiCatalog]] = None):
+    def __init__(self, catalog: Catalog[Any, Any] | A2uiCatalog | None = None):
         """Initializes an AtomDecompiler instance.
 
         Args:
@@ -35,7 +35,7 @@ class AtomDecompiler:
         """
         self.catalog = catalog
 
-    def decompile(self, payload: Dict[str, Any]) -> str:
+    def decompile(self, payload: dict[str, Any]) -> str:
         """Decompiles an A2UI JSON payload dictionary into Atom S-expression syntax.
 
         Args:
@@ -119,7 +119,7 @@ class AtomDecompiler:
         return ""
 
     def _decompile_component(
-        self, comp_id: str, comp_map: Dict[str, Any], indent: int = 0
+        self, comp_id: str, comp_map: dict[str, Any], indent: int = 0
     ) -> str:
         if comp_id not in comp_map:
             return ""
@@ -208,7 +208,7 @@ class AtomDecompiler:
             return f'"{val}"'
         return str(val)
 
-    def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
+    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         """Wraps decompiled Atom S-expression blocks within <a2ui> sentinel tags.
 
         Args:

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import re
-from typing import Any, Dict, List, Union
+from typing import Any
 
 
 class Scanner:
@@ -63,7 +63,7 @@ class Scanner:
 class ExpressionParser:
     MAX_DEPTH = 10
 
-    def parse(self, input_str: str, depth: int = 0) -> List[Any]:
+    def parse(self, input_str: str, depth: int = 0) -> list[Any]:
         if depth > self.MAX_DEPTH:
             raise ValueError("Max recursion depth reached in parse")
         if not input_str or "${" not in input_str:
@@ -193,7 +193,7 @@ class ExpressionParser:
 
     def parse_function_call(
         self, func_name: str, scanner: Scanner, depth: int
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         scanner.match("(")
         scanner.skip_whitespace()
 
@@ -250,7 +250,7 @@ class ExpressionParser:
                 result += c
         return result
 
-    def parse_number_literal(self, scanner: Scanner) -> Union[int, float]:
+    def parse_number_literal(self, scanner: Scanner) -> int | float:
         start = scanner.pos
         if scanner.peek() == "-":
             scanner.advance()

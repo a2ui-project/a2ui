@@ -16,7 +16,7 @@
 
 import ast
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 FILE_HEADER = """# Copyright 2024 Google LLC
 #
@@ -101,13 +101,13 @@ def to_pascal_case(name: str) -> str:
     return "".join(p[0].upper() + p[1:] for p in parts if p)
 
 
-def extract_exported_symbols(code: str) -> List[str]:
+def extract_exported_symbols(code: str) -> list[str]:
     """Extracts top-level public class names, function names, and variable/alias assignments from Python code."""
     try:
         tree = ast.parse(code)
     except SyntaxError:
         return []
-    symbols: List[str] = []
+    symbols: list[str] = []
     for node in tree.body:
         if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
             if not node.name.startswith("_"):
@@ -122,7 +122,7 @@ def extract_exported_symbols(code: str) -> List[str]:
     return list(dict.fromkeys(symbols))
 
 
-def get_base_common_symbols(common_types_path: Optional[str] = None) -> List[str]:
+def get_base_common_symbols(common_types_path: str | None = None) -> list[str]:
     """Extracts public symbols defined in schema/common_types.py dynamically via AST."""
     import os
 
@@ -140,7 +140,7 @@ def get_base_common_symbols(common_types_path: Optional[str] = None) -> List[str
     return []
 
 
-def get_schema_dependencies(node: Any, deps: Optional[set[str]] = None) -> set[str]:
+def get_schema_dependencies(node: Any, deps: set[str] | None = None) -> set[str]:
     """Recursively extracts all local #/$defs/ references from a schema node."""
     if deps is None:
         deps = set()
@@ -162,13 +162,13 @@ def get_schema_dependencies(node: Any, deps: Optional[set[str]] = None) -> set[s
     return deps
 
 
-def topological_sort_defs(defs: Dict[str, Any]) -> List[str]:
+def topological_sort_defs(defs: dict[str, Any]) -> list[str]:
     """Topologically sorts schema definitions by their internal $defs dependencies."""
-    graph: Dict[str, set[str]] = {}
+    graph: dict[str, set[str]] = {}
     for name, def_spec in defs.items():
         deps = get_schema_dependencies(def_spec)
         # Break cycles between dynamic values and function calls:
-        # In Python, DynamicValue/Dynamic* are type aliases (Union[..., FunctionCall])
+        # In Python, DynamicValue/Dynamic* are type aliases (... | FunctionCall)
         # evaluated at import time, so FunctionCall must precede DynamicValue.
         # The reference from FunctionCall.args to DynamicValue is an annotation
         # resolved via `from __future__ import annotations`.
@@ -178,7 +178,7 @@ def topological_sort_defs(defs: Dict[str, Any]) -> List[str]:
         graph[name] = {d for d in deps if d in defs and d != name}
 
     visited: set[str] = set()
-    order: List[str] = []
+    order: list[str] = []
 
     def visit(name: str) -> None:
         if name in visited:
@@ -204,7 +204,7 @@ def topological_sort_defs(defs: Dict[str, Any]) -> List[str]:
 def find_common_refs(
     node: Any,
     common_def_names: set[str],
-    common_defs: Optional[Dict[str, Any]] = None,
+    common_defs: dict[str, Any] | None = None,
 ) -> set[str]:
     """Recursively extracts all referenced common_types schema names, following common def dependencies."""
     refs: set[str] = set()

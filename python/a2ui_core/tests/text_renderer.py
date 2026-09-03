@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, List, Dict, Optional, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 from a2ui.core.state import Signal, ComponentNode
 
 if TYPE_CHECKING:
@@ -31,15 +31,15 @@ class A2uiTextRenderer:
         self.surface = node_graph.surface
         self.output: Signal[str] = Signal("")
         self._root_sub = None
-        self._node_subs: Dict[str, Any] = {}  # Map of node instanceId to Subscription
-        self._node_signals: Dict[str, Any] = (
+        self._node_subs: dict[str, Any] = {}  # Map of node instanceId to Subscription
+        self._node_signals: dict[str, Any] = (
             {}
         )  # Map of sub_id to active Signal instance
 
         # Subscribe reactively to the rootNode of the node graph
         self._root_sub = self.node_graph.rootNode.subscribe(self._on_root_node_changed)
 
-    def _on_root_node_changed(self, root_node: Optional[ComponentNode]) -> None:
+    def _on_root_node_changed(self, root_node: ComponentNode | None) -> None:
         self._updating = False
 
         def rebuild_output(dummy_val: Any = None) -> None:
@@ -99,7 +99,7 @@ class A2uiTextRenderer:
 
         rebuild_output()
 
-    def _collect_nodes_in_tree(self, node: ComponentNode) -> List[ComponentNode]:
+    def _collect_nodes_in_tree(self, node: ComponentNode) -> list[ComponentNode]:
         nodes = [node]
         props = node.props.value
 

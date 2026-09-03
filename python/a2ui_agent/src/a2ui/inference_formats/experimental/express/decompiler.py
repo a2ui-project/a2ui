@@ -18,7 +18,7 @@ Reconstructs standard A2UI v1.0 JSON envelopes back into A2UI Express DSL code,
 tailored for prompt tokens compression.
 """
 
-from typing import Any, Union
+from typing import Any
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 
@@ -108,7 +108,7 @@ class _ExpressDecompiler:
 
     def __init__(
         self,
-        catalog: Union[Catalog[Any, Any], A2uiCatalog],
+        catalog: Catalog[Any, Any] | A2uiCatalog,
     ):
         """Initializes the decompiler with the specified catalog.
 
@@ -131,7 +131,7 @@ class _ExpressDecompiler:
 
     def decompile(
         self,
-        envelope_json: Union[dict[str, Any], list[dict[str, Any]]],
+        envelope_json: dict[str, Any] | list[dict[str, Any]],
         use_keyword_args: bool = False,
     ) -> str:
         """Decompiles standard A2UI wire JSON into clean A2UI Express lines.

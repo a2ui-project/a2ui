@@ -43,6 +43,14 @@ function copySchemas(version) {
   }
 }
 
-copySchemas('v0_8');
-copySchemas('v0_9');
-copySchemas('v1_0');
+const specDir = join(rootDir, '..', '..', 'specification');
+const versions = readdirSync(specDir).filter(
+  d =>
+    d.startsWith('v') &&
+    existsSync(join(specDir, d, 'json')) &&
+    existsSync(join(rootDir, 'src', d)),
+);
+
+for (const version of versions.sort()) {
+  copySchemas(version);
+}

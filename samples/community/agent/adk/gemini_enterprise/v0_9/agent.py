@@ -17,7 +17,7 @@ from collections.abc import AsyncIterable
 import json
 import logging
 import os
-from typing import Any, Optional
+from typing import Any
 
 from a2a.types import (
     AgentCapabilities,
@@ -80,9 +80,7 @@ class A2uiDemoAgent:
         self.base_url = base_url
         self._agent_name = "A2UI v0.9 Demo"
         self._user_id = "remote_agent"
-        self._text_runner: Optional[Runner] = self._build_runner(
-            self._build_llm_agent()
-        )
+        self._text_runner: Runner | None = self._build_runner(self._build_llm_agent())
 
         self._schema_manager: A2uiSchemaManager = self._build_schema_manager()
         self._ui_runner: Runner = self._build_runner(
@@ -182,7 +180,7 @@ class A2uiDemoAgent:
         return "Building an A2UI demo for you..."
 
     def _build_llm_agent(
-        self, schema_manager: Optional[A2uiSchemaManager] = None
+        self, schema_manager: A2uiSchemaManager | None = None
     ) -> LlmAgent:
         """Builds the LLM agent for the A2UI demo agent."""
         model_env = os.getenv("MODEL") or "gemini-2.5-flash"
@@ -215,7 +213,7 @@ class A2uiDemoAgent:
         self,
         query,
         session_id,
-        ui_version: Optional[str] = None,
+        ui_version: str | None = None,
         use_streaming: bool = True,
     ) -> AsyncIterable[dict[str, Any]]:
         session_state = {"base_url": self.base_url, "expression": "{expression}"}

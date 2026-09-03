@@ -14,7 +14,7 @@
 
 import json
 import re
-from typing import Any, Optional, List
+from typing import Any
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
 from a2ui.inference_format import InferenceFormat
@@ -33,14 +33,14 @@ class ElementalFormat(InferenceFormat):
 
     def __init__(
         self,
-        catalog: Optional[A2uiCatalog] = None,
+        catalog: A2uiCatalog | None = None,
         surface_id: str = "main",
-        examples_path: Optional[str] = None,
+        examples_path: str | None = None,
     ):
         self.catalog = catalog
         self.surface_id = surface_id
         self.examples_path = examples_path
-        self._prompt_generator: Optional[ElementalPromptGenerator] = None
+        self._prompt_generator: ElementalPromptGenerator | None = None
 
     def _ensure_catalog(self) -> None:
         if not self.catalog:

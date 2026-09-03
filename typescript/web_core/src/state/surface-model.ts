@@ -19,7 +19,7 @@ import {Catalog, ComponentApi, FunctionApi, FunctionImplementation} from '../cat
 import {SurfaceComponentsModel} from './surface-components-model.js';
 import {EventEmitter, EventSource} from '../common/events.js';
 
-/** Representation of an action payload emitted by a renderer component. */
+/** Action payload emitted by a renderer component. */
 export interface ActionPayload {
   name: string;
   surfaceId: string;
@@ -29,7 +29,7 @@ export interface ActionPayload {
   [key: string]: unknown;
 }
 
-/** Representation of an error payload emitted by a surface. */
+/** Error payload emitted by a surface. */
 export interface A2uiErrorPayload {
   code: string;
   message: string;
@@ -39,16 +39,15 @@ export interface A2uiErrorPayload {
   [key: string]: unknown;
 }
 
-/** A function that listens for actions emitted from a surface. */
+/** Handler callback for actions emitted from a surface. */
 export type ActionListener = (action: ActionPayload) => void | Promise<void>;
 
 /**
- * The state model for a single UI surface.
+ * State model for a single UI surface.
  *
- * A surface is the root container for a set of components and their associated data.
- * It coordinates data binding, component state, and action dispatching.
+ * Coordinates data binding, component state, and action dispatching.
  *
- * @template T The concrete type of the ComponentApi from the catalog.
+ * @template T Concrete type of the ComponentApi from the catalog.
  * @template F The catalog's function kind. Every state and messaging
  *   capability of the surface works with a schema-only catalog
  *   (`SurfaceModel<T, FunctionApi>`); only node-tree resolution needs
@@ -58,27 +57,27 @@ export class SurfaceModel<
   T extends ComponentApi = ComponentApi,
   F extends FunctionApi = FunctionImplementation,
 > {
-  /** The data model for this surface. */
+  /** Data model for this surface. */
   readonly dataModel: DataModel;
-  /** The collection of component models for this surface. */
+  /** Collection of component models for this surface. */
   readonly componentsModel: SurfaceComponentsModel;
 
   private readonly _onAction = new EventEmitter<ActionPayload>();
   private readonly _onError = new EventEmitter<A2uiErrorPayload>();
 
-  /** Fires whenever an action is dispatched from this surface. */
+  /** Event source firing whenever an action is dispatched from this surface. */
   readonly onAction: EventSource<ActionPayload> = this._onAction;
 
-  /** Fires whenever an error occurs on this surface. */
+  /** Event source firing whenever an error occurs on this surface. */
   readonly onError: EventSource<A2uiErrorPayload> = this._onError;
 
   /**
-   * Creates a new surface model.
+   * Initializes a new `SurfaceModel` instance.
    *
-   * @param id The unique identifier for this surface.
-   * @param catalog The component catalog used by this surface.
-   * @param theme The theme to apply to this surface.
-   * @param sendDataModel If true, the renderer will send the full data model.
+   * @param id Unique identifier for this surface.
+   * @param catalog Component catalog used by this surface.
+   * @param theme Theme configuration to apply to this surface.
+   * @param sendDataModel Whether the renderer should stream data model updates back to the agent.
    */
   constructor(
     readonly id: string,
@@ -91,7 +90,7 @@ export class SurfaceModel<
   }
 
   /**
-   * Dispatches an action from this surface to listeners.
+   * Dispatches an action from this surface to registered listeners.
    *
    * @param payload The action payload (name and context) to dispatch.
    * @param sourceComponentId The ID of the component that triggered the action.
@@ -113,7 +112,7 @@ export class SurfaceModel<
   }
 
   /**
-   * Dispatches an error from this surface to listeners.
+   * Dispatches an error from this surface to registered listeners.
    *
    * @param error The error object to dispatch, conforming to renderer_to_agent schema.
    */
@@ -125,7 +124,7 @@ export class SurfaceModel<
   }
 
   /**
-   * Disposes of the surface and its resources.
+   * Disposes the surface, data model, components, and event emitters.
    */
   dispose(): void {
     this.dataModel.dispose();

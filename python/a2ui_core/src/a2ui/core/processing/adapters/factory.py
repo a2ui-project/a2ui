@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Optional, Union
+from collections.abc import Mapping, Sequence
+from typing import Any
 from .base import VersionAdapter
 from .v0_8 import V0Point8Adapter
 from .v0_9 import V0Point9Adapter
 from .v1_0 import V1Point0Adapter
 from ...exceptions import A2uiErrorDetail, A2uiValidationError
-from ...schema import ProtocolVersion, AgentToRendererMessagePayload
+from ...schema import AgentToRendererMessage, ProtocolVersion
 
 DEFAULT_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion.V0_9
 
@@ -26,7 +27,7 @@ DEFAULT_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion.V0_9
 class VersionAdapterFactory:
     """Resolves version adapters for protocol specification versions."""
 
-    _adapters: Dict[ProtocolVersion, VersionAdapter] = {
+    _adapters: dict[ProtocolVersion, VersionAdapter] = {
         ProtocolVersion.V0_8: V0Point8Adapter(),
         ProtocolVersion.V0_9: V0Point9Adapter(),
         ProtocolVersion.V0_9_1: V0Point9Adapter(),
@@ -39,7 +40,7 @@ class VersionAdapterFactory:
         cls._adapters[adapter.version] = adapter
 
     @classmethod
-    def get_adapter(cls, version: Union[ProtocolVersion, str]) -> VersionAdapter:
+    def get_adapter(cls, version: ProtocolVersion | str) -> VersionAdapter:
         """Resolves the version adapter for the specified protocol version enum or string."""
         if isinstance(version, str):
             version = cls._parse_version(version) or DEFAULT_PROTOCOL_VERSION
@@ -54,7 +55,13 @@ class VersionAdapterFactory:
 
     @classmethod
     def resolve_from_payload(
-        cls, payload: AgentToRendererMessagePayload
+        cls,
+        payload: (
+            AgentToRendererMessage
+            | Sequence[AgentToRendererMessage]
+            | Mapping[str, Any]
+            | Sequence[Mapping[str, Any]]
+        ),
     ) -> VersionAdapter:
         """Resolves the version adapter directly from an incoming message payload."""
         raw_payload: Any = payload
@@ -107,7 +114,7 @@ class VersionAdapterFactory:
         )
 
     @classmethod
-    def _resolve_from_single_action(cls, item: Dict[str, Any]) -> VersionAdapter:
+    def _resolve_from_single_action(cls, item: dict[str, Any]) -> VersionAdapter:
         """Resolves version adapter from a single message dictionary if explicit version or action keys match."""
         if "version" in item and isinstance(item["version"], str):
             ver_str = item["version"]
@@ -132,7 +139,7 @@ class VersionAdapterFactory:
         return cls.get_adapter(DEFAULT_PROTOCOL_VERSION)
 
     @classmethod
-    def _parse_version(cls, version_str: str) -> Optional[ProtocolVersion]:
+    def _parse_version(cls, version_str: str) -> ProtocolVersion | None:
         """Parses a version string into an ProtocolVersion enum."""
         if not version_str.startswith("v"):
             version_str = f"v{version_str}"

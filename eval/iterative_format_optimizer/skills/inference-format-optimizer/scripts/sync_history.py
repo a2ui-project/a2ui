@@ -21,7 +21,6 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 # Add parent directory to sys.path to import optimize_format
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -53,10 +52,10 @@ def _get_max_run_id(history_dir: str) -> int:
 
 
 def sync_worktree_history(
-    target_worktrees: Optional[List[str]] = None,
+    target_worktrees: list[str] | None = None,
     skip_index_regen: bool = False,
-    custom_history_dir: Optional[str] = None,
-) -> List[str]:
+    custom_history_dir: str | None = None,
+) -> list[str]:
     """Synchronizes archived run directories from sibling worktrees into main history.
 
     Args:
@@ -184,7 +183,7 @@ def sync_worktree_history(
     return copied_runs
 
 
-def main(argv: Optional[List[str]] = None) -> None:
+def main(argv: list[str] | None = None) -> None:
     """Executes the CLI entrypoint for synchronizing worktree history runs.
 
     Args:

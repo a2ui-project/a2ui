@@ -14,7 +14,7 @@
 
 """Parser utilities to extract and compile A2UI Atom S-Expressions from LLM responses."""
 
-from typing import Any, List, Union
+from typing import Any
 from a2ui.core.catalog import Catalog
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.parser.response_part import ResponsePart
@@ -43,7 +43,7 @@ class AtomParser(Parser):
     """
 
     def __init__(
-        self, catalog: Union[Catalog[Any, Any], A2uiCatalog], surface_id: str = "main"
+        self, catalog: Catalog[Any, Any] | A2uiCatalog, surface_id: str = "main"
     ):
         """Initializes an AtomParser instance.
 
@@ -71,7 +71,7 @@ class AtomParser(Parser):
             )
         return A2UI_INFERENCE_OPEN_TAG[:-1] in content
 
-    def unwrap(self, content: str) -> List[ResponsePart]:
+    def unwrap(self, content: str) -> list[ResponsePart]:
         """Tokenizes response content into raw Atom blocks and text parts.
 
         Args:
@@ -92,7 +92,7 @@ class AtomParser(Parser):
 
     def compile(
         self, format_content: str, *, is_final: bool = True
-    ) -> List[dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Compiles raw Atom S-expression syntax into structured A2UI JSON messages.
 
         Args:
@@ -133,7 +133,7 @@ class AtomParser(Parser):
         """
         return AtomDecompiler(self.catalog).decompile(val)
 
-    def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
+    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         """Wraps decompiled Atom S-expression blocks within <a2ui> sentinel tags.
 
         Args:

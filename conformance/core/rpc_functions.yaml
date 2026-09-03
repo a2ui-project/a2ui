@@ -203,3 +203,82 @@
       rendererFunctionResponse:
         functionCallId: "call-106"
         value: null
+
+- name: test_rpc_call_renderer_function_unregistered_function
+  description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when calling an unregistered function.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-107"
+        callFunction:
+          call: "unknownFunc"
+          catalogId: "basic"
+          args: {}
+    functionMetadata: {}
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-107"
+        error:
+          code: "INVALID_FUNCTION_CALL"
+          message: "Function not found: unknownFunc"
+
+- name: test_rpc_call_renderer_function_unregistered_catalog
+  description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when specifying an unregistered catalogId.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-108"
+        callFunction:
+          call: "playMedia"
+          catalogId: "non_existent_catalog"
+          args: {}
+    functionMetadata:
+      playMedia:
+        allowedCallers: "rendererOrAgent"
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-108"
+        error:
+          code: "INVALID_FUNCTION_CALL"
+          message: "Catalog not found: non_existent_catalog"
+
+- name: test_rpc_call_renderer_function_invalid_payload_missing_call_function
+  description: Verifies envelope/schema validation error when callRendererFunction is missing required callFunction property.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-109"
+  expect:
+    error:
+      message: "callFunction"
+
+- name: test_rpc_agent_function_response_inbound
+  description: Verifies inbound agentFunctionResponse message processing by MessageProcessor.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      agentFunctionResponse:
+        functionCallId: "call-201"
+        value:
+          status: "verified"
+  expect:
+    response: null

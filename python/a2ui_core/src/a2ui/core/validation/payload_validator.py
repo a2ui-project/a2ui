@@ -48,7 +48,7 @@ class ValidationConfig(BaseModel):
     allow_dangling_references: bool = False
     allow_missing_root: bool = False
     allow_unknown_elements: bool = False
-    allowed_messages: Optional[list[str]] = None
+    allowed_messages: list[str] | None = None
 
 
 # Presets for validation configuration
@@ -89,16 +89,16 @@ class PayloadValidator(Generic[TComponent, TFunction]):
     def __init__(
         self,
         catalog: Catalog[TComponent, TFunction],
-        config: Optional[ValidationConfig] = None,
+        config: ValidationConfig | None = None,
     ) -> None:
         self.catalog: Catalog[TComponent, TFunction] = catalog
         self.config = config
 
     def validate(
-        self, payload: Union[Dict[str, Any], List[Dict[str, Any]]]
-    ) -> List[A2uiErrorDetail]:
+        self, payload: dict[str, Any] | list[dict[str, Any]]
+    ) -> list[A2uiErrorDetail]:
         """Validates component dictionary or list of components against catalog schemas."""
-        errors: List[A2uiErrorDetail] = []
+        errors: list[A2uiErrorDetail] = []
         components = (
             payload["components"]
             if isinstance(payload, dict)
@@ -117,13 +117,13 @@ class PayloadValidator(Generic[TComponent, TFunction]):
 
     def validate_component(
         self,
-        comp: Dict[str, Any],
-    ) -> List[A2uiErrorDetail]:
+        comp: dict[str, Any],
+    ) -> list[A2uiErrorDetail]:
         """Validates a single component dictionary payload against the catalog schema."""
         active_config = self.config
         allow_unknown = active_config.allow_unknown_elements if active_config else False
 
-        errors: List[A2uiErrorDetail] = []
+        errors: list[A2uiErrorDetail] = []
         if not isinstance(comp, dict):
             errors.append(
                 A2uiErrorDetail(
@@ -199,10 +199,10 @@ class PayloadValidator(Generic[TComponent, TFunction]):
     def _validate_model_component(
         self,
         model_cls: Type[BaseModel],
-        comp: Dict[str, Any],
-        comp_id: Optional[str],
+        comp: dict[str, Any],
+        comp_id: str | None,
         allow_unknown: bool,
-        errors: List[A2uiErrorDetail],
+        errors: list[A2uiErrorDetail],
     ) -> None:
         """Validates a component payload against a Pydantic BaseModel schema."""
         try:
@@ -248,10 +248,10 @@ class PayloadValidator(Generic[TComponent, TFunction]):
         self,
         target_comp: Any,
         target_cat: Any,
-        comp: Dict[str, Any],
-        comp_id: Optional[str],
+        comp: dict[str, Any],
+        comp_id: str | None,
         allow_unknown: bool,
-        errors: List[A2uiErrorDetail],
+        errors: list[A2uiErrorDetail],
     ) -> None:
         """Validates a component against a JSON Schema dict definition."""
         comp_schema = (
@@ -314,7 +314,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
         comp_id: str,
         val: Any,
         path: str,
-        errors: List[A2uiErrorDetail],
+        errors: list[A2uiErrorDetail],
     ) -> None:
         """Recursively validates nested function calls within component properties."""
         if isinstance(val, dict):
@@ -349,7 +349,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
     def validate_function(
         self,
         name: str,
-        args: Dict[str, Any],
+        args: dict[str, Any],
     ) -> None:
         """Validates function call parameters against catalog function schema definitions."""
         active_config = self.config
@@ -388,11 +388,11 @@ class PayloadValidator(Generic[TComponent, TFunction]):
     def _find_function_definition(
         self,
         name: str,
-    ) -> Tuple[Optional[Any], Optional[Dict[str, Any]], Dict[str, Any]]:
+    ) -> tuple[Any | None, dict[str, Any] | None, dict[str, Any]]:
         """Finds function definition, schema, and base catalog schema in the registered catalog."""
         fn_def = None
         fn_schema = None
-        base_schema: Dict[str, Any] = {}
+        base_schema: dict[str, Any] = {}
         cat = self.catalog
         if hasattr(cat, "get_function"):
             comp_fn = cat.get_function(name)
@@ -413,7 +413,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
         self,
         model_cls: Type[BaseModel],
         name: str,
-        args: Dict[str, Any],
+        args: dict[str, Any],
     ) -> None:
         """Validates function arguments against a Pydantic BaseModel schema."""
         try:
@@ -447,10 +447,10 @@ class PayloadValidator(Generic[TComponent, TFunction]):
 
     def _validate_dict_function(
         self,
-        fn_schema: Dict[str, Any],
-        base_schema: Dict[str, Any],
+        fn_schema: dict[str, Any],
+        base_schema: dict[str, Any],
         name: str,
-        args: Dict[str, Any],
+        args: dict[str, Any],
         allow_unknown: bool,
     ) -> None:
         """Validates function arguments against a JSON Schema dict definition."""
@@ -515,7 +515,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
             except Exception:
                 pass
 
-    def validate_theme(self, theme: Dict[str, Any]) -> None:
+    def validate_theme(self, theme: dict[str, Any]) -> None:
         """Validates a theme configuration dictionary against the catalog theme schema."""
         if not isinstance(theme, dict):
             raise A2uiValidationError(
@@ -529,7 +529,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                 ],
             )
         base_schema = getattr(self.catalog, "catalog_schema", {}) or {}
-        defs: Dict[str, Any] = (
+        defs: dict[str, Any] = (
             base_schema.get("$defs", {}) if isinstance(base_schema, dict) else {}
         )
         theme_schema = getattr(self.catalog, "theme_schema", None) or (

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Optional, Any, Callable
+from typing import Any, Callable
 from pydantic import BaseModel, Field
 
 
@@ -25,7 +25,7 @@ class LocaleFormattingRules(BaseModel):
     currency_space_separated: bool = False
 
     # Month names (1-indexed for convenience matching datetime.month, index 0 is empty string)
-    months_long: List[str] = Field(
+    months_long: list[str] = Field(
         default=[
             "",
             "January",
@@ -42,7 +42,7 @@ class LocaleFormattingRules(BaseModel):
             "December",
         ]
     )
-    months_short: List[str] = Field(
+    months_short: list[str] = Field(
         default=[
             "",
             "Jan",
@@ -61,7 +61,7 @@ class LocaleFormattingRules(BaseModel):
     )
 
     # Weekday names (0-indexed matching datetime.weekday(): Monday=0 ... Sunday=6)
-    weekdays_long: List[str] = Field(
+    weekdays_long: list[str] = Field(
         default=[
             "Monday",
             "Tuesday",
@@ -72,7 +72,7 @@ class LocaleFormattingRules(BaseModel):
             "Sunday",
         ]
     )
-    weekdays_short: List[str] = Field(
+    weekdays_short: list[str] = Field(
         default=["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     )
 
@@ -98,7 +98,7 @@ def _plural_cy(val: float) -> str:
     return "other"
 
 
-_SUPPORTED_LOCALES: Dict[str, LocaleFormattingRules] = {
+_SUPPORTED_LOCALES: dict[str, LocaleFormattingRules] = {
     "en": LocaleFormattingRules(
         decimal_separator=".",
         grouping_separator=",",
@@ -252,7 +252,7 @@ _SUPPORTED_LOCALES: Dict[str, LocaleFormattingRules] = {
     ),
 }
 
-CURRENCY_SYMBOLS: Dict[str, str] = {
+CURRENCY_SYMBOLS: dict[str, str] = {
     "USD": "$",
     "EUR": "€",
     "GBP": "£",
@@ -270,7 +270,7 @@ def register_locale_rules(locale_prefix: str, rules: LocaleFormattingRules) -> N
     _SUPPORTED_LOCALES[locale_prefix.lower()] = rules
 
 
-def get_locale_rules(locale_string: Optional[str]) -> LocaleFormattingRules:
+def get_locale_rules(locale_string: str | None) -> LocaleFormattingRules:
     """Resolves formatting rules for a given locale string, falling back to English."""
     if not locale_string:
         return _SUPPORTED_LOCALES["en"]

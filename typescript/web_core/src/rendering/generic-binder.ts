@@ -16,13 +16,7 @@
 
 import {z} from 'zod';
 import {ComponentContext} from './component-context.js';
-import {
-  Action,
-  ChildList,
-  DataBinding,
-  FunctionCall,
-  childRefKindOf,
-} from '../types/common-types.js';
+import {Action, ChildList, DataBinding, childRefKindOf} from '../types/common-types.js';
 
 // --- Schema Scraping ---
 
@@ -52,10 +46,11 @@ export type BehaviorNode =
 /**
  * Traverses a Zod schema tree to build a `BehaviorNode` map.
  *
- * This allows the Generic Binder to know *how* to handle a piece of raw JSON
- * data without needing hardcoded logic for every specific component type.
- * It identifies core A2UI primitives (Dynamic values, Actions, ChildLists) by
- * inspecting the shape of ZodUnion objects defined in `common-types.ts`.
+ * Enables GenericBinder to determine how to handle raw JSON properties
+ * without hardcoding logic for specific component types.
+ *
+ * @param schema Zod schema to inspect.
+ * @returns Root BehaviorNode describing schema properties.
  */
 export function scrapeSchemaBehavior(schema: z.ZodTypeAny): BehaviorNode {
   return getFieldBehavior(schema);
@@ -151,9 +146,16 @@ function getFieldBehavior(type: z.ZodTypeAny, propertyName?: string): BehaviorNo
   return {type: 'STATIC'};
 }
 
-// --- Generic Binder ---
+type DynamicTypes =
+  | DataBinding
+  | {path: string}
+  | {call: string; catalogId?: string; args?: Record<string, unknown>; returnType?: string};
 
-type DynamicTypes = DataBinding | FunctionCall;
+type ActionLike =
+  | Action
+  | {event: {name: string; context?: Record<string, unknown>}}
+  | {functionCall: {call: string; catalogId?: string; args?: Record<string, unknown>}};
+
 type IsDynamic<T> = DataBinding extends NonNullable<T> ? true : false;
 
 /**
@@ -168,12 +170,12 @@ export interface ResolvedChildRef {
  * Maps raw Zod inferred types to their resolved runtime equivalents.
  * For example, an `Action` object becomes a callable `() => void` function.
  */
-export type ResolveA2uiProp<T> = [NonNullable<T>] extends [Action]
+export type ResolveA2uiProp<T> = [NonNullable<T>] extends [ActionLike]
   ? (() => void) | Extract<T, undefined>
   : [NonNullable<T>] extends [ChildList]
     ? (string | ResolvedChildRef)[] | Extract<T, undefined>
     : Exclude<T, DynamicTypes> extends never
-      ? any
+      ? unknown
       : Exclude<T, DynamicTypes>;
 
 /**
@@ -201,20 +203,10 @@ export type ResolveA2uiProps<T> = (T extends object
   };
 
 /**
- * The Generic Binder is a framework-agnostic engine that transforms raw A2UI JSON payload
- * configurations into a single, cohesive reactive stream of strongly-typed `ResolvedProps`.
+ * Reactive property binder transforming raw A2UI component JSON into strongly-typed resolved props.
  *
- * It solves the problem of manual state management: developers do not need to write
- * boilerplate code to subscribe to data paths, evaluate logic expressions, or tear down
- * listeners when components unmount.
- *
- * Usage Flow:
- * 1. Takes a `ComponentContext` (the raw JSON config) and a `Zod Schema` (the API definition).
- * 2. Uses `scrapeSchemaBehavior` to analyze the schema.
- * 3. Deeply iterates over the raw JSON properties, applying rules based on the scraped behavior.
- * 4. Subscribes to the `DataContext` for all `DYNAMIC` and `CHECKABLE` paths.
- * 5. Bundles the final resolved primitives, structural arrays, and executable Actions into `currentProps`.
- * 6. Exposes a `subscribe()` interface for framework-specific adapters (React, Angular) to listen to state changes.
+ * Connects component properties to the data context, resolves dynamic bindings,
+ * actions, structural templates, and validation checks.
  */
 export class GenericBinder<T> {
   private dataListeners: (() => void)[] = [];
@@ -243,8 +235,10 @@ export class GenericBinder<T> {
 
   private resolveInitialProps() {
     const props = this.context.componentModel.properties;
-    const resolved = this.resolveAndBind(props, this.behaviorTree, [], true);
-    this.currentProps = {...this.currentProps, ...resolved} as Partial<T>;
+    const resolved = this.resolveAndBind(props, this.behaviorTree, [], true) as
+      | Record<string, unknown>
+      | undefined;
+    this.currentProps = {...this.currentProps, ...(resolved || {})} as Partial<T>;
   }
 
   private connect() {
@@ -263,13 +257,15 @@ export class GenericBinder<T> {
 
     const props = this.context.componentModel.properties;
 
-    const resolved = this.resolveAndBind(props, this.behaviorTree, [], false);
-    this.currentProps = {...this.currentProps, ...resolved} as Partial<T>;
+    const resolved = this.resolveAndBind(props, this.behaviorTree, [], false) as
+      | Record<string, unknown>
+      | undefined;
+    this.currentProps = {...this.currentProps, ...(resolved || {})} as Partial<T>;
 
     this.notify();
   }
 
-  private bindDynamicValue(value: any, path: string[], isSync: boolean): any {
+  private bindDynamicValue(value: unknown, path: string[], isSync: boolean): unknown {
     const bound = this.context.dataContext.subscribeDynamicValue(value, newVal => {
       this.updateDeepValue(path, newVal);
       this.notify();
@@ -283,37 +279,39 @@ export class GenericBinder<T> {
     return bound.value;
   }
 
-  private bindAction(value: any, path: string[]): () => void {
+  private bindAction(value: unknown, path: string[]): () => void {
     const cacheKey = path.join('/');
     const cached = this.actionClosures.get(cacheKey);
     if (cached && jsonEquals(cached.raw, value)) {
       return cached.closure;
     }
     const closure = () => {
-      const resolveDeepSync = (val: any): any => {
+      const resolveDeepSync = (val: unknown): unknown => {
         if (typeof val !== 'object' || val === null) return val;
         if ('path' in val || 'call' in val) {
           return this.context.dataContext.resolveDynamicValue(val);
         }
         if (Array.isArray(val)) return val.map(resolveDeepSync);
-        const res: any = {};
+        const res: Record<string, unknown> = {};
         for (const [k, v] of Object.entries(val)) res[k] = resolveDeepSync(v);
         return res;
       };
-      this.context.dispatchAction(resolveDeepSync(value));
+      this.context.dispatchAction(resolveDeepSync(value) as Action | Record<string, unknown>);
     };
     this.actionClosures.set(cacheKey, {raw: value, closure});
     return closure;
   }
 
   private bindStructuralTemplate(
-    value: any,
+    value: unknown,
     path: string[],
     isSync: boolean,
-  ): ResolvedChildRef[] | any {
+  ): ResolvedChildRef[] | unknown {
     if (value && typeof value === 'object' && !Array.isArray(value)) {
-      const templatePath = value.path;
-      const templateComponentId = value.componentId;
+      const templateObj = value as Record<string, unknown>;
+      const templatePath = typeof templateObj.path === 'string' ? templateObj.path : undefined;
+      const templateComponentId =
+        typeof templateObj.componentId === 'string' ? templateObj.componentId : undefined;
       if (templatePath && templateComponentId) {
         const bound = this.context.dataContext.subscribeDynamicValue(
           {path: templatePath},
@@ -346,7 +344,12 @@ export class GenericBinder<T> {
     return value;
   }
 
-  private resolveAndBind(value: any, behavior: BehaviorNode, path: string[], isSync: boolean): any {
+  private resolveAndBind(
+    value: unknown,
+    behavior: BehaviorNode,
+    path: string[],
+    isSync: boolean,
+  ): unknown {
     if (value === undefined || value === null) return value;
 
     switch (behavior.type) {
@@ -372,14 +375,19 @@ export class GenericBinder<T> {
         const parentPath = path.slice(0, -1);
         const updateValidationState = () => {
           const errors = ruleResults.filter(r => !r.valid).map(r => r.message);
-          this.updateDeepValue([...parentPath, 'isValid' as any], errors.length === 0);
-          this.updateDeepValue([...parentPath, 'validationErrors' as any], errors);
+          this.updateDeepValue([...parentPath, 'isValid'], errors.length === 0);
+          this.updateDeepValue([...parentPath, 'validationErrors'], errors);
           this.notify();
         };
 
-        rules.forEach((rule: any, index: number) => {
-          const condition = rule.condition || rule; // Support both {condition, message} and direct logic expr if message is missing
-          const message = rule.message || 'Validation failed';
+        rules.forEach((rule: unknown, index: number) => {
+          const ruleObj =
+            typeof rule === 'object' && rule !== null
+              ? (rule as Record<string, unknown>)
+              : undefined;
+          const condition = ruleObj && ruleObj.condition !== undefined ? ruleObj.condition : rule;
+          const message =
+            typeof ruleObj?.message === 'string' ? ruleObj.message : 'Validation failed';
           ruleResults[index].message = message;
 
           const bound = this.context.dataContext.subscribeDynamicValue(condition, newVal => {
@@ -397,8 +405,8 @@ export class GenericBinder<T> {
 
         // Set initial state
         const initialErrors = ruleResults.filter(r => !r.valid).map(r => r.message);
-        this.updateDeepValue([...parentPath, 'isValid' as any], initialErrors.length === 0);
-        this.updateDeepValue([...parentPath, 'validationErrors' as any], initialErrors);
+        this.updateDeepValue([...parentPath, 'isValid'], initialErrors.length === 0);
+        this.updateDeepValue([...parentPath, 'validationErrors'], initialErrors);
 
         return value; // The 'checks' property itself remains as the original rules array
       }
@@ -416,10 +424,11 @@ export class GenericBinder<T> {
 
       case 'OBJECT': {
         if (typeof value !== 'object') return value;
-        const result: any = {};
+        const valObj = value as Record<string, unknown>;
+        const result: Record<string, unknown> = {};
 
         // 1. Resolve all provided properties
-        for (const [k, v] of Object.entries(value)) {
+        for (const [k, v] of Object.entries(valObj)) {
           const childBehavior = behavior.shape[k] || {type: 'STATIC'};
           result[k] = this.resolveAndBind(v, childBehavior, [...path, k], isSync);
         }
@@ -428,10 +437,13 @@ export class GenericBinder<T> {
         for (const [k, childBehavior] of Object.entries(behavior.shape)) {
           if (childBehavior.type === 'DYNAMIC') {
             const setterName = `set${k.charAt(0).toUpperCase() + k.slice(1)}`;
-            const rawPropValue = value[k];
-            result[setterName] = (newValue: any) => {
+            const rawPropValue = valObj[k];
+            result[setterName] = (newValue: unknown) => {
               if (rawPropValue && typeof rawPropValue === 'object' && 'path' in rawPropValue) {
-                this.context.dataContext.set((rawPropValue as any).path, newValue);
+                const pathVal = (rawPropValue as {path: unknown}).path;
+                if (typeof pathVal === 'string') {
+                  this.context.dataContext.set(pathVal, newValue);
+                }
               }
             };
           }
@@ -442,11 +454,11 @@ export class GenericBinder<T> {
     }
   }
 
-  private updateDeepValue(path: string[], newValue: any) {
-    this.currentProps = this.cloneAndUpdate(this.currentProps, path, newValue);
+  private updateDeepValue(path: string[], newValue: unknown) {
+    this.currentProps = this.cloneAndUpdate(this.currentProps, path, newValue) as Partial<T>;
   }
 
-  private cloneAndUpdate(obj: any, path: string[], newValue: any): any {
+  private cloneAndUpdate(obj: unknown, path: string[], newValue: unknown): unknown {
     if (path.length === 0) return newValue;
     const [key, ...rest] = path;
 
@@ -455,13 +467,18 @@ export class GenericBinder<T> {
       newArr[Number(key)] = this.cloneAndUpdate(newArr[Number(key)], rest, newValue);
       return newArr;
     } else {
+      const record =
+        typeof obj === 'object' && obj !== null ? (obj as Record<string, unknown>) : {};
       return {
-        ...(obj || {}),
-        [key]: this.cloneAndUpdate((obj || {})[key], rest, newValue),
+        ...record,
+        [key]: this.cloneAndUpdate(record[key], rest, newValue),
       };
     }
   }
 
+  /**
+   * Disposes all active data subscriptions and detaches component listeners.
+   */
   dispose() {
     if (!this.isConnected) return;
     this.isConnected = false;
@@ -477,6 +494,12 @@ export class GenericBinder<T> {
     this.propsListeners.forEach(l => l(this.currentProps as T));
   }
 
+  /**
+   * Subscribes to prop change notifications.
+   *
+   * @param listener Callback invoked whenever resolved properties update.
+   * @returns A subscription object to unsubscribe.
+   */
   subscribe(listener: (props: T) => void) {
     if (this.propsListeners.length === 0) {
       this.connect();
@@ -493,6 +516,9 @@ export class GenericBinder<T> {
     };
   }
 
+  /**
+   * Current snapshot of resolved component properties.
+   */
   get snapshot() {
     return this.currentProps as T;
   }

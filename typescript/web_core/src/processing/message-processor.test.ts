@@ -21,8 +21,9 @@ import {
   formatZodIssue,
   STRICT_VALIDATION,
   RELAXED_VALIDATION,
+  ProcessableMessagePayload,
 } from './message-processor.js';
-import {Catalog, ComponentApi} from '../catalog/types.js';
+import {Catalog, ComponentApi, FunctionImplementation} from '../catalog/types.js';
 import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_components.js';
 import {BASIC_COMPONENTS} from '../v1_0/basic_catalog/components/basic_components.js';
 import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
@@ -81,14 +82,40 @@ describe('MessageProcessor', () => {
       assert.ok(components);
 
       const cardChild = components.Card.allOf[1].properties.child;
-      assert.strictEqual(cardChild.$ref, 'common_types.json#/$defs/ComponentId');
+      assert.strictEqual(cardChild.$ref, '#/$defs/ComponentId');
       assert.strictEqual(cardChild.type, undefined);
 
       const rowChildren = components.Row.allOf[1].properties.children;
-      assert.strictEqual(rowChildren.$ref, 'common_types.json#/$defs/ChildList');
+      assert.strictEqual(rowChildren.$ref, '#/$defs/ChildList');
 
-      const tabChild = components.Tabs.allOf[1].properties.tabs.items.properties.child;
-      assert.strictEqual(tabChild.$ref, 'common_types.json#/$defs/ComponentId');
+      const tabItems = components.Tabs.allOf[1].properties.tabs.items;
+      assert.strictEqual(tabItems.properties.child.$ref, '#/$defs/ComponentId');
+    });
+
+    it('generates v1.0 inline catalog schemas with dictionary functions and top-level defs', () => {
+      const greetFunc: FunctionImplementation = {
+        name: 'greet',
+        description: 'Greets user',
+        returnType: 'string',
+        schema: z.object({name: z.string()}),
+        execute: async (args: any) => `Hello, ${args.name}!`,
+      };
+      const cat = new Catalog('cat-v1', [CardApi], [greetFunc]);
+      const proc = new MessageProcessor([cat], undefined, {version: 'v1.0'});
+
+      const caps = proc.getRendererCapabilities({
+        version: 'v1.0',
+        includeInlineCatalogs: true,
+      });
+
+      const inlineCat = (caps['v1.0'] as any)?.inlineCatalogs?.[0];
+      assert.ok(inlineCat);
+      assert.strictEqual(inlineCat.catalogId, 'cat-v1');
+      assert.ok(inlineCat.components.Card);
+      assert.ok(inlineCat.functions.greet);
+      assert.strictEqual(inlineCat.functions.greet.type, 'object');
+      assert.strictEqual(typeof inlineCat.functions, 'object');
+      assert.ok(!Array.isArray(inlineCat.functions));
     });
   });
 
@@ -205,7 +232,7 @@ describe('MessageProcessor', () => {
             components: [{id: 'comp1', label: 'No Type'} as any],
           },
         });
-      }, /Invalid v0.9 message/);
+      }, /Cannot create component comp1 without a type/);
     });
 
     it('throws when catalog not found', () => {
@@ -615,7 +642,7 @@ describe('MessageProcessor', () => {
     it('enforces allowDanglingReferences constraint', () => {
       const containerApi: ComponentApi = {
         name: 'Container',
-        schema: z.object({child: z.string().describe('Child component ID')}),
+        schema: z.object({child: z.string().describe('REF:common_types.json#/$defs/ComponentId')}),
       };
       const cat = new Catalog('cat-refs', [containerApi]);
 
@@ -929,7 +956,7 @@ describe('MessageProcessor', () => {
       const proc = new MessageProcessor([basicCatalog], undefined, {
         validationConfig: STRICT_VALIDATION,
       });
-      const payload = [
+      const payload: ProcessableMessagePayload = [
         {
           version: 'v1.0',
           createSurface: {
@@ -966,7 +993,7 @@ describe('MessageProcessor', () => {
       const proc = new MessageProcessor([basicCatalog], undefined, {
         validationConfig: STRICT_VALIDATION,
       });
-      const payload = {
+      const payload: ProcessableMessagePayload = {
         version: 'v1.0',
         createSurface: {
           surfaceId: 'main',
@@ -999,7 +1026,7 @@ describe('MessageProcessor', () => {
         validationConfig: RELAXED_VALIDATION,
       });
 
-      const orphanPayload = [
+      const orphanPayload: ProcessableMessagePayload = [
         {
           version: 'v1.0',
           createSurface: {
@@ -1044,7 +1071,7 @@ describe('MessageProcessor', () => {
       });
 
       // Split across multiple update messages in relaxed intermediate or batched update
-      const splitPayload = [
+      const splitPayload: ProcessableMessagePayload = [
         {
           version: 'v1.0',
           updateComponents: {
@@ -1077,7 +1104,7 @@ describe('MessageProcessor', () => {
         validationConfig: STRICT_VALIDATION,
       });
 
-      const v09Payload = [
+      const v09Payload: ProcessableMessagePayload = [
         {
           version: 'v0.9',
           createSurface: {
@@ -1113,8 +1140,8 @@ describe('MessageProcessor', () => {
         nested = {layer: nested};
       }
 
-      const recursivePayload = {
-        version: 'v1.0',
+      const recursivePayload: ProcessableMessagePayload = {
+        version: 'v0.9',
         createSurface: {
           surfaceId: 's_deep',
           catalogId: 'https://a2ui.org/catalog',
@@ -1542,6 +1569,70 @@ describe('MessageProcessor', () => {
       // Verify that 'root' was NOT mutated
       assert.strictEqual(surface.componentsModel.get('root')?.properties.text, 'Initial');
       assert.strictEqual(surface.componentsModel.has('new_comp'), false);
+    });
+
+    it('handles empty message array without throwing or processing', () => {
+      const proc = new MessageProcessor([basicCatalog]);
+      assert.doesNotThrow(() => proc.processMessages([]));
+      assert.strictEqual(proc.getSurfaces().size, 0);
+    });
+
+    it('allows partial streaming component updates before parent container arrives', () => {
+      const cardComp: ComponentApi = {
+        name: 'Card',
+        allowedParents: ['Surface'],
+        allowedChildren: ['Button'],
+        schema: z.object({
+          child: z.string().describe('REF:common_types.json#/$defs/ComponentId'),
+        }),
+      };
+      const buttonComp: ComponentApi = {
+        name: 'Button',
+        allowedParents: ['Card'],
+        schema: z.object({
+          label: z.string(),
+        }),
+      };
+
+      const customCat = new Catalog('custom-stream', [cardComp, buttonComp]);
+      const proc = new MessageProcessor([customCat], undefined, {
+        validationConfig: {allowOrphanComponents: true, allowMissingRoot: true},
+      });
+
+      // Stream child Button first before Card arrives
+      assert.doesNotThrow(() =>
+        proc.processMessages([
+          {
+            version: 'v1.0',
+            createSurface: {
+              surfaceId: 'stream-surface',
+              catalogId: 'custom-stream',
+            },
+          },
+          {
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 'stream-surface',
+              components: [{id: 'b1', component: 'Button', label: 'Click'}],
+            },
+          },
+        ]),
+      );
+
+      // Now attach root Card containing Button
+      assert.doesNotThrow(() =>
+        proc.processMessages({
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 'stream-surface',
+            components: [{id: 'root', component: 'Card', child: 'b1'}],
+          },
+        }),
+      );
+
+      const surface = proc.getSurface('stream-surface');
+      assert.ok(surface);
+      assert.strictEqual(surface.componentsModel.size, 2);
     });
   });
 });

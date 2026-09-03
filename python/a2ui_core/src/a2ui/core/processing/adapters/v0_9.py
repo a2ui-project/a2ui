@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Set
+import copy
+from typing import Any, cast
 from .base import BaseVersionAdapter
-from ...schema import ProtocolVersion, AgentToRendererMessagePayload
+from ...schema import ProtocolVersion
 from ...schema.v0_9 import (
     MSG_TYPE_CREATE_SURFACE,
     MSG_TYPE_DELETE_SURFACE,
@@ -29,6 +30,7 @@ from ..operations import (
     InternalUpdateComponentsOp,
     InternalUpdateDataModelOp,
 )
+from ..execution_context import ExecutionContext
 
 
 class V0Point9Adapter(BaseVersionAdapter):
@@ -39,15 +41,21 @@ class V0Point9Adapter(BaseVersionAdapter):
         return ProtocolVersion.V0_9
 
     @property
-    def supported_versions(self) -> Set[str]:
+    def supported_versions(self) -> set[str]:
         return {"v0.9", "v0.9.1"}
+
+    def prepare_payload_for_validation(self, message: dict[str, Any]) -> dict[str, Any]:
+        payload = copy.deepcopy(message)
+        if payload.get("version") == "v0.9.1":
+            payload["version"] = "v0.9"
+        return payload
 
     @property
     def schema(self) -> Any:
         return A2uiMessageListWrapper
 
     @property
-    def valid_actions(self) -> Set[str]:
+    def valid_actions(self) -> set[str]:
         return {
             MSG_TYPE_CREATE_SURFACE,
             MSG_TYPE_UPDATE_COMPONENTS,
@@ -56,9 +64,12 @@ class V0Point9Adapter(BaseVersionAdapter):
         }
 
     def _extract_operations_for_action(
-        self, action: str, message: Dict[str, Any]
-    ) -> List[InternalOperation]:
-        res: List[InternalOperation] = []
+        self,
+        action: str,
+        message: dict[str, Any],
+        context: ExecutionContext | None = None,
+    ) -> list[InternalOperation]:
+        res: list[InternalOperation] = []
         if action == MSG_TYPE_CREATE_SURFACE:
             cs = message[MSG_TYPE_CREATE_SURFACE]
             res.append(

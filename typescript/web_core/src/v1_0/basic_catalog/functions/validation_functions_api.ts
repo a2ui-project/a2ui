@@ -16,6 +16,12 @@
 
 import {z} from 'zod';
 
+declare module '../../../catalog/types.js' {
+  interface A2uiReturnTypeMap {
+    validationResult: {valid: boolean; message?: string};
+  }
+}
+
 /**
  * v1.0 required validation function.
  * Return type: 'validationResult'.

@@ -69,7 +69,35 @@ class A2uiRecursionError(A2uiError):
     pass
 
 
+import enum
+
+
+class RpcErrorCode(str, enum.Enum):
+    """RPC error codes matching A2UI protocol specification."""
+
+    INVALID_FUNCTION_CALL = "INVALID_FUNCTION_CALL"
+    EXECUTION_ERROR = "EXECUTION_ERROR"
+    UNKNOWN_FUNCTION = "UNKNOWN_FUNCTION"
+    UNKNOWN_ERROR = "UNKNOWN_ERROR"
+    CANCELLED = "CANCELLED"
+
+
 class A2uiCompileError(A2uiError):
     """Exception raised when compiling or translating alternative UI formats/DSLs."""
 
     pass
+
+
+class A2uiRpcError(A2uiError):
+    """Exception raised when an RPC function execution fails."""
+
+    def __init__(
+        self,
+        message: str,
+        function_call_id: str,
+        code: str = RpcErrorCode.UNKNOWN_ERROR.value,
+        details: list[A2uiErrorDetail] | None = None,
+    ) -> None:
+        super().__init__(message, details=details)
+        self.code: str = code.value if isinstance(code, RpcErrorCode) else str(code)
+        self.function_call_id: str = function_call_id

@@ -15,22 +15,64 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import assert from 'node:assert';
 import yaml from 'js-yaml';
 import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
 import {Catalog} from '../../dist/src/catalog/types.js';
-import {BASIC_COMPONENTS as V0_8_BASIC_COMPONENTS} from '../../dist/src/v0_8/basic_catalog/index.js';
-import {BASIC_COMPONENTS as V0_9_BASIC_COMPONENTS} from '../../dist/src/v0_9/basic_catalog/index.js';
-import {BASIC_COMPONENTS as V1_0_BASIC_COMPONENTS} from '../../dist/src/v1_0/basic_catalog/index.js';
+import {
+  BASIC_COMPONENTS as V0_8_BASIC_COMPONENTS,
+  ThemeSchema as V0_8_ThemeSchema,
+} from '../../dist/src/v0_8/basic_catalog/index.js';
+import {V08_CHILD_REF_OPTIONS} from '../../dist/src/v0_8/index.js';
+import {
+  BASIC_COMPONENTS as V0_9_BASIC_COMPONENTS,
+  BASIC_FUNCTION_APIS as V0_9_BASIC_FUNCTIONS,
+  ThemeSchema as V0_9_ThemeSchema,
+  V09_CHILD_REF_OPTIONS,
+} from '../../dist/src/v0_9/index.js';
+import {
+  BASIC_COMPONENTS as V1_0_BASIC_COMPONENTS,
+  BASIC_FUNCTION_APIS as V1_0_BASIC_FUNCTIONS,
+} from '../../dist/src/v1_0/basic_catalog/index.js';
+import {V10_CHILD_REF_OPTIONS} from '../../dist/src/v1_0/index.js';
 
 // Dedicated basic catalog component definitions per specification version
 const v0_8Components = V0_8_BASIC_COMPONENTS;
 const v0_9Components = V0_9_BASIC_COMPONENTS;
 const v1_0Components = V1_0_BASIC_COMPONENTS;
 
-const basicCatalog = new Catalog('basic', v0_9Components);
-const v0_8Catalog = new Catalog('v0.8:basic', v0_8Components);
-const v0_9Catalog = new Catalog('v0.9:basic', v0_9Components);
-const v1_0Catalog = new Catalog('v1.0:basic', v1_0Components);
+const basicCatalog = new Catalog(
+  'basic',
+  v0_9Components,
+  [],
+  undefined,
+  undefined,
+  V09_CHILD_REF_OPTIONS,
+);
+const v0_8Catalog = new Catalog(
+  'v0.8:basic',
+  v0_8Components,
+  [],
+  V0_8_ThemeSchema,
+  undefined,
+  V08_CHILD_REF_OPTIONS,
+);
+const v0_9Catalog = new Catalog(
+  'v0.9:basic',
+  v0_9Components,
+  V0_9_BASIC_FUNCTIONS,
+  V0_9_ThemeSchema,
+  undefined,
+  V09_CHILD_REF_OPTIONS,
+);
+const v1_0Catalog = new Catalog(
+  'v1.0:basic',
+  v1_0Components,
+  V1_0_BASIC_FUNCTIONS,
+  undefined,
+  undefined,
+  V10_CHILD_REF_OPTIONS,
+);
 const allCatalogs = [basicCatalog, v0_8Catalog, v0_9Catalog, v1_0Catalog];
 
 const __filename = fileURLToPath(import.meta.url);
@@ -49,10 +91,12 @@ const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
 const SUPPORTED_PROTOCOL_VERSIONS = new Set(['v0.8', 'v0.9', 'v1.0']);
 
 /**
- * Transition skip list containing specific test case names to skip during active feature transitions.
- * Remove test names from this set as feature implementations are completed.
+ * Transition skip list containing specific test case names to skip.
+ *
+ * 'test_v09_basic_catalog_schema' and 'test_v10_basic_catalog_schema' test Python-specific
+ * dictionary schema export structures from Python ADK and are skipped in Web Core TS conformance.
  */
-const SKIP_TEST_NAMES = new Set([]);
+const SKIP_TEST_NAMES = new Set(['test_v09_basic_catalog_schema', 'test_v10_basic_catalog_schema']);
 
 /**
  * Transition skip list containing specific test suite files to skip during active feature transitions.
@@ -171,8 +215,10 @@ function runConformanceHarness() {
           case 'get_renderer_capabilities':
             validateGetRendererCapabilitiesTestCase(testCase);
             break;
-          case 'from_json':
           case 'catalog_schema':
+            validateCatalogSchemaTestCase(testCase);
+            break;
+          case 'from_json':
           case 'get_renderer_data_model':
           case 'resolve_path':
           case 'load_catalog':
@@ -283,6 +329,153 @@ function validateGetRendererCapabilitiesTestCase(testCase) {
   }
 }
 
+function getBasicCatalog(version) {
+  if (version === 'v1.0') {
+    return new Catalog(
+      'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+      v1_0Components,
+      V1_0_BASIC_FUNCTIONS,
+      undefined,
+      undefined,
+      V10_CHILD_REF_OPTIONS,
+    );
+  }
+  if (version === 'v0.9') {
+    return new Catalog(
+      'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+      v0_9Components,
+      V0_9_BASIC_FUNCTIONS,
+      V0_9_ThemeSchema,
+      undefined,
+      V09_CHILD_REF_OPTIONS,
+    );
+  }
+  if (version === 'v0.8') {
+    return new Catalog(
+      'https://a2ui.org/specification/v0_8/catalogs/basic/catalog.json',
+      v0_8Components,
+      [],
+      V0_8_ThemeSchema,
+      undefined,
+      V08_CHILD_REF_OPTIONS,
+    );
+  }
+  throw new Error(`Unsupported BasicCatalog protocol version: ${version}`);
+}
+
+function assertCatalogSchemaMatches(actual, expected) {
+  if (expected.$schema) {
+    assert.strictEqual(actual.$schema, expected.$schema, '$schema mismatch');
+  }
+  if (expected.catalogId) {
+    assert.strictEqual(actual.catalogId, expected.catalogId, 'catalogId mismatch');
+  }
+  if (expected.instructions) {
+    assert.strictEqual(actual.instructions, expected.instructions, 'instructions mismatch');
+  }
+
+  if (expected.components) {
+    assert.ok(actual.components, 'Missing components object in actual schema');
+    for (const [compName, expComp] of Object.entries(expected.components)) {
+      const actComp = actual.components[compName];
+      assert.ok(actComp, `Missing component '${compName}' in actual schema`);
+      if (expComp.type) {
+        assert.strictEqual(actComp.type, expComp.type, `Component '${compName}' type mismatch`);
+      }
+      if (expComp.properties) {
+        for (const [pName, pDef] of Object.entries(expComp.properties)) {
+          const actProp = actComp.properties?.[pName];
+          assert.ok(actProp, `Component '${compName}' missing property '${pName}'`);
+          if (pDef.type && !actProp.$ref) assert.strictEqual(actProp.type, pDef.type);
+          if (pDef.const) assert.strictEqual(actProp.const, pDef.const);
+        }
+      }
+      if (Array.isArray(expComp.required)) {
+        for (const reqField of expComp.required) {
+          assert.ok(
+            actComp.required?.includes(reqField),
+            `Component '${compName}' missing required field '${reqField}'`,
+          );
+        }
+      }
+    }
+  }
+
+  if (expected.functions) {
+    assert.ok(actual.functions, 'Missing functions object in actual schema');
+    for (const [fnName, expFn] of Object.entries(expected.functions)) {
+      const actFn = actual.functions[fnName];
+      assert.ok(actFn, `Missing function '${fnName}' in actual schema`);
+      if (expFn.returnType) {
+        assert.strictEqual(actFn.returnType, expFn.returnType);
+      }
+    }
+  }
+
+  if (expected.$defs) {
+    assert.ok(actual.$defs, 'Missing $defs in actual schema');
+    if (expected.$defs.theme) {
+      assert.ok(actual.$defs.theme, 'Missing $defs.theme');
+    }
+    if (expected.$defs.anyComponent) {
+      assert.deepStrictEqual(actual.$defs.anyComponent, expected.$defs.anyComponent);
+    }
+    if (expected.$defs.anyFunction) {
+      assert.deepStrictEqual(actual.$defs.anyFunction, expected.$defs.anyFunction);
+    }
+  }
+}
+
+function validateCatalogSchemaTestCase(testCase) {
+  const pVer = testCase.protocolVersion || testCase.args?.version || 'v0.8';
+  let catalog;
+
+  if (testCase.useBasicCatalog || testCase.catalog === 'BasicCatalog') {
+    catalog = getBasicCatalog(pVer);
+  } else {
+    const cPath = testCase.catalogPath || testCase.catalogFile;
+    let rawSchema;
+    if (cPath) {
+      const fullP = path.resolve(CONFORMANCE_ROOT, '../', cPath);
+      rawSchema = JSON.parse(fs.readFileSync(fullP, 'utf8'));
+    } else {
+      rawSchema = testCase.catalogSchema || testCase.catalog || testCase.schema || testCase;
+    }
+
+    if (testCase.expectError) {
+      try {
+        Catalog.fromSchema(rawSchema);
+      } catch (err) {
+        if (testCase.expectError.code && !err.message.includes(testCase.expectError.code)) {
+          throw new Error(
+            `Expected error containing '${testCase.expectError.code}', but got '${err.message}'`,
+          );
+        }
+        return;
+      }
+      throw new Error('Expected Catalog.fromSchema to throw an error, but it succeeded.');
+    }
+
+    catalog = Catalog.fromSchema(rawSchema);
+  }
+
+  assert.ok(catalog, 'Catalog should be initialized.');
+
+  const expPath = testCase.expectFile || testCase.expectPath;
+  let expected;
+  if (expPath) {
+    const fullExpP = path.resolve(CONFORMANCE_ROOT, '../', expPath);
+    expected = JSON.parse(fs.readFileSync(fullExpP, 'utf8'));
+  } else {
+    expected = testCase.expect;
+  }
+
+  if (expected !== undefined) {
+    const actual = catalog.catalogSchema;
+    assertCatalogSchemaMatches(actual, expected);
+  }
+}
+
 import {z} from 'zod';
 
 /**
@@ -366,10 +559,19 @@ function jsonSchemaToZod(schemaDef) {
 }
 
 function getCatalogsForTestCase(testCase) {
+  const refOptions =
+    testCase.protocolVersion === 'v0.8'
+      ? V08_CHILD_REF_OPTIONS
+      : testCase.protocolVersion === 'v0.9'
+        ? V09_CHILD_REF_OPTIONS
+        : V10_CHILD_REF_OPTIONS;
   const catalogsMap = new Map(allCatalogs.map(c => [c.id, c]));
   const addCatalogId = id => {
     if (id && !catalogsMap.has(id)) {
-      catalogsMap.set(id, new Catalog(id, flexibleComponents));
+      catalogsMap.set(
+        id,
+        new Catalog(id, flexibleComponents, [], undefined, undefined, refOptions),
+      );
     }
   };
 
@@ -384,7 +586,10 @@ function getCatalogsForTestCase(testCase) {
               }))
             : flexibleComponents;
           const themeSchema = cat.theme ? jsonSchemaToZod(cat.theme) : undefined;
-          catalogsMap.set(cat.catalogId, new Catalog(cat.catalogId, compApis, [], themeSchema));
+          catalogsMap.set(
+            cat.catalogId,
+            new Catalog(cat.catalogId, compApis, [], themeSchema, undefined, refOptions),
+          );
         } else {
           addCatalogId(cat.catalogId);
         }

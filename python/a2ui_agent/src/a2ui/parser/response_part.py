@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -31,6 +31,6 @@ class ResponsePart:
     """
 
     text: str = ""
-    a2ui_raw: Optional[str] = None
-    a2ui_json: Optional[Any] = None
+    a2ui_raw: str | None = None
+    a2ui_json: Any | None = None
     is_final: bool = True

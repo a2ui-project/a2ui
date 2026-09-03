@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable
 from ..catalog.catalog import TComponent, TFunction
 from ..state import ComponentModel, SurfaceComponentsModel, SurfaceModel
 from .data_context import DataContext
@@ -25,15 +25,13 @@ class ComponentContext:
         self,
         component_model: ComponentModel,
         data_context: DataContext,
-        surface_components: Optional[SurfaceComponentsModel] = None,
-        dispatch_action_callback: Optional[
-            Callable[[Dict[str, Any], str], None]
-        ] = None,
+        surface_components: SurfaceComponentsModel | None = None,
+        dispatch_action_callback: Callable[[dict[str, Any], str], None] | None = None,
     ):
         self.component_model = component_model
         self.data_context = data_context
         self.surface_components = surface_components or SurfaceComponentsModel()
-        self.theme: Dict[str, Any] = {}
+        self.theme: dict[str, Any] = {}
         self._dispatch_action = dispatch_action_callback
 
     @classmethod
@@ -61,7 +59,7 @@ class ComponentContext:
         inst.theme = getattr(surface, "theme", {})
         return inst
 
-    def dispatch_action(self, action_payload: Dict[str, Any]) -> None:
+    def dispatch_action(self, action_payload: dict[str, Any]) -> None:
         """Dispatches a user-initiated action back to the global controller handler."""
         if self._dispatch_action:
             self._dispatch_action(action_payload, self.component_model.id)

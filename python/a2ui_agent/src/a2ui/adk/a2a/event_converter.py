@@ -34,7 +34,7 @@ Usage Example:
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from a2ui.adk.a2a.part_converter import A2uiPartConverter
 from google.adk.a2a.converters import part_converter
@@ -59,7 +59,7 @@ class A2uiEventConverter:
         self,
         catalog_key: str = "system:a2ui_catalog",
         bypass_tool_check: bool = False,
-        fallback_text: Optional[str] = None,
+        fallback_text: str | None = None,
     ):
         self._catalog_key = catalog_key
         self._bypass_tool_check = bypass_tool_check
@@ -69,8 +69,8 @@ class A2uiEventConverter:
         self,
         event: "Event",
         invocation_context: "InvocationContext",
-        task_id: Optional[str] = None,
-        context_id: Optional[str] = None,
+        task_id: str | None = None,
+        context_id: str | None = None,
         part_converter_func: "GenAIPartToA2APartConverter" = part_converter.convert_genai_part_to_a2a_part,
     ) -> list["A2AEvent"]:
         """Converts an ADK event to A2A events, using the session catalog if available."""

@@ -19,7 +19,7 @@ import os
 import shutil
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 def _get_uv_binary() -> str:
@@ -37,7 +37,7 @@ def _get_uv_binary() -> str:
     return shutil.which("uv") or "uv"
 
 
-def run_unit_tests() -> Dict[str, Any]:
+def run_unit_tests() -> dict[str, Any]:
     """Runs pytest unit tests for the Python SDK package.
 
     Returns:
@@ -90,12 +90,12 @@ def run_unit_tests() -> Dict[str, Any]:
 def run_evaluation(
     format_name: str,
     model: str,
-    prompts: Optional[List[str]],
+    prompts: list[str] | None,
     sanity: bool,
     log_dir: str,
-    thinking_budget: Optional[int] = None,
-    epochs: Optional[int] = None,
-    temperature: Optional[float] = None,
+    thinking_budget: int | None = None,
+    epochs: int | None = None,
+    temperature: float | None = None,
 ) -> bool:
     """Runs the evaluation framework for a target format strategy.
 
@@ -158,7 +158,7 @@ def run_evaluation(
     return result.returncode == 0
 
 
-def load_log_data(log_path: str) -> Dict[str, Any]:
+def load_log_data(log_path: str) -> dict[str, Any]:
     """Dumps and parses an Inspect AI evaluation log file into a dictionary.
 
     Args:

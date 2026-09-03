@@ -16,7 +16,7 @@ import copy
 import inspect
 import re
 import warnings
-from typing import Any, Callable, Dict, Generic, List, Optional, Set, Union
+from typing import Any, Callable, Generic
 from ..catalog.catalog import TComponent, TFunction
 from ..state import DataModel
 from ..state.surface_model import SurfaceModel
@@ -45,7 +45,7 @@ class DataContext(Generic[TComponent, TFunction]):
         self.data_model = surface.data_model
 
     @property
-    def locale(self) -> Optional[str]:
+    def locale(self) -> str | None:
         """Gets the locale for this context, inherited from the surface."""
         return getattr(self.surface, "locale", None)
 
@@ -77,7 +77,7 @@ class DataContext(Generic[TComponent, TFunction]):
         return obj
 
     def resolve_dynamic_value(
-        self, value: Any, peek: bool = True, abort_signal: Optional[AbortSignal] = None
+        self, value: Any, peek: bool = True, abort_signal: AbortSignal | None = None
     ) -> Any:
         """Recursively evaluates Literals, Data Paths, and Function Calls against the active DataModel."""
         if value is None:
@@ -141,7 +141,7 @@ class DataContext(Generic[TComponent, TFunction]):
         # 5. Return static literals directly
         return value
 
-    def resolve_action(self, action: Dict[str, Any]) -> Any:
+    def resolve_action(self, action: dict[str, Any]) -> Any:
         """
         Resolves an action by evaluating its top-level dynamic values.
         For event actions, resolves each value in the context map.
@@ -163,7 +163,7 @@ class DataContext(Generic[TComponent, TFunction]):
         self, value: Any, on_change: Callable[[Any], None]
     ) -> Subscription:
         """Subscribes reactively to dynamic paths, chained function expressions, or active streaming functions."""
-        paths: Set[str] = set()
+        paths: set[str] = set()
 
         def _extract_paths(val: Any) -> None:
             if (
@@ -194,12 +194,12 @@ class DataContext(Generic[TComponent, TFunction]):
                         stacklevel=2,
                     )
 
-        path_subs: List[Subscription] = []
-        stream_sub: List[Any] = []  # Holds subscription to returned EventSource stream
-        abort_controller: List[AbortSignal] = []
+        path_subs: list[Subscription] = []
+        stream_sub: list[Any] = []  # Holds subscription to returned EventSource stream
+        abort_controller: list[AbortSignal] = []
         UNSET = object()
-        current_val: List[Any] = [UNSET]
-        is_sync: List[bool] = [True]
+        current_val: list[Any] = [UNSET]
+        is_sync: list[bool] = [True]
 
         def _update_output(new_val: Any) -> None:
             current_val[0] = new_val
@@ -261,8 +261,8 @@ class DataContext(Generic[TComponent, TFunction]):
     def _execute_function(
         self,
         name: str,
-        resolved_args: Dict[str, Any],
-        abort_signal: Optional[AbortSignal] = None,
+        resolved_args: dict[str, Any],
+        abort_signal: AbortSignal | None = None,
     ) -> Any:
         catalogs_dict = {
             "_default": self.surface.default_catalog,

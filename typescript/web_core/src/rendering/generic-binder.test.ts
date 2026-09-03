@@ -20,37 +20,31 @@ import {z} from 'zod';
 import {GenericBinder, scrapeSchemaBehavior} from './generic-binder.js';
 import {ComponentContext} from './component-context.js';
 import {SurfaceModel} from '../state/surface-model.js';
-import {Catalog} from '../catalog/types.js';
+import {Catalog, FunctionImplementation} from '../catalog/types.js';
 import {ComponentModel} from '../state/component-model.js';
 import {CommonSchemas} from '../types/common-types.js';
 
 describe('GenericBinder Checkable Trait', () => {
-  const mockCatalog = new Catalog('test', [], []);
-
   function setupSurfaceAndMocks() {
+    const mockFunctions: FunctionImplementation[] = [
+      {
+        name: 'required',
+        returnType: 'boolean',
+        schema: z.object({value: z.unknown()}),
+        execute: (args: Record<string, unknown>) => !!args.value,
+      },
+      {
+        name: 'min_length',
+        returnType: 'boolean',
+        schema: z.object({value: z.unknown(), min: z.number()}),
+        execute: (args: Record<string, unknown>) =>
+          typeof args.value === 'string' &&
+          typeof args.min === 'number' &&
+          args.value.length >= args.min,
+      },
+    ];
+    const mockCatalog = new Catalog('test', [], mockFunctions);
     const surface = new SurfaceModel('s1', mockCatalog);
-
-    // Mock required and min_length functions
-    (surface.catalog as any).functions = new Map([
-      [
-        'required',
-        {
-          execute: (args: any) => !!args.value,
-          schema: z.object({value: z.any()}),
-        },
-      ],
-      [
-        'min_length',
-        {
-          execute: (args: any) => typeof args.value === 'string' && args.value.length >= args.min,
-          schema: z.object({value: z.any(), min: z.number()}),
-        },
-      ],
-    ]);
-    (surface.catalog as any).invoker = (name: string, args: any) => {
-      const fn = (surface.catalog as any).functions.get(name);
-      return fn.execute(args);
-    };
 
     const schema = z.object({
       value: CommonSchemas.DynamicString,
@@ -171,14 +165,14 @@ describe('GenericBinder Checkable Trait', () => {
               args: {value: {path: '/val'}},
             },
           },
-        ] as any,
+        ] as unknown as Array<{condition: unknown; message?: string}>,
       },
       surface.catalog,
     );
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c3');
-    const binder = new GenericBinder<any>(context, schema);
+    const binder = new GenericBinder<Record<string, unknown>>(context, schema);
 
     assert.strictEqual(binder.snapshot.isValid, false);
     assert.deepStrictEqual(binder.snapshot.validationErrors, ['Validation failed']);
@@ -199,7 +193,7 @@ describe('GenericBinder Checkable Trait', () => {
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c4');
-    const binder = new GenericBinder<any>(context, schema);
+    const binder = new GenericBinder<Record<string, unknown>>(context, schema);
 
     assert.strictEqual(binder.snapshot.isValid, true);
     assert.deepStrictEqual(binder.snapshot.validationErrors, []);
@@ -230,22 +224,32 @@ describe('GenericBinder Checkable Trait', () => {
     );
     surface.componentsModel.addComponent(compModel);
 
-    let dispatchedAction: any = null;
+    let dispatchedAction: {
+      name?: string;
+      sourceComponentId?: string;
+      context?: Record<string, unknown>;
+    } | null = null;
     surface.onAction.subscribe(act => {
-      dispatchedAction = act;
+      dispatchedAction = act as {
+        name?: string;
+        sourceComponentId?: string;
+        context?: Record<string, unknown>;
+      };
     });
 
     const context = new ComponentContext(surface, 'c5');
-    const binder = new GenericBinder<any>(context, actionSchema);
+    const binder = new GenericBinder<{onTap?: () => void}>(context, actionSchema);
 
     // Call the resolved ACTION closure
     assert.strictEqual(typeof binder.snapshot.onTap, 'function');
-    binder.snapshot.onTap();
+    binder.snapshot.onTap?.();
 
     assert.ok(dispatchedAction);
-    assert.strictEqual(dispatchedAction.name, 'submit');
-    assert.strictEqual(dispatchedAction.sourceComponentId, 'c5');
-    assert.deepStrictEqual(dispatchedAction.context, {user: 'Alice'});
+    assert.strictEqual((dispatchedAction as {name?: string})?.name, 'submit');
+    assert.strictEqual((dispatchedAction as {sourceComponentId?: string})?.sourceComponentId, 'c5');
+    assert.deepStrictEqual((dispatchedAction as {context?: Record<string, unknown>})?.context, {
+      user: 'Alice',
+    });
   });
 
   it('should resolve STRUCTURAL ChildList bindings and update dynamically', async () => {
@@ -270,7 +274,7 @@ describe('GenericBinder Checkable Trait', () => {
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c6');
-    const binder = new GenericBinder<any>(context, structuralSchema);
+    const binder = new GenericBinder<{children?: unknown[]}>(context, structuralSchema);
     binder.subscribe(() => {});
 
     assert.deepStrictEqual(binder.snapshot.children, [
@@ -308,12 +312,15 @@ describe('GenericBinder Checkable Trait', () => {
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c7');
-    const binder = new GenericBinder<any>(context, dynamicSchema);
+    const binder = new GenericBinder<{value?: string; setValue?: (val: string) => void}>(
+      context,
+      dynamicSchema,
+    );
 
     assert.strictEqual(binder.snapshot.value, 'initial');
-    assert.strictEqual(typeof (binder.snapshot as any).setValue, 'function');
+    assert.strictEqual(typeof binder.snapshot.setValue, 'function');
 
-    (binder.snapshot as any).setValue('updated');
+    binder.snapshot.setValue?.('updated');
     assert.strictEqual(surface.dataModel.get('/fieldVal'), 'updated');
   });
 
@@ -332,7 +339,7 @@ describe('GenericBinder Checkable Trait', () => {
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c8');
-    const binder = new GenericBinder<any>(context, schema);
+    const binder = new GenericBinder<{value?: string}>(context, schema);
 
     let notificationCount = 0;
     const sub = binder.subscribe(() => {
@@ -362,19 +369,19 @@ describe('GenericBinder Checkable Trait', () => {
     it('should infer behavior from schema descriptions', () => {
       // Description-based matching
       assert.deepStrictEqual(
-        scrapeSchemaBehavior(z.any().describe('REF:common_types.json#/$defs/Action')),
+        scrapeSchemaBehavior(z.unknown().describe('REF:common_types.json#/$defs/Action')),
         {
           type: 'ACTION',
         },
       );
-      assert.deepStrictEqual(scrapeSchemaBehavior(z.any().describe('#/$defs/ChildList')), {
+      assert.deepStrictEqual(scrapeSchemaBehavior(z.unknown().describe('#/$defs/ChildList')), {
         type: 'STRUCTURAL',
       });
-      assert.deepStrictEqual(scrapeSchemaBehavior(z.any().describe('#/$defs/DynamicString')), {
+      assert.deepStrictEqual(scrapeSchemaBehavior(z.unknown().describe('#/$defs/DynamicString')), {
         type: 'DYNAMIC',
       });
       assert.deepStrictEqual(
-        scrapeSchemaBehavior(z.any().describe('REF:common_types.json#/$defs/DataBinding')),
+        scrapeSchemaBehavior(z.unknown().describe('REF:common_types.json#/$defs/DataBinding')),
         {
           type: 'DYNAMIC',
         },
@@ -382,14 +389,16 @@ describe('GenericBinder Checkable Trait', () => {
 
       // Checks property is CHECKABLE, while unannotated fields are STATIC
       const objSchema = z.object({
-        checks: z.any(),
-        customProp: z.any(),
+        checks: z.unknown(),
+        customProp: z.unknown(),
       });
 
       const behavior = scrapeSchemaBehavior(objSchema);
       assert.strictEqual(behavior.type, 'OBJECT');
-      assert.strictEqual((behavior as any).shape.checks.type, 'CHECKABLE');
-      assert.strictEqual((behavior as any).shape.customProp.type, 'STATIC');
+      if (behavior.type === 'OBJECT') {
+        assert.strictEqual(behavior.shape.checks.type, 'CHECKABLE');
+        assert.strictEqual(behavior.shape.customProp.type, 'STATIC');
+      }
 
       // Do not short-circuit to DYNAMIC if property is a nested ZodObject or ZodArray
       const nestedSchema = z.object({
@@ -400,8 +409,10 @@ describe('GenericBinder Checkable Trait', () => {
       });
       const nestedBehavior = scrapeSchemaBehavior(nestedSchema);
       assert.strictEqual(nestedBehavior.type, 'OBJECT');
-      assert.strictEqual((nestedBehavior as any).shape.value.type, 'OBJECT');
-      assert.strictEqual((nestedBehavior as any).shape.text.type, 'ARRAY');
+      if (nestedBehavior.type === 'OBJECT') {
+        assert.strictEqual(nestedBehavior.shape.value.type, 'OBJECT');
+        assert.strictEqual(nestedBehavior.shape.text.type, 'ARRAY');
+      }
     });
   });
 
@@ -410,9 +421,9 @@ describe('GenericBinder Checkable Trait', () => {
       const {surface} = setupSurfaceAndMocks();
 
       const unannotatedSchema = z.object({
-        customProp: z.any(),
-        items: z.any(),
-        handleClick: z.any(),
+        customProp: z.unknown(),
+        items: z.unknown(),
+        handleClick: z.unknown(),
       });
 
       const compModel = new ComponentModel(
@@ -433,7 +444,7 @@ describe('GenericBinder Checkable Trait', () => {
       surface.componentsModel.addComponent(compModel);
 
       const context = new ComponentContext(surface, 'c10');
-      const binder = new GenericBinder<any>(context, unannotatedSchema);
+      const binder = new GenericBinder<Record<string, unknown>>(context, unannotatedSchema);
 
       // Data is passed through as-is rather than being misinterpreted as reactive bindings
       assert.deepStrictEqual(binder.snapshot.customProp, {path: '/rawTitle'});

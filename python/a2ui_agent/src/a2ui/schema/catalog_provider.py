@@ -17,7 +17,7 @@
 import json
 from abc import ABC, abstractmethod
 from json.decoder import JSONDecodeError
-from typing import Any, Dict, cast
+from typing import Any, cast
 from .constants import ENCODING
 
 
@@ -25,7 +25,7 @@ class A2uiCatalogProvider(ABC):
     """Abstract base class for providing A2UI schemas and catalogs."""
 
     @abstractmethod
-    def load(self) -> Dict[str, Any]:
+    def load(self) -> dict[str, Any]:
         """Loads a catalog definition.
 
         Returns:
@@ -40,9 +40,9 @@ class FileSystemCatalogProvider(A2uiCatalogProvider):
     def __init__(self, path: str):
         self.path = path
 
-    def load(self) -> Dict[str, Any]:
+    def load(self) -> dict[str, Any]:
         try:
             with open(self.path, "r", encoding=ENCODING) as f:
-                return cast(Dict[str, Any], json.load(f))
+                return cast(dict[str, Any], json.load(f))
         except (FileNotFoundError, JSONDecodeError) as e:
             raise IOError(f"Could not load schema from {self.path}: {e}") from e

@@ -15,7 +15,7 @@
  */
 
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
-// Generated from specification/v1_0/json/ via scripts/generate-zod-schemas.mjs
+// Generated from specification/v1.0/json/ via src/v1_0/scripts/generate-schemas.mjs
 import {z} from 'zod';
 import {
   CallIdSchema,
@@ -92,134 +92,65 @@ export const ErrorMessageSchema = z
   .object({
     'version': z.literal('v1.0'),
     'error': z
-      .any()
-      .superRefine((x, ctx) => {
-        const schemas = [
-          z
-            .object({
-              'code': z.enum(['VALIDATION_FAILED', 'UNALLOWED_PARENT', 'UNALLOWED_CHILD']),
-              'surfaceId': z
-                .string()
-                .describe(
-                  "The id of the surface where the error occurred. It must be globally unique for the renderer's lifetime.",
-                ),
-              'path': z
-                .string()
-                .describe(
-                  "The JSON pointer to the field that failed validation (e.g. '/components/0/text').",
-                ),
-              'message': z
-                .string()
-                .describe('A short one or two sentence description of why validation failed.'),
-            })
-            .strict(),
-          z
-            .object({
-              'code': z
+      .union([
+        z
+          .object({
+            'code': z.enum(['VALIDATION_FAILED', 'UNALLOWED_PARENT', 'UNALLOWED_CHILD']),
+            'surfaceId': z
+              .string()
+              .describe(
+                "The id of the surface where the error occurred. It must be globally unique for the renderer's lifetime.",
+              ),
+            'path': z
+              .string()
+              .describe(
+                "The JSON pointer to the field that failed validation (e.g. '/components/0/text').",
+              ),
+            'message': z
+              .string()
+              .describe('A short one or two sentence description of why validation failed.'),
+          })
+          .strict(),
+        z
+          .object({
+            'code': z
+              .any()
+              .refine(
+                value =>
+                  !z
+                    .enum(['VALIDATION_FAILED', 'UNALLOWED_PARENT', 'UNALLOWED_CHILD'])
+                    .safeParse(value).success,
+                'Invalid input: Should NOT be valid against schema',
+              ),
+            'message': z
+              .string()
+              .describe('A short one or two sentence description of why the error occurred.'),
+            'surfaceId': z
+              .string()
+              .describe(
+                "The id of the surface where the error occurred. It must be globally unique for the renderer's lifetime.",
+              )
+              .optional(),
+            'functionCallId': CallIdSchema.optional(),
+          })
+          .catchall(z.any())
+          .and(
+            z.union([
+              z
                 .any()
                 .refine(
-                  value =>
-                    !z
-                      .enum(['VALIDATION_FAILED', 'UNALLOWED_PARENT', 'UNALLOWED_CHILD'])
-                      .safeParse(value).success,
+                  value => !z.any().safeParse(value).success,
                   'Invalid input: Should NOT be valid against schema',
                 ),
-              'message': z
-                .string()
-                .describe('A short one or two sentence description of why the error occurred.'),
-              'surfaceId': z
-                .string()
-                .describe(
-                  "The id of the surface where the error occurred. It must be globally unique for the renderer's lifetime.",
-                )
-                .optional(),
-              'functionCallId': CallIdSchema.optional(),
-            })
-            .catchall(z.any())
-            .and(
-              z.any().superRefine((x, ctx) => {
-                const schemas = [
-                  z
-                    .any()
-                    .refine(
-                      value => !z.any().safeParse(value).success,
-                      'Invalid input: Should NOT be valid against schema',
-                    ),
-                  z
-                    .any()
-                    .refine(
-                      value => !z.any().safeParse(value).success,
-                      'Invalid input: Should NOT be valid against schema',
-                    ),
-                ];
-                const {errors, failed} = schemas.reduce<{
-                  errors: z.ZodIssue[];
-                  failed: number;
-                }>(
-                  ({errors, failed}, schema) =>
-                    (result =>
-                      result.error
-                        ? {
-                            errors: [...errors, ...result.error.issues],
-                            failed: failed + 1,
-                          }
-                        : {errors, failed})(schema.safeParse(x)),
-                  {errors: [], failed: 0},
-                );
-                const passed = schemas.length - failed;
-                if (passed !== 1) {
-                  ctx.addIssue(
-                    errors.length
-                      ? {
-                          path: [],
-                          code: 'invalid_union',
-                          errors: [errors],
-                          message: 'Invalid input: Should pass single schema. Passed ' + passed,
-                        }
-                      : ({
-                          path: [],
-                          code: 'custom',
-                          errors: [errors],
-                          message: 'Invalid input: Should pass single schema. Passed ' + passed,
-                        } as any),
-                  );
-                }
-              }),
-            ),
-        ];
-        const {errors, failed} = schemas.reduce<{
-          errors: z.ZodIssue[];
-          failed: number;
-        }>(
-          ({errors, failed}, schema) =>
-            (result =>
-              result.error
-                ? {
-                    errors: [...errors, ...result.error.issues],
-                    failed: failed + 1,
-                  }
-                : {errors, failed})(schema.safeParse(x)),
-          {errors: [], failed: 0},
-        );
-        const passed = schemas.length - failed;
-        if (passed !== 1) {
-          ctx.addIssue(
-            errors.length
-              ? {
-                  path: [],
-                  code: 'invalid_union',
-                  errors: [errors],
-                  message: 'Invalid input: Should pass single schema. Passed ' + passed,
-                }
-              : ({
-                  path: [],
-                  code: 'custom',
-                  errors: [errors],
-                  message: 'Invalid input: Should pass single schema. Passed ' + passed,
-                } as any),
-          );
-        }
-      })
+              z
+                .any()
+                .refine(
+                  value => !z.any().safeParse(value).success,
+                  'Invalid input: Should NOT be valid against schema',
+                ),
+            ]),
+          ),
+      ])
       .describe('Reports a renderer-side error.'),
   })
   .strict();

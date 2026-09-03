@@ -14,7 +14,6 @@
 
 """Format definition for A2UI Atom (S-Expression AST inference format)."""
 
-from typing import Optional
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.inference_format import InferenceFormat
 from a2ui.parser.parser import Parser
@@ -46,9 +45,9 @@ class AtomFormat(InferenceFormat):
 
     def __init__(
         self,
-        catalog: Optional[A2uiCatalog] = None,
+        catalog: A2uiCatalog | None = None,
         surface_id: str = "main",
-        examples_path: Optional[str] = None,
+        examples_path: str | None = None,
     ):
         """Initializes an AtomFormat strategy instance.
 
@@ -60,8 +59,8 @@ class AtomFormat(InferenceFormat):
         self.catalog = catalog
         self.surface_id = surface_id
         self.examples_path = examples_path
-        self._prompt_generator: Optional[AtomPromptGenerator] = None
-        self._parser: Optional[AtomParser] = None
+        self._prompt_generator: AtomPromptGenerator | None = None
+        self._parser: AtomParser | None = None
 
     def _ensure_catalog(self) -> None:
         """Ensures a valid catalog is set."""

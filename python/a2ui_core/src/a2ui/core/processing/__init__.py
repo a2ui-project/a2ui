@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .execution_context import ExecutionContext
 from .message_processor import MessageProcessor
 from .operations import (
     InternalCreateSurfaceOp,
@@ -23,6 +24,7 @@ from .operations import (
 from .adapters import VersionAdapter, VersionAdapterFactory
 
 __all__ = [
+    "ExecutionContext",
     "MessageProcessor",
     "InternalOperation",
     "InternalCreateSurfaceOp",
