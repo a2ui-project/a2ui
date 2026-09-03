@@ -15,7 +15,7 @@
  */
 
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
-// Generated from specification/v0_9/json/ via scripts/generate-zod-schemas.mjs
+// Generated from specification/v0.9/json/ via src/v0_9/scripts/generate-schemas.mjs
 import {z} from 'zod';
 
 export const CreateSurfaceMessageSchema = z
