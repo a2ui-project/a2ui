@@ -135,7 +135,7 @@ class AtomPromptGenerator(PromptGenerator):
         include_schema: bool = True,
         catalog: Optional[Any] = None,
     ) -> str:
-        """Assembles S-Expression signatures for a catalog."""
+        """Assembles Atom component and function signatures."""
         if not include_schema:
             return ""
         if catalog:
@@ -147,10 +147,14 @@ class AtomPromptGenerator(PromptGenerator):
                 )
             old_helper = self.schema_helper
             self.schema_helper = CatalogSchemaHelper(catalog)
-            res = self.catalog_description(include_schema=True)
+            comps = self.generate_component_signatures()
+            funcs = self.generate_function_signatures()
+            res = (comps + ("\n\n" if funcs else "") + funcs).strip()
             self.schema_helper = old_helper
             return res
-        return self.catalog_description(include_schema=True)
+        comps = self.generate_component_signatures()
+        funcs = self.generate_function_signatures()
+        return (comps + ("\n\n" if funcs else "") + funcs).strip()
 
     def generate_examples(
         self,

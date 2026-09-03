@@ -426,6 +426,8 @@ def main():
                     self.send_header("Content-Type", "application/json")
                     self.end_headers()
                     self.wfile.write(json.dumps(res_data).encode("utf-8"))
+                else:
+                    self.send_error(404, "Endpoint not found")
 
         class ReusableTCPServer(socketserver.ThreadingTCPServer):
             allow_reuse_address = True
