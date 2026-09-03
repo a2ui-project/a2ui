@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// Core library for the A2UI protocol: messages, catalogs, reactive state
+/// models, and the processor that applies incoming messages to a surface
+/// group.
+///
+/// Implements protocol v0.9.
 library;
 
 // Protocol models.
