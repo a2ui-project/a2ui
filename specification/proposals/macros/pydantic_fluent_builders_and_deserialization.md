@@ -1,12 +1,12 @@
 # Pydantic models for A2UI fluent builders and AST deserialization
 
-This document specifies the design for generating and using Pydantic v2 models as the foundation for A2UI's Python builder library and tree deserializer.
+This document specifies the design for using Pydantic v2 models as the foundation for A2UI's Python fluent builder library, tree serialization, and AST deserialization.
 
 ---
 
 ## 1. Background and goals
 
-A2UI builders let developers construct user interfaces in Python using clean, object-oriented syntax. Historically, these builders focused primarily on outward serialization: converting nested Python objects into flat lists of A2UI wire protocol components.
+A2UI builders allow developers to construct user interfaces in Python using clean, object-oriented syntax. Historically, these builders focused primarily on outward serialization: converting nested Python objects into flat lists of A2UI wire protocol components.
 
 However, real-world systems require bidirectional capability:
 
@@ -14,14 +14,26 @@ However, real-world systems require bidirectional capability:
 - Modifying that tree in place.
 - Re-serializing the tree back to protocol messages without losing unknown properties or metadata.
 
-Furthermore, catalog versions are not updated synchronously across agents, clients, and middleware. The generated classes and deserializer must support forward and backward compatibility by default.
+### Decoupling component trees from client surfaces
+
+In the A2UI wire protocol and client renderers, a **Surface** is a stateful, persistent rendering canvas identified by a unique `surfaceId`. It manages an active data model, event dispatching, and component registration.
+
+In contrast, an agent-side builder constructs a **component tree** (or UI fragment). That tree might represent:
+
+1. **A macro expansion:** A component subtree that splices directly into an existing container.
+2. **An incremental patch in an MCP server:** An update targeting specific components on an existing surface (`updateComponents`) without recreating the canvas.
+3. **A brand-new UI view:** A full layout requiring both `createSurface` and `updateComponents`.
+
+Treating the builder's tree container as a `Surface` conflates the in-memory component hierarchy with the client's rendering target. It also creates a practical defect: calling `.to_messages()` on a `Surface` object unconditionally emits `createSurface`, which resets client state during incremental updates.
+
+This design introduces **`ComponentTree`** to represent the component hierarchy, while providing explicit envelope helpers (`create_surface`, `update_components`) to package the tree into protocol messages.
 
 ### Implementation phasing
 
-To deliver value quickly without unnecessary migration risk, this design is divided into two phases:
+To deliver value quickly without migration risk, this design is divided into two distinct phases:
 
-1. **Phase 1: Pydantic foundation and fluent authoring (Immediate):** Migrate `ComponentBuilderNode` and builder types to Pydantic v2 `BaseModel`, adopt open enums, typed child slots, and strict authoring validation via `@a2ui/cli` code generation. All authoring and serialization functions continue to work without breaking changes.
-2. **Phase 2: Bidirectional AST deserialization (Follow-up):** Introduce `deserialize_surface`, `WrapValidator` slot resolution, `UnknownComponent` fallback, and strongly-typed unlinked subtrees as a non-breaking, purely additive extension.
+1. **Phase 1: Pydantic foundation, fluent authoring, and serialization (Immediate):** Migrate `ComponentBuilderNode` and supporting types to Pydantic v2 `BaseModel`, adopt open enums, typed child slots, strict authoring validation via `@a2ui/cli` code generation, and explicit serialization helpers (`to_components`, `ComponentTree`, `create_surface`, `update_components`).
+2. **Phase 2: Bidirectional AST deserialization (Follow-up):** Introduce `deserialize()`, `WrapValidator` slot resolution, `UnknownComponent` fallback, and strongly-typed unlinked subtrees as a non-breaking, purely additive extension.
 
 ---
 
@@ -34,41 +46,42 @@ To deliver value quickly without unnecessary migration risk, this design is divi
 3. **Lossless unknown field round-tripping:** Any property not declared in the local catalog schema must be captured during deserialization and re-emitted during serialization.
 4. **Deprecation lifecycle:** Fields marked with `deprecated: true` and `x-deprecated-reason` in JSON Schema must generate `@deprecated` docstrings. LLM prompt generators can scrub deprecated fields from system instructions to save context tokens.
 
-### B. Fluent authoring and AST integrity
+### B. Fluent authoring, serialization, and AST integrity
 
-1. **Pure hierarchical model definition:** Child slots must be typed strictly as `ComponentBuilderNode` (or `Slot`), not `Union[ComponentBuilderNode, str]`. Authors and type checkers must not have to guard against child properties being raw string IDs.
+1. **Pure hierarchical model definition:** Child slots must be typed strictly as `ComponentBuilderNode` (or `Slot`), not `Union[ComponentBuilderNode, str]`. Authors and type checkers must not guard against child properties being raw string IDs.
 2. **Strict authoring validation:** Direct instantiation in Python (such as `Button(...)`) must reject typos (such as `lable="Submit"`) at edit time via IDE type checkers and at runtime via Pydantic validation.
-3. **Schema-aware slot resolution:** The deserializer must distinguish child component slots from plain string properties using the schema's type annotations. A plain string whose value happens to match a component ID (such as `Text(text="col1")`) must never be mistakenly expanded as a child slot.
-4. **Single-pass deserialization:** Deserialization, component linking, and model validation must occur in a single continuous traversal without building temporary nested dictionaries or mutating models after construction.
-5. **Strongly-typed unlinked subtrees:** When an unknown component acts as an intermediate container (for which slot schemas are unavailable), any disconnected child components must still be deserialized into strongly-typed models where known, rather than degrading into untyped dictionaries.
+3. **Decoupled wire packaging:** Builders must allow serializing component trees into raw component lists (`node.to_components()`), incremental surface updates (`update_components()`), or new surface definitions (`create_surface()`).
+4. **Schema-aware slot resolution:** The deserializer must distinguish child component slots from plain string properties using the schema's type annotations. A plain string whose value matches a component ID (such as `Text(text="col1")`) must never be mistakenly expanded as a child slot.
+5. **Single-pass deserialization:** Deserialization, component linking, and model validation must occur in a single continuous traversal without building temporary nested dictionaries or mutating models after construction.
+6. **Strongly-typed unlinked subtrees:** When an unknown component acts as an intermediate container, any disconnected child components must be deserialized into strongly-typed models in `tree.unlinked_roots` rather than degrading into untyped dictionaries.
 
 ---
 
 ## 3. Supported use cases
 
-### Use case 1: Greenfield layout creation
+### Use case 1: Macro definition and expansion
+
+A developer authors a reusable macro function using builder classes and returns a `Card` node. The macro engine calls `card.to_components()` directly to produce flat component dictionaries for insertion into the host message, requiring no surface envelopes.
+
+### Use case 2: MCP server creating a new tool surface
+
+An MCP tool receives a query, builds an interactive view, and calls `create_surface("flight-tracker", root=ui)` to return `createSurface` and `updateComponents` messages to the client.
+
+### Use case 3: MCP server applying an incremental patch
+
+An MCP tool responds to a user action (such as clicking a refresh button) by building an updated card and calling `update_components("flight-tracker", root=card)`. The client updates the targeted component in place without resetting surface state.
+
+### Use case 4: Greenfield layout creation
 
 A developer writes a new UI in Python. IDEs provide autocompletion for component properties and enum options. Typos produce immediate errors.
 
-### Use case 2: Read, mutate, and write (template editing)
+### Use case 5: Read, mutate, and write (template editing)
 
-A backend service reads an A2UI message payload from an LLM or template store, navigates the object tree, updates specific properties, and produces updated wire messages.
-
-### Use case 3: Middleware and proxy pass-through
-
-A proxy service receives an A2UI payload containing new properties from a newer catalog version, attaches telemetry, and forwards the message to a client without dropping the unrecognized properties.
-
-### Use case 4: Tree traversal and querying
-
-A compliance tool inspects an existing UI tree to verify that all interactive components declare accessibility labels.
-
-### Use case 5: Macro sub-tree injection
-
-A macro accepts a child component sub-tree from an LLM and inserts it into a container template before serialization.
+A backend service reads an A2UI message payload, deserializes it into a `ComponentTree`, navigates the object tree, updates specific properties, and emits updated wire messages.
 
 ### Use case 6: Unrecognized container with typed child subtrees
 
-An agent receives an unknown container component (`VideoPlayer`) holding known children (`Column`, `Text`). The agent parses `VideoPlayer` as `UnknownComponent`, parses `Column` and `Text` into typed models, preserves the full hierarchy, and re-emits all components losslessly.
+An agent receives an unknown container component (`VideoPlayer`) holding known children (`Column`, `Text`). The agent parses `VideoPlayer` as `UnknownComponent`, parses `Column` and `Text` into typed models in `tree.unlinked_roots`, and re-emits all components losslessly.
 
 ---
 
@@ -213,80 +226,125 @@ Component = Annotated[
 
 ---
 
-### C. Surface model and unified serialization
+### C. Component tree and envelope serialization (`a2ui.builder.base`)
 
-The `Surface` model manages both the primary AST root and any typed unlinked subtrees discovered during deserialization:
+Rather than binding the in-memory tree to a client-side surface abstraction, the builder provides `ComponentTree` to manage the component hierarchy, alongside explicit protocol envelope helpers:
 
 ```python
 from typing import Any, Sequence
 from a2ui.builder.base import ComponentBuilderNode, traverse_and_serialize
 
 
-class Surface:
-    """Container representing an active A2UI surface with its component hierarchies."""
+class ComponentTree:
+    """An in-memory hierarchy of components, containing a primary root and any unlinked subtrees."""
 
     def __init__(
         self,
         root: ComponentBuilderNode,
-        surface_id: str = "main",
         unlinked_roots: Sequence[ComponentBuilderNode] | None = None,
+        surface_id: str | None = None,
     ):
         self.root = root
-        self.surface_id = surface_id
         self.unlinked_roots = list(unlinked_roots or [])
+        self.surface_id = surface_id
 
-    def to_messages(self) -> list[dict[str, Any]]:
-        """Serializes the primary tree and all unlinked subtrees into protocol messages."""
-        all_components = traverse_and_serialize(self.root)
-
+    def to_components(self) -> list[dict[str, Any]]:
+        """Serializes the primary tree and all unlinked subtrees into flat component dicts."""
+        comps = traverse_and_serialize(self.root)
         for sub_tree in self.unlinked_roots:
-            all_components.extend(traverse_and_serialize(sub_tree))
+            comps.extend(traverse_and_serialize(sub_tree))
+        return comps
 
-        return [
-            {"createSurface": {"surfaceId": self.surface_id}},
-            {
-                "updateComponents": {
-                    "surfaceId": self.surface_id,
-                    "components": all_components,
-                }
-            },
-        ]
+    def to_update(self, surface_id: str | None = None) -> dict[str, Any]:
+        """Packages the tree into an updateComponents envelope for incremental updates."""
+        target_id = surface_id or self.surface_id or "main"
+        return {
+            "updateComponents": {
+                "surfaceId": target_id,
+                "components": self.to_components(),
+            }
+        }
+
+    def to_surface(
+        self, surface_id: str | None = None, catalog_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Packages the tree into createSurface and updateComponents envelopes for a new surface."""
+        target_id = surface_id or self.surface_id or "main"
+        create_env: dict[str, Any] = {"createSurface": {"surfaceId": target_id}}
+        if catalog_id:
+            create_env["createSurface"]["catalogId"] = catalog_id
+        return [create_env, self.to_update(target_id)]
+
+    def prune_unlinked(self) -> None:
+        """Clears all unlinked subtrees from the container."""
+        self.unlinked_roots.clear()
+
+
+def create_surface(
+    surface_id: str,
+    root: ComponentBuilderNode,
+    *,
+    catalog_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Creates messages to establish a new surface (createSurface + updateComponents)."""
+    return ComponentTree(root=root).to_surface(
+        surface_id=surface_id, catalog_id=catalog_id
+    )
+
+
+def update_components(
+    surface_id: str,
+    root: ComponentBuilderNode,
+) -> list[dict[str, Any]]:
+    """Creates an incremental surface update message (updateComponents only)."""
+    return [ComponentTree(root=root).to_update(surface_id=surface_id)]
 ```
 
 ---
 
-### D. Single-call deserialization utility (`deserialize_surface`)
+### D. Single-call deserialization utility (`deserialize`)
 
-The `deserialize_surface` function takes raw wire messages or component lists, builds the primary AST root, and builds strongly-typed subtrees for any unlinked components:
+In **Phase 2**, the `deserialize` function takes raw wire messages, update envelopes, or component lists, rebuilds the primary AST root, and collects any unlinked subtrees into a `ComponentTree`:
 
 ```python
 from typing import Any, Mapping, Sequence
 from pydantic import TypeAdapter
-from a2ui.builder.base import ComponentBuilderNode, Surface
+from a2ui.builder.base import ComponentBuilderNode, ComponentTree
 from a2ui.builder.catalogs.basic import Component
 
 
-def deserialize_surface(
+def deserialize(
     payload: Mapping[str, Any] | Sequence[Mapping[str, Any]] | str,
     adapter: TypeAdapter[Any] = TypeAdapter(Component),
-) -> Surface:
-    """Rebuilds a typed Surface object tree from an A2UI payload in a single pass."""
+) -> ComponentTree:
+    """Rebuilds a typed ComponentTree from an A2UI payload in a single pass."""
     if isinstance(payload, str):
         import json
 
         payload = json.loads(payload)
 
+    surface_id = None
+    root_id = None
+
     if isinstance(payload, list):
         components = payload
-        surface_id = "main"
-        root_id = None
+        # Check if first element is a createSurface or updateComponents envelope
+        for item in payload:
+            if isinstance(item, dict):
+                if "createSurface" in item:
+                    surface_id = item["createSurface"].get("surfaceId")
+                elif "updateComponents" in item:
+                    surface_id = item["updateComponents"].get("surfaceId")
+                    components = item["updateComponents"].get("components", [])
+                    break
     elif isinstance(payload, dict):
-        surface_id = payload.get("surfaceId", "main")
+        surface_id = payload.get("surfaceId")
         root_id = payload.get("rootId")
-        components = payload.get(
-            "components",
-            payload.get("updateComponents", {}).get("components", []),
-        )
+        if "updateComponents" in payload:
+            surface_id = payload["updateComponents"].get("surfaceId", surface_id)
+            components = payload["updateComponents"].get("components", [])
+        else:
+            components = payload.get("components", [])
     else:
         raise ValueError(f"Unsupported payload type: {type(payload)}")
 
@@ -343,10 +401,10 @@ def deserialize_surface(
         unlinked_roots.append(sub_node)
         unvisited_ids -= context["_visited"]
 
-    return Surface(
+    return ComponentTree(
         root=root_node,
-        surface_id=surface_id,
         unlinked_roots=unlinked_roots,
+        surface_id=surface_id,
     )
 ```
 
@@ -354,121 +412,174 @@ def deserialize_surface(
 
 ## 5. Developer experience examples
 
-### Example 1: Authoring a new layout
+### Example 1: Macro authoring and expansion (no surface envelope)
+
+A macro defines a reusable component subtree. It returns a component node directly, and the macro runtime flattens it without creating a surface envelope:
 
 ```python
-from a2ui.builder import Action, Surface
+from a2ui.builder import Action
 from a2ui.builder.catalogs.basic import Button, Card, Column, Text
+from a2ui.macros import macro
 
-# Pure nested constructor notation
-layout = Card(
-    child=Column(
-        children=[
-            Text(text="Server Status", variant="h1"),
-            Button(
-                child=Text(text="Restart"),
-                action=Action(event="restart_server"),
-                variant="primary",
-            ),
-        ]
+
+@macro
+def ServerStatusCard(name: str, status: str) -> Card:
+    """Returns a component tree. No surface concept needed."""
+    return Card(
+        child=Column(
+            children=[
+                Text(text=name, variant="h3"),
+                Text(text=f"Status: {status}"),
+                Button(
+                    child=Text(text="Restart"),
+                    action=Action(event="restart_server", context={"server": name}),
+                ),
+            ]
+        )
     )
-)
 
-# Serializes to flat A2UI protocol messages:
-# [
-#   {"id": "comp_2", "component": "Text", "text": "Server Status", "variant": "h1"},
-#   {"id": "comp_4", "component": "Text", "text": "Restart"},
-#   {"id": "comp_3", "component": "Button", "child": "comp_4", "action": {"event": "restart_server"}, "variant": "primary"},
-#   {"id": "comp_1", "component": "Column", "children": ["comp_2", "comp_3"]},
-#   {"id": "comp_0", "component": "Card", "child": "comp_1"}
-# ]
-messages = Surface(root=layout, surface_id="dashboard").to_messages()
+
+# Macro runtime execution:
+card = ServerStatusCard("Primary DB", "healthy")
+# Slices directly into host message as flat component dicts:
+expanded_components = card.to_components(prefix="macro_inst_1")
 ```
 
-### Example 2: Deserializing and mutating unlinked subtrees
+### Example 2: MCP server creating a new tool surface
+
+An MCP tool creates an interactive view on a new surface:
 
 ```python
-from a2ui.builder import deserialize_surface
+from a2ui.builder import create_surface
+from a2ui.builder.catalogs.basic import Card, Column, Row, Text
+
+
+@mcp.tool()
+def view_flight_status(flight_number: str) -> list[dict]:
+    flight = db.lookup(flight_number)
+
+    layout = Card(
+        child=Column(
+            children=[
+                Text(text=f"Flight {flight.number}", variant="h2"),
+                Row(
+                    children=[
+                        Text(text=f"Depart: {flight.origin}"),
+                        Text(text=f"Arrive: {flight.destination}"),
+                    ]
+                ),
+                Text(text=f"Status: {flight.status}"),
+            ]
+        )
+    )
+
+    # Returns [{"createSurface": ...}, {"updateComponents": ...}]
+    return create_surface(surface_id="flight-view", root=layout)
+```
+
+### Example 3: MCP server performing an incremental patch
+
+An MCP tool responds to a button click by updating a single card on the existing surface without resetting state:
+
+```python
+from a2ui.builder import update_components
+from a2ui.builder.catalogs.basic import Card, Text
+
+
+@mcp.tool()
+def refresh_gate(flight_number: str) -> list[dict]:
+    new_gate = db.fetch_latest_gate(flight_number)
+
+    # Targets specific existing component ID on the surface
+    updated_gate = Card(
+        id="gate-info-card",
+        child=Text(text=f"Updated Gate: {new_gate}", variant="h4"),
+    )
+
+    # Returns ONLY [{"updateComponents": ...}] targeting the existing surface
+    return update_components(surface_id="flight-view", root=updated_gate)
+```
+
+### Example 4: Deserializing and mutating orphaned subtrees
+
+A service receives an update containing an unknown container (`VideoPlayer`) that holds known children (`Column`, `Text`):
+
+```python
+from a2ui.builder import deserialize
 from a2ui.builder.catalogs.basic import Card, Column, Text, UnknownComponent
 
 raw_payload = {
-    "surfaceId": "media_dashboard",
-    "components": [
-        # Card contains an unknown VideoPlayer container
-        {"id": "card_0", "component": "Card", "child": "player_0"},
-        {"id": "player_0", "component": "VideoPlayer", "src": "video.mp4", "overlay": "col_0"},
-        # Overlay points to a standard Column container with Text
-        {"id": "col_0", "component": "Column", "children": ["txt_0"]},
-        {"id": "txt_0", "component": "Text", "text": "Play Video"},
-    ],
+    "updateComponents": {
+        "surfaceId": "media_player_surface",
+        "components": [
+            {"id": "card_0", "component": "Card", "child": "player_0"},
+            {
+                "id": "player_0",
+                "component": "VideoPlayer",
+                "src": "video.mp4",
+                "overlay": "col_0",
+            },
+            {"id": "col_0", "component": "Column", "children": ["txt_0"]},
+            {"id": "txt_0", "component": "Text", "text": "Play Video"},
+        ],
+    }
 }
 
-# 1. Rebuild hierarchy in a single function call
-surface = deserialize_surface(raw_payload)
+# 1. Rebuild hierarchy into a ComponentTree
+tree = deserialize(raw_payload)
 
-# 2. Primary tree is typed
-assert isinstance(surface.root, Card)
-assert isinstance(surface.root.child, UnknownComponent)
+# 2. Surface ID is preserved from the incoming envelope
+assert tree.surface_id == "media_player_surface"
 
-# 3. Disconnected subtrees are also strongly typed
-assert len(surface.unlinked_roots) == 1
-overlay_col = surface.unlinked_roots[0]
+# 3. Primary root is typed
+assert isinstance(tree.root, Card)
+assert isinstance(tree.root.child, UnknownComponent)
+
+# 4. Disconnected subtrees are preserved as typed models
+assert len(tree.unlinked_roots) == 1
+overlay_col = tree.unlinked_roots[0]
 assert isinstance(overlay_col, Column)
 
-# Mutate unlinked subtrees with full IDE autocomplete
+# Mutate unlinked subtree with IDE autocompletion
 overlay_text = overlay_col.children[0]
 if isinstance(overlay_text, Text):
     overlay_text.text = "Resume Video"
 
-# 4. Output updated protocol messages: all components and IDs are preserved losslessly
-updated_messages = surface.to_messages()
+# 5. Re-emit as an incremental update envelope (does not reset surface)
+updated_envelope = tree.to_update()
 ```
 
 ---
 
 ## 6. Complexity costs, trade-offs, and edge cases
 
-Supporting bidirectional deserialization expands the scope of what was originally a write-only layout generator. This section outlines the architectural complexity costs, trade-offs, and specific edge cases where deserialization encounters limitations.
+Supporting bidirectional deserialization expands the builder library from a write-only generator to an AST round-trip engine. This section outlines the architectural complexity costs, trade-offs, and edge cases.
 
 ### A. Architectural complexity cost
 
-1. **Model annotation overhead:** In a write-only builder, models are simple Python dataclasses with standard constructors. Supporting deserialization requires Pydantic `WrapValidator` hooks on every slot, polymorphic discriminated unions across all catalog components, and `__pydantic_extra__` handlers.
-2. **Contextual state management:** Deserialization is no longer a stateless dictionary mapping. It requires passing validation contexts (`context={"components": by_id, "_visited": set()}`) to track visited IDs, prevent infinite recursion loops, and discover unlinked subtrees.
-3. **Dual ID lifecycle:** Authors creating new layouts omit component IDs to let the serializer generate sequential identifiers (`comp_0`, `comp_1`). Deserialized layouts retain explicit wire IDs. The serializer must manage both modes without ID collisions.
-4. **Third-party dependency:** Deserialization relies on Pydantic v2. While standard across Python AI libraries (`google-genai`, LangChain), it introduces a formal dependency compared to standard library dataclasses.
+1. **Model annotation overhead:** Write-only builders use plain dataclasses. Supporting deserialization requires Pydantic `WrapValidator` hooks on slots, polymorphic discriminated unions across catalog components, and `__pydantic_extra__` capture.
+2. **Contextual state management:** Deserialization requires passing validation contexts (`context={"components": by_id, "_visited": set()}`) to resolve string IDs, prevent recursion loops, and track unlinked subtrees.
+3. **Dual ID lifecycle:** Programmatic authors omit component IDs to let serializers generate sequential identifiers (`comp_0`, `comp_1`). Deserialized layouts retain explicit wire IDs. The serializer must manage both modes without ID collisions.
+4. **Third-party dependency:** Deserialization relies on Pydantic v2.
 
 ---
 
 ### B. Pros and cons of supporting deserialization
 
-| Advantages (Pros)                                                                                                                                                   | Trade-offs & Costs (Cons)                                                                                                                                       |
-| :------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Enables read-modify-write workflows:** Agents can ingest existing templates, update specific properties, and emit updated surfaces without starting from scratch. | **Higher cognitive surface area:** Developers must understand the relationship between the primary AST root, component IDs, and `unlinked_roots`.               |
-| **Enables middleware & proxies:** Intermediary services can inspect, filter, or decorate A2UI payloads without losing unrecognized properties.                      | **Memory overhead during deserialization:** Maintaining the wire dictionary index and constructing Pydantic models uses more memory than raw JSON pass-through. |
-| **Consistent developer ergonomics:** Reconstructed ASTs look and behave identically to hand-crafted Python object trees.                                            | **ID mutation subtleties:** Modifying child relationships manually in Python requires care when re-assigning IDs.                                               |
-| **Automated validation of incoming payloads:** Malformed structures or missing required properties are rejected immediately during deserialization.                 | **Catalog synchronization requirements:** Deserializing into typed classes requires maintaining generated catalog packages in sync with deployed catalogs.      |
+| Advantages (Pros)                                                                                                      | Trade-offs & Costs (Cons)                                                                                                     |
+| :--------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------- |
+| **Enables read-modify-write workflows:** Agents can ingest existing templates, update properties, and emit updates.    | **Higher cognitive surface area:** Developers must understand the relationship between `tree.root` and `tree.unlinked_roots`. |
+| **Enables middleware and proxies:** Intermediary services can inspect, filter, or decorate payloads without data loss. | **Memory overhead during deserialization:** Constructing Pydantic models uses more memory than raw JSON pass-through.         |
+| **Consistent developer ergonomics:** Reconstructed ASTs behave identically to hand-crafted Python object trees.        | **ID mutation subtleties:** Modifying child relationships manually requires care when re-assigning IDs.                       |
+| **Automated validation of incoming payloads:** Malformed structures are rejected immediately during deserialization.   | **Catalog synchronization:** Deserializing into typed classes requires maintaining generated catalog packages in sync.        |
 
 ---
 
-### C. Edge cases and limitations where deserialization struggles
+### C. Edge cases and limitations where deserialization encounters challenges
 
 #### 1. Shared child references (DAG topologies vs. pure trees)
 
-The flat A2UI wire format allows multiple parent components to reference the same child ID (forming a Directed Acyclic Graph). For example, a header and a footer might both reference an action button ID:
-
-```json
-[
-  {"id": "card", "component": "Card", "child": "btn_1"},
-  {"id": "drawer", "component": "Drawer", "child": "btn_1"},
-  {"id": "btn_1", "component": "Button", "child": "txt_1", "action": {"event": "submit"}},
-  {"id": "txt_1", "component": "Text", "text": "Submit"}
-]
-```
-
-In a hierarchical Python object tree, components are expected to have a single parent. When deserializing:
-
-- If `btn_1` is shared by reference (`card.child is drawer.child`), mutating properties on one affects both, but tree traversals must avoid serializing `btn_1` twice.
-- If `btn_1` is cloned, mutating `card.child` leaves `drawer.child` unchanged, breaking the shared wire reference.
+The flat A2UI wire format allows multiple parent components to reference the same child ID (forming a Directed Acyclic Graph). In a hierarchical Python object tree, components have a single parent. When deserializing, shared components are shared by reference; tree traversals must avoid serializing the shared node twice.
 
 #### 2. The "ghost component" problem on unknown container deletion
 
@@ -478,19 +589,19 @@ If a wire payload contains an unknown container holding known children:
 Card -> VideoPlayer (unknown) -> Column -> Text
 ```
 
-During deserialization, `Column -> Text` is preserved in `surface.unlinked_roots`.
+During deserialization, `Column -> Text` is preserved in `tree.unlinked_roots`.
 
 If a developer subsequently replaces the card's child in Python:
 
 ```python
-card.child = Text(text="Replaced Video")
+tree.root.child = Text(text="Replaced Video")
 ```
 
-The deserializer cannot know whether the subtrees in `surface.unlinked_roots` were children of the deleted `VideoPlayer` or independent disconnected widgets. If the developer does not clear `surface.unlinked_roots`, calling `surface.to_messages()` will still output `Column` and `Text` as unused "ghost components" on the wire.
+The deserializer cannot determine whether the subtrees in `tree.unlinked_roots` belonged to the deleted `VideoPlayer` or were independent widgets. If the developer does not call `tree.prune_unlinked()`, calling `tree.to_components()` will continue to output `Column` and `Text` as unused "ghost components".
 
 #### 3. Dynamic template loops (`DynamicChildList`)
 
-In A2UI, repeating lists use `DynamicChildList` to bind an array data path to a template component ID:
+Repeating lists use `DynamicChildList` to bind an array data path to a template component ID:
 
 ```json
 {
@@ -503,11 +614,11 @@ In A2UI, repeating lists use `DynamicChildList` to bind an array data path to a 
 }
 ```
 
-During deserialization, `user_card_template` is a prototype definition, not a concrete rendered child list. The deserializer must recognize `template` as a template slot rather than expecting a flat list of concrete components.
+During deserialization, `user_card_template` is a prototype definition, not a concrete child list. The deserializer must recognize `template` as a template slot rather than expecting a flat list of concrete components.
 
 #### 4. Malformed cyclic wire graphs
 
-Corrupted or hostile wire payloads can define circular parent-child references:
+Corrupted or hostile wire payloads can define circular references:
 
 ```json
 [
@@ -516,60 +627,66 @@ Corrupted or hostile wire payloads can define circular parent-child references:
 ]
 ```
 
-Without cycle tracking (`context["_visited"]`), recursive validation causes an unrecoverable `RecursionError` (stack overflow). The deserializer must explicitly catch repeated IDs in the current branch and raise an `A2UIValidationError`.
+Without cycle tracking (`context["_visited"]`), recursive validation causes a `RecursionError`. The deserializer catches repeated IDs in the active branch and raises a validation error.
 
 #### 5. String literal vs. path binding ambiguity
 
-If an un-annotated or loosely typed field receives a string value like `"/user/name"`, the deserializer must determine whether it is a plain text literal or an un-enveloped data binding path. Strict schema typing is required to prevent incorrect coercions.
+If an un-annotated or loosely typed field receives a string value like `"/user/name"`, the deserializer must determine whether it is a plain text literal or an un-enveloped data binding path. Strict schema typing prevents incorrect coercions.
 
 #### 6. Cross-version property renaming
 
-If an upstream catalog renames a property (such as `label` to `title`), deserializing older payloads into newer Pydantic models will store `label` in `__pydantic_extra__` and leave `title` as `None`. Code expecting `node.title` will not find the value unless custom schema migration hooks are provided.
+If an upstream catalog renames a property (such as `label` to `title`), deserializing older payloads into newer Pydantic models stores `label` in `__pydantic_extra__` and leaves `title` as `None`. Custom schema migration hooks are required to map old names to new attributes.
 
 ---
 
 ## 7. Design decisions and rationale
 
-1. **Why Pydantic v2:** Pydantic is already the schema foundation of `a2ui_core` and the broader agent ecosystem (`google-genai`, LangChain). Using Pydantic avoids maintaining separate parsing engines while offering C/Rust performance.
-2. **Why `WrapValidator` over pre-expansion:** Pre-expanding dictionaries into temporary JSON trees creates unnecessary Python dictionary overhead and relies on string-matching heuristics. `WrapValidator` operates directly during Pydantic's native type validation pass, ensuring only fields explicitly declared as slots are resolved.
-3. **Why `extra="forbid"` for authoring and `extra="allow"` for unknown components:** Strict validation on standard models prevents typo bugs when writing code, while permissive parsing on `UnknownComponent` ensures unknown wire elements are preserved during round-trips.
-4. **Why typed unlinked subtrees:** When an unknown container obscures slot relationships, parsing disconnected components into typed Pydantic models preserves developer ergonomics, inspection tooling, and unified serialization without degrading to raw untyped dictionaries.
+1. **Why `ComponentTree` and envelope helpers instead of `Surface`:** A Surface is a persistent client-side rendering target. Agent builders construct component trees, which may be macro expansions, incremental patches, or new layouts. Decoupling them prevents conflating the component tree with the client canvas and avoids wiping client state on incremental updates.
+2. **Why Pydantic v2:** Pydantic is already the schema foundation of `a2ui_core` and the broader agent ecosystem (`google-genai`, LangChain). Using Pydantic avoids maintaining separate parsing engines while offering C/Rust performance.
+3. **Why `WrapValidator` over pre-expansion:** Pre-expanding dictionaries into temporary JSON trees creates unnecessary Python dictionary overhead and relies on string-matching heuristics. `WrapValidator` operates directly during Pydantic's native type validation pass, ensuring only fields explicitly declared as slots are resolved.
+4. **Why `extra="forbid"` for authoring and `extra="allow"` for unknown components:** Strict validation on standard models prevents typo bugs when writing code, while permissive parsing on `UnknownComponent` ensures unknown wire elements are preserved during round-trips.
+5. **Why typed unlinked subtrees:** When an unknown container obscures slot relationships, parsing disconnected components into typed Pydantic models preserves developer ergonomics, inspection tooling, and unified serialization without degrading to raw untyped dictionaries.
 
 ---
 
 ## 8. Phased implementation roadmap
 
-### Phase 1: Pydantic foundation and fluent authoring (Immediate)
+### Phase 1: Pydantic foundation, fluent authoring, and serialization (Immediate)
 
-Phase 1 focuses on authoring ergonomics, IDE verification, and strict type safety during outward UI generation.
+Phase 1 establishes authoring ergonomics, strict validation, and explicit serialization packaging.
 
 #### Scope of Phase 1
 
 1. **Pydantic base models (`a2ui.builder.base`):**
    - Convert `ComponentBuilderNode` from `@dataclass` to `pydantic.BaseModel`.
    - Configure `model_config = ConfigDict(extra="forbid", populate_by_name=True, validate_assignment=True)`.
+   - Add `.to_components()` directly to `ComponentBuilderNode`.
    - Convert supporting types (`Action`, `DataBinding`, `AccessibilityAttributes`, `FunctionCall`, `CheckRule`, `DynamicChildList`) to Pydantic models.
-   - Define the initial slot type aliases: `Slot: TypeAlias = ComponentBuilderNode` and `SlotList: TypeAlias = Sequence[Slot]`.
-2. **Code generator migration (`@a2ui/cli`):**
+   - Define initial slot type aliases: `Slot: TypeAlias = ComponentBuilderNode` and `SlotList: TypeAlias = Sequence[Slot]`.
+2. **Component tree and envelope helpers (`a2ui.builder.base`):**
+   - Implement `ComponentTree` with `.to_components()`, `.to_update()`, `.to_surface()`, and `.prune_unlinked()`.
+   - Implement top-level functional helpers `create_surface(surface_id, root)` and `update_components(surface_id, root)`.
+3. **Code generator migration (`@a2ui/cli`):**
    - Update the Python emitter to generate Pydantic v2 `BaseModel` classes instead of `@dataclass(kw_only=True)`.
    - Emit open enums (`Literal[...] | str`) for all component enum properties to handle future catalog additions.
    - Type child slots as `child: Slot` and multi-child slots as `children: SlotList = ()`.
    - Re-generate the basic catalog builders (`a2ui.builder.catalogs.basic`).
-3. **Outward serialization preservation:**
-   - Retain existing `to_dict()`, `flatten_component_tree()`, and `Surface.to_messages()` behavior.
-   - Maintain compatibility with all existing macro definitions and demo servers.
+4. **Macro and MCP server alignment:**
+   - Macros return `ComponentBuilderNode` (e.g. `Card`), serialized via `.to_components()`.
+   - MCP tools call `create_surface()` for new views or `update_components()` for incremental patches.
 
 #### Phase 1 developer benefits
 
-- **Typo detection at edit and run time:** Writing `Button(lable="Save")` or `Text(vairant="h1")` raises an immediate Pydantic `ValidationError`.
+- **Typo detection at edit and run time:** Writing `Button(lable="Save")` raises an immediate Pydantic `ValidationError`.
 - **Open enum evolution:** Client code accepts new enum strings introduced by updated catalogs without failing validation.
+- **Surface state protection:** Incremental updates use `update_components()`, preventing accidental surface resets.
 - **Ecosystem alignment:** Builders integrate directly with Python AI frameworks that use Pydantic models.
 
 ---
 
 ### Phase 2: Bidirectional AST deserialization (Follow-up)
 
-Phase 2 adds incoming payload parsing, turning flat wire payloads into navigable, mutable object trees.
+Phase 2 adds incoming payload parsing, turning flat wire payloads into navigable, mutable `ComponentTree` instances.
 
 #### Scope of Phase 2
 
@@ -580,8 +697,9 @@ Phase 2 adds incoming payload parsing, turning flat wire payloads into navigable
    - Introduce `UnknownComponent(ComponentBuilderNode)` with `model_config = ConfigDict(extra="allow")`.
    - Generate the discriminated union `Component = Annotated[Union[..., UnknownComponent], Field(discriminator="component")]`.
 3. **Deserialization entrypoint:**
-   - Implement `deserialize_surface(payload) -> Surface`.
-   - Reconstruct primary hierarchies and preserve unlinked subtrees in `surface.unlinked_roots`.
+   - Implement `deserialize(payload) -> ComponentTree`.
+   - Reconstruct primary hierarchies into `tree.root` and preserve unlinked subtrees in `tree.unlinked_roots`.
+   - Preserve `tree.surface_id` when deserializing from an `updateComponents` or `createSurface` envelope.
 
 ---
 
@@ -589,11 +707,12 @@ Phase 2 adds incoming payload parsing, turning flat wire payloads into navigable
 
 Transitioning from Phase 1 to Phase 2 introduces zero breaking changes to existing authoring code:
 
-| Element                     | Phase 1 (Authoring)                | Phase 2 (Deserialization Added)                                        | Compatibility Impact                                                                                                                              |
-| :-------------------------- | :--------------------------------- | :--------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Constructor signatures**  | `Card(child=Column(...))`          | `Card(child=Column(...))`                                              | **Non-breaking:** Constructor signatures and kwargs remain identical.                                                                             |
-| **`Slot` type alias**       | `Slot = ComponentBuilderNode`      | `Slot = Annotated[ComponentBuilderNode, WrapValidator(_resolve_slot)]` | **Non-breaking:** In Pydantic, passing a model instance directly passes through the `WrapValidator`. Existing Python instantiation is unaffected. |
-| **`deserialize_surface()`** | Not present                        | Added as a new function                                                | **Non-breaking:** Additive API; existing code does not call it.                                                                                   |
-| **`UnknownComponent`**      | Not present                        | Added to catalog module                                                | **Non-breaking:** Additive fallback class for unrecognized wire payloads.                                                                         |
-| **`Surface` constructor**   | `Surface(root, surface_id="main")` | `Surface(root, surface_id="main", unlinked_roots=())`                  | **Non-breaking:** `unlinked_roots` defaults to empty, preserving backwards compatibility.                                                         |
-| **Serialization**           | `surface.to_messages()`            | `surface.to_messages()`                                                | **Non-breaking:** Existing flattening logic produces identical wire messages.                                                                     |
+| Element                       | Phase 1 (Authoring & Serialization)       | Phase 2 (Deserialization Added)                                        | Compatibility Impact                                                                                                                 |
+| :---------------------------- | :---------------------------------------- | :--------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------- |
+| **Constructor signatures**    | `Card(child=Column(...))`                 | `Card(child=Column(...))`                                              | **Non-breaking:** Constructor signatures and kwargs remain identical.                                                                |
+| **`Slot` type alias**         | `Slot = ComponentBuilderNode`             | `Slot = Annotated[ComponentBuilderNode, WrapValidator(_resolve_slot)]` | **Non-breaking:** Passing a model instance directly passes through the `WrapValidator`. Existing Python instantiation is unaffected. |
+| **`ComponentTree` container** | `ComponentTree(root)`                     | `ComponentTree(root, unlinked_roots=(), surface_id=None)`              | **Non-breaking:** Constructor arguments default to empty/None.                                                                       |
+| **`deserialize()`**           | Not present                               | Added as a new top-level function                                      | **Non-breaking:** Additive API; existing code does not call it.                                                                      |
+| **`UnknownComponent`**        | Not present                               | Added to catalog module                                                | **Non-breaking:** Additive fallback class for unrecognized wire payloads.                                                            |
+| **Envelope helpers**          | `create_surface()`, `update_components()` | `create_surface()`, `update_components()`                              | **Non-breaking:** Function signatures and behaviors remain identical.                                                                |
+| **Direct serialization**      | `node.to_components()`                    | `node.to_components()`                                                 | **Non-breaking:** Existing flattening logic produces identical wire messages.                                                        |
