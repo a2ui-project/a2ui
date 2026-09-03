@@ -19,7 +19,9 @@ import {describe, it, beforeEach} from 'node:test';
 import {signal, computed, peekValue, getValue, setValue} from '../reactivity/signals.js';
 import {z} from 'zod';
 import {DataModel} from '../state/data-model.js';
-import {DataContext} from './data-context.js';
+import {DataContext, getKnownSchemaKeys, filterFunctionArgs} from './data-context.js';
+import {Catalog} from '../catalog/types.js';
+import {FunctionCallSchema, MAX_FUNCTION_CALL_ARGS} from '../schema/common-types.js';
 import {A2uiExpressionError} from '../errors.js';
 
 const createTestDataContext = (
@@ -540,6 +542,137 @@ describe('DataContext', () => {
       assert.ok(dispatchedError);
       assert.strictEqual((dispatchedError as any).code, 'EXPRESSION_ERROR');
       assert.strictEqual((dispatchedError as any).message, 'Generic inner failure');
+    });
+  });
+
+  describe('Function Argument Stripping & Resource Consumption (Issue #2384)', () => {
+    it('getKnownSchemaKeys extracts keys from ZodObject and ZodEffects', () => {
+      const objSchema = z.object({a: z.string(), b: z.number()});
+      assert.deepStrictEqual(getKnownSchemaKeys(objSchema), new Set(['a', 'b']));
+
+      const refinedSchema = z
+        .object({value: z.any(), min: z.number().optional()})
+        .refine(data => data.value !== undefined);
+      assert.deepStrictEqual(getKnownSchemaKeys(refinedSchema), new Set(['value', 'min']));
+
+      const passthroughSchema = z.object({a: z.string()}).passthrough();
+      assert.strictEqual(getKnownSchemaKeys(passthroughSchema), null);
+
+      const unionSchema = z.union([z.object({x: z.string()}), z.object({y: z.number()})]);
+      assert.deepStrictEqual(getKnownSchemaKeys(unionSchema), new Set(['x', 'y']));
+
+      const intersectionSchema = z.intersection(
+        z.object({a: z.string()}),
+        z.object({b: z.number()}),
+      );
+      assert.deepStrictEqual(getKnownSchemaKeys(intersectionSchema), new Set(['a', 'b']));
+
+      const intersectionWithPassthrough = z.intersection(
+        z.object({a: z.string()}),
+        z.object({b: z.number()}).passthrough(),
+      );
+      assert.strictEqual(getKnownSchemaKeys(intersectionWithPassthrough), null);
+    });
+
+    it('filterFunctionArgs strips unknown keys when schema is available', () => {
+      const catalog = new Catalog(
+        'test-cat',
+        [],
+        [
+          {
+            name: 'testFunc',
+            returnType: 'string',
+            schema: z.object({name: z.string(), age: z.number().optional()}),
+            execute: (args: any) => `Hello ${args.name}`,
+          },
+        ],
+      );
+
+      const raw = {
+        name: 'Alice',
+        age: 30,
+        extra1: 'junk',
+        extra2: {path: '/secret'},
+      };
+
+      const filtered = filterFunctionArgs('testFunc', raw, catalog);
+      assert.deepStrictEqual(filtered, {name: 'Alice', age: 30});
+    });
+
+    it('resolveSignal does not subscribe to unknown arguments', () => {
+      const customModel = new DataModel({
+        validVal: 'Alice',
+        junkVal: 'Secret',
+      });
+
+      const catalog = new Catalog(
+        'test-cat',
+        [],
+        [
+          {
+            name: 'greet',
+            returnType: 'string',
+            schema: z.object({name: z.string()}),
+            execute: (args: any) => `Hello ${args.name}`,
+          },
+        ],
+      );
+
+      const mockSurface = {
+        dataModel: customModel,
+        catalog,
+        dispatchError: () => {},
+      } as any;
+      const ctx = new DataContext(mockSurface, '/');
+
+      let calledCount = 0;
+      const sub = ctx.subscribeDynamicValue(
+        {
+          call: 'greet',
+          args: {
+            name: {path: '/validVal'},
+            junk: {path: '/junkVal'},
+          },
+          returnType: 'any',
+        },
+        () => {
+          calledCount++;
+        },
+      );
+
+      assert.strictEqual(sub.value, 'Hello Alice');
+
+      // Modifying /junkVal should NOT trigger re-computation because 'junk' was stripped before resolveSignal
+      customModel.set('/junkVal', 'Changed');
+      assert.strictEqual(calledCount, 0, 'Re-evaluated for stripped argument');
+
+      // Modifying /validVal SHOULD trigger re-computation
+      customModel.set('/validVal', 'Bob');
+      assert.strictEqual(calledCount, 1, 'Re-evaluation did not trigger for valid argument');
+      assert.strictEqual(sub.value, 'Hello Bob');
+
+      sub.unsubscribe();
+    });
+
+    it('FunctionCallSchema enforces MAX_FUNCTION_CALL_ARGS limit', () => {
+      const validArgs: Record<string, any> = {};
+      for (let i = 0; i < 50; i++) validArgs[`k${i}`] = i;
+
+      const validCall = {
+        call: 'test',
+        args: validArgs,
+      };
+      assert.strictEqual(FunctionCallSchema.safeParse(validCall).success, true);
+
+      const excessiveArgs: Record<string, any> = {};
+      for (let i = 0; i <= MAX_FUNCTION_CALL_ARGS + 5; i++) excessiveArgs[`k${i}`] = i;
+
+      const excessiveCall = {
+        call: 'test',
+        args: excessiveArgs,
+      };
+      const result = FunctionCallSchema.safeParse(excessiveCall);
+      assert.strictEqual(result.success, false);
     });
   });
 });
