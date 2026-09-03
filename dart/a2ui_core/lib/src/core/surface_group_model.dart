@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import '../primitives/clock.dart';
 import '../primitives/event_notifier.dart';
 import 'catalog.dart';
 import 'messages.dart';
@@ -19,8 +20,11 @@ import 'surface_model.dart';
 
 /// The root state model for the A2UI system.
 class SurfaceGroupModel<T extends ComponentApi> {
+  final Clock clock;
   final Map<String, SurfaceModel<T>> _surfaces = {};
   final Map<String, void Function(A2uiClientAction)> _actionForwarders = {};
+
+  SurfaceGroupModel({Clock? clock}) : clock = clock ?? systemClock;
 
   final _onSurfaceCreated = EventNotifier<SurfaceModel<T>>();
   final _onSurfaceDeleted = EventNotifier<String>();

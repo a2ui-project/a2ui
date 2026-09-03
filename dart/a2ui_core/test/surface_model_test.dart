@@ -55,5 +55,69 @@ void main() {
       // double-counted.
       expect(actionCount, 1);
     });
+
+    group('clock injection', () {
+      test('uses systemClock by default producing recent timestamp', () async {
+        final before = DateTime.now();
+        final surface = SurfaceModel<ComponentApi>('s1', catalog: catalog);
+        A2uiClientAction? receivedAction;
+        surface.onAction.addListener((action) => receivedAction = action);
+
+        await surface.dispatchAction({
+          'event': {'name': 'defaultClockTest'},
+        }, 'c1');
+
+        final after = DateTime.now();
+        expect(receivedAction, isNotNull);
+        expect(
+          receivedAction!.timestamp.isAfter(
+                before.subtract(const Duration(seconds: 1)),
+              ) ||
+              receivedAction!.timestamp.isAtSameMomentAs(before),
+          isTrue,
+        );
+        expect(
+          receivedAction!.timestamp.isBefore(
+                after.add(const Duration(seconds: 1)),
+              ) ||
+              receivedAction!.timestamp.isAtSameMomentAs(after),
+          isTrue,
+        );
+      });
+
+      test(
+        'uses custom injected fake clock for deterministic timestamps',
+        () async {
+          final fixedTime = DateTime.utc(2026, 8, 14, 12, 0, 0);
+          final fakeClock = FakeClock(fixedTime);
+          final surface = SurfaceModel<ComponentApi>(
+            's1',
+            catalog: catalog,
+            clock: fakeClock,
+          );
+
+          A2uiClientAction? receivedAction;
+          surface.onAction.addListener((action) => receivedAction = action);
+
+          await surface.dispatchAction({
+            'event': {'name': 'customClockTest'},
+          }, 'c1');
+
+          expect(receivedAction, isNotNull);
+          expect(receivedAction!.timestamp, equals(fixedTime));
+
+          // Advance clock and dispatch again
+          fakeClock.advance(const Duration(seconds: 45));
+          await surface.dispatchAction({
+            'event': {'name': 'advancedClockTest'},
+          }, 'c1');
+
+          expect(
+            receivedAction!.timestamp,
+            equals(DateTime.utc(2026, 8, 14, 12, 0, 45)),
+          );
+        },
+      );
+    });
   });
 }

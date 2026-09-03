@@ -12,10 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:async';
+
 class CancellationSignal {
   bool _isCancelled = false;
 
   final _listeners = <void Function()>[];
+
+  CancellationSignal();
+
+  /// Creates a [CancellationSignal] that automatically cancels after [duration].
+  ///
+  /// An optional [timerFactory] can be injected for deterministic testing.
+  factory CancellationSignal.timeout(
+    Duration duration, {
+    Timer Function(Duration duration, void Function() callback)? timerFactory,
+  }) {
+    final signal = CancellationSignal();
+    final createTimer = timerFactory ?? Timer.new;
+    final timer = createTimer(duration, signal.cancel);
+    signal.addListener(timer.cancel);
+    return signal;
+  }
 
   /// Whether the operation has been cancelled.
   bool get isCancelled => _isCancelled;

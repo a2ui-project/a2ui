@@ -19,19 +19,24 @@ import '../core/component_model.dart';
 import '../core/messages.dart';
 import '../core/surface_group_model.dart';
 import '../core/surface_model.dart';
+import '../primitives/clock.dart';
 import '../primitives/errors.dart';
 
 /// The central processor for A2UI messages.
 class MessageProcessor<T extends ComponentApi> {
   final SurfaceGroupModel<T> groupModel;
   final List<Catalog<T>> catalogs;
+  final Clock clock;
 
   MessageProcessor({
     required this.catalogs,
     void Function(A2uiClientAction)? onAction,
-  }) : groupModel = SurfaceGroupModel<T>() {
+    Clock? clock,
+    SurfaceGroupModel<T>? groupModel,
+  }) : clock = clock ?? groupModel?.clock ?? systemClock,
+       groupModel = groupModel ?? SurfaceGroupModel<T>(clock: clock) {
     if (onAction != null) {
-      groupModel.onAction.addListener(onAction);
+      this.groupModel.onAction.addListener(onAction);
     }
   }
 
@@ -70,6 +75,7 @@ class MessageProcessor<T extends ComponentApi> {
       catalog: catalog,
       theme: message.theme ?? {},
       sendDataModel: message.sendDataModel,
+      clock: clock,
     );
     groupModel.addSurface(surface);
   }

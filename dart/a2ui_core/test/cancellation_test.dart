@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:async';
+
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
@@ -65,5 +67,38 @@ void main() {
       signal.cancel();
       expect(signal.throwIfCancelled, throwsA(isA<CancellationException>()));
     });
+
+    test('timeout constructor cancels with injected timer', () {
+      void Function()? timerCallback;
+      final signal = CancellationSignal.timeout(
+        const Duration(seconds: 5),
+        timerFactory: (duration, callback) {
+          timerCallback = callback;
+          return _MockTimer();
+        },
+      );
+
+      expect(signal.isCancelled, false);
+      expect(timerCallback, isNotNull);
+
+      // Trigger timer callback
+      timerCallback!();
+      expect(signal.isCancelled, true);
+    });
   });
+}
+
+class _MockTimer implements Timer {
+  bool isCancelled = false;
+
+  @override
+  void cancel() {
+    isCancelled = true;
+  }
+
+  @override
+  bool get isActive => !isCancelled;
+
+  @override
+  int get tick => 0;
 }

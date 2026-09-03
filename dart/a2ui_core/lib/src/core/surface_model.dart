@@ -14,6 +14,7 @@
 
 import 'dart:async';
 
+import '../primitives/clock.dart';
 import '../primitives/event_notifier.dart';
 import 'catalog.dart';
 import 'common.dart';
@@ -28,6 +29,7 @@ class SurfaceModel<T extends ComponentApi> {
   final Catalog<T> catalog;
   final Map<String, dynamic> theme;
   final bool sendDataModel;
+  final Clock clock;
 
   final DataModel dataModel;
   final SurfaceComponentsModel componentsModel;
@@ -46,7 +48,9 @@ class SurfaceModel<T extends ComponentApi> {
     required this.catalog,
     this.theme = const {},
     this.sendDataModel = false,
-  }) : dataModel = DataModel(),
+    Clock? clock,
+  }) : clock = clock ?? systemClock,
+       dataModel = DataModel(),
        componentsModel = SurfaceComponentsModel();
 
   /// Dispatches an action from this surface.
@@ -60,7 +64,7 @@ class SurfaceModel<T extends ComponentApi> {
         name: (event['name'] as String?) ?? 'unknown',
         surfaceId: id,
         sourceComponentId: sourceComponentId,
-        timestamp: DateTime.now(),
+        timestamp: clock(),
         context: Map<String, dynamic>.from(
           (event['context'] ?? <String, dynamic>{}) as Map,
         ),

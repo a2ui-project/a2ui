@@ -17,7 +17,9 @@ import 'package:a2ui_core/src/core/common_schemas.dart';
 import 'package:a2ui_core/src/core/component_model.dart';
 import 'package:a2ui_core/src/core/messages.dart';
 import 'package:a2ui_core/src/core/minimal_catalog.dart';
+import 'package:a2ui_core/src/core/surface_group_model.dart';
 import 'package:a2ui_core/src/core/surface_model.dart';
+import 'package:a2ui_core/src/primitives/clock.dart';
 import 'package:a2ui_core/src/primitives/errors.dart';
 import 'package:a2ui_core/src/processing/processor.dart';
 import 'package:test/test.dart';
@@ -141,6 +143,64 @@ void main() {
       expect(surfaces, isNot(contains('s2')));
       expect(surfaces?['s1'], {'foo': 'bar'});
     });
+    test('propagates injected clock to dynamically created surfaces', () async {
+      final fixedTime = DateTime.utc(2026, 9, 1, 15, 30, 0);
+      final fakeClock = FakeClock(fixedTime);
+      final proc = MessageProcessor(catalogs: [catalog], clock: fakeClock);
+
+      proc.processMessages([
+        CreateSurfaceMessage(surfaceId: 'dynamic_s1', catalogId: catalog.id),
+      ]);
+
+      final surface = proc.groupModel.getSurface('dynamic_s1');
+      expect(surface, isNotNull);
+
+      A2uiClientAction? dispatched;
+      proc.groupModel.onAction.addListener((action) => dispatched = action);
+
+      await surface!.dispatchAction({
+        'event': {'name': 'button_click'},
+      }, 'btn_1');
+
+      expect(dispatched, isNotNull);
+      expect(dispatched!.timestamp, equals(fixedTime));
+      expect(dispatched!.surfaceId, 'dynamic_s1');
+      expect(dispatched!.sourceComponentId, 'btn_1');
+    });
+
+    test(
+      'inherits clock from custom groupModel when clock is omitted',
+      () async {
+        final customTime = DateTime.utc(2026, 11, 20, 9, 15, 0);
+        final fakeClock = FakeClock(customTime);
+        final customGroup = SurfaceGroupModel<ComponentApi>(clock: fakeClock);
+
+        final proc = MessageProcessor(
+          catalogs: [catalog],
+          groupModel: customGroup,
+        );
+
+        expect(proc.clock(), equals(customTime));
+
+        proc.processMessages([
+          CreateSurfaceMessage(surfaceId: 'dynamic_s2', catalogId: catalog.id),
+        ]);
+
+        final surface = proc.groupModel.getSurface('dynamic_s2');
+        expect(surface, isNotNull);
+
+        A2uiClientAction? dispatched;
+        proc.groupModel.onAction.addListener((action) => dispatched = action);
+
+        await surface!.dispatchAction({
+          'event': {'name': 'custom_group_action'},
+        }, 'btn_2');
+
+        expect(dispatched, isNotNull);
+        expect(dispatched!.timestamp, equals(customTime));
+      },
+    );
+
     test('applies a fully valid batch of components', () {
       processor.processMessages([
         CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
