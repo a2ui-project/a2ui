@@ -132,6 +132,15 @@ class DataModel {
             current.add(null);
           }
           current[index] = value;
+        } else {
+          // Neither a map nor a list: the value that would contain this
+          // segment is a primitive, so there is nowhere to write. Silently
+          // dropping the write would leave the client holding state the
+          // server believes it applied.
+          throw A2uiDataError(
+            "Cannot set path '$path': the containing value is a primitive.",
+            path: path,
+          );
         }
       }
 
