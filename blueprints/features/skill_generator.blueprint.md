@@ -8,70 +8,117 @@ date_added: 2026-09-03
 
 # **Skill Generator Feature Blueprint**
 
-This document specifies the language-agnostic architecture and interface contracts for compiling A2UI component catalog definitions and inference format rules into standardized `SKILL.md` packages for managed agent platforms (such as Google Antigravity API, Vertex AI Agent Builder, Anthropic API with Skills, and Model Context Protocol agent sandboxes).
+This document specifies the language-agnostic architecture, API contracts, metadata specifications, and behavioral conformance rules for compiling A2UI component catalog definitions and inference format rules into standardized `SKILL.md` packages for managed agent platforms (such as Google Antigravity Managed Agent API, Vertex AI Agent Builder, Anthropic API with Skills, and Model Context Protocol agent sandboxes).
 
 ---
 
-## **Requirements**
+## **Requirements & Architectural Principles**
 
-1. **PromptGenerator Interface Decomposition**:
-   - Decompose prompt generation into three distinct sub-methods:
-     - `generate_base_rules()`: Emits syntax contract, grammar, and sentinel wrapper rules (`<a2ui>`).
-     - `generate_catalog_instructions(catalog)`: Emits component and function signatures or JSON schemas for a target catalog.
-     - `generate_examples(catalog, validate)`: Loads and formats few-shot examples for a target catalog.
+### **1. PromptGenerator Interface Decomposition**
+To support granular skill modularity, every language SDK's `PromptGenerator` (or `InferenceFormat`) base contract MUST decompose prompt generation into three independent sub-methods:
+- `generateBaseRules()`: Emits base syntax contracts, grammar specifications, and sentinel tags (`<a2ui>`).
+- `generateCatalogInstructions(catalog)`: Emits component and function signatures or JSON schemas for a target catalog.
+- `generateExamples(catalog, validate)`: Loads and formats few-shot examples for a target catalog.
 
-2. **Skill Package Structure**:
-   - Output valid markdown files named `SKILL.md` containing standard YAML frontmatter block at the top.
-   - Standard frontmatter keys: `name`, `description`, `metadata` (`protocol_version`, `inference_format`, `catalogs`).
+### **2. Shared Surface & Host-Driven Surface Control**
+- Inference format generators (e.g. `ExpressFormat`, `DirectJsonFormat`) MUST accept an optional `emitCreateSurface` flag (boolean, default: `true`).
+- When `emitCreateSurface = false`, the generated prompt instructions MUST instruct the LLM NOT to emit `createSurface` messages or surface wrappers, allowing the client host application to manage surface creation and reuse shared surfaces across agent interaction turns.
 
-3. **Generation Modes**:
-   - **Unified (Monolithic) Mode**: Generates a single `a2ui/SKILL.md` file bundling base rules, component signatures for all provided catalogs, and combined few-shot examples.
-   - **Modular Mode**: Generates `a2ui-core/SKILL.md` (containing base rules only) plus individual `a2ui-<catalog_name>/SKILL.md` files (containing signatures and examples for specific domain catalogs).
+### **3. Property Pruning & Protocol Version Alignment**
+- Format compilers MUST inspect the specified protocol version (`v0.9`, `v0.9.1`, `v1.0`).
+- For `v0.9` / `v0.9.1`, compilers MUST automatically prune properties not supported by the v0.9 basic catalog schema (such as `placeholder` in `TextInput`).
 
-4. **Distribution & Workflows**:
-   - Provide lightweight direct module execution (`python -m a2ui.skill`) and programmatic helper functions (`generate_skill(...)`).
+### **4. Remote Environment Directory Conventions**
+For managed agent sandbox environments (such as `.agents/` or `/.agents/`), generated skill packages MUST adhere to standard inline file target paths:
+- Root guide: `.agents/AGENTS.md`
+- Modular core syntax skill: `.agents/skills/a2ui-core/SKILL.md`
+- Modular catalog skills: `.agents/skills/a2ui-<catalog_name>/SKILL.md`
+- Unified monolithic skill: `.agents/skills/a2ui/SKILL.md`
 
 ---
 
-## **Detailed Description of Changes**
+## **Cross-Language API Contract**
 
-### **1. Module Additions (`a2ui_agent`)**
+Every language implementation (`a2ui-python`, `a2ui-swift`, `a2ui-kotlin`, `a2ui-node`, `a2ui-go`) MUST expose an equivalent API:
 
-Add a dedicated `skill` namespace containing:
+### **1. SkillConfig Dataclass / Struct**
+```typescript
+interface SkillConfig {
+  inferenceFormat: InferenceFormat;
+  catalogs: A2uiCatalog[];
+  name?: string;
+  description?: string;
+  modular?: boolean; // Default: false
+  includeExamples?: boolean; // Default: true
+  validateExamples?: boolean; // Default: true
+  metadata?: Record<string, any>;
+  outputDir?: string;
+}
+```
 
-- `SkillConfig`: Data structure holding generation options (`inference_format`, `catalogs`, `name`, `description`, `modular`, `include_examples`, `validate_examples`, `metadata`, `output_dir`).
-- `SkillGenerator`: Central generator engine performing catalog resolution, prompt generation decomposition, frontmatter formatting, and file export.
-- `generate_skill()`: Developer-facing helper function.
-- CLI Entry Point: Light argument parser facilitating build-time execution.
+### **2. SkillGenerator Core Engine**
+```typescript
+class SkillGenerator {
+  constructor(config: SkillConfig);
+  compile(): Record<string, string>; // Maps target filenames (e.g., "a2ui-core/SKILL.md") to markdown content
+  exportToDirectory(outputDir: string): Record<string, string>;
+}
+```
 
-### **2. Frontmatter Specification**
-
-```yaml
----
-name: a2ui
-description: Generates interactive user interface components for user requests.
-metadata:
-  protocol_version: '0.9.1'
-  inference_format: express
-  catalogs:
-    - basic
----
+### **3. Top-Level Helper Function**
+```typescript
+function generateSkill(options: SkillConfig): Record<string, string>;
 ```
 
 ---
 
-## **Test Cases & Conformance**
+## **YAML Frontmatter & Markdown Contract**
 
-1. **Unified Skill Generation Conformance**: Asserts generated `a2ui/SKILL.md` contains valid YAML frontmatter and full DSL rules.
-2. **Modular Skill Generation Conformance**: Asserts generation outputs `a2ui-core/SKILL.md` and `a2ui-<catalog_name>/SKILL.md` files.
-3. **Metadata & Custom Overrides Conformance**: Asserts custom `name`, `description`, and `metadata` overrides parse correctly.
-4. **Directory Export Conformance**: Verifies files are written to specified target directory paths.
+Every generated `SKILL.md` file MUST begin with a valid YAML frontmatter block:
+
+```markdown
+---
+name: a2ui-core
+description: Core A2UI protocol instructions and syntax rules for UI generation.
+metadata:
+  protocol_version: 0.9.1
+  inference_format: express
+  catalogs:
+    - basic
+    - commerce
+---
+
+# A2UI Express DSL Output Contract
+...
+```
+
+---
+
+## **Generation Modes**
+
+1. **Unified (Monolithic) Mode (`modular: false`)**:
+   - Produces a single `a2ui/SKILL.md` bundling base rules, component signatures for all provided catalogs, and combined few-shot examples.
+
+2. **Modular Mode (`modular: true`)**:
+   - Produces `a2ui-core/SKILL.md` (base grammar & sentinel rules only).
+   - Produces `a2ui-<catalog_name>/SKILL.md` for each provided catalog (component signatures & catalog examples).
+
+---
+
+## **Language Conformance Verification Protocol**
+
+To guarantee 100% behavioral parity across multi-language SDKs, all implementations MUST pass the language-agnostic conformance test suite against shared golden test vectors under `conformance/test_data/skills/`:
+
+1. **`express_core.skill.md`**: Validates base grammar and sentinel tag instructions.
+2. **`express_basic_catalog.skill.md`**: Validates basic catalog component signatures and pruning rules.
+3. **`express_basic_monolithic.skill.md`**: Validates monolithic bundled skill output.
 
 ---
 
 ## **Implementation Steps**
 
-1. Update `PromptGenerator` abstract base class and concrete implementations (`DirectJsonPromptGenerator`, `ExpressPromptGenerator`, `ElementalPromptGenerator`, `AtomPromptGenerator`).
-2. Implement `SkillConfig`, `SkillGenerator`, and `generate_skill` helper in `a2ui.skill`.
-3. Implement `python -m a2ui.skill` CLI entry point.
-4. Add unit and conformance tests.
+1. Decompose `PromptGenerator` abstract base class into `generateBaseRules()`, `generateCatalogInstructions()`, and `generateExamples()`.
+2. Add `emitCreateSurface` parameter to `ExpressCompiler`, `ExpressParser`, and `ExpressFormat`.
+3. Implement `SkillConfig`, `SkillGenerator`, and `generateSkill` helper function in the client SDK.
+4. Implement CLI execution entry point (`python -m a2ui.skill`, `npx a2ui-skill`, etc.).
+5. Run conformance test suite against `conformance/test_data/skills/` golden test vectors.
