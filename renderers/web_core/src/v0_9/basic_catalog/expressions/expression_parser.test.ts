@@ -77,6 +77,48 @@ describe('ExpressionParser', () => {
     assert.deepStrictEqual(parser.parse('${${"hello"}}'), ['hello']);
   });
 
+  describe('nesting depth', () => {
+    // ExpressionParser.MAX_DEPTH is private, so these mirror its value of 10.
+    const MAX_DEPTH = 10;
+
+    // '${f(a: f(a: ... 1 ...))}', nested `depth` levels deep.
+    const nestedCalls = (depth: number) => `\${${'f(a: '.repeat(depth)}1${')'.repeat(depth)}}`;
+
+    // '${${ ... x ... }}', nested `depth` levels deep.
+    const nestedInterpolations = (depth: number) => `${'${'.repeat(depth)}x${'}'.repeat(depth)}`;
+
+    it('accepts nesting up to the maximum depth', () => {
+      assert.doesNotThrow(() => parser.parse(nestedCalls(MAX_DEPTH - 1)));
+      assert.doesNotThrow(() => parser.parse(nestedInterpolations(MAX_DEPTH - 1)));
+    });
+
+    it('rejects function arguments nested past the maximum depth', () => {
+      assert.throws(() => {
+        parser.parse(nestedCalls(MAX_DEPTH + 2));
+      }, /Max recursion depth reached/);
+    });
+
+    it('rejects interpolations nested past the maximum depth', () => {
+      assert.throws(() => {
+        parser.parse(nestedInterpolations(MAX_DEPTH + 2));
+      }, /Max recursion depth reached/);
+    });
+
+    it('rejects pathological nesting instead of overflowing the stack', () => {
+      // Deep enough to exhaust the stack while the guard was unreachable. Asserted on the
+      // error kind rather than its message, so that any earlier bound on the input (a length
+      // cap, say) still satisfies the point: a pathological template is rejected with a
+      // protocol error rather than collapsing the runtime.
+      const expressionError = {name: 'A2uiExpressionError', code: 'EXPRESSION_ERROR'};
+      assert.throws(() => {
+        parser.parse(nestedCalls(50000));
+      }, expressionError);
+      assert.throws(() => {
+        parser.parse(nestedInterpolations(50000));
+      }, expressionError);
+    });
+  });
+
   it('returns error on unclosed interpolation', () => {
     assert.throws(() => {
       parser.parse('hello ${world');
