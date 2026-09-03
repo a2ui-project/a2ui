@@ -23,7 +23,19 @@ import '../primitives/errors.dart';
 import '../validation/component_graph.dart';
 import '../validation/validator.dart';
 
-/// The central processor for A2UI messages.
+/// The central processor for A2UI messages on renderer side.
+///
+/// It consumes the agent-to-renderer messages
+/// (`createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`)
+/// and builds the surface state a renderer draws from. An agent can also run
+/// it headlessly, to evaluate the UI its own payload would produce.
+///
+/// Not to be confused with the Agent SDK's `A2uiRequestProcessor`, which runs
+/// the other way: it parses model output into the payloads this consumes.
+///
+/// Checks a batch against the surface it joins, which needs that state. For
+/// checking a payload on its own, before any surface exists, see
+/// [A2uiValidator.validate].
 class MessageProcessor<T extends ComponentApi> {
   final SurfaceGroupModel<T> groupModel;
   final List<Catalog<T, FunctionImplementation>> catalogs;
