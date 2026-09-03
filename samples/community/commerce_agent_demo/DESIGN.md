@@ -75,9 +75,9 @@ PRODUCTS = [
 
 ### Agent Toolsets
 
-* `search_products(query: str, category: Optional[str], max_price: Optional[float]) -> list[dict]`
-* `get_product_details(product_id: str) -> dict`
-* `check_inventory(product_id: str) -> dict`
+- `search_products(query: str, category: Optional[str], max_price: Optional[float]) -> list[dict]`
+- `get_product_details(product_id: str) -> dict`
+- `check_inventory(product_id: str) -> dict`
 
 ### Server Execution Flow
 
@@ -101,6 +101,6 @@ sequenceDiagram
 
 ## 5. React + TypeScript Client (`client/`)
 
-* Tech stack: React 18, TypeScript, Vite, TailwindCSS / UI components.
-* A2UI Renderer: Registers custom component handlers for `ProductCard`, `ProductGrid`, `InventoryBadge`, `PriceTag`, and `CartSummary`.
-* Split layout view: Left sidebar for assistant chat conversation, Right pane for dynamic live A2UI canvas rendering.
+- Tech stack: React 18, TypeScript, Vite, TailwindCSS / UI components.
+- A2UI Renderer: Registers custom component handlers for `ProductCard`, `ProductGrid`, `InventoryBadge`, `PriceTag`, and `CartSummary`.
+- Split layout view: Left sidebar for assistant chat conversation, Right pane for dynamic live A2UI canvas rendering.

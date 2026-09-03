@@ -90,16 +90,16 @@
           "items": {
             "type": "object",
             "properties": {
-              "title": { "type": "string" },
-              "price": { "type": "number" },
-              "quantity": { "type": "number" }
+              "title": {"type": "string"},
+              "price": {"type": "number"},
+              "quantity": {"type": "number"}
             }
           },
           "description": "List of cart items."
         },
-        "subtotal": { "type": "number" },
-        "tax": { "type": "number" },
-        "total": { "type": "number" },
+        "subtotal": {"type": "number"},
+        "tax": {"type": "number"},
+        "total": {"type": "number"},
         "checkoutAction": {
           "$ref": "#/$defs/Action",
           "description": "Action event triggered when user clicks Proceed to Checkout."

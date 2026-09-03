@@ -1,105 +1,117 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>A2UI Managed Agent Skill Demo</title>
-  <style>
-    body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      max-width: 900px;
-      margin: 0 auto;
-      padding: 24px;
-      background: #f8f9fa;
-      color: #202124;
-    }
-    h1 {
-      color: #1a73e8;
-      font-size: 24px;
-      margin-bottom: 8px;
-    }
-    p {
-      color: #5f6368;
-      margin-top: 0;
-    }
-    .panel {
-      background: #ffffff;
-      border: 1px solid #dadce0;
-      border-radius: 8px;
-      padding: 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 1px 2px rgba(60,64,67,0.1);
-    }
-    textarea {
-      width: 100%;
-      height: 80px;
-      padding: 10px;
-      border: 1px solid #dadce0;
-      border-radius: 4px;
-      font-family: inherit;
-      font-size: 14px;
-      box-sizing: border-box;
-      resize: vertical;
-    }
-    button {
-      background: #1a73e8;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 4px;
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      margin-top: 10px;
-    }
-    button:hover {
-      background: #1557b0;
-    }
-    pre {
-      background: #282c34;
-      color: #abb2bf;
-      padding: 14px;
-      border-radius: 6px;
-      overflow-x: auto;
-      font-size: 13px;
-    }
-  </style>
-</head>
-<body>
-  <h1>A2UI Managed Agent Skill Demo</h1>
-  <p>Generates A2UI skills for Google Managed Agent API (Gemini), parses Express DSL responses server-side, and renders A2UI UI payloads.</p>
-
-  <div class="panel">
-    <h3>Agent Prompt</h3>
-    <textarea id="promptInput">Show me a card with a title, a subtitle, and a primary action button to save changes.</textarea>
-    <br>
-    <button onclick="submitPrompt()">Generate UI with Managed Agent</button>
-  </div>
-
-  <div class="panel">
-    <h3>Server Payload & Interception Output</h3>
-    <div id="outputLog">
-      <pre>// Server-side validated A2UI JSON payload will appear here...</pre>
-    </div>
-  </div>
-
-  <script>
-    async function submitPrompt() {
-      const prompt = document.getElementById('promptInput').value;
-      const log = document.getElementById('outputLog');
-      log.innerHTML = '<pre>Querying Google Gemini Managed Agent API...</pre>';
-
-      try {
-        const response = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: prompt })
-        });
-        const data = await response.json();
-        log.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
-      } catch (err) {
-        log.innerHTML = '<pre style="color: #f48771;">Error sending request to server: ' + err + '</pre>';
+  <head>
+    <meta charset="UTF-8" />
+    <title>A2UI Managed Agent Skill Demo</title>
+    <style>
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 24px;
+        background: #f8f9fa;
+        color: #202124;
       }
-    }
-  </script>
-</body>
+      h1 {
+        color: #1a73e8;
+        font-size: 24px;
+        margin-bottom: 8px;
+      }
+      p {
+        color: #5f6368;
+        margin-top: 0;
+      }
+      .panel {
+        background: #ffffff;
+        border: 1px solid #dadce0;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 1px 2px rgba(60, 64, 67, 0.1);
+      }
+      textarea {
+        width: 100%;
+        height: 80px;
+        padding: 10px;
+        border: 1px solid #dadce0;
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: 14px;
+        box-sizing: border-box;
+        resize: vertical;
+      }
+      button {
+        background: #1a73e8;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        margin-top: 10px;
+      }
+      button:hover {
+        background: #1557b0;
+      }
+      pre {
+        background: #282c34;
+        color: #abb2bf;
+        padding: 14px;
+        border-radius: 6px;
+        overflow-x: auto;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>A2UI Managed Agent Skill Demo</h1>
+    <p>
+      Generates A2UI skills for Google Managed Agent API (Gemini), parses Express DSL responses
+      server-side, and renders A2UI UI payloads.
+    </p>
+
+    <div class="panel">
+      <h3>Agent Prompt</h3>
+      <textarea id="promptInput">
+Show me a card with a title, a subtitle, and a primary action button to save changes.</textarea
+      >
+      <br />
+      <button onclick="submitPrompt()">Generate UI with Managed Agent</button>
+    </div>
+
+    <div class="panel">
+      <h3>Server Payload & Interception Output</h3>
+      <div id="outputLog">
+        <pre>// Server-side validated A2UI JSON payload will appear here...</pre>
+      </div>
+    </div>
+
+    <script>
+      async function submitPrompt() {
+        const prompt = document.getElementById('promptInput').value;
+        const log = document.getElementById('outputLog');
+        log.innerHTML = '<pre>Querying Google Gemini Managed Agent API...</pre>';
+
+        try {
+          const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({prompt: prompt}),
+          });
+          const data = await response.json();
+          log.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+        } catch (err) {
+          log.innerHTML =
+            '<pre style="color: #f48771;">Error sending request to server: ' + err + '</pre>';
+        }
+      }
+    </script>
+  </body>
 </html>

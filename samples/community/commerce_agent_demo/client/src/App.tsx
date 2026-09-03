@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useState} from 'react';
 
 interface ChatMessage {
   id: string;
@@ -29,31 +29,34 @@ export default function App() {
       text: textToSend,
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages(prev => [...prev, userMsg]);
     setPrompt('');
     setLoading(true);
 
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: textToSend }),
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({prompt: textToSend}),
       });
 
       const data = await response.json();
       const assistantMsg: ChatMessage = {
         id: `ast_${Date.now()}`,
         sender: 'assistant',
-        text: data.status === 'success' ? 'Here are the matching products:' : `Returned response with warning: ${data.error || ''}`,
+        text:
+          data.status === 'success'
+            ? 'Here are the matching products:'
+            : `Returned response with warning: ${data.error || ''}`,
         payload: data.a2ui_messages,
       };
 
-      setMessages((prev) => [...prev, assistantMsg]);
+      setMessages(prev => [...prev, assistantMsg]);
       if (data.a2ui_messages) {
         setActivePayload(data.a2ui_messages);
       }
     } catch (err: any) {
-      setMessages((prev) => [
+      setMessages(prev => [
         ...prev,
         {
           id: `err_${Date.now()}`,
@@ -67,7 +70,7 @@ export default function App() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f4f6f8' }}>
+    <div style={{display: 'flex', flexDirection: 'column', height: '100vh', background: '#f4f6f8'}}>
       {/* Top Header Bar */}
       <header
         style={{
@@ -80,17 +83,27 @@ export default function App() {
           boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ background: '#38bdf8', borderRadius: '8px', padding: '6px 12px', fontWeight: 'bold', color: '#0f172a' }}>
+        <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+          <div
+            style={{
+              background: '#38bdf8',
+              borderRadius: '8px',
+              padding: '6px 12px',
+              fontWeight: 'bold',
+              color: '#0f172a',
+            }}
+          >
             A2UI
           </div>
-          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Apex Commerce AI Assistant</h2>
+          <h2 style={{margin: 0, fontSize: '18px', fontWeight: 600}}>Apex Commerce AI Assistant</h2>
         </div>
-        <div style={{ fontSize: '13px', color: '#94a3b8' }}>Powered by Google Gemini & Modular A2UI Skills</div>
+        <div style={{fontSize: '13px', color: '#94a3b8'}}>
+          Powered by Google Gemini & Modular A2UI Skills
+        </div>
       </header>
 
       {/* Main Split Body */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div style={{display: 'flex', flex: 1, overflow: 'hidden'}}>
         {/* Left Sidebar: Chat */}
         <div
           style={{
@@ -102,8 +115,8 @@ export default function App() {
           }}
         >
           {/* Messages */}
-          <div style={{ flex: 1, padding: '20px', overflowY: 'auto' }}>
-            {messages.map((m) => (
+          <div style={{flex: 1, padding: '20px', overflowY: 'auto'}}>
+            {messages.map(m => (
               <div
                 key={m.id}
                 style={{
@@ -139,14 +152,25 @@ export default function App() {
               </div>
             ))}
             {loading && (
-              <div style={{ padding: '12px', color: '#64748b', fontSize: '13px', fontStyle: 'italic' }}>
+              <div
+                style={{padding: '12px', color: '#64748b', fontSize: '13px', fontStyle: 'italic'}}
+              >
                 Gemini Agent is retrieving inventory & generating UI...
               </div>
             )}
           </div>
 
           {/* Quick Prompts */}
-          <div style={{ padding: '12px 20px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <div
+            style={{
+              padding: '12px 20px',
+              background: '#f8fafc',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              gap: '8px',
+              flexWrap: 'wrap',
+            }}
+          >
             <button
               onClick={() => handleSubmit('Show headphones and mechanical keyboards with prices')}
               style={{
@@ -177,16 +201,16 @@ export default function App() {
 
           {/* Input Form */}
           <form
-            onSubmit={(e) => {
+            onSubmit={e => {
               e.preventDefault();
               handleSubmit();
             }}
-            style={{ padding: '16px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '8px' }}
+            style={{padding: '16px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '8px'}}
           >
             <input
               type="text"
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={e => setPrompt(e.target.value)}
               placeholder="Ask about products, stock, pricing..."
               style={{
                 flex: 1,
@@ -215,8 +239,10 @@ export default function App() {
         </div>
 
         {/* Right Canvas: Live A2UI UI Render */}
-        <div style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
-          <h3 style={{ marginTop: 0, color: '#334155', fontSize: '16px' }}>Dynamic A2UI Surface Canvas</h3>
+        <div style={{flex: 1, padding: '32px', overflowY: 'auto'}}>
+          <h3 style={{marginTop: 0, color: '#334155', fontSize: '16px'}}>
+            Dynamic A2UI Surface Canvas
+          </h3>
           {activePayload ? (
             <div
               style={{
@@ -227,7 +253,9 @@ export default function App() {
                 boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
               }}
             >
-              <div style={{ fontSize: '12px', color: '#16a34a', fontWeight: 600, marginBottom: '16px' }}>
+              <div
+                style={{fontSize: '12px', color: '#16a34a', fontWeight: 600, marginBottom: '16px'}}
+              >
                 ✓ Validated A2UI Stream Message Envelopes Received
               </div>
               <pre

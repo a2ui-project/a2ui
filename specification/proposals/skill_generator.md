@@ -8,10 +8,10 @@ _Created: 2026-09-02_
 
 ## TL;DR
 
-* **Core addition**: We will add a shared `SkillGenerator` utility class and `python -m a2ui.skill` lightweight execution entry point to the Python Agent SDK (`agent_sdks/python/a2ui_agent`).
-* **Key capabilities**: Decomposes `PromptGenerator` to compile component catalogs and inference format rules into unified (`a2ui`) or modular (`a2ui-core` + `a2ui-<catalog>`) `SKILL.md` packages with standard YAML frontmatter.
-* **Supported use cases**: Enables offline build-time CI generation, runtime server-side skill generation with Google Antigravity Agent API provisioning, and progressive multi-catalog skill discovery.
-* **Future roadmap**: Later, we will port `SkillGenerator` to TypeScript, Kotlin, and Dart Agent SDKs, and introduce a standalone cross-platform `a2ui` CLI tool for development-time workflows.
+- **Core addition**: We will add a shared `SkillGenerator` utility class and `python -m a2ui.skill` lightweight execution entry point to the Python Agent SDK (`agent_sdks/python/a2ui_agent`).
+- **Key capabilities**: Decomposes `PromptGenerator` to compile component catalogs and inference format rules into unified (`a2ui`) or modular (`a2ui-core` + `a2ui-<catalog>`) `SKILL.md` packages with standard YAML frontmatter.
+- **Supported use cases**: Enables offline build-time CI generation, runtime server-side skill generation with Google Antigravity Agent API provisioning, and progressive multi-catalog skill discovery.
+- **Future roadmap**: Later, we will port `SkillGenerator` to TypeScript, Kotlin, and Dart Agent SDKs, and introduce a standalone cross-platform `a2ui` CLI tool for development-time workflows.
 
 ---
 
@@ -29,9 +29,9 @@ Managed agent platforms execute LLM agent loops inside isolated sandboxes. In th
 
 Currently, developers building UI-emitting agents on managed platforms face three primary issues:
 
-* **Manual prompt construction**: Developers must manually format component JSON schemas and syntax specifications into markdown instruction files.
-* **Schema drift**: When component catalogs or inference formats change, prompt files become outdated, leading to syntax errors during runtime UI generation.
-* **Context window inflation**: Including full component catalogs in the main agent prompt consumes significant token budget, even when the user request does not require complex UI generation.
+- **Manual prompt construction**: Developers must manually format component JSON schemas and syntax specifications into markdown instruction files.
+- **Schema drift**: When component catalogs or inference formats change, prompt files become outdated, leading to syntax errors during runtime UI generation.
+- **Context window inflation**: Including full component catalogs in the main agent prompt consumes significant token budget, even when the user request does not require complex UI generation.
 
 An automated build-time and runtime skill generation pipeline resolves these issues by generating consistent, validated skill definitions directly from authoritative component catalogs and inference format definitions.
 
@@ -65,19 +65,19 @@ Internal technical details belong in the frontmatter `metadata` section, preserv
 
 ### 2. Default generation rules
 
-* **Skill Name (`name`)**:
-  * Unified / Monolithic skill: `a2ui`
-  * Modular core skill: `a2ui-core`
-  * Modular catalog skill: `a2ui-{catalog_name}` (e.g., `a2ui-forms`, `a2ui-charts`)
-* **Description (`description`)**: Constructed automatically from catalog metadata (`catalog.get("description")`) or defaults to a high-level UI generation intent:
-  * Example: `"Generates interactive user interface components for user requests."`
-* **Metadata (`metadata`)**: Preserves internal implementation details for SDK inspection and platform indexers:
+- **Skill Name (`name`)**:
+  - Unified / Monolithic skill: `a2ui`
+  - Modular core skill: `a2ui-core`
+  - Modular catalog skill: `a2ui-{catalog_name}` (e.g., `a2ui-forms`, `a2ui-charts`)
+- **Description (`description`)**: Constructed automatically from catalog metadata (`catalog.get("description")`) or defaults to a high-level UI generation intent:
+  - Example: `"Generates interactive user interface components for user requests."`
+- **Metadata (`metadata`)**: Preserves internal implementation details for SDK inspection and platform indexers:
   ```yaml
   metadata:
-    protocol_version: "0.9.1"
-    inference_format: "express"
+    protocol_version: '0.9.1'
+    inference_format: 'express'
     catalogs:
-      - "basic_catalog"
+      - 'basic_catalog'
   ```
 
 ### 3. Developer overrides
@@ -95,6 +95,7 @@ config = SkillConfig(
 ```
 
 CLI override flags:
+
 ```bash
 python -m a2ui.skill catalog.json \
     --name a2ui-finance \
@@ -103,7 +104,7 @@ python -m a2ui.skill catalog.json \
 
 ### 4. Agent discovery mechanism
 
-Managed agent platforms read the frontmatter `name` and `description` to populate their available skill index. When a user submits a prompt requiring interactive interface creation (e.g., *"Show me a dashboard of my monthly expenses"*), the agent identifies the `a2ui` skill based on its description and loads the skill to format its response.
+Managed agent platforms read the frontmatter `name` and `description` to populate their available skill index. When a user submits a prompt requiring interactive interface creation (e.g., _"Show me a dashboard of my monthly expenses"_), the agent identifies the `a2ui` skill based on its description and loads the skill to format its response.
 
 ---
 
@@ -199,12 +200,12 @@ class PromptGenerator(ABC):
 
 The `SkillGenerator` class uses these granular methods to construct unified or modular skill packages:
 
-* **Unified skill assembly**:
+- **Unified skill assembly**:
   Combines `generate_base_rules()`, `generate_catalog_instructions()`, and `generate_examples()` into a single `SKILL.md` file.
 
-* **Modular skill assembly**:
-  * Base skill (`a2ui-core`): Uses `generate_base_rules()` to generate the format's core syntax specification, envelope structure, and streaming rules.
-  * Catalog skill (`a2ui-catalog-<name>`): Uses `generate_catalog_instructions(catalog)` and `generate_examples(catalog)` to generate dedicated component documentation for specific domains.
+- **Modular skill assembly**:
+  - Base skill (`a2ui-core`): Uses `generate_base_rules()` to generate the format's core syntax specification, envelope structure, and streaming rules.
+  - Catalog skill (`a2ui-catalog-<name>`): Uses `generate_catalog_instructions(catalog)` and `generate_examples(catalog)` to generate dedicated component documentation for specific domains.
 
 ---
 
@@ -273,9 +274,9 @@ The initial implementation targets the Python Agent SDK (`agent_sdks/python/a2ui
 
 Following the Python implementation, the decomposed `PromptGenerator` interface and `SkillGenerator` utility will be ported to all official A2UI Agent SDKs:
 
-* **TypeScript / Node Agent SDK**: Enables Node.js and Express/Fastify agent servers to generate skills programmatically at runtime.
-* **Kotlin / Java Agent SDK**: Enables JVM-based agent services (Spring Boot, Ktor) to build and mount skills dynamically.
-* **Dart Agent SDK**: Enables Dart and Flutter backend services to build and register skills.
+- **TypeScript / Node Agent SDK**: Enables Node.js and Express/Fastify agent servers to generate skills programmatically at runtime.
+- **Kotlin / Java Agent SDK**: Enables JVM-based agent services (Spring Boot, Ktor) to build and mount skills dynamically.
+- **Dart Agent SDK**: Enables Dart and Flutter backend services to build and register skills.
 
 ### Phase 3: Standalone cross-platform CLI tool (`a2ui`)
 
@@ -292,17 +293,17 @@ a2ui create skill path/to/catalog.json --format express --out ./skills
 
 ### 1. Python Agent SDK changes (`agent_sdks/python/a2ui_agent/`)
 
-* `src/a2ui/prompt/generator.py`: Update `PromptGenerator` abstract base class to add abstract methods `generate_base_rules()`, `generate_catalog_instructions()`, and `generate_examples()`.
-* `src/a2ui/inference_formats/direct_json/prompt_generator.py`: Implement the three granular methods on `DirectJsonPromptGenerator`.
-* `src/a2ui/inference_formats/experimental/express/prompt_generator.py`: Implement the three granular methods on `ExpressPromptGenerator`.
-* `src/a2ui/inference_formats/experimental/elemental/prompt_generator.py`: Implement the three granular methods on `ElementalPromptGenerator`.
-* `src/a2ui/inference_formats/experimental/atom/prompt_generator.py`: Implement the three granular methods on `AtomPromptGenerator`.
-* `src/a2ui/skill/`: Create module directory containing `config.py` (`SkillConfig`), `generator.py` (`SkillGenerator`), `__main__.py` (CLI parser), and `__init__.py` (exposing `generate_skill`).
+- `src/a2ui/prompt/generator.py`: Update `PromptGenerator` abstract base class to add abstract methods `generate_base_rules()`, `generate_catalog_instructions()`, and `generate_examples()`.
+- `src/a2ui/inference_formats/direct_json/prompt_generator.py`: Implement the three granular methods on `DirectJsonPromptGenerator`.
+- `src/a2ui/inference_formats/experimental/express/prompt_generator.py`: Implement the three granular methods on `ExpressPromptGenerator`.
+- `src/a2ui/inference_formats/experimental/elemental/prompt_generator.py`: Implement the three granular methods on `ElementalPromptGenerator`.
+- `src/a2ui/inference_formats/experimental/atom/prompt_generator.py`: Implement the three granular methods on `AtomPromptGenerator`.
+- `src/a2ui/skill/`: Create module directory containing `config.py` (`SkillConfig`), `generator.py` (`SkillGenerator`), `__main__.py` (CLI parser), and `__init__.py` (exposing `generate_skill`).
 
 ### 2. Specification and blueprint updates
 
-* `blueprints/modules/agent_sdk_python.blueprint.md`: Add compliance specifications for `a2ui.skill` module interfaces.
-* `blueprints/codebases/agent_sdks/python/codebase.blueprint.md`: Update commit hash and compliance status tracking.
+- `blueprints/modules/agent_sdk_python.blueprint.md`: Add compliance specifications for `a2ui.skill` module interfaces.
+- `blueprints/codebases/agent_sdks/python/codebase.blueprint.md`: Update commit hash and compliance status tracking.
 
 ---
 
@@ -312,12 +313,12 @@ Skill generation must be verified by language-agnostic conformance tests to guar
 
 ### Test structure
 
-* Test suite path: `agent_sdks/python/a2ui_agent/tests/conformance/test_skill_generator.py`
-* Golden test data directory: `conformance/test_data/skills/`
-  * `express_basic_monolithic.skill.md`
-  * `express_core.skill.md`
-  * `express_basic_catalog.skill.md`
-  * `direct_json_basic_monolithic.skill.md`
+- Test suite path: `agent_sdks/python/a2ui_agent/tests/conformance/test_skill_generator.py`
+- Golden test data directory: `conformance/test_data/skills/`
+  - `express_basic_monolithic.skill.md`
+  - `express_core.skill.md`
+  - `express_basic_catalog.skill.md`
+  - `direct_json_basic_monolithic.skill.md`
 
 ### Test cases
 
@@ -375,10 +376,10 @@ async def chat_endpoint(websocket: WebSocket):
     async with antigravity_agent.create_conversation() as conversation:
         while True:
             user_msg = await websocket.receive_text()
-            
+
             # Send message to Antigravity sandbox
             turn_stream = conversation.send_message(user_msg)
-            
+
             # Intercept and validate agent output stream
             async for chunk in turn_stream:
                 if chunk.text:
@@ -397,13 +398,13 @@ if __name__ == "__main__":
 The web client connects to the backend WebSocket stream and renders components using `@a2ui/lit` or `@a2ui/web-core`.
 
 ```typescript
-import { SurfaceManager } from '@a2ui/web-core';
+import {SurfaceManager} from '@a2ui/web-core';
 import '@a2ui/lit';
 
 const surfaceManager = new SurfaceManager();
 const ws = new WebSocket('ws://localhost:8000/ws/chat');
 
-ws.onmessage = (event) => {
+ws.onmessage = event => {
   const messagePayload = JSON.parse(event.data);
   // Apply incoming A2UI payload (createSurface, updateComponents, updateDataModel)
   surfaceManager.applyMessage(messagePayload);
@@ -429,10 +430,10 @@ function sendMessage(text: string) {
 name: a2ui
 description: Generates interactive UI components for user requests. Use when creating interactive forms, cards, and structured user interfaces.
 metadata:
-  protocol_version: "0.9.1"
-  inference_format: "express"
+  protocol_version: '0.9.1'
+  inference_format: 'express'
   catalogs:
-    - "basic_catalog"
+    - 'basic_catalog'
 ---
 
 # A2UI Express DSL Output Contract
@@ -468,27 +469,29 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 
 Use these exact positional signatures to instantiate components. Do not output property keys:
 • Button(text, action, variant?, disabled?)
-  - Description: Standard clickable action button.
-  - text: Button label string
-  - action: Required action event or function call
-  - variant: 'primary', 'secondary', 'text'
-• Text(text, usage?)
-  - Description: Display text element.
-  - text: Text string content
-  - usage: 'heading', 'subheading', 'body'
-• Column(children, align?)
-  - Description: Vertical layout container.
-  - children: List of child component variables or constructors
+
+- Description: Standard clickable action button.
+- text: Button label string
+- action: Required action event or function call
+- variant: 'primary', 'secondary', 'text'
+  • Text(text, usage?)
+- Description: Display text element.
+- text: Text string content
+- usage: 'heading', 'subheading', 'body'
+  • Column(children, align?)
+- Description: Vertical layout container.
+- children: List of child component variables or constructors
 
 ## Positional Function Signatures
 
 Use these exact positional signatures to instantiate check rules or logic functions:
 • required(message?)
-  - Description: Validates that a field is non-empty.
+
+- Description: Validates that a field is non-empty.
 
 ### Examples:
-
 ```
+
 <a2ui>
 welcomeText = Text("Welcome to the Portal", usage="heading")
 submitBtn = Button("Submit", action=Event("submit_form"))
@@ -504,8 +507,8 @@ root = Column([welcomeText, submitBtn])
 name: a2ui-core
 description: Core A2UI protocol instructions and Express syntax rules. Load when generating user interface payloads.
 metadata:
-  protocol_version: "0.9.1"
-  inference_format: "express"
+  protocol_version: '0.9.1'
+  inference_format: 'express'
 ---
 
 # A2UI Express Core Protocol
@@ -528,9 +531,9 @@ You output user interface specifications using A2UI Express markup enclosed insi
 name: a2ui-catalog-basic
 description: Basic UI component catalog containing text, button, card, and layout container signatures.
 metadata:
-  protocol_version: "0.9.1"
-  inference_format: "express"
-  catalog: "basic_catalog"
+  protocol_version: '0.9.1'
+  inference_format: 'express'
+  catalog: 'basic_catalog'
 ---
 
 # Basic Component Catalog Signatures
@@ -538,21 +541,24 @@ metadata:
 Use these exact positional signatures to instantiate components:
 
 • Button(text, action, variant?, disabled?)
-  - Description: Standard clickable action button.
-  - text: Button label string
-  - action: Required action event or function call
-  - variant: Must be one of: 'primary', 'secondary', 'text'
+
+- Description: Standard clickable action button.
+- text: Button label string
+- action: Required action event or function call
+- variant: Must be one of: 'primary', 'secondary', 'text'
 
 • Text(text, usage?)
-  - Description: Display text element.
-  - text: Text string content
+
+- Description: Display text element.
+- text: Text string content
 
 • Column(children, align?)
-  - Description: Vertical flex container.
+
+- Description: Vertical flex container.
 
 ### Examples:
-
 ```
+
 <a2ui>
 header = Text("Settings", usage="heading")
 saveBtn = Button("Save Changes", action=Event("save_settings"), variant="primary")

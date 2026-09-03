@@ -5,7 +5,7 @@ metadata:
   protocol_version: 0.9.1
   inference_format: express
   catalogs:
-  - https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+    - https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
 ---
 
 # A2UI Express DSL Output Contract
@@ -53,8 +53,8 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 
 10. Data model population: Assign a value directly to an absolute data path (e.g. $/path/to/key = "value") to populate or initialize values inside the shared dataModel. The value can be a primitive, array, or map.
 
-11. Dynamic list templates: If a component expects a template child list, represent it using the _template helper:
-    _template($/path/to/list, itemTemplate)
+11. Dynamic list templates: If a component expects a template child list, represent it using the \_template helper:
+    \_template($/path/to/list, itemTemplate)
     And define the template component variable on another line, utilizing relative path references prefixed with $:
     itemTemplate = Image($url)
 
@@ -73,132 +73,134 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 
 Use these exact positional signatures to instantiate components. Do not output property keys:
 • AudioPlayer(url, description?, weight? (static))
-  - url: The URL of the audio to be played.
-  - description: A description of the audio, such as a title or summary.
-  - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Button(child (static), variant? (static), action (static), weight? (static), checks? (static))
-  - child: The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button.
-  - variant: A hint for the button style. If omitted, a default button style is used. 'primary' indicates this is the main call-to-action button. 'borderless' means the button has no visual border or background, making its child content appear like a clickable link. Must be one of: 'default', 'primary', 'borderless'
-  - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Card(child (static), weight? (static))
-  - child: The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID.
-  - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• CheckBox(label, value, weight? (static), checks? (static))
-  - label: The text to display next to the checkbox.
-  - value: The current state of the checkbox (true for checked, false for unchecked).
-  - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• ChoicePicker(label?, variant? (static), options (static), value, displayStyle? (static), filterable? (static), weight? (static), checks? (static))
-  - Description: A component that allows selecting one or more options from a list.
-  - label: The label for the group of options.
-  - variant: A hint for how the choice picker should be displayed and behave. Must be one of: 'multipleSelection', 'mutuallyExclusive'
-  - options: The list of available options to choose from.
-    List of maps keys:
-    * label - The text to display for this option.
-    * value - The stable value associated with this option.
-  - value: The list of currently selected values. This should be bound to a string array in the data model.
-  - displayStyle: The display style of the component. Must be one of: 'checkbox', 'chips'
-  - filterable: If true, displays a search input to filter the options.
-  - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Column(children, justify? (static), align? (static), weight? (static))
-  - Description: A layout component that arranges its children vertically. To create a grid layout, nest Rows within this Column.
-  - children: Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.
-  - justify: Defines the arrangement of children along the main axis (vertically). Use 'spaceBetween' to push items to the edges (e.g. header at top, footer at bottom), or 'start'/'end'/'center' to pack them together. Must be one of: 'start', 'center', 'end', 'spaceBetween', 'spaceAround', 'spaceEvenly', 'stretch'
-  - align: Defines the alignment of children along the cross axis (horizontally). This is similar to the CSS 'align-items' property. Must be one of: 'center', 'end', 'start', 'stretch'
-  - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• DateTimeInput(value, enableDate? (static), enableTime? (static), min?, max?, label?, weight? (static), checks? (static))
-  - value: The selected date and/or time value in ISO 8601 format. If not yet set, initialize with an empty string.
-  - enableDate: If true, allows the user to select a date.
-  - enableTime: If true, allows the user to select a time.
-  - min: The minimum allowed date/time in ISO 8601 format.
-  - max: The maximum allowed date/time in ISO 8601 format.
-  - label: The text label for the input field.
-  - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Divider(axis? (static), weight? (static))
-  - axis: The orientation of the divider. Must be one of: 'horizontal', 'vertical'
-  - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Icon(name, weight? (static))
-  - name: The name of the icon to display. Must be one of: 'accountCircle', 'add', 'arrowBack', 'arrowForward', 'attachFile', 'calendarToday', 'call', 'camera', 'check', 'close', 'delete', 'download', 'edit', 'event', 'error', 'fastForward', 'favorite', 'favoriteOff', 'folder', 'help', 'home', 'info', 'locationOn', 'lock', 'lockOpen', 'mail', 'menu', 'moreVert', 'moreHoriz', 'notificationsOff', 'notifications', 'pause', 'payment', 'person', 'phone', 'photo', 'play', 'print', 'refresh', 'rewind', 'search', 'send', 'settings', 'share', 'shoppingCart', 'skipNext', 'skipPrevious', 'star', 'starHalf', 'starOff', 'stop', 'upload', 'visibility', 'visibilityOff', 'volumeDown', 'volumeMute', 'volumeOff', 'volumeUp', 'warning'
-  - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Image(url, description?, fit? (static), variant? (static), weight? (static))
-  - url: The URL of the image to display.
-  - description: Accessibility text for the image.
-  - fit: Specifies how the image should be resized to fit its container. This corresponds to the CSS 'object-fit' property. Must be one of: 'contain', 'cover', 'fill', 'none', 'scaleDown'
-  - variant: A hint for the image size and style. Must be one of: 'icon', 'avatar', 'smallFeature', 'mediumFeature', 'largeFeature', 'header'
-  - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• List(children, direction? (static), align? (static), weight? (static))
-  - children: Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list.
-  - direction: The direction in which the list items are laid out. Must be one of: 'vertical', 'horizontal'
-  - align: Defines the alignment of children along the cross axis. Must be one of: 'start', 'center', 'end', 'stretch'
-  - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Modal(trigger (static), content (static), weight? (static))
-  - trigger: The ID of the component that opens the modal when interacted with (e.g., a button).
-  - content: The ID of the component to be displayed inside the modal.
-  - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Row(children, justify? (static), align? (static), weight? (static))
-  - Description: A layout component that arranges its children horizontally. To create a grid layout, nest Columns within this Row.
-  - children: Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.
-  - justify: Defines the arrangement of children along the main axis (horizontally). Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center' to pack them together. Must be one of: 'center', 'end', 'spaceAround', 'spaceBetween', 'spaceEvenly', 'start', 'stretch'
-  - align: Defines the alignment of children along the cross axis (vertically). This is similar to the CSS 'align-items' property, but uses camelCase values (e.g., 'start'). Must be one of: 'start', 'center', 'end', 'stretch'
-  - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Slider(label?, min? (static), max (static), value, steps? (static), weight? (static), checks? (static))
-  - label: The label for the slider.
-  - min: The minimum value of the slider.
-  - max: The maximum value of the slider.
-  - value: The current value of the slider.
-  - steps: The number of discrete divisions in the slider range. If specified, the slider will snap to discrete values.
-  - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Tabs(tabs (static), weight? (static))
-  - tabs: An array of objects, where each object defines a tab with a title and a child component.
-    List of maps keys:
-    * title - The tab title.
-    * child - The ID of the child component.
-  - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Text(text, variant? (static), weight? (static))
-  - text: The text content to display. While simple Markdown formatting is supported (i.e. without HTML, images, or links), utilizing dedicated UI components is generally preferred for a richer and more structured presentation.
-  - variant: A hint for the base text style. Must be one of: 'caption', 'body'
-  - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• TextField(label, value?, placeholder?, variant? (static), weight? (static), checks? (static))
-  - label: The text label for the input field.
-  - value: The value of the text field.
-  - placeholder: The placeholder text for the input field.
-  - variant: The type of input field to display. Must be one of: 'longText', 'number', 'shortText', 'obscured'
-  - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• Video(url, posterUrl?, weight? (static))
-  - url: The URL of the video to display.
-  - posterUrl: The URL of the poster image to display before the video plays.
-  - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
+
+- url: The URL of the audio to be played.
+- description: A description of the audio, such as a title or summary.
+- weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
+  • Button(child (static), variant? (static), action (static), weight? (static), checks? (static))
+- child: The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button.
+- variant: A hint for the button style. If omitted, a default button style is used. 'primary' indicates this is the main call-to-action button. 'borderless' means the button has no visual border or background, making its child content appear like a clickable link. Must be one of: 'default', 'primary', 'borderless'
+- weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
+  • Card(child (static), weight? (static))
+- child: The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID.
+- weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
+  • CheckBox(label, value, weight? (static), checks? (static))
+- label: The text to display next to the checkbox.
+- value: The current state of the checkbox (true for checked, false for unchecked).
+- weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
+  • ChoicePicker(label?, variant? (static), options (static), value, displayStyle? (static), filterable? (static), weight? (static), checks? (static))
+- Description: A component that allows selecting one or more options from a list.
+- label: The label for the group of options.
+- variant: A hint for how the choice picker should be displayed and behave. Must be one of: 'multipleSelection', 'mutuallyExclusive'
+- options: The list of available options to choose from.
+  List of maps keys:
+  - label - The text to display for this option.
+  - value - The stable value associated with this option.
+- value: The list of currently selected values. This should be bound to a string array in the data model.
+- displayStyle: The display style of the component. Must be one of: 'checkbox', 'chips'
+- filterable: If true, displays a search input to filter the options.
+- weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
+  • Column(children, justify? (static), align? (static), weight? (static))
+- Description: A layout component that arranges its children vertically. To create a grid layout, nest Rows within this Column.
+- children: Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.
+- justify: Defines the arrangement of children along the main axis (vertically). Use 'spaceBetween' to push items to the edges (e.g. header at top, footer at bottom), or 'start'/'end'/'center' to pack them together. Must be one of: 'start', 'center', 'end', 'spaceBetween', 'spaceAround', 'spaceEvenly', 'stretch'
+- align: Defines the alignment of children along the cross axis (horizontally). This is similar to the CSS 'align-items' property. Must be one of: 'center', 'end', 'start', 'stretch'
+- weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
+  • DateTimeInput(value, enableDate? (static), enableTime? (static), min?, max?, label?, weight? (static), checks? (static))
+- value: The selected date and/or time value in ISO 8601 format. If not yet set, initialize with an empty string.
+- enableDate: If true, allows the user to select a date.
+- enableTime: If true, allows the user to select a time.
+- min: The minimum allowed date/time in ISO 8601 format.
+- max: The maximum allowed date/time in ISO 8601 format.
+- label: The text label for the input field.
+- weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
+  • Divider(axis? (static), weight? (static))
+- axis: The orientation of the divider. Must be one of: 'horizontal', 'vertical'
+- weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
+  • Icon(name, weight? (static))
+- name: The name of the icon to display. Must be one of: 'accountCircle', 'add', 'arrowBack', 'arrowForward', 'attachFile', 'calendarToday', 'call', 'camera', 'check', 'close', 'delete', 'download', 'edit', 'event', 'error', 'fastForward', 'favorite', 'favoriteOff', 'folder', 'help', 'home', 'info', 'locationOn', 'lock', 'lockOpen', 'mail', 'menu', 'moreVert', 'moreHoriz', 'notificationsOff', 'notifications', 'pause', 'payment', 'person', 'phone', 'photo', 'play', 'print', 'refresh', 'rewind', 'search', 'send', 'settings', 'share', 'shoppingCart', 'skipNext', 'skipPrevious', 'star', 'starHalf', 'starOff', 'stop', 'upload', 'visibility', 'visibilityOff', 'volumeDown', 'volumeMute', 'volumeOff', 'volumeUp', 'warning'
+- weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
+  • Image(url, description?, fit? (static), variant? (static), weight? (static))
+- url: The URL of the image to display.
+- description: Accessibility text for the image.
+- fit: Specifies how the image should be resized to fit its container. This corresponds to the CSS 'object-fit' property. Must be one of: 'contain', 'cover', 'fill', 'none', 'scaleDown'
+- variant: A hint for the image size and style. Must be one of: 'icon', 'avatar', 'smallFeature', 'mediumFeature', 'largeFeature', 'header'
+- weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
+  • List(children, direction? (static), align? (static), weight? (static))
+- children: Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list.
+- direction: The direction in which the list items are laid out. Must be one of: 'vertical', 'horizontal'
+- align: Defines the alignment of children along the cross axis. Must be one of: 'start', 'center', 'end', 'stretch'
+- weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
+  • Modal(trigger (static), content (static), weight? (static))
+- trigger: The ID of the component that opens the modal when interacted with (e.g., a button).
+- content: The ID of the component to be displayed inside the modal.
+- weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
+  • Row(children, justify? (static), align? (static), weight? (static))
+- Description: A layout component that arranges its children horizontally. To create a grid layout, nest Columns within this Row.
+- children: Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.
+- justify: Defines the arrangement of children along the main axis (horizontally). Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center' to pack them together. Must be one of: 'center', 'end', 'spaceAround', 'spaceBetween', 'spaceEvenly', 'start', 'stretch'
+- align: Defines the alignment of children along the cross axis (vertically). This is similar to the CSS 'align-items' property, but uses camelCase values (e.g., 'start'). Must be one of: 'start', 'center', 'end', 'stretch'
+- weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
+  • Slider(label?, min? (static), max (static), value, steps? (static), weight? (static), checks? (static))
+- label: The label for the slider.
+- min: The minimum value of the slider.
+- max: The maximum value of the slider.
+- value: The current value of the slider.
+- steps: The number of discrete divisions in the slider range. If specified, the slider will snap to discrete values.
+- weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
+  • Tabs(tabs (static), weight? (static))
+- tabs: An array of objects, where each object defines a tab with a title and a child component.
+  List of maps keys:
+  - title - The tab title.
+  - child - The ID of the child component.
+- weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
+  • Text(text, variant? (static), weight? (static))
+- text: The text content to display. While simple Markdown formatting is supported (i.e. without HTML, images, or links), utilizing dedicated UI components is generally preferred for a richer and more structured presentation.
+- variant: A hint for the base text style. Must be one of: 'caption', 'body'
+- weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
+  • TextField(label, value?, placeholder?, variant? (static), weight? (static), checks? (static))
+- label: The text label for the input field.
+- value: The value of the text field.
+- placeholder: The placeholder text for the input field.
+- variant: The type of input field to display. Must be one of: 'longText', 'number', 'shortText', 'obscured'
+- weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
+  • Video(url, posterUrl?, weight? (static))
+- url: The URL of the video to display.
+- posterUrl: The URL of the poster image to display before the video plays.
+- weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 
 ## Positional Function Signatures
 
 Use these exact positional signatures to instantiate check rules or logic functions:
 • and(values)
-  - Description: Performs a logical AND operation on a list of boolean values.
-• email(value)
-  - Description: Checks that the value is a valid email address.
-• formatCurrency(value, currency, decimals?, grouping?)
-  - Description: Formats a number as a currency string.
-• formatDate(value, format)
-  - Description: Formats a timestamp into a string using a pattern.
-• formatNumber(value, decimals?, grouping?)
-  - Description: Formats a number with the specified grouping and decimal precision.
-• formatString(value)
-  - Description: Performs string interpolation of data model values and other functions in the catalog functions list and returns the resulting string. The value string can contain interpolated expressions in the `${expression}` format. Supported expression types include: JSON Pointer paths to the data model (e.g., `${/absolute/path}` or `${relative/path}`), and renderer-side function calls (e.g., `${now()}`). Function arguments must be named (e.g., `${formatDate(value:${/currentDate}, format:'MM-dd')}`). To include a literal `${` sequence, escape it as `\${`.
-• length(value, min?, max?)
-  - Description: Checks string length constraints.
-• not(value)
-  - Description: Performs a logical NOT operation on a boolean value.
-• numeric(value, min?, max?)
-  - Description: Checks numeric range constraints.
-• openUrl(url)
-  - Description: Opens the specified URL in a browser or handler (requires user activation). This function has no return value.
-• or(values)
-  - Description: Performs a logical OR operation on a list of boolean values.
-• pluralize(value, zero?, one?, two?, few?, many?, other)
-  - Description: Returns a localized string based on the Common Locale Data Repository (CLDR) plural category of the count (zero, one, two, few, many, other). Requires an 'other' fallback. For English, just use 'one' and 'other'.
-• regex(value, pattern)
-  - Description: Checks that the value matches a regular expression string.
-• required(value)
-  - Description: Checks that the value is not null, undefined, or empty.
+
+- Description: Performs a logical AND operation on a list of boolean values.
+  • email(value)
+- Description: Checks that the value is a valid email address.
+  • formatCurrency(value, currency, decimals?, grouping?)
+- Description: Formats a number as a currency string.
+  • formatDate(value, format)
+- Description: Formats a timestamp into a string using a pattern.
+  • formatNumber(value, decimals?, grouping?)
+- Description: Formats a number with the specified grouping and decimal precision.
+  • formatString(value)
+- Description: Performs string interpolation of data model values and other functions in the catalog functions list and returns the resulting string. The value string can contain interpolated expressions in the `${expression}` format. Supported expression types include: JSON Pointer paths to the data model (e.g., `${/absolute/path}` or `${relative/path}`), and renderer-side function calls (e.g., `${now()}`). Function arguments must be named (e.g., `${formatDate(value:${/currentDate}, format:'MM-dd')}`). To include a literal `${` sequence, escape it as `\${`.
+  • length(value, min?, max?)
+- Description: Checks string length constraints.
+  • not(value)
+- Description: Performs a logical NOT operation on a boolean value.
+  • numeric(value, min?, max?)
+- Description: Checks numeric range constraints.
+  • openUrl(url)
+- Description: Opens the specified URL in a browser or handler (requires user activation). This function has no return value.
+  • or(values)
+- Description: Performs a logical OR operation on a list of boolean values.
+  • pluralize(value, zero?, one?, two?, few?, many?, other)
+- Description: Returns a localized string based on the Common Locale Data Repository (CLDR) plural category of the count (zero, one, two, few, many, other). Requires an 'other' fallback. For English, just use 'one' and 'other'.
+  • regex(value, pattern)
+- Description: Checks that the value matches a regular expression string.
+  • required(value)
+- Description: Checks that the value is not null, undefined, or empty.
 
 ## Catalog Instructions
 
@@ -216,6 +218,7 @@ For layout, use the Row and Column components to organize other components.
 ## Examples
 
 Example 1: Dynamic text form
+
 ```
 <a2ui>
 surface("main")
@@ -228,6 +231,7 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?None)
 ```
 
 Example 2: Dynamic list with templates
+
 ```
 <a2ui>
 surface("main")
