@@ -45,32 +45,27 @@ Every language implementation (`a2ui-python`, `a2ui-swift`, `a2ui-kotlin`, `a2ui
 - **`Skill`**: Encapsulates a single generated skill file (`name`, `description`, `metadata`, `content`, `filename`). Provides `.to_markdown()` for frontmatter serialization and property mutators.
 - **`SkillSet`**: Collection of `Skill` objects representing a modular package (`a2ui-core`, `a2ui-basic`, `a2ui-commerce`). Provides `.export_to_directory(output_dir)`, `.to_dict()`, `.get(key)`, and dictionary iteration.
 
-### **2. SkillGenerator Core Engine**
+### **2. Simplified SkillGenerator Core Engine**
 ```typescript
 class SkillGenerator {
-  constructor(inferenceFormat: InferenceFormat, options?: SkillConfig);
+  constructor(inferenceFormat: InferenceFormat);
 
   // Generates a monolithic Skill domain object
-  generate(options?: {
-    name?: string;
-    description?: string;
-    includeExamples?: boolean;
-    validateExamples?: boolean;
-  }): Skill;
+  generate(options?: { name?: string; catalogs?: A2uiCatalog[] }): Skill;
 
   // Generates a SkillSet containing modular Skill objects
-  generateModular(options?: {
-    catalogs?: A2uiCatalog[];
-    coreName?: string; // Default: 'a2ui-core'
-    includeExamples?: boolean;
-    validateExamples?: boolean;
-  }): SkillSet;
+  generateModular(options?: { catalogs?: A2uiCatalog[] }): SkillSet;
 }
 ```
 
 ### **3. Top-Level Helper Function**
 ```typescript
-function generateSkill(options: SkillConfig): Record<string, string>;
+function generateSkill(options?: {
+  inferenceFormat?: InferenceFormat;
+  catalogs?: A2uiCatalog[];
+  outputDir?: string;
+  modular?: boolean;
+}): Record<string, string>;
 ```
 
 ---
