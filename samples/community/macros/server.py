@@ -692,7 +692,7 @@ async def chat(req: ChatRequest):
                 ),
                 macros=active_macros,
             )
-            messages = target_format.parser.parse_response(raw_text)
+            parts = target_format.parser.parse_response(raw_text)
 
             messages = []
             text_parts = []

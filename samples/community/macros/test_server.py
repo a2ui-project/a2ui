@@ -109,5 +109,58 @@ def test_preset_responses_compilation():
             m for m in messages if "updateComponents" in m or "surfaceUpdate" in m
         ]
         assert update_msg, f"Preset '{preset_name}' produced no update envelope"
-        comps = update_msg[0].get("updateComponents", {}).get("components") or update_msg[0].get("surfaceUpdate", {}).get("components")
+        comps = update_msg[0].get("updateComponents", {}).get(
+            "components"
+        ) or update_msg[0].get("surfaceUpdate", {}).get("components")
         assert len(comps) >= 1, f"Preset '{preset_name}' produced empty components"
+
+
+def test_interact_preset(client):
+    """Verifies POST /interact with a preset shortcut."""
+    response = client.post(
+        "/interact",
+        json={"prompt": "show user profile", "surfaceId": "surface_test"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["messages"]) >= 2
+    assert "messages" in data
+    assert not data["raw"].startswith("Error:")
+
+
+def test_interact_live_llm(client):
+    """Verifies POST /interact with live Gemini LLM generation, ensuring response parsing and macro expansion work end-to-end."""
+    import os
+
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if not api_key:
+        pytest.skip("GEMINI_API_KEY not set in environment.")
+
+    response = client.post(
+        "/interact",
+        json={
+            "prompt": "Create a team goal list for Cloud Platform team with 2 goals",
+            "surfaceId": "surface_live_test",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert not data["raw"].startswith("Error:"), f"LLM error: {data['raw']}"
+    assert len(data["messages"]) >= 1, "Expected at least one A2UI message from LLM"
+
+    # Verify that all components in the messages are basic catalog primitives,
+    # and all macros were expanded
+    all_components = []
+    for msg in data["messages"]:
+        if "updateComponents" in msg:
+            all_components.extend(msg["updateComponents"].get("components", []))
+        elif "surfaceUpdate" in msg:
+            all_components.extend(msg["surfaceUpdate"].get("components", []))
+
+    assert len(all_components) > 0, "No components found in messages"
+    component_types = {c["component"] for c in all_components}
+    # Macros like TeamGoalList or GoalItem should NOT appear unexpanded
+    assert "TeamGoalList" not in component_types
+    assert "GoalItem" not in component_types
+    # Basic primitives like Card, Text, Column, Row should appear
+    assert any(t in component_types for t in ["Card", "Text", "Column", "Row"])

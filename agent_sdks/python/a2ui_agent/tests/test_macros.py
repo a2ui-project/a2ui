@@ -556,3 +556,82 @@ def test_processor_argument_coercion():
     col = [c for c in expanded if c["component"] == "Column"][0]
     child_ids = col["children"]
     assert "child_slot_99" in child_ids
+
+
+def test_macro_parser_parse_response():
+    """Verifies that MacroParser.parse_response returns ResponsePart objects with fully expanded macros."""
+    from a2ui.basic_catalog.provider import BasicCatalog
+    from a2ui.schema.catalog import A2uiCatalog
+    from a2ui.schema.constants import (
+        COMMON_TYPES_SCHEMA_KEY,
+        SERVER_TO_CLIENT_SCHEMA_KEY,
+        SPEC_VERSION_MAP,
+    )
+    from a2ui.schema.utils import load_from_bundled_resource
+    from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+    @macro
+    def UserInfoCard(name: str, role: str = "Engineer") -> Card:
+        return Card(
+            child=Column(
+                children=[
+                    Text(text=name, variant="h3"),
+                    Text(text=role, variant="caption"),
+                ]
+            )
+        )
+
+    basic_config = BasicCatalog.get_config("0.9.1")
+    cat = A2uiCatalog(
+        version="0.9.1",
+        name="basic",
+        catalog_schema=basic_config.provider.load(),
+        s2c_schema=load_from_bundled_resource(
+            "0.9.1", SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
+        ),
+        common_types_schema=load_from_bundled_resource(
+            "0.9.1", COMMON_TYPES_SCHEMA_KEY, SPEC_VERSION_MAP
+        ),
+    )
+
+    fmt = MacroInferenceFormat(
+        base_format=ExpressFormat(
+            catalog=cat, surface_id="test_surf", version="v0.9.1"
+        ),
+        macros=[UserInfoCard],
+    )
+
+    llm_output = (
+        "Here is the requested user profile card:\n"
+        "<a2ui>\n"
+        'root = UserInfoCard(name="Alice Smith", role="Tech Lead")\n'
+        "</a2ui>\n"
+        "Let me know if you need any adjustments."
+    )
+
+    parts = fmt.parser.parse_response(llm_output)
+    assert len(parts) == 2
+    assert "Here is the requested user profile card:" in parts[0].text
+    assert parts[0].a2ui_raw is not None
+    assert parts[0].a2ui_json is not None
+
+    # Verify that the macro was expanded into primitive components
+    components = []
+    for msg in parts[0].a2ui_json:
+        if "updateComponents" in msg:
+            components.extend(msg["updateComponents"].get("components", []))
+        elif "surfaceUpdate" in msg:
+            components.extend(msg["surfaceUpdate"].get("components", []))
+    assert len(components) >= 3
+    # Check that UserInfoCard is NOT in components, but Card and Text are
+    comp_names = [c["component"] for c in components]
+    assert "UserInfoCard" not in comp_names
+    assert "Card" in comp_names
+    assert "Text" in comp_names
+    # Check that texts match arguments
+    text_contents = [c.get("text") for c in components if c["component"] == "Text"]
+    assert "Alice Smith" in text_contents
+    assert "Tech Lead" in text_contents
+
+    assert "Let me know if you need any adjustments." in parts[1].text
+    assert parts[1].a2ui_json is None

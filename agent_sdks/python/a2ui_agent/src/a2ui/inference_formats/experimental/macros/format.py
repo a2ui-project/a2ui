@@ -193,47 +193,6 @@ class MacroParser(Parser):
 
         return expanded_msgs
 
-    def parse_response(self, content: str) -> List[Dict[str, Any]]:
-        raw_msgs = self.underlying_parser.parse_response(content)
-        if not raw_msgs:
-            return raw_msgs
-
-        expanded_msgs: List[Dict[str, Any]] = []
-        for msg in raw_msgs:
-            if isinstance(msg, dict) and "updateComponents" in msg:
-                upd = msg["updateComponents"]
-                comps = upd.get("components", [])
-                expanded_comps = []
-                for comp in comps:
-                    if isinstance(comp, dict) and self.processor.has_macro(
-                        comp.get("component", "")
-                    ):
-                        c_name = comp["component"]
-                        c_id = comp.get("id")
-                        params = {
-                            k: v
-                            for k, v in comp.items()
-                            if k not in ("component", "id")
-                        }
-                        try:
-                            expanded = self.processor.expand(
-                                c_name, params, instance_id=c_id
-                            )
-                            expanded_comps.extend(expanded)
-                        except Exception:
-                            expanded_comps.append(comp)
-                    else:
-                        expanded_comps.append(comp)
-                new_msg = dict(msg)
-                new_upd = dict(upd)
-                new_upd["components"] = expanded_comps
-                new_msg["updateComponents"] = new_upd
-                expanded_msgs.append(new_msg)
-            else:
-                expanded_msgs.append(msg)
-
-        return expanded_msgs
-
 
 @experimental
 class MacroInferenceFormat(InferenceFormat):
