@@ -551,16 +551,6 @@
       "description": "Rebuilding a catalog document from a parsed catalog. The case names a source document rather than an SDK's own bundled catalog, so every implementation converts the same input and the assertions compare like with like.",
       "properties": {
         "action": {"const": "catalog_schema"},
-        "args": {
-          "type": "object",
-          "properties": {
-            "allowed_components": {
-              "type": "array",
-              "items": {"type": "string"},
-              "description": "Prune the catalog to these components before rebuilding, so the case can check that a narrowed catalog renders a narrowed document."
-            }
-          }
-        },
         "expect": {
           "type": "object",
           "description": "Assertions about the rebuilt document. Each is optional; a case states only what it means to check.",

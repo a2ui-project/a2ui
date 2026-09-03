@@ -56,22 +56,9 @@ String? _skipReason(Map<String, Object?> testCase) {
 
 void _runCase(Map<String, Object?> testCase) {
   final config = testCase['catalog']! as Map<String, Object?>;
-  final SchemaCatalog parsed = Catalog.fromJson(
+  final SchemaCatalog catalog = Catalog.fromJson(
     _document(config['catalog_schema']),
   );
-
-  // `allowed_components`, when present, prunes before the document is rebuilt,
-  // which is how a renderer narrows a catalog to what it can actually draw.
-  final Object? allowed = (testCase['args'] as Map<String, Object?>?)?.let(
-    (args) => args['allowed_components'],
-  );
-  final SchemaCatalog catalog = allowed is List<Object?>
-      ? parsed.copyWith(
-          components: parsed.components.values.where(
-            (c) => allowed.contains(c.name),
-          ),
-        )
-      : parsed;
 
   final Map<String, Object?> document = catalog.catalogSchema;
   final expect_ = testCase['expect']! as Map<String, Object?>;
@@ -241,8 +228,4 @@ Map<String, Object?> _document(Object? value) {
     return jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
   }
   throw StateError('Case declares no catalog schema.');
-}
-
-extension<T> on T {
-  R let<R>(R Function(T) f) => f(this);
 }
