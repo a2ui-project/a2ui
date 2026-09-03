@@ -3522,6 +3522,7 @@ There is <strong>no fallback</strong> to the list of catalogs declared in <code>
 <li><strong><code>allowedCallers</code></strong>: Must be a string enum indicating the authorized callers (<code>rendererOnly</code>, <code>agentOnly</code>, or <code>rendererOrAgent</code>). If omitted, it defaults to <code>rendererOnly</code>.</li>
 </ul>
 </li>
+<li>Base function envelope properties (<code>call</code> and <code>catalogId</code> via <code>FunctionCommon</code>) are composed at the envelope level in <code>FunctionCall</code> (<code>common_types.json#/$defs/FunctionCall</code>) via <code>allOf</code>, and therefore MUST NOT be redundantly wrapped with <code>FunctionCommon</code> via <code>allOf</code> inside individual catalog function definitions.</li>
 <li><strong>Strict Top-Level Schema Keys:</strong></li>
 <li>To keep catalog schemas predictable and prevent custom extensions from polluting the global file space, a <code>catalog.json</code> file is restricted to the following root-level keys:<ul>
 <li><code>$schema</code></li>
