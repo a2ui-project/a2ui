@@ -21,21 +21,19 @@ import '../primitives/reactivity.dart';
 import 'expressions.dart';
 
 class FormatStringFunction extends FunctionImplementation {
-  @override
-  String get name => 'formatString';
-
-  @override
-  A2uiReturnType get returnType => A2uiReturnType.string;
-
-  @override
-  Schema get argumentSchema => Schema.object(
-    properties: {
-      'value': Schema.string(
-        description: 'The string template to interpolate.',
-      ),
-    },
-    required: ['value'],
-  );
+  FormatStringFunction()
+    : super(
+        name: 'formatString',
+        returnType: A2uiReturnType.string,
+        argumentSchema: Schema.object(
+          properties: {
+            'value': Schema.string(
+              description: 'The string template to interpolate.',
+            ),
+          },
+          required: ['value'],
+        ),
+      );
 
   @override
   Object? execute(

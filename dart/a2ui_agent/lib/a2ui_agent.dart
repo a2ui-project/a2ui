@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-library;
-
 export 'src/a2ui_agent_base.dart';
 
 // TODO: Export any libraries intended for clients of this package.
