@@ -79,7 +79,7 @@
     "@a2ui/markdown-it": "workspace:*",
     "@a2ui/web_core": "workspace:*",
     "@angular/common": "^21.2.5",
-    "@angular/core": "^21.2.5",
+    "@angular/core": "^22.1.5",
     "@angular/platform-browser": "^21.2.5",
     "@preact/signals-core": "^1.14.2",
     "tslib": "^2.8.1"
@@ -87,7 +87,7 @@
   "devDependencies": {
     "@angular/build": "^21.2.5",
     "@angular/cli": "^21.2.5",
-    "@angular/compiler": "^21.2.5",
+    "@angular/compiler": "^21.2.19",
     "@angular/compiler-cli": "^21.2.5",
     "@playwright/test": "1.58.1",
     "@types/jasmine": "^6.0.0",
