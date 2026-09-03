@@ -24,8 +24,10 @@ SCREENSHOTS_DIR = os.path.join(BASE_DIR, "screenshots")
 os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
 
 
-def capture_screenshot(url: str = "http://localhost:8080", output_filename: str = "app_preview.png"):
-    """Navigates to demo app URL and captures a PNG screenshot."""
+def capture_screenshot(
+    url: str = "http://localhost:5180", output_filename: str = "app_preview.png"
+):
+    """Navigates to demo app URL, submits a query, and captures a PNG screenshot."""
     target_path = os.path.join(SCREENSHOTS_DIR, output_filename)
     print(f"Connecting to demo app at {url}...")
 
@@ -34,8 +36,16 @@ def capture_screenshot(url: str = "http://localhost:8080", output_filename: str 
         page = browser.new_page(viewport={"width": 1280, "height": 800})
 
         try:
-            page.goto(url, wait_until="networkidle", timeout=10000)
-            time.sleep(2)
+            page.goto(url, wait_until="networkidle", timeout=15000)
+            time.sleep(1)
+
+            # Click quick prompt button
+            page.click("text=🔍 Search Electronics")
+            print("Submitted query 'Search Electronics'...")
+
+            # Wait for A2UI components to render on surface canvas
+            time.sleep(20)
+
             page.screenshot(path=target_path, full_page=True)
             print(f"Successfully saved screenshot to: {target_path}")
         except Exception as e:
@@ -46,5 +56,5 @@ def capture_screenshot(url: str = "http://localhost:8080", output_filename: str 
 
 
 if __name__ == "__main__":
-    target_url = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8080"
+    target_url = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:5180"
     capture_screenshot(target_url)

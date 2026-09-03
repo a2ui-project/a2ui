@@ -1,10 +1,12 @@
-import React, {useState} from 'react';
+import React, {useState, useMemo, useSyncExternalStore} from 'react';
+import {Catalog, MessageProcessor} from '@a2ui/web_core/v0_9';
+import {basicCatalog, A2uiSurface} from '@a2ui/react/v0_9';
+import {commerceCatalog} from './commerceCatalog';
 
 interface ChatMessage {
   id: string;
   sender: 'user' | 'assistant';
   text: string;
-  payload?: any;
 }
 
 export default function App() {
@@ -17,7 +19,43 @@ export default function App() {
     },
   ]);
   const [loading, setLoading] = useState(false);
-  const [activePayload, setActivePayload] = useState<any>(null);
+  const [surfaceId, setSurfaceId] = useState<string>('main');
+
+  // Superset Catalogs combining basicCatalog (both v0.9 & v1.0 URIs) and commerceCatalog for client rendering
+  const processor = useMemo(() => {
+    const basicCatalogV1 = new Catalog(
+      'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+      Array.from(basicCatalog.components.values()),
+      basicCatalog.functions,
+    );
+
+    return new MessageProcessor(
+      [basicCatalog, basicCatalogV1, commerceCatalog],
+      (action: any) => {
+        console.log('Intercepted A2UI Action:', action);
+      },
+    );
+  }, []);
+
+  // Subscribe to A2UI surface group model changes
+  const subscribeSurfaces = (callback: () => void) => {
+    const sub = processor.model.onSurfaceCreated.subscribe(callback);
+    const sub2 = processor.model.onSurfaceDeleted.subscribe(callback);
+    return () => {
+      sub.unsubscribe();
+      sub2.unsubscribe();
+    };
+  };
+
+  const getSurfacesSnapshot = () => {
+    return processor.model.surfacesMap.size;
+  };
+
+  useSyncExternalStore(subscribeSurfaces, getSurfacesSnapshot);
+
+  const activeSurface =
+    processor.model.getSurface(surfaceId) ||
+    Array.from(processor.model.surfacesMap.values())[0];
 
   const handleSubmit = async (queryText?: string) => {
     const textToSend = queryText || prompt;
@@ -46,14 +84,19 @@ export default function App() {
         sender: 'assistant',
         text:
           data.status === 'success'
-            ? 'Here are the matching products:'
-            : `Returned response with warning: ${data.error || ''}`,
-        payload: data.a2ui_messages,
+            ? 'Here are the requested results rendered via A2UI React:'
+            : `Error: ${data.error || 'Failed to fetch'}`,
       };
 
       setMessages(prev => [...prev, assistantMsg]);
-      if (data.a2ui_messages) {
-        setActivePayload(data.a2ui_messages);
+
+      if (data.a2ui_messages && Array.isArray(data.a2ui_messages)) {
+        processor.processMessages(data.a2ui_messages);
+        for (const messageEnvelope of data.a2ui_messages) {
+          if (messageEnvelope.createSurface?.surfaceId) {
+            setSurfaceId(messageEnvelope.createSurface.surfaceId);
+          }
+        }
       }
     } catch (err: any) {
       setMessages(prev => [
@@ -70,7 +113,15 @@ export default function App() {
   };
 
   return (
-    <div style={{display: 'flex', flexDirection: 'column', height: '100vh', background: '#f4f6f8'}}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100vh',
+        background: '#f4f6f8',
+        fontFamily: 'Inter, system-ui, sans-serif',
+      }}
+    >
       {/* Top Header Bar */}
       <header
         style={{
@@ -93,105 +144,105 @@ export default function App() {
               color: '#0f172a',
             }}
           >
-            A2UI
+            A2UI React
           </div>
-          <h2 style={{margin: 0, fontSize: '18px', fontWeight: 600}}>Apex Commerce AI Assistant</h2>
+          <h2 style={{margin: 0, fontSize: '18px', fontWeight: 600}}>
+            Apex Commerce AI Assistant
+          </h2>
         </div>
         <div style={{fontSize: '13px', color: '#94a3b8'}}>
-          Powered by Google Gemini & Modular A2UI Skills
+          Powered by Gemini LLM & Modular A2UI Skills
         </div>
       </header>
 
-      {/* Main Split Body */}
+      {/* Main Container */}
       <div style={{display: 'flex', flex: 1, overflow: 'hidden'}}>
-        {/* Left Sidebar: Chat */}
+        {/* Left Sidebar: Chat Interface */}
         <div
           style={{
             width: '420px',
-            background: '#ffffff',
             borderRight: '1px solid #e2e8f0',
+            background: '#ffffff',
             display: 'flex',
             flexDirection: 'column',
           }}
         >
-          {/* Messages */}
+          {/* Chat Messages Log */}
           <div style={{flex: 1, padding: '20px', overflowY: 'auto'}}>
-            {messages.map(m => (
+            {messages.map(msg => (
               <div
-                key={m.id}
+                key={msg.id}
                 style={{
                   marginBottom: '16px',
                   display: 'flex',
                   flexDirection: 'column',
-                  alignItems: m.sender === 'user' ? 'flex-end' : 'flex-start',
+                  alignItems: msg.sender === 'user' ? 'flex-end' : 'flex-start',
                 }}
               >
                 <div
                   style={{
                     fontSize: '11px',
+                    fontWeight: 600,
                     color: '#64748b',
                     marginBottom: '4px',
-                    fontWeight: 600,
+                    textTransform: 'uppercase',
                   }}
                 >
-                  {m.sender === 'user' ? 'YOU' : 'COMMERCE AGENT'}
+                  {msg.sender === 'user' ? 'You' : 'Commerce Agent'}
                 </div>
                 <div
                   style={{
-                    background: m.sender === 'user' ? '#2563eb' : '#f1f5f9',
-                    color: m.sender === 'user' ? '#ffffff' : '#1e293b',
+                    maxWidth: '85%',
                     padding: '12px 16px',
                     borderRadius: '12px',
-                    maxWidth: '85%',
+                    background: msg.sender === 'user' ? '#2563eb' : '#f1f5f9',
+                    color: msg.sender === 'user' ? '#ffffff' : '#0f172a',
                     fontSize: '14px',
-                    lineHeight: '1.4',
+                    lineHeight: 1.5,
                   }}
                 >
-                  {m.text}
+                  {msg.text}
                 </div>
               </div>
             ))}
             {loading && (
-              <div
-                style={{padding: '12px', color: '#64748b', fontSize: '13px', fontStyle: 'italic'}}
-              >
-                Gemini Agent is retrieving inventory & generating UI...
+              <div style={{color: '#64748b', fontSize: '14px', fontStyle: 'italic'}}>
+                Agent is generating UI response...
               </div>
             )}
           </div>
 
-          {/* Quick Prompts */}
+          {/* Prompt Suggestions */}
           <div
             style={{
               padding: '12px 20px',
-              background: '#f8fafc',
-              borderTop: '1px solid #e2e8f0',
+              borderTop: '1px solid #f1f5f9',
               display: 'flex',
               gap: '8px',
-              flexWrap: 'wrap',
+              overflowX: 'auto',
             }}
           >
             <button
-              onClick={() => handleSubmit('Show headphones and mechanical keyboards with prices')}
+              onClick={() => handleSubmit('Search electronics and wireless earbuds')}
               style={{
                 fontSize: '12px',
-                background: '#ffffff',
-                border: '1px solid #cbd5e1',
-                borderRadius: '16px',
                 padding: '6px 12px',
+                borderRadius: '16px',
+                border: '1px solid #cbd5e1',
+                background: '#ffffff',
                 cursor: 'pointer',
               }}
             >
               🔍 Search Electronics
             </button>
             <button
-              onClick={() => handleSubmit('Check stock inventory for Aura Headphones')}
+              onClick={() => handleSubmit('Check stock levels for Laptop Stand')}
               style={{
                 fontSize: '12px',
-                background: '#ffffff',
-                border: '1px solid #cbd5e1',
-                borderRadius: '16px',
                 padding: '6px 12px',
+                borderRadius: '16px',
+                border: '1px solid #cbd5e1',
+                background: '#ffffff',
                 cursor: 'pointer',
               }}
             >
@@ -199,89 +250,74 @@ export default function App() {
             </button>
           </div>
 
-          {/* Input Form */}
-          <form
-            onSubmit={e => {
-              e.preventDefault();
-              handleSubmit();
+          {/* Query Input Box */}
+          <div
+            style={{
+              padding: '16px 20px',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              gap: '8px',
             }}
-            style={{padding: '16px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '8px'}}
           >
             <input
               type="text"
               value={prompt}
               onChange={e => setPrompt(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
               placeholder="Ask about products, stock, pricing..."
               style={{
                 flex: 1,
                 padding: '10px 14px',
+                borderRadius: '8px',
                 border: '1px solid #cbd5e1',
-                borderRadius: '6px',
                 fontSize: '14px',
+                outline: 'none',
               }}
             />
             <button
-              type="submit"
+              onClick={() => handleSubmit()}
               disabled={loading}
               style={{
+                padding: '10px 20px',
+                borderRadius: '8px',
+                border: 'none',
                 background: '#2563eb',
                 color: '#ffffff',
-                border: 'none',
-                borderRadius: '6px',
-                padding: '10px 16px',
                 fontWeight: 600,
                 cursor: 'pointer',
               }}
             >
               Send
             </button>
-          </form>
+          </div>
         </div>
 
-        {/* Right Canvas: Live A2UI UI Render */}
-        <div style={{flex: 1, padding: '32px', overflowY: 'auto'}}>
-          <h3 style={{marginTop: 0, color: '#334155', fontSize: '16px'}}>
+        {/* Right Canvas: Real A2UI React Surface Rendering */}
+        <div style={{flex: 1, padding: '24px', overflowY: 'auto', background: '#f8fafc'}}>
+          <h3 style={{margin: '0 0 16px 0', fontSize: '18px', color: '#0f172a'}}>
             Dynamic A2UI Surface Canvas
           </h3>
-          {activePayload ? (
+          {activeSurface ? (
             <div
               style={{
-                background: '#ffffff',
                 border: '1px solid #e2e8f0',
                 borderRadius: '12px',
                 padding: '24px',
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                background: '#ffffff',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                minHeight: '400px',
               }}
             >
-              <div
-                style={{fontSize: '12px', color: '#16a34a', fontWeight: 600, marginBottom: '16px'}}
-              >
-                ✓ Validated A2UI Stream Message Envelopes Received
-              </div>
-              <pre
-                style={{
-                  background: '#0f172a',
-                  color: '#38bdf8',
-                  padding: '16px',
-                  borderRadius: '8px',
-                  overflowX: 'auto',
-                  fontSize: '13px',
-                }}
-              >
-                {JSON.stringify(activePayload, null, 2)}
-              </pre>
+              <A2uiSurface surface={activeSurface} />
             </div>
           ) : (
             <div
               style={{
-                height: '300px',
                 border: '2px dashed #cbd5e1',
                 borderRadius: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#94a3b8',
-                fontSize: '14px',
+                padding: '48px',
+                textAlign: 'center',
+                color: '#64748b',
               }}
             >
               Submit a prompt to view generated interactive A2UI components here.

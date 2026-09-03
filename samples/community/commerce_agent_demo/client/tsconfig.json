@@ -14,7 +14,13 @@
     "strict": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@a2ui/web_core/*": ["../../../../renderers/web_core/src/*"],
+      "@a2ui/react": ["../../../../renderers/react/src/index.ts"],
+      "@a2ui/react/*": ["../../../../renderers/react/src/*"]
+    }
   },
   "include": ["src"]
 }

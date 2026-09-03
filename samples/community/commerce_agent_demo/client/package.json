@@ -18,7 +18,8 @@
     "@a2ui/react": "*",
     "@a2ui/web_core": "*",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",

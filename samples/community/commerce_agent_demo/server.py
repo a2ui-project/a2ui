@@ -24,6 +24,7 @@ Demonstrates:
 import os
 import sys
 import argparse
+import copy
 import http.server
 import socketserver
 import json
@@ -181,7 +182,17 @@ def main():
         sys.exit(1)
 
     client = genai.Client(api_key=api_key)
-    express_fmt = ExpressFormat(catalog=basic_cat)
+
+    merged_schema = copy.deepcopy(basic_cat.catalog_schema)
+    merged_schema.setdefault("components", {}).update(commerce_cat.catalog_schema.get("components", {}))
+    combined_cat = A2uiCatalog(
+        version=basic_cat.version,
+        name="combined",
+        catalog_schema=merged_schema,
+        s2c_schema=basic_cat.s2c_schema,
+        common_types_schema=basic_cat.common_types_schema,
+    )
+    express_fmt = ExpressFormat(catalog=combined_cat)
     parser_inst = express_fmt.parser
 
     if not args.serve:
