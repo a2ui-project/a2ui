@@ -373,9 +373,6 @@ export const TextFieldApi = {
       ...CommonProps,
       'label': DynamicStringSchema.describe('The text label for the input field.'),
       'value': DynamicStringSchema.describe('The value of the text field.').optional(),
-      'placeholder': DynamicStringSchema.describe(
-        'The placeholder text for the input field.',
-      ).optional(),
       'variant': z
         .enum(['longText', 'number', 'shortText', 'obscured'])
         .default('shortText')

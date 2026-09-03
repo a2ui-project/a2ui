@@ -121,12 +121,25 @@ export default function App() {
       ],
     );
 
-    return new MessageProcessor(
+    const proc = new MessageProcessor(
       [basicCatalog, supersetCatalogV1, commerceCatalog],
       (action: any) => {
         console.log('Intercepted A2UI Action:', action);
       },
     );
+
+    // Synchronously create shared surface main on initialization
+    proc.processMessages([
+      {
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 'main',
+          catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        },
+      },
+    ]);
+
+    return proc;
   }, []);
 
   // Subscribe to A2UI surface group model changes

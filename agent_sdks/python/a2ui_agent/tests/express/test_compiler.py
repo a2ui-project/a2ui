@@ -808,6 +808,19 @@ root = Text("Body")"""
         self.assertEqual(envelopes[0]["createSurface"]["surfaceId"], "header-surface")
         self.assertEqual(envelopes[1]["createSurface"]["surfaceId"], "body-surface")
 
+    def test_compilation_emit_create_surface_false(self):
+        """Validates that emit_create_surface=False outputs updateComponents and updateDataModel without createSurface."""
+        compiler = ExpressCompiler(self.catalog)
+        dsl = """$/user = "Alice"
+root = Text("Hello Alice")"""
+        envelopes = compiler.compile(dsl, surface_id="main", emit_create_surface=False)
+        self.assertEqual(len(envelopes), 2)
+        self.assertIn("updateComponents", envelopes[0])
+        self.assertEqual(envelopes[0]["updateComponents"]["surfaceId"], "main")
+        self.assertIn("updateDataModel", envelopes[1])
+        self.assertEqual(envelopes[1]["updateDataModel"]["surfaceId"], "main")
+        self.assertEqual(envelopes[1]["updateDataModel"]["value"], {"user": "Alice"})
+
 
 if __name__ == "__main__":
     unittest.main()

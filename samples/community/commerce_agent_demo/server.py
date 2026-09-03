@@ -211,7 +211,7 @@ def main():
         s2c_schema=basic_cat.s2c_schema,
         common_types_schema=basic_cat.common_types_schema,
     )
-    express_fmt = ExpressFormat(catalog=combined_cat)
+    express_fmt = ExpressFormat(catalog=combined_cat, version="v0.9.1", emit_create_surface=False)
     parser_inst = express_fmt.parser
 
     if not args.serve:

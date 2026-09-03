@@ -38,7 +38,7 @@ def capture_screenshots(url: str = "http://localhost:5180"):
             time.sleep(4)
 
             # Click quick prompt button
-            page.get_by_text("Search Electronics").click()
+            page.locator("button:has-text('Search Electronics')").click()
             print("Submitted query 'Search Electronics'...")
 
             # Wait for A2UI components to render on surface canvas
