@@ -85,6 +85,12 @@ class _SurfacePayload {
 /// payloads against the same catalogs. Implements v0.9 only: [checkVersion]
 /// and [parseMessages] reject any other version, or none.
 ///
+/// Both sides, agent and renderer, are meant to use it, through different
+/// entry points. [validate] checks a payload on its own, which is what an
+/// agent has before it sends anything to the renderer. Renderer
+/// calls the per-message entry points instead, checking each batch against
+/// the surface state it holds.
+///
 /// Every entry point is synchronous. Component schemas reach the validator
 /// with their references already inlined by `resolveSchemaRefs`, so schema
 /// validation runs through `Schema.validateSync` and never performs I/O. A
