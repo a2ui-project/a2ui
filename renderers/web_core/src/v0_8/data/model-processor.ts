@@ -367,13 +367,16 @@ export class A2uiMessageProcessor implements MessageProcessor {
       } else if (Array.isArray(current) && /^\d+$/.test(segment)) {
         current = current[parseInt(segment, 10)];
       } else if (isObject(current)) {
+        if (!Object.prototype.hasOwnProperty.call(current, segment)) {
+          return null;
+        }
         current = current[segment];
       } else {
         // If we need to traverse deeper but `current` is a primitive, the path is invalid.
         return null;
       }
     }
-    return current;
+    return current ?? null;
   }
 
   private getOrCreateSurface(surfaceId: string): Surface {
