@@ -16,6 +16,7 @@
 
 import {describe, it} from 'node:test';
 import assert from 'node:assert';
+import {ExtensionsSchema} from '../types/common-types.js';
 const zodCore = await import(
   new URL('../../../scripts/zod-generator-core.mjs', import.meta.url).href
 );
@@ -274,6 +275,28 @@ describe('generate-superset-common-types.mjs', () => {
     assert.strictEqual(merged.type, 'object');
     assert.ok(merged.properties.a);
     assert.ok(merged.properties.b);
+  });
+
+  it('validates ExtensionsSchema enforcing UAX #31 Unicode identifier keys', () => {
+    // Valid Unicode identifier keys
+    const valid = {
+      a2ui_custom: 'test',
+      myExt123: 42,
+      _private_key: true,
+      valid_identifier: {nested: 'value'},
+    };
+    const validResult = ExtensionsSchema.safeParse(valid);
+    assert.strictEqual(validResult.success, true);
+
+    // Invalid keys: containing dashes, spaces, punctuation, or leading digits
+    const invalidWithDash = ExtensionsSchema.safeParse({'invalid-key': 123});
+    assert.strictEqual(invalidWithDash.success, false);
+
+    const invalidWithSpace = ExtensionsSchema.safeParse({'invalid key': 123});
+    assert.strictEqual(invalidWithSpace.success, false);
+
+    const invalidWithLeadingDigit = ExtensionsSchema.safeParse({'123start': 123});
+    assert.strictEqual(invalidWithLeadingDigit.success, false);
   });
 });
 

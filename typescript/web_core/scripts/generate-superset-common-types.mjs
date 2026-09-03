@@ -468,7 +468,18 @@ import {markChildRef} from './child-ref-helpers.js';
   'child-list',
 )`;
     } else if (name === 'Extensions') {
-      zodCode = `z.record(z.string(), z.unknown()).describe("Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions.")`;
+      zodCode = `z.record(z.string(), z.unknown())
+  .superRefine((value, ctx) => {
+    for (const key in value) {
+      if (!key.match(/^[\\p{XID_Start}_][\\p{XID_Continue}]*$/u)) {
+        ctx.addIssue({
+          path: [key],
+          code: z.ZodIssueCode.custom,
+          message: \`Invalid extension key "\${key}": Keys MUST be Unicode identifiers (UAX #31).\`,
+        });
+      }
+    }
+  }).describe("REF:#/$defs/Extensions|Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions.")`;
     } else {
       zodCode = generateZod(rawDef, name, '', lazyEdges, topologicalOrder);
       if (name === 'DynamicValue') {

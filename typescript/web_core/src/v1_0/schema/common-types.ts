@@ -119,6 +119,17 @@ export type AccessibilityAttributes = z.infer<typeof AccessibilityAttributesSche
 
 export const ExtensionsSchema = z
   .record(z.string(), z.unknown())
+  .superRefine((value, ctx) => {
+    for (const key in value) {
+      if (!key.match(/^[\p{XID_Start}_][\p{XID_Continue}]*$/u)) {
+        ctx.addIssue({
+          path: [key],
+          code: z.ZodIssueCode.custom,
+          message: `Invalid extension key "${key}": Keys MUST be Unicode identifiers (UAX #31).`,
+        });
+      }
+    }
+  })
   .describe(
     "REF:#/$defs/Extensions|Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions.",
   );
