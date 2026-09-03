@@ -362,9 +362,8 @@ export class DataContext {
     } else {
       this.surface.dispatchError({
         code: 'EXPRESSION_ERROR',
-        message: e.message ?? `An unexpected error occurred in function ${name}.`,
+        message: e?.message ?? `An unexpected error occurred in function ${name}.`,
         expression: name,
-        details: {stack: e.stack},
       });
     }
   }
