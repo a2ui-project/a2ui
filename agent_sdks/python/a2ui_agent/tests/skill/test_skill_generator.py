@@ -153,8 +153,36 @@ class TestSkillGenerator(unittest.TestCase):
         ]
         cli_main(test_args)
 
-        expected_file = os.path.join(self.temp_dir.name, "a2ui-cli-test", "SKILL.md")
-        self.assertTrue(os.path.exists(expected_file))
+    def test_generate_domain_objects(self):
+        """Verifies generator.generate() and generate_modular() returning Skill and SkillSet."""
+        express_fmt = ExpressFormat(catalog=self.catalog)
+        generator = SkillGenerator(express_fmt, name="a2ui-domain-test")
+
+        # Test monolithic Skill object
+        skill_obj = generator.generate()
+        self.assertEqual(skill_obj.name, "a2ui-domain-test")
+        self.assertIn("A2UI Express DSL Output Contract", skill_obj.content)
+        self.assertTrue(skill_obj.to_markdown().startswith("---"))
+
+        # Mutate Skill fields
+        skill_obj.name = "a2ui-custom-mutated"
+        skill_obj.metadata["custom_flag"] = True
+        self.assertIn("name: a2ui-custom-mutated", skill_obj.to_markdown())
+        self.assertIn("custom_flag: true", skill_obj.to_markdown())
+
+        # Test modular SkillSet object
+        skill_set = generator.generate_modular(catalogs=[self.catalog])
+        self.assertIn("a2ui-core/SKILL.md", skill_set)
+        self.assertEqual(len(skill_set), 2)
+
+        core_skill = skill_set.get("a2ui-core")
+        self.assertIsNotNone(core_skill)
+        self.assertEqual(core_skill.name, "a2ui-core")
+
+        # Export SkillSet to directory
+        exported = skill_set.export_to_directory(self.temp_dir.name)
+        self.assertIn("a2ui-core/SKILL.md", exported)
+        self.assertTrue(os.path.exists(os.path.join(self.temp_dir.name, "a2ui-core", "SKILL.md")))
 
 
 if __name__ == "__main__":

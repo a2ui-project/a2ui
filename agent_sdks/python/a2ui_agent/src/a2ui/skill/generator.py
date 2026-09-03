@@ -25,15 +25,92 @@ from a2ui.skill.config import SkillConfig
 
 
 class SkillGenerator:
-    """Utility that generates monolithic or modular A2UI skill packages."""
+    """Utility that generates monolithic or modular A2UI skill packages from an InferenceFormat."""
 
-    def __init__(self, config: Optional[SkillConfig] = None):
-        """Initializes SkillGenerator with optional configuration.
+    def __init__(
+        self,
+        inference_format: Optional[Union[InferenceFormat, SkillConfig]] = None,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        metadata: Optional[dict[str, Any]] = None,
+        config: Optional[SkillConfig] = None,
+    ):
+        """Initializes SkillGenerator with an InferenceFormat or SkillConfig.
 
         Args:
-            config: SkillConfig instance.
+            inference_format: Target InferenceFormat instance or SkillConfig instance.
+            name: Default skill name override.
+            description: Default skill description override.
+            metadata: Additional metadata dictionary.
+            config: Optional SkillConfig instance for backward compatibility.
         """
-        self.config = config or SkillConfig()
+        if isinstance(inference_format, SkillConfig):
+            self.config = inference_format
+        elif config:
+            self.config = config
+        else:
+            fmt = inference_format or ExpressFormat()
+            self.config = SkillConfig(
+                inference_format=fmt,
+                name=name,
+                description=description,
+                metadata=metadata or {},
+            )
+
+    def generate(
+        self,
+        include_examples: bool = True,
+        validate_examples: bool = False,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> "Skill":
+        """Generates a single unified (monolithic) Skill domain object.
+
+        Returns:
+            Skill instance representing the compiled monolithic skill.
+        """
+        fmt = self.config.inference_format or ExpressFormat()
+        cat_list = self._resolve_catalogs(self.config.catalogs, fmt)
+        raw_dict = self._generate_unified_skill(
+            fmt=fmt,
+            catalogs=cat_list,
+            name=name or self.config.name,
+            description=description or self.config.description,
+            include_examples=include_examples,
+            validate_examples=validate_examples,
+            extra_metadata=self.config.metadata,
+        )
+        fname, content_str = list(raw_dict.items())[0]
+        return self._parse_skill_markdown(content_str, filename=fname)
+
+    def generate_modular(
+        self,
+        catalogs: Optional[list[Union[str, A2uiCatalog]]] = None,
+        include_examples: bool = True,
+        validate_examples: bool = False,
+    ) -> "SkillSet":
+        """Generates a SkillSet containing modular Skill domain objects (a2ui-core, a2ui-basic, etc.).
+
+        Returns:
+            SkillSet collection containing the compiled modular Skill objects.
+        """
+        fmt = self.config.inference_format or ExpressFormat()
+        cat_list = self._resolve_catalogs(catalogs or self.config.catalogs, fmt)
+        raw_dict = self._generate_modular_skills(
+            fmt=fmt,
+            catalogs=cat_list,
+            name=None,
+            description=self.config.description,
+            include_examples=include_examples,
+            validate_examples=validate_examples,
+            extra_metadata=self.config.metadata,
+        )
+        from a2ui.skill.skill import SkillSet
+        skill_set = SkillSet()
+        for fname, content_str in raw_dict.items():
+            sk = self._parse_skill_markdown(content_str, filename=fname)
+            skill_set.add(sk)
+        return skill_set
 
     def generate_skill(
         self,
@@ -107,6 +184,32 @@ class SkillGenerator:
             self._write_skills_to_dir(skills, out_dir)
 
         return skills
+
+    def _parse_skill_markdown(self, markdown_text: str, filename: str = "SKILL.md") -> "Skill":
+        """Parses markdown text with frontmatter into a Skill domain object."""
+        from a2ui.skill.skill import Skill
+        if markdown_text.startswith("---"):
+            parts = markdown_text.split("---", 2)
+            if len(parts) >= 3:
+                yaml_part = parts[1].strip()
+                body_part = parts[2].strip()
+                try:
+                    fm_data = yaml.safe_load(yaml_part) or {}
+                    return Skill(
+                        name=fm_data.get("name", "a2ui"),
+                        description=fm_data.get("description", ""),
+                        content=body_part,
+                        metadata=fm_data.get("metadata", {}),
+                        filename=filename,
+                    )
+                except Exception:
+                    pass
+        return Skill(
+            name="a2ui",
+            description="",
+            content=markdown_text,
+            filename=filename,
+        )
 
     def _resolve_catalogs(
         self,
@@ -205,7 +308,7 @@ class SkillGenerator:
         prompt_gen = fmt.prompt_generator
 
         # 1. Base Core Skill
-        core_name = name or "a2ui-core"
+        core_name = name or 'a2ui-core'
         core_desc = (
             description
             or "Core A2UI protocol instructions and syntax rules for UI generation."

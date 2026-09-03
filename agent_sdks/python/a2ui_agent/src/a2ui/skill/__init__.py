@@ -15,6 +15,7 @@
 """A2UI Skill Generation package."""
 
 from a2ui.skill.config import SkillConfig
+from a2ui.skill.skill import Skill, SkillSet
 from a2ui.skill.generator import SkillGenerator, generate_skill
 
-__all__ = ["SkillConfig", "SkillGenerator", "generate_skill"]
+__all__ = ["SkillConfig", "Skill", "SkillSet", "SkillGenerator", "generate_skill"]
