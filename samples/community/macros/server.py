@@ -65,7 +65,7 @@ app.add_middleware(
     allow_methods=["*"],
 )
 
-MODEL_NAME = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
+MODEL_NAME = os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest")
 BASIC_CATALOG_ID = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
 
 # Mock Secure HR / Compensation Database

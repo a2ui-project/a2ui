@@ -26,7 +26,7 @@ To test live Gemini generation in addition to the preset macros, set your API ke
 
 ```bash
 export GEMINI_API_KEY="your-api-key"
-export GEMINI_MODEL="gemini-flash-latest"  # Optional, defaults to gemini-flash-latest
+export GEMINI_MODEL="gemini-flash-lite-latest"  # Optional, defaults to gemini-flash-lite-latest
 ```
 
 ### 2. Start the frontend client
