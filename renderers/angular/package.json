@@ -42,7 +42,7 @@
   },
   "peerDependencies": {
     "@a2ui/markdown-it": "*",
-    "@angular/common": "^21.2.5",
+    "@angular/common": "^21.2.19",
     "@angular/core": "^21.2.5",
     "@angular/platform-browser": "^21.2.5"
   },
@@ -55,8 +55,8 @@
     "@a2ui/markdown-it": "*",
     "@angular/build": "^21.2.5",
     "@angular/cli": "^21.2.5",
-    "@angular/common": "^21.2.5",
-    "@angular/compiler": "^21.2.5",
+    "@angular/common": "^21.2.19",
+    "@angular/compiler": "^21.2.19",
     "@angular/compiler-cli": "^21.2.5",
     "@angular/core": "^21.2.5",
     "@angular/platform-browser": "^21.2.5",
