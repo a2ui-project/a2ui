@@ -115,7 +115,7 @@ function getDefaultStyleSheet(): CSSStyleSheet {
 }
 
 /**
- * Injects CSS variables for the A2UI basic catalog into the document.
+ * Injects CSS variables for the A2UI basic catalog into the document stylesheet collection.
  *
  * This method is used by the A2UI-provided basic catalogs of each renderer
  * so design token values can be shared across all of them.
@@ -181,10 +181,11 @@ export interface ColorVariantHoverOptions {
 }
 
 /**
- * Computes the formula for light or dark variants of a color.
- * @param type The type of variant to compute ('light' or 'dark').
- * @param options Options containing the base color variable and optional percentage.
- * @returns The CSS formula string.
+ * Computes the CSS formula for light or dark variants of a base color.
+ *
+ * @param type The variant type ('light' | 'dark').
+ * @param options Options containing base color variable and optional percentage.
+ * @returns CSS `color-mix` formula string.
  */
 export function computeColorVariant(
   type: 'light' | 'dark',
@@ -192,17 +193,18 @@ export function computeColorVariant(
 ): string;
 
 /**
- * Computes the formula for hover variants of a color.
- * @param type The type of variant to compute ('hover').
- * @param options Options containing the dark and light variant variable names.
- * @returns The CSS formula string.
+ * Computes the CSS formula for hover variants of a color using `light-dark()`.
+ *
+ * @param type The variant type ('hover').
+ * @param options Options containing dark and light variant variable names.
+ * @returns CSS `light-dark` formula string.
  */
 export function computeColorVariant(type: 'hover', options: ColorVariantHoverOptions): string;
 
 /**
- * Computes the formula for light, dark, or hover variants of a color.
- * By default, light variants are mixed with white and dark variants with black.
- * @param type The type of variant to compute ('light', 'dark', 'hover').
+ * Computes the CSS formula for light, dark, or hover variants of a color.
+ *
+ * @param type The variant type ('light', 'dark', 'hover').
  * @param options Options containing variable names, percentages, and optional mix color.
  * @returns The CSS formula string.
  *

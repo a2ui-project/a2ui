@@ -31,8 +31,7 @@ import {
 } from '../validating/integrity-checker.js';
 
 /**
- * Manages the collection of components for a specific surface and performs
- * inlined graph topology, cycle detection, and completeness validation.
+ * Collection model of components on a surface supporting topology validation and cycle detection.
  */
 export class SurfaceComponentsModel {
   private components: Map<string, ComponentModel> = new Map();
@@ -41,13 +40,13 @@ export class SurfaceComponentsModel {
   private readonly _onCreated = new EventEmitter<ComponentModel>();
   private readonly _onDeleted = new EventEmitter<string>();
 
-  /** Fires when a new component is added to the model. */
+  /** Event source firing when a new component is added to the model. */
   readonly onCreated: EventSource<ComponentModel> = this._onCreated;
-  /** Fires when a component is removed, providing the ID of the deleted component. */
+  /** Event source firing when a component is removed from the model. */
   readonly onDeleted: EventSource<string> = this._onDeleted;
 
   /**
-   * Creates a new SurfaceComponentsModel instance.
+   * Initializes a new `SurfaceComponentsModel` instance.
    *
    * @param catalogOrRefMap Optional Catalog or precomputed ComponentRefMap used for schema-driven child reference extraction.
    */
@@ -78,34 +77,48 @@ export class SurfaceComponentsModel {
   }
 
   /**
-   * Returns a copy of the component map.
+   * Returns a copy of the internal component map.
+   *
+   * @returns Map of component models keyed by component ID.
    */
   getAll(): Map<string, ComponentModel> {
     return new Map(this.components);
   }
 
   /**
-   * Checks if a component with the specified ID exists in the model.
+   * Checks whether a component with the specified ID exists in the model.
+   *
+   * @param id Component identifier to check.
+   * @returns Whether the component exists in the model.
    */
   has(id: string): boolean {
     return this.components.has(id);
   }
 
   /**
-   * Returns an iterator over the components in the model.
+   * Returns an iterator over the component ID and model entries.
    */
   get entries(): IterableIterator<[string, ComponentModel]> {
     return this.components.entries();
   }
 
+  /**
+   * Returns an iterator over all component IDs in the model.
+   */
   get keys(): IterableIterator<string> {
     return this.components.keys();
   }
 
+  /**
+   * Returns an iterator over all component models in the model.
+   */
   get values(): IterableIterator<ComponentModel> {
     return this.components.values();
   }
 
+  /**
+   * Total number of components in the model.
+   */
   get size(): number {
     return this.components.size;
   }
@@ -154,7 +167,6 @@ export class SurfaceComponentsModel {
       comp.catalog.components.size > 0
         ? comp.catalog.componentRefMap
         : (this.refMap ?? comp.catalog.componentRefMap);
-
     return Array.from(
       getComponentReferences({id: comp.id, component: comp.type, ...comp.properties}, refMap),
     );
@@ -314,7 +326,7 @@ export class SurfaceComponentsModel {
   }
 
   /**
-   * Disposes of the model and all its components.
+   * Disposes the model, clearing all components and update event emitters.
    */
   dispose(): void {
     for (const component of this.components.values()) {

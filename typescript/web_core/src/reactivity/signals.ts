@@ -23,6 +23,11 @@ import {
   Computed as PreactComputed,
 } from '@preact/signals-core';
 
+/**
+ * Generic reactive signal holding a value of type `T`.
+ *
+ * @template T Type of value managed by the signal.
+ */
 export interface Signal<T = unknown> {
   // Marker that prevents any value from being assigned as a signal.
   // Without this any object can be assigned to a signal.
@@ -30,6 +35,9 @@ export interface Signal<T = unknown> {
   unsubscribe?: () => void;
 }
 
+/**
+ * Pluggable backend adapter providing primitive reactive signal operations.
+ */
 export interface SignalImplementations {
   signal: <T>(initialValue: T) => Signal<T>;
   computed: <T>(computeFn: () => T) => Signal<T>;
@@ -70,8 +78,11 @@ export const _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION: SignalImplementations = {
 setSignalImplementation(_PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION);
 
 /**
- * Sets the implementations of the various signal-related functions.
- * This allows for signal libraries to be swapped out.
+ * Configures the active reactive signals implementation backend.
+ *
+ * Enables swapping the underlying reactivity library at runtime.
+ *
+ * @param impl Pluggable signal implementation operations.
  */
 export function setSignalImplementation(impl: SignalImplementations): void {
   // Intentionally only store the functions so we ignore any mutations of the implementation.
@@ -85,34 +96,81 @@ export function setSignalImplementation(impl: SignalImplementations): void {
   peekValueImpl = impl.peekValue;
 }
 
+/**
+ * Creates a reactive state signal initialized to the specified value.
+ *
+ * @param initialValue Initial value of the signal.
+ * @returns A reactive state signal.
+ */
 export function signal<T>(initialValue: T): Signal<T> {
   return signalImpl(initialValue);
 }
 
+/**
+ * Creates a derived reactive signal that recomputes when dependencies change.
+ *
+ * @param computeFn Calculation callback producing the derived value.
+ * @returns A reactive read-only computed signal.
+ */
 export function computed<T>(computeFn: () => T): Signal<T> {
   return computedImpl(computeFn);
 }
 
+/**
+ * Runs a side-effect callback reactively when accessed signals change.
+ *
+ * @param effectFn Callback to execute, optionally returning a cleanup function.
+ * @returns A disposal function that cancels the effect subscription.
+ */
 export function effect(effectFn: () => void | (() => void)): () => void {
   return effectImpl(effectFn);
 }
 
+/**
+ * Batches multiple signal updates to defer subscriber notifications until complete.
+ *
+ * @param batchFn Callback enclosing signal mutations.
+ */
 export function batchWrite(batchFn: () => void): void {
   return batchWriteImpl(batchFn);
 }
 
+/**
+ * Checks whether a given value is a reactive Signal.
+ *
+ * @param val Value to test.
+ * @returns Whether the value is a Signal.
+ */
 export function isSignal(val: unknown): val is Signal<unknown> {
   return isSignalImpl(val);
 }
 
+/**
+ * Reads the current value of a signal, subscribing the active reactive context.
+ *
+ * @param signal Target signal to read.
+ * @returns The current value of the signal.
+ */
 export function getValue<T>(signal: Signal<T>): T {
   return getValueImpl(signal);
 }
 
+/**
+ * Updates the current value of a writable signal, notifying subscribers.
+ *
+ * @param signal Target signal to update.
+ * @param value New value to assign.
+ */
 export function setValue<T>(signal: Signal<T>, value: T): void {
   setValueImpl(signal, value);
 }
 
+/**
+ * Reads the current value of a signal without creating a reactive subscription.
+ *
+ * @param signal Target signal to read.
+ * @returns The current value of the signal.
+ */
 export function peekValue<T>(signal: Signal<T>): T {
   return peekValueImpl(signal);
 }

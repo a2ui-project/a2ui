@@ -19,41 +19,31 @@ import type {ComponentApi} from '../../catalog/types.js';
 import {Signal, signal, peekValue, setValue} from '../../reactivity/signals.js';
 import {ResolvedBinding} from './resolved-binding.js';
 
-/** The `type` of pending and cyclic stand-in nodes. */
+/** The component type name used for pending and cyclic placeholder nodes. */
 export const PLACEHOLDER_TYPE = 'Placeholder';
 
 /**
- * Why a node is or is not resolved:
+ * Resolution state of a component node in the rendered tree.
  *
- * - `resolved`: a real component with a catalog entry; `impl` is set.
- * - `pending`: the component definition has not arrived; upgraded in place
- *   when it does.
- * - `unknown-type`: the definition arrived but its type has no catalog
- *   entry; `UNKNOWN_COMPONENT_TYPE` is reported once per component and
- *   data path.
- * - `cyclic`: the reference repeats one of the node's own ancestors;
- *   `CYCLIC_REFERENCE` is reported once per component and data path.
+ * - `resolved`: Real component with a catalog entry; `impl` is set.
+ * - `pending`: Component definition has not arrived; upgraded in place when received.
+ * - `unknown-type`: Definition arrived but its type has no catalog entry.
+ * - `cyclic`: Reference repeats one of the node's own ancestors.
  */
 export type NodeState = 'resolved' | 'pending' | 'unknown-type' | 'cyclic';
 
-/** Resolved node properties, keyed by the component's schema property names. */
+/** Resolved component node properties, keyed by property name. */
 export type NodeProps = Record<string, unknown>;
 
 /**
- * One resolved component instance in the rendered tree.
+ * Represents a single resolved component instance in the rendered tree.
  *
- * A node's `props` hold fully resolved values: `ResolvedBinding`s for
+ * Node properties hold fully resolved values: `ResolvedBinding` instances for
  * dynamic values, ready-to-call `() => void` closures for actions, and live
  * `ComponentNode` references (or arrays of them) for child properties.
  *
- * Emission contract: `props` emits when this node's own resolved properties
- * change, including when a child *reference* is replaced (a placeholder
- * upgrade, a deletion, a list change). It does not emit when a child's
- * internal properties change; subscribe to the child's `props` for that.
- *
- * The resolver creates, updates, and disposes nodes; application code reads
- * them through this interface. {@link MutableComponentNode} is the only
- * implementation.
+ * Emits when this node's own resolved properties change, including when a child
+ * reference is replaced. Does not emit when a child's internal properties change.
  */
 export interface ComponentNode<
   C extends ComponentApi = ComponentApi,
@@ -91,33 +81,46 @@ export interface ComponentNode<
   readonly props: Signal<TProps>;
   /** Fires exactly once, when this node is disposed. */
   readonly onDestroyed: EventSource<void>;
+  /** Whether this node has been disposed. */
   readonly disposed: boolean;
   /**
-   * True for any unresolved stand-in (`state` other than `resolved`). A
-   * placeholder holds the child position with empty props; when its
-   * component becomes resolvable, the resolver replaces it in place with a
-   * real node and the parent emits once.
+   * Whether this node is an unresolved stand-in (`state` other than `resolved`).
+   *
+   * A placeholder holds the child position with empty properties until the
+   * component becomes resolvable and is replaced in place.
    */
   readonly isPlaceholder: boolean;
-  /** Registers teardown work to run when this node is disposed. */
+  /**
+   * Registers teardown work to run when this node is disposed.
+   *
+   * @param cleanup Teardown callback.
+   */
   addCleanup(cleanup: () => void): void;
   /**
    * Serializes the resolved tree for debugging and headless assertions.
+   *
    * Child nodes serialize recursively, bindings as their snapshot values,
    * and action closures as the string `'<Action>'`.
+   *
+   * @returns Serialized JSON-compatible representation.
    */
   toJSON(): Record<string, unknown>;
 }
 
-/** Narrows an unknown prop value to a {@link ComponentNode}. */
+/**
+ * Narrows an unknown value to a `ComponentNode`.
+ *
+ * @param value The value to inspect.
+ * @returns Whether the value is a `ComponentNode`.
+ */
 export function isComponentNode(value: unknown): value is ComponentNode {
   return value instanceof MutableComponentNode;
 }
 
 /**
- * The write side and only implementation of {@link ComponentNode}. Not
- * exported from the package barrel: the resolver constructs, updates, and
- * disposes nodes; application code sees the read-only interface.
+ * Mutable implementation of `ComponentNode`.
+ *
+ * Used internally by the node resolver to construct, update, and dispose nodes.
  */
 export class MutableComponentNode<TProps extends NodeProps = NodeProps> implements ComponentNode<
   ComponentApi,
@@ -137,6 +140,17 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
   private cleanups: Array<() => void> = [];
   private _disposed = false;
 
+  /**
+   * Creates a new `MutableComponentNode` instance.
+   *
+   * @param instanceId Unique instance identifier in the tree.
+   * @param componentId The component ID from the payload.
+   * @param type The component type name.
+   * @param dataPath Data model scope path.
+   * @param initialProps Initial resolved properties.
+   * @param impl Optional catalog component definition.
+   * @param state Initial resolution state.
+   */
   constructor(
     instanceId: string,
     componentId: string,
@@ -155,18 +169,30 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
     this.state = state;
   }
 
+  /** Whether this node has been disposed. */
   get disposed(): boolean {
     return this._disposed;
   }
 
+  /** Whether this node is an unresolved placeholder. */
   get isPlaceholder(): boolean {
     return this.state !== 'resolved';
   }
 
+  /**
+   * Registers teardown work to run when this node is disposed.
+   *
+   * @param cleanup Teardown callback.
+   */
   addCleanup(cleanup: () => void): void {
     this.cleanups.push(cleanup);
   }
 
+  /**
+   * Serializes the resolved tree for debugging and headless assertions.
+   *
+   * @returns Serialized JSON-compatible representation.
+   */
   toJSON(): Record<string, unknown> {
     if (this.isPlaceholder) {
       return {id: this.componentId, type: this.type, state: this.state};
@@ -183,9 +209,9 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
   }
 
   /**
-   * Replaces the resolved props, emitting only if a shallow comparison shows
-   * a change. Callers must keep unchanged values reference-identical; the
-   * shallow comparison is exact only under that invariant.
+   * Replaces resolved properties, emitting only when a shallow comparison detects a change.
+   *
+   * @param next Next property dictionary.
    */
   setProps(next: TProps): void {
     if (this._disposed) {
@@ -198,8 +224,9 @@ export class MutableComponentNode<TProps extends NodeProps = NodeProps> implemen
   }
 
   /**
-   * Tears down this node: runs registered cleanups, then fires `onDestroyed`.
-   * Idempotent.
+   * Tears down this node by running cleanups and firing destruction events.
+   *
+   * This operation is idempotent.
    */
   dispose(): void {
     if (this._disposed) {

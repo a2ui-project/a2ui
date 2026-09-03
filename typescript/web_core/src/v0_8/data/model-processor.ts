@@ -58,8 +58,7 @@ import {
 } from './guards.js';
 
 /**
- * Processes and consolidates A2UIProtocolMessage objects into a structured,
- * hierarchical model of UI surfaces.
+ * Processes and consolidates A2UI v0.8 protocol messages into a structured model of UI surfaces.
  */
 export class A2uiMessageProcessor implements MessageProcessor {
   static readonly DEFAULT_SURFACE_ID = '@default';
@@ -86,6 +85,11 @@ export class A2uiMessageProcessor implements MessageProcessor {
     this.surfaces = new opts.mapCtor();
   }
 
+  /**
+   * Retrieves a map of all visible surfaces with root components.
+   *
+   * @returns Readonly map of active surfaces keyed by surface ID.
+   */
   getSurfaces(): ReadonlyMap<string, Surface> {
     const allSurfaces = this.surfaces;
     // NOTE: If a message with a `surfaceUpdate` is processed prior to a
@@ -101,10 +105,18 @@ export class A2uiMessageProcessor implements MessageProcessor {
     return visibleSurfaces;
   }
 
-  clearSurfaces() {
+  /**
+   * Clears all surface records from memory.
+   */
+  clearSurfaces(): void {
     this.surfaces.clear();
   }
 
+  /**
+   * Processes an array of server-to-client messages and applies state mutations.
+   *
+   * @param messages Array of v0.8 server-to-client messages.
+   */
   processMessages(messages: ServerToClientMessage[]): void {
     for (const rawMessage of messages) {
       const message = A2uiMessageSchema.parse(rawMessage);
@@ -128,9 +140,12 @@ export class A2uiMessageProcessor implements MessageProcessor {
   }
 
   /**
-   * Retrieves the data for a given component node and a relative path string.
-   * This correctly handles the special `.` path, which refers to the node's
-   * own data context.
+   * Retrieves data for a given component node and relative path string.
+   *
+   * @param node Component node providing data context.
+   * @param relativePath Relative or absolute JSON pointer path.
+   * @param surfaceId Surface identifier.
+   * @returns Resolved data value, or null if not found.
    */
   getData(
     node: AnyComponentNode,
@@ -154,6 +169,14 @@ export class A2uiMessageProcessor implements MessageProcessor {
     return this.getDataByPath(surface.dataModel, finalPath);
   }
 
+  /**
+   * Updates data at a path relative to a component node.
+   *
+   * @param node Component node providing data context.
+   * @param relativePath Relative or absolute JSON pointer path.
+   * @param value New value to assign.
+   * @param surfaceId Surface identifier.
+   */
   setData(
     node: AnyComponentNode | null,
     relativePath: string,
@@ -182,6 +205,13 @@ export class A2uiMessageProcessor implements MessageProcessor {
     this.setDataByPath(surface.dataModel, finalPath, value);
   }
 
+  /**
+   * Resolves a path relative to a base data context path.
+   *
+   * @param path Target path string.
+   * @param dataContextPath Base context path.
+   * @returns Resolved absolute path string.
+   */
   resolvePath(path: string, dataContextPath?: string): string {
     // If the path is absolute, it overrides any context.
     if (path.startsWith('/')) {

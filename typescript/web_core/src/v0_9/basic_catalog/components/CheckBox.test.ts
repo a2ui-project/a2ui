@@ -61,8 +61,12 @@ describe('CheckBox Component', () => {
               component: 'CheckBox',
               label: 'Check me',
               value: false,
-              isValid: false,
-              validationErrors: ['This is required'],
+              checks: [
+                {
+                  condition: false,
+                  message: 'This is required',
+                },
+              ],
             },
           ],
         },

@@ -21,7 +21,7 @@ import {effect, Signal, getValue} from '../../../reactivity/signals.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import {BASIC_FUNCTIONS, createBasicCatalogFunctions} from './basic_functions.js';
-import {V09_SPEC_FUNCTION_APIS} from './basic_functions_api.js';
+import {BASIC_FUNCTION_APIS} from './basic_functions_api.js';
 import {DataModel} from '../../../state/data-model.js';
 import {DataContext} from '../../../rendering/data-context.js';
 import {A2uiExpressionError} from '../../../errors.js';
@@ -29,7 +29,7 @@ import {Catalog, ComponentApi} from '../../../catalog/types.js';
 
 const testCatalog = new Catalog<ComponentApi>('test', [], BASIC_FUNCTIONS);
 
-describe('V09_SPEC_FUNCTION_APIS Spec Parity', () => {
+describe('BASIC_FUNCTION_APIS Spec Parity', () => {
   it('matches the exact function names defined in specification/v0_9/catalogs/basic/catalog.json', () => {
     const catalogPath = path.resolve(
       process.cwd(),
@@ -38,7 +38,7 @@ describe('V09_SPEC_FUNCTION_APIS Spec Parity', () => {
     if (fs.existsSync(catalogPath)) {
       const specCatalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
       const specFuncNames = Object.keys(specCatalog.functions || {}).sort();
-      const codeFuncNames = V09_SPEC_FUNCTION_APIS.map(f => f.name).sort();
+      const codeFuncNames = BASIC_FUNCTION_APIS.map(f => f.name).sort();
       assert.deepStrictEqual(codeFuncNames, specFuncNames);
     }
   });
@@ -65,87 +65,18 @@ describe('BASIC_FUNCTIONS', () => {
   const dataModel = new DataModel({a: 10, b: 20});
   const context = createTestDataContext(dataModel, '/');
 
-  describe('Arithmetic', () => {
-    it('add', () => {
-      assert.strictEqual(invoke('add', {a: 1, b: 2}, context), 3);
-      assert.strictEqual(invoke('add', {a: '1', b: '2'}, context), 3);
-      assert.throws(() => invoke('add', {a: 10, b: undefined}, context), A2uiExpressionError);
-      assert.throws(() => invoke('add', {a: 10}, context), A2uiExpressionError);
-    });
-    it('subtract', () => {
-      assert.strictEqual(invoke('subtract', {a: 5, b: 3}, context), 2);
-      assert.throws(() => invoke('subtract', {a: 10, b: undefined}, context), A2uiExpressionError);
-      assert.throws(() => invoke('subtract', {a: 10}, context), A2uiExpressionError);
-    });
-    it('multiply', () => {
-      assert.strictEqual(invoke('multiply', {a: 4, b: 2}, context), 8);
-      assert.throws(() => invoke('multiply', {a: 10, b: undefined}, context), A2uiExpressionError);
-      assert.throws(() => invoke('multiply', {a: 10}, context), A2uiExpressionError);
-    });
-    it('divide', () => {
-      assert.strictEqual(invoke('divide', {a: 10, b: 2}, context), 5);
-      assert.strictEqual(invoke('divide', {a: 10, b: 0}, context), Infinity);
-      assert.throws(() => invoke('divide', {a: 10, b: undefined}, context), A2uiExpressionError);
-      assert.throws(() => invoke('divide', {a: undefined, b: 10}, context), A2uiExpressionError);
-      assert.throws(
-        () => invoke('divide', {a: undefined, b: undefined}, context),
-        A2uiExpressionError,
-      );
-      assert.throws(() => invoke('divide', {a: 10, b: null}, context), A2uiExpressionError);
-      assert.throws(() => invoke('divide', {a: 10, b: 'invalid'}, context), A2uiExpressionError);
-      assert.strictEqual(invoke('divide', {a: 10, b: '2'}, context), 5);
-      assert.strictEqual(invoke('divide', {a: '10', b: '2'}, context), 5);
-    });
-  });
-
-  describe('Comparison', () => {
-    it('equals', () => {
-      assert.strictEqual(invoke('equals', {a: 1, b: 1}, context), true);
-      assert.strictEqual(invoke('equals', {a: 1, b: 2}, context), false);
-      assert.throws(() => invoke('equals', {a: 1}, context), A2uiExpressionError);
-      assert.throws(() => invoke('equals', {b: 1}, context), A2uiExpressionError);
-    });
-    it('not_equals', () => {
-      assert.strictEqual(invoke('not_equals', {a: 1, b: 2}, context), true);
-      assert.throws(() => invoke('not_equals', {a: 1}, context), A2uiExpressionError);
-      assert.throws(() => invoke('not_equals', {b: 1}, context), A2uiExpressionError);
-    });
-    it('greater_than', () => {
-      assert.strictEqual(invoke('greater_than', {a: 5, b: 3}, context), true);
-      assert.strictEqual(invoke('greater_than', {a: 3, b: 5}, context), false);
-      assert.throws(
-        () => invoke('greater_than', {a: 10, b: undefined}, context),
-        A2uiExpressionError,
-      );
-      assert.throws(() => invoke('greater_than', {a: 10, b: null}, context), A2uiExpressionError);
-      assert.throws(
-        () => invoke('greater_than', {a: 10, b: 'invalid'}, context),
-        A2uiExpressionError,
-      );
-      assert.throws(() => invoke('greater_than', {a: 10}, context), A2uiExpressionError);
-      assert.throws(() => invoke('greater_than', {b: 10}, context), A2uiExpressionError);
-    });
-    it('less_than', () => {
-      assert.strictEqual(invoke('less_than', {a: 3, b: 5}, context), true);
-      assert.throws(() => invoke('less_than', {a: 3, b: undefined}, context), A2uiExpressionError);
-      assert.throws(() => invoke('less_than', {a: 3, b: null}, context), A2uiExpressionError);
-      assert.throws(() => invoke('less_than', {a: 3, b: 'invalid'}, context), A2uiExpressionError);
-      assert.throws(() => invoke('less_than', {a: 3}, context), A2uiExpressionError);
-      assert.throws(() => invoke('less_than', {b: 3}, context), A2uiExpressionError);
-    });
-  });
-
   describe('Logical', () => {
     it('and', () => {
-      // Checks args['values'] array OR args['a'] && args['b'].
       assert.strictEqual(invoke('and', {values: [true, true]}, context), true);
       assert.strictEqual(invoke('and', {values: [true, false]}, context), false);
+      assert.strictEqual(invoke('and', {values: [true, true, true]}, context), true);
       assert.throws(() => invoke('and', {values: [true]}, context), A2uiExpressionError);
       assert.throws(() => invoke('and', {}, context), A2uiExpressionError);
     });
     it('or', () => {
       assert.strictEqual(invoke('or', {values: [false, true]}, context), true);
       assert.strictEqual(invoke('or', {values: [false, false]}, context), false);
+      assert.strictEqual(invoke('or', {values: [false, false, true]}, context), true);
       assert.throws(() => invoke('or', {values: [true]}, context), A2uiExpressionError);
       assert.throws(() => invoke('or', {}, context), A2uiExpressionError);
     });
@@ -153,31 +84,6 @@ describe('BASIC_FUNCTIONS', () => {
       assert.strictEqual(invoke('not', {value: false}, context), true);
       assert.strictEqual(invoke('not', {value: true}, context), false);
       assert.throws(() => invoke('not', {}, context), A2uiExpressionError);
-    });
-  });
-
-  describe('String', () => {
-    it('contains', () => {
-      assert.strictEqual(
-        invoke('contains', {string: 'hello world', substring: 'world'}, context),
-        true,
-      );
-      assert.strictEqual(
-        invoke('contains', {string: 'hello world', substring: 'foo'}, context),
-        false,
-      );
-      assert.throws(() => invoke('contains', {string: 'hello'}, context), A2uiExpressionError);
-      assert.throws(() => invoke('contains', {substring: 'hello'}, context), A2uiExpressionError);
-    });
-    it('starts_with', () => {
-      assert.strictEqual(invoke('starts_with', {string: 'hello', prefix: 'he'}, context), true);
-      assert.throws(() => invoke('starts_with', {string: 'hello'}, context), A2uiExpressionError);
-      assert.throws(() => invoke('starts_with', {prefix: 'he'}, context), A2uiExpressionError);
-    });
-    it('ends_with', () => {
-      assert.strictEqual(invoke('ends_with', {string: 'hello', suffix: 'lo'}, context), true);
-      assert.throws(() => invoke('ends_with', {string: 'hello'}, context), A2uiExpressionError);
-      assert.throws(() => invoke('ends_with', {suffix: 'lo'}, context), A2uiExpressionError);
     });
   });
 

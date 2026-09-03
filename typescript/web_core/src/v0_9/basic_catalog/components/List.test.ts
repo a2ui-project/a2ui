@@ -63,7 +63,6 @@ describe('List Component', () => {
               id: 'comp1',
               component: 'List',
               children: ['txt1', 'txt2'],
-              listStyle: 'unordered',
             },
             {
               id: 'txt1',
@@ -102,8 +101,8 @@ describe('List Component', () => {
     });
 
     assert.notStrictEqual(el, null);
-    const ul = el.querySelector('ul.a2ui-list');
-    assert.notStrictEqual(ul, null);
+    const listDiv = el.querySelector('.a2ui-list');
+    assert.notStrictEqual(listDiv, null);
 
     const textElements = el.querySelectorAll('a2ui-basic-text');
     assert.strictEqual(textElements.length, 2);
@@ -122,7 +121,6 @@ describe('List Component', () => {
               id: 'list-reorder',
               component: 'List',
               children: ['item1', 'item2', 'item3'],
-              listStyle: 'ordered',
             },
             {id: 'item1', component: 'Text', text: 'First Item'},
             {id: 'item2', component: 'Text', text: 'Second Item'},
@@ -164,7 +162,6 @@ describe('List Component', () => {
               id: 'list-reorder',
               component: 'List',
               children: ['item3', 'item1', 'item2'],
-              listStyle: 'ordered',
             },
           ],
         },

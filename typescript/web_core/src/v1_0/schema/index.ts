@@ -15,9 +15,10 @@
  */
 
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
-// Generated from specification/v1_0/json/ via scripts/generate-zod-schemas.mjs
-export * from './common-types.js';
+// Generated from specification/v1.0/json/ via src/v1_0/scripts/generate-schemas.mjs
 export * from './agent-to-renderer.js';
-export * from './renderer-to-agent.js';
-export * from './renderer-capabilities.js';
 export * from './catalog-definition.js';
+export * from './common-types.js';
+export * from './renderer-capabilities.js';
+export * from './renderer-to-agent.js';
+export * from './helpers.js';

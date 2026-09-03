@@ -25,11 +25,11 @@ import {
   UpdateComponentsMessageSchema,
   UpdateDataModelMessageSchema,
   DeleteSurfaceMessageSchema,
-} from './server-to-client.js';
+} from '../schema/server-to-client.js';
 
-const currentDir = typeof __dirname !== 'undefined' ? __dirname : resolve('src/v0_9/schema');
-const specPathCandidate1 = resolve(currentDir, '../../../../../specification/v0_9/json');
-const specPathCandidate2 = resolve(currentDir, '../../../../../../specification/v0_9/json');
+const currentDir = typeof __dirname !== 'undefined' ? __dirname : resolve('src/v0_9/test');
+const specPathCandidate1 = resolve(currentDir, '../../../../specification/v0_9/json');
+const specPathCandidate2 = resolve(currentDir, '../../../../../specification/v0_9/json');
 const SPEC_DIR_V0_9 = existsSync(specPathCandidate1) ? specPathCandidate1 : specPathCandidate2;
 
 // Parse both so we can do structural comparison rather than formatting

@@ -43,6 +43,7 @@ export * from './nodes/node-resolver.js';
 export * from './nodes/ref-fields.js';
 export * from './nodes/resolved-binding.js';
 export * from './schema/index.js';
+export * from './standard_defs.js';
 export * from '../state/component-model.js';
 export * from '../state/data-model.js';
 export * from '../state/surface-components-model.js';

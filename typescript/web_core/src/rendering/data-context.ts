@@ -1,4 +1,3 @@
-// Force rebuild by wireit
 /*
  * Copyright 2024 Google LLC
  *
@@ -27,31 +26,29 @@ import {
 } from '../reactivity/signals.js';
 import {z} from 'zod';
 import {DataModel, DataSubscription} from '../state/data-model.js';
-import type {DynamicValue, DataBinding, FunctionCall, Action} from '../types/common-types.js';
+import type {DataBinding, FunctionCall, Action} from '../types/common-types.js';
 import {A2uiExpressionError} from '../errors.js';
 
 import {FunctionInvoker} from '../catalog/function_invoker.js';
 import {SurfaceModel} from '../state/surface-model.js';
 
 /**
- * A contextual view of the main DataModel, serving as the unified interface for resolving
- * DynamicValues (literals, data paths, function calls) within a specific scope.
+ * Scoped view of the main DataModel for resolving DynamicValues within a component hierarchy.
  *
- * Components use `DataContext` instead of interacting with the `DataModel` directly.
- * It automatically handles resolving relative paths against the component's current scope
+ * Automatically resolves relative paths against the component's current scope
  * and provides tools for evaluating complex, reactive expressions.
  */
 export class DataContext {
-  /** The shared, global DataModel instance for the entire UI surface. */
+  /** Shared DataModel instance for the UI surface. */
   readonly dataModel: DataModel;
-  /** A callback for executing function calls defined in the A2UI component tree. */
+  /** Callback for executing function calls defined in the A2UI component tree. */
   readonly functionInvoker: FunctionInvoker;
 
   /**
-   * Initializes a new DataContext.
+   * Initializes a new DataContext instance.
    *
    * @param surface The surface model this context belongs to.
-   * @param path The absolute path in the DataModel that this context is scoped to (its "current working directory").
+   * @param path The absolute path in the DataModel that this context is scoped to.
    */
   constructor(
     readonly surface: SurfaceModel<any>,
@@ -64,13 +61,10 @@ export class DataContext {
   /**
    * Mutates the underlying DataModel at the specified path.
    *
-   * This is the primary method for components to push state changes (e.g. user input)
-   * back up to the global model.
-   *
-   * @param path A JSON pointer path. If relative, it is resolved against this context's `path`.
-   * @param value The new value to store in the DataModel.
+   * @param path JSON pointer path, resolved relative to this context's `path` if not absolute.
+   * @param value New value to store in the DataModel.
    */
-  set(path: string, value: any): void {
+  set(path: string, value: unknown): void {
     const absolutePath = this.resolvePath(path);
     this.dataModel.set(absolutePath, value);
   }
@@ -90,17 +84,15 @@ export class DataContext {
   }
 
   /**
-   * Synchronously evaluates a `DynamicValue` (a literal, a path binding, or a function call)
-   * into its concrete runtime value.
+   * Synchronously evaluates a DynamicValue into its concrete runtime value.
    *
-   * **Note:** This method evaluates the value *once* at the current moment in time.
-   * It does not create any reactive subscriptions. If the underlying data changes later,
-   * this result will not automatically update. Use `subscribeDynamicValue` for reactive updates.
+   * Evaluates the value once at the current moment without creating reactive subscriptions.
+   * Use `subscribeDynamicValue` for reactive updates.
    *
-   * @param value The DynamicValue object from the A2UI JSON payload.
+   * @param value The DynamicValue object or raw value from the A2UI JSON payload.
    * @returns The synchronously resolved value.
    */
-  resolveDynamicValue<V>(value: DynamicValue): V {
+  resolveDynamicValue<V>(value: unknown): V {
     // 1. Primitive literals (null, string, number, boolean)
     if (value === null || typeof value !== 'object') {
       return value as V;
@@ -124,9 +116,9 @@ export class DataContext {
     // 3. Function Call: { call: "...", args: ... }
     if ('call' in value) {
       const call = value as FunctionCall;
-      const args: Record<string, any> = {};
+      const args: Record<string, unknown> = {};
 
-      for (const [key, argVal] of Object.entries(call.args)) {
+      for (const [key, argVal] of Object.entries(call.args ?? {})) {
         args[key] = this.resolveDynamicValue(argVal);
       }
 
@@ -135,7 +127,7 @@ export class DataContext {
       const result = this.evaluateFunctionReactive<V>(call.call, args, abortController.signal);
 
       if (result === undefined) {
-        return undefined as any;
+        return undefined as unknown as V;
       }
 
       return (isSignal(result) ? peekValue(result) : result) as V;
@@ -145,19 +137,18 @@ export class DataContext {
   }
 
   /**
-   * Reactively listens to changes in a `DynamicValue`.
+   * Reactively listens to changes in a DynamicValue.
    *
-   * This is the core reactive binding mechanism. Whenever the underlying data changes
-   * (or if a function call's dependencies change), the `onChange` callback will be fired
-   * with the freshly evaluated result.
+   * Whenever the underlying data or function dependencies change, the `onChange`
+   * callback fires with the freshly evaluated result.
    *
-   * @template V The expected type of the resolved value.
-   * @param value The DynamicValue to evaluate and observe.
-   * @param onChange A callback fired whenever the evaluated result changes.
-   * @returns A `DataSubscription` containing the initial synchronously-resolved value, along with an `unsubscribe` method to clean up the listener.
+   * @template V Expected type of the resolved value.
+   * @param value The DynamicValue or raw value to evaluate and observe.
+   * @param onChange Callback fired whenever the evaluated result changes.
+   * @returns A subscription containing the current value and an `unsubscribe` method.
    */
   subscribeDynamicValue<V>(
-    value: DynamicValue,
+    value: unknown,
     onChange: (value: V | undefined) => void,
   ): DataSubscription<V> {
     const sig = this.resolveSignal<V>(value);
@@ -186,16 +177,17 @@ export class DataContext {
   }
 
   /**
-   * Returns a Preact Signal representing the reactive dynamic value.
+   * Resolves a DynamicValue into a reactive Signal.
    *
-   * This method recursively resolves any nested path bindings or function calls into a
-   * single, reactive `Signal`. Any changes to the underlying data or function dependencies
-   * will cause this signal's value to update.
+   * Recursively resolves any nested path bindings or function calls into a
+   * single reactive `Signal`. Changes to underlying data or function dependencies
+   * cause the signal's value to update.
    *
-   * @param value The DynamicValue to evaluate and observe.
-   * @returns A Preact Signal containing the reactive result of the evaluation.
+   * @template V Expected type of the signal value.
+   * @param value The DynamicValue or raw value to evaluate and observe.
+   * @returns A reactive Signal containing the result of the evaluation.
    */
-  resolveSignal<V>(value: DynamicValue): Signal<V> {
+  resolveSignal<V>(value: unknown): Signal<V> {
     // 1. Primitive literals
     if (typeof value !== 'object' || value === null) {
       return signal(value as V);
@@ -226,9 +218,9 @@ export class DataContext {
     // 3. Function Call
     if ('call' in value) {
       const call = value as FunctionCall;
-      const argSignals: Record<string, Signal<any>> = {};
+      const argSignals: Record<string, Signal<unknown>> = {};
 
-      for (const [key, argVal] of Object.entries(call.args)) {
+      for (const [key, argVal] of Object.entries(call.args ?? {})) {
         argSignals[key] = this.resolveSignal(argVal);
       }
 
@@ -246,7 +238,7 @@ export class DataContext {
       let innerUnsubscribe: (() => void) | undefined;
 
       const argsSig = computed(() => {
-        const argsRecord: Record<string, any> = {};
+        const argsRecord: Record<string, unknown> = {};
         for (let i = 0; i < keys.length; i++) {
           argsRecord[keys[i]] = getValue(argSignals[keys[i]]);
         }
@@ -273,7 +265,7 @@ export class DataContext {
           } else {
             setValue(resultSig, res);
           }
-        } catch (e: any) {
+        } catch (e: unknown) {
           this.dispatchExpressionError(e, call.call);
           // In reactive mode, we should not throw. Instead, reset the signal value.
           setValue(resultSig, undefined);
@@ -298,16 +290,15 @@ export class DataContext {
   /**
    * Resolves an action by evaluating its top-level dynamic values.
    *
-   * For event actions, it resolves each value in the context map.
-   * For function call actions, it evaluates the call.
+   * For event actions, resolves each value in the context map.
+   * For function call actions, evaluates the function call.
    *
-   * This is non-recursive: it only resolves one level deep for the context record,
-   * in accordance with the schema specification that requires values to be single
-   * DynamicValue types and prevents arbitrary nesting.
+   * @param action The Action object to resolve.
+   * @returns The resolved action payload or function execution result.
    */
-  resolveAction(action: Action): any {
+  resolveAction(action: Action): Action | unknown {
     if ('event' in action) {
-      const resolvedContext: Record<string, any> = {};
+      const resolvedContext: Record<string, unknown> = {};
       if (action.event.context) {
         for (const [key, value] of Object.entries(action.event.context)) {
           resolvedContext[key] = this.resolveDynamicValue(value);
@@ -328,23 +319,27 @@ export class DataContext {
 
   private evaluateFunctionReactive<V>(
     name: string,
-    args: Record<string, any>,
+    args: Record<string, unknown>,
     abortSignal?: AbortSignal,
   ): Signal<V> | V {
     try {
       return this.functionInvoker(name, args, this, abortSignal);
-    } catch (e: any) {
+    } catch (e: unknown) {
       this.dispatchExpressionError(e, name);
-      return undefined as any;
+      return undefined as unknown as V;
     }
   }
 
-  private dispatchExpressionError(e: any, name: string): void {
-    if (e?.name === 'ZodError' || e instanceof z.ZodError) {
+  private dispatchExpressionError(e: unknown, name: string): void {
+    if (
+      e instanceof z.ZodError ||
+      (typeof e === 'object' && e !== null && (e as {name?: string}).name === 'ZodError')
+    ) {
+      const zodErr = e as z.ZodError;
       const err = new A2uiExpressionError(
-        `Validation failed for function '${name}': ${e.message}`,
+        `Validation failed for function '${name}': ${zodErr.message}`,
         name,
-        e.errors ?? e.issues,
+        zodErr.errors ?? (zodErr as unknown as {issues?: unknown}).issues,
       );
       this.surface.dispatchError({
         code: 'EXPRESSION_ERROR',
@@ -360,23 +355,22 @@ export class DataContext {
         details: e.details,
       });
     } else {
+      const errObj =
+        typeof e === 'object' && e !== null ? (e as {message?: string; stack?: string}) : {};
       this.surface.dispatchError({
         code: 'EXPRESSION_ERROR',
-        message: e.message ?? `An unexpected error occurred in function ${name}.`,
+        message: errObj.message ?? `An unexpected error occurred in function ${name}.`,
         expression: name,
-        details: {stack: e.stack},
+        details: {stack: errObj.stack},
       });
     }
   }
 
   /**
-   * Creates a new, child `DataContext` scoped to a deeper path.
+   * Creates a child DataContext scoped to a deeper relative path.
    *
-   * This is used when a component (like a List or a Card) wants to provide a targeted
-   * data scope for its children, so children can use relative paths like `./title`.
-   *
-   * @param relativePath The path relative to the *current* context's path.
-   * @returns A new `DataContext` instance pointing to the resolved absolute path.
+   * @param relativePath The path relative to the current context's path.
+   * @returns A new DataContext instance pointing to the resolved absolute path.
    */
   nested(relativePath: string): DataContext {
     const newPath = this.resolvePath(relativePath);

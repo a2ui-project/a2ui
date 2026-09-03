@@ -94,6 +94,39 @@ describe('Catalog Types', () => {
       },
     );
   });
+
+  it('safely computes componentRefMap with default fallback when refOptions is omitted', () => {
+    const mockComponent = {
+      name: 'Container',
+      schema: z.object({
+        child: z.string().describe('ComponentId'),
+      }),
+    } satisfies ComponentApi;
+
+    const catalog = new Catalog('guid-1234', [mockComponent]);
+    assert.doesNotThrow(() => {
+      const refMap = catalog.componentRefMap;
+      assert.ok(refMap.Container);
+      assert.deepStrictEqual(Array.from(refMap.Container.singleRefs), ['child']);
+      assert.deepStrictEqual(Array.from(refMap.Container.listRefs), []);
+    });
+  });
+
+  it('serializes catalog to JSON schema via catalogSchema', () => {
+    const mockComponent = {
+      name: 'CustomButton',
+      schema: z.object({
+        label: z.string().describe('REF:#/$defs/DynamicString'),
+      }),
+    } satisfies ComponentApi;
+
+    const catalog = new Catalog('https://example.com/custom-cat.json', [mockComponent]);
+
+    const schema = catalog.catalogSchema;
+    const defs = schema['$defs'] as Record<string, any>;
+    assert.ok(defs);
+    assert.ok(defs.DynamicString);
+  });
 });
 
 describe('InferredComponentApiSchemaType', () => {

@@ -548,4 +548,127 @@ describe('Catalog.fromSchema & schema_loader', () => {
     });
     assert.strictEqual(result.success, true);
   });
+
+  it('applies passthrough when unevaluatedProperties is true or a schema object', () => {
+    const catalogJson = {
+      catalogId: 'https://example.com/uneval_props_catalog.json',
+      components: {
+        OpenCard: {
+          type: 'object',
+          properties: {
+            title: {type: 'string'},
+          },
+          unevaluatedProperties: true,
+        },
+        SchemaCard: {
+          type: 'object',
+          properties: {
+            title: {type: 'string'},
+          },
+          unevaluatedProperties: {type: 'number'},
+        },
+        StrictCard: {
+          type: 'object',
+          properties: {
+            title: {type: 'string'},
+          },
+          unevaluatedProperties: false,
+        },
+      },
+    };
+
+    const catalog = Catalog.fromSchema(catalogJson);
+    const openCard = catalog.components.get('OpenCard');
+    const schemaCard = catalog.components.get('SchemaCard');
+    const strictCard = catalog.components.get('StrictCard');
+
+    assert.ok(openCard);
+    assert.ok(schemaCard);
+    assert.ok(strictCard);
+
+    assert.strictEqual(openCard.schema.safeParse({title: 'A', extra: 'allowed'}).success, true);
+    assert.strictEqual(schemaCard.schema.safeParse({title: 'B', extra: 123}).success, true);
+    assert.strictEqual(strictCard.schema.safeParse({title: 'C', extra: 'rejected'}).success, false);
+  });
+
+  it('converts multi-branch oneOf unions to z.union', () => {
+    const catalogJson = {
+      $id: 'https://example.com/union-cat',
+      title: 'Union Catalog',
+      components: {
+        FlexibleInput: {
+          type: 'object',
+          properties: {
+            value: {
+              oneOf: [{type: 'string'}, {type: 'number'}, {type: 'boolean'}],
+            },
+          },
+          required: ['value'],
+        },
+      },
+    };
+
+    const catalog = Catalog.fromSchema(catalogJson);
+    const inputComp = catalog.components.get('FlexibleInput');
+    assert.ok(inputComp);
+
+    assert.strictEqual(inputComp.schema.safeParse({value: 'hello'}).success, true);
+    assert.strictEqual(inputComp.schema.safeParse({value: 42}).success, true);
+    assert.strictEqual(inputComp.schema.safeParse({value: true}).success, true);
+    assert.strictEqual(inputComp.schema.safeParse({value: {invalid: 'obj'}}).success, false);
+  });
+
+  it('applies passthrough on function argument schemas when unevaluatedProperties is true or a schema object', () => {
+    const catalogJson = {
+      catalogId: 'https://example.com/fn_uneval_props_catalog.json',
+      functions: {
+        openFn: {
+          properties: {
+            args: {
+              type: 'object',
+              properties: {
+                target: {type: 'string'},
+              },
+              unevaluatedProperties: true,
+            },
+          },
+        },
+        schemaFn: {
+          properties: {
+            args: {
+              type: 'object',
+              properties: {
+                target: {type: 'string'},
+              },
+              unevaluatedProperties: {type: 'number'},
+            },
+          },
+        },
+        strictFn: {
+          properties: {
+            args: {
+              type: 'object',
+              properties: {
+                target: {type: 'string'},
+              },
+              unevaluatedProperties: false,
+            },
+          },
+        },
+      },
+    };
+
+    const catalog = Catalog.fromSchema(catalogJson);
+    const openFn = catalog.functions.get('openFn');
+    const schemaFn = catalog.functions.get('schemaFn');
+    const strictFn = catalog.functions.get('strictFn');
+
+    assert.ok(openFn);
+    assert.ok(schemaFn);
+    assert.ok(strictFn);
+
+    assert.strictEqual(openFn.schema.safeParse({target: 'A', extra: 'allowed'}).success, true);
+    assert.strictEqual(schemaFn.schema.safeParse({target: 'B', extra: 123}).success, true);
+    assert.strictEqual(strictFn.schema.safeParse({target: 'C', extra: 'rejected'}).success, false);
+  });
 });

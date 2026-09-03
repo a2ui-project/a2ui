@@ -15,44 +15,63 @@
  */
 
 /**
- * A resolved dynamic value in a node's props: a snapshot of the current
- * value, pinned at emission. A new binding arrives through the node's props
- * whenever the underlying value changes.
+ * Resolved dynamic value snapshot in a node's properties.
  *
- * Literal and function-call values resolve to a read-only `ResolvedBinding`,
- * so a write without narrowing to {@link WritableBinding} is a type error
- * rather than a silent no-op.
+ * Captures the current value pinned at the time of emission. A new binding instance
+ * is emitted through the node's properties whenever the underlying value changes.
  *
- * Named `ResolvedBinding` because `DataBinding` is the exported wire model
- * of the `{"path": ...}` payload this resolves from; the two names stay
- * visibly distinct.
+ * Literal and function-call values resolve to a read-only `ResolvedBinding`, preventing
+ * accidental writes without explicitly narrowing to {@link WritableBinding}.
  */
 export class ResolvedBinding<T> {
+  /**
+   * Creates a new `ResolvedBinding` instance.
+   *
+   * @param value The resolved snapshot value.
+   */
   constructor(readonly value: T) {}
 }
 
-/** A binding whose payload bound a data path, so writes have a destination. */
+/**
+ * Writable resolved dynamic binding backed by a mutable data model path.
+ */
 export class WritableBinding<T> extends ResolvedBinding<T> {
+  /**
+   * Creates a new `WritableBinding` instance.
+   *
+   * @param value Current snapshot value.
+   * @param set Setter callback to update the underlying model.
+   * @param path Authored data path.
+   */
   constructor(
     value: T,
     readonly set: (value: T) => void,
-    /** The authored data path, not resolved against the node's data scope. */
+    /** Authored data path before scope resolution. */
     readonly path: string,
   ) {
     super(value);
   }
 }
 
-/** Narrows a binding to {@link WritableBinding}. */
+/**
+ * Narrows a `ResolvedBinding` to a `WritableBinding`.
+ *
+ * @param binding The binding to check.
+ * @returns Whether the binding is writable.
+ */
 export function isWritable<T>(binding: ResolvedBinding<T>): binding is WritableBinding<T> {
   return binding instanceof WritableBinding;
 }
 
 /**
- * Whether two bindings count as unchanged for props change detection: same
- * writability, same write destination, and equal snapshot values. Plain
- * arrays and objects compare structurally; non-plain objects compare by
- * identity only, mirroring the resolver's change detection for props.
+ * Compares two bindings for equivalence during change detection.
+ *
+ * Returns true if both bindings have identical writability, write destination path,
+ * and structurally equal snapshot values.
+ *
+ * @param a First binding.
+ * @param b Second binding.
+ * @returns Whether the two bindings are equivalent.
  */
 export function sameBinding(a: ResolvedBinding<unknown>, b: ResolvedBinding<unknown>): boolean {
   if (isWritable(a) !== isWritable(b)) {

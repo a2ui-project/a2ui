@@ -62,7 +62,7 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<typeof ListApi> 
     if (!props) return nothing;
 
     const children: ResolvedChildList = Array.isArray(props.children) ? props.children : [];
-    const listStyle = props.listStyle;
+    const listStyle = (props as any).listStyle;
     const direction = props.direction || 'vertical';
 
     if (listStyle === 'ordered') {

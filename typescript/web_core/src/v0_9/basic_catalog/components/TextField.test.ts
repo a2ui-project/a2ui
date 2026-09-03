@@ -74,8 +74,16 @@ describe('TextField Component', () => {
               component: 'TextField',
               label: 'Email',
               value: '',
-              isValid: false,
-              validationErrors: ['Email is required', 'Email must contain @'],
+              checks: [
+                {
+                  condition: false,
+                  message: 'Email is required',
+                },
+                {
+                  condition: false,
+                  message: 'Email must contain @',
+                },
+              ],
             },
           ],
         },

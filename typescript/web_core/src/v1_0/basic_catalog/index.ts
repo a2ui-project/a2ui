@@ -15,3 +15,4 @@
  */
 
 export * from './components/basic_components.js';
+export * from './functions/basic_functions_api.js';

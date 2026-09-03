@@ -15,35 +15,130 @@
  */
 
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
-// Generated from specification/v1_0/json/ via scripts/generate-zod-schemas.mjs
+// Generated from specification/v1.0/json/ via src/v1_0/scripts/generate-schemas.mjs
 import {z} from 'zod';
 import {ExtensionsSchema} from './common-types.js';
 
-export const FunctionCallValidationSchemaSchema = z.object({ "type": z.literal("object"), "description": z.string().optional(), "properties": z.object({ "call": z.object({ "const": z.string() }), "args": z.record(z.string(), z.any()).describe("A JSON Schema describing the expected arguments (args) for this function.").optional() }).strict(), "required": z.array(z.string()) }).describe("JSON Schema structure that validates a wire-level FunctionCall object.")
-export type FunctionCallValidationSchema = z.infer<typeof FunctionCallValidationSchemaSchema>
+export const FunctionCallValidationSchemaSchema = z
+  .object({
+    'type': z.literal('object'),
+    'description': z.string().optional(),
+    'properties': z
+      .object({
+        'call': z.object({'const': z.string()}),
+        'args': z.record(z.string(), z.any()).optional(),
+      })
+      .strict(),
+    'required': z.array(z.string()),
+  })
+  .describe('JSON Schema structure that validates a wire-level FunctionCall object.');
+export type FunctionCallValidationSchema = z.infer<typeof FunctionCallValidationSchemaSchema>;
 
 export type FunctionCallValidationSchemaInput = z.input<typeof FunctionCallValidationSchemaSchema>;
 
-export const FunctionDefinitionSchema = z.record(z.string(), z.any()).and(z.intersection(FunctionCallValidationSchemaSchema, z.intersection(z.object({ "returnType": z.enum(["string","number","boolean","array","object","validationResult","any","void"]).describe("The type of value this function returns."), "allowedCallers": z.enum(["rendererOnly","agentOnly","rendererOrAgent"]).describe("Specifies which roles are authorized to invoke this function.").default("rendererOnly"), "requiresUserActivation": z.boolean().describe("Specifies whether this function requires a user activation context to execute.").default(false) }), z.any()))).superRefine((val, ctx) => {
-        if (val && val.requiresUserActivation && val.allowedCallers !== 'rendererOnly') {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "requiresUserActivation=true must have allowedCallers='rendererOnly'.",
-            path: ['allowedCallers'],
-          });
-        }
-      }).describe("Describes a function's validation schema and interface metadata.")
-export type FunctionDefinition = z.infer<typeof FunctionDefinitionSchema>
+export const FunctionDefinitionSchema = z
+  .record(z.string(), z.any())
+  .and(
+    z.intersection(
+      FunctionCallValidationSchemaSchema,
+      z.intersection(
+        z.object({
+          'returnType': z
+            .enum([
+              'string',
+              'number',
+              'boolean',
+              'array',
+              'object',
+              'validationResult',
+              'any',
+              'void',
+            ])
+            .describe('The type of value this function returns.'),
+          'allowedCallers': z
+            .enum(['rendererOnly', 'agentOnly', 'rendererOrAgent'])
+            .describe('Specifies which roles are authorized to invoke this function.')
+            .default('rendererOnly'),
+          'requiresUserActivation': z
+            .boolean()
+            .describe(
+              'Specifies whether this function requires a user activation context to execute.',
+            )
+            .default(false),
+        }),
+        z.any(),
+      ),
+    ),
+  )
+  .superRefine((val, ctx) => {
+    if (val && val.requiresUserActivation && val.allowedCallers !== 'rendererOnly') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "requiresUserActivation=true must have allowedCallers='rendererOnly'.",
+        path: ['allowedCallers'],
+      });
+    }
+  })
+  .describe("Describes a function's validation schema and interface metadata.");
+export type FunctionDefinition = z.infer<typeof FunctionDefinitionSchema>;
 
 export type FunctionDefinitionInput = z.input<typeof FunctionDefinitionSchema>;
 
-export const ComponentDefinitionSchema = z.record(z.string(), z.any()).and(z.intersection(z.any(), z.object({ "allowedParents": z.array(z.string()).refine((arr) => arr.every((item, i) => arr.indexOf(item) === i), "All items must be unique!").describe("The list of parent component type names that can contain this component type. If omitted, all parent component types are allowed. To restrict a component so it can appear only as the top-level component (id='root') of a surface, set \"allowedParents\": [\"Surface\"]. To allow a component as either the top-level component of a surface or a child of a specific container, specify both (e.g., \"allowedParents\": [\"Surface\", \"CanvasContainer\"]).").optional(), "allowedChildren": z.array(z.string()).refine((arr) => arr.every((item, i) => arr.indexOf(item) === i), "All items must be unique!").describe("The list of child component type names allowed inside this container or slot. If omitted, all child component types are allowed.").optional(), "metadata": z.object({ "extensions": ExtensionsSchema.optional() }).strict().describe("Optional static metadata.").optional() }))).describe("Describes a component's validation schema and composition constraints.")
-export type ComponentDefinition = z.infer<typeof ComponentDefinitionSchema>
+export const ComponentDefinitionSchema = z
+  .record(z.string(), z.any())
+  .and(
+    z.intersection(
+      z.record(z.string(), z.any()),
+      z.object({
+        'allowedParents': z
+          .array(z.string())
+          .refine(
+            arr => arr.every((item, i) => arr.indexOf(item) === i),
+            'All items must be unique!',
+          )
+          .describe(
+            'The list of parent component type names that can contain this component type. If omitted, all parent component types are allowed. To restrict a component so it can appear only as the top-level component (id=\'root\') of a surface, set "allowedParents": ["Surface"]. To allow a component as either the top-level component of a surface or a child of a specific container, specify both (e.g., "allowedParents": ["Surface", "CanvasContainer"]).',
+          )
+          .optional(),
+        'allowedChildren': z
+          .array(z.string())
+          .refine(
+            arr => arr.every((item, i) => arr.indexOf(item) === i),
+            'All items must be unique!',
+          )
+          .describe(
+            'The list of child component type names allowed inside this container or slot. If omitted, all child component types are allowed.',
+          )
+          .optional(),
+        'metadata': z
+          .object({'extensions': ExtensionsSchema.optional()})
+          .strict()
+          .describe('Optional static metadata.')
+          .optional(),
+      }),
+    ),
+  )
+  .describe("Describes a component's validation schema and composition constraints.");
+export type ComponentDefinition = z.infer<typeof ComponentDefinitionSchema>;
 
 export type ComponentDefinitionInput = z.input<typeof ComponentDefinitionSchema>;
 
-export const ValidationResultSchema = z.object({ "valid": z.boolean().describe("Whether the check passed."), "code": z.string().describe("Machine-readable error code (e.g. EXPIRED_CARD, OUT_OF_RANGE).").optional(), "message": z.string().describe("Human-readable error or warning message.").optional(), "severity": z.enum(["error","warning","info"]).describe("Severity level of the validation result.").default("error") }).describe("Dynamic validation result object returned by a validation condition function or data binding.")
-export type ValidationResult = z.infer<typeof ValidationResultSchema>
+export const ValidationResultSchema = z
+  .object({
+    'valid': z.boolean().describe('Whether the check passed.'),
+    'code': z
+      .string()
+      .describe('Machine-readable error code (e.g. EXPIRED_CARD, OUT_OF_RANGE).')
+      .optional(),
+    'message': z.string().describe('Human-readable error or warning message.').optional(),
+    'severity': z
+      .enum(['error', 'warning', 'info'])
+      .describe('Severity level of the validation result.')
+      .default('error'),
+  })
+  .describe(
+    'Dynamic validation result object returned by a validation condition function or data binding.',
+  );
+export type ValidationResult = z.infer<typeof ValidationResultSchema>;
 
 export type ValidationResultInput = z.input<typeof ValidationResultSchema>;
-
