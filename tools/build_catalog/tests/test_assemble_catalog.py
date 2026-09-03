@@ -199,7 +199,7 @@ class TestAssembleCatalog(unittest.TestCase):
             "components": {"LoopBlock": {"$ref": "memory://test#/components/LoopBlock"}}
         }
 
-        assembler = CatalogAssembler(version="0.9", max_depth=5)
+        assembler = CatalogAssembler(version="0.9", max_depth=2)
 
         # We manually call process_schema to trigger the recursion check
         # and mock fetch_json to always return the loop schema so it infinitely evaluates

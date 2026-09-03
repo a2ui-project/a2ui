@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 MIME_TYPE_KEY = "mimeType"
 A2UI_MIME_TYPE = "application/a2ui+json"
 DEPRECATED_A2UI_MIME_TYPE = "application/json+a2ui"
+CATALOG_MIME_TYPE = "application/agent-plugin+json"
 
 
 def create_a2ui_part(a2ui_data: dict[str, Any], version: Optional[str] = None) -> Part:
@@ -69,6 +70,41 @@ def is_a2ui_part(part: Part) -> bool:
         and part.root.metadata
         and part.root.metadata.get(MIME_TYPE_KEY)
         in (A2UI_MIME_TYPE, DEPRECATED_A2UI_MIME_TYPE)
+    )
+
+
+def is_catalog_part(part: Part) -> bool:
+    """Checks if an A2A Part contains catalog data.
+
+    Args:
+        part: The A2A Part to check.
+
+    Returns:
+        True if the part contains catalog data, False otherwise.
+    """
+    return bool(
+        isinstance(part.root, DataPart)
+        and part.root.metadata
+        and part.root.metadata.get(MIME_TYPE_KEY) == CATALOG_MIME_TYPE
+    )
+
+
+def create_catalog_part(catalog_data: dict[str, Any]) -> Part:
+    """Creates an A2A Part containing catalog data with application/agent-plugin+json MIME type.
+
+    Args:
+        catalog_data: The catalog data dictionary.
+
+    Returns:
+        An A2A Part with a DataPart containing the catalog data.
+    """
+    return Part(
+        root=DataPart(
+            data=catalog_data,
+            metadata={
+                MIME_TYPE_KEY: CATALOG_MIME_TYPE,
+            },
+        )
     )
 
 
