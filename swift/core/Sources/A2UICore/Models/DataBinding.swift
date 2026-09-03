@@ -32,14 +32,14 @@ public struct DataBinding<Value: Sendable>: Sendable {
 
   /// The resolved value at the time the Node was resolved.
   public let value: Value?
-  private let setter: @Sendable (Value) -> Void
+  private let setter: @Sendable @MainActor (Value) -> Void
 
   /// Creates a new data binding with the specified identity, resolved value,
   /// and setter.
   public init(
     identity: Identity,
     value: Value? = nil,
-    set: @escaping @Sendable (Value) -> Void = { _ in }
+    set: @escaping @Sendable @MainActor (Value) -> Void = { _ in }
   ) {
     self.identity = identity
     self.value = value
@@ -47,6 +47,7 @@ public struct DataBinding<Value: Sendable>: Sendable {
   }
 
   /// Updates the bound value.
+  @MainActor
   public func set(_ value: Value) {
     setter(value)
   }
