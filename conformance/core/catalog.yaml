@@ -475,3 +475,90 @@
   action: verify_cuttable_keys
   expect:
     custom_cuttable_keys: ["customKey1", "customKey2"]
+
+- name: test_v09_basic_catalog_schema
+  description: >
+    Parses the published v0.9 basic catalog and rebuilds its document from the
+    components and functions the parsed catalog holds. The rebuilt document
+    must keep the source document's identity, declare the same components and
+    functions, resolve every local reference within itself, and rebuild to the
+    same document a second time.
+  action: catalog_schema
+  catalog:
+    version: "0.9"
+    catalog_schema: "../specification/v0_9_1/catalogs/basic/catalog.json"
+  expect:
+    metadata:
+      $schema: "https://json-schema.org/draft/2020-12/schema"
+      $id: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+      title: "A2UI Basic Catalog"
+      description: "Unified catalog of basic A2UI components and functions."
+      catalogId: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    components:
+      [
+        AudioPlayer,
+        Button,
+        Card,
+        CheckBox,
+        ChoicePicker,
+        Column,
+        DateTimeInput,
+        Divider,
+        Icon,
+        Image,
+        List,
+        Modal,
+        Row,
+        Slider,
+        Tabs,
+        Text,
+        TextField,
+        Video,
+      ]
+    functions:
+      [
+        and,
+        email,
+        formatCurrency,
+        formatDate,
+        formatNumber,
+        formatString,
+        length,
+        not,
+        numeric,
+        openUrl,
+        or,
+        pluralize,
+        regex,
+        required,
+      ]
+    unions_cover_all: true
+    self_contained: true
+    reparses_identically: true
+
+- name: test_catalog_schema_keeps_declared_metadata
+  description: >
+    A document that declares no $id, title or description rebuilds without
+    them, while $schema is always present.
+  action: catalog_schema
+  catalog:
+    version: "0.9"
+    catalog_schema:
+      catalogId: minimal
+      components:
+        Text:
+          type: object
+          properties:
+            component: {const: Text}
+            text: {type: string}
+          required: [component, text]
+  expect:
+    metadata:
+      $schema: "https://json-schema.org/draft/2020-12/schema"
+      catalogId: minimal
+    absent_metadata: [$id, title, description]
+    components: [Text]
+    functions: []
+    unions_cover_all: true
+    self_contained: true
+    reparses_identically: true
