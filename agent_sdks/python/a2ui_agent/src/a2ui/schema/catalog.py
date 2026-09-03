@@ -166,6 +166,30 @@ class A2uiCatalog:
     custom_cuttable_keys: Optional[frozenset[str]] = None
     experiments: Optional[frozenset[str]] = None
 
+    @classmethod
+    def from_config(cls, config: CatalogConfig, version: str = "1.0") -> A2uiCatalog:
+        """Constructs an A2uiCatalog from a loaded CatalogConfig."""
+        from a2ui.schema.constants import SPEC_VERSION_MAP, SERVER_TO_CLIENT_SCHEMA_KEY, COMMON_TYPES_SCHEMA_KEY
+        from a2ui.inference_formats.direct_json.format import load_from_bundled_resource
+        s2c_schema = load_from_bundled_resource(version, SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP)
+        common_types_schema = load_from_bundled_resource(version, COMMON_TYPES_SCHEMA_KEY, SPEC_VERSION_MAP)
+        catalog_schema = config.provider.load()
+        return cls(
+            version=version,
+            name=config.name,
+            catalog_schema=catalog_schema,
+            s2c_schema=s2c_schema,
+            common_types_schema=common_types_schema,
+            custom_cuttable_keys=config.custom_cuttable_keys,
+        )
+
+    @classmethod
+    def from_json_file(cls, path: str, name: Optional[str] = None) -> A2uiCatalog:
+        """Constructs an A2uiCatalog from a JSON file path."""
+        cat_name = name or os.path.basename(path).replace(".json", "")
+        config = CatalogConfig.from_path(cat_name, path)
+        return cls.from_config(config)
+
     @property
     def cuttable_keys(self) -> frozenset[str]:
         if self.custom_cuttable_keys is not None:

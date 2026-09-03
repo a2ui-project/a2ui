@@ -146,6 +146,42 @@ class ExpressPromptGenerator(PromptGenerator):
         self.helper = CatalogSchemaHelper(format_inst.catalog)
         self.parser: Optional[ExpressParser] = None
 
+    def generate_base_rules(self) -> str:
+        """Returns the core syntax contract and grammar rules for A2UI Express."""
+        return EXPRESS_RULES
+
+    def generate_catalog_instructions(
+        self,
+        include_schema: bool = True,
+        catalog: Optional[Any] = None,
+    ) -> str:
+        """Assembles positional signatures and instructions for a catalog."""
+        if not include_schema:
+            return ""
+        if catalog:
+            old_helper = self.helper
+            self.helper = CatalogSchemaHelper(catalog)
+            res = self.catalog_description(include_schema=True)
+            self.helper = old_helper
+            return res
+        return self.catalog_description(include_schema=True)
+
+    def generate_examples(
+        self,
+        catalog: Optional[Any] = None,
+        validate: bool = False,
+    ) -> str:
+        """Loads and formats few-shot Express DSL examples."""
+        target_catalog = catalog or self.catalog
+        if not target_catalog or not self._format or not self._format.examples_path:
+            return ""
+        raw_examples = target_catalog.load_examples(
+            self._format.examples_path, validate=validate
+        )
+        if not raw_examples:
+            return ""
+        return self.transform_examples(raw_examples)
+
     def generate_component_signatures(self) -> str:
         """Compiles component definitions into clean function-like signatures.
 

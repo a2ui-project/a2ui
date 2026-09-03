@@ -123,6 +123,45 @@ class ElementalPromptGenerator(PromptGenerator):
         self.catalog_id: str = format_inst.catalog.catalog_id
         self.parser: Optional[ElementalParser] = None
 
+    def generate_base_rules(self) -> str:
+        """Returns core syntax rules for A2UI Elemental."""
+        return ELEMENTAL_RULES
+
+    def generate_catalog_instructions(
+        self,
+        include_schema: bool = True,
+        catalog: Optional[Any] = None,
+    ) -> str:
+        """Assembles TypeScript interfaces and catalog instructions."""
+        if not include_schema:
+            return ""
+        if catalog:
+            old_catalog = self.catalog
+            old_helper = self.helper
+            self.catalog = catalog
+            self.helper = CatalogSchemaHelper(catalog)
+            res = self.catalog_description(include_schema=True)
+            self.catalog = old_catalog
+            self.helper = old_helper
+            return res
+        return self.catalog_description(include_schema=True)
+
+    def generate_examples(
+        self,
+        catalog: Optional[Any] = None,
+        validate: bool = False,
+    ) -> str:
+        """Loads and formats few-shot Elemental examples."""
+        target_catalog = catalog or self.catalog
+        if not target_catalog or not self._format or not self._format.examples_path:
+            return ""
+        raw_examples = target_catalog.load_examples(
+            self._format.examples_path, validate=validate
+        )
+        if not raw_examples:
+            return ""
+        return self.transform_examples(raw_examples)
+
     def _map_schema_to_ts_type(
         self, component_name: str, prop_name: str, prop_schema: Any
     ) -> str:

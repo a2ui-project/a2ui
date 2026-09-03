@@ -126,6 +126,48 @@ class AtomPromptGenerator(PromptGenerator):
         except Exception:
             self.schema_helper = None
 
+    def generate_base_rules(self) -> str:
+        """Returns core syntax rules for A2UI Atom."""
+        return ATOM_RULES
+
+    def generate_catalog_instructions(
+        self,
+        include_schema: bool = True,
+        catalog: Optional[Any] = None,
+    ) -> str:
+        """Assembles S-Expression signatures for a catalog."""
+        if not include_schema:
+            return ""
+        if catalog:
+            try:
+                from a2ui.schema.schema_helper import CatalogSchemaHelper
+            except ImportError:
+                from a2ui.inference_formats.experimental.express.schema_helper import (
+                    CatalogSchemaHelper,
+                )
+            old_helper = self.schema_helper
+            self.schema_helper = CatalogSchemaHelper(catalog)
+            res = self.catalog_description(include_schema=True)
+            self.schema_helper = old_helper
+            return res
+        return self.catalog_description(include_schema=True)
+
+    def generate_examples(
+        self,
+        catalog: Optional[Any] = None,
+        validate: bool = False,
+    ) -> str:
+        """Loads and formats few-shot Atom examples."""
+        target_catalog = catalog or self.format.catalog
+        if not target_catalog or not self.format or not self.format.examples_path:
+            return ""
+        raw_examples = target_catalog.load_examples(
+            self.format.examples_path, validate=validate
+        )
+        if not raw_examples:
+            return ""
+        return self.transform_examples(raw_examples)
+
     def generate(
         self,
         role_description: str = "",
