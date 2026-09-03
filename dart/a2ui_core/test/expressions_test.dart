@@ -76,10 +76,11 @@ void main() {
     });
 
     group('recursion depth', () {
-      // '${f(a: f(a: ... 1 ...))}', nested [depth] levels deep.
-      String nestedCalls(int depth) => '\${${'f(a: ' * depth}1${')' * depth}}';
+      // '${f(a: f(a: ... 1 ...))}'. The interpolation is itself a level, so
+      // this nests [calls] + 1 deep.
+      String nestedCalls(int calls) => '\${${'f(a: ' * calls}1${')' * calls}}';
 
-      // '${${ ... x ... }}', nested [depth] levels deep.
+      // '${${ ... x ... }}', nesting [depth] levels deep.
       String nestedInterpolations(int depth) =>
           '${'\${' * depth}x${'}' * depth}';
 
@@ -89,23 +90,22 @@ void main() {
           returnsNormally,
         );
         expect(
-          () =>
-              parser.parse(nestedInterpolations(ExpressionParser.maxDepth - 1)),
+          () => parser.parse(nestedInterpolations(ExpressionParser.maxDepth)),
           returnsNormally,
         );
       });
 
-      test('rejects function arguments nested past maxDepth', () {
+      test('rejects function arguments one level past maxDepth', () {
         expect(
-          () => parser.parse(nestedCalls(ExpressionParser.maxDepth + 2)),
+          () => parser.parse(nestedCalls(ExpressionParser.maxDepth)),
           throwsA(isA<A2uiExpressionError>()),
         );
       });
 
-      test('rejects interpolations nested past maxDepth', () {
+      test('rejects interpolations one level past maxDepth', () {
         expect(
           () =>
-              parser.parse(nestedInterpolations(ExpressionParser.maxDepth + 2)),
+              parser.parse(nestedInterpolations(ExpressionParser.maxDepth + 1)),
           throwsA(isA<A2uiExpressionError>()),
         );
       });
