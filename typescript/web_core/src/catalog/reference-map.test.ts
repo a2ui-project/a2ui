@@ -231,21 +231,14 @@ describe('reference-map schema introspection', () => {
     assert.ok(V10_CHILD_REF_OPTIONS.childListRefNames.has('TemplateChildList'));
   });
 
-  it('lazily computes and caches componentRefMap on Catalog instance with refOptions', () => {
+  it('lazily computes and caches componentRefMap on Catalog instance', () => {
     const drawerApi = {
       name: 'Drawer',
       schema: z.object({
         slot: z.string().describe('ComponentId'),
       }),
     };
-    const catalog = new Catalog(
-      'drawer-cat',
-      [drawerApi],
-      [],
-      undefined,
-      undefined,
-      V09_CHILD_REF_OPTIONS,
-    );
+    const catalog = new Catalog('drawer-cat', [drawerApi]);
     const refMap1 = catalog.componentRefMap;
     const refMap2 = catalog.componentRefMap;
     assert.strictEqual(refMap1, refMap2);
@@ -285,14 +278,7 @@ describe('reference-map schema introspection', () => {
       schema: treeNodeSchema,
     };
 
-    const catalog = new Catalog(
-      'tree-cat',
-      [treeApi],
-      [],
-      undefined,
-      undefined,
-      V09_CHILD_REF_OPTIONS,
-    );
+    const catalog = new Catalog('tree-cat', [treeApi]);
     const refMap = catalog.componentRefMap;
     assert.ok(refMap.TreeNode);
     assert.deepStrictEqual(Array.from(refMap.TreeNode.singleRefs), ['childSlot']);
@@ -308,14 +294,7 @@ describe('reference-map schema introspection', () => {
       }),
     };
 
-    const catalog = new Catalog(
-      'counter-cat',
-      [customApi],
-      [],
-      undefined,
-      undefined,
-      V09_CHILD_REF_OPTIONS,
-    );
+    const catalog = new Catalog('counter-cat', [customApi]);
     const refMap = catalog.componentRefMap;
     assert.ok(refMap.CardCounter);
     assert.deepStrictEqual(Array.from(refMap.CardCounter.singleRefs), ['mainSlot']);

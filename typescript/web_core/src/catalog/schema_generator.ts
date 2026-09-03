@@ -32,14 +32,11 @@ const STANDARD_DEFS_BY_VERSION: Readonly<Record<string, Record<string, unknown>>
  * Resolves the appropriate standard $defs dictionary based on options or catalog configuration.
  */
 function getStandardDefsForCatalog(
-  catalog: CatalogInterface<any, any>,
+  _catalog: CatalogInterface<any, any>,
   options?: GenerateCatalogSchemaOptions,
 ): Record<string, unknown> {
   if (options?.standardDefs) {
     return options.standardDefs;
-  }
-  if (catalog.standardDefs) {
-    return catalog.standardDefs;
   }
   if (options?.protocolVersion && options.protocolVersion in STANDARD_DEFS_BY_VERSION) {
     return STANDARD_DEFS_BY_VERSION[options.protocolVersion];

@@ -17,7 +17,6 @@
 import {ComponentContext} from '../../rendering/component-context.js';
 import {SurfaceModel} from '../../state/surface-model.js';
 import {Catalog, ComponentApi} from '../../catalog/types.js';
-import {V09_CHILD_REF_OPTIONS} from '../standard_defs.js';
 import {ComponentModel} from '../../state/component-model.js';
 
 /**
@@ -30,11 +29,7 @@ export class TestSurfaceModel extends SurfaceModel<ComponentApi> {
    * @param actionHandler Optional action listener callback.
    */
   constructor(actionHandler: any = async () => {}) {
-    super(
-      'test',
-      new Catalog('test-catalog', [], [], undefined, undefined, V09_CHILD_REF_OPTIONS),
-      {},
-    );
+    super('test', new Catalog('test-catalog', []), {});
     this.onAction.subscribe(actionHandler);
   }
 }

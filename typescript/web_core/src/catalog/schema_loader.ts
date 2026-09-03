@@ -478,13 +478,5 @@ export function loadCatalogFromSchema(
   const instructions =
     typeof catalogSchema.instructions === 'string' ? catalogSchema.instructions : undefined;
 
-  return new Catalog(
-    catalogId,
-    components,
-    functions,
-    themeSchema,
-    instructions,
-    undefined,
-    catalogSchema.$defs,
-  );
+  return new Catalog(catalogId, components, functions, themeSchema, instructions);
 }

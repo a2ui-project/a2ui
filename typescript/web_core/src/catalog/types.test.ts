@@ -112,32 +112,20 @@ describe('Catalog Types', () => {
     });
   });
 
-  it('uses custom standardDefs for catalog JSON schema serialization', () => {
+  it('serializes catalog to JSON schema via catalogSchema', () => {
     const mockComponent = {
       name: 'CustomButton',
       schema: z.object({
-        label: z.string().describe('REF:#/$defs/CustomString'),
+        label: z.string().describe('REF:#/$defs/DynamicString'),
       }),
     } satisfies ComponentApi;
 
-    const customDefs = {
-      CustomString: {type: 'string', description: 'Custom string type'},
-    };
-
-    const catalog = new Catalog(
-      'https://example.com/custom-cat.json',
-      [mockComponent],
-      [],
-      undefined,
-      undefined,
-      undefined,
-      customDefs,
-    );
+    const catalog = new Catalog('https://example.com/custom-cat.json', [mockComponent]);
 
     const schema = catalog.catalogSchema;
     const defs = schema['$defs'] as Record<string, any>;
     assert.ok(defs);
-    assert.deepStrictEqual(defs.CustomString, customDefs.CustomString);
+    assert.ok(defs.DynamicString);
   });
 });
 

@@ -22,7 +22,6 @@ import {loadCatalogFromSchema} from './schema_loader.js';
 import {generateCatalogSchema} from './schema_generator.js';
 import {
   buildComponentRefMap,
-  type ChildRefAnalysisOptions,
   type ComponentChildRefs,
   type ComponentRefMap,
 } from './reference-map.js';
@@ -202,10 +201,6 @@ export declare interface CatalogInterface<
   readonly themeSchema?: z.ZodObject<any>;
   /** System instructions or usage guidelines for this catalog. */
   readonly instructions?: string;
-  /** Optional child reference configuration for graph and topology analysis. */
-  readonly refOptions?: ChildRefAnalysisOptions;
-  /** Optional standard $defs dictionary for JSON schema reconstruction. */
-  readonly standardDefs?: Record<string, unknown>;
   /** Invoker callback that delegates to this catalog's registered functions. */
   readonly invoker: FunctionInvoker;
   /** Dynamically reconstructed standard A2UI catalog JSON Schema document. */
@@ -255,16 +250,6 @@ export class Catalog<
   readonly instructions?: string;
 
   /**
-   * Optional child reference configuration for graph and topology analysis.
-   */
-  readonly refOptions?: ChildRefAnalysisOptions;
-
-  /**
-   * Optional standard $defs dictionary for JSON schema reconstruction.
-   */
-  readonly standardDefs?: Record<string, unknown>;
-
-  /**
    * Function invoker callback that delegates to this catalog's registered functions.
    */
   readonly invoker: FunctionInvoker;
@@ -276,9 +261,7 @@ export class Catalog<
    */
   get catalogSchema(): Record<string, unknown> {
     if (!this.cachedCatalogSchema) {
-      this.cachedCatalogSchema = generateCatalogSchema(this, {
-        standardDefs: this.standardDefs,
-      });
+      this.cachedCatalogSchema = generateCatalogSchema(this);
     }
     return this.cachedCatalogSchema;
   }
@@ -290,8 +273,7 @@ export class Catalog<
    */
   get componentRefMap(): ComponentRefMap {
     if (!this._componentRefMap) {
-      const options = this.refOptions ?? V09_CHILD_REF_OPTIONS;
-      this._componentRefMap = buildComponentRefMap(this, options);
+      this._componentRefMap = buildComponentRefMap(this, V09_CHILD_REF_OPTIONS);
     }
     return this._componentRefMap;
   }
@@ -302,8 +284,6 @@ export class Catalog<
     functions: F[] = [],
     themeSchema?: z.ZodObject<any>,
     instructions?: string,
-    refOptions?: ChildRefAnalysisOptions,
-    standardDefs?: Record<string, unknown>,
   ) {
     this.id = id;
 
@@ -321,8 +301,6 @@ export class Catalog<
 
     this.themeSchema = themeSchema;
     this.instructions = instructions;
-    this.refOptions = refOptions;
-    this.standardDefs = standardDefs;
 
     this.invoker = (name, rawArgs, ctx, abortSignal) => {
       const fn = this.functions.get(name);
