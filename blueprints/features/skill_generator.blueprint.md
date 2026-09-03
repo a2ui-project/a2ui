@@ -38,6 +38,7 @@ This document specifies the language-agnostic architecture and interface contrac
 ### **1. Module Additions (`a2ui_agent`)**
 
 Add a dedicated `skill` namespace containing:
+
 - `SkillConfig`: Data structure holding generation options (`inference_format`, `catalogs`, `name`, `description`, `modular`, `include_examples`, `validate_examples`, `metadata`, `output_dir`).
 - `SkillGenerator`: Central generator engine performing catalog resolution, prompt generation decomposition, frontmatter formatting, and file export.
 - `generate_skill()`: Developer-facing helper function.
@@ -50,7 +51,7 @@ Add a dedicated `skill` namespace containing:
 name: a2ui
 description: Generates interactive user interface components for user requests.
 metadata:
-  protocol_version: "0.9.1"
+  protocol_version: '0.9.1'
   inference_format: express
   catalogs:
     - basic

@@ -13,6 +13,7 @@
     "samples/client/lit",
     "samples/client/lit/*",
     "samples/client/react/*",
+    "samples/community/commerce_agent_demo/client",
     "samples/personalized_learning",
     "specification/*/eval",
     "specification/*/test",

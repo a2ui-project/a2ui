@@ -5,6 +5,7 @@
   "packageManager": "yarn@4.13.0",
   "workspaces": [
     "custom-lit-components",
+    "commerce_agent_demo/client",
     "client/angular",
     "client/angular/projects/*",
     "client/lit/*",

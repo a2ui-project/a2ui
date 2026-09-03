@@ -126,6 +126,26 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@a2ui/commerce-agent-demo-client@workspace:samples/community/commerce_agent_demo/client":
+  version: 0.0.0-use.local
+  resolution: "@a2ui/commerce-agent-demo-client@workspace:samples/community/commerce_agent_demo/client"
+  dependencies:
+    "@a2ui/react": "npm:*"
+    "@a2ui/web_core": "npm:*"
+    "@types/node": "npm:^25.9.3"
+    "@types/react": "npm:^19.2.17"
+    "@types/react-dom": "npm:^19.2.3"
+    "@vitejs/plugin-react": "npm:^6.0.2"
+    eslint: "npm:^10.4.1"
+    prettier: "npm:^3.5.3"
+    react: "npm:^19.2.7"
+    react-dom: "npm:^19.2.7"
+    typescript: "npm:5.9.3"
+    vite: "npm:^8.0.16"
+    wireit: "npm:^0.15.0-pre.2"
+  languageName: unknown
+  linkType: soft
+
 "@a2ui/editor@workspace:tools/editor":
   version: 0.0.0-use.local
   resolution: "@a2ui/editor@workspace:tools/editor"
@@ -310,7 +330,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/react@workspace:*, @a2ui/react@workspace:renderers/react":
+"@a2ui/react@npm:*, @a2ui/react@workspace:*, @a2ui/react@workspace:renderers/react":
   version: 0.0.0-use.local
   resolution: "@a2ui/react@workspace:renderers/react"
   dependencies:
@@ -22869,6 +22889,15 @@ __metadata:
   dependencies:
     fast-diff: "npm:^1.1.2"
   checksum: 10c0/91cea965681bc5f62c9d26bd3ca6358b81557261d4802e96ec1cf0acbd99d4b61632d53320cd2c3ec7d7f7805a81345644108a41ef46ddc9688e783a9ac792d1
+  languageName: node
+  linkType: hard
+
+"prettier@npm:^3.5.3":
+  version: 3.9.6
+  resolution: "prettier@npm:3.9.6"
+  bin:
+    prettier: bin/prettier.cjs
+  checksum: 10c0/9f7ddae234035868f3daab3dc34e6de7e54622185afb017378029f0c09a9c023248ccf6f34def0b17a0538e18c47aa1b3188bab72965d1bf735919baa0747e99
   languageName: node
   linkType: hard
 
