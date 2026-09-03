@@ -371,8 +371,7 @@ class ConformanceTest {
           // The conformance suites are shared across SDKs, so a file holds
           // actions this one does not implement. Skipping keeps them visible
           // in the report instead of failing the build or passing silently.
-          else ->
-            Assumptions.assumeTrue(false, "Action not implemented here: $action")
+          else -> Assumptions.assumeTrue(false, "Action not implemented here: $action")
         }
       }
     }
@@ -538,8 +537,7 @@ class ConformanceTest {
           // The conformance suites are shared across SDKs, so a file holds
           // actions this one does not implement. Skipping keeps them visible
           // in the report instead of failing the build or passing silently.
-          else ->
-            Assumptions.assumeTrue(false, "Action not implemented here: $action")
+          else -> Assumptions.assumeTrue(false, "Action not implemented here: $action")
         }
       }
     }
@@ -601,8 +599,7 @@ class ConformanceTest {
           // The conformance suites are shared across SDKs, so a file holds
           // actions this one does not implement. Skipping keeps them visible
           // in the report instead of failing the build or passing silently.
-          else ->
-            Assumptions.assumeTrue(false, "Action not implemented here: $action")
+          else -> Assumptions.assumeTrue(false, "Action not implemented here: $action")
         }
       }
     }
