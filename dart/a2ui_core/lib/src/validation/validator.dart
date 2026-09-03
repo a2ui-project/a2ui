@@ -202,7 +202,10 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
   /// Throws [A2uiIntegrityError] for graph defects, [A2uiRecursionError] for
   /// cycles and depth overruns, and [A2uiValidationError] for a malformed
   /// data-model path.
-  void validateStructure(List<A2uiMessage> messages) {
+  void validateStructure(
+    List<A2uiMessage> messages, {
+    Map<String, String> surfaceCatalogs = const {},
+  }) {
     for (final message in messages) {
       checkPathsAndRecursion(message.toJson());
       // Two components sharing an id in one message contradict each other.
@@ -225,7 +228,7 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
       if (surface.components.isEmpty) continue;
 
       final Map<String, ComponentRefFields> refFields = _refFieldsFor(
-        _catalogFor(surface),
+        _catalogFor(entry.key, surface, surfaceCatalogs),
       );
       checkComponentIntegrity(
         surface.components,
@@ -250,27 +253,24 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
   /// Throws [A2uiCatalogError] if a message names a catalog this validator
   /// does not hold, and [A2uiValidationError] for schema violations.
   ///
-  /// A surface the payload does not create carries no catalog id, so its
-  /// components are checked only when this validator holds exactly one
-  /// catalog. A validator has no client state to look the surface up in.
-  void validateAgainstCatalogs(List<A2uiMessage> messages) {
+  /// A surface the payload only updates carries no catalog id, because v0.9
+  /// declares one on `createSurface` alone. Name it in [surfaceCatalogs],
+  /// keyed by surface id; a caller that sent the `createSurface` knows it.
+  /// Without it, a validator holding one catalog uses that catalog and one
+  /// holding several throws rather than leave the components unchecked.
+  void validateAgainstCatalogs(
+    List<A2uiMessage> messages, {
+    Map<String, String> surfaceCatalogs = const {},
+  }) {
     final Map<String, _SurfacePayload> surfaces = _groupBySurface(messages);
 
-    for (final _SurfacePayload surface in surfaces.values) {
-      final String? catalogId = surface.catalogId;
-      if (catalogId != null && !catalogs.containsKey(catalogId)) {
-        throw A2uiCatalogError(
-          "Unknown catalog '$catalogId'. This validator holds: "
-          '${catalogs.keys.join(', ')}.',
-          catalogId: catalogId,
-        );
-      }
-    }
-
-    for (final _SurfacePayload surface in surfaces.values) {
-      final Catalog<C, F>? catalog = _catalogFor(surface);
-      if (catalog == null) continue;
-      for (final Map<String, Object?> component in surface.components) {
+    for (final MapEntry<String, _SurfacePayload> entry in surfaces.entries) {
+      final Catalog<C, F> catalog = _catalogFor(
+        entry.key,
+        entry.value,
+        surfaceCatalogs,
+      );
+      for (final Map<String, Object?> component in entry.value.components) {
         validateComponent(component, catalog);
       }
     }
@@ -280,10 +280,13 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
   /// schemas.
   ///
   /// Returns the parsed messages, and throws as the individual steps do.
-  List<A2uiMessage> validate(List<Map<String, Object?>> payload) {
+  List<A2uiMessage> validate(
+    List<Map<String, Object?>> payload, {
+    Map<String, String> surfaceCatalogs = const {},
+  }) {
     final List<A2uiMessage> messages = parseMessages(payload);
-    validateStructure(messages);
-    validateAgainstCatalogs(messages);
+    validateStructure(messages, surfaceCatalogs: surfaceCatalogs);
+    validateAgainstCatalogs(messages, surfaceCatalogs: surfaceCatalogs);
     return messages;
   }
 
@@ -423,10 +426,37 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
   }
 
   /// The catalog a surface's components belong to, when it can be determined.
-  Catalog<C, F>? _catalogFor(_SurfacePayload surface) {
-    final String? catalogId = surface.catalogId;
-    if (catalogId != null) return catalogs[catalogId];
-    return catalogs.length == 1 ? catalogs.values.first : null;
+  /// The catalog a surface's components are checked against.
+  ///
+  /// Settled in order: the id the payload declares on `createSurface`, then
+  /// the id [surfaceCatalogs] gives for a surface the payload only updates,
+  /// then the sole catalog when this validator holds one.
+  ///
+  /// Throws [A2uiCatalogError] when none of those settles it. Skipping the
+  /// surface instead would report a payload valid that nothing had checked.
+  Catalog<C, F> _catalogFor(
+    String surfaceId,
+    _SurfacePayload surface,
+    Map<String, String> surfaceCatalogs,
+  ) {
+    final String? declared = surface.catalogId ?? surfaceCatalogs[surfaceId];
+    if (declared != null) {
+      final Catalog<C, F>? catalog = catalogs[declared];
+      if (catalog != null) return catalog;
+      throw A2uiCatalogError(
+        "Unknown catalog '$declared'. This validator holds: "
+        '${catalogs.keys.join(', ')}.',
+        catalogId: declared,
+      );
+    }
+    if (catalogs.length == 1) return catalogs.values.first;
+    throw A2uiCatalogError(
+      "Cannot tell which catalog surface '$surfaceId' uses: the payload does "
+      'not create it, so it carries no catalog id, and this validator holds '
+      '${catalogs.length} catalogs. Pass surfaceCatalogs to name it, or use '
+      'MessageProcessor, which tracks the catalog each surface was created '
+      'with.',
+    );
   }
 
   Map<String, ComponentRefFields> _refFieldsFor(Catalog<C, F>? catalog) {

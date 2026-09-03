@@ -34,6 +34,11 @@
 - Added `A2uiRendererCapabilities` and `A2uiVersionCapabilities`.
 - Added `A2uiValidator`, which validates a payload in three synchronous
   stages, and `A2uiValidator.commonTypesSchema`.
+- `A2uiValidator.validate`, `validateStructure` and `validateAgainstCatalogs`
+  take an optional `surfaceCatalogs` map naming the catalog each surface uses.
+  A payload that only updates a surface carries no catalog id, so without it a
+  validator holding several catalogs now throws `A2uiCatalogError` where it
+  previously skipped those components and reported the payload valid.
 - The package now publishes the specification's `common_types.json` as
   `A2uiValidator.commonTypesFor`, and `commonTypesSchema` defaults to it, so
   the shared types are checked without the caller supplying the document.

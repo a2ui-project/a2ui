@@ -800,6 +800,116 @@ void main() {
     });
   });
 
+  group('A2uiValidator surface-to-catalog resolution', () {
+    SchemaCatalog namedCatalog(String id, String component) =>
+        Catalog.fromJson({
+          'catalogId': id,
+          'components': {
+            component: {
+              'type': 'object',
+              'properties': {
+                'id': {'type': 'string'},
+                'component': {'const': component},
+                'a': {'type': 'string'},
+              },
+              'required': ['component', 'a'],
+              'additionalProperties': false,
+            },
+          },
+        });
+
+    /// An incremental payload: v0.9 declares `catalogId` on `createSurface`
+    /// only, so this carries none.
+    List<Map<String, Object?>> incremental(Map<String, Object?> component) => [
+      {
+        'version': 'v0.9',
+        'updateComponents': {
+          'surfaceId': 's1',
+          'components': [component],
+        },
+      },
+    ];
+
+    final Map<String, Object?> valid = {
+      'id': 'root',
+      'component': 'Alpha',
+      'a': 'x',
+    };
+    final Map<String, Object?> bogus = {
+      'id': 'root',
+      'component': 'Nonexistent',
+      'totally': 'bogus',
+    };
+
+    A2uiValidator<ComponentApi, FunctionApi> over(List<String> ids) =>
+        A2uiValidator(
+          catalogs: [
+            for (final String id in ids)
+              namedCatalog(id, id == 'cat1' ? 'Alpha' : 'Beta'),
+          ],
+        );
+
+    test('uses the only catalog when the validator holds one', () {
+      expect(
+        () => over(['cat1']).validate(incremental(valid)),
+        returnsNormally,
+      );
+      expect(
+        () => over(['cat1']).validate(incremental(bogus)),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('throws rather than skip when several catalogs are ambiguous', () {
+      // Reporting a payload valid that nothing checked is the worse failure.
+      expect(
+        () => over(['cat1', 'cat2']).validate(incremental(bogus)),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+      expect(
+        () => over(['cat1', 'cat2']).validate(incremental(valid)),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+
+    test('checks against the catalog surfaceCatalogs names', () {
+      expect(
+        () => over([
+          'cat1',
+          'cat2',
+        ]).validate(incremental(valid), surfaceCatalogs: const {'s1': 'cat1'}),
+        returnsNormally,
+      );
+      expect(
+        () => over([
+          'cat1',
+          'cat2',
+        ]).validate(incremental(bogus), surfaceCatalogs: const {'s1': 'cat1'}),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('rejects a component belonging to another catalog', () {
+      expect(
+        () => over([
+          'cat1',
+          'cat2',
+        ]).validate(incremental(valid), surfaceCatalogs: const {'s1': 'cat2'}),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('throws when surfaceCatalogs names a catalog it does not hold', () {
+      expect(
+        () => over([
+          'cat1',
+          'cat2',
+        ]).validate(incremental(valid), surfaceCatalogs: const {'s1': 'nope'}),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+  });
+
   group('A2uiValidator.validate', () {
     test('returns the parsed messages for a valid payload', () async {
       final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
