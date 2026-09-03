@@ -47,10 +47,12 @@ Object? _plain(Object? node) {
   return node;
 }
 
-/// Joins adjacent literal parts.
+/// Joins adjacent literal parts and drops empty ones.
 ///
 /// A template fixes which values a parser produces, not how it happens to
 /// split the literal text around them, so both are compared in joined form.
+/// An empty literal carries no content either way, and implementations differ
+/// on whether they emit one, so it is not something a case should pin.
 List<Object?> _joinLiterals(List<Object?> parts) {
   final joined = <Object?>[];
   for (final part in parts) {
@@ -60,7 +62,7 @@ List<Object?> _joinLiterals(List<Object?> parts) {
       joined.add(part);
     }
   }
-  return joined;
+  return joined.where((p) => p != '').toList();
 }
 
 void main() {

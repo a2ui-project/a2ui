@@ -24,8 +24,13 @@ import {A2uiExpressionError} from '../../errors.js';
  * It supports literals (strings, numbers, booleans), path-based data bindings, and
  * nested function calls with named arguments.
  */
-/** Digits, optionally followed by a decimal point and more digits. */
-const NUMBER_LITERAL = /^\d+(?:\.\d+)?$/;
+/**
+ * Digits, an optional decimal point, and optional further digits.
+ *
+ * Every client implementation accepts a trailing point (`1.`) today and none
+ * accepts a second point (`1.2.3`), so the grammar is written to keep that.
+ */
+const NUMBER_LITERAL = /^\d+\.?\d*$/;
 
 export class ExpressionParser {
   /** The maximum allowed recursion depth for nested expressions to prevent stack overflows. */

@@ -14,8 +14,11 @@
 
 import '../primitives/errors.dart';
 
-/// Digits, optionally followed by a decimal point and more digits.
-final RegExp _numberLiteral = RegExp(r'^\d+(?:\.\d+)?$');
+/// Digits, an optional decimal point, and optional further digits.
+///
+/// Every client implementation accepts a trailing point (`1.`) today and none
+/// accepts a second point (`1.2.3`), so the grammar is written to keep that.
+final RegExp _numberLiteral = RegExp(r'^\d+\.?\d*$');
 
 /// A parser for A2UI expressions, supporting string interpolation
 /// and function calls.

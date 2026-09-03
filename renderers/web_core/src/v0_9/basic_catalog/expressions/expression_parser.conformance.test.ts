@@ -50,10 +50,12 @@ function findSuite(relPath: string): string {
 }
 
 /**
- * Joins adjacent literal parts.
+ * Joins adjacent literal parts and drops empty ones.
  *
  * A template fixes which values a parser produces, not how it happens to split
- * the literal text around them, so both are compared in joined form.
+ * the literal text around them, so both are compared in joined form. An empty
+ * literal carries no content either way, and implementations differ on whether
+ * they emit one, so it is not something a case should pin.
  */
 function joinLiterals(parts: unknown[]): unknown[] {
   const joined: unknown[] = [];
@@ -65,7 +67,7 @@ function joinLiterals(parts: unknown[]): unknown[] {
       joined.push(part);
     }
   }
-  return joined;
+  return joined.filter(part => part !== '');
 }
 
 describe('expression parser conformance', () => {

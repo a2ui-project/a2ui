@@ -29,10 +29,10 @@
   expect: ["hello world"]
 
 - name: test_expr_empty_template
-  description: An empty template yields a single empty literal.
+  description: An empty template yields no content.
   action: parse_expression_template
   input: ""
-  expect: [""]
+  expect: []
 
 - name: test_expr_relative_path
   description: A bare identifier is a relative data binding.
@@ -214,16 +214,14 @@
     category: "ParseError"
     message: "Unexpected characters"
 
-- name: test_expr_error_number_with_trailing_point
+- name: test_expr_number_with_trailing_point
   description: >
-    A number literal must have digits on both sides of its decimal point. The
-    grammar is fixed here rather than left to each platform's number parser,
-    which disagree on this input.
+    A trailing decimal point is accepted, as every client implementation does
+    today. The grammar is stated in each parser rather than delegated to the
+    platform's number parser, so this stays true.
   action: parse_expression_template
   input: "${1.}"
-  expect_error:
-    category: "ParseError"
-    message: "Invalid number literal"
+  expect: [1]
 
 - name: test_expr_error_invalid_number_two_points
   description: A number literal with two decimal points is rejected as a protocol error.

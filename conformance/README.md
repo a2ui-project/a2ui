@@ -49,6 +49,6 @@ Both locate the suite by walking up from the test file, so they need no configur
 
 `input` is the template string handed to the parser, and `expect` is the sequence of parsed parts — literal strings, data bindings (`{path: ...}`) and function calls (`{call: ..., args: ..., returnType: ...}`).
 
-Harnesses join adjacent literal parts before comparing. A case therefore fixes what a template _means_, not how a given implementation splits the literal text around its values; implementations that split literal runs differently still conform as long as the values and the text agree.
+Harnesses join adjacent literal parts before comparing, and drop empty ones. A case therefore fixes what a template _means_, not how a given implementation splits the literal text around its values; implementations that split literal runs differently still conform as long as the values and the text agree.
 
 Errors are expressed with the suite's language-agnostic categories rather than an SDK's class names: `ParseError` maps to `A2uiExpressionError` in both the Dart and TypeScript clients, and `message` is matched as a regular expression against the error's text.
