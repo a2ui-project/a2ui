@@ -81,26 +81,27 @@ describe('ExpressionParser', () => {
     // ExpressionParser.MAX_DEPTH is private, so these mirror its value of 10.
     const MAX_DEPTH = 10;
 
-    // '${f(a: f(a: ... 1 ...))}', nested `depth` levels deep.
-    const nestedCalls = (depth: number) => `\${${'f(a: '.repeat(depth)}1${')'.repeat(depth)}}`;
+    // '${f(a: f(a: ... 1 ...))}'. The interpolation is itself a level, so this
+    // nests `calls + 1` deep.
+    const nestedCalls = (calls: number) => `\${${'f(a: '.repeat(calls)}1${')'.repeat(calls)}}`;
 
-    // '${${ ... x ... }}', nested `depth` levels deep.
+    // '${${ ... x ... }}', nesting `depth` levels deep.
     const nestedInterpolations = (depth: number) => `${'${'.repeat(depth)}x${'}'.repeat(depth)}`;
 
     it('accepts nesting up to the maximum depth', () => {
       assert.doesNotThrow(() => parser.parse(nestedCalls(MAX_DEPTH - 1)));
-      assert.doesNotThrow(() => parser.parse(nestedInterpolations(MAX_DEPTH - 1)));
+      assert.doesNotThrow(() => parser.parse(nestedInterpolations(MAX_DEPTH)));
     });
 
-    it('rejects function arguments nested past the maximum depth', () => {
+    it('rejects function arguments one level past the maximum depth', () => {
       assert.throws(() => {
-        parser.parse(nestedCalls(MAX_DEPTH + 2));
+        parser.parse(nestedCalls(MAX_DEPTH));
       }, /Max recursion depth reached/);
     });
 
-    it('rejects interpolations nested past the maximum depth', () => {
+    it('rejects interpolations one level past the maximum depth', () => {
       assert.throws(() => {
-        parser.parse(nestedInterpolations(MAX_DEPTH + 2));
+        parser.parse(nestedInterpolations(MAX_DEPTH + 1));
       }, /Max recursion depth reached/);
     });
 
