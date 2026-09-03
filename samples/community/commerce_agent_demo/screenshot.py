@@ -63,6 +63,13 @@ def capture_screenshots(url: str = "http://localhost:5180"):
             page.screenshot(path=express_path, full_page=True)
             print(f"Saved Express Inspector screenshot to: {express_path}")
 
+            # 4. Capture Compiled Skills Inspector Tab
+            page.locator("button:has-text('Generated Skills')").first.click()
+            time.sleep(1)
+            skills_path = os.path.join(SCREENSHOTS_DIR, "skills_inspector.png")
+            page.screenshot(path=skills_path, full_page=True)
+            print(f"Saved Skills Inspector screenshot to: {skills_path}")
+
         except Exception as e:
             print(f"Error capturing screenshots: {e}")
             sys.exit(1)

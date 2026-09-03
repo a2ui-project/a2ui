@@ -3,10 +3,23 @@ import {Catalog, MessageProcessor} from '@a2ui/web_core/v0_9';
 import {basicCatalog, A2uiSurface} from '@a2ui/react/v0_9';
 import {commerceCatalog} from './commerceCatalog';
 
+interface LoadedSkill {
+  id: string;
+  name: string;
+  description: string;
+}
+
 interface ChatMessage {
   id: string;
   sender: 'user' | 'assistant';
   text: string;
+  loadedSkills?: LoadedSkill[];
+}
+
+interface SkillItem {
+  name: string;
+  path: string;
+  content: string;
 }
 
 interface BootstrapStep {
@@ -29,9 +42,13 @@ export default function App() {
   const [surfaceId, setSurfaceId] = useState<string>('main');
 
   // Inspector & Code Tabs
-  const [activeTab, setActiveTab] = useState<'canvas' | 'json' | 'express'>('canvas');
+  const [activeTab, setActiveTab] = useState<'canvas' | 'json' | 'express' | 'skills'>('canvas');
   const [rawExpress, setRawExpress] = useState<string>('');
   const [a2uiMessages, setA2uiMessages] = useState<any[]>([]);
+
+  // Skills Viewer State
+  const [skills, setSkills] = useState<SkillItem[]>([]);
+  const [activeSkillTab, setActiveSkillTab] = useState<string>('a2ui-core');
 
   // Bootstrap Tracker State
   const [bootstrapStatus, setBootstrapStatus] = useState<'initializing' | 'ready'>('initializing');
@@ -62,9 +79,17 @@ export default function App() {
     },
   ]);
 
-  // Run Bootstrap Sequence on Mount
+  // Run Bootstrap Sequence & Fetch Generated Skills on Mount
   useEffect(() => {
     runBootstrapSequence();
+    fetch('/api/skills')
+      .then(res => res.json())
+      .then(data => {
+        if (data.skills && Array.isArray(data.skills)) {
+          setSkills(data.skills);
+        }
+      })
+      .catch(err => console.error('Failed to fetch skills:', err));
   }, []);
 
   const runBootstrapSequence = async () => {
@@ -131,7 +156,7 @@ export default function App() {
     // Synchronously create shared surface main on initialization
     proc.processMessages([
       {
-        version: 'v1.0',
+        version: 'v0.9',
         createSurface: {
           surfaceId: 'main',
           catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
@@ -206,6 +231,11 @@ export default function App() {
           data.status === 'success'
             ? 'Here are the requested results rendered via A2UI React:'
             : `Error: ${data.error || 'Failed to fetch'}`,
+        loadedSkills: data.loaded_skills || [
+          {id: 'a2ui-core', name: 'a2ui-core', description: 'Express DSL Grammar & Syntax Rules'},
+          {id: 'a2ui-basic', name: 'a2ui-basic', description: 'Standard Basic Component Catalog'},
+          {id: 'a2ui-commerce', name: 'a2ui-commerce', description: 'Commerce Catalog (ProductCard, ProductGrid)'},
+        ],
       };
 
       setMessages(prev => [...prev, assistantMsg]);
@@ -261,7 +291,25 @@ export default function App() {
             Apex Commerce AI Assistant
           </h2>
         </div>
-        <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
+        <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+          <button
+            onClick={() => setActiveTab('skills')}
+            style={{
+              background: activeTab === 'skills' ? '#38bdf8' : 'rgba(255,255,255,0.12)',
+              color: activeTab === 'skills' ? '#0f172a' : '#ffffff',
+              border: '1px solid rgba(255,255,255,0.2)',
+              borderRadius: '6px',
+              padding: '6px 12px',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            📚 View Generated Skills
+          </button>
           <span
             style={{
               fontSize: '12px',
@@ -385,6 +433,65 @@ export default function App() {
                 >
                   {msg.text}
                 </div>
+                {msg.loadedSkills && msg.loadedSkills.length > 0 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: '6px',
+                      flexWrap: 'wrap',
+                      marginTop: '6px',
+                      marginBottom: '4px',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        color: '#64748b',
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                      }}
+                    >
+                      Skills Loaded:
+                    </span>
+                    {msg.loadedSkills.map(sk => (
+                      <span
+                        key={sk.id}
+                        onClick={() => {
+                          setActiveSkillTab(sk.name);
+                          setActiveTab('skills');
+                        }}
+                        style={{
+                          fontSize: '11px',
+                          background: sk.name.includes('core')
+                            ? '#e0f2fe'
+                            : sk.name.includes('basic')
+                            ? '#f0fdf4'
+                            : '#fef3c7',
+                          color: sk.name.includes('core')
+                            ? '#0369a1'
+                            : sk.name.includes('basic')
+                            ? '#15803d'
+                            : '#b45309',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          fontWeight: 600,
+                          border: '1px solid rgba(0,0,0,0.08)',
+                          cursor: 'pointer',
+                        }}
+                        title={`Click to inspect source code of ${sk.name} skill`}
+                      >
+                        {sk.name.includes('core')
+                          ? '🧠 '
+                          : sk.name.includes('basic')
+                          ? '📦 '
+                          : '🛍️ '}
+                        {sk.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             {loading && (
@@ -548,6 +655,24 @@ export default function App() {
             >
               ⚡ Raw Express DSL
             </button>
+            <button
+              onClick={() => setActiveTab('skills')}
+              style={{
+                padding: '8px 16px',
+                border: 'none',
+                borderBottom:
+                  activeTab === 'skills'
+                    ? '3px solid #2563eb'
+                    : '3px solid transparent',
+                background: 'transparent',
+                fontWeight: activeTab === 'skills' ? 700 : 500,
+                color: activeTab === 'skills' ? '#2563eb' : '#64748b',
+                fontSize: '14px',
+                cursor: 'pointer',
+              }}
+            >
+              📚 Generated Skills ({skills.length || 3})
+            </button>
           </div>
 
           {/* Tab Content Panel */}
@@ -655,6 +780,106 @@ export default function App() {
                     No Express DSL text generated yet. Submit a query to inspect.
                   </div>
                 )}
+              </div>
+            )}
+
+            {activeTab === 'skills' && (
+              <div>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
+                  <h3 style={{margin: 0, fontSize: '18px', color: '#0f172a'}}>
+                    Compiled Modular Skills Source Code
+                  </h3>
+                  <div style={{fontSize: '12px', color: '#64748b'}}>
+                    Generated dynamically by <code style={{background: '#e2e8f0', padding: '2px 6px', borderRadius: '4px'}}>SkillGenerator</code>
+                  </div>
+                </div>
+
+                {/* Sub-tabs for Skill Selection */}
+                <div style={{display: 'flex', gap: '8px', marginBottom: '16px'}}>
+                  {(skills.length > 0
+                    ? skills
+                    : [
+                        {name: 'a2ui-core', path: 'a2ui-core/SKILL.md', content: 'Loading skill content...'},
+                        {name: 'a2ui-basic', path: 'a2ui-basic/SKILL.md', content: 'Loading skill content...'},
+                        {name: 'a2ui-commerce', path: 'a2ui-commerce/SKILL.md', content: 'Loading skill content...'},
+                      ]
+                  ).map(sk => {
+                    const cleanLabel = sk.name.includes('core')
+                      ? 'a2ui-core'
+                      : sk.name.includes('basic')
+                      ? 'a2ui-basic'
+                      : 'a2ui-commerce';
+                    const isSelected =
+                      activeSkillTab === cleanLabel ||
+                      activeSkillTab === sk.name ||
+                      (activeSkillTab === 'a2ui-core' && sk.name.includes('core'));
+                    return (
+                      <button
+                        key={sk.name}
+                        onClick={() => setActiveSkillTab(cleanLabel)}
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: '8px',
+                          border: isSelected ? '1px solid #2563eb' : '1px solid #cbd5e1',
+                          background: isSelected ? '#eff6ff' : '#ffffff',
+                          color: isSelected ? '#1d4ed8' : '#475569',
+                          fontWeight: isSelected ? 700 : 500,
+                          fontSize: '13px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        {cleanLabel.includes('core')
+                          ? '🧠 '
+                          : cleanLabel.includes('basic')
+                          ? '📦 '
+                          : '🛍️ '}
+                        {cleanLabel}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Display Content for Active Skill */}
+                {(() => {
+                  const currentSkill =
+                    skills.find(s => s.name === activeSkillTab || s.path.startsWith(activeSkillTab)) ||
+                    skills[0];
+
+                  return currentSkill ? (
+                    <div style={{background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden'}}>
+                      <div style={{background: '#f8fafc', padding: '12px 16px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                        <span style={{fontSize: '12px', fontFamily: 'monospace', color: '#475569', fontWeight: 600}}>
+                          📁 samples/community/commerce_agent_demo/skills/{currentSkill.path}
+                        </span>
+                        <span style={{fontSize: '11px', background: '#dbeafe', color: '#1e40af', padding: '2px 8px', borderRadius: '10px', fontWeight: 600}}>
+                          A2UI Modular Skill
+                        </span>
+                      </div>
+                      <pre
+                        style={{
+                          background: '#0f172a',
+                          color: '#e2e8f0',
+                          padding: '20px',
+                          margin: 0,
+                          fontSize: '13px',
+                          lineHeight: 1.5,
+                          overflowX: 'auto',
+                          maxHeight: '520px',
+                          fontFamily: 'Consolas, Monaco, monospace',
+                        }}
+                      >
+                        {currentSkill.content}
+                      </pre>
+                    </div>
+                  ) : (
+                    <div style={{border: '2px dashed #cbd5e1', borderRadius: '12px', padding: '48px', textAlign: 'center', color: '#64748b'}}>
+                      Loading skill packages from server...
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>

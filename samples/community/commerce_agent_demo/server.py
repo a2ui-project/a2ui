@@ -28,6 +28,7 @@ import copy
 import http.server
 import socketserver
 import json
+import time
 from typing import Any, Optional
 
 from google import genai
@@ -264,6 +265,35 @@ def main():
                     self.send_header("Content-Type", "application/json")
                     self.end_headers()
                     self.wfile.write(json.dumps(bootstrap_data).encode("utf-8"))
+                elif self.path == "/api/skills":
+                    skill_list = []
+                    if os.path.exists(OUTPUT_SKILLS_DIR):
+                        for root, _, files in os.walk(OUTPUT_SKILLS_DIR):
+                            for file in files:
+                                if file.endswith(".md"):
+                                    full_p = os.path.join(root, file)
+                                    rel_p = os.path.relpath(full_p, OUTPUT_SKILLS_DIR)
+                                    dir_name = rel_p.split("/")[0]
+                                    clean_name = (
+                                        "a2ui-basic" if "basic" in rel_p
+                                        else "a2ui-commerce" if "commerce" in rel_p
+                                        else "a2ui-core" if "core" in rel_p
+                                        else dir_name
+                                    )
+                                    with open(full_p, "r", encoding="utf-8") as sf:
+                                        content = sf.read()
+                                    skill_list.append({
+                                        "name": clean_name,
+                                        "path": rel_p,
+                                        "content": content,
+                                    })
+                    # Sort skills logically: core, basic, commerce
+                    skill_order = {"a2ui-core": 0, "a2ui-basic": 1, "a2ui-commerce": 2}
+                    skill_list.sort(key=lambda x: skill_order.get(x["name"], 99))
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"skills": skill_list}).encode("utf-8"))
                 elif self.path in ["/", "/index.html"]:
                     self.send_response(200)
                     self.send_header("Content-Type", "text/html")
@@ -282,7 +312,16 @@ def main():
                     try:
                         raw_resp = query_commerce_agent(client, skills_text, user_prompt)
                         validated = parser_inst.compile(raw_resp)
-                        res_data = {"status": "success", "raw": raw_resp, "a2ui_messages": validated}
+                        res_data = {
+                            "status": "success",
+                            "raw": raw_resp,
+                            "a2ui_messages": validated,
+                            "loaded_skills": [
+                                {"id": "a2ui-core", "name": "a2ui-core", "description": "Express DSL Grammar & Syntax Rules"},
+                                {"id": "a2ui-basic", "name": "a2ui-basic", "description": "Standard Basic Component Catalog"},
+                                {"id": "a2ui-commerce", "name": "a2ui-commerce", "description": "Commerce Catalog (ProductCard, ProductGrid)"},
+                            ],
+                        }
                     except Exception as err:
                         print(f"Error querying commerce agent: {err}")
                         res_data = {"status": "error", "error": str(err)}
