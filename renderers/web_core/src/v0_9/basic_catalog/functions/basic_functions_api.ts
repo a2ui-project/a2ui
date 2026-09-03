@@ -264,8 +264,8 @@ export const RegexApi = {
   name: 'regex' as const,
   returnType: 'boolean' as const,
   schema: z.object({
-    'value': z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
-    'pattern': z.preprocess(v => (v === undefined ? undefined : String(v)), z.string()),
+    'value': z.preprocess(v => (v === undefined ? undefined : String(v)), z.string().max(4096)),
+    'pattern': z.preprocess(v => (v === undefined ? undefined : String(v)), z.string().max(256)),
   }),
 };
 

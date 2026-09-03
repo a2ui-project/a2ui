@@ -46,6 +46,9 @@ import {
   OpenUrlApi,
 } from './basic_functions_api.js';
 import {A2uiExpressionError} from '../../errors.js';
+import {isSafeRegex} from './safe_regex.js';
+
+export {isSafeRegex, type SafeRegexOptions} from './safe_regex.js';
 
 // Arithmetic
 /**
@@ -183,9 +186,15 @@ export const RequiredImplementation = createFunctionImplementation(RequiredApi, 
 /**
  * Implementation of the regex validation function.
  * Checks if the value matches the regular expression pattern.
- * Throws A2uiExpressionError if the pattern is invalid.
+ * Throws A2uiExpressionError if the pattern is invalid or unsafe (catastrophic backtracking risk).
  */
 export const RegexImplementation = createFunctionImplementation(RegexApi, args => {
+  if (!isSafeRegex(args.pattern)) {
+    throw new A2uiExpressionError(
+      `Unsafe regex pattern (catastrophic backtracking risk): ${args.pattern}`,
+      'regex',
+    );
+  }
   try {
     return new RegExp(args.pattern).test(args.value);
   } catch (e) {

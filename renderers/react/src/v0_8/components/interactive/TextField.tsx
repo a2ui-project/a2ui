@@ -15,6 +15,7 @@
  */
 
 import {useState, useCallback, useEffect, useId, memo} from 'react';
+import {isSafeRegex} from '@a2ui/web_core';
 import type * as Types from '@a2ui/web_core/types/types';
 import type {A2UIComponentProps} from '../../types';
 import {useA2UIComponent} from '../../hooks/useA2UIComponent';
@@ -63,7 +64,15 @@ export const TextField = memo(function TextField({
 
       // Validate if pattern provided
       if (validationRegexp) {
-        setIsValid(new RegExp(validationRegexp).test(newValue));
+        try {
+          if (isSafeRegex(validationRegexp)) {
+            setIsValid(new RegExp(validationRegexp).test(newValue));
+          } else {
+            setIsValid(false);
+          }
+        } catch {
+          setIsValid(false);
+        }
       }
 
       // Two-way binding: update data model

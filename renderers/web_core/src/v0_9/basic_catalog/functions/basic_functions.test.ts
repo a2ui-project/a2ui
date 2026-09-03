@@ -208,6 +208,57 @@ describe('BASIC_FUNCTIONS', () => {
         A2uiExpressionError,
       );
     });
+
+    it('regex blocks catastrophic backtracking (ReDoS) patterns with A2uiExpressionError', () => {
+      const redosPatterns = [
+        '(a+)+b',
+        '(a*)*b',
+        '([a-zA-Z]+)*$',
+        '(a|aa)+$',
+        '(a|a+)+$',
+        '(x+x+)+y',
+        '(\\d+)+',
+        '((a+)+)+',
+        '(a{1,}){2,}',
+        '(?:[0-9]+)+',
+      ];
+
+      for (const pattern of redosPatterns) {
+        assert.throws(
+          () => invoke('regex', {value: 'aaaaaaaaaaaaaaaaaaaa!', pattern}, context),
+          A2uiExpressionError,
+          `Expected pattern ${pattern} to be rejected as unsafe ReDoS`,
+        );
+      }
+    });
+
+    it('regex allows valid complex and standard safe patterns', () => {
+      const safePatterns = [
+        {
+          pattern: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$',
+          val: 'test@example.com',
+          expected: true,
+        },
+        {pattern: '^\\d{5}(-\\d{4})?$', val: '12345-6789', expected: true},
+        {pattern: '^\\d{4}-\\d{2}-\\d{2}$', val: '2026-08-21', expected: true},
+        {pattern: '^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$', val: '#1a2b3c', expected: true},
+        {
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+          val: '123e4567-e89b-12d3-a456-426614174000',
+          expected: true,
+        },
+        {pattern: '^[a-z]+(,[a-z]+)*$', val: 'apple,banana,orange', expected: true},
+        {pattern: '^(\\d{1,3}\\.){3}\\d{1,3}$', val: '192.168.1.1', expected: true},
+      ];
+
+      for (const {pattern, val, expected} of safePatterns) {
+        assert.strictEqual(
+          invoke('regex', {value: val, pattern}, context),
+          expected,
+          `Expected pattern ${pattern} to evaluate safely`,
+        );
+      }
+    });
   });
 
   describe('Formatting', () => {
