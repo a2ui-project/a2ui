@@ -86,10 +86,21 @@ class SkillGenerator:
     def generate_modular(
         self,
         catalogs: Optional[list[Union[str, A2uiCatalog]]] = None,
+        core_name: Optional[str] = None,
         include_examples: bool = True,
         validate_examples: bool = False,
     ) -> "SkillSet":
         """Generates a SkillSet containing modular Skill domain objects (a2ui-core, a2ui-basic, etc.).
+
+        In modular mode, each skill receives its own distinct identity:
+        - Core syntax skill: name is core_name or 'a2ui-core'
+        - Catalog skills: name is auto-derived per catalog as 'a2ui-<catalog_name>'
+
+        Args:
+            catalogs: Optional list of catalogs to generate modular skills for.
+            core_name: Custom name override for the base core skill (default: 'a2ui-core').
+            include_examples: Whether to include catalog few-shot examples.
+            validate_examples: Whether to validate catalog few-shot examples.
 
         Returns:
             SkillSet collection containing the compiled modular Skill objects.
@@ -99,8 +110,8 @@ class SkillGenerator:
         raw_dict = self._generate_modular_skills(
             fmt=fmt,
             catalogs=cat_list,
-            name=None,
-            description=self.config.description,
+            name=core_name,
+            description=None,
             include_examples=include_examples,
             validate_examples=validate_examples,
             extra_metadata=self.config.metadata,
