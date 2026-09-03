@@ -85,9 +85,9 @@ export function typeToPython(desc: TypeDescriptor): string {
     case 'enum':
       return desc.name;
     case 'component_ref':
-      return 'ComponentBuilderNode';
+      return 'Slot';
     case 'component_list':
-      return 'Sequence[ComponentBuilderNode] | DynamicChildList';
+      return 'SlotList | DynamicChildList';
     case 'dynamic': {
       const inner = typeToPython(desc.inner);
       return `${inner} | DataBinding | FunctionCall`;

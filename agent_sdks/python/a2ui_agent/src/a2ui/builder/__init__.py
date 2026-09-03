@@ -22,6 +22,7 @@ from .base import (
     ChildList,
     ComponentBuilderNode,
     ComponentRef,
+    ComponentTree,
     DataBinding,
     DynamicBoolean,
     DynamicChildList,
@@ -32,9 +33,13 @@ from .base import (
     ExternalComponentBuilderNode,
     FunctionCall,
     IdAllocator,
+    Slot,
+    SlotList,
     Surface,
     bind,
+    create_surface,
     flatten_component_tree,
+    update_components,
 )
 
 __all__ = [
@@ -45,6 +50,7 @@ __all__ = [
     "ChildList",
     "ComponentBuilderNode",
     "ComponentRef",
+    "ComponentTree",
     "DataBinding",
     "DynamicBoolean",
     "DynamicChildList",
@@ -55,7 +61,11 @@ __all__ = [
     "ExternalComponentBuilderNode",
     "FunctionCall",
     "IdAllocator",
+    "Slot",
+    "SlotList",
     "Surface",
     "bind",
+    "create_surface",
     "flatten_component_tree",
+    "update_components",
 ]

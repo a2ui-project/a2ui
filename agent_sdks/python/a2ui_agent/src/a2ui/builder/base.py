@@ -15,23 +15,41 @@
 """Base runtime classes and tree flattener for typesafe A2UI builders."""
 
 import json
-from dataclasses import dataclass, field
-from typing import Any, Mapping, Optional, Sequence, Union
+from typing import Any, Mapping, Optional, Sequence, TypeAlias, Union
+from pydantic import BaseModel, ConfigDict, Field
 
 
-@dataclass(kw_only=True)
-class ComponentBuilderNode:
+class ComponentBuilderNode(BaseModel):
     """Base class for all generated A2UI component builders."""
 
+    model_config = ConfigDict(
+        extra="forbid",
+        arbitrary_types_allowed=True,
+        populate_by_name=True,
+        validate_assignment=True,
+    )
+
+    component: str = ""
     id: Optional[str] = None
-    component_name: str = field(default="", init=False)
+
+    @property
+    def component_name(self) -> str:
+        return self.component
+
+    @component_name.setter
+    def component_name(self, value: str) -> None:
+        self.component = value
 
     def to_dict(self) -> dict[str, Any]:
         """Serializes this component into an A2UI wire format dictionary."""
-        d: dict[str, Any] = {"component": self.component_name}
+        d: dict[str, Any] = {"component": self.component_name or self.component}
         if self.id is not None:
             d["id"] = self.id
         return d
+
+    def to_components(self, prefix: Optional[str] = None) -> list[dict[str, Any]]:
+        """Flattens this component subtree into A2UI wire-format dictionaries."""
+        return flatten_component_tree(self, root_id=prefix)
 
 
 class ExternalComponentBuilderNode(ComponentBuilderNode):
@@ -41,9 +59,8 @@ class ExternalComponentBuilderNode(ComponentBuilderNode):
     namespaced IDs during macro expansion, preserving outer component addresses.
     """
 
-    def __init__(self, id: str):
-        super().__init__(id=id)
-        self.component_name = "ExternalComponent"
+    def __init__(self, id: str, **kwargs: Any):
+        super().__init__(id=id, component="ExternalComponent", **kwargs)
 
     def to_dict(self) -> dict[str, Any]:
         return {"id": self.id}
@@ -53,9 +70,10 @@ class ExternalComponentBuilderNode(ComponentBuilderNode):
 ComponentRef = ExternalComponentBuilderNode
 
 
-@dataclass(frozen=True)
-class DataBinding:
+class DataBinding(BaseModel):
     """A two-way binding to a path in the client data model."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     path: str
 
@@ -69,9 +87,10 @@ def bind(path: str) -> DataBinding:
     return DataBinding(path=path)
 
 
-@dataclass(kw_only=True)
-class AccessibilityAttributes:
+class AccessibilityAttributes(BaseModel):
     """Attributes to enhance accessibility when using assistive technologies."""
+
+    model_config = ConfigDict(extra="forbid")
 
     label: Optional[Union[str, DataBinding]] = None
     description: Optional[Union[str, DataBinding]] = None
@@ -101,12 +120,13 @@ class AccessibilityAttributes:
         return d
 
 
-@dataclass(kw_only=True)
-class FunctionCall:
+class FunctionCall(BaseModel):
     """Invocation of a client-side catalog function."""
 
+    model_config = ConfigDict(extra="forbid")
+
     call: str
-    args: dict[str, Any] = field(default_factory=dict)
+    args: dict[str, Any] = Field(default_factory=dict)
     call_id: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -123,30 +143,39 @@ class FunctionCall:
         return d
 
 
-@dataclass(kw_only=True)
-class Action:
+class Action(BaseModel):
     """An interaction handler dispatching a server event or client function."""
+
+    model_config = ConfigDict(extra="forbid")
 
     event: Optional[Union[str, dict[str, Any]]] = None
     function: Optional[FunctionCall] = None
+    context: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict[str, Any]:
         if self.event is not None:
             if isinstance(self.event, str):
-                return {"event": {"name": self.event}}
+                d: dict[str, Any] = {"name": self.event}
+                if self.context:
+                    d["context"] = self.context
+                return {"event": d}
             elif isinstance(self.event, dict):
-                if "name" in self.event:
-                    return {"event": self.event}
-                return {"event": {"name": self.event.get("name", "action")}}
+                ev = dict(self.event)
+                if self.context and "context" not in ev:
+                    ev["context"] = self.context
+                if "name" in ev:
+                    return {"event": ev}
+                return {"event": {"name": ev.get("name", "action"), **ev}}
             return {"event": self.event}
         if self.function is not None:
             return {"function": self.function.to_dict()}
         return {}
 
 
-@dataclass(kw_only=True)
-class CheckRule:
+class CheckRule(BaseModel):
     """A client-side validation check (condition + error message)."""
+
+    model_config = ConfigDict(extra="forbid")
 
     condition: FunctionCall
     message: str
@@ -158,9 +187,10 @@ class CheckRule:
         }
 
 
-@dataclass(kw_only=True)
-class DynamicChildList:
+class DynamicChildList(BaseModel):
     """Generates dynamic children from a collection in the data model."""
+
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     data_model_path: str
     template: ComponentBuilderNode
@@ -235,14 +265,15 @@ def flatten_component_tree(
             id_map[node_key] = assigned
             return assigned
 
+        comp_name = node.component_name or node.component
         if is_root:
             assigned = (
                 root_id
                 if root_id
-                else (node.id if node.id else allocator.allocate(node.component_name))
+                else (node.id if node.id else allocator.allocate(comp_name))
             )
         else:
-            assigned = allocator.allocate(node.component_name, preferred_id=node.id)
+            assigned = allocator.allocate(comp_name, preferred_id=node.id)
 
         id_map[node_key] = assigned
 
@@ -259,8 +290,8 @@ def flatten_component_tree(
             elif isinstance(val, DynamicChildList):
                 traverse(val.template)
 
-        for attr_name, attr_val in vars(node).items():
-            if attr_name not in ("component_name", "id"):
+        for attr_name, attr_val in node.__dict__.items():
+            if attr_name not in ("component_name", "component", "id"):
                 traverse(attr_val)
 
         return assigned
@@ -276,7 +307,8 @@ def flatten_component_tree(
             return
         visited_nodes.add(node_key)
 
-        d: dict[str, Any] = {"component": node.component_name, "id": id_map[node_key]}
+        comp_name = node.component_name or node.component
+        d: dict[str, Any] = {"component": comp_name, "id": id_map[node_key]}
 
         def traverse_and_serialize(val: Any) -> Any:
             if isinstance(val, ComponentBuilderNode):
@@ -295,8 +327,8 @@ def flatten_component_tree(
             else:
                 return val
 
-        for attr_name, attr_val in vars(node).items():
-            if attr_name in ("component_name", "id"):
+        for attr_name, attr_val in node.__dict__.items():
+            if attr_name in ("component_name", "component", "id"):
                 continue
             if attr_val is None:
                 continue
@@ -308,18 +340,110 @@ def flatten_component_tree(
     return flat_list
 
 
-@dataclass(kw_only=True)
-class Surface:
+class ComponentTree:
+    """An in-memory hierarchy of components, containing a primary root and any unlinked subtrees."""
+
+    def __init__(
+        self,
+        root: ComponentBuilderNode,
+        unlinked_roots: Sequence[ComponentBuilderNode] | None = None,
+        surface_id: str | None = None,
+    ):
+        self.root = root
+        self.unlinked_roots = list(unlinked_roots or [])
+        self.surface_id = surface_id
+
+    def to_components(self) -> list[dict[str, Any]]:
+        """Serializes the primary tree and all unlinked subtrees into flat component dicts."""
+        comps = flatten_component_tree(self.root, root_id=self.root.id or "root")
+        for sub_tree in self.unlinked_roots:
+            comps.extend(
+                flatten_component_tree(sub_tree, root_id=sub_tree.id or "sub")
+            )
+        return comps
+
+    def to_update(self, surface_id: str | None = None) -> dict[str, Any]:
+        """Packages the tree into an updateComponents envelope for incremental updates."""
+        target_id = surface_id or self.surface_id or "main"
+        return {
+            "updateComponents": {
+                "surfaceId": target_id,
+                "components": self.to_components(),
+            }
+        }
+
+    def to_surface(
+        self, surface_id: str | None = None, catalog_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Packages the tree into createSurface and updateComponents envelopes for a new surface."""
+        target_id = surface_id or self.surface_id or "main"
+        create_env: dict[str, Any] = {"createSurface": {"surfaceId": target_id}}
+        if catalog_id:
+            create_env["createSurface"]["catalogId"] = catalog_id
+        return [create_env, self.to_update(target_id)]
+
+    def prune_unlinked(self) -> None:
+        """Clears all unlinked subtrees from the container."""
+        self.unlinked_roots.clear()
+
+
+def create_surface(
+    surface_id: str,
+    root: ComponentBuilderNode,
+    *,
+    catalog_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Creates messages to establish a new surface (createSurface + updateComponents)."""
+    return ComponentTree(root=root).to_surface(
+        surface_id=surface_id, catalog_id=catalog_id
+    )
+
+
+def update_components(
+    surface_id: str,
+    root: ComponentBuilderNode,
+) -> list[dict[str, Any]]:
+    """Creates an incremental surface update message (updateComponents only)."""
+    return [ComponentTree(root=root).to_update(surface_id=surface_id)]
+
+
+class Surface(ComponentTree):
     """Represents a complete A2UI surface for payload serialization and message dispatch."""
 
-    surface_id: str
-    root: ComponentBuilderNode
-    catalog_id: Optional[str] = None
-    data_model: Optional[dict[str, Any]] = None
+    def __init__(
+        self,
+        surface_id: Optional[str] = None,
+        root: Optional[ComponentBuilderNode] = None,
+        *,
+        catalog_id: Optional[str] = None,
+        data_model: Optional[dict[str, Any]] = None,
+        unlinked_roots: Sequence[ComponentBuilderNode] | None = None,
+    ):
+        # Support Surface(root=layout, surface_id="main"), Surface("main", layout), and Surface(surface_id="main", root=layout)
+        real_root = root
+        real_surface_id = surface_id
+        if isinstance(surface_id, ComponentBuilderNode) and not isinstance(
+            root, ComponentBuilderNode
+        ):
+            real_root = surface_id
+            real_surface_id = root or "main"
+        elif real_surface_id is None:
+            real_surface_id = "main"
+
+        if real_root is None:
+            raise ValueError("Surface requires a root ComponentBuilderNode.")
+
+        super().__init__(
+            root=real_root,
+            unlinked_roots=unlinked_roots,
+            surface_id=real_surface_id,
+        )
+        self.catalog_id = catalog_id
+        self.data_model = data_model
 
     def to_dict(self) -> dict[str, Any]:
         """Serializes the surface into standard A2UI dictionary format."""
-        components = flatten_component_tree(self.root, root_id=self.root.id or "root")
+        components = self.to_components()
         d: dict[str, Any] = {
             "surfaceId": self.surface_id,
             "components": components,
@@ -336,7 +460,7 @@ class Surface:
 
     def to_messages(self, spec_version: str = "v0.9.1") -> list[dict[str, Any]]:
         """Emits standard A2UI protocol messages for surface rendering."""
-        components = flatten_component_tree(self.root, root_id=self.root.id or "root")
+        components = self.to_components()
         surface_update: dict[str, Any] = {
             "surfaceId": self.surface_id,
             "components": components,
@@ -365,5 +489,8 @@ DynamicNumber = Union[int, float, DataBinding, FunctionCall]
 DynamicBoolean = Union[bool, DataBinding, FunctionCall]
 DynamicStringList = Union[Sequence[str], DataBinding, FunctionCall]
 DynamicValue = Union[Any, DataBinding, FunctionCall]
-Child = Union[ComponentBuilderNode, str]
-ChildList = Union[Sequence[Union[ComponentBuilderNode, str]], DynamicChildList]
+
+Slot: TypeAlias = ComponentBuilderNode
+SlotList: TypeAlias = Sequence[Slot]
+Child = Slot
+ChildList = Union[Sequence[ComponentBuilderNode], DynamicChildList]

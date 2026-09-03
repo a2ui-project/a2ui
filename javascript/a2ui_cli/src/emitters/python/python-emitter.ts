@@ -86,7 +86,6 @@ export class PythonEmitter {
       '',
       '__a2ui_codegen__ = "@a2ui/cli"',
       '',
-      'from dataclasses import dataclass, field',
       'from typing import Any, Mapping, Literal, Optional, Sequence, Union',
       '',
       `from ${this.baseImport} import (`,
@@ -94,14 +93,19 @@ export class PythonEmitter {
       '    CheckRule,',
       '    ComponentBuilderNode,',
       '    ComponentRef,',
+      '    ComponentTree,',
       '    DataBinding,',
       '    DynamicChildList,',
       '    ExternalComponentBuilderNode,',
       '    FunctionCall,',
       '    IdAllocator,',
+      '    Slot,',
+      '    SlotList,',
       '    Surface,',
       '    bind,',
+      '    create_surface,',
       '    flatten_component_tree,',
+      '    update_components,',
       ')',
       '',
       '',
@@ -123,7 +127,7 @@ export class PythonEmitter {
 
     for (const [enumName, enumDesc] of this.catalog.enums.entries()) {
       const vals = enumDesc.values.map(v => `"${v}"`).join(', ');
-      lines.push(`${enumName} = Literal[${vals}]`);
+      lines.push(`${enumName} = Literal[${vals}] | str`);
     }
     lines.push('');
     lines.push('');
@@ -162,14 +166,19 @@ export class PythonEmitter {
       'CheckRule',
       'ComponentBuilderNode',
       'ComponentRef',
+      'ComponentTree',
       'DataBinding',
       'DynamicChildList',
       'ExternalComponentBuilderNode',
       'FunctionCall',
       'IdAllocator',
+      'Slot',
+      'SlotList',
       'Surface',
       'bind',
+      'create_surface',
       'flatten_component_tree',
+      'update_components',
     ].map(e => `"${e}"`);
 
     lines.push(`__all__ = [${allExports.join(', ')}]`);
@@ -198,15 +207,12 @@ export class PythonEmitter {
   }
 
   private generateComponentClass(comp: AnalysedComponentApi): string {
-    const lines: string[] = [
-      '@dataclass(kw_only=True)',
-      `class ${comp.name}(ComponentBuilderNode):`,
-    ];
+    const lines: string[] = [`class ${comp.name}(ComponentBuilderNode):`];
 
     const doc = comp.description || `${comp.name} component.`;
     lines.push(`    r"""${doc}"""`);
     lines.push('');
-    lines.push(`    component_name: str = field(default="${comp.name}", init=False)`);
+    lines.push(`    component: Literal["${comp.name}"] = "${comp.name}"`);
 
     for (const [pName, prop] of comp.properties.entries()) {
       if (pName === 'component') continue;
@@ -233,7 +239,7 @@ export class PythonEmitter {
     lines.push('');
     // to_dict
     lines.push('    def to_dict(self) -> dict[str, Any]:');
-    lines.push('        d: dict[str, Any] = {"component": self.component_name}');
+    lines.push('        d: dict[str, Any] = {"component": self.component}');
     for (const pName of comp.properties.keys()) {
       if (pName === 'component' || pName === 'id') continue;
       const pyName = sanitizeIdent(pName);

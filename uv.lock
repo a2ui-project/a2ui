@@ -69,6 +69,7 @@ dependencies = [
     { name = "httpx" },
     { name = "jsonschema" },
     { name = "nest-asyncio" },
+    { name = "pydantic" },
     { name = "pyyaml" },
 ]
 
@@ -90,6 +91,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "jsonschema", specifier = ">=4.0.0" },
     { name = "nest-asyncio", specifier = ">=1.6.0" },
+    { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
 
