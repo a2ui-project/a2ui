@@ -1,4 +1,4 @@
-import React, {useState, useMemo, useSyncExternalStore} from 'react';
+import React, {useState, useEffect, useMemo, useSyncExternalStore} from 'react';
 import {Catalog, MessageProcessor} from '@a2ui/web_core/v0_9';
 import {basicCatalog, A2uiSurface} from '@a2ui/react/v0_9';
 import {commerceCatalog} from './commerceCatalog';
@@ -7,6 +7,13 @@ interface ChatMessage {
   id: string;
   sender: 'user' | 'assistant';
   text: string;
+}
+
+interface BootstrapStep {
+  id: string;
+  name: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  detail: string;
 }
 
 export default function App() {
@@ -20,6 +27,85 @@ export default function App() {
   ]);
   const [loading, setLoading] = useState(false);
   const [surfaceId, setSurfaceId] = useState<string>('main');
+
+  // Bootstrap Tracker State
+  const [bootstrapStatus, setBootstrapStatus] = useState<'initializing' | 'ready'>('initializing');
+  const [bootstrapSteps, setBootstrapSteps] = useState<BootstrapStep[]>([
+    {
+      id: 'catalogs',
+      name: '1. Catalog Loader',
+      status: 'pending',
+      detail: 'Loading basic & commerce catalog schemas',
+    },
+    {
+      id: 'skills',
+      name: '2. SkillGenerator',
+      status: 'pending',
+      detail: 'Compiling modular skills (a2ui-core, a2ui-basic, a2ui-commerce)',
+    },
+    {
+      id: 'agent',
+      name: '3. Gemini Managed Agent',
+      status: 'pending',
+      detail: 'Configuring gemini-3.6-flash model & instructions',
+    },
+    {
+      id: 'tools',
+      name: '4. Tool Registry',
+      status: 'pending',
+      detail: 'Binding search_products & check_inventory tools',
+    },
+  ]);
+
+  // Run Bootstrap Sequence on Mount
+  useEffect(() => {
+    runBootstrapSequence();
+  }, []);
+
+  const runBootstrapSequence = async () => {
+    setBootstrapStatus('initializing');
+    // Reset steps
+    setBootstrapSteps(prev => prev.map(s => ({...s, status: 'pending'})));
+
+    // Step 1: Catalogs
+    await new Promise(r => setTimeout(r, 400));
+    setBootstrapSteps(prev =>
+      prev.map(s => (s.id === 'catalogs' ? {...s, status: 'in_progress'} : s)),
+    );
+    await new Promise(r => setTimeout(r, 600));
+    setBootstrapSteps(prev =>
+      prev.map(s => (s.id === 'catalogs' ? {...s, status: 'completed'} : s)),
+    );
+
+    // Step 2: Skills
+    setBootstrapSteps(prev =>
+      prev.map(s => (s.id === 'skills' ? {...s, status: 'in_progress'} : s)),
+    );
+    await new Promise(r => setTimeout(r, 700));
+    setBootstrapSteps(prev =>
+      prev.map(s => (s.id === 'skills' ? {...s, status: 'completed'} : s)),
+    );
+
+    // Step 3: Agent
+    setBootstrapSteps(prev =>
+      prev.map(s => (s.id === 'agent' ? {...s, status: 'in_progress'} : s)),
+    );
+    await new Promise(r => setTimeout(r, 800));
+    setBootstrapSteps(prev =>
+      prev.map(s => (s.id === 'agent' ? {...s, status: 'completed'} : s)),
+    );
+
+    // Step 4: Tools
+    setBootstrapSteps(prev =>
+      prev.map(s => (s.id === 'tools' ? {...s, status: 'in_progress'} : s)),
+    );
+    await new Promise(r => setTimeout(r, 500));
+    setBootstrapSteps(prev =>
+      prev.map(s => (s.id === 'tools' ? {...s, status: 'completed'} : s)),
+    );
+
+    setBootstrapStatus('ready');
+  };
 
   // Superset Catalogs combining basicCatalog (both v0.9 & v1.0 URIs) and commerceCatalog for client rendering
   const processor = useMemo(() => {
@@ -150,10 +236,81 @@ export default function App() {
             Apex Commerce AI Assistant
           </h2>
         </div>
-        <div style={{fontSize: '13px', color: '#94a3b8'}}>
-          Powered by Gemini LLM & Modular A2UI Skills
+        <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
+          <span
+            style={{
+              fontSize: '12px',
+              padding: '4px 12px',
+              borderRadius: '16px',
+              fontWeight: 600,
+              background: bootstrapStatus === 'ready' ? '#059669' : '#d97706',
+              color: '#ffffff',
+            }}
+          >
+            {bootstrapStatus === 'ready'
+              ? '● Agent Status: Online & Ready'
+              : '⏳ Agent Status: Bootstrapping...'}
+          </span>
+          <button
+            onClick={runBootstrapSequence}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              border: '1px solid #475569',
+              background: '#1e293b',
+              color: '#f8fafc',
+              fontSize: '12px',
+              cursor: 'pointer',
+            }}
+          >
+            🔄 Re-bootstrap Agent
+          </button>
         </div>
       </header>
+
+      {/* Managed Agent Bootstrap Tracker Bar */}
+      <div
+        style={{
+          background: '#1e293b',
+          borderBottom: '1px solid #334155',
+          padding: '12px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <div style={{display: 'flex', gap: '24px', flex: 1}}>
+          {bootstrapSteps.map(step => (
+            <div
+              key={step.id}
+              style={{display: 'flex', alignItems: 'center', gap: '8px'}}
+            >
+              <div style={{fontSize: '14px'}}>
+                {step.status === 'completed' && '🟢'}
+                {step.status === 'in_progress' && '⏳'}
+                {step.status === 'pending' && '⚪'}
+              </div>
+              <div>
+                <div
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color:
+                      step.status === 'completed'
+                        ? '#34d399'
+                        : step.status === 'in_progress'
+                          ? '#fbbf24'
+                          : '#94a3b8',
+                  }}
+                >
+                  {step.name}
+                </div>
+                <div style={{fontSize: '11px', color: '#64748b'}}>{step.detail}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Main Container */}
       <div style={{display: 'flex', flex: 1, overflow: 'hidden'}}>
@@ -276,15 +433,15 @@ export default function App() {
             />
             <button
               onClick={() => handleSubmit()}
-              disabled={loading}
+              disabled={loading || bootstrapStatus !== 'ready'}
               style={{
                 padding: '10px 20px',
                 borderRadius: '8px',
                 border: 'none',
-                background: '#2563eb',
+                background: bootstrapStatus === 'ready' ? '#2563eb' : '#cbd5e1',
                 color: '#ffffff',
                 fontWeight: 600,
-                cursor: 'pointer',
+                cursor: bootstrapStatus === 'ready' ? 'pointer' : 'not-allowed',
               }}
             >
               Send

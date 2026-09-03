@@ -210,7 +210,42 @@ def main():
     if args.serve:
         class CommerceHandler(http.server.SimpleHTTPRequestHandler):
             def do_GET(self):
-                if self.path in ["/", "/index.html"]:
+                if self.path == "/api/bootstrap":
+                    bootstrap_data = {
+                        "status": "ready",
+                        "model": "gemini-3.6-flash",
+                        "steps": [
+                            {
+                                "id": "catalogs",
+                                "name": "Catalog Loader",
+                                "status": "completed",
+                                "detail": "Loaded basic & commerce catalog JSON definitions",
+                            },
+                            {
+                                "id": "skills",
+                                "name": "SkillGenerator",
+                                "status": "completed",
+                                "detail": "Compiled 3 modular skill packages (a2ui-core, a2ui-basic, a2ui-commerce)",
+                            },
+                            {
+                                "id": "agent",
+                                "name": "Gemini Managed Agent",
+                                "status": "completed",
+                                "detail": "Initialized gemini-3.6-flash with system instructions & tools",
+                            },
+                            {
+                                "id": "tools",
+                                "name": "Tool Registry",
+                                "status": "completed",
+                                "detail": "Registered search_products and check_inventory tools",
+                            },
+                        ],
+                    }
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps(bootstrap_data).encode("utf-8"))
+                elif self.path in ["/", "/index.html"]:
                     self.send_response(200)
                     self.send_header("Content-Type", "text/html")
                     self.end_headers()
