@@ -74,13 +74,3 @@ export const A2uiVersionCapabilitiesSchema = z
   })
   .describe('The capabilities structure for version 0.9 of the A2UI protocol.');
 export type A2uiVersionCapabilities = z.infer<typeof A2uiVersionCapabilitiesSchema>;
-
-export type A2uiClientCapabilities =
-  | {
-      'v0.9': A2uiVersionCapabilities;
-      'v0.9.1'?: A2uiVersionCapabilities;
-    }
-  | {
-      'v0.9'?: A2uiVersionCapabilities;
-      'v0.9.1': A2uiVersionCapabilities;
-    };

@@ -16,7 +16,8 @@
 
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
 // Generated from specification/v0_9/json/ via scripts/generate-zod-schemas.mjs
+export * from './client-capabilities.js';
+export * from './client-to-server.js';
 export * from './common-types.js';
 export * from './server-to-client.js';
-export * from './client-to-server.js';
-export * from './client-capabilities.js';
+export * from './helpers.js';

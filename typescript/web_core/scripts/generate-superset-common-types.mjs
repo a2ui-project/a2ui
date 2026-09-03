@@ -408,19 +408,7 @@ function generateZod(schema, parentDefName, indent = '', lazyEdges, topologicalO
 
 let outTs = HEADER;
 outTs += `import {z} from 'zod';
-import {
-  type ChildRefKind,
-  type RefSchemaOptions,
-  markChildRef,
-  childRefKindOf,
-} from './child-ref-helpers.js';
-
-export {
-  type ChildRefKind,
-  type RefSchemaOptions,
-  markChildRef,
-  childRefKindOf,
-};
+import {markChildRef} from './child-ref-helpers.js';
 
 `;
 
@@ -487,52 +475,6 @@ for (const name of defKeys) {
   }
 }
 
-// Helper functions
-outTs += `/**
- * Creates or customizes a ComponentId schema without losing its reference pointer metadata.
- *
- * @param options Configuration options including custom description.
- * @returns The configured ComponentId schema.
- */
-export function componentId(options: RefSchemaOptions = {}): typeof ComponentIdSchema {
-  if (options.description === undefined) {
-    return ComponentIdSchema;
-  }
-  return ComponentIdSchema.describe(
-    \`REF:common_types.json#/$defs/ComponentId|\${options.description}\`,
-  );
-}
-
-/**
- * Creates or customizes a ChildList schema without losing its reference pointer metadata.
- *
- * @param options Configuration options including custom description.
- * @returns The configured ChildList schema.
- */
-export function childList(options: RefSchemaOptions = {}): typeof ChildListSchema {
-  if (options.description === undefined) {
-    return ChildListSchema;
-  }
-  return ChildListSchema.describe(\`REF:common_types.json#/$defs/ChildList|\${options.description}\`);
-}
-
-/**
- * Generic component definition payload schema.
- */
-export const AnyComponentSchema = z
-  .object({
-    'component': z.string().describe('The type name of the component.'),
-    'id': ComponentIdSchema.optional(),
-    'weight': z.number().optional(),
-  })
-  .passthrough()
-  .describe('A generic A2UI component definition.');
-
-/** Generic component definition payload. */
-export type AnyComponent = z.infer<typeof AnyComponentSchema>;
-
-`;
-
 // CommonSchemas registry map
 outTs += `/**
  * Registry of reusable common schema definitions across A2UI catalogs and protocols.
@@ -543,8 +485,8 @@ export const CommonSchemas = {
 for (const name of generatedSchemaNames) {
   outTs += `  ${name}: ${name}Schema,\n`;
 }
-outTs += `  AnyComponent: AnyComponentSchema,\n`;
-outTs += `};\n`;
+outTs += `};\n\n`;
+outTs += `export * from './helpers.js';\n`;
 
 writeFileSync(destFile, outTs);
 console.log(`Successfully generated superset common types in ${destFile}`);

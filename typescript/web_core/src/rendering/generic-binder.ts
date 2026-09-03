@@ -16,13 +16,7 @@
 
 import {z} from 'zod';
 import {ComponentContext} from './component-context.js';
-import {
-  Action,
-  ChildList,
-  DataBinding,
-  FunctionCall,
-  childRefKindOf,
-} from '../types/common-types.js';
+import {Action, ChildList, DataBinding, childRefKindOf} from '../types/common-types.js';
 
 // --- Schema Scraping ---
 
@@ -154,7 +148,6 @@ function getFieldBehavior(type: z.ZodTypeAny, propertyName?: string): BehaviorNo
 
 type DynamicTypes =
   | DataBinding
-  | FunctionCall
   | {path: string}
   | {call: string; catalogId?: string; args?: Record<string, any>; returnType?: any};
 

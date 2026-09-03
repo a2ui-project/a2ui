@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-import {readFileSync, writeFileSync} from 'node:fs';
+import {readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync} from 'node:fs';
 import {join, dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {jsonSchemaToZod} from 'json-schema-to-zod';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(__dirname, '..');
+const specBaseDir = join(rootDir, '..', '..', 'specification');
 
 const getHeader = version => `/*
  * Copyright 2024 Google LLC
@@ -223,6 +224,15 @@ function prepareRef(node, parentDefName, lazyEdges, topologicalOrder) {
     const resolved = resolveRefTarget(node.$ref, parentDefName, lazyEdges, topologicalOrder);
     if (resolved) return resolved;
   }
+  if (
+    Array.isArray(node.allOf) &&
+    node.allOf.length === 2 &&
+    node.allOf.some(item => item.$ref && item.$ref.includes('FunctionCall')) &&
+    node.allOf.some(item => item.properties && item.properties.returnType)
+  ) {
+    const fnRef = node.allOf.find(item => item.$ref && item.$ref.includes('FunctionCall'));
+    return prepareRef(fnRef, parentDefName, lazyEdges, topologicalOrder);
+  }
   const res = {};
   for (const [k, v] of Object.entries(node)) {
     // Simplify oneOf to anyOf for union schemas so jsonSchemaToZod emits clean z.union([...])
@@ -246,36 +256,15 @@ function prepareRef(node, parentDefName, lazyEdges, topologicalOrder) {
     res.type = 'object';
     res.additionalProperties = true;
   }
+  if (res.properties && !res.type) {
+    res.type = 'object';
+  }
+  if (node.const !== undefined && typeof node.const !== 'object' && !res.enum) {
+    res.type = typeof node.const;
+    res.enum = [node.const];
+    delete res.const;
+  }
   return res;
-}
-
-/**
- * Helper to inspect a schema object and extract all referenced common-types schema names.
- *
- * @param {object} node Schema node.
- * @param {Set<string>} commonDefNames Set of definition names in common_types.json.
- * @param {Set<string>} refs Accumulated import set.
- * @returns {Set<string>} Set of required Zod schema imports.
- */
-function findCommonRefs(node, commonDefNames, refs = new Set()) {
-  if (!node || typeof node !== 'object') return refs;
-  if (Array.isArray(node)) {
-    node.forEach(n => findCommonRefs(n, commonDefNames, refs));
-    return refs;
-  }
-  if (typeof node.$ref === 'string') {
-    const idx = node.$ref.indexOf('#/$defs/');
-    if (idx !== -1) {
-      const targetName = node.$ref.substring(idx + 8);
-      if (commonDefNames.has(targetName)) {
-        refs.add(targetName + 'Schema');
-      }
-    }
-  }
-  for (const v of Object.values(node)) {
-    findCommonRefs(v, commonDefNames, refs);
-  }
-  return refs;
 }
 
 /**
@@ -283,12 +272,10 @@ function findCommonRefs(node, commonDefNames, refs = new Set()) {
  *
  * @param {string} specDir Specification directory.
  * @param {string} destDir Destination directory.
- * @param {string} version Version tag (e.g. 'v0_9' or 'v1_0').
- * @param {string} prefixCode Additional TypeScript code to prepend before schemas.
- * @param {string} suffixCode Additional TypeScript code to append after schemas.
+ * @param {string} version Version tag.
  * @returns {Set<string>} Set of definition names generated.
  */
-function generateCommonTypes(specDir, destDir, version, prefixCode = '', suffixCode = '') {
+function generateCommonTypes(specDir, destDir, version) {
   const commonJson = JSON.parse(readFileSync(join(specDir, 'common_types.json'), 'utf8'));
   const {topologicalOrder, lazyEdges} = analyzeDependencies(commonJson.$defs);
   const recursiveSchemas = new Set([
@@ -296,11 +283,10 @@ function generateCommonTypes(specDir, destDir, version, prefixCode = '', suffixC
     ...Array.from(lazyEdges).map(e => e.split('->')[1]),
   ]);
 
-  let commonTs = getHeader(version) + "import {z} from 'zod';\n\n";
-
-  if (prefixCode) {
-    commonTs += prefixCode + '\n\n';
-  }
+  let commonTs =
+    getHeader(version) +
+    "import {z} from 'zod';\n" +
+    "import {markChildRef} from '../../types/child-ref-helpers.js';\n\n";
 
   const defKeys = [
     ...topologicalOrder.filter(k => k in commonJson.$defs),
@@ -309,7 +295,6 @@ function generateCommonTypes(specDir, destDir, version, prefixCode = '', suffixC
 
   for (const name of defKeys) {
     const rawDef = JSON.parse(JSON.stringify(commonJson.$defs[name]));
-    // Dynamically inject REF pointer tag into description
     const desc = rawDef.description
       ? `REF:#/$defs/${name}|${rawDef.description}`
       : `REF:#/$defs/${name}`;
@@ -339,10 +324,36 @@ function generateCommonTypes(specDir, destDir, version, prefixCode = '', suffixC
     }
 
     if (recursiveSchemas.has(name)) {
-      code = code.replace(
-        new RegExp(`export const ${name}Schema =`),
-        `export const ${name}Schema: z.ZodType<any> =`,
-      );
+      if (name === 'FunctionCall') {
+        code =
+          `export interface FunctionCall {\n  call: string;\n  args?: Record<string, any>;\n  returnType?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';\n}\n` +
+          code;
+        code = code.replace(
+          'export const FunctionCallSchema =',
+          'export const FunctionCallSchema: z.ZodType<FunctionCall> =',
+        );
+        code = code.replace(
+          new RegExp(`\\n?export type ${name} = z\\.infer<typeof ${name}Schema>;?`),
+          '',
+        );
+      } else if (name === 'DynamicValue') {
+        code =
+          `export type DynamicValue = string | number | boolean | any[] | DataBinding | FunctionCall | Record<string, any>;\n` +
+          code;
+        code = code.replace(
+          'export const DynamicValueSchema =',
+          'export const DynamicValueSchema: z.ZodType<DynamicValue> =',
+        );
+        code = code.replace(
+          new RegExp(`\\n?export type ${name} = z\\.infer<typeof ${name}Schema>;?`),
+          '',
+        );
+      } else {
+        code = code.replace(
+          new RegExp(`export const ${name}Schema =`),
+          `export const ${name}Schema: z.ZodType<any> =`,
+        );
+      }
     }
 
     if (name === 'DynamicValue' && version === 'v1_0') {
@@ -359,122 +370,86 @@ function generateCommonTypes(specDir, destDir, version, prefixCode = '', suffixC
     commonTs += code + '\n\n';
   }
 
-  if (suffixCode) {
-    commonTs += suffixCode + '\n';
-  }
-
   const commonEntries = defKeys.map(k => `  ${k}: ${k}Schema,`).join('\n');
-  if (version === 'v0_9') {
-    commonTs += `\nexport const CommonSchemas = {\n${commonEntries}\n  AnyComponent: AnyComponentSchema,\n};\n`;
-  } else {
-    commonTs += `\nexport const CommonSchemas = {\n${commonEntries}\n};\n`;
-  }
+  commonTs += `export const CommonSchemas = {\n${commonEntries}\n};\n\n`;
+  commonTs += `export * from './helpers.js';\n`;
 
   writeFileSync(join(destDir, 'common-types.ts'), commonTs);
-  return new Set(Object.keys(commonJson.$defs));
-}
 
-const V09_PREFIX_HELPERS = `
-/** The unique identifier for a component. */
-export type ChildRefKind = 'component-id' | 'child-list';
-
-function markChildRef<T extends z.ZodTypeAny>(schema: T, ref: ChildRefKind): T {
-  (schema._def as {a2uiChildRef?: ChildRefKind}).a2uiChildRef = ref;
-  return schema;
-}
-
-export function childRefKindOf(schema: z.ZodTypeAny): ChildRefKind | undefined {
-  return (schema?._def as {a2uiChildRef?: ChildRefKind} | undefined)?.a2uiChildRef;
-}
-
-export interface RefSchemaOptions {
-  readonly description?: string;
-}
-
-export const TemplateChildListSchema = z
-  .object({
-    'componentId': z.lazy(() => ComponentIdSchema),
-    'path': z
-      .string()
-      .describe('The path to the list of component property objects in the data model.'),
-  })
-  .describe('REF:#/$defs/TemplateChildList');
-`;
-
-const V09_SUFFIX_HELPERS = `
-export function componentId(options: RefSchemaOptions = {}): typeof ComponentIdSchema {
-  if (options.description === undefined) {
-    return ComponentIdSchema;
+  const allExportNames = new Set(Object.keys(commonJson.$defs));
+  const helpersPath = join(destDir, 'helpers.ts');
+  if (existsSync(helpersPath)) {
+    const helpersContent = readFileSync(helpersPath, 'utf8');
+    const matches = helpersContent.matchAll(/export\s+const\s+([A-Za-z0-9_]+Schema)/g);
+    for (const m of matches) {
+      allExportNames.add(m[1].replace(/Schema$/, ''));
+    }
   }
-  return ComponentIdSchema.describe(\`REF:#/$defs/ComponentId|\${options.description}\`);
+  return allExportNames;
 }
-
-export function dynamicString(description?: string) {
-  return description
-    ? DynamicStringSchema.describe(\`REF:#/$defs/DynamicString|\${description}\`)
-    : DynamicStringSchema;
-}
-
-export function dynamicNumber(description?: string) {
-  return description
-    ? DynamicNumberSchema.describe(\`REF:#/$defs/DynamicNumber|\${description}\`)
-    : DynamicNumberSchema;
-}
-
-export function dynamicBoolean(description?: string) {
-  return description
-    ? DynamicBooleanSchema.describe(\`REF:#/$defs/DynamicBoolean|\${description}\`)
-    : DynamicBooleanSchema;
-}
-
-export function dynamicValue(description?: string) {
-  return description
-    ? DynamicValueSchema.describe(\`REF:#/$defs/DynamicValue|\${description}\`)
-    : DynamicValueSchema;
-}
-
-export function dynamicStringList(description?: string) {
-  return description
-    ? DynamicStringListSchema.describe(\`REF:#/$defs/DynamicStringList|\${description}\`)
-    : DynamicStringListSchema;
-}
-
-export function childList(options: RefSchemaOptions = {}): typeof ChildListSchema {
-  if (options.description === undefined) {
-    return ChildListSchema;
-  }
-  return ChildListSchema.describe(options.description);
-}
-
-export const AnyComponentSchema = z
-  .object({
-    'component': z.string().describe('The type name of the component.'),
-    'id': ComponentIdSchema.optional(),
-    'weight': z.number().optional(),
-  })
-  .passthrough()
-  .describe('A generic A2UI component definition.');
-export type AnyComponent = z.infer<typeof AnyComponentSchema>;
-`;
 
 /**
- * Generates all schema files for protocol version v0.9.
+ * Generates catalog-definition.ts if catalog_definition.json exists.
  *
- * @param {string} root Base web_core directory.
+ * @param {string} specDir Specification directory.
+ * @param {string} destDir Destination directory.
+ * @param {string} version Version tag.
+ * @param {Set<string>} commonDefNames Set of definition names in common_types.json.
  */
-function generateV09Schemas(root) {
-  console.log('Generating v0.9 Zod schemas from JSON specification files...');
-  const specDir = join(root, '..', '..', 'specification', 'v0_9', 'json');
-  const destDir = join(root, 'src', 'v0_9', 'schema');
+function generateCatalogDefinition(specDir, destDir, version, commonDefNames) {
+  const filePath = join(specDir, 'catalog_definition.json');
+  if (!existsSync(filePath)) return;
 
-  // 1. common-types.ts
-  generateCommonTypes(specDir, destDir, 'v0_9', V09_PREFIX_HELPERS, V09_SUFFIX_HELPERS);
+  const catalogDefJson = JSON.parse(readFileSync(filePath, 'utf8'));
+  let bodyCode = '';
 
-  // 2. server-to-client.ts
-  const s2cJson = JSON.parse(readFileSync(join(specDir, 'server_to_client.json'), 'utf8'));
+  for (const [name, rawDef] of Object.entries(catalogDefJson.$defs || {})) {
+    const prep = prepareRef(rawDef, name);
+    let code = jsonSchemaToZod(prep, {
+      module: 'esm',
+      name: `${name}Schema`,
+      type: name,
+      noImport: true,
+    });
+    code = transformGeneratedZodCode(code, {name, version});
+    code += `\nexport type ${name}Input = z.input<typeof ${name}Schema>;`;
+    bodyCode += code + '\n\n';
+  }
+
+  const neededImports = Array.from(commonDefNames)
+    .map(name => `${name}Schema`)
+    .filter(schemaName => bodyCode.includes(schemaName))
+    .sort();
+
+  let catalogDefTs = getHeader(version) + "import {z} from 'zod';\n";
+  if (neededImports.length > 0) {
+    catalogDefTs += `import {${neededImports.join(', ')}} from './common-types.js';\n\n`;
+  } else {
+    catalogDefTs += '\n';
+  }
+  catalogDefTs += bodyCode;
+
+  writeFileSync(join(destDir, 'catalog-definition.ts'), catalogDefTs);
+}
+
+/**
+ * Generates inbound/incoming server-to-client or agent-to-renderer message schemas.
+ *
+ * @param {string} specDir Specification directory.
+ * @param {string} destDir Destination directory.
+ * @param {string} version Version tag.
+ * @param {Set<string>} commonDefNames Set of definition names in common_types.json.
+ */
+function generateIncomingMessageSchemas(specDir, destDir, version, commonDefNames) {
+  const isV10 = existsSync(join(specDir, 'agent_to_renderer.json'));
+  const fileName = isV10 ? 'agent_to_renderer.json' : 'server_to_client.json';
+  const outFileName = isV10 ? 'agent-to-renderer.ts' : 'server-to-client.ts';
+  const unionName = isV10 ? 'AgentToRendererMessage' : 'A2uiMessage';
+
+  const s2cJson = JSON.parse(readFileSync(join(specDir, fileName), 'utf8'));
   const s2cMsgNames = s2cJson.oneOf.map(ref => ref.$ref.replace('#/$defs/', ''));
 
-  let s2cTs = getHeader('v0_9') + "import {z} from 'zod';\n\n";
+  let bodyCode = '';
 
   for (const msgName of s2cMsgNames) {
     const rawDef = s2cJson.$defs[msgName];
@@ -485,428 +460,293 @@ function generateV09Schemas(root) {
       type: msgName,
       noImport: true,
     });
-    code = transformGeneratedZodCode(code, {name: msgName, version: 'v0_9'});
-    // Support v0.9 and v0.9.1 in message wrapper version
-    code = code.replace(/z\.literal\("v0\.9"\)/g, 'z.enum(["v0.9", "v0.9.1"])');
-    s2cTs += code + '\n\n';
-  }
-
-  s2cTs += `export const A2uiMessageSchema = z.union([
-  ${s2cMsgNames.map(m => `${m}Schema`).join(',\n  ')},
-]);
-export type A2uiMessage = z.infer<typeof A2uiMessageSchema>;
-
-export const A2uiMessageListSchema = z.array(A2uiMessageSchema).describe('A list of messages.');
-export type A2uiMessageList = z.infer<typeof A2uiMessageListSchema>;
-
-export const A2uiMessageListWrapperSchema = z
-  .object({
-    messages: A2uiMessageListSchema,
-  })
-  .strict()
-  .describe('An object wrapping a list of messages.');
-export type A2uiMessageListWrapper = z.infer<typeof A2uiMessageListWrapperSchema>;
-`;
-  writeFileSync(join(destDir, 'server-to-client.ts'), s2cTs);
-
-  // 3. client-to-server.ts
-  const c2sJson = JSON.parse(readFileSync(join(specDir, 'client_to_server.json'), 'utf8'));
-  const cdmJson = JSON.parse(readFileSync(join(specDir, 'client_data_model.json'), 'utf8'));
-
-  let c2sTs = getHeader('v0_9') + "import {z} from 'zod';\n\n";
-
-  const actionPrep = prepareRef(c2sJson.properties.action, 'A2uiClientAction');
-  let actionCode = jsonSchemaToZod(actionPrep, {
-    module: 'esm',
-    name: 'A2uiClientActionSchema',
-    type: 'A2uiClientAction',
-    noImport: true,
-  });
-  actionCode = transformGeneratedZodCode(actionCode, {name: 'A2uiClientAction', version: 'v0_9'});
-  actionCode = actionCode.replace(/\.passthrough\(\)/g, '.strict()');
-  c2sTs += actionCode + '\n\n';
-
-  const valErrorPrep = prepareRef(c2sJson.properties.error.oneOf[0], 'A2uiValidationError');
-  let valErrorCode = jsonSchemaToZod(valErrorPrep, {
-    module: 'esm',
-    name: 'A2uiValidationErrorSchema',
-    noImport: true,
-  });
-  valErrorCode = transformGeneratedZodCode(valErrorCode, {
-    name: 'A2uiValidationError',
-    version: 'v0_9',
-  });
-  c2sTs += valErrorCode + '\n\n';
-
-  const genErrorPrep = prepareRef(c2sJson.properties.error.oneOf[1], 'A2uiGenericError');
-  let genErrorCode = jsonSchemaToZod(genErrorPrep, {
-    module: 'esm',
-    name: 'A2uiGenericErrorSchema',
-    noImport: true,
-  });
-  genErrorCode = transformGeneratedZodCode(genErrorCode, {
-    name: 'A2uiGenericError',
-    version: 'v0_9',
-  });
-  genErrorCode = genErrorCode.replace(
-    'code: z.any()',
-    "code: z.string().refine(c => c !== 'VALIDATION_FAILED')",
-  );
-  c2sTs += genErrorCode + '\n\n';
-
-  c2sTs += `export const A2uiClientErrorSchema = z.union([A2uiValidationErrorSchema, A2uiGenericErrorSchema]);\nexport type A2uiClientError = z.infer<typeof A2uiClientErrorSchema>;\n\n`;
-
-  c2sTs += `export const A2uiClientMessageSchema = z
-  .object({
-    version: z.enum(['v0.9', 'v0.9.1']),
-  })
-  .and(
-    z.union([z.object({action: A2uiClientActionSchema}), z.object({error: A2uiClientErrorSchema})]),
-  );
-export type A2uiClientMessage = z.infer<typeof A2uiClientMessageSchema>;\n\n`;
-
-  const cdmPrep = prepareRef(cdmJson, 'A2uiClientDataModel');
-  let cdmCode = jsonSchemaToZod(cdmPrep, {
-    module: 'esm',
-    name: 'A2uiClientDataModelSchema',
-    type: 'A2uiClientDataModel',
-    noImport: true,
-  });
-  cdmCode = transformGeneratedZodCode(cdmCode, {name: 'A2uiClientDataModel', version: 'v0_9'});
-  cdmCode = cdmCode.replace(/z\.literal\("v0\.9"\)/g, 'z.enum(["v0.9", "v0.9.1"])');
-  c2sTs += cdmCode + '\n\n';
-
-  c2sTs += `export const A2uiClientMessageListSchema = z
-  .array(A2uiClientMessageSchema)
-  .describe('A list of client messages.');
-export type A2uiClientMessageList = z.infer<typeof A2uiClientMessageListSchema>;
-
-export const A2uiClientMessageListWrapperSchema = z
-  .object({
-    messages: A2uiClientMessageListSchema,
-  })
-  .strict()
-  .describe('An object wrapping a list of client messages.');
-export type A2uiClientMessageListWrapper = z.infer<typeof A2uiClientMessageListWrapperSchema>;
-`;
-  writeFileSync(join(destDir, 'client-to-server.ts'), c2sTs);
-
-  // 4. client-capabilities.ts
-  const ccJson = JSON.parse(readFileSync(join(specDir, 'client_capabilities.json'), 'utf8'));
-  let ccTs =
-    getHeader('v0_9') +
-    `import {z} from 'zod';\n\nexport type JsonSchema = Record<string, any>;\n\n`;
-
-  for (const [name, def] of Object.entries(ccJson.$defs)) {
-    const typeName = name === 'Catalog' ? 'InlineCatalog' : name;
-    const prep = prepareRef(def, name);
-    let code = jsonSchemaToZod(prep, {
-      module: 'esm',
-      name: `${typeName}Schema`,
-      type: typeName,
-      noImport: true,
-    });
-    code = transformGeneratedZodCode(code, {name: typeName, version: 'v0_9'});
-    ccTs += code + '\n\n';
-  }
-
-  const v09CapsPrep = prepareRef(ccJson.properties['v0.9'], 'A2uiVersionCapabilities');
-  let v09CapsCode = jsonSchemaToZod(v09CapsPrep, {
-    module: 'esm',
-    name: 'A2uiVersionCapabilitiesSchema',
-    type: 'A2uiVersionCapabilities',
-    noImport: true,
-  });
-  v09CapsCode = transformGeneratedZodCode(v09CapsCode, {
-    name: 'A2uiVersionCapabilities',
-    version: 'v0_9',
-  });
-  v09CapsCode = v09CapsCode.replace(/CatalogSchema/g, 'InlineCatalogSchema');
-  ccTs += v09CapsCode + '\n\n';
-
-  ccTs += `export type A2uiClientCapabilities =
-  | {
-      'v0.9': A2uiVersionCapabilities;
-      'v0.9.1'?: A2uiVersionCapabilities;
+    code = transformGeneratedZodCode(code, {name: msgName, version});
+    if (!isV10) {
+      code = code.replace(/z\.literal\("v0\.9"\)/g, 'z.enum(["v0.9", "v0.9.1"])');
     }
-  | {
-      'v0.9'?: A2uiVersionCapabilities;
-      'v0.9.1': A2uiVersionCapabilities;
-    };
-`;
-  writeFileSync(join(destDir, 'client-capabilities.ts'), ccTs);
-
-  // 5. index.ts
-  const indexTs =
-    getHeader('v0_9') +
-    `export * from './common-types.js';
-export * from './server-to-client.js';
-export * from './client-to-server.js';
-export * from './client-capabilities.js';
-`;
-  writeFileSync(join(destDir, 'index.ts'), indexTs);
-}
-
-const V10_PREFIX_HELPERS = `
-export type ChildRefKind = 'component-id' | 'child-list';
-
-function markChildRef<T extends z.ZodTypeAny>(schema: T, ref: ChildRefKind): T {
-  (schema._def as {a2uiChildRef?: ChildRefKind}).a2uiChildRef = ref;
-  return schema;
-}
-
-export function childRefKindOf(schema: z.ZodTypeAny): ChildRefKind | undefined {
-  return (schema?._def as {a2uiChildRef?: ChildRefKind} | undefined)?.a2uiChildRef;
-}
-
-export interface RefSchemaOptions {
-  readonly description?: string;
-}
-
-export const TemplateChildListSchema = z
-  .object({
-    'componentId': z.lazy(() => ComponentIdSchema),
-    'path': z
-      .string()
-      .describe('The path to the list of component property objects in the data model.'),
-  })
-  .strict()
-  .describe(
-    'REF:#/$defs/TemplateChildList|A template for generating a dynamic list of children from a data model list. The \`componentId\` is the component to use as a template.',
-  );
-export type TemplateChildList = z.infer<typeof TemplateChildListSchema>;
-`;
-
-const V10_SUFFIX_HELPERS = `
-export function componentId(options: RefSchemaOptions = {}): typeof ComponentIdSchema {
-  if (options.description === undefined) {
-    return ComponentIdSchema;
+    bodyCode += code + '\n\n';
   }
-  return ComponentIdSchema.describe(\`REF:#/$defs/ComponentId|\${options.description}\`);
-}
 
-export function dynamicString(description?: string) {
-  return description
-    ? DynamicStringSchema.describe(\`REF:#/$defs/DynamicString|\${description}\`)
-    : DynamicStringSchema;
-}
+  bodyCode += `export const ${unionName}Schema = z.union([\n  ${s2cMsgNames.map(m => `${m}Schema`).join(',\n  ')},\n]);\n`;
+  bodyCode += `export type ${unionName} = z.infer<typeof ${unionName}Schema>;\n\n`;
 
-export function dynamicNumber(description?: string) {
-  return description
-    ? DynamicNumberSchema.describe(\`REF:#/$defs/DynamicNumber|\${description}\`)
-    : DynamicNumberSchema;
-}
-
-export function dynamicBoolean(description?: string) {
-  return description
-    ? DynamicBooleanSchema.describe(\`REF:#/$defs/DynamicBoolean|\${description}\`)
-    : DynamicBooleanSchema;
-}
-
-export function dynamicValue(description?: string) {
-  return description
-    ? DynamicValueSchema.describe(\`REF:#/$defs/DynamicValue|\${description}\`)
-    : DynamicValueSchema;
-}
-
-export function dynamicStringList(description?: string) {
-  return description
-    ? DynamicStringListSchema.describe(\`REF:#/$defs/DynamicStringList|\${description}\`)
-    : DynamicStringListSchema;
-}
-
-export function childList(options: RefSchemaOptions = {}): typeof ChildListSchema {
-  if (options.description === undefined) {
-    return ChildListSchema;
+  if (!isV10) {
+    bodyCode += `export const A2uiMessageListSchema = z.array(A2uiMessageSchema).describe('A list of messages.');\n`;
+    bodyCode += `export type A2uiMessageList = z.infer<typeof A2uiMessageListSchema>;\n\n`;
+    bodyCode += `export const A2uiMessageListWrapperSchema = z\n  .object({\n    messages: A2uiMessageListSchema,\n  })\n  .strict()\n  .describe('An object wrapping a list of messages.');\n`;
+    bodyCode += `export type A2uiMessageListWrapper = z.infer<typeof A2uiMessageListWrapperSchema>;\n`;
   }
-  return ChildListSchema.describe(\`REF:#/$defs/ChildList|\${options.description}\`);
+
+  const neededImports = Array.from(commonDefNames)
+    .map(name => `${name}Schema`)
+    .filter(schemaName => bodyCode.includes(schemaName))
+    .sort();
+
+  let outTs = getHeader(version) + "import {z} from 'zod';\n";
+  if (neededImports.length > 0) {
+    outTs += `import {${neededImports.join(', ')}} from './common-types.js';\n\n`;
+  } else {
+    outTs += '\n';
+  }
+  outTs += bodyCode;
+
+  writeFileSync(join(destDir, outFileName), outTs);
 }
-`;
 
 /**
- * Generates all schema files for protocol version v1.0.
+ * Generates outbound client-to-server or renderer-to-agent message schemas.
  *
- * @param {string} root Base web_core directory.
+ * @param {string} specDir Specification directory.
+ * @param {string} destDir Destination directory.
+ * @param {string} version Version tag.
+ * @param {Set<string>} commonDefNames Set of definition names in common_types.json.
  */
-function generateV10Schemas(root) {
-  console.log('Generating v1.0 Zod schemas from JSON specification files...');
-  const specDir = join(root, '..', '..', 'specification', 'v1_0', 'json');
-  const destDir = join(root, 'src', 'v1_0', 'schema');
+function generateOutgoingMessageSchemas(specDir, destDir, version, commonDefNames) {
+  const isV10 = existsSync(join(specDir, 'renderer_to_agent.json'));
+
+  if (isV10) {
+    const r2aJson = JSON.parse(readFileSync(join(specDir, 'renderer_to_agent.json'), 'utf8'));
+    const r2aMessageProps = r2aJson.oneOf.map(item => item.required.find(k => k !== 'version'));
+    const r2aMessageNames = [];
+    let bodyCode = '';
+
+    for (const msgProp of r2aMessageProps) {
+      const msgName = msgProp.charAt(0).toUpperCase() + msgProp.slice(1) + 'Message';
+      r2aMessageNames.push(msgName);
+      const propDef = r2aJson.properties[msgProp];
+      const objSchema = {
+        type: 'object',
+        properties: {
+          version: {const: 'v1.0'},
+          [msgProp]: propDef,
+        },
+        required: ['version', msgProp],
+        additionalProperties: false,
+      };
+      const prep = prepareRef(objSchema, msgName);
+      let code = jsonSchemaToZod(prep, {
+        module: 'esm',
+        name: `${msgName}Schema`,
+        type: msgName,
+        noImport: true,
+      });
+      code = transformGeneratedZodCode(code, {name: msgName, version: 'v1_0'});
+      bodyCode += code + '\n\n';
+    }
+
+    bodyCode += `/** Union schema validating any outgoing v1.0 renderer-to-agent message envelope. */\n`;
+    bodyCode += `export const RendererToAgentMessageSchema = z.union([\n  ${r2aMessageNames.map(m => `${m}Schema`).join(',\n  ')},\n]);\n`;
+    bodyCode += `export type RendererToAgentMessage = z.infer<typeof RendererToAgentMessageSchema>;\n`;
+
+    const neededImports = Array.from(commonDefNames)
+      .map(name => `${name}Schema`)
+      .filter(schemaName => bodyCode.includes(schemaName))
+      .sort();
+
+    let r2aTs = getHeader(version) + "import {z} from 'zod';\n";
+    if (neededImports.length > 0) {
+      r2aTs += `import {${neededImports.join(', ')}} from './common-types.js';\n\n`;
+    } else {
+      r2aTs += '\n';
+    }
+    r2aTs += bodyCode;
+
+    writeFileSync(join(destDir, 'renderer-to-agent.ts'), r2aTs);
+  } else {
+    const c2sJson = JSON.parse(readFileSync(join(specDir, 'client_to_server.json'), 'utf8'));
+    const cdmJson = JSON.parse(readFileSync(join(specDir, 'client_data_model.json'), 'utf8'));
+
+    let c2sTs = getHeader(version) + "import {z} from 'zod';\n\n";
+
+    const actionPrep = prepareRef(c2sJson.properties.action, 'A2uiClientAction');
+    let actionCode = jsonSchemaToZod(actionPrep, {
+      module: 'esm',
+      name: 'A2uiClientActionSchema',
+      type: 'A2uiClientAction',
+      noImport: true,
+    });
+    actionCode = transformGeneratedZodCode(actionCode, {
+      name: 'A2uiClientAction',
+      version: 'v0_9',
+    });
+    actionCode = actionCode.replace(/\.passthrough\(\)/g, '.strict()');
+    c2sTs += actionCode + '\n\n';
+
+    const valErrorPrep = prepareRef(c2sJson.properties.error.oneOf[0], 'A2uiValidationError');
+    let valErrorCode = jsonSchemaToZod(valErrorPrep, {
+      module: 'esm',
+      name: 'A2uiValidationErrorSchema',
+      noImport: true,
+    });
+    valErrorCode = transformGeneratedZodCode(valErrorCode, {
+      name: 'A2uiValidationError',
+      version: 'v0_9',
+    });
+    c2sTs += valErrorCode + '\n\n';
+
+    const genErrorPrep = prepareRef(c2sJson.properties.error.oneOf[1], 'A2uiGenericError');
+    let genErrorCode = jsonSchemaToZod(genErrorPrep, {
+      module: 'esm',
+      name: 'A2uiGenericErrorSchema',
+      noImport: true,
+    });
+    genErrorCode = transformGeneratedZodCode(genErrorCode, {
+      name: 'A2uiGenericError',
+      version: 'v0_9',
+    });
+    genErrorCode = genErrorCode.replace(
+      'code: z.any()',
+      "code: z.string().refine(c => c !== 'VALIDATION_FAILED')",
+    );
+    c2sTs += genErrorCode + '\n\n';
+
+    c2sTs += `export const A2uiClientErrorSchema = z.union([A2uiValidationErrorSchema, A2uiGenericErrorSchema]);\nexport type A2uiClientError = z.infer<typeof A2uiClientErrorSchema>;\n\n`;
+
+    c2sTs += `export const A2uiClientMessageSchema = z\n  .object({\n    version: z.enum(['v0.9', 'v0.9.1']),\n  })\n  .and(\n    z.union([z.object({action: A2uiClientActionSchema}), z.object({error: A2uiClientErrorSchema})]),\n  );\nexport type A2uiClientMessage = z.infer<typeof A2uiClientMessageSchema>;\n\n`;
+
+    const cdmPrep = prepareRef(cdmJson, 'A2uiClientDataModel');
+    let cdmCode = jsonSchemaToZod(cdmPrep, {
+      module: 'esm',
+      name: 'A2uiClientDataModelSchema',
+      type: 'A2uiClientDataModel',
+      noImport: true,
+    });
+    cdmCode = transformGeneratedZodCode(cdmCode, {
+      name: 'A2uiClientDataModel',
+      version: 'v0_9',
+    });
+    cdmCode = cdmCode.replace(/z\.literal\("v0\.9"\)/g, 'z.enum(["v0.9", "v0.9.1"])');
+    c2sTs += cdmCode + '\n\n';
+
+    c2sTs += `export const A2uiClientMessageListSchema = z\n  .array(A2uiClientMessageSchema)\n  .describe('A list of client messages.');\nexport type A2uiClientMessageList = z.infer<typeof A2uiClientMessageListSchema>;\n\n`;
+    c2sTs += `export const A2uiClientMessageListWrapperSchema = z\n  .object({\n    messages: A2uiClientMessageListSchema,\n  })\n  .strict()\n  .describe('An object wrapping a list of client messages.');\nexport type A2uiClientMessageListWrapper = z.infer<typeof A2uiClientMessageListWrapperSchema>;\n`;
+
+    writeFileSync(join(destDir, 'client-to-server.ts'), c2sTs);
+  }
+}
+
+/**
+ * Generates capabilities schemas (client-capabilities.ts or renderer-capabilities.ts).
+ *
+ * @param {string} specDir Specification directory.
+ * @param {string} destDir Destination directory.
+ * @param {string} version Version tag.
+ */
+function generateCapabilitiesSchemas(specDir, destDir, version) {
+  const isV10 = existsSync(join(specDir, 'renderer_capabilities.json'));
+  if (isV10) {
+    const rcJson = JSON.parse(readFileSync(join(specDir, 'renderer_capabilities.json'), 'utf8'));
+    const v10Props = rcJson.properties['v1.0'];
+    const v10Prep = prepareRef(v10Props, 'V10RendererCapabilities');
+    let v10Code = jsonSchemaToZod(v10Prep, {
+      module: 'esm',
+      name: 'V10RendererCapabilitiesSchema',
+      type: 'V10RendererCapabilities',
+      noImport: true,
+    });
+    v10Code = transformGeneratedZodCode(v10Code, {
+      name: 'V10RendererCapabilities',
+      version: 'v1_0',
+    });
+    v10Code = v10Code.replace(/\.passthrough\(\)/g, '.strict()');
+
+    let rcTs = getHeader(version) + "import {z} from 'zod';\n\n";
+    rcTs += `/** Zod schema validating the strict v1.0 protocol renderer capabilities payload. */\n`;
+    rcTs += v10Code + '\n';
+
+    writeFileSync(join(destDir, 'renderer-capabilities.ts'), rcTs);
+  } else {
+    const ccJson = JSON.parse(readFileSync(join(specDir, 'client_capabilities.json'), 'utf8'));
+    let ccTs =
+      getHeader(version) +
+      `import {z} from 'zod';\n\nexport type JsonSchema = Record<string, any>;\n\n`;
+
+    for (const [name, def] of Object.entries(ccJson.$defs || {})) {
+      const typeName = name === 'Catalog' ? 'InlineCatalog' : name;
+      const prep = prepareRef(def, name);
+      let code = jsonSchemaToZod(prep, {
+        module: 'esm',
+        name: `${typeName}Schema`,
+        type: typeName,
+        noImport: true,
+      });
+      code = transformGeneratedZodCode(code, {name: typeName, version});
+      ccTs += code + '\n\n';
+    }
+
+    const v09CapsPrep = prepareRef(ccJson.properties['v0.9'], 'A2uiVersionCapabilities');
+    let v09CapsCode = jsonSchemaToZod(v09CapsPrep, {
+      module: 'esm',
+      name: 'A2uiVersionCapabilitiesSchema',
+      type: 'A2uiVersionCapabilities',
+      noImport: true,
+    });
+    v09CapsCode = transformGeneratedZodCode(v09CapsCode, {
+      name: 'A2uiVersionCapabilities',
+      version,
+    });
+    v09CapsCode = v09CapsCode.replace(/CatalogSchema/g, 'InlineCatalogSchema');
+    ccTs += v09CapsCode + '\n';
+
+    writeFileSync(join(destDir, 'client-capabilities.ts'), ccTs);
+  }
+}
+
+/**
+ * Generates all schema files dynamically for a given specification version.
+ *
+ * @param {string} specDir Specification directory.
+ * @param {string} destDir Destination schema directory.
+ * @param {string} version Version tag (e.g. 'v0_9', 'v1_0').
+ */
+function generateVersionSchemas(specDir, destDir, version) {
+  console.log(`Generating ${version} Zod schemas dynamically from JSON specification files...`);
+  mkdirSync(destDir, {recursive: true});
 
   // 1. common-types.ts
-  const commonDefNames = generateCommonTypes(
-    specDir,
-    destDir,
-    'v1_0',
-    V10_PREFIX_HELPERS,
-    V10_SUFFIX_HELPERS,
-  );
+  const commonDefNames = generateCommonTypes(specDir, destDir, version);
 
-  // 2. agent-to-renderer.ts
-  const a2rJson = JSON.parse(readFileSync(join(specDir, 'agent_to_renderer.json'), 'utf8'));
-  const a2rMessageNames = a2rJson.oneOf.map(ref => ref.$ref.replace('#/$defs/', ''));
-  const a2rImports = Array.from(
-    new Set([...findCommonRefs(a2rJson, commonDefNames), 'ComponentCommonSchema']),
-  ).sort();
+  // 2. catalog-definition.ts (if present)
+  generateCatalogDefinition(specDir, destDir, version, commonDefNames);
 
-  let a2rTs =
-    getHeader('v1_0') +
-    `import {z} from 'zod';
-import {${a2rImports.join(', ')}} from './common-types.js';
+  // 3. Inbound message schemas (server-to-client.ts or agent-to-renderer.ts)
+  generateIncomingMessageSchemas(specDir, destDir, version, commonDefNames);
 
-/** Zod schema validating any component payload in a v1.0 message (excluding Surface). */
-export const AnyComponentSchema = ComponentCommonSchema.extend({
-  component: z.string(),
-})
-  .passthrough()
-  .refine(comp => comp.component !== 'Surface', {
-    message:
-      'Component type cannot be "Surface". "Surface" is a top-level protocol container defined in createSurface, not a child component.',
-  });
-export type AnyComponent = z.infer<typeof AnyComponentSchema>;
+  // 4. Outbound message schemas (client-to-server.ts or renderer-to-agent.ts)
+  generateOutgoingMessageSchemas(specDir, destDir, version, commonDefNames);
 
-/** Zod schema validating a non-empty array of UI component payloads. */
-export const ComponentsListSchema = z.array(AnyComponentSchema).min(1);
-export type ComponentsList = z.infer<typeof ComponentsListSchema>;
-
-`;
-
-  for (const msgName of a2rMessageNames) {
-    const rawDef = a2rJson.$defs[msgName];
-    const prep = prepareRef(rawDef, msgName);
-    let code = jsonSchemaToZod(prep, {
-      module: 'esm',
-      name: `${msgName}Schema`,
-      type: msgName,
-      noImport: true,
-    });
-    code = transformGeneratedZodCode(code, {name: msgName, version: 'v1_0'});
-    a2rTs += code + '\n\n';
-  }
-
-  a2rTs += `/** Union schema validating any incoming v1.0 agent-to-renderer message envelope. */
-export const AgentToRendererMessageSchema = z.union([
-  ${a2rMessageNames.map(m => `${m}Schema`).join(',\n  ')},
-]);
-export type AgentToRendererMessage = z.infer<typeof AgentToRendererMessageSchema>;
-`;
-
-  writeFileSync(join(destDir, 'agent-to-renderer.ts'), a2rTs);
-
-  // 3. renderer-to-agent.ts
-  const r2aJson = JSON.parse(readFileSync(join(specDir, 'renderer_to_agent.json'), 'utf8'));
-  const r2aMessageProps = r2aJson.oneOf.map(item => item.required.find(k => k !== 'version'));
-  const r2aMessageNames = [];
-  const r2aImports = Array.from(findCommonRefs(r2aJson, commonDefNames)).sort();
-
-  let r2aTs =
-    getHeader('v1_0') +
-    `import {z} from 'zod';
-import {${r2aImports.join(', ')}} from './common-types.js';
-
-`;
-
-  for (const msgProp of r2aMessageProps) {
-    const msgName = msgProp.charAt(0).toUpperCase() + msgProp.slice(1) + 'Message';
-    r2aMessageNames.push(msgName);
-    const propDef = r2aJson.properties[msgProp];
-    const objSchema = {
-      type: 'object',
-      properties: {
-        version: {const: 'v1.0'},
-        [msgProp]: propDef,
-      },
-      required: ['version', msgProp],
-      additionalProperties: false,
-    };
-    const prep = prepareRef(objSchema, msgName);
-    let code = jsonSchemaToZod(prep, {
-      module: 'esm',
-      name: `${msgName}Schema`,
-      type: msgName,
-      noImport: true,
-    });
-    code = transformGeneratedZodCode(code, {name: msgName, version: 'v1_0'});
-    r2aTs += code + '\n\n';
-  }
-
-  r2aTs += `/** Union schema validating any outgoing v1.0 renderer-to-agent message envelope. */
-export const RendererToAgentMessageSchema = z.union([
-  ${r2aMessageNames.map(m => `${m}Schema`).join(',\n  ')},
-]);
-export type RendererToAgentMessage = z.infer<typeof RendererToAgentMessageSchema>;
-`;
-
-  writeFileSync(join(destDir, 'renderer-to-agent.ts'), r2aTs);
-
-  // 4. renderer-capabilities.ts
-  const rcJson = JSON.parse(readFileSync(join(specDir, 'renderer_capabilities.json'), 'utf8'));
-  const v10Props = rcJson.properties['v1.0'];
-  const v10Prep = prepareRef(v10Props, 'V10RendererCapabilities');
-  let v10Code = jsonSchemaToZod(v10Prep, {
-    module: 'esm',
-    name: 'V10RendererCapabilitiesSchema',
-    type: 'V10RendererCapabilities',
-    noImport: true,
-  });
-  v10Code = transformGeneratedZodCode(v10Code, {
-    name: 'V10RendererCapabilities',
-    version: 'v1_0',
-  });
-  v10Code = v10Code.replace(/\.passthrough\(\)/g, '.strict()');
-
-  let rcTs = getHeader('v1_0') + "import {z} from 'zod';\n\n";
-  rcTs += `/** Zod schema validating the strict v1.0 protocol renderer capabilities payload. */\n`;
-  rcTs += v10Code + '\n\n';
-  rcTs += `/** Zod schema validating multi-version renderer capabilities maps across protocol versions. */
-export const RendererCapabilitiesSchema = z.object({
-  "v1.0": V10RendererCapabilitiesSchema.optional(),
-  supportedCatalogIds: z.array(z.string()).optional(),
-  inlineCatalogs: z.array(z.record(z.string(), z.any())).optional(),
-}).catchall(z.any());
-export type RendererCapabilities = z.infer<typeof RendererCapabilitiesSchema>;
-`;
-
-  writeFileSync(join(destDir, 'renderer-capabilities.ts'), rcTs);
-
-  // 5. catalog-definition.ts
-  const catalogDefJson = JSON.parse(readFileSync(join(specDir, 'catalog_definition.json'), 'utf8'));
-
-  let catalogDefTs =
-    getHeader('v1_0') +
-    `import {z} from 'zod';
-import {ExtensionsSchema} from './common-types.js';
-
-`;
-
-  for (const [name, rawDef] of Object.entries(catalogDefJson.$defs)) {
-    const prep = prepareRef(rawDef, name);
-    let code = jsonSchemaToZod(prep, {
-      module: 'esm',
-      name: `${name}Schema`,
-      type: name,
-      noImport: true,
-    });
-    code = transformGeneratedZodCode(code, {name, version: 'v1_0'});
-    code += `\nexport type ${name}Input = z.input<typeof ${name}Schema>;`;
-    catalogDefTs += code + '\n\n';
-  }
-
-  writeFileSync(join(destDir, 'catalog-definition.ts'), catalogDefTs);
+  // 5. Capabilities schemas (client-capabilities.ts or renderer-capabilities.ts)
+  generateCapabilitiesSchemas(specDir, destDir, version);
 
   // 6. index.ts
-  const indexTs =
-    getHeader('v1_0') +
-    `export * from './common-types.js';
-export * from './agent-to-renderer.js';
-export * from './renderer-to-agent.js';
-export * from './renderer-capabilities.js';
-export * from './catalog-definition.js';
-`;
+  const generatedFiles = readdirSync(destDir)
+    .filter(f => f.endsWith('.ts') && f !== 'index.ts' && f !== 'helpers.ts')
+    .sort();
+
+  let indexTs = getHeader(version);
+  for (const file of generatedFiles) {
+    indexTs += `export * from './${file.replace('.ts', '.js')}';\n`;
+  }
+  indexTs += `export * from './helpers.js';\n`;
 
   writeFileSync(join(destDir, 'index.ts'), indexTs);
 }
 
-generateV09Schemas(rootDir);
-generateV10Schemas(rootDir);
-console.log('Successfully generated Zod schemas for v0.9 and v1.0.');
+// Discover all specification versions dynamically for active codebases
+const versions = readdirSync(specBaseDir)
+  .filter(
+    v =>
+      v.startsWith('v') &&
+      existsSync(join(specBaseDir, v, 'json')) &&
+      existsSync(join(rootDir, 'src', v)) &&
+      v !== 'v0_8',
+  )
+  .sort();
+
+for (const version of versions) {
+  const specDir = join(specBaseDir, version, 'json');
+  const destDir = join(rootDir, 'src', version, 'schema');
+  generateVersionSchemas(specDir, destDir, version);
+}
+
+console.log(`Successfully generated Zod schemas dynamically for versions: ${versions.join(', ')}.`);

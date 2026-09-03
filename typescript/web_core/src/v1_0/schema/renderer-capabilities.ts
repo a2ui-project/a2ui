@@ -35,13 +35,3 @@ export const V10RendererCapabilitiesSchema = z
   })
   .describe('The capabilities structure for version 1.0 of the A2UI protocol.');
 export type V10RendererCapabilities = z.infer<typeof V10RendererCapabilitiesSchema>;
-
-/** Zod schema validating multi-version renderer capabilities maps across protocol versions. */
-export const RendererCapabilitiesSchema = z
-  .object({
-    'v1.0': V10RendererCapabilitiesSchema.optional(),
-    supportedCatalogIds: z.array(z.string()).optional(),
-    inlineCatalogs: z.array(z.record(z.string(), z.any())).optional(),
-  })
-  .catchall(z.any());
-export type RendererCapabilities = z.infer<typeof RendererCapabilitiesSchema>;

@@ -31,14 +31,7 @@
  * separately in src/v<version>/ directories, e.g. src/v1_0/.
  */
 import {z} from 'zod';
-import {
-  type ChildRefKind,
-  type RefSchemaOptions,
-  markChildRef,
-  childRefKindOf,
-} from './child-ref-helpers.js';
-
-export {type ChildRefKind, type RefSchemaOptions, markChildRef, childRefKindOf};
+import {markChildRef} from './child-ref-helpers.js';
 
 export const ComponentIdSchema = markChildRef(
   z
@@ -326,49 +319,6 @@ export const FunctionResponseSchema = z
 export type FunctionResponse = z.infer<typeof FunctionResponseSchema>;
 
 /**
- * Creates or customizes a ComponentId schema without losing its reference pointer metadata.
- *
- * @param options Configuration options including custom description.
- * @returns The configured ComponentId schema.
- */
-export function componentId(options: RefSchemaOptions = {}): typeof ComponentIdSchema {
-  if (options.description === undefined) {
-    return ComponentIdSchema;
-  }
-  return ComponentIdSchema.describe(
-    `REF:common_types.json#/$defs/ComponentId|${options.description}`,
-  );
-}
-
-/**
- * Creates or customizes a ChildList schema without losing its reference pointer metadata.
- *
- * @param options Configuration options including custom description.
- * @returns The configured ChildList schema.
- */
-export function childList(options: RefSchemaOptions = {}): typeof ChildListSchema {
-  if (options.description === undefined) {
-    return ChildListSchema;
-  }
-  return ChildListSchema.describe(`REF:common_types.json#/$defs/ChildList|${options.description}`);
-}
-
-/**
- * Generic component definition payload schema.
- */
-export const AnyComponentSchema = z
-  .object({
-    'component': z.string().describe('The type name of the component.'),
-    'id': ComponentIdSchema.optional(),
-    'weight': z.number().optional(),
-  })
-  .passthrough()
-  .describe('A generic A2UI component definition.');
-
-/** Generic component definition payload. */
-export type AnyComponent = z.infer<typeof AnyComponentSchema>;
-
-/**
  * Registry of reusable common schema definitions across A2UI catalogs and protocols.
  */
 export const CommonSchemas = {
@@ -393,5 +343,6 @@ export const CommonSchemas = {
   FunctionCommon: FunctionCommonSchema,
   Surface: SurfaceSchema,
   FunctionResponse: FunctionResponseSchema,
-  AnyComponent: AnyComponentSchema,
 };
+
+export * from './helpers.js';

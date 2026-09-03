@@ -17,31 +17,7 @@
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
 // Generated from specification/v0_9/json/ via scripts/generate-zod-schemas.mjs
 import {z} from 'zod';
-
-/** The unique identifier for a component. */
-export type ChildRefKind = 'component-id' | 'child-list';
-
-function markChildRef<T extends z.ZodTypeAny>(schema: T, ref: ChildRefKind): T {
-  (schema._def as {a2uiChildRef?: ChildRefKind}).a2uiChildRef = ref;
-  return schema;
-}
-
-export function childRefKindOf(schema: z.ZodTypeAny): ChildRefKind | undefined {
-  return (schema?._def as {a2uiChildRef?: ChildRefKind} | undefined)?.a2uiChildRef;
-}
-
-export interface RefSchemaOptions {
-  readonly description?: string;
-}
-
-export const TemplateChildListSchema = z
-  .object({
-    'componentId': z.lazy(() => ComponentIdSchema),
-    'path': z
-      .string()
-      .describe('The path to the list of component property objects in the data model.'),
-  })
-  .describe('REF:#/$defs/TemplateChildList');
+import {markChildRef} from '../../types/child-ref-helpers.js';
 
 export const ComponentIdSchema = markChildRef(
   z
@@ -59,7 +35,15 @@ export const DataBindingSchema = z
   .describe('REF:#/$defs/DataBinding');
 export type DataBinding = z.infer<typeof DataBindingSchema>;
 
-export const DynamicValueSchema: z.ZodType<any> = z
+export type DynamicValue =
+  | string
+  | number
+  | boolean
+  | any[]
+  | DataBinding
+  | FunctionCall
+  | Record<string, any>;
+export const DynamicValueSchema: z.ZodType<DynamicValue> = z
   .union([
     z.string(),
     z.number(),
@@ -71,9 +55,13 @@ export const DynamicValueSchema: z.ZodType<any> = z
   .describe(
     'REF:#/$defs/DynamicValue|A value that can be a literal, a path, or a function call returning any type.',
   );
-export type DynamicValue = z.infer<typeof DynamicValueSchema>;
 
-export const FunctionCallSchema: z.ZodType<any> = z
+export interface FunctionCall {
+  call: string;
+  args?: Record<string, any>;
+  returnType?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';
+}
+export const FunctionCallSchema: z.ZodType<FunctionCall> = z
   .object({
     'call': z.string().describe('The name of the function to call.'),
     'args': z
@@ -92,10 +80,9 @@ export const FunctionCallSchema: z.ZodType<any> = z
       .default('boolean'),
   })
   .describe('REF:#/$defs/FunctionCall|Invokes a named function on the client.');
-export type FunctionCall = z.infer<typeof FunctionCallSchema>;
 
 export const DynamicStringSchema = z
-  .union([z.string(), DataBindingSchema, z.intersection(FunctionCallSchema, z.any())])
+  .union([z.string(), DataBindingSchema, FunctionCallSchema])
   .describe('REF:#/$defs/DynamicString|Represents a string');
 export type DynamicString = z.infer<typeof DynamicStringSchema>;
 
@@ -133,21 +120,21 @@ export const ChildListSchema = markChildRef(
 export type ChildList = z.infer<typeof ChildListSchema>;
 
 export const DynamicNumberSchema = z
-  .union([z.number(), DataBindingSchema, z.intersection(FunctionCallSchema, z.any())])
+  .union([z.number(), DataBindingSchema, FunctionCallSchema])
   .describe(
     'REF:#/$defs/DynamicNumber|Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number.',
   );
 export type DynamicNumber = z.infer<typeof DynamicNumberSchema>;
 
 export const DynamicBooleanSchema = z
-  .union([z.boolean(), DataBindingSchema, z.intersection(FunctionCallSchema, z.any())])
+  .union([z.boolean(), DataBindingSchema, FunctionCallSchema])
   .describe(
     'REF:#/$defs/DynamicBoolean|A boolean value that can be a literal, a path, or a function call returning a boolean.',
   );
 export type DynamicBoolean = z.infer<typeof DynamicBooleanSchema>;
 
 export const DynamicStringListSchema = z
-  .union([z.array(z.string()), DataBindingSchema, z.intersection(FunctionCallSchema, z.any())])
+  .union([z.array(z.string()), DataBindingSchema, FunctionCallSchema])
   .describe(
     'REF:#/$defs/DynamicStringList|Represents a value that can be either a literal array of strings, a path to a string array in the data model, or a function call returning a string array.',
   );
@@ -203,60 +190,6 @@ export const ActionSchema = z
   );
 export type Action = z.infer<typeof ActionSchema>;
 
-export function componentId(options: RefSchemaOptions = {}): typeof ComponentIdSchema {
-  if (options.description === undefined) {
-    return ComponentIdSchema;
-  }
-  return ComponentIdSchema.describe(`REF:#/$defs/ComponentId|${options.description}`);
-}
-
-export function dynamicString(description?: string) {
-  return description
-    ? DynamicStringSchema.describe(`REF:#/$defs/DynamicString|${description}`)
-    : DynamicStringSchema;
-}
-
-export function dynamicNumber(description?: string) {
-  return description
-    ? DynamicNumberSchema.describe(`REF:#/$defs/DynamicNumber|${description}`)
-    : DynamicNumberSchema;
-}
-
-export function dynamicBoolean(description?: string) {
-  return description
-    ? DynamicBooleanSchema.describe(`REF:#/$defs/DynamicBoolean|${description}`)
-    : DynamicBooleanSchema;
-}
-
-export function dynamicValue(description?: string) {
-  return description
-    ? DynamicValueSchema.describe(`REF:#/$defs/DynamicValue|${description}`)
-    : DynamicValueSchema;
-}
-
-export function dynamicStringList(description?: string) {
-  return description
-    ? DynamicStringListSchema.describe(`REF:#/$defs/DynamicStringList|${description}`)
-    : DynamicStringListSchema;
-}
-
-export function childList(options: RefSchemaOptions = {}): typeof ChildListSchema {
-  if (options.description === undefined) {
-    return ChildListSchema;
-  }
-  return ChildListSchema.describe(options.description);
-}
-
-export const AnyComponentSchema = z
-  .object({
-    'component': z.string().describe('The type name of the component.'),
-    'id': ComponentIdSchema.optional(),
-    'weight': z.number().optional(),
-  })
-  .passthrough()
-  .describe('A generic A2UI component definition.');
-export type AnyComponent = z.infer<typeof AnyComponentSchema>;
-
 export const CommonSchemas = {
   ComponentId: ComponentIdSchema,
   DataBinding: DataBindingSchema,
@@ -272,5 +205,6 @@ export const CommonSchemas = {
   CheckRule: CheckRuleSchema,
   Checkable: CheckableSchema,
   Action: ActionSchema,
-  AnyComponent: AnyComponentSchema,
 };
+
+export * from './helpers.js';
