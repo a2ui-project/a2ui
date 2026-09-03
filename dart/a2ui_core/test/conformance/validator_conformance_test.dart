@@ -67,11 +67,10 @@ void _runCase(Map<String, Object?> testCase) {
         (step['payload']! as List<Object?>).cast<Map<String, Object?>>();
     // A fresh validator per step, as the reference Python harness does: each
     // step is an independent payload, not a continuation of the previous one.
-    final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-        A2uiValidator(
-          catalogs: _catalogsFor(catalogDocument, payload),
-          commonTypesSchema: commonTypes,
-        );
+    final A2uiValidator<ComponentApi, FunctionApi> validator = A2uiValidator(
+      catalogs: _catalogsFor(catalogDocument, payload),
+      commonTypesSchema: commonTypes,
+    );
 
     final Object? expectError =
         step['expect_error'] ?? testCase['expect_error'];

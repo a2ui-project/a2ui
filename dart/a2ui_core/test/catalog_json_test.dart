@@ -53,7 +53,7 @@ void main() {
     test('reads a function argument schema and return type', () {
       final SchemaCatalog catalog = Catalog.fromJson(loadBasicCatalogJson());
 
-      final CatalogFunction required = catalog.functions['required']!;
+      final FunctionApi required = catalog.functions['required']!;
       expect(required.name, 'required');
       expect(required.returnType, A2uiReturnType.boolean);
       expect(
@@ -86,7 +86,6 @@ void main() {
       expect(catalog.id, 'inline');
       expect(catalog.components.keys, ['Text']);
       expect(catalog.functions['greet']!.returnType, A2uiReturnType.string);
-      expect(catalog.functions['greet']!.description, 'Says hello.');
     });
 
     test('defaults an undeclared function return type to any', () {
@@ -247,10 +246,7 @@ void main() {
       final SchemaCatalog agentCatalog = Catalog.fromJson(
         loadBasicCatalogJson(),
       );
-      expect(
-        agentCatalog.functions.values,
-        everyElement(isA<CatalogFunction>()),
-      );
+      expect(agentCatalog.functions.values, everyElement(isA<FunctionApi>()));
       expect(
         agentCatalog.functions.values,
         isNot(anyElement(isA<FunctionImplementation>())),

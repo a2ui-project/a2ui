@@ -115,7 +115,7 @@ Map<String, Object?> commonTypes() => {
 /// Overrides the shared types rather than taking the published document, so
 /// these tests exercise the definitions above: an empty map leaves them
 /// unresolvable, which is the case the SDK skips rather than rejects.
-A2uiValidator<CatalogComponent, CatalogFunction> newValidator({
+A2uiValidator<ComponentApi, FunctionApi> newValidator({
   bool withCommonTypes = false,
 }) => A2uiValidator(
   catalogs: [testCatalog()],
@@ -137,8 +137,7 @@ Map<String, Object?> card(String id, String child) => {
 void main() {
   group('A2uiValidator version gating', () {
     test('accepts payloads declaring the supported version', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
 
       expect(validator.checkVersion(createSurface()), A2uiProtocolVersion.v0_9);
       expect(validator.parseMessages([createSurface()]), hasLength(1));
@@ -149,8 +148,7 @@ void main() {
     });
 
     test('rejects payloads declaring another protocol version', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
 
       for (final version in ['v0.8', 'v0.9.1', 'v1.0']) {
         expect(
@@ -167,8 +165,7 @@ void main() {
     });
 
     test('rejects payloads that omit the version', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final Map<String, Map<String, String>> message = {
         'createSurface': {'surfaceId': 's1', 'catalogId': catalogId},
       };
@@ -184,8 +181,7 @@ void main() {
     });
 
     test('rejects an envelope naming no known message body', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
 
       expect(
         () => validator.parseMessages([
@@ -214,16 +210,14 @@ void main() {
     });
 
     test('indexes the catalogs it validates against by id', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       expect(validator.catalogs.keys, [catalogId]);
     });
   });
 
   group('A2uiValidator.validateStructure', () {
     test('accepts a well formed component graph', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final List<A2uiMessage> messages = validator.parseMessages([
         createSurface(),
         updateComponents([card('root', 'label'), text('label', 'Hello')]),
@@ -233,8 +227,7 @@ void main() {
     });
 
     test('rejects duplicate component ids', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final List<A2uiMessage> messages = validator.parseMessages([
         createSurface(),
         updateComponents([text('root', 'a'), text('root', 'b')]),
@@ -253,8 +246,7 @@ void main() {
     });
 
     test('rejects a child reference that names no component', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final List<A2uiMessage> messages = validator.parseMessages([
         createSurface(),
         updateComponents([card('root', 'missing')]),
@@ -273,8 +265,7 @@ void main() {
     });
 
     test('rejects a payload that declares no root component', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final List<A2uiMessage> messages = validator.parseMessages([
         createSurface(),
         updateComponents([text('label', 'Hello')]),
@@ -293,8 +284,7 @@ void main() {
     });
 
     test('rejects a component unreachable from the root', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final List<A2uiMessage> messages = validator.parseMessages([
         createSurface(),
         updateComponents([
@@ -317,8 +307,7 @@ void main() {
     });
 
     test('rejects a self reference', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final List<A2uiMessage> messages = validator.parseMessages([
         createSurface(),
         updateComponents([card('root', 'root')]),
@@ -339,8 +328,7 @@ void main() {
     });
 
     test('rejects a cycle in the component graph', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final List<A2uiMessage> messages = validator.parseMessages([
         createSurface(),
         updateComponents([card('root', 'b'), card('b', 'root')]),
@@ -359,8 +347,7 @@ void main() {
     });
 
     test('rejects a chain deeper than the cap', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final components = <Map<String, Object?>>[card('root', 'c0')];
       const int chain = maxComponentDepth + 5;
       for (var i = 0; i < chain; i++) {
@@ -386,8 +373,7 @@ void main() {
     });
 
     test('follows a static child list', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final List<A2uiMessage> valid = validator.parseMessages([
         createSurface(),
         updateComponents([
@@ -420,8 +406,7 @@ void main() {
     });
 
     test('follows a child list template', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final List<A2uiMessage> messages = validator.parseMessages([
         createSurface(),
         updateComponents([
@@ -452,8 +437,7 @@ void main() {
     });
 
     test('follows references nested in an array of objects', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final List<A2uiMessage> messages = validator.parseMessages([
         createSurface(),
         updateComponents([
@@ -482,8 +466,7 @@ void main() {
     });
 
     test('ignores a property that does not reference components', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       // `text` is a plain string, so 'root' inside it is not a reference and
       // must not read as a self-reference.
       final List<A2uiMessage> messages = validator.parseMessages([
@@ -530,8 +513,9 @@ void main() {
         'child',
       }, reason: 'id must not be read as a child reference');
 
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          A2uiValidator(catalogs: [inlined]);
+      final A2uiValidator<ComponentApi, FunctionApi> validator = A2uiValidator(
+        catalogs: [inlined],
+      );
       expect(
         () => validator.validateStructure(
           validator.parseMessages([
@@ -547,8 +531,7 @@ void main() {
     });
 
     test('rejects a malformed data model path', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final List<A2uiMessage> messages = validator.parseMessages([
         {
           'version': 'v0.9',
@@ -569,8 +552,7 @@ void main() {
     });
 
     test('rejects function calls nested past the cap', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       Map<String, Object?> call = {'call': 'f', 'args': <String, Object?>{}};
       for (var i = 0; i < maxFunctionCallDepth + 1; i++) {
         call = {
@@ -598,7 +580,7 @@ void main() {
 
     group('incremental updates', () {
       test('allow a missing root and references to existing components', () {
-        final A2uiValidator<CatalogComponent, CatalogFunction> validator =
+        final A2uiValidator<ComponentApi, FunctionApi> validator =
             newValidator();
         final List<A2uiMessage> messages = validator.parseMessages([
           updateComponents([card('panel', 'alreadyOnTheClient')]),
@@ -608,7 +590,7 @@ void main() {
       });
 
       test('still reject duplicate ids', () {
-        final A2uiValidator<CatalogComponent, CatalogFunction> validator =
+        final A2uiValidator<ComponentApi, FunctionApi> validator =
             newValidator();
         final List<A2uiMessage> messages = validator.parseMessages([
           updateComponents([text('a', 'one'), text('a', 'two')]),
@@ -621,7 +603,7 @@ void main() {
       });
 
       test('still reject a self reference', () {
-        final A2uiValidator<CatalogComponent, CatalogFunction> validator =
+        final A2uiValidator<ComponentApi, FunctionApi> validator =
             newValidator();
         final List<A2uiMessage> messages = validator.parseMessages([
           updateComponents([card('a', 'a')]),
@@ -634,7 +616,7 @@ void main() {
       });
 
       test('still reject a cycle', () {
-        final A2uiValidator<CatalogComponent, CatalogFunction> validator =
+        final A2uiValidator<ComponentApi, FunctionApi> validator =
             newValidator();
         final List<A2uiMessage> messages = validator.parseMessages([
           updateComponents([card('a', 'b'), card('b', 'a')]),
@@ -648,8 +630,7 @@ void main() {
     });
 
     test('accumulates components across updates to the same surface', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final List<A2uiMessage> messages = validator.parseMessages([
         createSurface(),
         updateComponents([card('root', 'label')]),
@@ -660,8 +641,7 @@ void main() {
     });
 
     test('treats an id repeated in a later message as an update', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       // The second message replaces `root`, pointing it at `b` instead of
       // `a`. That is how the basic catalog's `00_incremental` example swaps
       // a placeholder out, so it must not read as a duplicate id — and `a`,
@@ -678,8 +658,7 @@ void main() {
     });
 
     test('drops the components of a surface deleted in the same payload', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final List<A2uiMessage> messages = validator.parseMessages([
         createSurface(),
         updateComponents([card('root', 'missing')]),
@@ -695,8 +674,7 @@ void main() {
 
   group('A2uiValidator.validateAgainstCatalogs', () {
     test('accepts components that satisfy the catalog schema', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final List<A2uiMessage> messages = validator.parseMessages([
         createSurface(),
         updateComponents([text('label', 'Hello')]),
@@ -709,8 +687,7 @@ void main() {
     });
 
     test('rejects a component missing a required property', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final List<A2uiMessage> messages = validator.parseMessages([
         createSurface(),
         updateComponents([
@@ -725,8 +702,7 @@ void main() {
     });
 
     test('rejects a property of the wrong type', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final List<A2uiMessage> messages = validator.parseMessages([
         createSurface(),
         updateComponents([
@@ -741,8 +717,7 @@ void main() {
     });
 
     test('rejects a component the catalog does not declare', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final List<A2uiMessage> messages = validator.parseMessages([
         createSurface(),
         updateComponents([
@@ -763,8 +738,7 @@ void main() {
     });
 
     test('rejects a surface created against an unregistered catalog', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final List<A2uiMessage> messages = validator.parseMessages([
         {
           'version': 'v0.9',
@@ -782,8 +756,9 @@ void main() {
     });
 
     test('enforces common_types definitions when they are supplied', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator(withCommonTypes: true);
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator(
+        withCommonTypes: true,
+      );
       final List<A2uiMessage> messages = validator.parseMessages([
         createSurface(),
         updateComponents([
@@ -806,8 +781,7 @@ void main() {
       // Given shared types that define no `ChildList`, the reference to it
       // cannot be resolved. The surrounding constraints still apply, but the
       // reference itself is skipped rather than failing the payload.
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
       final List<A2uiMessage> messages = validator.parseMessages([
         createSurface(),
         updateComponents([
@@ -828,8 +802,7 @@ void main() {
 
   group('A2uiValidator.validate', () {
     test('returns the parsed messages for a valid payload', () async {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
 
       final List<A2uiMessage> messages = validator.validate([
         createSurface(),
@@ -841,8 +814,7 @@ void main() {
     });
 
     test('rejects an unsupported version before any deep check runs', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
 
       expect(
         () => validator.validate([createSurface(version: 'v1.0')]),
@@ -851,8 +823,7 @@ void main() {
     });
 
     test('reports a structural failure before a catalog failure', () {
-      final A2uiValidator<CatalogComponent, CatalogFunction> validator =
-          newValidator();
+      final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
 
       // `root` is both a dangling reference and missing its required `text`.
       // Structure runs first, so the integrity error is what surfaces.

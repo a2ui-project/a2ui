@@ -20,9 +20,15 @@ import '../validation/schema_resolution.dart';
 import 'contexts.dart';
 
 /// A definition of a UI component's API.
-abstract class ComponentApi {
-  String get name;
-  Schema get schema;
+///
+/// Carries the component's name and JSON schema and nothing else, so it is
+/// what [Catalog.fromJson] produces directly. A renderer that attaches
+/// behaviour subclasses it.
+class ComponentApi {
+  final String name;
+  final Schema schema;
+
+  const ComponentApi({required this.name, required this.schema});
 }
 
 /// The type of value a function returns.
@@ -47,16 +53,29 @@ enum A2uiReturnType {
 
 /// A definition of a UI function's API.
 ///
-/// Declares a signature only. Renderers that also evaluate the function supply
-/// a [FunctionImplementation] instead.
-abstract class FunctionApi {
-  String get name;
-  A2uiReturnType get returnType;
-  Schema get argumentSchema;
+/// Declares a signature only, so it is what [Catalog.fromJson] produces
+/// directly. Renderers that also evaluate the function supply a
+/// [FunctionImplementation] instead.
+class FunctionApi {
+  final String name;
+  final A2uiReturnType returnType;
+  final Schema argumentSchema;
+
+  const FunctionApi({
+    required this.name,
+    required this.argumentSchema,
+    this.returnType = A2uiReturnType.any,
+  });
 }
 
 /// A function implementation that can be registered with a catalog.
 abstract class FunctionImplementation extends FunctionApi {
+  const FunctionImplementation({
+    required super.name,
+    required super.argumentSchema,
+    super.returnType,
+  });
+
   /// Executes the function. Can return a static value or a [ReadonlySignal].
   Object? execute(
     Map<String, dynamic> args,
@@ -65,56 +84,17 @@ abstract class FunctionImplementation extends FunctionApi {
   ]);
 }
 
-/// A [ComponentApi] backed by a catalog document's JSON schema.
-///
-/// Produced by [Catalog.fromJson]; carries no rendering behaviour, so it is
-/// the agent-side representation.
-class CatalogComponent implements ComponentApi {
-  @override
-  final String name;
-
-  @override
-  final Schema schema;
-
-  CatalogComponent({required this.name, required this.schema});
-}
-
-/// A [FunctionApi] backed by a catalog document's JSON schema.
-///
-/// Produced by [Catalog.fromJson]; declares a signature but cannot be
-/// evaluated. See [FunctionImplementation] for the renderer-side counterpart.
-class CatalogFunction implements FunctionApi {
-  @override
-  final String name;
-
-  @override
-  final A2uiReturnType returnType;
-
-  @override
-  final Schema argumentSchema;
-
-  /// The function's description, when the catalog declares one.
-  final String? description;
-
-  CatalogFunction({
-    required this.name,
-    required this.argumentSchema,
-    this.returnType = A2uiReturnType.any,
-    this.description,
-  });
-}
-
 /// A catalog whose components and functions carry schemas only.
 ///
 /// What [Catalog.fromJson] produces, and what agents work with: they prompt
 /// and validate against signatures but never evaluate a function.
-typedef SchemaCatalog = Catalog<CatalogComponent, CatalogFunction>;
+typedef SchemaCatalog = Catalog<ComponentApi, FunctionApi>;
 
 /// A collection of available components and functions.
 ///
 /// [C] is the component representation and [F] the function representation.
 /// For renderers, [F] is [FunctionImplementation], for agents [F] is
-/// [CatalogFunction].
+/// [FunctionApi].
 ///
 /// For a catalog that declares no functions, pass `Never`
 /// (see https://dart.dev/language/built-in-types).
@@ -176,10 +156,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     );
   }
 
-  static List<CatalogComponent> _parseComponents(
-    Object? raw,
-    String catalogId,
-  ) {
+  static List<ComponentApi> _parseComponents(Object? raw, String catalogId) {
     if (raw == null) return const [];
     if (raw is! Map) {
       throw A2uiCatalogError(
@@ -189,24 +166,23 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     }
     return [
       for (final MapEntry<Object?, Object?> entry in raw.entries)
-        CatalogComponent(
+        ComponentApi(
           name: entry.key! as String,
           schema: Schema.fromMap(_asSchemaMap(entry.value)),
         ),
     ];
   }
 
-  static List<CatalogFunction> _parseFunctions(Object? raw, String catalogId) {
+  static List<FunctionApi> _parseFunctions(Object? raw, String catalogId) {
     if (raw == null) return const [];
 
-    // Inline form: {name, description, parameters, returnType} definitions.
+    // Inline form: {name, parameters, returnType} definitions.
     if (raw is List) {
       return [
         for (final Object? entry in raw)
           if (entry is Map)
-            CatalogFunction(
+            FunctionApi(
               name: entry['name']! as String,
-              description: entry['description'] as String?,
               argumentSchema: Schema.fromMap(
                 _asSchemaMap(entry['parameters'] ?? const <String, Object?>{}),
               ),
@@ -226,7 +202,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         catalogId: catalogId,
       );
     }
-    final functions = <CatalogFunction>[];
+    final functions = <FunctionApi>[];
     for (final MapEntry<Object?, Object?> entry in raw.entries) {
       final Map<String, Object?> schema = _asSchemaMap(entry.value);
       final Object? rawProperties = schema['properties'];
@@ -242,9 +218,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       final Object? args = properties['args'];
       final Object? returnType = properties['returnType'];
       functions.add(
-        CatalogFunction(
+        FunctionApi(
           name: entry.key! as String,
-          description: schema['description'] as String?,
           argumentSchema: Schema.fromMap(
             _asSchemaMap(args ?? const <String, Object?>{}),
           ),

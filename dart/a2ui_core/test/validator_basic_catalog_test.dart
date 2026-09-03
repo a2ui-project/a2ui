@@ -42,7 +42,7 @@ Map<String, Object?> basicCatalogDocument() =>
 /// Supplies no shared types, so these tests run against the
 /// `common_types.json` the package publishes — the same document a caller
 /// installing from pub.dev gets.
-A2uiValidator<CatalogComponent, CatalogFunction> basicValidator() =>
+A2uiValidator<ComponentApi, FunctionApi> basicValidator() =>
     A2uiValidator(catalogs: [Catalog.fromJson(basicCatalogDocument())]);
 
 /// A payload declaring one surface against the basic catalog.
@@ -116,7 +116,7 @@ void main() {
   });
 
   group('validating against the basic catalog rejects', () {
-    late A2uiValidator<CatalogComponent, CatalogFunction> validator;
+    late A2uiValidator<ComponentApi, FunctionApi> validator;
 
     setUp(() => validator = basicValidator());
 
@@ -221,7 +221,7 @@ void main() {
   });
 
   group('validating against the basic catalog accepts', () {
-    late A2uiValidator<CatalogComponent, CatalogFunction> validator;
+    late A2uiValidator<ComponentApi, FunctionApi> validator;
 
     setUp(() => validator = basicValidator());
 
