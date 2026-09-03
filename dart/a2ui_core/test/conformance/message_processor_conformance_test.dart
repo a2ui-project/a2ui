@@ -157,9 +157,11 @@ void _checkComponents(
   List<Map<String, Object?>> expected,
   String reason,
 ) {
-  expect(surface.componentsModel.all.map((c) => c.id).toSet(), {
-    for (final Map<String, Object?> entry in expected) entry['id'],
-  }, reason: '$reason: component ids');
+  expect(
+    surface.componentsModel.all.map((c) => c.id).toSet(),
+    {for (final Map<String, Object?> entry in expected) entry['id']},
+    reason: '$reason: component ids',
+  );
 
   for (final entry in expected) {
     final id = entry['id']! as String;

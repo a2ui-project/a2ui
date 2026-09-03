@@ -509,9 +509,11 @@ void main() {
         },
       });
 
-      expect(extractComponentRefFields(inlined)['Card']!.single, {
-        'child',
-      }, reason: 'id must not be read as a child reference');
+      expect(
+        extractComponentRefFields(inlined)['Card']!.single,
+        {'child'},
+        reason: 'id must not be read as a child reference',
+      );
 
       final A2uiValidator<ComponentApi, FunctionApi> validator = A2uiValidator(
         catalogs: [inlined],
