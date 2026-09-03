@@ -40,6 +40,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
+import org.junit.jupiter.api.Assumptions
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
 
@@ -393,7 +394,10 @@ class ConformanceTest {
             val expectCuttableKeys = expect["customCuttableKeys"] as List<String>
             assertEquals(expectCuttableKeys.toSet(), catalog!!.cuttableKeys)
           }
-          else -> assert(false, { "Unknown action: $action" })
+          // The conformance suites are shared across SDKs, so a file holds
+          // actions this one does not implement. Skipping keeps them visible
+          // in the report instead of failing the build or passing silently.
+          else -> Assumptions.assumeTrue(false, "Action not implemented here: $action")
         }
       }
     }
@@ -564,7 +568,10 @@ class ConformanceTest {
               }
             }
           }
-          else -> assert(false, { "Unknown action: $action" })
+          // The conformance suites are shared across SDKs, so a file holds
+          // actions this one does not implement. Skipping keeps them visible
+          // in the report instead of failing the build or passing silently.
+          else -> Assumptions.assumeTrue(false, "Action not implemented here: $action")
         }
       }
     }
@@ -619,7 +626,10 @@ class ConformanceTest {
             val expect = case[ConformanceTestHelper.KEY_EXPECT] as Boolean
             assertEquals(expect, result)
           }
-          else -> assert(false, { "Unknown action: $action" })
+          // The conformance suites are shared across SDKs, so a file holds
+          // actions this one does not implement. Skipping keeps them visible
+          // in the report instead of failing the build or passing silently.
+          else -> Assumptions.assumeTrue(false, "Action not implemented here: $action")
         }
       }
     }

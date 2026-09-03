@@ -23,6 +23,9 @@
 
 export * from '../catalog/function_invoker.js';
 export * from '../catalog/types.js';
+export * from '../catalog/a2ui-controller.js';
+export * from '../catalog/a2ui-lit-element.js';
+export * from '../catalog/render-a2ui-node.js';
 export * from '../common/events.js';
 export * from '../processing/message-processor.js';
 export * from '../rendering/component-context.js';
@@ -47,6 +50,7 @@ export * from '../state/surface-group-model.js';
 export * from '../state/surface-model.js';
 export * from '../errors.js';
 export * from './basic_catalog/index.js';
+export type {ResolvedChildRef} from '../rendering/generic-binder.js';
 export * from '../validating/integrity-checker.js';
 
 export {

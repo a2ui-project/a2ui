@@ -63,7 +63,7 @@ The sample app is built exclusively as an iOS Application via Xcode (`A2UISample
 
 ## 4. Basic Catalog Development Status
 
-The A2UI SwiftUI rendering layer is actively under development. Currently, `A2UISampleClient` implements an empty placeholder catalog (`EmptyBasicCatalog`) to stage stream evaluations without defining decorative schemas or mock component view builders.
+The A2UI SwiftUI rendering layer is actively under development. Currently, `A2UISampleClient` implements the full `BasicCatalogSwiftUI` integration, providing functional SwiftUI implementations for the standard Basic Catalog components.
 
 > [!NOTE]
-> **Expected Validation Fallbacks**: When stepping through component updates in the Gallery, it is completely normal and intended for `CATALOG_NOT_FOUND` notices or component validation errors to appear in the **Logs & Errors** tab, and for the surface view canvas to remain blank. This verifies error handling pipeline stability while preparing the environment for forthcoming SwiftUI Basic Catalog component implementations.
+> You can step through component updates in the Gallery to see them render progressively on the surface canvas.

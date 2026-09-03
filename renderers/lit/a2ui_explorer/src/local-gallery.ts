@@ -77,7 +77,7 @@ export class LocalGallery extends LitElement {
 
     this.processor.model.onSurfaceCreated.subscribe(surface => {
       surface.onError.subscribe((err: {message?: string}) => {
-        this.log(`Error on surface ${surface.id}: ${err.message ?? err}`, err);
+        this.log(`Error on surface ${surface.id}: ${err.message ?? String(err)}`, err);
       });
     });
 
