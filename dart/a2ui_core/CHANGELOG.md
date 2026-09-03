@@ -8,14 +8,17 @@
   parameter.
 - **Breaking:** `Catalog` now takes two type parameters,
   `Catalog<C extends ComponentApi, F extends FunctionApi>`.
+- **Breaking:** `ComponentApi` and `FunctionApi` are concrete classes with
+  generative constructors. Subclasses pass `name`, `schema` or
+  `argumentSchema`, and `returnType` to `super` rather than overriding
+  getters.
 - **Behaviour change:** `A2uiMessage.fromJson` throws `A2uiValidationError`
   rather than `TypeError` for a malformed message body.
 - **Behaviour change:** `DataModel` observers no longer fire when a write
   leaves their own value unchanged.
 - Added `A2uiProtocolVersion`. Every entry point accepts protocol v0.9 only.
 - Added `Catalog.fromJson`, `Catalog.catalogSchema` and `Catalog.copyWith`, plus
-  the schema-only `CatalogComponent` and `CatalogFunction` and the
-  `SchemaCatalog` alias.
+  the `SchemaCatalog` alias for `Catalog<ComponentApi, FunctionApi>`.
 - Added `A2uiRendererCapabilities` and `A2uiVersionCapabilities`.
 - Added `A2uiValidator`, which validates a payload in three synchronous
   stages, and `A2uiValidator.commonTypesSchema`.
