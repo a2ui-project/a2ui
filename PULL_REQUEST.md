@@ -13,7 +13,7 @@ The `SkillGenerator` compiles component catalogs into standardized `SKILL.md` pa
    - `Skill`: Domain object encapsulating frontmatter metadata (`name`, `description`, `metadata`), body content, and YAML serialization (`to_markdown()`).
    - `SkillSet`: Domain collection encapsulating modular skills (`a2ui-core`, `a2ui-basic`, `a2ui-commerce`) with `.export_to_directory()`, `.to_dict()`, and dictionary indexing.
    - `SkillGenerator`: Core engine delegating to `InferenceFormat`/`PromptGenerator` for modular vs monolithic skill compilation.
-   - `generate_skill()`: Programmatic helper function and CLI entry point (`python -m a2ui.skill`).
+   - `generate_skill()`: Programmatic helper function for generating skills directly.
 
 2. **Inference Formats & Shared Surface Support**:
    - Added `emit_create_surface=False` flag to `ExpressFormat`, `ExpressCompiler`, `ExpressParser`, and `ExpressPromptGenerator` to support client-managed shared surfaces.
