@@ -1246,7 +1246,7 @@ describe('NodeResolver constructor checks and disposal', () => {
   it('rejects a schema-only catalog at compile time', () => {
     // The assertion is the @ts-expect-error below: the build fails if a
     // schema-only catalog ever satisfies NodeResolver's constructor bound.
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     function schemaOnlyCatalogIsRejected(
       surface: SurfaceModel<ComponentApi, FunctionApi>,
       schemaOnly: Catalog<ComponentApi, FunctionApi>,

@@ -107,10 +107,13 @@
         "scripts/generate-zod-schemas.mjs",
         "scripts/generate-superset-common-types.mjs",
         "scripts/generate-catalog-schemas.mjs",
+        "scripts/zod-generator-core.mjs",
         "src/types/helpers.ts",
         "src/types/child-ref-helpers.ts",
         "src/v0_9/schema/helpers.ts",
         "src/v1_0/schema/helpers.ts",
+        "src/v0_9/scripts/generate-schemas.mjs",
+        "src/v1_0/scripts/generate-schemas.mjs",
         "src/v0_9/scripts/generate-catalog.mjs",
         "src/v1_0/scripts/generate-catalog.mjs"
       ],

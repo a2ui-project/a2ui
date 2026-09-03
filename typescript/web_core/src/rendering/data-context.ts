@@ -26,7 +26,7 @@ import {
 } from '../reactivity/signals.js';
 import {z} from 'zod';
 import {DataModel, DataSubscription} from '../state/data-model.js';
-import type {DynamicValue, DataBinding, FunctionCall, Action} from '../types/common-types.js';
+import type {DataBinding, FunctionCall, Action} from '../types/common-types.js';
 import {A2uiExpressionError} from '../errors.js';
 
 import {FunctionInvoker} from '../catalog/function_invoker.js';
@@ -64,7 +64,7 @@ export class DataContext {
    * @param path JSON pointer path, resolved relative to this context's `path` if not absolute.
    * @param value New value to store in the DataModel.
    */
-  set(path: string, value: any): void {
+  set(path: string, value: unknown): void {
     const absolutePath = this.resolvePath(path);
     this.dataModel.set(absolutePath, value);
   }
@@ -89,10 +89,10 @@ export class DataContext {
    * Evaluates the value once at the current moment without creating reactive subscriptions.
    * Use `subscribeDynamicValue` for reactive updates.
    *
-   * @param value The DynamicValue object from the A2UI JSON payload.
+   * @param value The DynamicValue object or raw value from the A2UI JSON payload.
    * @returns The synchronously resolved value.
    */
-  resolveDynamicValue<V>(value: DynamicValue): V {
+  resolveDynamicValue<V>(value: unknown): V {
     // 1. Primitive literals (null, string, number, boolean)
     if (value === null || typeof value !== 'object') {
       return value as V;
@@ -116,7 +116,7 @@ export class DataContext {
     // 3. Function Call: { call: "...", args: ... }
     if ('call' in value) {
       const call = value as FunctionCall;
-      const args: Record<string, any> = {};
+      const args: Record<string, unknown> = {};
 
       for (const [key, argVal] of Object.entries(call.args ?? {})) {
         args[key] = this.resolveDynamicValue(argVal);
@@ -127,7 +127,7 @@ export class DataContext {
       const result = this.evaluateFunctionReactive<V>(call.call, args, abortController.signal);
 
       if (result === undefined) {
-        return undefined as any;
+        return undefined as unknown as V;
       }
 
       return (isSignal(result) ? peekValue(result) : result) as V;
@@ -143,12 +143,12 @@ export class DataContext {
    * callback fires with the freshly evaluated result.
    *
    * @template V Expected type of the resolved value.
-   * @param value The DynamicValue to evaluate and observe.
+   * @param value The DynamicValue or raw value to evaluate and observe.
    * @param onChange Callback fired whenever the evaluated result changes.
    * @returns A subscription containing the current value and an `unsubscribe` method.
    */
   subscribeDynamicValue<V>(
-    value: DynamicValue,
+    value: unknown,
     onChange: (value: V | undefined) => void,
   ): DataSubscription<V> {
     const sig = this.resolveSignal<V>(value);
@@ -184,10 +184,10 @@ export class DataContext {
    * cause the signal's value to update.
    *
    * @template V Expected type of the signal value.
-   * @param value The DynamicValue to evaluate and observe.
+   * @param value The DynamicValue or raw value to evaluate and observe.
    * @returns A reactive Signal containing the result of the evaluation.
    */
-  resolveSignal<V>(value: DynamicValue): Signal<V> {
+  resolveSignal<V>(value: unknown): Signal<V> {
     // 1. Primitive literals
     if (typeof value !== 'object' || value === null) {
       return signal(value as V);
@@ -218,7 +218,7 @@ export class DataContext {
     // 3. Function Call
     if ('call' in value) {
       const call = value as FunctionCall;
-      const argSignals: Record<string, Signal<any>> = {};
+      const argSignals: Record<string, Signal<unknown>> = {};
 
       for (const [key, argVal] of Object.entries(call.args ?? {})) {
         argSignals[key] = this.resolveSignal(argVal);
@@ -238,7 +238,7 @@ export class DataContext {
       let innerUnsubscribe: (() => void) | undefined;
 
       const argsSig = computed(() => {
-        const argsRecord: Record<string, any> = {};
+        const argsRecord: Record<string, unknown> = {};
         for (let i = 0; i < keys.length; i++) {
           argsRecord[keys[i]] = getValue(argSignals[keys[i]]);
         }
@@ -265,7 +265,7 @@ export class DataContext {
           } else {
             setValue(resultSig, res);
           }
-        } catch (e: any) {
+        } catch (e: unknown) {
           this.dispatchExpressionError(e, call.call);
           // In reactive mode, we should not throw. Instead, reset the signal value.
           setValue(resultSig, undefined);
@@ -296,9 +296,9 @@ export class DataContext {
    * @param action The Action object to resolve.
    * @returns The resolved action payload or function execution result.
    */
-  resolveAction(action: Action): any {
+  resolveAction(action: Action): Action | unknown {
     if ('event' in action) {
-      const resolvedContext: Record<string, any> = {};
+      const resolvedContext: Record<string, unknown> = {};
       if (action.event.context) {
         for (const [key, value] of Object.entries(action.event.context)) {
           resolvedContext[key] = this.resolveDynamicValue(value);
@@ -319,23 +319,27 @@ export class DataContext {
 
   private evaluateFunctionReactive<V>(
     name: string,
-    args: Record<string, any>,
+    args: Record<string, unknown>,
     abortSignal?: AbortSignal,
   ): Signal<V> | V {
     try {
       return this.functionInvoker(name, args, this, abortSignal);
-    } catch (e: any) {
+    } catch (e: unknown) {
       this.dispatchExpressionError(e, name);
-      return undefined as any;
+      return undefined as unknown as V;
     }
   }
 
-  private dispatchExpressionError(e: any, name: string): void {
-    if (e?.name === 'ZodError' || e instanceof z.ZodError) {
+  private dispatchExpressionError(e: unknown, name: string): void {
+    if (
+      e instanceof z.ZodError ||
+      (typeof e === 'object' && e !== null && (e as {name?: string}).name === 'ZodError')
+    ) {
+      const zodErr = e as z.ZodError;
       const err = new A2uiExpressionError(
-        `Validation failed for function '${name}': ${e.message}`,
+        `Validation failed for function '${name}': ${zodErr.message}`,
         name,
-        e.errors ?? e.issues,
+        zodErr.errors ?? (zodErr as unknown as {issues?: unknown}).issues,
       );
       this.surface.dispatchError({
         code: 'EXPRESSION_ERROR',
@@ -351,11 +355,13 @@ export class DataContext {
         details: e.details,
       });
     } else {
+      const errObj =
+        typeof e === 'object' && e !== null ? (e as {message?: string; stack?: string}) : {};
       this.surface.dispatchError({
         code: 'EXPRESSION_ERROR',
-        message: e.message ?? `An unexpected error occurred in function ${name}.`,
+        message: errObj.message ?? `An unexpected error occurred in function ${name}.`,
         expression: name,
-        details: {stack: e.stack},
+        details: {stack: errObj.stack},
       });
     }
   }

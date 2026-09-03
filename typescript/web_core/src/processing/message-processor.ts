@@ -257,9 +257,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     const rawSchema = generateCatalogSchema(catalog, {componentEnvelopeRef});
     const components = (rawSchema.components as Record<string, unknown>) || {};
 
+    const rawFunctions = rawSchema.functions as Record<string, Record<string, unknown>> | undefined;
     const functions: Array<Record<string, unknown>> = [];
     for (const fn of catalog.functions.values()) {
-      const fnDef = (rawSchema.functions as Record<string, any>)?.[fn.name];
+      const fnDef = rawFunctions?.[fn.name] as
+        | {properties?: {args?: Record<string, unknown>}}
+        | undefined;
       functions.push({
         name: fn.name,
         description: fn.description,
@@ -268,9 +271,10 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       });
     }
 
-    const theme = (rawSchema.$defs as Record<string, any>)?.theme?.properties as
-      | Record<string, unknown>
+    const rawDefs = rawSchema.$defs as
+      | Record<string, {properties?: Record<string, unknown>}>
       | undefined;
+    const theme = rawDefs?.theme?.properties;
 
     return {
       catalogId: catalog.id,

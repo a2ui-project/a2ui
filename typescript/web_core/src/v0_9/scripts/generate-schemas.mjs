@@ -15,7 +15,7 @@
  */
 
 import {readFileSync, writeFileSync, mkdirSync, existsSync} from 'node:fs';
-import {join, dirname} from 'node:path';
+import {join, dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {
   getHeader,
@@ -80,7 +80,7 @@ function generateCommonTypes() {
     if (recursiveSchemas.has(name)) {
       if (name === 'FunctionCall') {
         code =
-          `export interface FunctionCall {\n  call: string;\n  args?: Record<string, any>;\n  returnType?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';\n}\n` +
+          `export interface FunctionCall {\n  call: string;\n  args?: Record<string, unknown>;\n  returnType?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';\n}\n` +
           code;
         code = code.replace(
           'export const FunctionCallSchema =',
@@ -92,7 +92,7 @@ function generateCommonTypes() {
         );
       } else if (name === 'DynamicValue') {
         code =
-          `export type DynamicValue = string | number | boolean | any[] | DataBinding | FunctionCall | Record<string, any>;\n` +
+          `export type DynamicValue = string | number | boolean | unknown[] | DataBinding | FunctionCall;\n` +
           code;
         code = code.replace(
           'export const DynamicValueSchema =',
@@ -102,16 +102,11 @@ function generateCommonTypes() {
           new RegExp(`\\n?export type ${name} = z\\.infer<typeof ${name}Schema>;?`),
           '',
         );
-      } else {
-        code = code.replace(
-          new RegExp(`export const ${name}Schema =`),
-          `export const ${name}Schema: z.ZodType<any> =`,
-        );
       }
     }
 
     if (name === 'Extensions') {
-      code = `export const ExtensionsSchema = z.record(z.string(), z.any()).describe("REF:#/$defs/Extensions|Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions.");\nexport type Extensions = z.infer<typeof ExtensionsSchema>;`;
+      code = `export const ExtensionsSchema = z.record(z.string(), z.unknown()).describe("REF:#/$defs/Extensions|Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions.");\nexport type Extensions = z.infer<typeof ExtensionsSchema>;`;
     }
 
     commonTs += code + '\n\n';
@@ -223,7 +218,7 @@ function generateCapabilitiesSchemas() {
   const ccJson = JSON.parse(readFileSync(join(specDir, 'client_capabilities.json'), 'utf8'));
   let ccTs =
     getHeader(VERSION_TAG, SCRIPT_SOURCE) +
-    `import {z} from 'zod';\n\nexport type JsonSchema = Record<string, any>;\n\n`;
+    `import {z} from 'zod';\n\nexport type JsonSchema = Record<string, unknown>;\n\n`;
 
   for (const [name, def] of Object.entries(ccJson.$defs || {})) {
     const typeName = name === 'Catalog' ? 'InlineCatalog' : name;
@@ -254,6 +249,6 @@ export function generateSchemas() {
 export const generateV09Schemas = generateSchemas;
 
 // Allow direct execution
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   generateSchemas();
 }

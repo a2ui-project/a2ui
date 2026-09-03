@@ -15,7 +15,7 @@
  */
 
 import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
-import {Catalog} from '../catalog/types.js';
+import {Catalog, type ComponentApi} from '../catalog/types.js';
 import {ProtocolVersion} from '../processing/adapters/base.js';
 
 /** Maximum permitted nesting depth for JSON objects and array structures. */
@@ -55,7 +55,7 @@ export {
   V10_CHILD_REF_OPTIONS,
 };
 
-function* extractPointers(val: any, currentPath: string): Generator<[string, string]> {
+function* extractPointers(val: unknown, currentPath: string): Generator<[string, string]> {
   if (typeof val === 'string') {
     yield [val, currentPath];
   } else if (Array.isArray(val)) {
@@ -65,19 +65,20 @@ function* extractPointers(val: any, currentPath: string): Generator<[string, str
       yield* extractPointers(item, subPath);
     }
   } else if (typeof val === 'object' && val !== null) {
-    if ('componentId' in val && typeof val.componentId === 'string' && 'path' in val) {
-      yield [val.componentId, `${currentPath}.componentId`];
-    } else if ('child' in val && typeof val.child === 'string') {
-      yield [val.child, `${currentPath}.child`];
+    const obj = val as Record<string, unknown>;
+    if ('componentId' in obj && typeof obj.componentId === 'string' && 'path' in obj) {
+      yield [obj.componentId, `${currentPath}.componentId`];
+    } else if ('child' in obj && typeof obj.child === 'string') {
+      yield [obj.child, `${currentPath}.child`];
     } else {
-      for (const [subKey, subVal] of Object.entries(val)) {
+      for (const [subKey, subVal] of Object.entries(obj)) {
         yield* extractPointers(subVal, `${currentPath}.${subKey}`);
       }
     }
   }
 }
 
-function getOrCreateRefMap(catalog: Catalog<any>): ComponentRefMap {
+function getOrCreateRefMap(catalog: Catalog<ComponentApi>): ComponentRefMap {
   return catalog.componentRefMap;
 }
 
@@ -94,8 +95,8 @@ function getOrCreateRefMap(catalog: Catalog<any>): ComponentRefMap {
  * ```
  */
 export function* getComponentReferences(
-  component: Record<string, any>,
-  catalogOrRefMap: Catalog<any> | ComponentRefMap,
+  component: Record<string, unknown>,
+  catalogOrRefMap: Catalog<ComponentApi> | ComponentRefMap,
 ): Generator<[string, string]> {
   if (!component || typeof component !== 'object') {
     return;
@@ -105,13 +106,14 @@ export function* getComponentReferences(
 
   const compVal = component.component;
   let compType = '';
-  let props: Record<string, any> = component;
+  let props: Record<string, unknown> = component;
 
   if (typeof compVal === 'string') {
     compType = compVal;
   } else if (typeof compVal === 'object' && compVal !== null) {
-    compType = Object.keys(compVal)[0] ?? '';
-    props = compVal[compType] ?? {};
+    const compObj = compVal as Record<string, unknown>;
+    compType = Object.keys(compObj)[0] ?? '';
+    props = (compObj[compType] as Record<string, unknown>) ?? {};
   }
 
   if (!compType || typeof props !== 'object' || props === null) {
@@ -179,13 +181,13 @@ export const RELAXED_VALIDATION: ValidationConfig = Object.freeze({
 
 /** Catalog, reference map, or collection of catalogs providing child reference definitions. */
 export type CatalogOrRefMapInput =
-  | Catalog<any>
+  | Catalog<ComponentApi>
   | ComponentRefMap
-  | Array<Catalog<any>>
-  | Map<string, Catalog<any>>;
+  | Array<Catalog<ComponentApi>>
+  | Map<string, Catalog<ComponentApi>>;
 
 function resolveRefMapForComponent(
-  comp: Record<string, any>,
+  comp: Record<string, unknown>,
   catalogInput: CatalogOrRefMapInput,
 ): ComponentRefMap {
   if (catalogInput instanceof Catalog) {
@@ -233,7 +235,7 @@ function resolveRefMapForComponent(
  * ```
  */
 export function validateComponentIntegrity(
-  components: Array<Record<string, any>>,
+  components: Array<Record<string, unknown>>,
   catalogOrRefMap: CatalogOrRefMapInput,
   options: IntegrityOptions = {},
 ): void {
@@ -281,7 +283,7 @@ export function validateComponentIntegrity(
   }
 }
 
-function traverseRecursionAndPaths(item: any, globalDepth: number, funcDepth: number): void {
+function traverseRecursionAndPaths(item: unknown, globalDepth: number, funcDepth: number): void {
   if (globalDepth > MAX_GLOBAL_DEPTH) {
     throw new A2uiRecursionError(`Global recursion limit exceeded: Depth > ${MAX_GLOBAL_DEPTH}`);
   }
@@ -294,16 +296,17 @@ function traverseRecursionAndPaths(item: any, globalDepth: number, funcDepth: nu
   }
 
   if (typeof item === 'object' && item !== null) {
-    if ('path' in item && typeof item.path === 'string') {
-      const path = item.path;
+    const obj = item as Record<string, unknown>;
+    if ('path' in obj && typeof obj.path === 'string') {
+      const path = obj.path;
       if (!RELAXED_PATH_PATTERN.test(path)) {
         throw new A2uiValidationError(`Invalid path syntax: '${path}'`);
       }
     }
 
     const isFunctionCallWrapper =
-      'functionCall' in item && typeof item.functionCall === 'object' && item.functionCall !== null;
-    const isBareFunctionCall = 'call' in item && 'args' in item;
+      'functionCall' in obj && typeof obj.functionCall === 'object' && obj.functionCall !== null;
+    const isBareFunctionCall = 'call' in obj && 'args' in obj;
 
     if (isFunctionCallWrapper) {
       if (funcDepth >= MAX_FUNC_CALL_DEPTH) {
@@ -311,7 +314,7 @@ function traverseRecursionAndPaths(item: any, globalDepth: number, funcDepth: nu
           `Recursion limit exceeded: functionCall depth > ${MAX_FUNC_CALL_DEPTH}`,
         );
       }
-      for (const [k, v] of Object.entries(item)) {
+      for (const [k, v] of Object.entries(obj)) {
         if (k === 'functionCall') {
           traverseRecursionAndPaths(v, globalDepth + 1, funcDepth + 1);
         } else {
@@ -324,7 +327,7 @@ function traverseRecursionAndPaths(item: any, globalDepth: number, funcDepth: nu
           `Recursion limit exceeded: functionCall depth > ${MAX_FUNC_CALL_DEPTH}`,
         );
       }
-      for (const [k, v] of Object.entries(item)) {
+      for (const [k, v] of Object.entries(obj)) {
         if (k === 'args') {
           traverseRecursionAndPaths(v, globalDepth + 1, funcDepth + 1);
         } else {
@@ -332,7 +335,7 @@ function traverseRecursionAndPaths(item: any, globalDepth: number, funcDepth: nu
         }
       }
     } else {
-      for (const v of Object.values(item)) {
+      for (const v of Object.values(obj)) {
         traverseRecursionAndPaths(v, globalDepth + 1, funcDepth);
       }
     }
@@ -346,6 +349,6 @@ function traverseRecursionAndPaths(item: any, globalDepth: number, funcDepth: nu
  * @throws {A2uiRecursionError} If global structure depth or function call depth exceeds limits.
  * @throws {A2uiValidationError} If an invalid JSON Pointer path format is encountered.
  */
-export function validateRecursionAndPaths(data: any): void {
+export function validateRecursionAndPaths(data: unknown): void {
   traverseRecursionAndPaths(data, 0, 0);
 }

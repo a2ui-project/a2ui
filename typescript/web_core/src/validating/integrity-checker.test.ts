@@ -27,13 +27,14 @@ import {
 } from './integrity-checker.js';
 import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
 import {Catalog} from '../catalog/types.js';
+import {ComponentRefMap} from '../catalog/reference-map.js';
 import {BASIC_COMPONENTS} from '../v1_0/basic_catalog/components/basic_components.js';
 import {z} from 'zod';
 
 describe('Integrity Verification', () => {
   describe('getComponentReferences', () => {
     it('extracts references from container components', () => {
-      const refMap = {
+      const refMap: ComponentRefMap = {
         Container: {
           singleRefs: new Set(['singleChild', 'nestedObj']),
           listRefs: new Set(['childrenList', 'tabs']),
@@ -52,7 +53,7 @@ describe('Integrity Verification', () => {
         },
       };
 
-      const refs = Array.from(getComponentReferences(comp, refMap as any));
+      const refs = Array.from(getComponentReferences(comp, refMap));
       const refIds = refs.map(([id]) => id);
 
       assert.ok(refIds.includes('child1'));
@@ -66,12 +67,14 @@ describe('Integrity Verification', () => {
 
   describe('validateComponentIntegrity', () => {
     it('passes for valid component tree', () => {
-      const refMap = {Box: {singleRefs: new Set(['child']), listRefs: new Set<string>()}};
+      const refMap: ComponentRefMap = {
+        Box: {singleRefs: new Set(['child']), listRefs: new Set<string>()},
+      };
       const components = [
         {id: 'root', component: {Box: {child: 'c1'}}},
         {id: 'c1', component: {Box: {}}},
       ];
-      assert.doesNotThrow(() => validateComponentIntegrity(components, refMap as any));
+      assert.doesNotThrow(() => validateComponentIntegrity(components, refMap));
     });
 
     it('throws on duplicate component ID', () => {
@@ -81,22 +84,26 @@ describe('Integrity Verification', () => {
       ];
       assert.throws(
         () => validateComponentIntegrity(components, {}),
-        (err: any) =>
+        (err: unknown) =>
           err instanceof A2uiIntegrityError && err.message.includes('Duplicate component ID: c1'),
       );
     });
 
     it('throws on component missing an id or having an empty id', () => {
       assert.throws(
-        () => validateComponentIntegrity([{component: 'Text', text: 'No id'} as any], {}),
-        (err: any) =>
+        () =>
+          validateComponentIntegrity(
+            [{component: 'Text', text: 'No id'} as Record<string, unknown>],
+            {},
+          ),
+        (err: unknown) =>
           err instanceof A2uiIntegrityError &&
           err.message.includes('Component is missing a valid id'),
       );
 
       assert.throws(
         () => validateComponentIntegrity([{id: '', component: 'Text', text: 'Empty id'}], {}),
-        (err: any) =>
+        (err: unknown) =>
           err instanceof A2uiIntegrityError &&
           err.message.includes('Component is missing a valid id'),
       );
@@ -106,17 +113,19 @@ describe('Integrity Verification', () => {
       const components = [{id: 'c1', component: 'Box'}];
       assert.throws(
         () => validateComponentIntegrity(components, {}),
-        (err: any) =>
+        (err: unknown) =>
           err instanceof A2uiIntegrityError && err.message.includes("No component has id='root'"),
       );
     });
 
     it('throws on dangling component reference', () => {
-      const refMap = {Box: {singleRefs: new Set(['child']), listRefs: new Set<string>()}};
+      const refMap: ComponentRefMap = {
+        Box: {singleRefs: new Set(['child']), listRefs: new Set<string>()},
+      };
       const components = [{id: 'root', component: {Box: {child: 'nonexistent'}}}];
       assert.throws(
-        () => validateComponentIntegrity(components, refMap as any),
-        (err: any) =>
+        () => validateComponentIntegrity(components, refMap),
+        (err: unknown) =>
           err instanceof A2uiIntegrityError &&
           err.message.includes("references non-existent component 'nonexistent'"),
       );
@@ -131,7 +140,7 @@ describe('Integrity Verification', () => {
             allowDanglingReferences: true,
             allowMissingRoot: false,
           }),
-        (err: any) =>
+        (err: unknown) =>
           err instanceof A2uiIntegrityError && err.message.includes("No component has id='root'"),
       );
     });
@@ -193,47 +202,48 @@ describe('Integrity Verification', () => {
       const data = {path: 'invalid~path//double'};
       assert.throws(
         () => validateRecursionAndPaths(data),
-        (err: any) =>
+        (err: unknown) =>
           err instanceof A2uiValidationError && err.message.includes('Invalid path syntax'),
       );
     });
 
     it('throws when global recursion depth limit is exceeded', () => {
-      let deepList: any = [];
+      let deepList: unknown[] = [];
       for (let i = 0; i < 52; i++) {
         deepList = [deepList];
       }
       assert.throws(
         () => validateRecursionAndPaths(deepList),
-        (err: any) =>
+        (err: unknown) =>
           err instanceof A2uiRecursionError &&
           err.message.includes('Global recursion limit exceeded'),
       );
     });
 
     it('throws when function call recursion depth limit is exceeded', () => {
-      const deepCall: Record<string, any> = {};
+      const deepCall: Record<string, unknown> = {};
       let curr = deepCall;
       for (let i = 0; i < 6; i++) {
         curr.call = 'func';
-        curr.args = {};
-        curr = curr.args;
+        const nextArgs: Record<string, unknown> = {};
+        curr.args = nextArgs;
+        curr = nextArgs;
       }
       assert.throws(
         () => validateRecursionAndPaths(deepCall),
-        (err: any) =>
+        (err: unknown) =>
           err instanceof A2uiRecursionError && err.message.includes('Recursion limit exceeded'),
       );
     });
 
     it('throws when wrapped functionCall recursion depth limit is exceeded', () => {
-      let wrappedCall: any = {call: 'leaf', args: {}};
+      let wrappedCall: Record<string, unknown> = {call: 'leaf', args: {}};
       for (let i = 0; i < 6; i++) {
         wrappedCall = {functionCall: wrappedCall};
       }
       assert.throws(
         () => validateRecursionAndPaths(wrappedCall),
-        (err: any) =>
+        (err: unknown) =>
           err instanceof A2uiRecursionError && err.message.includes('Recursion limit exceeded'),
       );
     });

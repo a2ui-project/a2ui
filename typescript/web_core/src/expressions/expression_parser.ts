@@ -184,11 +184,11 @@ export class ExpressionParser {
     funcName: string,
     scanner: Scanner,
     depth: number,
-  ): {call: string; args: Record<string, any>; returnType: 'any'} {
+  ): {call: string; args: Record<string, unknown>; returnType: 'any'} {
     scanner.match('(');
     scanner.skipWhitespace();
 
-    const args: Record<string, any> = {};
+    const args: Record<string, unknown> = {};
 
     while (!scanner.isAtEnd() && scanner.peek() !== ')') {
       const argName = this.scanIdentifier(scanner);

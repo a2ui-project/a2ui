@@ -32,7 +32,7 @@ const STANDARD_DEFS_BY_VERSION: Readonly<Record<string, Record<string, unknown>>
  * Resolves the appropriate standard $defs dictionary based on options or catalog configuration.
  */
 function getStandardDefsForCatalog(
-  _catalog: CatalogInterface<any, any>,
+  _catalog: CatalogInterface<ComponentApi, FunctionApi>,
   options?: GenerateCatalogSchemaOptions,
 ): Record<string, unknown> {
   if (options?.standardDefs) {
@@ -144,7 +144,10 @@ export interface GenerateCatalogSchemaOptions {
   protocolVersion?: 'v0.8' | 'v0.9' | 'v0.9.1' | 'v1.0' | string;
 }
 
-function processTheme(catalog: CatalogInterface<any, any>, defs: Record<string, unknown>): void {
+function processTheme(
+  catalog: CatalogInterface<ComponentApi, FunctionApi>,
+  defs: Record<string, unknown>,
+): void {
   if (!catalog.themeSchema) return;
 
   const themeRaw = zodToJsonSchema(catalog.themeSchema, {
@@ -222,7 +225,7 @@ function processSingleComponent(
   name: string,
   comp: ComponentApi,
   defs: Record<string, unknown>,
-  _catalog: CatalogInterface<any, any>,
+  _catalog: CatalogInterface<ComponentApi, FunctionApi>,
   options?: GenerateCatalogSchemaOptions,
 ): Record<string, unknown> {
   const {props, reqList, additionalProps} = extractZodComponentSchema(comp, defs);
@@ -268,7 +271,7 @@ function processSingleComponent(
 }
 
 function processComponents(
-  catalog: CatalogInterface<any, any>,
+  catalog: CatalogInterface<ComponentApi, FunctionApi>,
   schema: Record<string, unknown>,
   defs: Record<string, unknown>,
   options?: GenerateCatalogSchemaOptions,
@@ -300,8 +303,8 @@ function processSingleFunction(
   fn: FunctionApi,
   defs: Record<string, unknown>,
 ): Record<string, unknown> {
-  if ((fn as any).rawSchema) {
-    return (fn as any).rawSchema;
+  if ('rawSchema' in fn && fn.rawSchema && typeof fn.rawSchema === 'object') {
+    return fn.rawSchema as Record<string, unknown>;
   }
 
   let paramSchemaObj: Record<string, unknown>;
@@ -330,8 +333,7 @@ function processSingleFunction(
   }
 
   if (paramSchemaObj.type === 'object') {
-    const rawExtra =
-      (paramSchemaObj as any).unevaluatedProperties ?? (paramSchemaObj as any).additionalProperties;
+    const rawExtra = paramSchemaObj.unevaluatedProperties ?? paramSchemaObj.additionalProperties;
     const additionalProps =
       typeof rawExtra === 'boolean' || (typeof rawExtra === 'object' && rawExtra !== null)
         ? (rawExtra as boolean | Record<string, unknown>)
@@ -347,7 +349,7 @@ function processSingleFunction(
 }
 
 function processFunctions(
-  catalog: CatalogInterface<any, any>,
+  catalog: CatalogInterface<ComponentApi, FunctionApi>,
   schema: Record<string, unknown>,
   defs: Record<string, unknown>,
 ): void {

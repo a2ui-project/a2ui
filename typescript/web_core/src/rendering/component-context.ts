@@ -18,6 +18,8 @@ import {DataContext} from './data-context.js';
 import {ComponentModel} from '../state/component-model.js';
 import type {SurfaceModel} from '../state/surface-model.js';
 import type {SurfaceComponentsModel} from '../state/surface-components-model.js';
+import type {ComponentApi} from '../catalog/types.js';
+import type {Action} from '../types/common-types.js';
 import {A2uiStateError} from '../errors.js';
 
 /**
@@ -37,7 +39,7 @@ export class ComponentContext {
   /** Collection of all component models for the current surface, allowing lookups by ID. */
   readonly surfaceComponents: SurfaceComponentsModel;
   /** Theme configuration for the surface this component belongs to. */
-  readonly theme: any;
+  readonly theme: Record<string, unknown> | undefined;
 
   /**
    * Initializes a new `ComponentContext` instance.
@@ -46,7 +48,11 @@ export class ComponentContext {
    * @param componentId The ID of the component.
    * @param dataModelBasePath The base path for data model access (default: '/').
    */
-  constructor(surface: SurfaceModel<any>, componentId: string, dataModelBasePath: string = '/') {
+  constructor(
+    surface: SurfaceModel<ComponentApi>,
+    componentId: string,
+    dataModelBasePath: string = '/',
+  ) {
     const model = surface.componentsModel.get(componentId);
     if (!model) {
       throw new A2uiStateError(`Component not found: ${componentId}`);
@@ -59,7 +65,7 @@ export class ComponentContext {
     this._actionDispatcher = action => surface.dispatchAction(action, this.componentModel.id);
   }
 
-  private _actionDispatcher: (action: any) => Promise<void>;
+  private _actionDispatcher: (action: Action | Record<string, unknown>) => Promise<void>;
 
   /**
    * Dispatches an action from the component.
@@ -67,7 +73,7 @@ export class ComponentContext {
    * @param action The action to dispatch.
    * @returns A promise that resolves when action dispatching completes.
    */
-  dispatchAction(action: any): Promise<void> {
+  dispatchAction(action: Action | Record<string, unknown>): Promise<void> {
     return this._actionDispatcher(action);
   }
 }

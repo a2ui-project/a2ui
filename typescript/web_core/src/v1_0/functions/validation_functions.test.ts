@@ -16,6 +16,7 @@
 
 import {describe, it} from 'node:test';
 import assert from 'node:assert';
+import {DataContext} from '../../rendering/data-context.js';
 import {
   RequiredV1Point0Implementation,
   RegexV1Point0Implementation,
@@ -24,12 +25,14 @@ import {
   EmailV1Point0Implementation,
 } from './validation_functions.js';
 
+const dummyContext = null as unknown as DataContext;
+
 describe('v1.0 Validation Functions (returnType: validationResult)', () => {
   it('RequiredV1Point0 returns valid ValidationResult object', () => {
-    const validRes = RequiredV1Point0Implementation.execute({value: 'hello'}, null as any);
+    const validRes = RequiredV1Point0Implementation.execute({value: 'hello'}, dummyContext);
     assert.deepStrictEqual(validRes, {valid: true});
 
-    const invalidRes = RequiredV1Point0Implementation.execute({value: ''}, null as any);
+    const invalidRes = RequiredV1Point0Implementation.execute({value: ''}, dummyContext);
     assert.deepStrictEqual(invalidRes, {
       valid: false,
       message: 'This field is required.',
@@ -39,13 +42,13 @@ describe('v1.0 Validation Functions (returnType: validationResult)', () => {
   it('RegexV1Point0 returns valid ValidationResult object', () => {
     const validRes = RegexV1Point0Implementation.execute(
       {value: '12345', pattern: '^\\d+$'},
-      null as any,
+      dummyContext,
     );
     assert.deepStrictEqual(validRes, {valid: true});
 
     const invalidRes = RegexV1Point0Implementation.execute(
       {value: 'abc', pattern: '^\\d+$'},
-      null as any,
+      dummyContext,
     );
     assert.deepStrictEqual(invalidRes, {
       valid: false,
@@ -56,11 +59,11 @@ describe('v1.0 Validation Functions (returnType: validationResult)', () => {
   it('LengthV1Point0 returns valid ValidationResult object', () => {
     const validRes = LengthV1Point0Implementation.execute(
       {value: 'test', min: 2, max: 10},
-      null as any,
+      dummyContext,
     );
     assert.deepStrictEqual(validRes, {valid: true});
 
-    const tooShort = LengthV1Point0Implementation.execute({value: 'a', min: 2}, null as any);
+    const tooShort = LengthV1Point0Implementation.execute({value: 'a', min: 2}, dummyContext);
     assert.deepStrictEqual(tooShort, {
       valid: false,
       message: 'Minimum length is 2.',
@@ -68,7 +71,7 @@ describe('v1.0 Validation Functions (returnType: validationResult)', () => {
 
     const tooLong = LengthV1Point0Implementation.execute(
       {value: 'longstring', max: 5},
-      null as any,
+      dummyContext,
     );
     assert.deepStrictEqual(tooLong, {
       valid: false,
@@ -79,11 +82,11 @@ describe('v1.0 Validation Functions (returnType: validationResult)', () => {
   it('NumericV1Point0 returns valid ValidationResult object', () => {
     const validRes = NumericV1Point0Implementation.execute(
       {value: 25, min: 18, max: 65},
-      null as any,
+      dummyContext,
     );
     assert.deepStrictEqual(validRes, {valid: true});
 
-    const tooLow = NumericV1Point0Implementation.execute({value: 15, min: 18}, null as any);
+    const tooLow = NumericV1Point0Implementation.execute({value: 15, min: 18}, dummyContext);
     assert.deepStrictEqual(tooLow, {
       valid: false,
       message: 'Minimum value is 18.',
@@ -91,10 +94,10 @@ describe('v1.0 Validation Functions (returnType: validationResult)', () => {
   });
 
   it('EmailV1Point0 returns valid ValidationResult object', () => {
-    const validRes = EmailV1Point0Implementation.execute({value: 'user@example.com'}, null as any);
+    const validRes = EmailV1Point0Implementation.execute({value: 'user@example.com'}, dummyContext);
     assert.deepStrictEqual(validRes, {valid: true});
 
-    const invalidRes = EmailV1Point0Implementation.execute({value: 'invalid-email'}, null as any);
+    const invalidRes = EmailV1Point0Implementation.execute({value: 'invalid-email'}, dummyContext);
     assert.deepStrictEqual(invalidRes, {
       valid: false,
       message: 'Must be a valid email address.',

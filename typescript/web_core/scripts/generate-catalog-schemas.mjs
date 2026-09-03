@@ -52,7 +52,7 @@ const HEADER = `/*
 /**
  * Escapes a string for single-quoted JS literals.
  */
-function escapeStr(str) {
+export function escapeStr(str) {
   if (!str) return '';
   return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
 }
@@ -60,7 +60,7 @@ function escapeStr(str) {
 /**
  * Converts a function name to a PascalCase identifier, stripping @ and delimiter characters.
  */
-function toPascalCase(name) {
+export function toPascalCase(name) {
   const cleanName = name.startsWith('@') ? name.substring(1) : name;
   return cleanName
     .replace(/[-_./]([a-zA-Z0-9])/g, (_, c) => c.toUpperCase())
@@ -70,7 +70,7 @@ function toPascalCase(name) {
 /**
  * Resolves a $ref pointer to its definition name (e.g. "#/$defs/DynamicString" -> "DynamicString").
  */
-function extractRefName(ref) {
+export function extractRefName(ref) {
   if (typeof ref !== 'string') return null;
   const defIdx = ref.indexOf('#/$defs/');
   if (defIdx !== -1) {
@@ -86,7 +86,7 @@ function extractRefName(ref) {
 /**
  * Finds the first matching definition in a list of schemas.
  */
-function findInSchemaList(schemas, commonDefs) {
+export function findInSchemaList(schemas, commonDefs) {
   if (!Array.isArray(schemas)) return null;
   for (const s of schemas) {
     const name = findReferencedDefName(s, commonDefs);
@@ -98,7 +98,7 @@ function findInSchemaList(schemas, commonDefs) {
 /**
  * Finds any referenced definition name inside $ref, allOf, or oneOf.
  */
-function findReferencedDefName(schema, commonDefs) {
+export function findReferencedDefName(schema, commonDefs) {
   if (!schema || typeof schema !== 'object') return null;
   if (typeof schema.$ref === 'string') {
     const name = extractRefName(schema.$ref);
@@ -110,7 +110,7 @@ function findReferencedDefName(schema, commonDefs) {
 /**
  * Attaches default values and descriptions to a Zod code string.
  */
-function applyModifiers(baseCode, propSchema, isRequired) {
+export function applyModifiers(baseCode, propSchema, isRequired) {
   let code = baseCode;
   if (propSchema.default !== undefined) {
     code +=
@@ -127,7 +127,7 @@ function applyModifiers(baseCode, propSchema, isRequired) {
 /**
  * Generates Zod code for primitive schemas.
  */
-function generatePrimitiveZod(propSchema) {
+export function generatePrimitiveZod(propSchema) {
   if (propSchema.type === 'string') return 'z.string()';
   if (propSchema.type === 'integer') return 'z.number().int()';
   if (propSchema.type === 'number') return 'z.number()';
@@ -138,7 +138,7 @@ function generatePrimitiveZod(propSchema) {
 /**
  * Generates Zod code for object schemas with child properties.
  */
-function generateObjectSchemaZod(schema, commonDefs, usedImports, indent = '      ') {
+export function generateObjectSchemaZod(schema, commonDefs, usedImports, indent = '      ') {
   if (!schema.properties) return 'z.record(z.any())';
   const objProps = [];
   const itemReq = schema.required || [];
@@ -152,7 +152,7 @@ function generateObjectSchemaZod(schema, commonDefs, usedImports, indent = '    
 /**
  * Generates Zod code for array schemas.
  */
-function generateArrayZod(propSchema, commonDefs, usedImports) {
+export function generateArrayZod(propSchema, commonDefs, usedImports) {
   const items = propSchema.items;
   let itemsCode = 'z.any()';
   if (items) {
@@ -179,14 +179,20 @@ function generateArrayZod(propSchema, commonDefs, usedImports) {
   return code;
 }
 
-function generateRefPropertyZod(defName, desc, isRequired, usedImports) {
+export function generateRefPropertyZod(defName, desc, isRequired, usedImports) {
   usedImports.add(`${defName}Schema`);
   const marker = desc ? `REF:#/$defs/${defName}|${escapeStr(desc)}` : `REF:#/$defs/${defName}`;
   const code = `${defName}Schema.describe('${marker}')`;
   return isRequired ? code : `${code}.optional()`;
 }
 
-function generateUnionPropertyZod(branches, propSchema, isRequired, commonDefs, usedImports) {
+export function generateUnionPropertyZod(
+  branches,
+  propSchema,
+  isRequired,
+  commonDefs,
+  usedImports,
+) {
   const generatedBranches = branches.map(branch =>
     generatePropertyZod('', branch, [''], commonDefs, usedImports),
   );
@@ -200,7 +206,13 @@ function generateUnionPropertyZod(branches, propSchema, isRequired, commonDefs, 
 /**
  * Generates Zod expression for a component or function property schema.
  */
-function generatePropertyZod(propName, propSchema, requiredList = [], commonDefs, usedImports) {
+export function generatePropertyZod(
+  propName,
+  propSchema,
+  requiredList = [],
+  commonDefs,
+  usedImports,
+) {
   const isRequired = requiredList.includes(propName);
   const desc = propSchema.description;
 
@@ -254,7 +266,7 @@ function generatePropertyZod(propName, propSchema, requiredList = [], commonDefs
 /**
  * Merges properties and required arrays from a source schema into a target.
  */
-function mergeSchemaProperties(target, source) {
+export function mergeSchemaProperties(target, source) {
   if (source.properties && typeof source.properties === 'object') {
     target.properties = {...target.properties, ...source.properties};
   }
@@ -266,7 +278,7 @@ function mergeSchemaProperties(target, source) {
 /**
  * Recursively flattens a schema (handling allOf and $refs) to extract all component properties and required fields.
  */
-function flattenSchema(schema, catalogDefs = {}, commonDefs = {}, visited = new Set()) {
+export function flattenSchema(schema, catalogDefs = {}, commonDefs = {}, visited = new Set()) {
   if (!schema || typeof schema !== 'object' || visited.has(schema)) {
     return {properties: {}, required: []};
   }
@@ -296,7 +308,7 @@ function flattenSchema(schema, catalogDefs = {}, commonDefs = {}, visited = new 
 /**
  * Extracts function arguments schema, required fields, and returnType.
  */
-function extractFunctionDefinition(funcName, funcDef, catalogDefs = {}, commonDefs = {}) {
+export function extractFunctionDefinition(funcName, funcDef, catalogDefs = {}, commonDefs = {}) {
   let returnType = funcDef.returnType;
   if (!returnType && funcDef.properties?.returnType?.const) {
     returnType = funcDef.properties.returnType.const;

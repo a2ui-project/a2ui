@@ -18,7 +18,7 @@
 // Generated from specification/v0.9/json/ via src/v0_9/scripts/generate-schemas.mjs
 import {z} from 'zod';
 
-export type JsonSchema = Record<string, any>;
+export type JsonSchema = Record<string, unknown>;
 
 export const FunctionDefinitionSchema = z
   .object({

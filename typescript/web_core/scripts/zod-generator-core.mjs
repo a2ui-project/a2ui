@@ -55,6 +55,10 @@ export function getHeader(version, generatorSource = 'scripts/generate-zod-schem
  */
 export function transformZodSyntax(code) {
   let clean = code;
+  clean = clean.replace(
+    /export const ([A-Za-z0-9_]+Schema): z\.ZodType<unknown> =/g,
+    'export const $1 =',
+  );
   clean = clean.replace(/z\.literal\("__REF__([^"]+)__"\)/g, '$1');
   clean = clean.replace(/z\.core\.\$ZodIssue/g, 'z.ZodIssue');
   clean = clean.replace(/ctx\.addIssue\(([^;]+)\);/g, 'ctx.addIssue($1 as any);');
@@ -69,17 +73,20 @@ export function transformZodSyntax(code) {
  * @param {Set<string>} deps Set of accumulated dependencies.
  * @returns {Set<string>} The dependency set.
  */
-export function getDependencies(node, deps = new Set()) {
+export function getDependencies(node, deps = new Set(), parentDefName) {
   if (!node || typeof node !== 'object') return deps;
   if (Array.isArray(node)) {
-    node.forEach(child => getDependencies(child, deps));
+    node.forEach(child => getDependencies(child, deps, parentDefName));
     return deps;
   }
   if (typeof node.$ref === 'string' && node.$ref.startsWith('#/$defs/')) {
     deps.add(node.$ref.replace('#/$defs/', ''));
   }
-  for (const val of Object.values(node)) {
-    getDependencies(val, deps);
+  for (const [key, val] of Object.entries(node)) {
+    if (key === 'oneOf' && parentDefName === 'FunctionCall') {
+      continue;
+    }
+    getDependencies(val, deps, parentDefName);
   }
   return deps;
 }
@@ -94,7 +101,7 @@ export function getDependencies(node, deps = new Set()) {
 export function analyzeDependencies(defs) {
   const graph = new Map();
   for (const [name, def] of Object.entries(defs)) {
-    graph.set(name, getDependencies(def));
+    graph.set(name, getDependencies(def, new Set(), name));
   }
 
   const visiting = new Set();

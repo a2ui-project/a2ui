@@ -15,15 +15,15 @@
  */
 
 import {readFileSync, writeFileSync, readdirSync, existsSync} from 'node:fs';
-import {join, dirname} from 'node:path';
+import {join, dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(__dirname, '..');
-const specDir = join(rootDir, '..', '..', 'specification');
-const destFile = join(rootDir, 'src', 'types', 'common-types.ts');
+const defaultSpecDir = join(rootDir, '..', '..', 'specification');
+const defaultDestFile = join(rootDir, 'src', 'types', 'common-types.ts');
 
-const HEADER = `/*
+export const HEADER = `/*
  * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -57,17 +57,17 @@ const HEADER = `/*
  */
 `;
 
-function escapeStr(str) {
+export function escapeStr(str) {
   if (!str) return '';
   return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
 }
 
-function getLatestDescription(schemas) {
+export function getLatestDescription(schemas) {
   const descriptions = schemas.map(s => s.description).filter(Boolean);
   return descriptions.length > 0 ? descriptions[descriptions.length - 1] : undefined;
 }
 
-function mergeUnionSchemas(schemas) {
+export function mergeUnionSchemas(schemas) {
   const branches = [];
   const seen = new Set();
   for (const s of schemas) {
@@ -92,7 +92,7 @@ function mergeUnionSchemas(schemas) {
   return {oneOf: branches};
 }
 
-function collectAllPropertyNames(schemas) {
+export function collectAllPropertyNames(schemas) {
   const names = new Set();
   for (const s of schemas) {
     if (s.properties) {
@@ -102,7 +102,7 @@ function collectAllPropertyNames(schemas) {
   return names;
 }
 
-function findRequiredInAllProperties(schemas, propNames) {
+export function findRequiredInAllProperties(schemas, propNames) {
   const required = [];
   for (const prop of propNames) {
     const isRequiredEverywhere = schemas.every(
@@ -115,7 +115,7 @@ function findRequiredInAllProperties(schemas, propNames) {
   return required;
 }
 
-function mergeObjectSchemas(schemas) {
+export function mergeObjectSchemas(schemas) {
   const merged = {type: 'object', properties: {}};
   const propNames = collectAllPropertyNames(schemas);
 
@@ -131,7 +131,7 @@ function mergeObjectSchemas(schemas) {
   return merged;
 }
 
-function mergeEnumSchemas(schemas) {
+export function mergeEnumSchemas(schemas) {
   const enumValues = new Set();
   for (const s of schemas) {
     if (Array.isArray(s.enum)) {
@@ -147,17 +147,27 @@ function mergeEnumSchemas(schemas) {
  * @param {Array<object>} schemas List of schema objects in chronological order.
  * @returns {object} The merged superset JSON Schema.
  */
-function deepMergeSchemas(schemas) {
+export function deepMergeSchemas(schemas) {
   if (!schemas || schemas.length === 0) return {};
-  if (schemas.length === 1) return JSON.parse(JSON.stringify(schemas[0]));
+  if (schemas.length === 1) {
+    const res = JSON.parse(JSON.stringify(schemas[0]));
+    if (
+      res.properties &&
+      res.oneOf &&
+      (res.oneOf.every(item => item.required) || res.type === 'object')
+    ) {
+      delete res.oneOf;
+    }
+    return res;
+  }
 
   const description = getLatestDescription(schemas);
   let merged;
 
-  if (schemas.some(s => s.oneOf || s.anyOf)) {
-    merged = mergeUnionSchemas(schemas);
-  } else if (schemas.every(s => s.type === 'object' || s.properties)) {
+  if (schemas.every(s => s.type === 'object' || s.properties)) {
     merged = mergeObjectSchemas(schemas);
+  } else if (schemas.some(s => s.oneOf || s.anyOf)) {
+    merged = mergeUnionSchemas(schemas);
   } else if (schemas.some(s => Array.isArray(s.enum))) {
     merged = mergeEnumSchemas(schemas);
   } else {
@@ -170,51 +180,28 @@ function deepMergeSchemas(schemas) {
   return merged;
 }
 
-// 1. Discover all version directories containing common_types.json (excluding legacy v0.8)
-const versionDirs = readdirSync(specDir)
-  .filter(d => d !== 'v0_8' && existsSync(join(specDir, d, 'json', 'common_types.json')))
-  .sort();
-
-console.log(`Discovered specification versions: ${versionDirs.join(', ')}`);
-
-const allDefsByVersion = versionDirs.map(v => {
-  const json = JSON.parse(readFileSync(join(specDir, v, 'json', 'common_types.json'), 'utf8'));
-  return {version: v, defs: json.$defs || {}};
-});
-
-const allDefNames = new Set();
-for (const {defs} of allDefsByVersion) {
-  for (const name of Object.keys(defs)) {
-    allDefNames.add(name);
-  }
-}
-
-const mergedDefs = {};
-for (const name of allDefNames) {
-  const versionsWithDef = allDefsByVersion.map(v => v.defs[name]).filter(Boolean);
-  mergedDefs[name] = deepMergeSchemas(versionsWithDef);
-}
-
-// 2. Build dependency graph and compute topological order
-function getDependencies(node, deps = new Set()) {
+export function getDependencies(node, deps = new Set(), parentDefName) {
   if (!node || typeof node !== 'object') return deps;
   if (Array.isArray(node)) {
-    node.forEach(child => getDependencies(child, deps));
+    node.forEach(child => getDependencies(child, deps, parentDefName));
     return deps;
   }
   if (typeof node.$ref === 'string' && node.$ref.startsWith('#/$defs/')) {
     deps.add(node.$ref.replace('#/$defs/', ''));
   }
-  for (const val of Object.values(node)) {
-    getDependencies(val, deps);
+  for (const [key, val] of Object.entries(node)) {
+    if (key === 'oneOf' && parentDefName === 'FunctionCall') {
+      continue;
+    }
+    getDependencies(val, deps, parentDefName);
   }
   return deps;
 }
 
-function analyzeDependencies(defs) {
+export function analyzeDependencies(defs) {
   const graph = new Map();
   for (const [name, def] of Object.entries(defs)) {
-    graph.set(name, getDependencies(def));
+    graph.set(name, getDependencies(def, new Set(), name));
   }
 
   const visiting = new Set();
@@ -245,21 +232,15 @@ function analyzeDependencies(defs) {
   return {topologicalOrder, lazyEdges};
 }
 
-const {topologicalOrder, lazyEdges} = analyzeDependencies(mergedDefs);
-const recursiveSchemas = new Set([
-  ...Array.from(lazyEdges).map(e => e.split('->')[0]),
-  ...Array.from(lazyEdges).map(e => e.split('->')[1]),
-]);
-
-function generateRefZod(refString, parentDefName, lazyEdges, topologicalOrder) {
+export function generateRefZod(refString, parentDefName, lazyEdges, topologicalOrder) {
   if (refString.startsWith('https://') || refString.startsWith('http://')) {
-    return 'z.record(z.string(), z.any())';
+    return 'z.record(z.string(), z.unknown())';
   }
   const idx = refString.indexOf('#/$defs/');
   if (idx === -1) return null;
   const targetName = refString.substring(idx + 8);
   if (targetName === 'anyFunction') {
-    return 'z.record(z.string(), z.any())';
+    return 'z.record(z.string(), z.unknown())';
   }
   if (
     lazyEdges &&
@@ -272,7 +253,7 @@ function generateRefZod(refString, parentDefName, lazyEdges, topologicalOrder) {
   return `${targetName}Schema`;
 }
 
-function generateUnionZod(schema, parentDefName, indent, lazyEdges, topologicalOrder) {
+export function generateUnionZod(schema, parentDefName, indent, lazyEdges, topologicalOrder) {
   const branches = (schema.oneOf || schema.anyOf).map(b =>
     generateZod(b, parentDefName, indent + '  ', lazyEdges, topologicalOrder),
   );
@@ -283,7 +264,7 @@ function generateUnionZod(schema, parentDefName, indent, lazyEdges, topologicalO
   return code;
 }
 
-function generateAllOfZod(schema, parentDefName, indent, lazyEdges, topologicalOrder) {
+export function generateAllOfZod(schema, parentDefName, indent, lazyEdges, topologicalOrder) {
   if (schema.allOf.length === 2 && schema.allOf[0].$ref && schema.allOf[1].properties) {
     return generateRefZod(schema.allOf[0].$ref, parentDefName, lazyEdges, topologicalOrder);
   }
@@ -293,7 +274,7 @@ function generateAllOfZod(schema, parentDefName, indent, lazyEdges, topologicalO
   return branches.join('.and(') + ')'.repeat(branches.length - 1);
 }
 
-function generateEnumZod(schema) {
+export function generateEnumZod(schema) {
   let code = `z.enum([${schema.enum.map(e => `'${escapeStr(e)}'`).join(', ')}])`;
   if (schema.default !== undefined) {
     code += `.default('${escapeStr(schema.default)}')`;
@@ -304,7 +285,7 @@ function generateEnumZod(schema) {
   return code;
 }
 
-function generateLiteralZod(schema) {
+export function generateLiteralZod(schema) {
   let code = `z.literal('${escapeStr(schema.const)}')`;
   if (schema.description) {
     code += `.describe('${escapeStr(schema.description)}')`;
@@ -312,7 +293,7 @@ function generateLiteralZod(schema) {
   return code;
 }
 
-function generatePrimitiveZod(schema) {
+export function generatePrimitiveZod(schema) {
   let code;
   if (schema.type === 'string') {
     code = 'z.string()';
@@ -335,7 +316,7 @@ function generatePrimitiveZod(schema) {
   return code;
 }
 
-function generateArrayZod(schema, parentDefName, indent, lazyEdges, topologicalOrder) {
+export function generateArrayZod(schema, parentDefName, indent, lazyEdges, topologicalOrder) {
   const itemCode = generateZod(schema.items, parentDefName, indent, lazyEdges, topologicalOrder);
   let code = `z.array(${itemCode})`;
   if (schema.minItems !== undefined) code += `.min(${schema.minItems})`;
@@ -343,9 +324,9 @@ function generateArrayZod(schema, parentDefName, indent, lazyEdges, topologicalO
   return code;
 }
 
-function generateObjectZod(schema, parentDefName, indent, lazyEdges, topologicalOrder) {
+export function generateObjectZod(schema, parentDefName, indent, lazyEdges, topologicalOrder) {
   if (!schema.properties || Object.keys(schema.properties).length === 0) {
-    let code = 'z.record(z.string(), z.any())';
+    let code = 'z.record(z.string(), z.unknown())';
     if (schema.description) code += `.describe('${escapeStr(schema.description)}')`;
     return code;
   }
@@ -370,16 +351,19 @@ function generateObjectZod(schema, parentDefName, indent, lazyEdges, topological
   return code;
 }
 
-/**
- * Generates clean TypeScript Zod code directly from a JSON Schema node.
- */
-function generateZod(schema, parentDefName, indent = '', lazyEdges, topologicalOrder) {
+export function generateZod(schema, parentDefName, indent = '', lazyEdges, topologicalOrder) {
   if (!schema || typeof schema !== 'object') {
-    return 'z.any()';
+    return 'z.unknown()';
   }
   if (typeof schema.$ref === 'string') {
     const refCode = generateRefZod(schema.$ref, parentDefName, lazyEdges, topologicalOrder);
     if (refCode) return refCode;
+  }
+  if (
+    schema.properties &&
+    (schema.type === 'object' || !schema.oneOf || schema.oneOf.every(item => item.required))
+  ) {
+    return generateObjectZod(schema, parentDefName, indent, lazyEdges, topologicalOrder);
   }
   if (Array.isArray(schema.oneOf) || Array.isArray(schema.anyOf)) {
     return generateUnionZod(schema, parentDefName, indent, lazyEdges, topologicalOrder);
@@ -403,37 +387,77 @@ function generateZod(schema, parentDefName, indent = '', lazyEdges, topologicalO
   if (schema.type === 'object' || schema.properties) {
     return generateObjectZod(schema, parentDefName, indent, lazyEdges, topologicalOrder);
   }
-  return 'z.any()';
+  let fallback = 'z.unknown()';
+  if (schema.description) {
+    fallback += `.describe('${escapeStr(schema.description)}')`;
+  }
+  return fallback;
 }
 
-let outTs = HEADER;
-outTs += `import {z} from 'zod';
+export function generateSupersetCommonTypes(options = {}) {
+  const specDirectory = options.specDir || defaultSpecDir;
+  const destinationFile = options.destFile || defaultDestFile;
+
+  const versionDirs = readdirSync(specDirectory)
+    .filter(d => d !== 'v0_8' && existsSync(join(specDirectory, d, 'json', 'common_types.json')))
+    .sort();
+
+  console.log(`Discovered specification versions: ${versionDirs.join(', ')}`);
+
+  const allDefsByVersion = versionDirs.map(v => {
+    const json = JSON.parse(
+      readFileSync(join(specDirectory, v, 'json', 'common_types.json'), 'utf8'),
+    );
+    return {version: v, defs: json.$defs || {}};
+  });
+
+  const allDefNames = new Set();
+  for (const {defs} of allDefsByVersion) {
+    for (const name of Object.keys(defs)) {
+      allDefNames.add(name);
+    }
+  }
+
+  const mergedDefs = {};
+  for (const name of allDefNames) {
+    const versionsWithDef = allDefsByVersion.map(v => v.defs[name]).filter(Boolean);
+    mergedDefs[name] = deepMergeSchemas(versionsWithDef);
+  }
+
+  const {topologicalOrder, lazyEdges} = analyzeDependencies(mergedDefs);
+  const recursiveSchemas = new Set([
+    ...Array.from(lazyEdges).map(e => e.split('->')[0]),
+    ...Array.from(lazyEdges).map(e => e.split('->')[1]),
+  ]);
+
+  let outTs = HEADER;
+  outTs += `import {z} from 'zod';
 import {markChildRef} from './child-ref-helpers.js';
 
 `;
 
-const defKeys = [
-  ...topologicalOrder.filter(k => k in mergedDefs),
-  ...Object.keys(mergedDefs).filter(k => !topologicalOrder.includes(k)),
-];
+  const defKeys = [
+    ...topologicalOrder.filter(k => k in mergedDefs),
+    ...Object.keys(mergedDefs).filter(k => !topologicalOrder.includes(k)),
+  ];
 
-const generatedSchemaNames = [];
+  const generatedSchemaNames = [];
 
-for (const name of defKeys) {
-  const rawDef = JSON.parse(JSON.stringify(mergedDefs[name]));
-  const desc = rawDef.description
-    ? `REF:common_types.json#/$defs/${name}|${escapeStr(rawDef.description)}`
-    : `REF:common_types.json#/$defs/${name}`;
-  rawDef.description = desc;
+  for (const name of defKeys) {
+    const rawDef = JSON.parse(JSON.stringify(mergedDefs[name]));
+    const desc = rawDef.description
+      ? `REF:common_types.json#/$defs/${name}|${escapeStr(rawDef.description)}`
+      : `REF:common_types.json#/$defs/${name}`;
+    rawDef.description = desc;
 
-  let zodCode;
-  if (name === 'ComponentId') {
-    zodCode = `markChildRef(
+    let zodCode;
+    if (name === 'ComponentId') {
+      zodCode = `markChildRef(
   z.string().describe('${desc}'),
   'component-id',
 )`;
-  } else if (name === 'ChildList') {
-    zodCode = `markChildRef(
+    } else if (name === 'ChildList') {
+      zodCode = `markChildRef(
   z.union([
     z.array(ComponentIdSchema).describe('A static list of child component IDs.'),
     z.object({
@@ -443,50 +467,55 @@ for (const name of defKeys) {
   ]).describe('${desc}'),
   'child-list',
 )`;
-  } else if (name === 'Extensions') {
-    zodCode = `z.record(z.string(), z.any()).describe("Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions.")`;
-  } else {
-    zodCode = generateZod(rawDef, name, '', lazyEdges, topologicalOrder);
-    if (name === 'DynamicValue') {
-      zodCode = zodCode.replace(
-        'z.record(z.string(), z.any())',
-        "z.record(z.string(), z.any()).refine(obj => !obj || (!('path' in obj) && !('call' in obj)))",
-      );
+    } else if (name === 'Extensions') {
+      zodCode = `z.record(z.string(), z.unknown()).describe("Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions.")`;
+    } else {
+      zodCode = generateZod(rawDef, name, '', lazyEdges, topologicalOrder);
+      if (name === 'DynamicValue') {
+        zodCode = zodCode.replace(
+          'z.record(z.string(), z.unknown())',
+          "z.record(z.string(), z.unknown()).refine(obj => !obj || (!('path' in obj) && !('call' in obj)))",
+        );
+      }
+    }
+
+    if (recursiveSchemas.has(name)) {
+      outTs += `export const ${name}Schema: z.ZodTypeAny = ${zodCode};\n`;
+    } else {
+      outTs += `export const ${name}Schema = ${zodCode};\n`;
+    }
+
+    if (rawDef.description) {
+      outTs += `/** ${rawDef.description.replace(/\n/g, ' ')} */\n`;
+    }
+    outTs += `export type ${name} = z.infer<typeof ${name}Schema>;\n\n`;
+    generatedSchemaNames.push(name);
+
+    if (name === 'DataBinding') {
+      outTs += `export type DataBindingType = DataBinding;\n\n`;
+    }
+    if (name === 'FunctionCall') {
+      outTs += `export type FunctionCallType = FunctionCall;\n\n`;
     }
   }
 
-  if (recursiveSchemas.has(name)) {
-    outTs += `export const ${name}Schema: z.ZodType<any> = ${zodCode};\n`;
-  } else {
-    outTs += `export const ${name}Schema = ${zodCode};\n`;
-  }
-
-  if (rawDef.description) {
-    outTs += `/** ${rawDef.description.replace(/\n/g, ' ')} */\n`;
-  }
-  outTs += `export type ${name} = z.infer<typeof ${name}Schema>;\n\n`;
-  generatedSchemaNames.push(name);
-
-  if (name === 'DataBinding') {
-    outTs += `export type DataBindingType = DataBinding;\n\n`;
-  }
-  if (name === 'FunctionCall') {
-    outTs += `export type FunctionCallType = FunctionCall;\n\n`;
-  }
-}
-
-// CommonSchemas registry map
-outTs += `/**
+  // CommonSchemas registry map
+  outTs += `/**
  * Registry of reusable common schema definitions across A2UI catalogs and protocols.
  */
 export const CommonSchemas = {
 `;
 
-for (const name of generatedSchemaNames) {
-  outTs += `  ${name}: ${name}Schema,\n`;
-}
-outTs += `};\n\n`;
-outTs += `export * from './helpers.js';\n`;
+  for (const name of generatedSchemaNames) {
+    outTs += `  ${name}: ${name}Schema,\n`;
+  }
+  outTs += `};\n\n`;
+  outTs += `export * from './helpers.js';\n`;
 
-writeFileSync(destFile, outTs);
-console.log(`Successfully generated superset common types in ${destFile}`);
+  writeFileSync(destinationFile, outTs);
+  console.log(`Successfully generated superset common types in ${destinationFile}`);
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  generateSupersetCommonTypes();
+}

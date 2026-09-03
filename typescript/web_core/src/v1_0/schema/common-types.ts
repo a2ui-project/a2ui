@@ -44,17 +44,17 @@ export type DynamicValue =
   | string
   | number
   | boolean
-  | any[]
+  | unknown[]
   | DataBinding
   | FunctionCall
-  | Record<string, any>;
+  | Record<string, unknown>;
 export const DynamicValueSchema: z.ZodType<DynamicValue> = z
   .union([
     z.string(),
     z.number(),
     z.boolean(),
     z.array(z.any()),
-    z.record(z.string(), z.any()).refine(obj => !obj || (!('path' in obj) && !('call' in obj))),
+    z.record(z.string(), z.unknown()).refine(obj => !obj || (!('path' in obj) && !('call' in obj))),
     DataBindingSchema,
     z.lazy(() => FunctionCallSchema),
   ])
@@ -62,26 +62,9 @@ export const DynamicValueSchema: z.ZodType<DynamicValue> = z
     'REF:#/$defs/DynamicValue|A value that can be a literal, a path, or a function call returning any type.',
   );
 
-export const DynamicNumberSchema: z.ZodType<any> = z
-  .union([z.number(), DataBindingSchema, z.lazy(() => FunctionCallSchema)])
-  .describe(
-    'REF:#/$defs/DynamicNumber|Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number.',
-  );
-export type DynamicNumber = z.infer<typeof DynamicNumberSchema>;
-
-export const IndexSystemFunctionSchema = z
-  .object({
-    'call': z.literal('@index'),
-    'args': z.object({'offset': DynamicNumberSchema.optional()}).optional(),
-  })
-  .describe(
-    'REF:#/$defs/IndexSystemFunction|Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context.',
-  );
-export type IndexSystemFunction = z.infer<typeof IndexSystemFunctionSchema>;
-
 export interface FunctionCall {
   call: string;
-  args?: Record<string, any>;
+  args?: Record<string, unknown>;
   returnType?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';
 }
 export const FunctionCallSchema: z.ZodType<FunctionCall> = z
@@ -135,7 +118,7 @@ export const AccessibilityAttributesSchema = z
 export type AccessibilityAttributes = z.infer<typeof AccessibilityAttributesSchema>;
 
 export const ExtensionsSchema = z
-  .record(z.string(), z.any())
+  .record(z.string(), z.unknown())
   .describe(
     "REF:#/$defs/Extensions|Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions.",
   );
@@ -184,6 +167,13 @@ export const ChildListSchema = markChildRef(
 );
 export type ChildList = z.infer<typeof ChildListSchema>;
 
+export const DynamicNumberSchema = z
+  .union([z.number(), DataBindingSchema, FunctionCallSchema])
+  .describe(
+    'REF:#/$defs/DynamicNumber|Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number.',
+  );
+export type DynamicNumber = z.infer<typeof DynamicNumberSchema>;
+
 export const DynamicStringListSchema = z
   .union([z.array(z.string()), DataBindingSchema, FunctionCallSchema])
   .describe(
@@ -200,6 +190,16 @@ export const FunctionCommonSchema = z
   })
   .describe('REF:#/$defs/FunctionCommon');
 export type FunctionCommon = z.infer<typeof FunctionCommonSchema>;
+
+export const IndexSystemFunctionSchema = z
+  .object({
+    'call': z.literal('@index'),
+    'args': z.object({'offset': DynamicNumberSchema.optional()}).optional(),
+  })
+  .describe(
+    'REF:#/$defs/IndexSystemFunction|Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context.',
+  );
+export type IndexSystemFunction = z.infer<typeof IndexSystemFunctionSchema>;
 
 export const CheckRuleSchema = z
   .object({
@@ -322,8 +322,6 @@ export const CommonSchemas = {
   CallId: CallIdSchema,
   DataBinding: DataBindingSchema,
   DynamicValue: DynamicValueSchema,
-  DynamicNumber: DynamicNumberSchema,
-  IndexSystemFunction: IndexSystemFunctionSchema,
   FunctionCall: FunctionCallSchema,
   DynamicString: DynamicStringSchema,
   DynamicBoolean: DynamicBooleanSchema,
@@ -332,8 +330,10 @@ export const CommonSchemas = {
   ComponentCommon: ComponentCommonSchema,
   Child: ChildSchema,
   ChildList: ChildListSchema,
+  DynamicNumber: DynamicNumberSchema,
   DynamicStringList: DynamicStringListSchema,
   FunctionCommon: FunctionCommonSchema,
+  IndexSystemFunction: IndexSystemFunctionSchema,
   CheckRule: CheckRuleSchema,
   Checkable: CheckableSchema,
   Action: ActionSchema,

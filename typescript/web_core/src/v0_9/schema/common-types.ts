@@ -35,14 +35,7 @@ export const DataBindingSchema = z
   .describe('REF:#/$defs/DataBinding');
 export type DataBinding = z.infer<typeof DataBindingSchema>;
 
-export type DynamicValue =
-  | string
-  | number
-  | boolean
-  | any[]
-  | DataBinding
-  | FunctionCall
-  | Record<string, any>;
+export type DynamicValue = string | number | boolean | unknown[] | DataBinding | FunctionCall;
 export const DynamicValueSchema: z.ZodType<DynamicValue> = z
   .union([
     z.string(),
@@ -58,7 +51,7 @@ export const DynamicValueSchema: z.ZodType<DynamicValue> = z
 
 export interface FunctionCall {
   call: string;
-  args?: Record<string, any>;
+  args?: Record<string, unknown>;
   returnType?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';
 }
 export const FunctionCallSchema: z.ZodType<FunctionCall> = z

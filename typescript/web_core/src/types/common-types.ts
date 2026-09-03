@@ -54,33 +54,22 @@ export type DataBinding = z.infer<typeof DataBindingSchema>;
 
 export type DataBindingType = DataBinding;
 
-export const DynamicNumberSchema: z.ZodType<any> = z
-  .union([z.number(), DataBindingSchema, z.lazy(() => FunctionCallSchema)])
-  .describe(
-    'REF:common_types.json#/$defs/DynamicNumber|Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number.',
-  );
-/** REF:common_types.json#/$defs/DynamicNumber|Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number. */
-export type DynamicNumber = z.infer<typeof DynamicNumberSchema>;
-
-export const IndexSystemFunctionSchema = z
+export const FunctionCallSchema = z
   .object({
-    'call': z.literal('@index'),
+    'call': z.string().describe('The name of the function to call.'),
     'args': z
-      .object({
-        'offset': DynamicNumberSchema.optional(),
-      })
-      .strict()
+      .record(z.string(), z.unknown())
+      .describe('Arguments passed to the function.')
+      .optional(),
+    'returnType': z
+      .enum(['string', 'number', 'boolean', 'array', 'object', 'any', 'void'])
+      .describe('The expected return type of the function call.')
+      .optional(),
+    'catalogId': z
+      .string()
+      .describe('The catalog ID for this function, overriding any surface-level default catalogId.')
       .optional(),
   })
-  .strict()
-  .describe(
-    'REF:common_types.json#/$defs/IndexSystemFunction|Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context.',
-  );
-/** REF:common_types.json#/$defs/IndexSystemFunction|Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context. */
-export type IndexSystemFunction = z.infer<typeof IndexSystemFunctionSchema>;
-
-export const FunctionCallSchema: z.ZodType<any> = z
-  .union([z.record(z.string(), z.any()), IndexSystemFunctionSchema])
   .describe('REF:common_types.json#/$defs/FunctionCall|Invokes a named function.');
 /** REF:common_types.json#/$defs/FunctionCall|Invokes a named function. */
 export type FunctionCall = z.infer<typeof FunctionCallSchema>;
@@ -121,7 +110,7 @@ export const AccessibilityAttributesSchema = z
 export type AccessibilityAttributes = z.infer<typeof AccessibilityAttributesSchema>;
 
 export const ExtensionsSchema = z
-  .record(z.string(), z.any())
+  .record(z.string(), z.unknown())
   .describe(
     "Optional extension metadata. Keys MUST be Unicode identifiers (UAX #31). Keys starting with 'a2ui_' are reserved for official extensions.",
   );
@@ -174,16 +163,24 @@ export const DynamicValueSchema = z
     z.string(),
     z.number(),
     z.boolean(),
-    z.array(z.any()),
+    z.array(z.unknown()),
     DataBindingSchema,
     FunctionCallSchema,
-    z.record(z.string(), z.any()).refine(obj => !obj || (!('path' in obj) && !('call' in obj))),
+    z.record(z.string(), z.unknown()).refine(obj => !obj || (!('path' in obj) && !('call' in obj))),
   ])
   .describe(
     'REF:common_types.json#/$defs/DynamicValue|A value that can be a literal, a path, or a function call returning any type.',
   );
 /** REF:common_types.json#/$defs/DynamicValue|A value that can be a literal, a path, or a function call returning any type. */
 export type DynamicValue = z.infer<typeof DynamicValueSchema>;
+
+export const DynamicNumberSchema = z
+  .union([z.number(), DataBindingSchema, FunctionCallSchema])
+  .describe(
+    'REF:common_types.json#/$defs/DynamicNumber|Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number.',
+  );
+/** REF:common_types.json#/$defs/DynamicNumber|Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number. */
+export type DynamicNumber = z.infer<typeof DynamicNumberSchema>;
 
 export const DynamicStringListSchema = z
   .union([z.array(z.string()), DataBindingSchema, FunctionCallSchema])
@@ -229,7 +226,7 @@ export const ActionSchema = z
           .object({
             'name': z.string().describe('The name of the action to be dispatched to the server.'),
             'context': z
-              .record(z.string(), z.any())
+              .record(z.string(), z.unknown())
               .describe(
                 'A JSON object containing the key-value pairs for the action context. Values can be literals or paths. Use literal values unless the value must be dynamically bound to the data model. Do NOT use paths for static IDs.',
               )
@@ -253,7 +250,7 @@ export const ActionSchema = z
             'name': z.string().describe('The name of the action to be dispatched to the agent.'),
             'userMessage': DynamicStringSchema.optional(),
             'context': z
-              .record(z.string(), z.any())
+              .record(z.string(), z.unknown())
               .describe(
                 'A JSON object containing the key-value pairs for the action context. Values can be literals or paths. Use literal values unless the value must be dynamically bound to the data model. Do NOT use paths for static IDs.',
               )
@@ -298,6 +295,23 @@ export const FunctionCommonSchema = z
 /** REF:common_types.json#/$defs/FunctionCommon */
 export type FunctionCommon = z.infer<typeof FunctionCommonSchema>;
 
+export const IndexSystemFunctionSchema = z
+  .object({
+    'call': z.literal('@index'),
+    'args': z
+      .object({
+        'offset': DynamicNumberSchema.optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict()
+  .describe(
+    'REF:common_types.json#/$defs/IndexSystemFunction|Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context.',
+  );
+/** REF:common_types.json#/$defs/IndexSystemFunction|Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context. */
+export type IndexSystemFunction = z.infer<typeof IndexSystemFunctionSchema>;
+
 export const SurfaceSchema = z
   .object({
     'component': z.literal('Surface').optional(),
@@ -311,7 +325,19 @@ export const SurfaceSchema = z
 export type Surface = z.infer<typeof SurfaceSchema>;
 
 export const FunctionResponseSchema = z
-  .union([z.any(), z.any()])
+  .object({
+    'functionCallId': CallIdSchema,
+    'value': z.unknown().describe('The return value of the function.').optional(),
+    'error': z
+      .object({
+        'code': z.string(),
+        'message': z.string(),
+      })
+      .strict()
+      .describe('An error object indicating failure of the function execution.')
+      .optional(),
+  })
+  .strict()
   .describe(
     'REF:common_types.json#/$defs/FunctionResponse|The return response matching a callAgentFunction or callRendererFunction invocation.',
   );
@@ -324,8 +350,6 @@ export type FunctionResponse = z.infer<typeof FunctionResponseSchema>;
 export const CommonSchemas = {
   ComponentId: ComponentIdSchema,
   DataBinding: DataBindingSchema,
-  DynamicNumber: DynamicNumberSchema,
-  IndexSystemFunction: IndexSystemFunctionSchema,
   FunctionCall: FunctionCallSchema,
   DynamicString: DynamicStringSchema,
   DynamicBoolean: DynamicBooleanSchema,
@@ -334,6 +358,7 @@ export const CommonSchemas = {
   ComponentCommon: ComponentCommonSchema,
   ChildList: ChildListSchema,
   DynamicValue: DynamicValueSchema,
+  DynamicNumber: DynamicNumberSchema,
   DynamicStringList: DynamicStringListSchema,
   CheckRule: CheckRuleSchema,
   Checkable: CheckableSchema,
@@ -341,6 +366,7 @@ export const CommonSchemas = {
   CallId: CallIdSchema,
   Child: ChildSchema,
   FunctionCommon: FunctionCommonSchema,
+  IndexSystemFunction: IndexSystemFunctionSchema,
   Surface: SurfaceSchema,
   FunctionResponse: FunctionResponseSchema,
 };

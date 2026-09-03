@@ -39,9 +39,9 @@ export interface A2uiReturnTypeMap {
   string: string;
   number: number;
   boolean: boolean;
-  array: any[];
-  object: Record<string, any>;
-  any: any;
+  array: unknown[];
+  object: Record<string, unknown>;
+  any: unknown;
   void: void;
 }
 
@@ -88,7 +88,7 @@ export interface FunctionImplementation extends FunctionApi {
    * @returns The resolved function output value or reactive Signal.
    */
   execute(
-    args: Record<string, any>,
+    args: Record<string, unknown>,
     context: DataContext,
     abortSignal?: AbortSignal,
   ): unknown | Signal<unknown>;
@@ -101,7 +101,7 @@ export type ResolvedDynamic<T> = T extends {path: string} | {call: string}
   ? never
   : T extends (infer U)[]
     ? ResolvedDynamic<U>[]
-    : T extends Record<string, any>
+    : T extends object
       ? {[K in keyof T]: ResolvedDynamic<T[K]>}
       : T;
 
@@ -120,7 +120,6 @@ export type ResolvedFunctionArgs<Schema extends z.ZodTypeAny> = ResolvedDynamic<
 export function createFunctionImplementation<
   Schema extends z.ZodTypeAny = z.ZodTypeAny,
   TReturn extends A2uiReturnType = A2uiReturnType,
-  TArgs = ResolvedFunctionArgs<Schema>,
 >(
   api: {
     name: string;
@@ -131,7 +130,7 @@ export function createFunctionImplementation<
     description?: string;
   },
   execute: (
-    args: TArgs,
+    args: ResolvedFunctionArgs<Schema>,
     context: DataContext,
     abortSignal?: AbortSignal,
   ) => InferA2uiReturnType<TReturn> | Signal<InferA2uiReturnType<TReturn>>,
@@ -143,7 +142,11 @@ export function createFunctionImplementation<
     allowedCallers: api.allowedCallers,
     requiresUserActivation: api.requiresUserActivation,
     description: api.description,
-    execute: execute as (args: Record<string, any>, ctx: DataContext, ab?: AbortSignal) => unknown,
+    execute: execute as (
+      args: Record<string, unknown>,
+      ctx: DataContext,
+      ab?: AbortSignal,
+    ) => unknown,
   };
 }
 
@@ -198,7 +201,7 @@ export declare interface CatalogInterface<
   /** Map of registered function definitions. */
   readonly functions: ReadonlyMap<string, F>;
   /** Schema for theme parameters used by this catalog. */
-  readonly themeSchema?: z.ZodObject<any>;
+  readonly themeSchema?: z.ZodObject<z.ZodRawShape>;
   /** System instructions or usage guidelines for this catalog. */
   readonly instructions?: string;
   /** Invoker callback that delegates to this catalog's registered functions. */
@@ -242,7 +245,7 @@ export class Catalog<
   /**
    * Schema for theme parameters used by this catalog.
    */
-  readonly themeSchema?: z.ZodObject<any>;
+  readonly themeSchema?: z.ZodObject<z.ZodRawShape>;
 
   /**
    * Optional system instructions or usage guidelines for this catalog.
