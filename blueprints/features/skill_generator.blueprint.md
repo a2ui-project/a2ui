@@ -41,27 +41,30 @@ For managed agent sandbox environments (such as `.agents/` or `/.agents/`), gene
 
 Every language implementation (`a2ui-python`, `a2ui-swift`, `a2ui-kotlin`, `a2ui-node`, `a2ui-go`) MUST expose an equivalent API:
 
-### **1. SkillConfig Dataclass / Struct**
-```typescript
-interface SkillConfig {
-  inferenceFormat: InferenceFormat;
-  catalogs: A2uiCatalog[];
-  name?: string;
-  description?: string;
-  modular?: boolean; // Default: false
-  includeExamples?: boolean; // Default: true
-  validateExamples?: boolean; // Default: true
-  metadata?: Record<string, any>;
-  outputDir?: string;
-}
-```
+### **1. Skill & SkillSet Domain Objects**
+- **`Skill`**: Encapsulates a single generated skill file (`name`, `description`, `metadata`, `content`, `filename`). Provides `.to_markdown()` for frontmatter serialization and property mutators.
+- **`SkillSet`**: Collection of `Skill` objects representing a modular package (`a2ui-core`, `a2ui-basic`, `a2ui-commerce`). Provides `.export_to_directory(output_dir)`, `.to_dict()`, `.get(key)`, and dictionary iteration.
 
 ### **2. SkillGenerator Core Engine**
 ```typescript
 class SkillGenerator {
-  constructor(config: SkillConfig);
-  compile(): Record<string, string>; // Maps target filenames (e.g., "a2ui-core/SKILL.md") to markdown content
-  exportToDirectory(outputDir: string): Record<string, string>;
+  constructor(inferenceFormat: InferenceFormat, options?: SkillConfig);
+
+  // Generates a monolithic Skill domain object
+  generate(options?: {
+    name?: string;
+    description?: string;
+    includeExamples?: boolean;
+    validateExamples?: boolean;
+  }): Skill;
+
+  // Generates a SkillSet containing modular Skill objects
+  generateModular(options?: {
+    catalogs?: A2uiCatalog[];
+    coreName?: string; // Default: 'a2ui-core'
+    includeExamples?: boolean;
+    validateExamples?: boolean;
+  }): SkillSet;
 }
 ```
 
@@ -94,14 +97,15 @@ metadata:
 
 ---
 
-## **Generation Modes**
+## **Generation Modes & Naming Resolution**
 
-1. **Unified (Monolithic) Mode (`modular: false`)**:
+1. **Unified (Monolithic) Mode (`generator.generate(...)`)**:
    - Produces a single `a2ui/SKILL.md` bundling base rules, component signatures for all provided catalogs, and combined few-shot examples.
+   - Optional `name` and `description` parameters customize the single monolithic skill identity.
 
-2. **Modular Mode (`modular: true`)**:
-   - Produces `a2ui-core/SKILL.md` (base grammar & sentinel rules only).
-   - Produces `a2ui-<catalog_name>/SKILL.md` for each provided catalog (component signatures & catalog examples).
+2. **Modular Mode (`generator.generateModular(...)`)**:
+   - Produces `a2ui-core/SKILL.md` (base grammar & sentinel rules only). Base core skill name defaults to `a2ui-core` or optional `coreName` override.
+   - Produces `a2ui-<catalog_name>/SKILL.md` for each provided catalog. Catalog skill names are auto-derived as `a2ui-<catalog_name>` and descriptions are pulled directly from each catalog's own schema metadata (`catalog.description`).
 
 ---
 

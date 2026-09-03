@@ -129,20 +129,18 @@ def generate_modular_skills():
     commerce_cat = A2uiCatalog.from_config(commerce_cfg)
 
     express_fmt = ExpressFormat(catalog=basic_cat)
+    generator = SkillGenerator(express_fmt)
 
-    skills = generate_skill(
-        catalogs=[basic_cat, commerce_cat],
-        inference_format=express_fmt,
-        modular=True,
-        output_dir=OUTPUT_SKILLS_DIR,
-    )
-    print(f"   Generated {len(skills)} modular skill packages in '{OUTPUT_SKILLS_DIR}':")
-    for fname in skills.keys():
+    skill_set = generator.generate_modular(catalogs=[basic_cat, commerce_cat])
+    skills_dict = skill_set.export_to_directory(OUTPUT_SKILLS_DIR)
+
+    print(f"   Generated {len(skill_set)} modular skill packages in '{OUTPUT_SKILLS_DIR}':")
+    for fname in skill_set.keys():
         print(f"     - {fname}")
 
     # Combine skill contents into full system instruction
-    combined_instructions = "\n\n".join(skills.values())
-    return skills, combined_instructions, basic_cat, commerce_cat
+    combined_instructions = "\n\n".join(skills_dict.values())
+    return skills_dict, combined_instructions, basic_cat, commerce_cat
 
 
 def build_managed_agent_environment(skills_dict: dict[str, str]) -> dict:
