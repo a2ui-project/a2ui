@@ -97,7 +97,9 @@ class PromptGenerator(ABC):
 
         rules = self.generate_base_rules()
         if workflow_description:
-            rules = f"{rules}\n\n{workflow_description}" if rules else workflow_description
+            rules = (
+                f"{rules}\n\n{workflow_description}" if rules else workflow_description
+            )
         if rules:
             parts.append(f"## Workflow Description:\n{rules}")
 
@@ -115,4 +117,3 @@ class PromptGenerator(ABC):
                 parts.append(f"### Examples:\n{examples}")
 
         return "\n\n".join(parts)
-

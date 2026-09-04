@@ -118,7 +118,10 @@ class Skill:
             body_parts.append("### Examples:\n\n" + "\n\n".join(ex_blocks))
 
         content_str = "\n\n".join(body_parts) + "\n"
-        desc = description or "Generates interactive user interface components for user requests."
+        desc = (
+            description
+            or "Generates interactive user interface components for user requests."
+        )
 
         return cls(
             name=name,
@@ -170,7 +173,10 @@ class Skill:
         """Compiles core syntax rules for any format into a base core skill."""
         prompt_gen = fmt.prompt_generator
         base_rules = prompt_gen.generate_base_rules()
-        desc = description or "Core A2UI protocol instructions and syntax rules for UI generation."
+        desc = (
+            description
+            or "Core A2UI protocol instructions and syntax rules for UI generation."
+        )
 
         return cls(
             name=name,
@@ -242,7 +248,9 @@ class SkillSet:
 
     def to_dict(self) -> dict[str, str]:
         """Serializes all skills to a dictionary mapping filename to markdown text."""
-        return {filename: skill.to_markdown() for filename, skill in self._skills.items()}
+        return {
+            filename: skill.to_markdown() for filename, skill in self._skills.items()
+        }
 
     def export_to_directory(self, output_dir: str) -> dict[str, str]:
         """Exports all skills in the set to the specified output directory on disk."""

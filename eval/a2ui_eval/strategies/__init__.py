@@ -25,7 +25,9 @@ STRATEGIES: dict[str, Callable[[str], List[Solver]]] = {
     "elemental": lambda version: format_solver("elemental", version),
     "atom": lambda version: format_solver("atom", version),
     "skill_preloaded": lambda version: skill_preloaded_solver("express", version),
-    "skill_interactive_tool": lambda version: skill_interactive_tool_solver("express", version),
+    "skill_interactive_tool": lambda version: skill_interactive_tool_solver(
+        "express", version
+    ),
 }
 
 

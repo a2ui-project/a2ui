@@ -809,7 +809,5 @@ root = Text("Body")"""
         self.assertEqual(envelopes[1]["createSurface"]["surfaceId"], "body-surface")
 
 
-
-
 if __name__ == "__main__":
     unittest.main()

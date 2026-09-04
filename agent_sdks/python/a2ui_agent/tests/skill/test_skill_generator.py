@@ -102,8 +102,12 @@ class TestSkillCompositionAPI(unittest.TestCase):
         exported = skill_set.export_to_directory(self.temp_dir.name)
 
         self.assertIn("a2ui-core/SKILL.md", exported)
-        self.assertTrue(os.path.exists(os.path.join(self.temp_dir.name, "a2ui-core", "SKILL.md")))
-        self.assertTrue(os.path.exists(os.path.join(self.temp_dir.name, "a2ui-basic", "SKILL.md")))
+        self.assertTrue(
+            os.path.exists(os.path.join(self.temp_dir.name, "a2ui-core", "SKILL.md"))
+        )
+        self.assertTrue(
+            os.path.exists(os.path.join(self.temp_dir.name, "a2ui-basic", "SKILL.md"))
+        )
 
 
 if __name__ == "__main__":

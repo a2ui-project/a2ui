@@ -34,7 +34,7 @@ def capture_screenshots(url: str = "http://localhost:5180"):
 
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=45000)
-            
+
             # Wait for Managed Agent bootstrap sequence to finish online
             page.wait_for_selector("text=Agent Status: Online & Ready", timeout=45000)
             time.sleep(1)

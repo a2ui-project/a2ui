@@ -145,7 +145,15 @@ def main() -> None:
             )
         task_func = (
             a2ui_v1_0_eval
-            if strat in ["express", "elemental", "atom", "direct", "skill_preloaded", "skill_interactive_tool"]
+            if strat
+            in [
+                "express",
+                "elemental",
+                "atom",
+                "direct",
+                "skill_preloaded",
+                "skill_interactive_tool",
+            ]
             else a2ui_v0_9_1_eval
         )
         task_obj = task_func(

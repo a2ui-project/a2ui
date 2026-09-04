@@ -61,7 +61,9 @@ def load_skill() -> Tool:
         skill_set = SkillSet.from_format(strategy)
 
         # Normalize skill lookup key
-        key = skill_name if skill_name.endswith("/SKILL.md") else f"{skill_name}/SKILL.md"
+        key = (
+            skill_name if skill_name.endswith("/SKILL.md") else f"{skill_name}/SKILL.md"
+        )
         skill = skill_set.get(key) or skill_set.get(skill_name)
 
         if skill:
@@ -103,9 +105,9 @@ def skill_preloaded_prompt(format_name: str, version: str) -> Solver:
         if state.messages and hasattr(state.messages[-1], "content"):
             user_msg = state.messages[-1]
             user_msg.content = (
-                f"Here are the pre-loaded A2UI UI generation rules and component signatures:\n\n"
-                f"{skill.to_markdown()}\n\n"
-                f"User Request: {user_msg.content}"
+                "Here are the pre-loaded A2UI UI generation rules and component"
+                f" signatures:\n\n{skill.to_markdown()}\n\nUser Request:"
+                f" {user_msg.content}"
             )
 
         return state
@@ -131,10 +133,10 @@ def skill_interactive_system_prompt(format_name: str, version: str) -> Solver:
 
         skills_summary = "\n".join(frontmatter_lines)
         system_content = (
-            "You are a helpful AI assistant. You have access to specialized skills for UI generation.\n\n"
-            "## Available Skills\n"
-            f"{skills_summary}\n\n"
-            "When the user requests a user interface, call the `load_skill` tool to retrieve the required syntax and signatures before producing the UI response."
+            "You are a helpful AI assistant. You have access to specialized skills for"
+            f" UI generation.\n\n## Available Skills\n{skills_summary}\n\nWhen the user"
+            " requests a user interface, call the `load_skill` tool to retrieve the"
+            " required syntax and signatures before producing the UI response."
         )
 
         domain_prompt = state.metadata.get("system_prompt", "").strip()
@@ -153,7 +155,9 @@ def skill_interactive_system_prompt(format_name: str, version: str) -> Solver:
     return solve
 
 
-def skill_preloaded_solver(format_name: str = "express", version: str = "1.0") -> list[Solver]:
+def skill_preloaded_solver(
+    format_name: str = "express", version: str = "1.0"
+) -> list[Solver]:
     """Returns the solver chain for the 'skill_preloaded' evaluation strategy (Pre-loaded Harness Proxy)."""
     return [
         skill_preloaded_prompt(format_name, version),
@@ -162,7 +166,9 @@ def skill_preloaded_solver(format_name: str = "express", version: str = "1.0") -
     ]
 
 
-def skill_interactive_tool_solver(format_name: str = "express", version: str = "1.0") -> list[Solver]:
+def skill_interactive_tool_solver(
+    format_name: str = "express", version: str = "1.0"
+) -> list[Solver]:
     """Returns the solver chain for the 'skill_interactive_tool' evaluation strategy (Active Agent Retrieval Proxy)."""
     return [
         skill_interactive_system_prompt(format_name, version),

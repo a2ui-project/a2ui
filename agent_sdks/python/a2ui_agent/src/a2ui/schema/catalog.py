@@ -171,8 +171,13 @@ class A2uiCatalog:
         """Constructs an A2uiCatalog from a loaded CatalogConfig."""
         from a2ui.schema.constants import SPEC_VERSION_MAP, SERVER_TO_CLIENT_SCHEMA_KEY, COMMON_TYPES_SCHEMA_KEY
         from a2ui.inference_formats.direct_json.format import load_from_bundled_resource
-        s2c_schema = load_from_bundled_resource(version, SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP)
-        common_types_schema = load_from_bundled_resource(version, COMMON_TYPES_SCHEMA_KEY, SPEC_VERSION_MAP)
+
+        s2c_schema = load_from_bundled_resource(
+            version, SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
+        )
+        common_types_schema = load_from_bundled_resource(
+            version, COMMON_TYPES_SCHEMA_KEY, SPEC_VERSION_MAP
+        )
         catalog_schema = config.provider.load()
         return cls(
             version=version,

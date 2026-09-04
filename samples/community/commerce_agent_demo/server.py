@@ -58,7 +58,10 @@ PRODUCTS = [
         "stock": 18,
         "rating": 4.8,
         "image": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500",
-        "description": "Premium wireless over-ear headphones with active noise cancellation and 30-hour battery life."
+        "description": (
+            "Premium wireless over-ear headphones with active noise cancellation and"
+            " 30-hour battery life."
+        ),
     },
     {
         "id": "prod_2",
@@ -68,7 +71,10 @@ PRODUCTS = [
         "stock": 4,
         "rating": 4.6,
         "image": "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=500",
-        "description": "Ergonomic split mechanical keyboard with hot-swappable switches and customizable RGB lighting."
+        "description": (
+            "Ergonomic split mechanical keyboard with hot-swappable switches and"
+            " customizable RGB lighting."
+        ),
     },
     {
         "id": "prod_3",
@@ -78,7 +84,10 @@ PRODUCTS = [
         "stock": 9,
         "rating": 4.9,
         "image": "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=500",
-        "description": "Color-accurate IPS display with USB-C 90W power delivery and ultrathin bezel design."
+        "description": (
+            "Color-accurate IPS display with USB-C 90W power delivery and ultrathin"
+            " bezel design."
+        ),
     },
     {
         "id": "prod_4",
@@ -88,18 +97,28 @@ PRODUCTS = [
         "stock": 0,
         "rating": 4.4,
         "image": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500",
-        "description": "Advanced health tracking smartwatch with GPS, heart rate monitor, and 7-day battery life."
-    }
+        "description": (
+            "Advanced health tracking smartwatch with GPS, heart rate monitor, and"
+            " 7-day battery life."
+        ),
+    },
 ]
 
 
 # 2. Agent Tools
-def search_products(query: str = "", category: Optional[str] = None, max_price: Optional[float] = None) -> list[dict]:
+def search_products(
+    query: str = "", category: Optional[str] = None, max_price: Optional[float] = None
+) -> list[dict]:
     """Searches product database by query, category filter, or max price."""
     results = []
     q = query.lower()
     for p in PRODUCTS:
-        if q and q not in p["name"].lower() and q not in p["description"].lower() and q not in p["category"].lower():
+        if (
+            q
+            and q not in p["name"].lower()
+            and q not in p["description"].lower()
+            and q not in p["category"].lower()
+        ):
             continue
         if category and p["category"].lower() != category.lower():
             continue
@@ -113,8 +132,17 @@ def check_inventory(product_id: str) -> dict:
     """Checks stock availability and inventory quantity for a product."""
     for p in PRODUCTS:
         if p["id"] == product_id or p["name"].lower() == product_id.lower():
-            status = "in_stock" if p["stock"] > 5 else ("low_stock" if p["stock"] > 0 else "out_of_stock")
-            return {"id": p["id"], "name": p["name"], "quantity": p["stock"], "status": status}
+            status = (
+                "in_stock"
+                if p["stock"] > 5
+                else ("low_stock" if p["stock"] > 0 else "out_of_stock")
+            )
+            return {
+                "id": p["id"],
+                "name": p["name"],
+                "quantity": p["stock"],
+                "status": status,
+            }
     return {"error": "Product not found"}
 
 
@@ -134,7 +162,10 @@ def generate_modular_skills():
     skill_set = generator.generate_modular(catalogs=[basic_cat, commerce_cat])
     skills_dict = skill_set.export_to_directory(OUTPUT_SKILLS_DIR)
 
-    print(f"   Generated {len(skill_set)} modular skill packages in '{OUTPUT_SKILLS_DIR}':")
+    print(
+        f"   Generated {len(skill_set)} modular skill packages in"
+        f" '{OUTPUT_SKILLS_DIR}':"
+    )
     for fname in skill_set.keys():
         print(f"     - {fname}")
 
@@ -145,16 +176,15 @@ def generate_modular_skills():
 
 def build_managed_agent_environment(skills_dict: dict[str, str]) -> dict:
     """Builds remote environment sources containing .agents/AGENTS.md and .agents/skills/."""
-    sources = [
-        {
-            "type": "inline",
-            "target": ".agents/AGENTS.md",
-            "content": (
-                "You are Apex Commerce AI Assistant. Always construct interactive user interfaces using "
-                "A2UI Express DSL. Follow the modular skill rules defined under .agents/skills/."
-            ),
-        }
-    ]
+    sources = [{
+        "type": "inline",
+        "target": ".agents/AGENTS.md",
+        "content": (
+            "You are Apex Commerce AI Assistant. Always construct interactive user"
+            " interfaces using A2UI Express DSL. Follow the modular skill rules defined"
+            " under .agents/skills/."
+        ),
+    }]
 
     for fname, content in skills_dict.items():
         if "core" in fname:
@@ -187,7 +217,10 @@ def query_managed_agent(
     system_instruction: Optional[str] = None,
 ) -> tuple[str, str]:
     """Queries Managed Agent using client.interactions.create with antigravity-preview-05-2026."""
-    print(f"Executing Managed Agent API query ('antigravity-preview-05-2026'): '{prompt}'...")
+    print(
+        "Executing Managed Agent API query ('antigravity-preview-05-2026'):"
+        f" '{prompt}'..."
+    )
     max_retries = 5
 
     kwargs: dict[str, Any] = {
@@ -205,13 +238,23 @@ def query_managed_agent(
     for attempt in range(max_retries):
         try:
             interaction = client.interactions.create(**kwargs)
-            resp_text = getattr(interaction, "output_text", None) or interaction.outputs or ""
+            resp_text = (
+                getattr(interaction, "output_text", None) or interaction.outputs or ""
+            )
             return str(resp_text), interaction.id
         except Exception as err:
             err_str = str(err).lower()
-            if ("503" in err_str or "429" in err_str or "rate" in err_str or "quota" in err_str) and attempt < max_retries - 1:
+            if (
+                "503" in err_str
+                or "429" in err_str
+                or "rate" in err_str
+                or "quota" in err_str
+            ) and attempt < max_retries - 1:
                 wait_time = 5 * (attempt + 1)
-                print(f"   Managed Agent API rate limit retry attempt {attempt+2}/{max_retries} (waiting {wait_time}s)...")
+                print(
+                    "   Managed Agent API rate limit retry attempt"
+                    f" {attempt+2}/{max_retries} (waiting {wait_time}s)..."
+                )
                 time.sleep(wait_time)
                 continue
             raise err
@@ -219,6 +262,7 @@ def query_managed_agent(
 
 # Global server session state
 import threading
+
 ACTIVE_MANAGED_AGENT_SESSION_ID: Optional[str] = None
 BOOTSTRAP_LOCK = threading.Lock()
 
@@ -228,10 +272,23 @@ def main():
 
     parser = argparse.ArgumentParser(description="E-Commerce Managed Agent Server")
     parser.add_argument("--api-key", help="Gemini API Key")
-    parser.add_argument("--prompt", default="Show me available headphones and mechanical keyboards with prices and stock.", help="User prompt")
+    parser.add_argument(
+        "--prompt",
+        default=(
+            "Show me available headphones and mechanical keyboards with prices and"
+            " stock."
+        ),
+        help="User prompt",
+    )
     parser.add_argument("--port", type=int, default=8080, help="HTTP server port")
-    parser.add_argument("--dry-run", action="store_true", help="Generate modular skills without calling API")
-    parser.add_argument("--serve", action="store_true", help="Launch backend web server")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Generate modular skills without calling API",
+    )
+    parser.add_argument(
+        "--serve", action="store_true", help="Launch backend web server"
+    )
     args = parser.parse_args()
 
     skills_dict, skills_text, basic_cat, commerce_cat = generate_modular_skills()
@@ -241,9 +298,16 @@ def main():
         print(skills_text[:600] + "\n...")
         return
 
-    api_key = args.api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    api_key = (
+        args.api_key
+        or os.environ.get("GEMINI_API_KEY")
+        or os.environ.get("GOOGLE_API_KEY")
+    )
     if not api_key:
-        print("\nError: GEMINI_API_KEY environment variable or --api-key argument is required.")
+        print(
+            "\nError: GEMINI_API_KEY environment variable or --api-key argument is"
+            " required."
+        )
         sys.exit(1)
 
     client = genai.Client(api_key=api_key)
@@ -253,7 +317,11 @@ def main():
     merged_schema.setdefault("components", {}).update(commerce_comps)
 
     # Ensure all custom components are registered in $defs.anyComponent.oneOf
-    one_of = merged_schema.setdefault("$defs", {}).setdefault("anyComponent", {}).setdefault("oneOf", [])
+    one_of = (
+        merged_schema.setdefault("$defs", {})
+        .setdefault("anyComponent", {})
+        .setdefault("oneOf", [])
+    )
     existing_refs = {item.get("$ref") for item in one_of if isinstance(item, dict)}
     for comp_name in commerce_comps.keys():
         ref = f"#/components/{comp_name}"
@@ -267,7 +335,9 @@ def main():
         s2c_schema=basic_cat.s2c_schema,
         common_types_schema=basic_cat.common_types_schema,
     )
-    express_fmt = ExpressFormat(catalog=combined_cat, version="v0.9.1", emit_create_surface=False)
+    express_fmt = ExpressFormat(
+        catalog=combined_cat, version="v0.9.1", emit_create_surface=False
+    )
     parser_inst = express_fmt.parser
 
     env_config = build_managed_agent_environment(skills_dict)
@@ -287,7 +357,9 @@ def main():
             print(f"\n3. Parsing result: {e}")
 
     if args.serve:
+
         class CommerceHandler(http.server.SimpleHTTPRequestHandler):
+
             def do_GET(self):
                 global ACTIVE_MANAGED_AGENT_SESSION_ID
 
@@ -296,9 +368,15 @@ def main():
                         with BOOTSTRAP_LOCK:
                             if ACTIVE_MANAGED_AGENT_SESSION_ID:
                                 session_id = ACTIVE_MANAGED_AGENT_SESSION_ID
-                                print(f"   Reusing existing Managed Agent session ID: {session_id}")
+                                print(
+                                    "   Reusing existing Managed Agent session ID:"
+                                    f" {session_id}"
+                                )
                             else:
-                                print("1. Bootstrapping Managed Agent antigravity-preview-05-2026...")
+                                print(
+                                    "1. Bootstrapping Managed Agent"
+                                    " antigravity-preview-05-2026..."
+                                )
                                 raw_init, session_id = query_managed_agent(
                                     client,
                                     "Initialize A2UI Commerce session.",
@@ -306,7 +384,10 @@ def main():
                                     system_instruction=skills_text,
                                 )
                                 ACTIVE_MANAGED_AGENT_SESSION_ID = session_id
-                                print(f"   Managed Agent bootstrapped with session ID: {session_id}")
+                                print(
+                                    "   Managed Agent bootstrapped with session ID:"
+                                    f" {session_id}"
+                                )
 
                         bootstrap_data = {
                             "status": "ready",
@@ -317,25 +398,39 @@ def main():
                                     "id": "catalogs",
                                     "name": "Catalog Loader",
                                     "status": "completed",
-                                    "detail": "Loaded basic & commerce catalog JSON definitions",
+                                    "detail": (
+                                        "Loaded basic & commerce catalog JSON"
+                                        " definitions"
+                                    ),
                                 },
                                 {
                                     "id": "skills",
                                     "name": "SkillGenerator",
                                     "status": "completed",
-                                    "detail": "Compiled 3 modular skill packages into .agents/skills/",
+                                    "detail": (
+                                        "Compiled 3 modular skill packages into"
+                                        " .agents/skills/"
+                                    ),
                                 },
                                 {
                                     "id": "agent",
-                                    "name": "Managed Agent (antigravity-preview-05-2026)",
+                                    "name": (
+                                        "Managed Agent (antigravity-preview-05-2026)"
+                                    ),
                                     "status": "completed",
-                                    "detail": f"Bootstrapped remote environment interaction ({session_id[:16]}...)",
+                                    "detail": (
+                                        "Bootstrapped remote environment interaction"
+                                        f" ({session_id[:16]}...)"
+                                    ),
                                 },
                                 {
                                     "id": "tools",
                                     "name": "Tool Registry",
                                     "status": "completed",
-                                    "detail": "Registered search_products and check_inventory tools",
+                                    "detail": (
+                                        "Registered search_products and check_inventory"
+                                        " tools"
+                                    ),
                                 },
                             ],
                         }
@@ -361,9 +456,12 @@ def main():
                                     rel_p = os.path.relpath(full_p, OUTPUT_SKILLS_DIR)
                                     dir_name = rel_p.split("/")[0]
                                     clean_name = (
-                                        "a2ui-basic" if "basic" in rel_p
-                                        else "a2ui-commerce" if "commerce" in rel_p
-                                        else "a2ui-core" if "core" in rel_p
+                                        "a2ui-basic"
+                                        if "basic" in rel_p
+                                        else "a2ui-commerce"
+                                        if "commerce" in rel_p
+                                        else "a2ui-core"
+                                        if "core" in rel_p
                                         else dir_name
                                     )
                                     with open(full_p, "r", encoding="utf-8") as sf:
@@ -396,7 +494,9 @@ def main():
                     length = int(self.headers.get("Content-Length", 0))
                     body = json.loads(self.rfile.read(length))
                     user_prompt = body.get("prompt", "")
-                    client_session_id = body.get("session_id") or ACTIVE_MANAGED_AGENT_SESSION_ID
+                    client_session_id = (
+                        body.get("session_id") or ACTIVE_MANAGED_AGENT_SESSION_ID
+                    )
 
                     try:
                         raw_resp, new_session_id = query_managed_agent(
@@ -413,9 +513,23 @@ def main():
                             "a2ui_messages": validated,
                             "session_id": new_session_id,
                             "loaded_skills": [
-                                {"id": "a2ui-core", "name": "a2ui-core", "description": "Express DSL Grammar & Syntax Rules"},
-                                {"id": "a2ui-basic", "name": "a2ui-basic", "description": "Standard Basic Component Catalog"},
-                                {"id": "a2ui-commerce", "name": "a2ui-commerce", "description": "Commerce Catalog (ProductCard, ProductGrid)"},
+                                {
+                                    "id": "a2ui-core",
+                                    "name": "a2ui-core",
+                                    "description": "Express DSL Grammar & Syntax Rules",
+                                },
+                                {
+                                    "id": "a2ui-basic",
+                                    "name": "a2ui-basic",
+                                    "description": "Standard Basic Component Catalog",
+                                },
+                                {
+                                    "id": "a2ui-commerce",
+                                    "name": "a2ui-commerce",
+                                    "description": (
+                                        "Commerce Catalog (ProductCard, ProductGrid)"
+                                    ),
+                                },
                             ],
                         }
                     except Exception as err:

@@ -64,7 +64,10 @@ class TestCommerceE2E(unittest.TestCase):
         combined_skills = "\n\n".join(skills.values())
 
         # 2. Query Gemini API
-        prompt = "Show me Aura noise canceling headphones and ErgoPro mechanical keyboard with prices and stock status."
+        prompt = (
+            "Show me Aura noise canceling headphones and ErgoPro mechanical keyboard"
+            " with prices and stock status."
+        )
         config = types.GenerateContentConfig(
             system_instruction=combined_skills,
             temperature=0.2,
@@ -98,7 +101,10 @@ class TestCommerceE2E(unittest.TestCase):
             for c in surface_data["components"]
         ]
         self.assertTrue(
-            any(t in comp_types for t in ["ProductCard", "ProductGrid", "Card", "Column"])
+            any(
+                t in comp_types
+                for t in ["ProductCard", "ProductGrid", "Card", "Column"]
+            )
         )
 
 

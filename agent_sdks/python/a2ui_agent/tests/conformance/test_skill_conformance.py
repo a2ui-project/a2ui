@@ -42,7 +42,9 @@ class TestSkillConformance(unittest.TestCase):
 
     def test_prompt_generator_base_rules_conformance(self):
         """Asserts prompt_generator.generate_base_rules() matches golden file exactly."""
-        cat_path = os.path.join(REPO_ROOT, "specification", "v1_0", "catalogs", "basic", "catalog.json")
+        cat_path = os.path.join(
+            REPO_ROOT, "specification", "v1_0", "catalogs", "basic", "catalog.json"
+        )
         cat_config = CatalogConfig.from_path("basic", cat_path)
         catalog = A2uiCatalog.from_config(cat_config)
         express_fmt = ExpressFormat(catalog=catalog)
@@ -57,7 +59,9 @@ class TestSkillConformance(unittest.TestCase):
 
     def test_prompt_generator_catalog_instructions_conformance(self):
         """Asserts prompt_generator.generate_catalog_instructions() matches golden file exactly."""
-        cat_path = os.path.join(REPO_ROOT, "specification", "v1_0", "catalogs", "basic", "catalog.json")
+        cat_path = os.path.join(
+            REPO_ROOT, "specification", "v1_0", "catalogs", "basic", "catalog.json"
+        )
         cat_config = CatalogConfig.from_path("basic", cat_path)
         catalog = A2uiCatalog.from_config(cat_config)
         express_fmt = ExpressFormat(catalog=catalog)
@@ -72,7 +76,10 @@ class TestSkillConformance(unittest.TestCase):
 
     def test_skill_yaml_conformance_cases(self):
         """Parses conformance/agent/skill.yaml and executes declared test cases."""
-        self.assertTrue(os.path.exists(SPEC_YAML_PATH), f"Missing conformance spec: {SPEC_YAML_PATH}")
+        self.assertTrue(
+            os.path.exists(SPEC_YAML_PATH),
+            f"Missing conformance spec: {SPEC_YAML_PATH}",
+        )
 
         with open(SPEC_YAML_PATH, "r", encoding="utf-8") as f:
             test_cases = yaml.safe_load(f)

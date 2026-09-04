@@ -66,7 +66,9 @@ def generate_agent_skills() -> str:
         return f.read()
 
 
-def query_managed_agent(client: genai.Client, system_instruction: str, prompt: str) -> str:
+def query_managed_agent(
+    client: genai.Client, system_instruction: str, prompt: str
+) -> str:
     """Queries Google Gemini Managed Agent API with skill system instructions."""
     print(f"2. Sending request to Gemini Managed Agent API: '{prompt}'...")
 
@@ -86,11 +88,23 @@ def query_managed_agent(client: genai.Client, system_instruction: str, prompt: s
 
 def main():
     parser = argparse.ArgumentParser(description="A2UI Managed Agent Skill Demo")
-    parser.add_argument("--api-key", help="Gemini API Key (or set GEMINI_API_KEY env var)")
-    parser.add_argument("--prompt", default="Show me a card with a header and a primary button to save changes.", help="User prompt to send to agent")
+    parser.add_argument(
+        "--api-key", help="Gemini API Key (or set GEMINI_API_KEY env var)"
+    )
+    parser.add_argument(
+        "--prompt",
+        default="Show me a card with a header and a primary button to save changes.",
+        help="User prompt to send to agent",
+    )
     parser.add_argument("--port", type=int, default=8080, help="HTTP server port")
-    parser.add_argument("--dry-run", action="store_true", help="Run skill generation and display prompt without calling API")
-    parser.add_argument("--serve", action="store_true", help="Start web server on specified port")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run skill generation and display prompt without calling API",
+    )
+    parser.add_argument(
+        "--serve", action="store_true", help="Start web server on specified port"
+    )
     args = parser.parse_args()
 
     # Step 1: Generate skills
@@ -103,9 +117,16 @@ def main():
         return
 
     # Step 2: Validate API key
-    api_key = args.api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    api_key = (
+        args.api_key
+        or os.environ.get("GEMINI_API_KEY")
+        or os.environ.get("GOOGLE_API_KEY")
+    )
     if not api_key:
-        print("\nError: GEMINI_API_KEY environment variable or --api-key argument is required.")
+        print(
+            "\nError: GEMINI_API_KEY environment variable or --api-key argument is"
+            " required."
+        )
         print("Usage: GEMINI_API_KEY='your_key' python server.py")
         sys.exit(1)
 
@@ -127,13 +148,17 @@ def main():
     print("\n3. Validating A2UI Express response payload server-side...")
     try:
         json_payloads = parser_inst.compile(agent_output)
-        print(f"   Success! Parsed {len(json_payloads)} valid A2UI message envelope(s):")
+        print(
+            f"   Success! Parsed {len(json_payloads)} valid A2UI message envelope(s):"
+        )
         print(json.dumps(json_payloads, indent=2))
     except Exception as e:
         print(f"   Note: Raw output returned. Parser message: {e}")
 
     if args.serve:
+
         class DemoHandler(http.server.SimpleHTTPRequestHandler):
+
             def do_GET(self):
                 if self.path in ["/", "/index.html"]:
                     self.send_response(200)
@@ -153,9 +178,17 @@ def main():
                     raw_resp = query_managed_agent(client, skill_content, user_prompt)
                     try:
                         validated = parser_inst.compile(raw_resp)
-                        res_data = {"status": "success", "raw": raw_resp, "a2ui_messages": validated}
+                        res_data = {
+                            "status": "success",
+                            "raw": raw_resp,
+                            "a2ui_messages": validated,
+                        }
                     except Exception as err:
-                        res_data = {"status": "partial", "raw": raw_resp, "error": str(err)}
+                        res_data = {
+                            "status": "partial",
+                            "raw": raw_resp,
+                            "error": str(err),
+                        }
 
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json")

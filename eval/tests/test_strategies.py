@@ -411,4 +411,3 @@ async def test_skill_interactive_system_prompt_solver(tmp_path: Path) -> None:
     assert result.messages[0].role == "system"
     assert "Available Skills" in result.messages[0].content
     assert "load_skill" in result.messages[0].content
-
