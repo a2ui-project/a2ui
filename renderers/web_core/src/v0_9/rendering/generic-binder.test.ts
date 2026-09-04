@@ -22,7 +22,7 @@ import {ComponentContext} from './component-context.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {Catalog} from '../catalog/types.js';
 import {ComponentModel} from '../state/component-model.js';
-import {CommonSchemas} from '../schema/common-types.js';
+import {CommonSchemas, DynamicStringSchema} from '../schema/common-types.js';
 
 describe('GenericBinder Checkable Trait', () => {
   const mockCatalog = new Catalog('test', [], []);
@@ -362,6 +362,26 @@ describe('GenericBinder Checkable Trait', () => {
       assert.strictEqual(nestedBehavior.type, 'OBJECT');
       assert.strictEqual((nestedBehavior as any).shape.value.type, 'OBJECT');
       assert.strictEqual((nestedBehavior as any).shape.text.type, 'ARRAY');
+    });
+  });
+
+  describe('scrapeSchemaBehavior nested dynamic unions', () => {
+    it('should classify a union containing a Dynamic* schema as DYNAMIC', () => {
+      // The basic catalog's DateTimeInput declares min/max exactly like this: the
+      // outer describe() replaces the REF: marker and DynamicStringSchema is a
+      // nested union, so neither detection path may rely on one level only.
+      const schema = z.object({
+        min: z
+          .union([DynamicStringSchema, z.string().date(), z.string().time(), z.string().datetime()])
+          .describe('The minimum allowed date/time in ISO 8601 format.')
+          .optional(),
+        deep: z.union([z.union([z.string(), z.object({path: z.string()})]), z.number()]),
+      });
+
+      const behavior = scrapeSchemaBehavior(schema);
+      assert.strictEqual(behavior.type, 'OBJECT');
+      assert.deepStrictEqual((behavior as any).shape.min, {type: 'DYNAMIC'});
+      assert.deepStrictEqual((behavior as any).shape.deep, {type: 'DYNAMIC'});
     });
   });
 
