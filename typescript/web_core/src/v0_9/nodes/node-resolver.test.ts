@@ -16,7 +16,7 @@
 
 /**
  * Conformance suite for the node layer, ported from the Python reference
- * (`agent_sdks/python/a2ui_core/tests/test_node_graph.py`) plus tests for the
+ * (`python/a2ui_core/tests/test_node_graph.py`) plus tests for the
  * defects the reference is known to have: eager action resolution, shared-node
  * use-after-dispose, and whole-list template respawn.
  */
