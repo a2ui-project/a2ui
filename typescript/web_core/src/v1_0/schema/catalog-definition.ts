@@ -20,35 +20,17 @@ import {z} from 'zod';
 import {ExtensionsSchema} from './common-types.js';
 
 export const FunctionCallValidationSchemaSchema = z
-  .record(z.string(), z.any())
-  .and(
-    z.union([
-      z.object({
-        'type': z.literal('object'),
-        'description': z.string().optional(),
-        'properties': z
-          .object({
-            'call': z.object({'const': z.string()}),
-            'catalogId': z
-              .record(z.string(), z.any())
-              .describe('Optional catalog ID override for this function call.')
-              .optional(),
-            'args': z.record(z.string(), z.any()).optional(),
-          })
-          .strict(),
-        'required': z.array(z.string()),
-        'unevaluatedProperties': z.boolean().optional(),
-        'additionalProperties': z.boolean().optional(),
-      }),
-      z.object({
-        'type': z.literal('object'),
-        'description': z.string().optional(),
-        'allOf': z.array(z.record(z.string(), z.any())).min(1),
-        'unevaluatedProperties': z.boolean().optional(),
-        'additionalProperties': z.boolean().optional(),
-      }),
-    ]),
-  )
+  .object({
+    'type': z.literal('object'),
+    'description': z.string().optional(),
+    'properties': z
+      .object({
+        'call': z.object({'const': z.string()}),
+        'args': z.record(z.string(), z.any()).optional(),
+      })
+      .strict(),
+    'required': z.array(z.string()),
+  })
   .describe('JSON Schema structure that validates a wire-level FunctionCall object.');
 export type FunctionCallValidationSchema = z.infer<typeof FunctionCallValidationSchemaSchema>;
 

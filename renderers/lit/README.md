@@ -104,19 +104,17 @@ export const MyProfileApi = {
 Extend `A2uiLitElement` and implement `createController` and `render`.
 
 ```typescript
-import {A2uiLitElement, A2uiController} from '@a2ui/lit/v0_9';
+import {A2uiLitElement} from '@a2ui/lit/v0_9';
 import {customElement} from 'lit/decorators.js';
 import {html, nothing} from 'lit';
 import {MyProfileApi} from './my-profile-api';
 
 @customElement('my-profile')
 export class MyProfileElement extends A2uiLitElement<typeof MyProfileApi> {
-  protected createController() {
-    return new A2uiController(this, MyProfileApi);
-  }
+  protected readonly api = MyProfileApi;
 
   render() {
-    const props = this.controller.props;
+    const props = this.controller?.props;
     if (!props) return nothing;
 
     return html`
@@ -170,7 +168,7 @@ You can find the full specification of the basic catalog in the [GitHub reposito
 - **Content**: `Text`, `Image`, `Icon`, `Video`
 - **Input**: `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`, `DateTimeInput`
 
-You can find the source code for these components in the [GitHub repository](src/v0_9/catalogs/basic/components).
+You can find the source code for these components in the [GitHub repository](../web_core/src/v0_9/basic_catalog/components).
 
 ## Migration from v0.8
 

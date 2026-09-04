@@ -23,6 +23,7 @@
             "catalog_schema",
             "convert_event",
             "create_a2ui_part",
+            "data_model",
             "execute_tool",
             "fix_payload",
             "from_json",
@@ -160,6 +161,16 @@
         "expectFile": {
           "type": "string",
           "description": "File path to JSON file containing expected outcome object."
+        },
+        "initial": {
+          "description": "Initial contents of the data model. Defaults to an empty object."
+        },
+        "watch": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Paths observed for the duration of the case. A path may repeat to attach more than one observer."
         }
       },
       "additionalProperties": false
@@ -268,14 +279,49 @@
           "type": "object",
           "description": "Arguments for this step."
         },
+        "op": {
+          "type": "string",
+          "enum": ["get", "set", "delete", "dispose"],
+          "description": "The operation to apply."
+        },
+        "path": {
+          "type": "string",
+          "description": "JSON Pointer the operation targets."
+        },
+        "value": {
+          "description": "Value to write. Only meaningful for set."
+        },
         "expect": {
           "description": "Expected output for this step (evaluated as a contains / subset match rather than an exact match)."
         },
         "expectError": {
           "$ref": "#/$defs/ExpectError"
         },
+        "expect_error": {
+          "$ref": "#/$defs/ExpectError"
+        },
         "expectContains": {
           "description": "Expected substrings or sub-objects for this step."
+        },
+        "expect_absent": {
+          "type": "boolean",
+          "description": "Whether the path is expected to hold no value. Only meaningful for get."
+        },
+        "expect_type": {
+          "type": "string",
+          "enum": ["list", "object"],
+          "description": "Structural type the path is expected to hold. Only meaningful for get."
+        },
+        "expect_values": {
+          "type": "object",
+          "description": "Value each watched path holds after this step, keyed by path."
+        },
+        "expect_notified": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Watched paths whose observers fired for this step, one entry per observer that fired."
         }
       },
       "additionalProperties": false
@@ -307,7 +353,16 @@
           "type": "object",
           "properties": {
             "category": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "ParseError",
+                "ValidationError",
+                "CatalogError",
+                "IntegrityError",
+                "RecursionError",
+                "CompileError",
+                "DataError"
+              ]
             },
             "code": {
               "type": "string"

@@ -65,13 +65,11 @@ export const FunctionCallSchema = z
       .enum(['string', 'number', 'boolean', 'array', 'object', 'any', 'void'])
       .describe('The expected return type of the function call.')
       .optional(),
-    'catalogId': z
-      .string()
-      .describe('The catalog ID for this function, overriding any surface-level default catalogId.')
-      .optional(),
   })
-  .describe('REF:common_types.json#/$defs/FunctionCall|Invokes a named function.');
-/** REF:common_types.json#/$defs/FunctionCall|Invokes a named function. */
+  .describe(
+    'REF:common_types.json#/$defs/FunctionCall|Invokes a named function, combining common function properties with the catalog function definition.',
+  );
+/** REF:common_types.json#/$defs/FunctionCall|Invokes a named function, combining common function properties with the catalog function definition. */
 export type FunctionCall = z.infer<typeof FunctionCallSchema>;
 
 export type FunctionCallType = FunctionCall;
@@ -297,13 +295,16 @@ export type Child = z.infer<typeof ChildSchema>;
 
 export const FunctionCommonSchema = z
   .object({
+    'call': z.string().describe('The name of the function to call.'),
     'catalogId': z
       .string()
       .describe('The catalog ID for this function, overriding any surface-level default catalogId.')
       .optional(),
   })
-  .describe('REF:common_types.json#/$defs/FunctionCommon');
-/** REF:common_types.json#/$defs/FunctionCommon */
+  .describe(
+    "REF:common_types.json#/$defs/FunctionCommon|Baseline envelope properties common to all function calls. Function-specific argument schemas (\\'args\\') are defined individually by each function in the active catalog.",
+  );
+/** REF:common_types.json#/$defs/FunctionCommon|Baseline envelope properties common to all function calls. Function-specific argument schemas (\'args\') are defined individually by each function in the active catalog. */
 export type FunctionCommon = z.infer<typeof FunctionCommonSchema>;
 
 export const IndexSystemFunctionSchema = z

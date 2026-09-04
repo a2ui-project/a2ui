@@ -15,12 +15,11 @@
 import A2UICore
 import A2UISwiftUI
 import BasicCatalog
+import BasicCatalogSwiftUI
 import Foundation
 import OrderedJSON
 import SwiftUI
 import Testing
-
-@testable import BasicCatalogSwiftUI
 
 @MainActor
 struct A2UIIconTests {
