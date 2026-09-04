@@ -18,8 +18,7 @@
 // waiting-for-author-response' labels across all open issues and PRs.
 //
 // For detailed rules and documentation on how the triage automation works, see:
-// docs/contributing/triage.md in the section "How the automated triage bot
-// works".
+// https://github.com/a2ui-project/a2ui/blob/main/docs/contributing/triage.md#how-the-automated-triage-bot-works
 //
 // Implementation notes:
 // - Items are selected by query, but the query alone is not trusted: GitHub's
