@@ -50,6 +50,41 @@ def extract_accuracy(log_data: dict[str, Any]) -> float:
     return float(accuracy)
 
 
+def extract_strategy(log_data: dict[str, Any]) -> tuple[str, str]:
+    """Extracts evaluation strategy name and human-readable inference format from log data.
+
+    Args:
+        log_data: Dictionary containing parsed evaluation log data.
+
+    Returns:
+        A tuple of (strategy_name, format_description).
+    """
+    eval_spec = log_data.get("eval", {}) or {}
+    task_args = eval_spec.get("task_args", {}) or {}
+    strategy = task_args.get("strategy")
+    if not strategy:
+        samples = log_data.get("samples", []) or []
+        for sample in samples:
+            meta = sample.get("metadata", {}) or {}
+            if "strategy" in meta:
+                strategy = meta["strategy"]
+                break
+            if "format_name" in meta:
+                strategy = meta["format_name"]
+                break
+
+    strategy = strategy or "direct"
+    format_map = {
+        "direct": "Direct JSON (direct_json)",
+        "subagent_tool": "Direct JSON (direct_json via tool call)",
+        "express": "Express (express)",
+        "elemental": "Elemental (elemental)",
+        "atom": "Atom (atom)",
+    }
+    format_desc = format_map.get(strategy, f"{strategy}")
+    return strategy, format_desc
+
+
 def print_results_summary(log_data: dict[str, Any]) -> None:
     """Prints a summary of the evaluation results for each sample grouped by dataset.
 
@@ -57,7 +92,9 @@ def print_results_summary(log_data: dict[str, Any]) -> None:
         log_data: Dictionary containing parsed evaluation log data.
     """
     samples = log_data.get("samples", [])
+    strategy, format_desc = extract_strategy(log_data)
     print("\n=== Evaluation Results Summary ===")
+    print(f"Strategy: {strategy} | Inference Format: {format_desc}")
 
     # Group by dataset
     datasets: dict[str, list[dict[str, Any]]] = {}
@@ -158,12 +195,14 @@ def generate_markdown_summary(
     eval_spec = log_data.get("eval", {}) or {}
     task_name = eval_spec.get("task", "Unknown Task")
     model_name = eval_spec.get("model", "Unknown Model")
+    strategy, format_desc = extract_strategy(log_data)
 
     status_str = "PASS" if accuracy_percentage >= threshold else "FAIL"
 
     lines = []
     lines.append(f"### Evaluation Summary: {task_name}")
     lines.append(f"- **Status**: {status_str}")
+    lines.append(f"- **Inference Format / Strategy**: `{strategy}` ({format_desc})")
     lines.append(f"- **Model**: `{model_name}`")
     lines.append(
         f"- **Pass Percentage**: `{accuracy_percentage:.2f}%` (Threshold:"

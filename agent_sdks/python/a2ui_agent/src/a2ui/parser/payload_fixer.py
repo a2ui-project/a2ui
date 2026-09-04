@@ -34,7 +34,7 @@ def parse_and_fix(payload: str) -> List[Dict[str, Any]]:
     normalized_payload = _normalize_smart_quotes(payload)
     try:
         a2ui_json = _parse(normalized_payload)
-        return a2ui_json
+        return _fix_message_versions(a2ui_json)
     except (
         json.JSONDecodeError,
         ValueError,
@@ -43,7 +43,24 @@ def parse_and_fix(payload: str) -> List[Dict[str, Any]]:
         logger.warning(f"Initial A2UI payload validation failed: {e}")
         updated_payload = _remove_trailing_commas(normalized_payload)
         a2ui_json = _parse(updated_payload)
-        return a2ui_json
+        return _fix_message_versions(a2ui_json)
+
+
+def _fix_message_versions(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Normalizes version strings in A2UI messages (e.g. '0.9' -> 'v0.9', '0.9.1' -> 'v0.9.1', '1.0' -> 'v1.0')."""
+    if not isinstance(messages, list):
+        return messages
+
+    for msg in messages:
+        if isinstance(msg, dict) and "version" in msg:
+            ver = msg["version"]
+            if isinstance(ver, str) and ver and ver[0].isdigit():
+                fixed_ver = f"v{ver}"
+                logger.info(
+                    f"Fixed un-prefixed version string '{ver}' to '{fixed_ver}'"
+                )
+                msg["version"] = fixed_ver
+    return messages
 
 
 def _parse(payload: str) -> List[Dict[str, Any]]:

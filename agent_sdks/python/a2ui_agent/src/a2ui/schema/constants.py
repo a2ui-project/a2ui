@@ -101,6 +101,7 @@ The generated response MUST follow these rules:
 - Each A2UI JSON block MUST be wrapped in `{A2UI_OPEN_TAG}` and `{A2UI_CLOSE_TAG}` tags.
 - Between or around these blocks, you can provide conversational text.
 - The JSON part MUST be a single, raw JSON object (usually a list of A2UI messages) and MUST validate against the provided A2UI JSON SCHEMA.
+- Message Version Format: The `version` property in each message MUST include the leading 'v' prefix matching the schema (e.g., "v0.9", "v0.9.1", or "v1.0"). Do NOT omit the 'v' prefix.
 - Top-Down Component Ordering: Within the `components` list of a message:
     - The 'root' component MUST be the FIRST element.
     - Parent components MUST appear before their child components.

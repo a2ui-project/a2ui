@@ -100,6 +100,9 @@ def a2ui_v0_9_1_eval(
         version=active_version,
         format_name=format_name,
     )
+    for sample in dataset_obj.samples:
+        if sample.metadata is not None:
+            sample.metadata["strategy"] = strategy
 
     return Task(
         dataset=dataset_obj,
@@ -159,6 +162,9 @@ def a2ui_v1_0_eval(
         version=active_version,
         format_name=format_name,
     )
+    for sample in dataset_obj.samples:
+        if sample.metadata is not None:
+            sample.metadata["strategy"] = strategy
 
     return Task(
         dataset=dataset_obj,
