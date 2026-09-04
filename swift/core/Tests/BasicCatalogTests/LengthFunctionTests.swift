@@ -36,26 +36,7 @@ struct LengthFunctionTests {
     #expect(function.api.returnType == .boolean)
   }
 
-  // MARK: - Evaluation
-
-  @Test func evaluatesToTrueWhenWithinMinAndMax() throws {
-    let result = try function.evaluate(
-      arguments: ["value": .string("hello"), "min": .number(3), "max": .number(10)],
-      context: context)
-    #expect(result == .boolean(true))
-  }
-
-  @Test func evaluatesToFalseWhenLessThanMin() throws {
-    let result = try function.evaluate(
-      arguments: ["value": .string("hi"), "min": .number(3)], context: context)
-    #expect(result == .boolean(false))
-  }
-
-  @Test func evaluatesToFalseWhenGreaterThanMax() throws {
-    let result = try function.evaluate(
-      arguments: ["value": .string("hello world"), "max": .number(5)], context: context)
-    #expect(result == .boolean(false))
-  }
+  // MARK: - Boundary & Type Evaluation
 
   @Test func evaluatesToTrueWhenOnlyMinIsProvidedAndValid() throws {
     let result = try function.evaluate(

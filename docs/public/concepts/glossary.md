@@ -59,7 +59,7 @@ It is observed that depending on use case, catalog components may be more or les
 
 A catalog maintained by the A2UI team to get up and running quickly with A2UI.
 
-See the [basic catalog](../specification/v1_0/catalogs/basic/catalog.json).
+See the [basic catalog](../../../specification/v0_9_1/catalogs/basic/catalog.json).
 
 ### Catalog Transformer
 
@@ -78,6 +78,16 @@ While a catalog provides a complete specification of all UI components and funct
 - `ComponentPruningTransformer`: a utility class that filters the catalog based on a list of allowed component names.
 
 - `FunctionPruningTransformer`: a utility class that filters the catalog based on a list of allowed function names.
+
+### Capabilities Object
+
+Set of catalogs that are available for use. Through this set, agent or renderer advertises what it supports, so the other side knows what it may send.
+
+For example, if a renderer supports Basic, Hotels and Flights catalogs, it will advertise them in its capabilities object.
+
+A capabilities object is exchanged through transport metadata or an initialization payload, not as an [A2UI message](#a2ui-message). The exact placement is transport-specific.
+
+The objects are named differently in earlier versions of the protocol: v0.9 and v0.9.1 call them client and server capabilities, and v0.8 defines only a client-side schema.
 
 ### Surface
 
@@ -142,7 +152,7 @@ Functionality of A2UI renderer consists of layers that can be developed separate
 
     Definition of catalog in the form of JSON.
 
-    For example, see the [basic catalog schema](../specification/v1_0/catalogs/basic/catalog.json).
+    For example, see the [basic catalog schema](../../../specification/v0_9_1/catalogs/basic/catalog.json).
 
 - **Framework adapter**:<a id="fw-adapter"></a>
 
@@ -193,7 +203,7 @@ See the [data binding guide](data-binding.md).
 
 In component definition, a reference to a data element, resolvable either by path in the data model or by value.
 
-See the [example in the basic catalog](../specification/v1_0/catalogs/basic/catalog.json#L18).
+See the [example in the basic catalog](../../../specification/v0_9/catalogs/basic/catalog.json#L23).
 
 ### Client function
 
@@ -209,7 +219,7 @@ Do not confuse with LLM tool:
 | Definition   | Registered in client side function registry and advertised in catalog | Defined in ToolDefinition (passed to LLM)                                             |
 | State Access | Access to DataContext and Input values.                               | No access to trigger requests to AI. Access to external APIs, databases, and services |
 
-See the [example in common types](../specification/v0_9/json/common_types.json#L200).
+See the [example in common types](../../../specification/v0_9_1/json/common_types.json#L200).
 
 ### Action
 

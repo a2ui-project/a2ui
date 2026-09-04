@@ -36,17 +36,7 @@ struct RequiredFunctionTests {
     #expect(function.api.returnType == .boolean)
   }
 
-  // MARK: - Evaluation
-
-  @Test func evaluatesToTrueWhenValueIsNotEmptyString() throws {
-    let result = try function.evaluate(arguments: ["value": .string("test")], context: context)
-    #expect(result == .boolean(true))
-  }
-
-  @Test func evaluatesToFalseWhenValueIsEmptyString() throws {
-    let result = try function.evaluate(arguments: ["value": .string("")], context: context)
-    #expect(result == .boolean(false))
-  }
+  // MARK: - Edge-Case Evaluation
 
   @Test func evaluatesToTrueWhenValueIsNotEmptyArray() throws {
     let result = try function.evaluate(

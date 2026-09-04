@@ -23,6 +23,7 @@ members = [
     "a2ui-in-mcp-apps-server",
     "a2ui-mcp-apps-in-a2ui-sample",
     "a2ui-mcp-calculator-demo",
+    "a2ui-mcp-catalog",
     "a2ui-mcp-recipe-demo",
     "a2ui-restaurant-finder",
     "a2ui-scripts",
@@ -269,6 +270,37 @@ requires-dist = [
     { name = "anyio", specifier = ">=4.5" },
     { name = "click", specifier = ">=8.2.0" },
     { name = "httpx", specifier = ">=0.27" },
+    { name = "mcp" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pyright", specifier = ">=1.1.378" },
+    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "ruff", specifier = ">=0.6.9" },
+]
+
+[[package]]
+name = "a2ui-mcp-catalog"
+version = "0.1.0"
+source = { editable = "catalogs/mcp" }
+dependencies = [
+    { name = "a2ui-agent-sdk" },
+    { name = "anyio" },
+    { name = "mcp" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pyright" },
+    { name = "pytest" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "a2ui-agent-sdk", editable = "agent_sdks/python/a2ui_agent" },
+    { name = "anyio", specifier = ">=4.5" },
     { name = "mcp" },
 ]
 
