@@ -138,8 +138,11 @@ class GenericBinder:
             if not raw.get("valid") and not raw.get("message") and fallback_msg:
                 raw["message"] = fallback_msg
 
-            vr = ValidationResult.model_validate(raw)
-            return vr.model_dump(exclude_none=True)
+            try:
+                vr = ValidationResult.model_validate(raw)
+                return vr.model_dump(exclude_none=True)
+            except Exception:
+                return {"valid": False, "message": fallback_msg or "Validation failed"}
 
         def update_validation_state() -> None:
             failed_rules = [r for r in rule_results if not r["valid"]]

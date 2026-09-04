@@ -369,3 +369,53 @@
                     arg: "val"
       expectError:
         category: "ValidationError"
+
+- name: test_v10_multiple_action_envelope_error
+  description: Tests that having multiple action keys in a single message envelope fails validation in v1.0.
+  action: validate
+  protocolVersion: "v1.0"
+  steps:
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+          deleteSurface:
+            surfaceId: "s1"
+      expectError:
+        category: "ValidationError"
+
+- name: test_v10_invalid_json_pointer_path_error
+  description: Tests that invalid JSON Pointer path syntax fails validation in v1.0.
+  action: validate
+  protocolVersion: "v1.0"
+  steps:
+    - messages:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s1"
+            path: "invalid path [0]"
+            value: "data"
+      expectError:
+        category: "ValidationError"
+
+- name: test_v10_uax31_invalid_identifier_error
+  description: Tests that component IDs violating UAX#31 identifier syntax fail validation in v1.0.
+  action: validate
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "specification/v1_0/catalogs/basic/catalog.json"
+  steps:
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s1"
+            components:
+              - id: "123invalid_id"
+                component: "Text"
+                text: "Invalid ID"
+      expectError:
+        category: "ValidationError"
