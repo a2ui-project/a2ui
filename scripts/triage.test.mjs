@@ -191,6 +191,28 @@ describe('flagReason — issues', () => {
     assert.equal(flagReason(item, [], NOW), null);
   });
 
+  // Rule 1b: an assignee means a team member has it, so the issue leaves the
+  // triage queue no matter what the rules below would otherwise say.
+  it('does not flag an assigned issue, whatever else is wrong with it', () => {
+    const item = issue({
+      assignees: [{login: 'dev'}],
+      created_at: daysAgo(9999), // no priority, ancient, external last word
+      author_association: 'NONE',
+      user: {login: 'reporter', type: 'User'},
+    });
+    assert.equal(flagReason(item, [], NOW), null);
+  });
+
+  it('flags that same issue once its assignee is removed', () => {
+    const item = issue({
+      assignees: [],
+      created_at: daysAgo(9999),
+      author_association: 'NONE',
+      user: {login: 'reporter', type: 'User'},
+    });
+    assert.match(flagReason(item, [], NOW), /no priority label/);
+  });
+
   // Drive the assignee rule off ASSIGNEE_REQUIRED_PRIORITIES rather than
   // hardcoding P0/P1, so the test tracks the config constant.
   it('flags every assignee-required priority with no assignee', () => {
@@ -205,10 +227,25 @@ describe('flagReason — issues', () => {
     assert.match(flagReason(item, [], NOW), /no assignee/);
   });
 
-  // Drive the staleness rule off STALE_DAYS so the thresholds live in one place.
-  // An assignee is attached so the assignee rule can never mask the staleness one.
+  // Drive the staleness rule off STALE_DAYS so the thresholds live in one
+  // place. Staleness is only ever asked about an unassigned issue now: rule 1b
+  // takes assigned ones off the queue before any threshold is consulted.
   for (const [priority, threshold] of Object.entries(STALE_DAYS)) {
-    const base = {labels: [priority], assignees: [{login: 'dev'}]};
+    const base = {labels: [priority]};
+
+    // For a priority that also demands an assignee, the two skip/flag rules
+    // leave staleness nothing to decide: assigned is skipped by 1b, unassigned
+    // is claimed by 2b. Pin both halves, so that if the config ever pairs a
+    // threshold with a priority that needs no assignee, the loop below starts
+    // exercising the staleness branch for real.
+    if (ASSIGNEE_REQUIRED_PRIORITIES.has(priority)) {
+      it(`decides a stale ${priority} by assignment rather than by staleness`, () => {
+        const stale = {...base, created_at: daysAgo(threshold + 1)};
+        assert.equal(flagReason(issue({...stale, assignees: [{login: 'dev'}]}), [], NOW), null);
+        assert.match(flagReason(issue(stale), [], NOW), /no assignee/);
+      });
+      continue;
+    }
 
     it(`does not flag a fresh ${priority} (within ${threshold} day(s))`, () => {
       const item = issue({...base, created_at: daysAgo(threshold)});
@@ -222,13 +259,13 @@ describe('flagReason — issues', () => {
   }
 
   // The staleness rules cover P0 and P1 only; P2 used to be flagged after 90
-  // days (rule 1e) and deliberately no longer is.
+  // days and deliberately no longer is.
   it('watches staleness for P0 and P1 only', () => {
     assert.deepEqual(Object.keys(STALE_DAYS), ['P0', 'P1']);
   });
 
   it('never flags a P2 for staleness, however old', () => {
-    const item = issue({labels: ['P2'], assignees: [{login: 'dev'}], created_at: daysAgo(9999)});
+    const item = issue({labels: ['P2'], created_at: daysAgo(9999)});
     assert.equal(flagReason(item, [], NOW), null);
   });
 });
@@ -239,8 +276,9 @@ describe('flagReason — issues', () => {
 describe('flagReason — PRIORITY_LABELS contract', () => {
   it('treats every PRIORITY_LABELS entry as a real priority (never "no priority")', () => {
     for (const priority of PRIORITY_LABELS) {
-      // Assigned and fresh, so the only rule that could fire is 1a.
-      const item = issue({labels: [priority], assignees: [{login: 'dev'}]});
+      // Fresh and internally authored, and left unassigned so rule 1b does not
+      // skip it before the priority rules are reached.
+      const item = issue({labels: [priority]});
       const reason = flagReason(item, [], NOW);
       if (reason !== null) {
         assert.doesNotMatch(reason, /no priority label/, priority);
@@ -254,15 +292,13 @@ describe('flagReason — PRIORITY_LABELS contract', () => {
     assert.match(flagReason(issue({labels: [notAPriority]}), [], NOW), /no priority label/);
   });
 
-  it('never flags a priority that has no staleness threshold (when assigned)', () => {
-    const unThresholded = PRIORITY_LABELS.filter(p => STALE_DAYS[p] === undefined);
+  it('never flags a priority that has no staleness threshold', () => {
+    const unThresholded = PRIORITY_LABELS.filter(
+      p => STALE_DAYS[p] === undefined && !ASSIGNEE_REQUIRED_PRIORITIES.has(p),
+    );
     assert.ok(unThresholded.length > 0, 'expected at least one priority without a threshold');
     for (const priority of unThresholded) {
-      const item = issue({
-        labels: [priority],
-        assignees: [{login: 'dev'}],
-        created_at: daysAgo(9999),
-      });
+      const item = issue({labels: [priority], created_at: daysAgo(9999)});
       assert.equal(flagReason(item, [], NOW), null, priority);
     }
   });
