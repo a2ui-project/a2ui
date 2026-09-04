@@ -1,0 +1,353 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: test_expand_simple_metric_card
+  description: Verifies expansion of a single macro into Card, Column, and Text primitives with deterministic ID allocation.
+  macros:
+    - name: MetricCard
+      parameters:
+        title:
+          type: string
+        value:
+          type: string
+      template:
+        component: Card
+        child:
+          component: Column
+          children:
+            - component: Text
+              text: "${title}"
+            - component: Text
+              text: "${value}"
+  input_messages:
+    - surfaceUpdate:
+        surfaceId: main
+        components:
+          - component: MetricCard
+            id: metric_rev
+            title: Revenue
+            value: "$50,000"
+  expected_messages:
+    - surfaceUpdate:
+        surfaceId: main
+        components:
+          - component: Text
+            id: metric_rev__text_1
+            text: Revenue
+          - component: Text
+            id: metric_rev__text_2
+            text: "$50,000"
+          - component: Column
+            id: metric_rev__column_1
+            children:
+              - metric_rev__text_1
+              - metric_rev__text_2
+          - component: Card
+            id: metric_rev
+            child: metric_rev__column_1
+
+- name: test_expand_macro_with_child_slot
+  description: Verifies slot parameter coercion from string ID to external component reference, preserving external slot ID.
+  macros:
+    - name: Banner
+      parameters:
+        header:
+          type: string
+        content:
+          type: component
+      template:
+        component: Column
+        children:
+          - component: Text
+            text: "${header}"
+          - "${content}"
+  input_messages:
+    - surfaceUpdate:
+        surfaceId: main
+        components:
+          - component: Banner
+            id: banner_promo
+            header: Special Offer
+            content: promo_button
+          - component: Button
+            id: promo_button
+            title: Claim Discount
+  expected_messages:
+    - surfaceUpdate:
+        surfaceId: main
+        components:
+          - component: Text
+            id: banner_promo__text_1
+            text: Special Offer
+          - component: Column
+            id: banner_promo
+            children:
+              - banner_promo__text_1
+              - promo_button
+          - component: Button
+            id: promo_button
+            title: Claim Discount
+
+- name: test_expand_macro_with_slot_list
+  description: Verifies child list parameter coercion from list of IDs to external component references.
+  macros:
+    - name: ButtonBar
+      parameters:
+        actions:
+          type: component_list
+      template:
+        component: Row
+        children: "${actions}"
+  input_messages:
+    - surfaceUpdate:
+        surfaceId: main
+        components:
+          - component: ButtonBar
+            id: bar_1
+            actions:
+              - btn_cancel
+              - btn_save
+          - component: Button
+            id: btn_cancel
+            title: Cancel
+          - component: Button
+            id: btn_save
+            title: Save
+  expected_messages:
+    - surfaceUpdate:
+        surfaceId: main
+        components:
+          - component: Row
+            id: bar_1
+            children:
+              - btn_cancel
+              - btn_save
+          - component: Button
+            id: btn_cancel
+            title: Cancel
+          - component: Button
+            id: btn_save
+            title: Save
+
+- name: test_expand_macro_with_data_binding
+  description: Verifies data binding parameter coercion and attachment to component property.
+  macros:
+    - name: LiveMetric
+      parameters:
+        label:
+          type: string
+        binding:
+          type: binding
+      template:
+        component: Row
+        children:
+          - component: Text
+            text: "${label}"
+          - component: Text
+            text: "${binding}"
+  input_messages:
+    - surfaceUpdate:
+        surfaceId: main
+        components:
+          - component: LiveMetric
+            id: metric_balance
+            label: Account Balance
+            binding:
+              path: /account/balance
+  expected_messages:
+    - surfaceUpdate:
+        surfaceId: main
+        components:
+          - component: Text
+            id: metric_balance__text_1
+            text: Account Balance
+          - component: Text
+            id: metric_balance__text_2
+            text:
+              path: /account/balance
+          - component: Row
+            id: metric_balance
+            children:
+              - metric_balance__text_1
+              - metric_balance__text_2
+
+- name: test_expand_nested_macros
+  description: Verifies recursive multi-pass expansion when a macro template emits another macro.
+  macros:
+    - name: Tag
+      parameters:
+        tag_name:
+          type: string
+      template:
+        component: Text
+        text: "${tag_name}"
+    - name: TagGroup
+      parameters:
+        first:
+          type: string
+        second:
+          type: string
+      template:
+        component: Row
+        children:
+          - component: Tag
+            tag_name: "${first}"
+          - component: Tag
+            tag_name: "${second}"
+  input_messages:
+    - surfaceUpdate:
+        surfaceId: main
+        components:
+          - component: TagGroup
+            id: group_1
+            first: urgent
+            second: bug
+  expected_messages:
+    - surfaceUpdate:
+        surfaceId: main
+        components:
+          - component: Text
+            id: group_1__tag_1
+            text: urgent
+          - component: Text
+            id: group_1__tag_2
+            text: bug
+          - component: Row
+            id: group_1
+            children:
+              - group_1__tag_1
+              - group_1__tag_2
+
+- name: test_expand_in_create_surface
+  description: Verifies macro expansion inside createSurface message envelopes.
+  macros:
+    - name: WelcomeCard
+      parameters:
+        user_name:
+          type: string
+      template:
+        component: Card
+        child:
+          component: Text
+          text: "Welcome, ${user_name}!"
+  input_messages:
+    - createSurface:
+        surfaceId: welcome_screen
+        components:
+          - component: WelcomeCard
+            id: card_welcome
+            user_name: Alice
+  expected_messages:
+    - createSurface:
+        surfaceId: welcome_screen
+        components:
+          - component: Text
+            id: card_welcome__text_1
+            text: "Welcome, Alice!"
+          - component: Card
+            id: card_welcome
+            child: card_welcome__text_1
+
+- name: test_expand_in_update_components
+  description: Verifies macro expansion inside updateComponents message envelopes.
+  macros:
+    - name: StatusChip
+      parameters:
+        status:
+          type: string
+      template:
+        component: Text
+        text: "Status: ${status}"
+  input_messages:
+    - updateComponents:
+        surfaceId: main
+        components:
+          - component: StatusChip
+            id: chip_1
+            status: online
+  expected_messages:
+    - updateComponents:
+        surfaceId: main
+        components:
+          - component: Text
+            id: chip_1
+            text: "Status: online"
+
+- name: test_preserve_non_macro_components
+  description: Verifies standard primitive components in a message envelope are untouched while macros expand.
+  macros:
+    - name: SimpleBadge
+      parameters:
+        label:
+          type: string
+      template:
+        component: Text
+        text: "${label}"
+  input_messages:
+    - surfaceUpdate:
+        surfaceId: main
+        components:
+          - component: Button
+            id: btn_primary
+            title: Submit
+          - component: SimpleBadge
+            id: badge_1
+            label: New
+          - component: Divider
+            id: div_1
+  expected_messages:
+    - surfaceUpdate:
+        surfaceId: main
+        components:
+          - component: Button
+            id: btn_primary
+            title: Submit
+          - component: Text
+            id: badge_1
+            text: New
+          - component: Divider
+            id: div_1
+
+- name: test_expand_macro_with_default_parameter
+  description: Verifies macro expansion uses parameter default value when parameter is omitted in invocation.
+  macros:
+    - name: AlertBox
+      parameters:
+        title:
+          type: string
+        level:
+          type: string
+          default: info
+      template:
+        component: Card
+        child:
+          component: Text
+          text: "${title} [${level}]"
+  input_messages:
+    - surfaceUpdate:
+        surfaceId: main
+        components:
+          - component: AlertBox
+            id: alert_notice
+            title: System Maintenance
+  expected_messages:
+    - surfaceUpdate:
+        surfaceId: main
+        components:
+          - component: Text
+            id: alert_notice__text_1
+            text: "System Maintenance [info]"
+          - component: Card
+            id: alert_notice
+            child: alert_notice__text_1
