@@ -55,7 +55,7 @@ export async function loadExample(
   await TestBed.configureTestingModule({
     imports: [DemoComponent],
     providers: [
-      provideMarkdownRenderer(),
+      provideMarkdownRenderer(renderMarkdown as any),
       {
         provide: A2UI_VERSION,
         useValue: version,

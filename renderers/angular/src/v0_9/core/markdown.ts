@@ -32,21 +32,15 @@ export abstract class MarkdownRenderer {
 export class DefaultMarkdownRenderer extends MarkdownRenderer {
   private static warningLogged = false;
 
-  override async render(markdown: string, options?: MarkdownRendererOptions): Promise<string> {
-    try {
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore - optional peer dependency throws TS1323 under Angular compiler but not under NodeNext
-      const {renderMarkdown} = await import('@a2ui/markdown-it');
-      return await renderMarkdown(markdown, options);
-    } catch {
-      if (!DefaultMarkdownRenderer.warningLogged) {
-        console.warn(
-          '[DefaultMarkdownRenderer] Failed to load optional `@a2ui/markdown-it` renderer. Using fallback.',
-        );
-        DefaultMarkdownRenderer.warningLogged = true;
-      }
-      return markdown;
+  override async render(markdown: string, _options?: MarkdownRendererOptions): Promise<string> {
+    if (!DefaultMarkdownRenderer.warningLogged) {
+      console.warn(
+        '[DefaultMarkdownRenderer] No MarkdownRenderer configured. Plain text fallback used. ' +
+          'Provide a renderer via `provideMarkdownRenderer(...)` with `@a2ui/markdown-it` if markdown formatting is required.',
+      );
+      DefaultMarkdownRenderer.warningLogged = true;
     }
+    return markdown;
   }
 }
 
