@@ -30,21 +30,22 @@
                 component: Column
                 children: [list]
               - id: list
-                component: Collection
-                items: "/tasks"
-                template:
-                  component: Row
-                  children: [item_index, item_text]
-                  components:
-                    - id: item_index
-                      component: Text
-                      text:
-                        call: "@index"
-                        args: {}
-                    - id: item_text
-                      component: Text
-                      text:
-                        path: ""
+                component: List
+                children:
+                  path: "/tasks"
+                  componentId: row
+              - id: row
+                component: Row
+                children: [item_index, item_text]
+              - id: item_index
+                component: Text
+                text:
+                  call: "@index"
+                  args: {}
+              - id: item_text
+                component: Text
+                text:
+                  path: ""
   expect:
     surfaces:
       main:
@@ -77,15 +78,16 @@
               players: ["Alice", "Bob"]
             components:
               - id: root
-                component: Collection
-                items: "/players"
-                template:
-                  id: text
-                  component: Text
-                  text:
-                    call: "@index"
-                    args:
-                      offset: 1
+                component: List
+                children:
+                  path: "/players"
+                  componentId: text
+              - id: text
+                component: Text
+                text:
+                  call: "@index"
+                  args:
+                    offset: 1
   expect:
     surfaces:
       main:
@@ -116,18 +118,19 @@
                     city: Portland
             components:
               - id: root
-                component: Collection
-                items: "/users"
-                template:
-                  component: Column
-                  children: [nested_text]
-                  components:
-                    - id: nested_text
-                      component: Text
-                      text:
-                        call: "@index"
-                        args:
-                          offset: 1
+                component: List
+                children:
+                  path: "/users"
+                  componentId: col
+              - id: col
+                component: Column
+                children: [nested_text]
+              - id: nested_text
+                component: Text
+                text:
+                  call: "@index"
+                  args:
+                    offset: 1
   expect:
     surfaces:
       main:

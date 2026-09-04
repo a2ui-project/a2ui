@@ -116,55 +116,62 @@ class GenericBinder:
         if not rules:
             self.current_props["isValid"] = True
             self.current_props["validationErrors"] = []
+            self.current_props["validationResult"] = {"valid": True}
             return
 
-        rule_results = [{"valid": True, "message": ""} for _ in rules]
+        rule_results: list[dict[str, Any]] = [{"valid": True} for _ in rules]
 
-        def _eval_validity(val: Any) -> bool:
-            if isinstance(val, dict) and "valid" in val:
-                return bool(val["valid"])
-            if hasattr(val, "valid"):
-                return bool(getattr(val, "valid"))
-            return bool(val)
+        from ..schema.v1_0.catalog_definition import ValidationResult
 
-        def _eval_message(val: Any, fallback: str) -> str:
-            if isinstance(val, dict) and val.get("message"):
-                return str(val["message"])
-            if hasattr(val, "message") and getattr(val, "message"):
-                return str(getattr(val, "message"))
-            return fallback
+        def _process_rule_val(val: Any, fallback_msg: str | None) -> dict[str, Any]:
+            if isinstance(val, dict):
+                raw = dict(val)
+            elif hasattr(val, "valid"):
+                raw = {
+                    k: getattr(val, k)
+                    for k in ("valid", "code", "message", "severity")
+                    if hasattr(val, k)
+                }
+            else:
+                raw = {"valid": bool(val)}
+
+            if not raw.get("valid") and not raw.get("message") and fallback_msg:
+                raw["message"] = fallback_msg
+
+            vr = ValidationResult.model_validate(raw)
+            return vr.model_dump(exclude_none=True)
 
         def update_validation_state() -> None:
-            errors = [r["message"] for r in rule_results if not r["valid"]]
-            self.current_props["isValid"] = len(errors) == 0
-            self.current_props["validationErrors"] = errors
+            failed_rules = [r for r in rule_results if not r["valid"]]
+            self.current_props["isValid"] = not failed_rules
+            self.current_props["validationErrors"] = [
+                r["message"] for r in failed_rules if r.get("message")
+            ]
+            self.current_props["validationResult"] = (
+                failed_rules[0] if failed_rules else {"valid": True}
+            )
             self._notify()
 
         for index, rule in enumerate(rules):
             condition = rule
-            message = "Validation failed"
+            message: str | None = None
             if isinstance(rule, dict):
                 condition = rule.get("condition", rule)
-                message = rule.get("message", "Validation failed")
+                message = rule.get("message")
 
             def on_rule_change(
-                new_val: Any, idx: int = index, fallback_msg: str = message
+                new_val: Any, idx: int = index, fallback_msg: str | None = message
             ) -> None:
-                rule_results[idx]["valid"] = _eval_validity(new_val)
-                rule_results[idx]["message"] = _eval_message(new_val, fallback_msg)
+                rule_results[idx] = _process_rule_val(new_val, fallback_msg)
                 update_validation_state()
 
             bound = self.context.data_context.subscribe_dynamic_value(
                 condition, on_rule_change
             )
             self.data_listeners.append(bound)
-            rule_results[index]["valid"] = _eval_validity(bound.value)
-            rule_results[index]["message"] = _eval_message(bound.value, message)
+            rule_results[index] = _process_rule_val(bound.value, message)
 
-        # Calculate initial validation state
-        initial_errors = [r["message"] for r in rule_results if not r["valid"]]
-        self.current_props["isValid"] = len(initial_errors) == 0
-        self.current_props["validationErrors"] = initial_errors
+        update_validation_state()
 
     def _notify(self) -> None:
         for listener in list(self.listeners):

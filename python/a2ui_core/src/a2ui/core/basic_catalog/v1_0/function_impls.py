@@ -157,7 +157,14 @@ def _email_execute(
             _to_str(args.get("value", "")),
         )
     )
-    return {"valid": valid}
+    if valid:
+        return {"valid": True}
+    return {
+        "valid": False,
+        "code": "INVALID_EMAIL",
+        "message": "Please enter a valid email address (e.g. user@example.com).",
+        "severity": "error",
+    }
 
 
 EmailImplementation = create_function_implementation(EmailApi, _email_execute)
@@ -171,12 +178,27 @@ def _index_execute(
 ) -> int:
     offset = args.get("offset")
     offset_val = int(offset) if offset is not None else 0
-    idx = 0
+    idx: int | None = None
     if context is not None:
-        if hasattr(context, "index"):
+        if hasattr(context, "index") and getattr(context, "index") is not None:
             idx = int(getattr(context, "index"))
-        elif isinstance(context, dict) and "index" in context:
+        elif (
+            isinstance(context, dict)
+            and "index" in context
+            and context["index"] is not None
+        ):
             idx = int(context["index"])
+
+    if idx is None:
+        if context is not None:
+            from ...exceptions import A2uiValidationError
+
+            raise A2uiValidationError(
+                "@index function can only be evaluated inside a collection template"
+                " iteration scope."
+            )
+        idx = 0
+
     return idx + offset_val
 
 

@@ -390,7 +390,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
         name: str,
     ) -> tuple[Any | None, dict[str, Any] | None, dict[str, Any]]:
         """Finds function definition, schema, and base catalog schema in the registered catalog."""
-        fn_def = None
+        fn_def: Any = None
         fn_schema = None
         base_schema: dict[str, Any] = {}
         cat = self.catalog
@@ -407,6 +407,14 @@ class PayloadValidator(Generic[TComponent, TFunction]):
             if isinstance(funcs_schema, dict) and name in funcs_schema:
                 fn_schema = funcs_schema[name]
                 base_schema = cat_schema
+        if fn_def is None and name.startswith("@"):
+            from ..catalog.catalog import _is_version_at_least_1_0
+
+            ver = getattr(self.catalog, "protocol_version", None)
+            if name == "@index" and ver and _is_version_at_least_1_0(ver):
+                from ..basic_catalog.v1_0.function_impls import IndexImplementation
+
+                fn_def = IndexImplementation
         return fn_def, fn_schema, base_schema
 
     def _validate_model_function(

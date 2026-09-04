@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import copy
 import inspect
 import re
@@ -39,22 +41,43 @@ class DataContext(Generic[TComponent, TFunction]):
         self,
         surface: SurfaceModel[TComponent, TFunction],
         path: str = "/",
+        index: int | None = None,
+        parent: DataContext[TComponent, TFunction] | None = None,
     ):
         self.surface = surface
         self.path = path if path.endswith("/") else f"{path}/"
         self.data_model = surface.data_model
+        self._index = index
+        self.parent = parent
 
     @property
     def locale(self) -> str | None:
         """Gets the locale for this context, inherited from the surface."""
         return getattr(self.surface, "locale", None)
 
-    def nested(self, relative_path: str) -> "DataContext[TComponent, TFunction]":
+    @property
+    def index(self) -> int | None:
+        """Returns active iteration index if inside a collection template scope, or None."""
+        ctx: DataContext | None = self
+        while ctx is not None:
+            if ctx._index is not None:
+                return ctx._index
+            parts = [p for p in ctx.path.strip("/").split("/") if p]
+            if parts and parts[-1].isdigit():
+                return int(parts[-1])
+            ctx = ctx.parent
+        return None
+
+    def nested(
+        self, relative_path: str, index: int | None = None
+    ) -> DataContext[TComponent, TFunction]:
         """Creates a nested child context scope (e.g. for template item bindings)."""
         norm_rel = relative_path[1:] if relative_path.startswith("/") else relative_path
         return DataContext(
             surface=self.surface,
             path=f"{self.path}{norm_rel}",
+            index=index,
+            parent=self,
         )
 
     def resolve_path(self, absolute_or_relative: str) -> str:
@@ -266,7 +289,7 @@ class DataContext(Generic[TComponent, TFunction]):
         catalog_id: str | None = None,
         abort_signal: AbortSignal | None = None,
     ) -> Any:
-        from ..exceptions import A2uiCatalogError
+        from ..exceptions import A2uiCatalogError, A2uiValidationError
 
         target_catalog: Catalog[TComponent, TFunction] | None = None
         if catalog_id is not None:
@@ -313,6 +336,8 @@ class DataContext(Generic[TComponent, TFunction]):
 
             return res
         except Exception as e:
+            if isinstance(e, (A2uiCatalogError, A2uiValidationError)):
+                raise
             if self.surface and hasattr(self.surface, "dispatch_error"):
                 self.surface.dispatch_error({
                     "code": "EXPRESSION_ERROR",
