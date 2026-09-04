@@ -18,7 +18,6 @@ import React, {useState} from 'react';
 import {createComponentImplementation} from '../../../adapter';
 import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {useBasicCatalogStyles} from '../utils';
-import styles from './ChoicePicker.module.css';
 
 // The type of an option is deeply nested into the ChoicePickerApi schema, and
 // it seems z.infer is not inferring it correctly (?). We use `any` for now.
@@ -53,18 +52,18 @@ export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({pro
       String(opt.label).toLowerCase().includes(filter.toLowerCase()),
   );
 
-  const listClasses = `${styles.options} ${props.displayStyle === 'chips' ? styles.chips : ''}`;
+  const listClasses = `a2ui-options-group${props.displayStyle === 'chips' ? ' a2ui-chips-group' : ''}`;
 
   return (
-    <div className={styles.host}>
-      {props.label && <strong className={styles.label}>{props.label}</strong>}
+    <div className="a2ui-choice-picker">
+      {props.label && <strong className="a2ui-field-label">{props.label}</strong>}
       {props.filterable && (
         <input
           type="text"
           placeholder="Filter options..."
           value={filter}
           onChange={e => setFilter(e.target.value)}
-          className={styles.filterInput}
+          className="a2ui-filter-input"
         />
       )}
       <div className={listClasses}>
@@ -75,7 +74,7 @@ export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({pro
               <button
                 key={i}
                 onClick={() => onToggle(opt.value)}
-                className={`${styles.chip} chip ${isSelected ? `${styles.selected} selected` : ''}`}
+                className={`a2ui-chip chip${isSelected ? ' selected' : ''}`}
                 aria-pressed={isSelected}
               >
                 {opt.label}
@@ -83,14 +82,14 @@ export const ChoicePicker = createComponentImplementation(ChoicePickerApi, ({pro
             );
           }
           return (
-            <label key={i} className={styles.optionLabel}>
+            <label key={i} className="a2ui-option-label">
               <input
                 type={isMutuallyExclusive ? 'radio' : 'checkbox'}
                 checked={isSelected}
                 onChange={() => onToggle(opt.value)}
                 name={isMutuallyExclusive ? groupName : undefined}
               />
-              <span className={styles.optionText}>{opt.label}</span>
+              <span className="a2ui-option-text">{opt.label}</span>
             </label>
           );
         })}
