@@ -18,12 +18,14 @@ import Foundation
 import OrderedJSON
 import Testing
 
-private final class ConformanceMockFunctionHandler: FunctionHandler, @unchecked Sendable {
+@MainActor
+private final class ConformanceMockFunctionHandler: FunctionHandler {
   func function(named: String, catalogID: String?) -> (any FunctionImplementation)? {
     nil
   }
 }
 
+@MainActor
 struct BasicCatalogConformanceTests {
   private let functionHandler = ConformanceMockFunctionHandler()
 

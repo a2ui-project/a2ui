@@ -34,7 +34,6 @@ describe('BasicCatalogA2uiLitElement', () => {
     setupTestDom();
 
     const {BasicCatalogA2uiLitElement} = await import('./basic-catalog-a2ui-lit-element.js');
-    const {A2uiController} = await import('../catalog/a2ui-controller.js');
     const {css, html} = await import('lit');
 
     const TestComponentSchema = z.object({
@@ -58,9 +57,7 @@ describe('BasicCatalogA2uiLitElement', () => {
         }
       `;
 
-      protected createController() {
-        return new A2uiController(this, TestComponentApi);
-      }
+      protected override readonly api = TestComponentApi;
 
       override render() {
         return html`<div class="inner">${this.controller?.props?.text ?? ''}</div>`;
