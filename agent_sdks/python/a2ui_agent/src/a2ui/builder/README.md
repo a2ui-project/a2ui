@@ -81,6 +81,150 @@ When serialized, this emits the standard binding object:
 }
 ```
 
+## Component and function builder reference
+
+Generated catalog packages contain two categories of constructs: component builder classes and function builder helpers.
+
+### Component builder classes
+
+Component classes inherit from `ComponentBuilderNode` and define the properties specified in their catalog schema:
+
+```python
+from typing import Any, Literal, Optional
+from a2ui.builder.base import (
+    Action,
+    ComponentBuilderNode,
+    DataBinding,
+    FunctionCall,
+    Slot,
+    _serialize_prop,
+)
+
+ButtonVariant = Literal["default", "primary", "borderless"] | str
+
+class Button(ComponentBuilderNode):
+    r"""Button component."""
+
+    component: Literal["Button"] = "Button"
+    accessibility: Optional[Any] = None
+    weight: Optional[float] = None
+    child: Slot
+    variant: Optional[ButtonVariant] = "default"
+    action: Action
+
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {"component": self.component}
+        if self.accessibility is not None:
+            d["accessibility"] = _serialize_prop(self.accessibility)
+        if self.weight is not None:
+            d["weight"] = _serialize_prop(self.weight)
+        if self.child is not None:
+            d["child"] = _serialize_prop(self.child)
+        if self.variant is not None:
+            d["variant"] = _serialize_prop(self.variant)
+        if self.action is not None:
+            d["action"] = _serialize_prop(self.action)
+        if self.id is not None:
+            d["id"] = self.id
+        return d
+```
+
+Key characteristics:
+* `component`: Literal string constant matching the catalog component identifier.
+* Slots: Parameters accepting children (`child: Slot`, `children: SlotList | DynamicChildList`) accept nested `ComponentBuilderNode` instances or data-bound templates.
+* Properties: Primitive properties accept static values, `DataBinding` instances, or `FunctionCall` objects.
+* `to_dict`: Serializes node properties while preserving unassigned IDs for the allocator.
+
+### Function builder helpers
+
+Catalogs define client-evaluated functions (such as formatters, validators, and logical operators). The code generator emits helper functions that return `FunctionCall` objects:
+
+```python
+from typing import Any, Optional
+from a2ui.builder.base import DataBinding, FunctionCall
+
+def open_url(
+    *,
+    url: str | DataBinding | FunctionCall,
+    call_id: Optional[str] = None,
+) -> FunctionCall:
+    r"""Opens a URL in the client browser."""
+    args: dict[str, Any] = {}
+    if url is not None:
+        args["url"] = url.to_dict() if hasattr(url, "to_dict") else url
+    return FunctionCall(call="openUrl", args=args, call_id=call_id)
+```
+
+These helpers can be passed directly to component properties that accept dynamic values:
+
+```python
+action = Action(
+    event="open_site",
+    context={"target": open_url(url="https://a2ui.org")},
+)
+```
+
+## Inheritance and customization
+
+### Extending standard components
+
+You can subclass generated components to create domain-specific building blocks with preconfigured styling, accessibility, or defaults:
+
+```python
+from typing import Any
+from a2ui.builder.catalogs.basic import Button, Text, Action
+
+class PrimaryActionButton(Button):
+    """Button configured with primary styling and default event name."""
+
+    variant: str = "primary"
+
+    @classmethod
+    def create(cls, label: str, event_name: str, **context: Any) -> "PrimaryActionButton":
+        return cls(
+            child=Text(text=label),
+            action=Action(event=event_name, context=context),
+            variant="primary",
+        )
+```
+
+### Creating custom components
+
+You can define custom components that are not in the official catalog schema by subclassing `ComponentBuilderNode`:
+
+```python
+from typing import Any, Literal, Optional
+from a2ui.builder.base import ComponentBuilderNode, Slot, _serialize_prop
+
+class MetricCard(ComponentBuilderNode):
+    """Custom metric card component."""
+
+    component: Literal["MetricCard"] = "MetricCard"
+    label: str
+    value: str
+    trend: Optional[str] = None
+    icon: Optional[Slot] = None
+
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {
+            "component": self.component,
+            "label": self.label,
+            "value": self.value,
+        }
+        if self.trend is not None:
+            d["trend"] = self.trend
+        if self.icon is not None:
+            d["icon"] = _serialize_prop(self.icon)
+        if self.id is not None:
+            d["id"] = self.id
+        return d
+```
+
+Because `MetricCard` inherits from `ComponentBuilderNode`:
+* It participates in tree traversal and deterministic ID allocation automatically.
+* Any child components placed in `icon` are discovered, assigned IDs, and replaced with ID references.
+* It passes validation when nested inside standard containers (`Card`, `Column`, `Row`).
+
 ## Design decisions
 
 ### Pydantic validation

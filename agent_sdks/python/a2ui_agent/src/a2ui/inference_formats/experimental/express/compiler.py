@@ -423,7 +423,7 @@ class ExpressCompiler:
             compiled_components.extend(ctx.extra_components)
             ctx.extra_components = []
 
-            if target_version in ("v0.9", "v0.9.1", "0.9", "0.9.1"):
+            if target_version in ("v0.9", "v0.9.1"):
                 result_messages.extend([
                     {
                         "version": target_version,
