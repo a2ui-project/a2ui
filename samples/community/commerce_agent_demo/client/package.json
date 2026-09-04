@@ -1,0 +1,52 @@
+{
+  "name": "@a2ui/commerce-agent-demo-client",
+  "private": true,
+  "version": "1.0.0",
+  "description": "React TypeScript client for E-Commerce Managed Agent Demo",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5173",
+    "build": "wireit",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node -e 'console.log(\"Workspace has no tests.\");'"
+  },
+  "dependencies": {
+    "@a2ui/react": "*",
+    "@a2ui/web_core": "*",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "eslint": "^10.4.1",
+    "prettier": "^3.5.3",
+    "typescript": "5.9.3",
+    "vite": "^8.0.16",
+    "wireit": "^0.15.0-pre.2"
+  },
+  "wireit": {
+    "build": {
+      "command": "tsc -b && vite build",
+      "dependencies": [
+        "../../../../renderers/react:build"
+      ],
+      "files": [
+        "src/**/*",
+        "index.html",
+        "tsconfig.json",
+        "vite.config.*"
+      ],
+      "output": [
+        "dist/"
+      ]
+    }
+  }
+}
