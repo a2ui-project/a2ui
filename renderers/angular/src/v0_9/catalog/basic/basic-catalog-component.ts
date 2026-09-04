@@ -15,7 +15,7 @@
  */
 
 import {Directive, computed, HostBinding, inject} from '@angular/core';
-import {injectBasicCatalogStyles} from '@a2ui/web_core/v0_9/basic_catalog';
+import {injectBasicCatalogStyles, HEX_COLOR_REGEX} from '@a2ui/web_core/v0_9/basic_catalog';
 import {A2uiRendererService} from '../../core/a2ui-renderer.service';
 import {ComponentApi} from '@a2ui/web_core/v0_9';
 import {CatalogComponent} from '../../core/catalog_component';
@@ -68,6 +68,10 @@ export abstract class BasicCatalogComponent<
 
   @HostBinding('style.--a2ui-color-primary')
   get primaryColorStyle(): string | null {
-    return this.primaryColor() || null;
+    const color = this.primaryColor();
+    if (typeof color === 'string' && HEX_COLOR_REGEX.test(color)) {
+      return color;
+    }
+    return null;
   }
 }

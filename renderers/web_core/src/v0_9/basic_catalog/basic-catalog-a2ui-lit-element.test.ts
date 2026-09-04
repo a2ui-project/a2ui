@@ -233,4 +233,47 @@ describe('BasicCatalogA2uiLitElement', () => {
     assert.strictEqual(element.style.getPropertyValue('--a2ui-color-primary-dark'), '');
     assert.strictEqual(element.style.getPropertyValue('--a2ui-color-primary-hover'), '');
   });
+
+  it('should ignore invalid primaryColor value from theme', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'invalid-theme-surface',
+          catalogId: customCatalog.id,
+        },
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'invalid-theme-surface',
+          components: [
+            {
+              id: 'comp4',
+              component: 'TestComponent',
+              text: 'Invalid Themed',
+            },
+          ],
+        },
+      },
+    ]);
+
+    const invalidThemeSurface = processor.model.getSurface('invalid-theme-surface')!;
+    (invalidThemeSurface as any).theme = {
+      primaryColor: 'url(https://attacker.example/beacon)',
+    };
+    const context = new ComponentContext(invalidThemeSurface, 'comp4');
+
+    element = document.createElement('a2ui-test-basic-element');
+    document.body.appendChild(element);
+
+    await asyncUpdate(element, (e: any) => {
+      e.context = context;
+    });
+
+    assert.strictEqual(element.style.getPropertyValue('--a2ui-color-primary'), '');
+    assert.strictEqual(element.style.getPropertyValue('--a2ui-color-primary-light'), '');
+    assert.strictEqual(element.style.getPropertyValue('--a2ui-color-primary-dark'), '');
+    assert.strictEqual(element.style.getPropertyValue('--a2ui-color-primary-hover'), '');
+  });
 });

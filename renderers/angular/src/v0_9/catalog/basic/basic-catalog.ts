@@ -60,8 +60,11 @@ import {
   ChoicePickerApi,
   SliderApi,
   DateTimeInputApi,
+  BasicCatalogThemeSchema,
+  type BasicCatalogTheme,
 } from '@a2ui/web_core/v0_9/basic_catalog';
 import {FunctionImplementation} from '@a2ui/web_core/v0_9';
+import {z} from 'zod';
 
 /**
  * The set of default Angular implementations for each component in the basic catalog.
@@ -125,6 +128,11 @@ export interface BasicCatalogOptions {
    * @deprecated Use AngularCatalog constructor directly to combine BASIC_FUNCTIONS with custom ones.
    */
   functions?: FunctionImplementation[];
+
+  /**
+   * Optional theme schema to override default basic catalog theme schema.
+   */
+  themeSchema?: z.ZodType<BasicCatalogTheme>;
 }
 
 /**
@@ -156,7 +164,7 @@ export class BasicCatalogBase extends AngularCatalog {
       ...(options.extraComponents ?? []),
     ];
 
-    super(id, components, functions);
+    super(id, components, functions, options.themeSchema ?? BasicCatalogThemeSchema);
   }
 }
 
