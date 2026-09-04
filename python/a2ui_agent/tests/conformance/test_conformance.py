@@ -386,7 +386,7 @@ def test_schema_manager_conformance(name, test_case):
 
         with open(get_basic_catalog_path("v1_0"), "r", encoding="utf-8") as f:
             catalog_dict = json.load(f)
-        core_cat = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
+        core_cat = Catalog.from_json(catalog_dict, protocol_version="v1.0")
 
         if fmt_name == "express":
             from a2ui.inference_formats.experimental.express import ExpressParser

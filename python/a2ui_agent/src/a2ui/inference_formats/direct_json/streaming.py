@@ -1232,16 +1232,12 @@ class DirectJsonStreamParser:
                         obj["path"] = "/" + str(current_path)
 
             # 2. Handle Child Pruning (from _prune_unseen_children)
-            for field in (
-                "children",
-                "explicitList",
-                "child",
-                "contentChild",
-                "entryPointChild",
-                "componentId",
-            ):
+            child_fields = self._get_child_fields_for_obj(obj)
+            for field in child_fields:
                 if field in obj:
                     if isinstance(obj[field], list):
+                        if any(not isinstance(item, str) for item in obj[field]):
+                            continue
                         valid_children = []
                         for child_id in obj[field]:
                             if child_id in self._seen_components:
@@ -1261,10 +1257,7 @@ class DirectJsonStreamParser:
                                 ):
                                     extra_components.append(placeholder_comp)
 
-                        if not valid_children and field in (
-                            "children",
-                            "explicitList",
-                        ):
+                        if not valid_children:
                             # If list is empty, check if it was partial in the buffer
                             # (meaning it's a sequence that started but hasn't yielded items yet)
                             term = f'"{field}"'
@@ -1318,3 +1311,22 @@ class DirectJsonStreamParser:
                 self._traverse_component_topology(
                     item, extra_components, comp_id, parent_key
                 )
+
+    def _get_child_fields_for_obj(self, obj: dict[str, Any]) -> set[str]:
+        """Dynamically discovers child reference property names from the catalog schema or object."""
+        child_fields: set[str] = set()
+        comp_type = obj.get("component")
+        core_cat = getattr(self._catalog, "core_catalog", self._catalog)
+        if core_cat and comp_type and hasattr(core_cat, "reference_map"):
+            ref_spec = core_cat.reference_map.get(comp_type)
+            if ref_spec:
+                child_fields.update(ref_spec.single_child_props)
+                child_fields.update(ref_spec.list_child_props)
+                child_fields.update(ref_spec.nested_child_slots.keys())
+        if not child_fields:
+            for k, v in obj.items():
+                if k in ("id", "component", "catalogId", "text", "style", "weight"):
+                    continue
+                if isinstance(v, (str, list, dict)):
+                    child_fields.add(k)
+        return child_fields

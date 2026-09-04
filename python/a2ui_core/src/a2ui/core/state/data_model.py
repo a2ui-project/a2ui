@@ -188,6 +188,11 @@ class DataModel:
         # Trigger notification cascade
         self._trigger_cascade(tokens, old_values)
 
+    def delete(self, path: str) -> "DataModel":
+        """Deletes the value at the specified JSON pointer path."""
+        self.set(path, None)
+        return self
+
     def subscribe(self, path: str, on_change: Callable[[Any], None]) -> Subscription:
         """Registers a listener to monitor changes reactive to this path."""
         norm_path = self._build_pointer(self._parse_pointer(path))

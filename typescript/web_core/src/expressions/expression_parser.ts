@@ -149,7 +149,10 @@ export class ExpressionParser {
     if (scanner.matchesString("'") || scanner.matchesString('"')) {
       return this.parseStringLiteral(scanner);
     }
-    if (this.isDigit(scanner.peek())) {
+    if (
+      this.isDigit(scanner.peek()) ||
+      ((scanner.peek() === '-' || scanner.peek() === '+') && this.isDigit(scanner.peek(1)))
+    ) {
       return this.parseNumberLiteral(scanner);
     }
     if (scanner.matchesKeyword('true')) return true;
@@ -249,11 +252,23 @@ export class ExpressionParser {
 
   private parseNumberLiteral(scanner: Scanner): number {
     const start = scanner.pos;
+    if (scanner.peek() === '-' || scanner.peek() === '+') {
+      scanner.advance();
+    }
     while (!scanner.isAtEnd() && (this.isDigit(scanner.peek()) || scanner.peek() === '.')) {
       scanner.advance();
     }
+    if (!scanner.isAtEnd() && (scanner.peek() === 'e' || scanner.peek() === 'E')) {
+      scanner.advance();
+      if (!scanner.isAtEnd() && (scanner.peek() === '+' || scanner.peek() === '-')) {
+        scanner.advance();
+      }
+      while (!scanner.isAtEnd() && this.isDigit(scanner.peek())) {
+        scanner.advance();
+      }
+    }
     const text = scanner.input.substring(start, scanner.pos);
-    if (!/^\d+\.?\d*$/.test(text)) {
+    if (!/^[+-]?\d+\.?\d*(?:[eE][+-]?\d+)?$/.test(text)) {
       throw new A2uiExpressionError(`Invalid number literal: '${text}'`);
     }
     return Number(text);

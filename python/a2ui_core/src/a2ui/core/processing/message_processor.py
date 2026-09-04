@@ -355,12 +355,16 @@ class MessageProcessor:
             )
 
         cat_ver = getattr(matched_catalog, "protocol_version", None)
-        if cat_ver and version and cat_ver != version:
-            return make_error(
-                RpcErrorCode.INVALID_FUNCTION_CALL,
-                f"Catalog '{matched_catalog.catalog_id}' specification version"
-                f" ({cat_ver}) does not match message protocol version ({version}).",
-            )
+        if cat_ver and version:
+            norm_cat_ver = str(cat_ver).removeprefix("v")
+            norm_msg_ver = str(version).removeprefix("v")
+            if norm_cat_ver != norm_msg_ver:
+                return make_error(
+                    RpcErrorCode.INVALID_FUNCTION_CALL,
+                    f"Catalog '{matched_catalog.catalog_id}' specification version"
+                    f" ({cat_ver}) does not match message protocol version"
+                    f" ({version}).",
+                )
 
         fn = (
             matched_catalog.get_function(op.call)
