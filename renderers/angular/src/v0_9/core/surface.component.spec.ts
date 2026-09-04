@@ -14,57 +14,52 @@
  * limitations under the License.
  */
 
-import {Component, Input, ChangeDetectionStrategy} from '@angular/core';
+import {Component, ChangeDetectionStrategy} from '@angular/core';
+
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {SurfaceComponent} from './surface.component';
 import {ComponentHostComponent} from './component-host.component';
 import {By} from '@angular/platform-browser';
 import {A2uiRendererService} from './a2ui-renderer.service';
-import {ComponentBinder} from './component-binder.service';
-import {ComponentModel} from '@a2ui/web_core/v0_9';
+import {provideA2Ui} from './provide-a2ui';
+import {CatalogComponent} from './catalog_component';
+import {AngularCatalog} from '../catalog/types';
+import {ComponentModel, SurfaceModel, ComponentApi} from '@a2ui/web_core/v0_9';
+import {z} from 'zod';
 
 @Component({
   selector: 'test-text',
-  template: '<div>{{props?.["text"]?.value()}}</div>',
+  template: '<div>{{props()["text"]}}</div>',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-class TestTextComponent {
-  @Input() props: any;
-  @Input() surfaceId?: string;
-  @Input() componentId?: string;
-  @Input() dataContextPath?: string;
-}
+class TestTextComponent extends CatalogComponent<ComponentApi> {}
 
 describe('SurfaceComponent', () => {
   let component: SurfaceComponent;
   let fixture: ComponentFixture<SurfaceComponent>;
-  let mockRendererService: any;
-  let mockBinder: any;
+  let rendererService: A2uiRendererService;
+  let catalog: AngularCatalog;
 
   beforeEach(async () => {
-    mockRendererService = {
-      surfaceGroup: {
-        getSurface: jasmine.createSpy('getSurface').and.returnValue({
-          componentsModel: new Map([
-            ['root', new ComponentModel('root', 'Text', {text: {value: 'Hello'}})],
-          ]),
-          catalog: {
-            id: 'mock-catalog',
-            components: new Map([['Text', {type: 'Text', component: TestTextComponent}]]),
-          },
-        }),
+    catalog = new AngularCatalog('mock-catalog', [
+      {
+        name: 'Text',
+        schema: z.object({text: z.string()}),
+        component: TestTextComponent,
       },
-    };
-    mockBinder = jasmine.createSpyObj('ComponentBinder', ['bind']);
+    ]);
 
     await TestBed.configureTestingModule({
       imports: [SurfaceComponent],
-      providers: [
-        {provide: A2uiRendererService, useValue: mockRendererService},
-        {provide: ComponentBinder, useValue: mockBinder},
-      ],
+      providers: [provideA2Ui({catalogs: [catalog]})],
     }).compileComponents();
+
+    rendererService = TestBed.inject(A2uiRendererService);
+    const surface = new SurfaceModel('test-surface', catalog);
+    const rootComponent = new ComponentModel('root', 'Text', {text: 'Hello'});
+    surface.componentsModel.addComponent(rootComponent);
+    rendererService.surfaceGroup.addSurface(surface);
 
     fixture = TestBed.createComponent(SurfaceComponent);
     component = fixture.componentInstance;
@@ -84,7 +79,10 @@ describe('SurfaceComponent', () => {
     const host = fixture.debugElement.query(By.directive(ComponentHostComponent));
     expect(host).toBeTruthy();
     expect(host.componentInstance.surfaceId()).toBe('test-surface');
-    expect(host.componentInstance.componentKey()).toEqual({id: 'root', basePath: '/custom/path'});
+    expect(host.componentInstance.componentKey()).toEqual({
+      id: 'root',
+      basePath: '/custom/path',
+    });
   });
 
   it('should use default dataContextPath of "/"', () => {

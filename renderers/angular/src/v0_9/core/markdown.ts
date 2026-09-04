@@ -15,10 +15,12 @@
  */
 
 import {Injectable} from '@angular/core';
+import type {
+  MarkdownRenderer as MarkdownRendererFn,
+  MarkdownRendererOptions,
+} from '@a2ui/web_core/v0_8';
 
-export interface MarkdownRendererOptions {
-  tagClassMap?: Record<string, string>;
-}
+export type {MarkdownRendererOptions};
 
 export abstract class MarkdownRenderer {
   abstract render(markdown: string, options?: MarkdownRendererOptions): Promise<string>;
@@ -35,7 +37,7 @@ export class DefaultMarkdownRenderer extends MarkdownRenderer {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore - optional peer dependency throws TS1323 under Angular compiler but not under NodeNext
       const {renderMarkdown} = await import('@a2ui/markdown-it');
-      return await renderMarkdown(markdown, options as any);
+      return await renderMarkdown(markdown, options);
     } catch {
       if (!DefaultMarkdownRenderer.warningLogged) {
         console.warn(
@@ -48,9 +50,7 @@ export class DefaultMarkdownRenderer extends MarkdownRenderer {
   }
 }
 
-export function provideMarkdownRenderer(
-  renderFn?: (markdown: string, options?: MarkdownRendererOptions) => Promise<string>,
-) {
+export function provideMarkdownRenderer(renderFn?: MarkdownRendererFn) {
   if (renderFn) {
     return {
       provide: MarkdownRenderer,
