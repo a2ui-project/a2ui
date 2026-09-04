@@ -246,6 +246,43 @@ class A2uiCatalog:
 
         return replace(self, catalog_schema=schema_copy)
 
+    def with_components(
+        self,
+        additional_components: Dict[str, Dict[str, Any]],
+        *,
+        catalog_name: Optional[str] = None,
+    ) -> A2uiCatalog:
+        """Returns a new catalog that incorporates additional component schemas.
+
+        Combines the current catalog's components with the supplied components,
+        automatically registering them in components and #/$defs/anyComponent/oneOf
+        without requiring manual JSON schema mutation.
+
+        Args:
+          additional_components: Mapping of component name to JSON schema dict.
+          catalog_name: Optional new catalog name. Defaults to existing name.
+
+        Returns:
+          A new A2uiCatalog instance containing both sets of components.
+        """
+        schema_copy = copy.deepcopy(self.catalog_schema)
+        comps_map = dict(schema_copy.get(CATALOG_COMPONENTS_KEY, {}))
+        defs_map = schema_copy.setdefault("$defs", {})
+        any_comp_refs = defs_map.setdefault("anyComponent", {}).setdefault("oneOf", [])
+
+        for name, comp_schema in additional_components.items():
+            comps_map[name] = comp_schema
+            ref_entry = {"$ref": f"#/{CATALOG_COMPONENTS_KEY}/{name}"}
+            if ref_entry not in any_comp_refs:
+                any_comp_refs.append(ref_entry)
+
+        schema_copy[CATALOG_COMPONENTS_KEY] = comps_map
+        return replace(
+            self,
+            name=catalog_name or self.name,
+            catalog_schema=schema_copy,
+        )
+
     def _with_pruned_messages(self, allowed_messages: List[str]) -> A2uiCatalog:
         """Returns a new catalog with only allowed messages.
 
