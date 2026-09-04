@@ -74,7 +74,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
     def test_catalog_description_before_generate(self):
         express_format = ExpressFormat(catalog=self.catalog)
         generator = express_format.prompt_generator
-        desc = generator.catalog_description(include_schema=True)
+        desc = generator.generate_catalog_instructions(include_schema=True)
         self.assertIn("Text(", desc)
 
     def test_express_allowed_components_pruning(self):
@@ -210,7 +210,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
             },
         )
         fmt = ExpressFormat(catalog=cat_map_obj)
-        sigs = fmt.prompt_generator.generate_component_signatures()
+        sigs = fmt.prompt_generator._generate_component_signatures()
         self.assertIn("MapComp", sigs)
         self.assertIn("Map with keys:", sigs)
 
