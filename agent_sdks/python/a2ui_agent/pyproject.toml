@@ -25,7 +25,9 @@ dependencies = [
   "google-adk>=1.28.1",
   "google-genai>=1.27.0",
   "httpx>=0.27.0",
-  "jsonschema>=4.0.0"
+  "jsonschema>=4.0.0",
+  "nest-asyncio>=1.6.0",
+  "pyyaml>=6.0"
 ]
 
 [project.scripts]
@@ -65,4 +67,5 @@ dev = [
     "antlr4-tools>=0.2.1",
     "hatchling>=1.30.1",
     "types-jsonschema",
+    "types-pyyaml",
 ]
