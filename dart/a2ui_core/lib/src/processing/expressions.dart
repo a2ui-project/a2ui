@@ -23,7 +23,7 @@ class ExpressionParser {
   /// (`${${...}}`) and function-call arguments that are themselves expressions
   /// (`f(a: g(b: ...))`). Both are counted, so the limit bounds the recursion
   /// this parser can be driven into by an agent-supplied template.
-  static const int maxDepth = 10;
+  static const int maxDepth = 100;
 
   /// Parses an input string into a list of components (literals or
   /// [Map] representations of expressions).
