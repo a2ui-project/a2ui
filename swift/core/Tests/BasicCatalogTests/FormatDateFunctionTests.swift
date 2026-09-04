@@ -18,12 +18,14 @@ import Testing
 
 @testable import BasicCatalog
 
-private final class MockFunctionHandler: FunctionHandler, @unchecked Sendable {
+@MainActor
+private final class MockFunctionHandler: FunctionHandler {
   func function(named: String, catalogID: String?) -> (any FunctionImplementation)? {
     return nil
   }
 }
 
+@MainActor
 struct FormatDateFunctionTests {
 
   let function = FormatDateFunction()

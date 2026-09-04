@@ -19,6 +19,7 @@ import OrderedCollections
 import OrderedJSON
 import Testing
 
+@MainActor
 struct DataModelPointerConformanceTests {
   @Test func numericAutoVivification() {
     let dataModel = DataModel()

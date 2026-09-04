@@ -22,6 +22,7 @@ private final class TestBox<T>: @unchecked Sendable {
   init(_ value: T) { self.value = value }
 }
 
+@MainActor
 struct DataBindingSwiftUITests {
 
   @Test func swiftUIBindingGetsValue() {

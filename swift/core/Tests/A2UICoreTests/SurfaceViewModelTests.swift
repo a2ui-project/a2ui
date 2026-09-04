@@ -39,6 +39,7 @@ struct TestConcatFunction: FunctionImplementation {
     )
   )
 
+  @MainActor
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     let a = arguments["a"]?.stringValue ?? ""
     let b = arguments["b"]?.stringValue ?? ""
@@ -55,6 +56,7 @@ struct TestRequiredFunction: FunctionImplementation {
     schema: try! Schema(instance: "{\"type\": \"object\"}")
   )
 
+  @MainActor
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let value = arguments["value"] else { return .boolean(false) }
     switch value {
@@ -72,6 +74,7 @@ struct TestEmailFunction: FunctionImplementation {
     schema: try! Schema(instance: "{\"type\": \"object\"}")
   )
 
+  @MainActor
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let s = arguments["value"]?.stringValue else { return .boolean(false) }
     return .boolean(s.contains("@") && s.contains("."))
@@ -1055,6 +1058,7 @@ struct ComponentModelTests {
 
 // MARK: - SurfaceComponentsModel Tests
 
+@MainActor
 struct SurfaceComponentsModelTests {
 
   @Test func startsEmpty() {
@@ -1113,6 +1117,7 @@ struct SurfaceComponentsModelTests {
 
 // MARK: - DataModel Tests
 
+@MainActor
 struct DataModelTests {
 
   @Test func startsEmpty() {
