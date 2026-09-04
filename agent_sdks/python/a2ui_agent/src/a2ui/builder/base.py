@@ -290,7 +290,10 @@ def flatten_component_tree(
             elif isinstance(val, DynamicChildList):
                 traverse(val.template)
 
-        for attr_name, attr_val in node.__dict__.items():
+        attrs = dict(node.__dict__)
+        if getattr(node, "__pydantic_extra__", None):
+            attrs.update(node.__pydantic_extra__)
+        for attr_name, attr_val in attrs.items():
             if attr_name not in ("component_name", "component", "id"):
                 traverse(attr_val)
 
@@ -327,7 +330,10 @@ def flatten_component_tree(
             else:
                 return val
 
-        for attr_name, attr_val in node.__dict__.items():
+        attrs = dict(node.__dict__)
+        if getattr(node, "__pydantic_extra__", None):
+            attrs.update(node.__pydantic_extra__)
+        for attr_name, attr_val in attrs.items():
             if attr_name in ("component_name", "component", "id"):
                 continue
             if attr_val is None:
@@ -357,9 +363,7 @@ class ComponentTree:
         """Serializes the primary tree and all unlinked subtrees into flat component dicts."""
         comps = flatten_component_tree(self.root, root_id=self.root.id or "root")
         for sub_tree in self.unlinked_roots:
-            comps.extend(
-                flatten_component_tree(sub_tree, root_id=sub_tree.id or "sub")
-            )
+            comps.extend(flatten_component_tree(sub_tree, root_id=sub_tree.id or "sub"))
         return comps
 
     def to_update(self, surface_id: str | None = None) -> dict[str, Any]:
