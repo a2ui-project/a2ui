@@ -37,12 +37,12 @@ export class A2uiRecipeApp extends LitElement {
   @state() private accessor statusMessage = 'Ready';
 
   // Generic A2UI-over-MCP host runtime engine
-  private mcpEngine = new A2uiMcpEngine([basicCatalog], {
-    onAction: action => this.handleAction(action),
-    onStatusChange: msg => {
+  private mcpEngine = new A2uiMcpEngine({
+    onAction: (action: any) => this.handleAction(action),
+    onStatusChange: (msg: string) => {
       this.statusMessage = msg;
     },
-    onConnectionChange: status => {
+    onConnectionChange: (status: ConnectionStatus) => {
       this.connectionStatus = status;
     },
     onSurfaceChange: () => {

@@ -19,7 +19,7 @@ from typing import Any
 import anyio
 import click
 import mcp.types as types
-from a2ui.basic_catalog.provider import BasicCatalog
+from a2ui.schema.catalog import CatalogConfig
 from a2ui.schema.constants import VERSION_0_9
 from a2ui.inference_formats.direct_json import DirectJsonFormat
 from mcp.server.lowlevel import Server
@@ -31,6 +31,9 @@ from recipes import RECIPES
 # Static MIME type for A2UI JSON payloads
 A2UI_MIME_TYPE = "application/a2ui+json"
 BASIC_CATALOG_ID = "https://a2ui.org/specification/v0_9/basic_catalog.json"
+BASIC_WITH_MCP_CATALOG_ID = (
+    "https://a2ui.org/specification/v0_9/catalogs/basic_with_mcp/catalog.json"
+)
 
 
 @click.command()
@@ -49,8 +52,18 @@ BASIC_CATALOG_ID = "https://a2ui.org/specification/v0_9/basic_catalog.json"
 )
 def main(port: int, transport: str, bypass_verification: bool) -> int:
     # Initialize schema manager and validate sample
+    basic_with_mcp_catalog_path = (
+        pathlib.Path(__file__).resolve().parent / "basic_with_mcp_catalog.json"
+    )
+    basic_with_mcp_catalog_json = json.loads(basic_with_mcp_catalog_path.read_text())
+
+    catalog_config = CatalogConfig.from_path(
+        name="basic_with_mcp",
+        catalog_path=str(basic_with_mcp_catalog_path),
+    )
     inference_format = DirectJsonFormat(
-        version=VERSION_0_9, catalogs=[BasicCatalog.get_config(version=VERSION_0_9)]
+        version=VERSION_0_9,
+        catalogs=[catalog_config],
     )
     selected_catalog = inference_format.get_selected_catalog()
 
@@ -82,7 +95,9 @@ def main(port: int, transport: str, bypass_verification: bool) -> int:
             v0_9_caps = client_caps.get("v0.9", {})
             supported_catalogs = v0_9_caps.get("supportedCatalogIds", [])
 
-            return BASIC_CATALOG_ID in supported_catalogs
+            return bool(
+                set(supported_catalogs) & {BASIC_CATALOG_ID, BASIC_WITH_MCP_CATALOG_ID}
+            )
         except LookupError:
             return False
 
@@ -103,6 +118,12 @@ def main(port: int, transport: str, bypass_verification: bool) -> int:
                     "A2UI presentation template for displaying a customized recipe."
                 ),
             ),
+            types.Resource(
+                uri="a2ui://catalogs/basic-with-mcp",
+                name="Basic with MCP Catalog",
+                mimeType=A2UI_MIME_TYPE,
+                description="A2UI Basic with MCP Catalog schema definition.",
+            ),
         ]
 
     @app.read_resource()
@@ -121,6 +142,16 @@ def main(port: int, transport: str, bypass_verification: bool) -> int:
             return [
                 ReadResourceContents(
                     content=json.dumps(recipe_a2ui_json),
+                    mime_type=A2UI_MIME_TYPE,
+                )
+            ]
+        if str(uri) in (
+            "a2ui://catalogs/basic-with-mcp",
+            BASIC_WITH_MCP_CATALOG_ID,
+        ):
+            return [
+                ReadResourceContents(
+                    content=json.dumps(basic_with_mcp_catalog_json),
                     mime_type=A2UI_MIME_TYPE,
                 )
             ]

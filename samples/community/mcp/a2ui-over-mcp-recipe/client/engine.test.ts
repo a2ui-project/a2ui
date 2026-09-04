@@ -18,10 +18,13 @@ import {describe, it, expect, vi, beforeEach} from 'vitest';
 import {
   A2uiMcpEngine,
   BASIC_CATALOG_ID,
+  BASIC_WITH_MCP_CATALOG_ID,
+  MCP_CATALOG_ID,
   DEFAULT_MCP_CLIENT_NAME,
   DEFAULT_MCP_CLIENT_VERSION,
   A2UI_MIME_TYPE,
   MCP_CALL_TOOL_ACTION,
+  createBasicWithMcpCatalog,
 } from './engine';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
@@ -53,7 +56,7 @@ describe('A2uiMcpEngine', () => {
     {
       createSurface: {
         surfaceId: 'test-surface',
-        catalogId: BASIC_CATALOG_ID,
+        catalogId: BASIC_WITH_MCP_CATALOG_ID,
       },
     },
     {
@@ -129,7 +132,7 @@ describe('A2uiMcpEngine', () => {
 
     it('forwards action triggers to onAction callback', async () => {
       const onAction = vi.fn();
-      const engine = new A2uiMcpEngine(undefined, {onAction});
+      const engine = new A2uiMcpEngine({onAction});
       const dummyAction = {name: 'custom_action', context: {key: 'val'}};
 
       // Emit action from processor's surface group model
@@ -140,13 +143,65 @@ describe('A2uiMcpEngine', () => {
     it('defines MCP_CALL_TOOL_ACTION as callMcpTool', () => {
       expect(MCP_CALL_TOOL_ACTION).toBe('callMcpTool');
     });
+
+    it('registers composite Basic+MCP catalog and executes callMcpTool function via surface', async () => {
+      const engine = new A2uiMcpEngine();
+      const mockMcpClient = {
+        request: vi.fn().mockResolvedValue({
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify([
+                {
+                  updateDataModel: {
+                    surfaceId: 'composite-surface',
+                    path: '/',
+                    value: {recipeName: 'Pasta'},
+                  },
+                },
+              ]),
+            },
+          ],
+        }),
+      };
+      engine.mcpClients.set('test-server', mockMcpClient as any);
+
+      expect(engine.processor.getClientCapabilities()['v0.9']?.supportedCatalogIds).toContain(
+        BASIC_WITH_MCP_CATALOG_ID,
+      );
+
+      engine.processor.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {
+            surfaceId: 'composite-surface',
+            catalogId: BASIC_WITH_MCP_CATALOG_ID,
+          },
+        },
+      ]);
+
+      const surface = engine.getSurface('composite-surface');
+      expect(surface).toBeDefined();
+
+      const result = await surface!.catalog.invoker(
+        'callMcpTool',
+        {name: 'test_tool', arguments: {foo: 'bar'}},
+        {} as any,
+      );
+      expect(mockMcpClient.request).toHaveBeenCalledWith(
+        {method: 'tools/call', params: {name: 'test_tool', arguments: {foo: 'bar'}}},
+        expect.anything(),
+        expect.anything(),
+      );
+      expect(result).toBeDefined();
+    });
   });
 
   describe('connectServer', () => {
     it('connects to server, discovers tool UI resources, and registers client', async () => {
       const onConnectionChange = vi.fn();
       const onStatusChange = vi.fn();
-      const engine = new A2uiMcpEngine(undefined, {onConnectionChange, onStatusChange});
+      const engine = new A2uiMcpEngine({onConnectionChange, onStatusChange});
 
       const serverName = await engine.connectServer('http://127.0.0.1:8000/sse', 'custom-client');
 
@@ -166,7 +221,11 @@ describe('A2uiMcpEngine', () => {
             a2ui: {
               clientCapabilities: {
                 'v0.9': {
-                  supportedCatalogIds: [BASIC_CATALOG_ID],
+                  supportedCatalogIds: [
+                    BASIC_WITH_MCP_CATALOG_ID,
+                    BASIC_CATALOG_ID,
+                    MCP_CATALOG_ID,
+                  ],
                 },
               },
             },
@@ -191,7 +250,7 @@ describe('A2uiMcpEngine', () => {
       mockClient.getServerVersion.mockReturnValue(undefined);
       const onConnectionChange = vi.fn();
       const onStatusChange = vi.fn();
-      const engine = new A2uiMcpEngine(undefined, {onConnectionChange, onStatusChange});
+      const engine = new A2uiMcpEngine({onConnectionChange, onStatusChange});
 
       await expect(engine.connectServer('http://127.0.0.1:8000/sse')).rejects.toThrow(
         'Connected MCP server did not return a valid server name during initialization.',
@@ -204,7 +263,7 @@ describe('A2uiMcpEngine', () => {
     it('handles connection failure from transport', async () => {
       mockClient.connect.mockRejectedValue(new Error('Network error'));
       const onConnectionChange = vi.fn();
-      const engine = new A2uiMcpEngine(undefined, {onConnectionChange});
+      const engine = new A2uiMcpEngine({onConnectionChange});
 
       await expect(engine.connectServer('http://127.0.0.1:8000/sse')).rejects.toThrow(
         'Network error',
@@ -308,7 +367,7 @@ describe('A2uiMcpEngine', () => {
     beforeEach(async () => {
       onStatusChange = vi.fn();
       onSurfaceChange = vi.fn();
-      engine = new A2uiMcpEngine(undefined, {onStatusChange, onSurfaceChange});
+      engine = new A2uiMcpEngine({onStatusChange, onSurfaceChange});
       await engine.connectServer('http://127.0.0.1:8000/sse');
     });
 

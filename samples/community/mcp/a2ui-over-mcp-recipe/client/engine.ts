@@ -14,12 +14,18 @@
  * limitations under the License.
  */
 
-import {MessageProcessor} from '@a2ui/web_core/v0_9';
+import {Catalog, MessageProcessor} from '@a2ui/web_core/v0_9';
 import {basicCatalog} from '@a2ui/lit/v0_9';
+import type {WebComponentImplementation} from '@a2ui/web_core/v0_9';
+import {createMcpCatalog, MCP_CATALOG_ID} from '../../../../../catalogs/mcp/v0_9/src/catalog.js';
+import {createCallMcpToolImplementation} from '../../../../../catalogs/mcp/v0_9/src/functions/callMcpTool.js';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 
+export {MCP_CATALOG_ID, createMcpCatalog};
 export const BASIC_CATALOG_ID = 'https://a2ui.org/specification/v0_9/basic_catalog.json';
+export const BASIC_WITH_MCP_CATALOG_ID =
+  'https://a2ui.org/specification/v0_9/catalogs/basic_with_mcp/catalog.json';
 export const A2UI_MIME_TYPE = 'application/a2ui+json';
 
 export const MCP_CALL_TOOL_ACTION = 'callMcpTool';
@@ -43,6 +49,27 @@ export interface A2uiMcpEngineEvents {
 }
 
 /**
+ * Creates an A2UI Catalog combining the standard Basic Catalog components and functions
+ * with MCP tool execution (`callMcpTool`).
+ *
+ * @param clientOrGetter An MCP Client instance or a getter function returning a Client.
+ * @param onResult Optional hook called with the tool result and active client upon successful execution.
+ */
+export function createBasicWithMcpCatalog(
+  clientOrGetter: Client | (() => Client),
+  onResult?: (result: any, client: Client) => Promise<void> | void,
+): Catalog<WebComponentImplementation> {
+  const mcpFn = createCallMcpToolImplementation(clientOrGetter, onResult);
+  const allComponents = Array.from(basicCatalog.components.values());
+  const allFunctions = [...Array.from(basicCatalog.functions.values()), mcpFn];
+  return new Catalog<WebComponentImplementation>(
+    BASIC_WITH_MCP_CATALOG_ID,
+    allComponents,
+    allFunctions,
+  );
+}
+
+/**
  * Generic A2UI-over-MCP host runtime engine.
  * Handles MCP connections, tool discovery with UI metadata, template fetching/caching,
  * and two-way surface data synchronization.
@@ -62,11 +89,48 @@ export class A2uiMcpEngine {
 
   private readonly events: A2uiMcpEngineEvents;
 
-  constructor(catalogs: any[] = [basicCatalog], events: A2uiMcpEngineEvents = {}) {
-    this.events = events || {};
-    this.processor = new MessageProcessor(catalogs || [basicCatalog], action =>
-      this.events.onAction?.(action),
+  getMcpClient(): Client {
+    for (const client of this.mcpClients.values()) {
+      return client;
+    }
+    throw new Error('No MCP client connected');
+  }
+
+  constructor(
+    catalogsOrEvents?: Catalog<any>[] | A2uiMcpEngineEvents,
+    events?: A2uiMcpEngineEvents,
+  ) {
+    let customCatalogs: Catalog<any>[] | undefined;
+    let resolvedEvents: A2uiMcpEngineEvents | undefined;
+
+    if (Array.isArray(catalogsOrEvents)) {
+      customCatalogs = catalogsOrEvents;
+      resolvedEvents = events;
+    } else if (catalogsOrEvents && typeof catalogsOrEvents === 'object') {
+      resolvedEvents = catalogsOrEvents as A2uiMcpEngineEvents;
+    } else {
+      resolvedEvents = events;
+    }
+
+    this.events = resolvedEvents || {};
+
+    const clientGetter = () => this.getMcpClient();
+    const basicWithMcpCatalog = createBasicWithMcpCatalog(clientGetter as any, (result, client) =>
+      this.handleToolResult(result, client),
     );
+    const mcpCatalog = createMcpCatalog(clientGetter as any);
+
+    const catalogs = customCatalogs || [basicWithMcpCatalog, basicCatalog, mcpCatalog as any];
+
+    this.processor = new MessageProcessor<any>(catalogs, action => this.events.onAction?.(action));
+
+    // Forward surface errors to console and event listeners so errors are never silently swallowed
+    this.processor.onSurfaceCreated(surface => {
+      surface.onError.subscribe(err => {
+        console.error(`[A2UI Error on surface '${surface.id}']`, err);
+        this.events.onStatusChange?.(`Surface error on ${surface.id}: ${err.message || err.code}`);
+      });
+    });
   }
 
   /**
@@ -101,11 +165,7 @@ export class A2uiMcpEngine {
         {
           capabilities: {
             a2ui: {
-              clientCapabilities: {
-                'v0.9': {
-                  supportedCatalogIds: [BASIC_CATALOG_ID],
-                },
-              },
+              clientCapabilities: this.processor.getClientCapabilities(),
             },
           } as any,
         },
@@ -200,34 +260,37 @@ export class A2uiMcpEngine {
         arguments: toolArgs,
       });
 
-      // 2. Discover UI template resource URI from tool response _meta or cached tool definitions
-      const resourceUri =
-        (result as any)._meta?.ui?.resourceUri ||
-        this.toolUiResources.get(`${targetServer}:${toolName}`) ||
-        this.toolUiResources.get(toolName);
-
-      // 3. Fetch presentation template if not cached and apply if surface does not exist yet
-      if (resourceUri) {
-        const template = await this.getOrFetchTemplate(client, resourceUri);
-        const surfaceId = template.find((m: any) => m.createSurface)?.createSurface?.surfaceId;
-        if (!surfaceId || !this.processor.model.getSurface(surfaceId)) {
-          this.processor.processMessages(template);
-        }
-      }
-
-      // 4. Extract and apply A2UI data updates from tool content
-      const dataMessages = this.extractA2uiMessages(result.content as any[]);
-      if (dataMessages) {
-        this.processor.processMessages(dataMessages);
-      }
-
-      // 5. Notify listeners that surface state has updated
-      this.events.onSurfaceChange?.();
+      // 2. Discover UI template, apply messages, and notify listeners
+      await this.handleToolResult(result, client, `${targetServer}:${toolName}`);
       this.events.onStatusChange?.(`${toolName} on [${targetServer}] completed successfully!`);
     } catch (error: any) {
       console.error(`Error executing ${toolName} on [${targetServer}]:`, error);
       this.events.onStatusChange?.(`Execution failed: ${error.message || error}`);
     }
+  }
+
+  /**
+   * Processes a CallToolResult by discovering and fetching associated UI templates
+   * and applying data model updates.
+   */
+  async handleToolResult(result: any, client: Client, toolKey?: string): Promise<void> {
+    const resourceUri =
+      result?._meta?.ui?.resourceUri || (toolKey ? this.toolUiResources.get(toolKey) : undefined);
+
+    if (resourceUri) {
+      const template = await this.getOrFetchTemplate(client, resourceUri);
+      const surfaceId = template.find((m: any) => m.createSurface)?.createSurface?.surfaceId;
+      if (!surfaceId || !this.processor.model.getSurface(surfaceId)) {
+        this.processor.processMessages(template);
+      }
+    }
+
+    const dataMessages = this.extractA2uiMessages(result?.content as any[]);
+    if (dataMessages) {
+      this.processor.processMessages(dataMessages);
+    }
+
+    this.events.onSurfaceChange?.();
   }
 
   private extractA2uiMessages(contentArray: any[]): any[] | null {

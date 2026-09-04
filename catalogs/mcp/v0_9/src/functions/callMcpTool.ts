@@ -30,11 +30,14 @@ export {CallMcpToolApi};
  * Creates a `callMcpTool` FunctionImplementation bound to an MCP Client or client getter.
  *
  * @param clientOrGetter An MCP Client instance or a getter function returning a Client.
+ * @param onResult Optional hook called with the tool result and active client upon successful execution.
  */
 export function createCallMcpToolImplementation(
   clientOrGetter: Client | (() => Client),
+  onResult?: (result: CallToolResult, client: Client) => Promise<void> | void,
 ): FunctionImplementation {
   return createFunctionImplementation(CallMcpToolApi, async (args, _context, abortSignal) => {
+    console.log('Calling MCP tool with args:', args);
     try {
       const client = typeof clientOrGetter === 'function' ? clientOrGetter() : clientOrGetter;
 
@@ -59,6 +62,10 @@ export function createCallMcpToolImplementation(
           ...(abortSignal ? {signal: abortSignal} : {}),
         },
       );
+
+      if (onResult) {
+        await onResult(result, client);
+      }
 
       return result;
     } catch (error: unknown) {
