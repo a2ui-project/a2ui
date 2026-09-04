@@ -1,0 +1,58 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+version: "0.1"
+templateId: TwoColumnLayout
+description: Responsive two-column dashboard layout with banner header and split content
+  regions.
+parameters:
+  headerChild:
+    type: child
+    title: Header Component Slot
+    description: Single child component ID mounted at the top banner.
+  leftChildren:
+    type: children
+    title: Left Column Children
+    description: Child components placed in the left primary region.
+    default: []
+  rightChildren:
+    type: children
+    title: Right Column Children
+    description: Child components placed in the right secondary region.
+    default: []
+layout:
+  component: Column
+  children:
+    - component: Column
+      children: "{{ headerChild }}"
+
+    - component: Divider
+      axis: horizontal
+    - component: Row
+      children:
+        - component: Column
+          children: "{{ leftChildren }}"
+
+        - component: Column
+          children: "{{ rightChildren }}"
+
+sampleData:
+  headerChild:
+    component: Text
+    text: Header Title
+  leftChildren: []
+  rightChildren: []
+catalogs:
+  - https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json
+name: TwoColumnLayout
