@@ -146,17 +146,9 @@
         "type": "string",
         "description": "A2UI protocol role instruction passed to the SDK prompt generator."
       },
-      "role_description": {
-        "type": "string",
-        "description": "Legacy alias for protocol_role."
-      },
       "generation_rules": {
         "type": "string",
         "description": "A2UI protocol workflow rules appended to the SDK workflow prompt."
-      },
-      "workflow_description": {
-        "type": "string",
-        "description": "Legacy alias for generation_rules."
       },
       "allowed_surface_ids": {
         "type": "array",

@@ -61,12 +61,12 @@ def a2ui_specialist() -> Tool:
             experiments={"version_1_0"} if version == "1.0" else None,
         )
 
-        role_description = store().get("role_description")
-        workflow_description = store().get("workflow_description")
+        protocol_role = store().get("protocol_role") or ""
+        generation_rules = store().get("generation_rules") or ""
 
         system_content = direct_json_format.prompt_generator.generate(
-            role_description=role_description,
-            workflow_description=workflow_description,
+            role_description=protocol_role,
+            workflow_description=generation_rules,
             include_schema=True,
         )
 
@@ -102,15 +102,43 @@ def a2ui_specialist() -> Tool:
 
 
 @solver
+def subagent_system_prompt() -> Solver:
+    """Injects system prompt instructions, including domain prompt if present."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        base_prompt = (
+            "You are a helpful assistant. To fulfill UI requests, you MUST delegate"
+            " to the `a2ui_specialist` tool."
+        )
+        domain_prompt = state.metadata.get("system_prompt", "").strip()
+        if domain_prompt:
+            full_prompt = (
+                f"## Domain Instructions\n{domain_prompt}\n\n## UI Protocol"
+                f" Instructions\n{base_prompt}"
+            )
+        else:
+            full_prompt = base_prompt
+
+        state.messages.insert(0, ChatMessageSystem(content=full_prompt))
+        return state
+
+    return solve
+
+
+@solver
 def push_metadata_to_store(version: str) -> Solver:
     """Pushes metadata from the TaskState to the global store for tools to access."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         state.store.set("version", version)
         state.store.set("catalog", state.metadata.get("catalog"))
-        state.store.set("role_description", state.metadata.get("role_description"))
         state.store.set(
-            "workflow_description", state.metadata.get("workflow_description")
+            "protocol_role",
+            state.metadata.get("protocol_role", ""),
+        )
+        state.store.set(
+            "generation_rules",
+            state.metadata.get("generation_rules", ""),
         )
         return state
 
@@ -119,18 +147,27 @@ def push_metadata_to_store(version: str) -> Solver:
 
 @solver
 def extract_subagent_payload() -> Solver:
-    """Extracts the A2UI payload from the tool response messages."""
+    """Extracts the A2UI payload from the tool response messages and preserves prose."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         payload = state.store.get(PAYLOAD_STORE_KEY)
 
         if payload is not None and state.output and state.output.choices:
+            prose = state.output.completion.strip() if state.output.completion else ""
             formatted_payload = f"<a2ui-json>\n{payload}\n</a2ui-json>"
+            if prose:
+                if "<a2ui-json>" in prose:
+                    combined_content = prose
+                else:
+                    combined_content = f"{prose}\n\n{formatted_payload}"
+            else:
+                combined_content = formatted_payload
+
             state.output = ModelOutput(
                 model=state.output.model,
                 choices=[
                     ChatCompletionChoice(
-                        message=ChatMessageAssistant(content=formatted_payload)
+                        message=ChatMessageAssistant(content=combined_content)
                     )
                 ],
             )
@@ -142,10 +179,7 @@ def extract_subagent_payload() -> Solver:
 def subagent_tool_solver(version: str) -> list[Solver]:
     """Returns the solver chain for the 'subagent_tool' evaluation strategy."""
     return [
-        system_message(
-            "You are a helpful assistant. To fulfill UI requests, you MUST delegate to"
-            " the `a2ui_specialist` tool."
-        ),
+        subagent_system_prompt(),
         # Tools cannot access TaskState directly, so we must bridge the metadata into the store
         push_metadata_to_store(version),
         use_tools([a2ui_specialist()]),

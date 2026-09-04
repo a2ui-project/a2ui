@@ -206,16 +206,8 @@ def load_a2ui_dataset(
                 else FORMAT_AGNOSTIC_WORKFLOW_DESCRIPTION
             )
 
-            protocol_role = (
-                item.get("protocol_role")
-                or item.get("role_description")
-                or default_role
-            )
-            generation_rules = (
-                item.get("generation_rules")
-                or item.get("workflow_description")
-                or default_workflow
-            )
+            protocol_role = item.get("protocol_role") or default_role
+            generation_rules = item.get("generation_rules") or default_workflow
 
             chat_messages = _parse_messages(item)
 
@@ -238,8 +230,6 @@ def load_a2ui_dataset(
                         "system_prompt": item.get("system_prompt", ""),
                         "protocol_role": protocol_role,
                         "generation_rules": generation_rules,
-                        "role_description": protocol_role,
-                        "workflow_description": generation_rules,
                         "allowed_surface_ids": (
                             item.get("allowed_surface_ids") or ["main"]
                         ),
