@@ -20,50 +20,78 @@ import {AsyncDirective} from 'lit/async-directive.js';
 import {unsafeHTML} from 'lit/directives/unsafe-html.js';
 import type {MarkdownRenderer, MarkdownRendererOptions} from '../context/markdown.js';
 
+let globalMarkdownRenderer: MarkdownRenderer | undefined;
+
+/**
+ * Sets the global markdown renderer for basic catalog text components.
+ * Host applications or renderer packages can register a renderer (e.g. from `@a2ui/markdown-it`)
+ * to automatically render markdown without explicit per-component context configuration.
+ */
+export function setMarkdownRenderer(renderer?: MarkdownRenderer): void {
+  globalMarkdownRenderer = renderer;
+}
+
+/**
+ * Gets the currently registered global markdown renderer, if any.
+ */
+export function getMarkdownRenderer(): MarkdownRenderer | undefined {
+  return globalMarkdownRenderer;
+}
+
+/** @internal For testing purposes only */
+export function resetMarkdownWarningLoggedForTesting(): void {
+  MarkdownDirective.resetWarningForTesting();
+}
+
 class MarkdownDirective extends AsyncDirective {
+  private static defaultMarkdownWarningLogged = false;
   private lastValue: string | null = null;
   private lastRenderer: MarkdownRenderer | undefined = undefined;
   private lastTagClassMap: string | null = null;
+
+  /** @internal For testing purposes only */
+  static resetWarningForTesting(): void {
+    MarkdownDirective.defaultMarkdownWarningLogged = false;
+  }
 
   override update(
     _part: Part,
     [value, markdownRenderer, markdownOptions]: DirectiveParameters<this>,
   ) {
+    const effectiveRenderer = markdownRenderer ?? globalMarkdownRenderer;
     const jsonTagClassMap = JSON.stringify(markdownOptions?.tagClassMap);
     if (
       this.lastValue === value &&
-      this.lastRenderer === markdownRenderer &&
+      this.lastRenderer === effectiveRenderer &&
       jsonTagClassMap === this.lastTagClassMap
     ) {
       return noChange;
     }
 
     this.lastValue = value;
-    this.lastRenderer = markdownRenderer;
+    this.lastRenderer = effectiveRenderer;
     this.lastTagClassMap = jsonTagClassMap;
-    return this.render(value, markdownRenderer, markdownOptions);
+    return this.render(value, effectiveRenderer, markdownOptions);
   }
-
-  private static defaultMarkdownWarningLogged = false;
 
   render(
     value: string,
     markdownRenderer?: MarkdownRenderer,
     markdownOptions?: MarkdownRendererOptions,
   ) {
-    if (markdownRenderer) {
-      const renderFn =
-        typeof markdownRenderer === 'function'
-          ? markdownRenderer
-          : (markdownRenderer as any)?.['render']?.bind(markdownRenderer);
-      if (renderFn) {
-        Promise.resolve(renderFn(value, markdownOptions)).then((renderedStr: string) => {
-          if (this.isConnected) {
-            this.setValue(unsafeHTML(renderedStr));
-          }
-        });
-        return html`<span class="no-markdown-renderer">${value}</span>`;
-      }
+    const effectiveRenderer = markdownRenderer ?? globalMarkdownRenderer;
+    const renderFn =
+      typeof effectiveRenderer === 'function'
+        ? effectiveRenderer
+        : (effectiveRenderer as any)?.['render']?.bind(effectiveRenderer);
+
+    if (renderFn) {
+      Promise.resolve(renderFn(value, markdownOptions)).then((renderedStr: string) => {
+        if (this.isConnected) {
+          this.setValue(unsafeHTML(renderedStr));
+        }
+      });
+      return html`<span class="no-markdown-renderer">${value}</span>`;
     }
 
     if (!MarkdownDirective.defaultMarkdownWarningLogged) {
@@ -74,6 +102,7 @@ class MarkdownDirective extends AsyncDirective {
       );
       MarkdownDirective.defaultMarkdownWarningLogged = true;
     }
+
     return html`<span class="no-markdown-renderer">${value}</span>`;
   }
 }
