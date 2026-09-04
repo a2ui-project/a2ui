@@ -232,7 +232,7 @@ class SkillSet:
 
         return skill_set
 
-    def add(self, skill: Skill):
+    def add(self, skill: Skill) -> None:
         """Adds a Skill to the collection."""
         self._skills[skill.filename] = skill
 
@@ -274,13 +274,13 @@ class SkillSet:
     def __iter__(self) -> Iterator[str]:
         return iter(self._skills)
 
-    def keys(self):
+    def keys(self) -> Any:
         return self._skills.keys()
 
-    def values(self):
+    def values(self) -> Any:
         return self._skills.values()
 
-    def items(self):
+    def items(self) -> Any:
         return self._skills.items()
 
     def __len__(self) -> int:
