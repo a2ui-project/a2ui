@@ -63,7 +63,14 @@ export function scrapeSchemaBehavior(schema: z.ZodTypeAny): BehaviorNode {
   return getFieldBehavior(schema);
 }
 
-function getRefDefName(type: z.ZodTypeAny): string {
+/**
+ * Unwraps Zod wrapper schemas (ZodOptional, ZodNullable, ZodDefault,
+ * ZodReadonly, ZodEffects) to retrieve the underlying inner schema type.
+ *
+ * @param type Zod schema to unwrap.
+ * @returns The inner Zod schema.
+ */
+function unwrapZodSchema(type: z.ZodTypeAny): z.ZodTypeAny {
   let current: any = type;
   while (current) {
     const typeName = current._def?.typeName;
@@ -80,29 +87,31 @@ function getRefDefName(type: z.ZodTypeAny): string {
       break;
     }
   }
+  return current;
+}
+
+/**
+ * Extracts the definition name from a schema's REF: description, if present.
+ *
+ * @param type Zod schema to inspect.
+ * @returns Target definition name, or an empty string.
+ */
+function getRefDefName(type: z.ZodTypeAny): string {
+  const current: any = unwrapZodSchema(type);
   const desc: string = current?.description ?? current?._def?.description ?? '';
   if (!desc || !desc.startsWith('REF:')) return '';
   const cleanDesc = desc.slice(4);
   return extractRefDefName(cleanDesc.split('|')[0]);
 }
 
+/**
+ * Checks whether a schema represents a checkable validation rule or list of rules.
+ *
+ * @param type Zod schema to inspect.
+ * @returns Whether the schema represents a checkable field.
+ */
 function isCheckableField(type: z.ZodTypeAny): boolean {
-  let current: any = type;
-  while (current) {
-    const typeName = current._def?.typeName;
-    if (
-      typeName === 'ZodOptional' ||
-      typeName === 'ZodNullable' ||
-      typeName === 'ZodDefault' ||
-      typeName === 'ZodReadonly'
-    ) {
-      current = current._def.innerType;
-    } else if (typeName === 'ZodEffects') {
-      current = current._def.schema;
-    } else {
-      break;
-    }
-  }
+  const current: any = unwrapZodSchema(type);
 
   const defName = getRefDefName(current);
   if (defName === 'Checkable' || defName === 'CheckRule') {
@@ -110,22 +119,7 @@ function isCheckableField(type: z.ZodTypeAny): boolean {
   }
 
   if (current?._def?.typeName === 'ZodArray') {
-    let elem = current._def.type;
-    while (elem) {
-      const typeName = elem._def?.typeName;
-      if (
-        typeName === 'ZodOptional' ||
-        typeName === 'ZodNullable' ||
-        typeName === 'ZodDefault' ||
-        typeName === 'ZodReadonly'
-      ) {
-        elem = elem._def.innerType;
-      } else if (typeName === 'ZodEffects') {
-        elem = elem._def.schema;
-      } else {
-        break;
-      }
-    }
+    const elem = unwrapZodSchema(current._def.type);
     const elemDefName = getRefDefName(elem);
     if (elemDefName === 'CheckRule') {
       return true;
@@ -135,25 +129,14 @@ function isCheckableField(type: z.ZodTypeAny): boolean {
   return false;
 }
 
+/**
+ * Recursively maps a Zod schema to its corresponding BehaviorNode.
+ *
+ * @param type Zod schema to inspect.
+ * @returns Behavior node representing runtime handling for the schema.
+ */
 function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
-  let current: any = type;
-
-  // Unwrap optionals/nullables/defaults/effects
-  while (current) {
-    const typeName = current._def?.typeName;
-    if (
-      typeName === 'ZodOptional' ||
-      typeName === 'ZodNullable' ||
-      typeName === 'ZodDefault' ||
-      typeName === 'ZodReadonly'
-    ) {
-      current = current._def.innerType;
-    } else if (typeName === 'ZodEffects') {
-      current = current._def.schema;
-    } else {
-      break;
-    }
-  }
+  const current: any = unwrapZodSchema(type);
 
   if (isCheckableField(current)) {
     return {type: 'CHECKABLE'};
@@ -230,25 +213,28 @@ function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
   return {type: 'STATIC'};
 }
 
+/** Types recognized as dynamic data bindings or expression function calls. */
 type DynamicTypes =
   | DataBinding
   | {path: string}
   | {call: string; catalogId?: string; args?: Record<string, unknown>; returnType?: string};
 
+/** Types recognized as user actions or function call events. */
 type ActionLike =
   | Action
   | {event: {name: string; context?: Record<string, unknown>}}
   | {functionCall: {call: string; catalogId?: string; args?: Record<string, unknown>}};
 
+/** Evaluates to true if type T can contain a dynamic binding. */
 type IsDynamic<T> = DataBinding extends NonNullable<T> ? true : false;
 
 /**
  * Resolved reference to a child component with its unique identifier and data context path.
  */
 export interface ResolvedChildRef {
-  /** The unique identifier of the referenced child component. */
+  /** Unique identifier of the referenced child component. */
   id: string;
-  /** The base data model path scoped to this child component instance. */
+  /** Base data model path scoped to this child component instance. */
   basePath: string;
 }
 
@@ -277,9 +263,10 @@ export type GenerateSetters<T> = {
 };
 
 /**
- * The final output type of the Generic Binder, providing fully resolved, ready-to-use props.
+ * Fully resolved component properties, setters, and validation flags.
  *
- * This is what framework-specific adapters (like createReactComponent) pass to the developer's view logic.
+ * Used by framework adapters (such as createReactComponent) to provide
+ * strongly-typed props to component views.
  */
 export type ResolveA2uiProps<T> = (T extends object
   ? {
@@ -296,11 +283,13 @@ export type ResolveA2uiProps<T> = (T extends object
  *
  * Connects component properties to the data context, resolves dynamic bindings,
  * actions, structural templates, and validation checks.
+ *
+ * @template T Component property interface.
  */
 export class GenericBinder<T> {
   private dataListeners: (() => void)[] = [];
   private propsListeners: ((props: T) => void)[] = [];
-  /** Current snapshot of resolved properties. */
+  /** Snapshot of currently resolved properties. */
   public currentProps: Partial<T> = {};
   private compUnsub?: () => void;
   private isConnected = false;
@@ -312,6 +301,12 @@ export class GenericBinder<T> {
   // unchanged action props reference-identical across rebuilds.
   private actionClosures = new Map<string, {raw: unknown; closure: () => void}>();
 
+  /**
+   * Creates a new binder for the given component context and schema.
+   *
+   * @param context Component context providing state and event dispatching.
+   * @param schema Zod schema defining the component properties.
+   */
   constructor(context: ComponentContext, schema: z.ZodTypeAny) {
     this.context = context;
     this.behaviorTree = scrapeSchemaBehavior(schema);
@@ -628,7 +623,13 @@ export class GenericBinder<T> {
   }
 }
 
-/** Structural equality over JSON-shaped values (objects, arrays, primitives). */
+/**
+ * Evaluates structural equality between two JSON-compatible values.
+ *
+ * @param a First value to compare.
+ * @param b Second value to compare.
+ * @returns Whether the two values are structurally equal.
+ */
 function jsonEquals(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;
   if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) {
