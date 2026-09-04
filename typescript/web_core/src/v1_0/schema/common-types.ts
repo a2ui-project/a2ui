@@ -40,53 +40,26 @@ export const DataBindingSchema = z
   .describe('REF:#/$defs/DataBinding');
 export type DataBinding = z.infer<typeof DataBindingSchema>;
 
-export type DynamicValue =
-  | string
-  | number
-  | boolean
-  | unknown[]
-  | DataBinding
-  | FunctionCall
-  | Record<string, unknown>;
-export const DynamicValueSchema: z.ZodType<DynamicValue> = z
-  .union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.array(z.any()),
-    z.record(z.string(), z.unknown()).refine(obj => !obj || (!('path' in obj) && !('call' in obj))),
-    DataBindingSchema,
-    z.lazy(() => FunctionCallSchema),
-  ])
-  .describe(
-    'REF:#/$defs/DynamicValue|A value that can be a literal, a path, or a function call returning any type.',
-  );
-
-export interface FunctionCall {
-  call: string;
-  catalogId?: string;
-  args?: Record<string, unknown>;
-  returnType?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';
-}
-export const FunctionCallSchema: z.ZodType<FunctionCall> = z
+export const FunctionCommonSchema = z
   .object({
     'call': z.string().describe('The name of the function to call.'),
     'catalogId': z
       .string()
       .describe('The catalog ID for this function, overriding any surface-level default catalogId.')
       .optional(),
-    'args': z
-      .record(
-        z.string(),
-        z.union([
-          DynamicValueSchema,
-          z.record(z.string(), z.any()).describe('A literal object argument (e.g. configuration).'),
-        ]),
-      )
-      .describe('Arguments passed to the function.')
-      .optional(),
   })
-  .describe('REF:#/$defs/FunctionCall|Invokes a named function.');
+  .describe(
+    "REF:#/$defs/FunctionCommon|Baseline envelope properties common to all function calls. Function-specific argument schemas ('args') are defined individually by each function in the active catalog.",
+  );
+export type FunctionCommon = z.infer<typeof FunctionCommonSchema>;
+
+export const FunctionCallSchema = z
+  .record(z.string(), z.any())
+  .and(z.intersection(FunctionCommonSchema, z.any()))
+  .describe(
+    'REF:#/$defs/FunctionCall|Invokes a named function, combining common function properties with the catalog function definition.',
+  );
+export type FunctionCall = z.infer<typeof FunctionCallSchema>;
 
 export const DynamicStringSchema = z
   .union([z.string(), DataBindingSchema, FunctionCallSchema])
@@ -179,6 +152,21 @@ export const ChildListSchema = markChildRef(
 );
 export type ChildList = z.infer<typeof ChildListSchema>;
 
+export const DynamicValueSchema = z
+  .union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.array(z.any()),
+    z.record(z.string(), z.unknown()).refine(obj => !obj || (!('path' in obj) && !('call' in obj))),
+    DataBindingSchema,
+    FunctionCallSchema,
+  ])
+  .describe(
+    'REF:#/$defs/DynamicValue|A value that can be a literal, a path, or a function call returning any type.',
+  );
+export type DynamicValue = z.infer<typeof DynamicValueSchema>;
+
 export const DynamicNumberSchema = z
   .union([z.number(), DataBindingSchema, FunctionCallSchema])
   .describe(
@@ -192,16 +180,6 @@ export const DynamicStringListSchema = z
     'REF:#/$defs/DynamicStringList|Represents a value that can be either a literal array of strings, a path to a string array in the data model, or a function call returning a string array.',
   );
 export type DynamicStringList = z.infer<typeof DynamicStringListSchema>;
-
-export const FunctionCommonSchema = z
-  .object({
-    'catalogId': z
-      .string()
-      .describe('The catalog ID for this function, overriding any surface-level default catalogId.')
-      .optional(),
-  })
-  .describe('REF:#/$defs/FunctionCommon');
-export type FunctionCommon = z.infer<typeof FunctionCommonSchema>;
 
 export const IndexSystemFunctionSchema = z
   .object({
@@ -306,7 +284,7 @@ export const CommonSchemas = {
   ComponentId: ComponentIdSchema,
   CallId: CallIdSchema,
   DataBinding: DataBindingSchema,
-  DynamicValue: DynamicValueSchema,
+  FunctionCommon: FunctionCommonSchema,
   FunctionCall: FunctionCallSchema,
   DynamicString: DynamicStringSchema,
   DynamicBoolean: DynamicBooleanSchema,
@@ -315,9 +293,9 @@ export const CommonSchemas = {
   ComponentCommon: ComponentCommonSchema,
   Child: ChildSchema,
   ChildList: ChildListSchema,
+  DynamicValue: DynamicValueSchema,
   DynamicNumber: DynamicNumberSchema,
   DynamicStringList: DynamicStringListSchema,
-  FunctionCommon: FunctionCommonSchema,
   IndexSystemFunction: IndexSystemFunctionSchema,
   CheckRule: CheckRuleSchema,
   Checkable: CheckableSchema,

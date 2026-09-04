@@ -248,13 +248,20 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
   },
   'FunctionCommon': {
     'type': 'object',
+    'description':
+      "Baseline envelope properties common to all function calls. Function-specific argument schemas ('args') are defined individually by each function in the active catalog.",
     'properties': {
+      'call': {
+        'type': 'string',
+        'description': 'The name of the function to call.',
+      },
       'catalogId': {
         'type': 'string',
         'description':
           'The catalog ID for this function, overriding any surface-level default catalogId.',
       },
     },
+    'required': ['call'],
   },
   'IndexSystemFunction': {
     'type': 'object',
@@ -283,40 +290,21 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
   },
   'FunctionCall': {
     'type': 'object',
-    'description': 'Invokes a named function.',
-    'properties': {
-      'call': {
-        'type': 'string',
-        'description': 'The name of the function to call.',
-      },
-      'catalogId': {
-        'type': 'string',
-        'description':
-          'The catalog ID for this function, overriding any surface-level default catalogId.',
-      },
-      'args': {
-        'type': 'object',
-        'description': 'Arguments passed to the function.',
-        'additionalProperties': {
-          'anyOf': [
-            {
-              '$ref': '#/$defs/DynamicValue',
-            },
-            {
-              'type': 'object',
-              'description': 'A literal object argument (e.g. configuration).',
-            },
-          ],
-        },
-      },
-    },
-    'required': ['call'],
-    'oneOf': [
+    'description':
+      'Invokes a named function, combining common function properties with the catalog function definition.',
+    'allOf': [
       {
-        '$ref': 'catalog.json#/$defs/anyFunction',
+        '$ref': '#/$defs/FunctionCommon',
       },
       {
-        '$ref': '#/$defs/IndexSystemFunction',
+        'oneOf': [
+          {
+            '$ref': 'catalog.json#/$defs/anyFunction',
+          },
+          {
+            '$ref': '#/$defs/IndexSystemFunction',
+          },
+        ],
       },
     ],
     'unevaluatedProperties': false,

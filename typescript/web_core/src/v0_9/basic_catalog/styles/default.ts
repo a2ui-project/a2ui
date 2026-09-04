@@ -117,13 +117,44 @@ function getDefaultStyleSheet(): CSSStyleSheet {
 /**
  * Injects CSS variables for the A2UI basic catalog into the document stylesheet collection.
  *
- * Design token values are shared across renderer packages.
+ * This method is used by the A2UI-provided basic catalogs of each renderer
+ * so design token values can be shared across all of them.
+ *
+ * It is only meant to be used by the basic catalog implementations provided
+ * by `@a2ui/lit`, `@a2ui/angular` and `@a2ui/react`, and should not be
+ * considered as part of the A2UI spec. This package is just a convenient
+ * location for it.
+ *
+ * Users may redefine the values of the CSS variables exposed in the default
+ * stylesheet above (and the specific ones exposed by each basic catalog
+ * package) to customize the appearance of the items of the basic catalog.
+ *
+ * @internal
  */
-export function injectBasicCatalogStyles() {
+export function injectBasicCatalogStyles(targetRoot?: Document | ShadowRoot) {
   if (typeof document === 'undefined') return;
   const sheet = getDefaultStyleSheet();
-  if (!document.adoptedStyleSheets.includes(sheet)) {
-    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  const docSheets = typeof document !== 'undefined' ? (document as any).adoptedStyleSheets : null;
+  if (docSheets && typeof docSheets.includes === 'function' && !docSheets.includes(sheet)) {
+    try {
+      (document as any).adoptedStyleSheets = [...docSheets, sheet];
+    } catch {
+      // Fallback
+    }
+  }
+  if (targetRoot && targetRoot !== document) {
+    const targetSheets = (targetRoot as any).adoptedStyleSheets;
+    if (
+      targetSheets &&
+      typeof targetSheets.includes === 'function' &&
+      !targetSheets.includes(sheet)
+    ) {
+      try {
+        (targetRoot as any).adoptedStyleSheets = [...targetSheets, sheet];
+      } catch {
+        // Fallback
+      }
+    }
   }
 }
 
@@ -175,7 +206,9 @@ export function computeColorVariant(type: 'hover', options: ColorVariantHoverOpt
  *
  * @param type The variant type ('light', 'dark', 'hover').
  * @param options Options containing variable names, percentages, and optional mix color.
- * @returns Generated CSS formula string.
+ * @returns The CSS formula string.
+ *
+ * @internal
  */
 export function computeColorVariant(
   type: 'light' | 'dark' | 'hover',

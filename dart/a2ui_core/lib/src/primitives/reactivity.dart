@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// Reactive primitives, re-exported from `package:preact_signals`.
 library;
 
 export 'package:preact_signals/preact_signals.dart'

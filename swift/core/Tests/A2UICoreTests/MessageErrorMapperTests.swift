@@ -147,7 +147,7 @@ struct MessageErrorMapperTests {
     }
   }
 
-  @Test func parseReturnsNilSurfaceIDForInvalidJson() {
+  @Test func parseReturnsNilSurfaceIDForInvalidJSON() {
     let parser = MessageParser()
     do {
       _ = try parser.parse(jsonString: "not valid json")

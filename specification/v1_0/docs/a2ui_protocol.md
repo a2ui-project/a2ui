@@ -597,6 +597,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - Mandatory metadata fields outside the strict JSON validation properties to advertise interface details:
        - **`returnType`**: Must be a string enum indicating the return type (`string`, `number`, `boolean`, `array`, `object`, `validationResult`, `any`, or `void`).
        - **`allowedCallers`**: Must be a string enum indicating the authorized callers (`rendererOnly`, `agentOnly`, or `rendererOrAgent`). If omitted, it defaults to `rendererOnly`.
+   - Base function envelope properties (`call` and `catalogId` via `FunctionCommon`) are composed at the envelope level in `FunctionCall` (`common_types.json#/$defs/FunctionCall`) via `allOf`, and therefore MUST NOT be redundantly wrapped with `FunctionCommon` via `allOf` inside individual catalog function definitions.
 7. **Strict Top-Level Schema Keys:**
    - To keep catalog schemas predictable and prevent custom extensions from polluting the global file space, a `catalog.json` file is restricted to the following root-level keys:
      - `$schema`
