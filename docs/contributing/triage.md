@@ -72,8 +72,8 @@ The [triage.mjs](../../scripts/triage.mjs) script runs via the [`Flag/Unflag iss
         - `P2`: stale for > 90 days
         - (`P3` and `P4` issues are never flagged for staleness)
     - **Unanswered external comment**: The latest human comment is from an external contributor.
-
 3. **Pull Requests**: Flagged with `status: needs-triage` if opened by an external contributor and no maintainer has responded to the author's latest contribution. (Maintainer-authored PRs are not flagged).
+4. **Transparency**: The automation prints to the console what items are flagged or unflagged and why. This can be used to track triage progress.
 
 Staleness is calculated from the last human contribution (comment, review, or issue/PR creation) rather than `updated_at` to avoid bot edits resetting the timer.
 

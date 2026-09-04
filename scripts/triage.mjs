@@ -24,7 +24,6 @@
 // - Items are selected by query, but the query alone is not trusted: GitHub's
 //   search index can lag behind reality. Before changing any label, the script
 //   re-reads the item and confirms it still matches.
-// - The job prints to the console what items are flagged or unflagged and why.
 
 export const WAITING_LABEL = 'status: waiting-for-author-response';
 export const FLAG_LABEL = 'status: needs-triage';
