@@ -17,12 +17,12 @@
 import {useState, useEffect, useSyncExternalStore, useCallback, useRef} from 'react';
 import {MessageProcessor, type SurfaceModel, type A2uiClientAction} from '@a2ui/web_core/v0_9';
 import {
-  basicCatalog,
   A2uiSurface,
   A2UIProvider,
   MarkdownContext,
   type ReactCatalogComponent,
 } from '@a2ui/react/v0_9';
+import {demoCatalog} from './demo-catalog';
 import {getDemoItems} from './examples';
 import {renderMarkdown} from '@a2ui/markdown-it';
 import styles from './App.module.css';
@@ -205,32 +205,30 @@ export const App = ({initialExampleId, onAction, useUniversalComponents}: AppPro
   // Initialize or reset processor
   const resetProcessor = useCallback(
     (advanceToEnd: boolean = false) => {
-      setProcessor(() => {
-        if (processorRef.current) {
-          processorRef.current.model.dispose();
-        }
-        const newProcessor = new MessageProcessor<ReactCatalogComponent>(
-          [basicCatalog],
-          async (action: A2uiClientAction) => {
-            setLogs(l => [...l, {time: new Date().toISOString(), action}]);
-            if (onActionRef.current) {
-              onActionRef.current(action);
-            }
-          },
-        );
-        processorRef.current = newProcessor;
+      if (processorRef.current) {
+        processorRef.current.model.dispose();
+      }
+      const newProcessor = new MessageProcessor<ReactCatalogComponent>(
+        [demoCatalog],
+        async (action: A2uiClientAction) => {
+          setLogs(l => [...l, {time: new Date().toISOString(), action}]);
+          if (onActionRef.current) {
+            onActionRef.current(action);
+          }
+        },
+      );
 
-        const msgs = selectedItem?.messages;
-        if (advanceToEnd && msgs) {
-          newProcessor.processMessages(structuredClone(msgs));
-        }
-        return newProcessor;
-      });
+      const msgs = selectedItem?.messages;
+      if (advanceToEnd && msgs) {
+        newProcessor.processMessages(structuredClone(msgs));
+      }
+
+      processorRef.current = newProcessor;
+      setProcessor(newProcessor);
 
       setLogs([]);
       setSurfaces([]);
 
-      const msgs = selectedItem?.messages;
       if (advanceToEnd && msgs) {
         setCurrentMessageIndex(msgs.length - 1);
       } else {
@@ -246,10 +244,11 @@ export const App = ({initialExampleId, onAction, useUniversalComponents}: AppPro
     scrollToActiveExample();
     // Cleanup on unmount or when changing examples
     return () => {
-      setProcessor(prev => {
-        if (prev) prev.model.dispose();
-        return null;
-      });
+      if (processorRef.current) {
+        processorRef.current.model.dispose();
+        processorRef.current = null;
+      }
+      setProcessor(null);
     };
   }, [selectedExampleId, resetProcessor, scrollToActiveExample]);
 
