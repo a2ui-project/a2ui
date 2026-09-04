@@ -1,5 +1,6 @@
 ## Unreleased
 
+- (v0_9) Fix the setter `GenericBinder` generates for a property declared as a binding with no literal branch: its parameter resolved to `never`, making the setter uncallable. It now falls back to `unknown`, matching the fallback `ResolveA2uiProp` already applies to the resolved property ([#2528](https://github.com/a2ui-project/a2ui/issues/2528)).
 - (v0_9) Deprecate `injectBasicCatalogStyles`, `computeColorVariant`, `ColorVariantLightDarkOptions`, and `ColorVariantHoverOptions` exports from `@a2ui/web_core/v0_9`. Consumers should import them from `@a2ui/web_core/v0_9/basic_catalog` instead.
 - (v0_9) An invalid number literal in an expression, such as `${1.2.3}`, now throws `A2uiExpressionError` instead of being handed back as `NaN`. The accepted shape — digits, an optional decimal point and optional further digits — is stated in the parser rather than inherited from `Number()`, so every implementation accepts the same literals. ([#2497](https://github.com/a2ui-project/a2ui/pull/2497))
 - (v0_9) The expression parser now runs the shared conformance suite at `conformance/core/expressions.yaml`, alongside the Dart client. Adds `js-yaml` as a dev dependency to read it. ([#2497](https://github.com/a2ui-project/a2ui/pull/2497))
