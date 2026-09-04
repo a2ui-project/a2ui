@@ -74,41 +74,70 @@ export class SurfaceModel<
   /**
    * Initializes a new `SurfaceModel` instance.
    *
-   * @param id Unique identifier for this surface.
-   * @param catalog Component catalog used by this surface.
-   * @param theme Theme configuration to apply to this surface.
-   * @param sendDataModel Whether the renderer should stream data model updates back to the agent.
+   * @param id The unique identifier for this surface.
+   * @param catalog The component catalog used by this surface.
+   * @param theme The theme to apply to this surface.
+   * @param sendDataModel If true, the renderer will send the full data model.
+   * @param dataModel Optional custom DataModel instance. If provided, the SurfaceModel assumes
+   *   full ownership of its lifecycle and will dispose it when dispose() is called.
    */
   constructor(
     readonly id: string,
     readonly catalog: Catalog<T, F>,
     readonly theme: any = {},
     readonly sendDataModel: boolean = false,
+    dataModel?: DataModel,
   ) {
-    this.dataModel = new DataModel({});
+    this.dataModel = dataModel ?? new DataModel({});
     this.componentsModel = new SurfaceComponentsModel(catalog);
   }
 
   /**
    * Dispatches an action from this surface to registered listeners.
    *
-   * @param payload The action payload (name and context) to dispatch.
+   * @param payload The action payload (name/call and context/args) to dispatch.
    * @param sourceComponentId The ID of the component that triggered the action.
    */
   async dispatchAction(payload: any, sourceComponentId: string): Promise<void> {
-    if (payload && typeof payload === 'object' && 'event' in payload && payload.event) {
+    if (payload && typeof payload === 'object') {
+      let eventPayload: any = null;
+      if ('event' in payload && payload.event && typeof payload.event === 'object') {
+        eventPayload = payload.event;
+      } else if (
+        'functionCall' in payload &&
+        payload.functionCall &&
+        typeof payload.functionCall === 'object'
+      ) {
+        eventPayload = payload.functionCall;
+      } else if ('name' in payload || 'call' in payload) {
+        eventPayload = payload;
+      }
+
+      if (!eventPayload) {
+        return;
+      }
+
+      const name = eventPayload.name || eventPayload.call;
+      if (!name || typeof name !== 'string') {
+        return;
+      }
+
+      const rawContext = eventPayload.context ?? eventPayload.args;
+      const context =
+        rawContext && typeof rawContext === 'object' && !Array.isArray(rawContext)
+          ? (rawContext as Record<string, unknown>)
+          : {};
+
       const actionToDispatch: ActionPayload = {
-        name: payload.event.name,
+        name,
         surfaceId: this.id,
         sourceComponentId,
         timestamp: new Date().toISOString(),
-        context: payload.event.context || {},
+        context,
       };
 
       await this._onAction.emit(actionToDispatch);
     }
-    // Note: local functionCall actions are currently handled by the renderer or binder
-    // and do not necessarily need to be emitted here if they are not intended for the agent.
   }
 
   /**

@@ -17,6 +17,7 @@
 import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
 import {SurfaceModel} from './surface-model.js';
+import {DataModel} from './data-model.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {ComponentModel} from './component-model.js';
 import {ComponentContext} from '../rendering/component-context.js';
@@ -44,6 +45,13 @@ describe('SurfaceModel', () => {
     assert.deepStrictEqual(surface.dataModel.get('/'), {});
   });
 
+  it('accepts custom data model in constructor', () => {
+    const customData = new DataModel({custom: 'data'});
+    const customSurface = new SurfaceModel('surface-2', catalog, {}, false, customData);
+    assert.strictEqual(customSurface.dataModel, customData);
+    assert.strictEqual(customSurface.dataModel.get('/custom'), 'data');
+  });
+
   it('exposes components model', () => {
     surface.componentsModel.addComponent(new ComponentModel('c1', 'Button', {}, surface.catalog));
     assert.ok(surface.componentsModel.get('c1'));
@@ -59,6 +67,16 @@ describe('SurfaceModel', () => {
     assert.deepStrictEqual(action.context, {foo: 'bar'});
     assert.ok(action.timestamp);
     assert.doesNotThrow(() => new Date(action.timestamp));
+  });
+
+  it('dispatches functionCall actions with call and args', async () => {
+    await surface.dispatchAction({functionCall: {call: 'doTask', args: {param: 123}}}, 'comp-2');
+    assert.strictEqual(actions.length, 1);
+    const action = actions[0];
+    assert.strictEqual(action.name, 'doTask');
+    assert.strictEqual(action.surfaceId, 'surface-1');
+    assert.strictEqual(action.sourceComponentId, 'comp-2');
+    assert.deepStrictEqual(action.context, {param: 123});
   });
 
   it('dispatches actions with default context', async () => {
@@ -101,5 +119,15 @@ describe('SurfaceModel', () => {
     // The EventEmitter.dispose method clears all listeners.
     surface.dispatchAction({event: {name: 'click'}}, 'c1');
     assert.strictEqual(actionReceived, false, 'Should not receive actions after dispose');
+  });
+
+  it('ignores invalid or missing action payloads gracefully', async () => {
+    await surface.dispatchAction(null, 'c1');
+    await surface.dispatchAction(undefined, 'c1');
+    await surface.dispatchAction({}, 'c1');
+    await surface.dispatchAction({foo: 'bar'}, 'c1');
+    await surface.dispatchAction({event: {}}, 'c1');
+    await surface.dispatchAction({event: {name: 123}}, 'c1');
+    assert.strictEqual(actions.length, 0);
   });
 });
