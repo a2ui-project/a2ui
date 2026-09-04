@@ -19,12 +19,52 @@
     "ui",
     "renderer"
   ],
-  "main": "./dist/src/v0_8/index.js",
-  "types": "./dist/src/v0_8/index.d.ts",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/src/v0_8/index.d.ts",
-      "default": "./dist/src/v0_8/index.js"
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    },
+    "./catalog": {
+      "types": "./dist/src/catalog/index.d.ts",
+      "default": "./dist/src/catalog/index.js"
+    },
+    "./state": {
+      "types": "./dist/src/state/index.d.ts",
+      "default": "./dist/src/state/index.js"
+    },
+    "./processing": {
+      "types": "./dist/src/processing/index.d.ts",
+      "default": "./dist/src/processing/index.js"
+    },
+    "./rendering": {
+      "types": "./dist/src/rendering/index.d.ts",
+      "default": "./dist/src/rendering/index.js"
+    },
+    "./validating": {
+      "types": "./dist/src/validating/integrity-checker.d.ts",
+      "default": "./dist/src/validating/integrity-checker.js"
+    },
+    "./reactivity": {
+      "types": "./dist/src/reactivity/index.d.ts",
+      "default": "./dist/src/reactivity/index.js"
+    },
+    "./expressions": {
+      "types": "./dist/src/expressions/index.d.ts",
+      "default": "./dist/src/expressions/index.js"
+    },
+    "./adapters": {
+      "types": "./dist/src/processing/adapters/index.d.ts",
+      "default": "./dist/src/processing/adapters/index.js"
+    },
+    "./errors": {
+      "types": "./dist/src/errors.d.ts",
+      "default": "./dist/src/errors.js"
+    },
+    "./events": {
+      "types": "./dist/src/common/events.d.ts",
+      "default": "./dist/src/common/events.js"
     },
     "./v0_8": {
       "types": "./dist/src/v0_8/index.d.ts",
@@ -49,14 +89,6 @@
     "./v1_0/basic_catalog": {
       "types": "./dist/src/v1_0/basic_catalog/index.d.ts",
       "default": "./dist/src/v1_0/basic_catalog/index.js"
-    },
-    "./adapters": {
-      "types": "./dist/src/processing/adapters/index.d.ts",
-      "default": "./dist/src/processing/adapters/index.js"
-    },
-    "./validating": {
-      "types": "./dist/src/validating/integrity-checker.d.ts",
-      "default": "./dist/src/validating/integrity-checker.js"
     },
     "./data/*": {
       "types": "./dist/src/v0_8/data/*.d.ts",

@@ -17,7 +17,7 @@
 import {setupTestDom, teardownTestDom, asyncUpdate} from './dom-setup.js';
 import assert from 'node:assert';
 import {describe, it, before, after} from 'node:test';
-import * as Types from '@a2ui/web_core/types/types';
+import type {MarkdownRenderer} from '@a2ui/web_core';
 
 describe('Markdown Directive', () => {
   before(() => {
@@ -59,7 +59,7 @@ describe('Markdown Directive', () => {
       resolveRenderer = resolve;
     });
     // Mock a markdown renderer that resolves by calling `resolveRenderer`
-    const mockRenderer: Types.MarkdownRenderer = async () => renderPromise;
+    const mockRenderer: MarkdownRenderer = async () => renderPromise;
 
     // Render the directive with our mock renderer
     render(html`<div>${markdown('Hello markdown', mockRenderer)}</div>`, container);
