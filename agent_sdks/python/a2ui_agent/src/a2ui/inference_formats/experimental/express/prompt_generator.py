@@ -146,6 +146,42 @@ class ExpressPromptGenerator(PromptGenerator):
         self.helper = CatalogSchemaHelper(format_inst.catalog)
         self.parser: Optional[ExpressParser] = None
 
+    def generate_base_rules(self) -> str:
+        """Returns the core syntax contract and grammar rules for A2UI Express."""
+        return EXPRESS_RULES
+
+    def generate_catalog_instructions(
+        self,
+        include_schema: bool = True,
+        catalog: Optional[Any] = None,
+    ) -> str:
+        """Assembles positional signatures and instructions for a catalog."""
+        if not include_schema:
+            return ""
+        if catalog:
+            old_helper = self.helper
+            self.helper = CatalogSchemaHelper(catalog)
+            res = self.catalog_description(include_schema=True)
+            self.helper = old_helper
+            return res
+        return self.catalog_description(include_schema=True)
+
+    def generate_examples(
+        self,
+        catalog: Optional[Any] = None,
+        validate: bool = False,
+    ) -> str:
+        """Loads and formats few-shot Express DSL examples."""
+        target_catalog = catalog or self.catalog
+        if not target_catalog or not self._format or not self._format.examples_path:
+            return ""
+        raw_examples = target_catalog.load_examples(
+            self._format.examples_path, validate=validate
+        )
+        if not raw_examples:
+            return ""
+        return self.transform_examples(raw_examples)
+
     def generate_component_signatures(self) -> str:
         """Compiles component definitions into clean function-like signatures.
 
@@ -486,26 +522,14 @@ class ExpressPromptGenerator(PromptGenerator):
             self.helper = CatalogSchemaHelper(catalog) if catalog else None
             self.parser = ExpressParser(catalog) if catalog else None
 
-        parts = [role_description]
-
-        rules = EXPRESS_RULES
-        if workflow_description:
-            rules += f"\n\n{workflow_description}"
-        parts.append(f"## Workflow Description:\n{rules}")
-
-        if ui_description:
-            parts.append(f"## UI Description:\n{ui_description}")
-
-        if include_schema and self.helper:
-            prompt = self._build_schema_prompt()
-            parts.append(prompt)
-
-        if include_examples and self._format and self._format.examples_path and catalog:
-            raw_examples = catalog.load_examples(
-                self._format.examples_path, validate=validate_examples
-            )
-            if raw_examples:
-                formatted_examples = self.transform_examples(raw_examples)
-                parts.append(f"### Examples:\n{formatted_examples}")
-
-        return "\n\n".join(parts)
+        return super().generate(
+            role_description=role_description,
+            workflow_description=workflow_description,
+            ui_description=ui_description,
+            client_ui_capabilities=client_ui_capabilities,
+            allowed_components=allowed_components,
+            allowed_messages=allowed_messages,
+            include_schema=include_schema,
+            include_examples=include_examples,
+            validate_examples=validate_examples,
+        )

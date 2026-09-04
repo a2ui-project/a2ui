@@ -35,6 +35,50 @@ class DirectJsonPromptGenerator(PromptGenerator):
         self._format = format_inst
         self.selected_catalog: Optional["A2uiCatalog"] = None
 
+    def generate_base_rules(self) -> str:
+        """Returns default JSON workflow rules."""
+        from a2ui.schema.constants import DEFAULT_WORKFLOW_RULES
+
+        return DEFAULT_WORKFLOW_RULES
+
+    def generate_catalog_instructions(
+        self,
+        include_schema: bool = True,
+        catalog: Optional[Any] = None,
+    ) -> str:
+        """Returns LLM instructions for a catalog or all supported catalogs."""
+        if not include_schema:
+            return ""
+        if catalog:
+            return catalog.render_as_llm_instructions() or ""
+        if self.selected_catalog:
+            return self.selected_catalog.render_as_llm_instructions() or ""
+        if self._format and self._format._supported_catalogs:
+            instructions = [
+                c.render_as_llm_instructions()
+                for c in self._format._supported_catalogs
+                if c.render_as_llm_instructions()
+            ]
+            return "\n\n".join(instructions)
+        return ""
+
+    def generate_examples(
+        self,
+        catalog: Optional[Any] = None,
+        validate: bool = False,
+    ) -> str:
+        """Loads and formats few-shot examples for a catalog."""
+        target_catalog = catalog or self.selected_catalog
+        if not target_catalog:
+            target_catalog = (
+                self._format._supported_catalogs[0]
+                if self._format._supported_catalogs
+                else None
+            )
+        if not target_catalog:
+            return ""
+        return self._format.load_examples(target_catalog, validate=validate) or ""
+
     def generate(
         self,
         role_description: str,

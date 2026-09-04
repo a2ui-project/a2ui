@@ -221,7 +221,7 @@ def test_decompiler_delegation(test_catalog):
         def generate(self, *args, **kwargs):
             return super().generate(*args, **kwargs)
 
-    assert DummyPromptGenerator().generate("role") is None
+    assert DummyPromptGenerator().generate("role") == "role"
 
     # Verify invalid catalog_id check
     bad_catalog = A2uiCatalog(

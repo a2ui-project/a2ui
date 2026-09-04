@@ -113,6 +113,7 @@ class AtomPromptGenerator(PromptGenerator):
         Args:
             format_inst: The AtomFormat strategy instance.
         """
+        self._format = format_inst
         self.format = format_inst
         try:
             from a2ui.schema.schema_helper import CatalogSchemaHelper
@@ -125,6 +126,52 @@ class AtomPromptGenerator(PromptGenerator):
             self.schema_helper = CatalogSchemaHelper(format_inst.catalog)
         except Exception:
             self.schema_helper = None
+
+    def generate_base_rules(self) -> str:
+        """Returns core syntax rules for A2UI Atom."""
+        return ATOM_RULES
+
+    def generate_catalog_instructions(
+        self,
+        include_schema: bool = True,
+        catalog: Optional[Any] = None,
+    ) -> str:
+        """Assembles Atom component and function signatures."""
+        if not include_schema:
+            return ""
+        if catalog:
+            try:
+                from a2ui.schema.schema_helper import CatalogSchemaHelper
+            except ImportError:
+                from a2ui.inference_formats.experimental.express.schema_helper import (
+                    CatalogSchemaHelper,
+                )
+            old_helper = self.schema_helper
+            self.schema_helper = CatalogSchemaHelper(catalog)
+            comps = self.generate_component_signatures()
+            funcs = self.generate_function_signatures()
+            res = (comps + ("\n\n" if funcs else "") + funcs).strip()
+            self.schema_helper = old_helper
+            return res
+        comps = self.generate_component_signatures()
+        funcs = self.generate_function_signatures()
+        return (comps + ("\n\n" if funcs else "") + funcs).strip()
+
+    def generate_examples(
+        self,
+        catalog: Optional[Any] = None,
+        validate: bool = False,
+    ) -> str:
+        """Loads and formats few-shot Atom examples."""
+        target_catalog = catalog or self.format.catalog
+        if not target_catalog or not self.format or not self.format.examples_path:
+            return ""
+        raw_examples = target_catalog.load_examples(
+            self.format.examples_path, validate=validate
+        )
+        if not raw_examples:
+            return ""
+        return self.transform_examples(raw_examples)
 
     def generate(
         self,
