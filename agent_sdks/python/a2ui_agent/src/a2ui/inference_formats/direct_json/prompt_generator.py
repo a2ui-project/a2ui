@@ -55,9 +55,9 @@ class DirectJsonPromptGenerator(PromptGenerator):
             return self.selected_catalog.render_as_llm_instructions() or ""
         if self._format and self._format._supported_catalogs:
             instructions = [
-                c.render_as_llm_instructions()
+                inst
                 for c in self._format._supported_catalogs
-                if c.render_as_llm_instructions()
+                if (inst := c.render_as_llm_instructions())
             ]
             return "\n\n".join(instructions)
         return ""

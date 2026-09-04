@@ -158,13 +158,7 @@ class ExpressPromptGenerator(PromptGenerator):
         """Assembles positional signatures and instructions for a catalog."""
         if not include_schema:
             return ""
-        if catalog:
-            old_helper = self.helper
-            self.helper = CatalogSchemaHelper(catalog)
-            res = self.catalog_description(include_schema=True)
-            self.helper = old_helper
-            return res
-        return self.catalog_description(include_schema=True)
+        return self.catalog_description(include_schema=True, catalog=catalog)
 
     def generate_examples(
         self,
@@ -182,19 +176,24 @@ class ExpressPromptGenerator(PromptGenerator):
             return ""
         return self.transform_examples(raw_examples)
 
-    def generate_component_signatures(self) -> str:
+    def generate_component_signatures(
+        self, helper: Optional[CatalogSchemaHelper] = None
+    ) -> str:
         """Compiles component definitions into clean function-like signatures.
 
         Returns:
             A plain-text multi-line list of component signatures.
         """
+        h = helper or self.helper
+        if not h:
+            return ""
         signatures = []
-        for name in sorted(self.helper.component_properties.keys()):
-            props = self.helper.get_component_properties(name)
-            reqs = self.helper.get_component_required(name)
+        for name in sorted(h.component_properties.keys()):
+            props = h.get_component_properties(name)
+            reqs = h.get_component_required(name)
 
             # Retrieve component-level description
-            comp_desc = self.helper.get_component_description(name)
+            comp_desc = h.get_component_description(name)
 
             ordered_args = []
             prop_details = []
@@ -202,7 +201,7 @@ class ExpressPromptGenerator(PromptGenerator):
                 is_req = p in reqs
                 opt_suffix = "" if is_req else "?"
 
-                p_schema = self.helper.get_property_schema(name, p)
+                p_schema = h.get_property_schema(name, p)
 
                 # Determine signature argument label
                 arg_label = f"{p}{opt_suffix}"
@@ -286,24 +285,29 @@ class ExpressPromptGenerator(PromptGenerator):
             signatures.append(sig)
         return "\n".join(signatures)
 
-    def generate_function_signatures(self) -> str:
+    def generate_function_signatures(
+        self, helper: Optional[CatalogSchemaHelper] = None
+    ) -> str:
         """Compiles function definitions into clean signatures.
 
         Returns:
             A plain-text multi-line list of function signatures.
         """
+        h = helper or self.helper
+        if not h:
+            return ""
         signatures = []
-        for name in sorted(self.helper.function_properties.keys()):
-            props = self.helper.get_function_properties(name)
-            reqs = self.helper.get_function_required(name)
+        for name in sorted(h.function_properties.keys()):
+            props = h.get_function_properties(name)
+            reqs = h.get_function_required(name)
 
             # Retrieve function-level description
-            f_desc = self.helper.get_function_description(name)
+            f_desc = h.get_function_description(name)
 
             ordered_args = []
             prop_details = []
 
-            func_schema = self.helper.functions.get(name, {})
+            func_schema = h.functions.get(name, {})
             args_properties = (
                 func_schema.get("properties", {}).get("args", {}).get("properties", {})
             )
@@ -332,11 +336,14 @@ class ExpressPromptGenerator(PromptGenerator):
     def _build_schema_prompt(self) -> str:
         return self.catalog_description(include_schema=True)
 
-    def catalog_description(self, include_schema: bool = True) -> str:
+    def catalog_description(
+        self, include_schema: bool = True, catalog: Optional[Any] = None
+    ) -> str:
         """Assembles the system prompt component catalog signatures block.
 
         Args:
             include_schema: Whether to include the schema description.
+            catalog: Optional catalog override to render signatures for.
 
         Returns:
             The rendered LLM instructions string block containing positional signatures.
@@ -344,11 +351,10 @@ class ExpressPromptGenerator(PromptGenerator):
         if not include_schema:
             return ""
 
-        comp_sigs = self.generate_component_signatures()
-        func_sigs = self.generate_function_signatures()
-        catalog_instructions = (
-            self.helper.catalog.get("instructions", "") if self.helper else ""
-        )
+        h = CatalogSchemaHelper(catalog) if catalog else self.helper
+        comp_sigs = self.generate_component_signatures(helper=h)
+        func_sigs = self.generate_function_signatures(helper=h)
+        catalog_instructions = h.catalog.get("instructions", "") if h else ""
 
         # Translate json examples in catalog instructions into A2UI Express DSL
         if catalog_instructions:

@@ -146,15 +146,11 @@ class AtomPromptGenerator(PromptGenerator):
                 from a2ui.inference_formats.experimental.express.schema_helper import (
                     CatalogSchemaHelper,
                 )
-            old_helper = self.schema_helper
-            self.schema_helper = CatalogSchemaHelper(catalog)
-            comps = self.generate_component_signatures()
-            funcs = self.generate_function_signatures()
-            res = (comps + ("\n\n" if funcs else "") + funcs).strip()
-            self.schema_helper = old_helper
-            return res
-        comps = self.generate_component_signatures()
-        funcs = self.generate_function_signatures()
+            helper = CatalogSchemaHelper(catalog)
+        else:
+            helper = self.schema_helper
+        comps = self.generate_component_signatures(helper=helper)
+        funcs = self.generate_function_signatures(helper=helper)
         return (comps + ("\n\n" if funcs else "") + funcs).strip()
 
     def generate_examples(
@@ -220,15 +216,16 @@ class AtomPromptGenerator(PromptGenerator):
 
         return "\n\n".join(parts)
 
-    def generate_component_signatures(self) -> str:
+    def generate_component_signatures(self, helper: Optional[Any] = None) -> str:
         """Compiles component definitions into S-expression signatures."""
-        if not self.schema_helper:
+        h = helper or self.schema_helper
+        if not h:
             return ""
         signatures = []
-        for name in sorted(self.schema_helper.component_properties.keys()):
-            props = self.schema_helper.get_component_properties(name)
-            reqs = self.schema_helper.get_component_required(name)
-            comp_desc = self.schema_helper.get_component_description(name)
+        for name in sorted(h.component_properties.keys()):
+            props = h.get_component_properties(name)
+            reqs = h.get_component_required(name)
+            comp_desc = h.get_component_description(name)
 
             ordered_args = []
             prop_details = []
@@ -237,7 +234,7 @@ class AtomPromptGenerator(PromptGenerator):
                     continue
                 is_req = p in reqs
                 opt_suffix = "" if is_req else "?"
-                p_schema = self.schema_helper.get_property_schema(name, p)
+                p_schema = h.get_property_schema(name, p)
 
                 arg_label = f":{p}{opt_suffix}"
                 ordered_args.append(arg_label)
@@ -264,22 +261,23 @@ class AtomPromptGenerator(PromptGenerator):
             signatures.append(sig)
         return "\n".join(signatures)
 
-    def generate_function_signatures(self) -> str:
+    def generate_function_signatures(self, helper: Optional[Any] = None) -> str:
         """Compiles function definitions into S-expression signatures."""
-        if not self.schema_helper:
+        h = helper or self.schema_helper
+        if not h:
             return ""
         signatures = []
-        for name in sorted(self.schema_helper.function_properties.keys()):
-            props = self.schema_helper.get_function_properties(name)
-            reqs = self.schema_helper.get_function_required(name)
-            f_desc = self.schema_helper.get_function_description(name)
+        for name in sorted(h.function_properties.keys()):
+            props = h.get_function_properties(name)
+            reqs = h.get_function_required(name)
+            f_desc = h.get_function_description(name)
 
             ordered_args = []
             prop_details = []
             for p in props:
                 is_req = p in reqs
                 opt_suffix = "" if is_req else "?"
-                p_schema = self.schema_helper.get_property_schema(name, p)
+                p_schema = h.get_property_schema(name, p)
 
                 arg_label = f":{p}{opt_suffix}"
                 ordered_args.append(arg_label)
