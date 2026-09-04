@@ -111,6 +111,8 @@ export interface WebComponentImplementation<
   readonly tagName: string;
 }
 
+export {createComponentImplementation} from './create_component_implementation.js';
+
 /**
  * Type guard to check if a component API or implementation is a WebComponentImplementation.
  *

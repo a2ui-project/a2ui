@@ -18,6 +18,7 @@ import {html, nothing, css} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
 import {ModalApi} from './basic_components.js';
 import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
+import {createComponentImplementation} from '../../catalog/types.js';
 
 @customElement('a2ui-modal')
 export class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
@@ -128,7 +129,4 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<typeof ModalApi> {
   }
 }
 
-export const A2uiModal = {
-  ...ModalApi,
-  tagName: 'a2ui-modal',
-};
+export const A2uiModal = createComponentImplementation(ModalApi, A2uiLitModal);

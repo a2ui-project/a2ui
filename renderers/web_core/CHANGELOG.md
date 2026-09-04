@@ -1,5 +1,6 @@
 ## Unreleased
 
+- (v0_9) Add `createComponentImplementation` helper for Web Components / Lit and refactor all basic catalog components to use it. [#2313](https://github.com/a2ui-project/a2ui/pull/2313)
 - (v0_9) Add `isWebComponentImplementation` type guard for WebComponentImplementation. [#2273](https://github.com/a2ui-project/a2ui/pull/2273)
 - (v0_9) Add global markdown renderer registry (`setMarkdownRenderer` / `getMarkdownRenderer`) to `@a2ui/web_core/v0_9/basic_catalog` for basic catalog text components. [#2272](https://github.com/a2ui-project/a2ui/pull/2272)
 - (v0_9) Add unit test coverage for all basic catalog Web Component implementations. [#2357](https://github.com/a2ui-project/a2ui/pull/2357)

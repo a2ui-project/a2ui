@@ -15,6 +15,8 @@
  */
 
 export type {LitComponentApi} from './types.js';
+export {createComponentImplementation} from '@a2ui/web_core/v0_9';
+export type {WebComponentImplementation} from '@a2ui/web_core/v0_9';
 export {A2uiSurface} from './surface/a2ui-surface.js';
 export {A2uiLitElement} from './a2ui-lit-element.js';
 export {A2uiController} from './a2ui-controller.js';
