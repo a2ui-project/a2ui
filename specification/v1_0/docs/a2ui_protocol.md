@@ -612,7 +612,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
    - No other top-level keys are permitted.
 
 8. **Deprecation Annotations:**
-   - Components, functions, and individual properties may declare deprecated: true along with an optional human-readable x-deprecated-reason (string).
+   - Components, functions, and individual properties may declare `deprecated: true` along with an optional human-readable `x-deprecated-reason` (string).
 
 ##### Example Schema Template
 
