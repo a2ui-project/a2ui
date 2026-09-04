@@ -432,7 +432,7 @@
         requiresUserActivation: false
 
 - name: test_v10_catalog_from_json_uax31_validation
-  description: Tests parsing valid UAX #31 component and function identifiers in a v1.0 catalog.
+  description: Tests parsing valid UAX#31 component and function identifiers in a v1.0 catalog.
   action: from_json
   catalog:
     protocolVersion: "v1.0"
@@ -458,7 +458,7 @@
         returnType: number
 
 - name: test_v10_catalog_from_json_invalid_uax31_identifier_error
-  description: Tests that invalid UAX #31 component identifier with hyphen raises CatalogError under v1.0.
+  description: Tests that invalid UAX#31 component identifier with hyphen raises CatalogError under v1.0.
   action: from_json
   catalog:
     protocolVersion: "v1.0"
@@ -689,3 +689,55 @@
   protocolVersion: "v1.0"
   useBasicCatalog: true
   expectFile: "conformance/test_data/converted_basic_catalog_v10.json"
+
+- name: test_v10_uax31_invalid_component_name
+  description: Tests that component type names violating UAX#31 fail catalog validation in v1.0.
+  action: from_json
+  protocolVersion: "v1.0"
+  catalogId: "custom"
+  catalog:
+    components:
+      "123InvalidComponent":
+        type: object
+  expectError:
+    category: "CatalogError"
+
+- name: test_v10_uax31_invalid_property_name
+  description: Tests that component property names violating UAX#31 fail catalog validation in v1.0.
+  action: from_json
+  protocolVersion: "v1.0"
+  catalogId: "custom"
+  catalog:
+    components:
+      ValidComponent:
+        type: object
+        properties:
+          "invalid-prop-name!": {type: string}
+  expectError:
+    category: "CatalogError"
+
+- name: test_v10_uax31_invalid_function_name
+  description: Tests that function names violating UAX#31 fail catalog validation in v1.0.
+  action: from_json
+  protocolVersion: "v1.0"
+  catalogId: "custom"
+  catalog:
+    functions:
+      "invalid-func-name!":
+        returnType: string
+  expectError:
+    category: "CatalogError"
+
+- name: test_v10_uax31_invalid_argument_name
+  description: Tests that function argument names violating UAX#31 fail catalog validation in v1.0.
+  action: from_json
+  protocolVersion: "v1.0"
+  catalogId: "custom"
+  catalog:
+    functions:
+      validFunc:
+        returnType: string
+        parameters:
+          "123invalid_arg": {type: string}
+  expectError:
+    category: "CatalogError"
