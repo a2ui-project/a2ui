@@ -74,13 +74,6 @@ interface ComponentImplementation extends ComponentApi {
 
 The entrypoint widget/view for a specific framework. It is instantiated with a `SurfaceModel` (from the Core SDK). It listens to the model for lifecycle events and dynamically builds the UI tree, initiating the recursive rendering loop at the component with ID `root`.
 
-#### Fallback Rendering & Unknown Components
-
-When traversing and resolving the component tree, the `Surface` or its child builder MUST handle unrecognized component types gracefully:
-
-- **Graceful Fallback**: If a component's `type` is not present in the registered catalog implementations, the surface MUST NOT throw an unhandled exception or fail the entire view hierarchy. Instead, it must render a fallback representation (e.g. an informational placeholder in development mode, or an empty container in production).
-- **Child Traversal Preservation**: If an unknown component contains structural child references (e.g., `children` or `child`), the fallback renderer should recursively attempt to build the child components so valid downstream subtree content remains visible and functional.
-
 ---
 
 ## 3. Component Implementation Strategies
@@ -243,32 +236,6 @@ Interactive components that support the `checks` property should implement the `
 - **Aggregate Error Stream**: The component should subscribe to all `CheckRule` conditions defined in its properties.
 - **UI Feedback**: It should reactively display the `message` of the first failing check as a validation error hint.
 - **Action Blocking**: Actions (like `Button` clicks) should be reactively disabled or blocked if any validation check fails.
-
-### Catalog Compatibility & Resilience Rules
-
-Renderers must adhere to the [A2UI Catalog Rules](../../specification/v1_0/docs/a2ui_protocol.md#catalog-rules) to ensure resilience against catalog version skew between agents and clients:
-
-1. **Ignore Unknown Functions/Fields**:
-   - Component implementations must safely ignore unknown or unexpected properties in `ComponentModel.properties` and render known properties normally.
-   - Dynamic expressions or actions referencing unknown functions must fail safely (e.g., evaluating to null or no-op) without throwing unhandled runtime exceptions.
-
-2. **Deprecate Rather than Delete**:
-   - Renderers must retain rendering logic for deprecated components and properties to maintain backward compatibility for historical transcripts, cached states, and templates.
-   - Deprecated components must not be removed from catalog implementations as long as the underlying protocol version is supported.
-
-3. **Strict Type Invariance**:
-   - If an incoming component property has a data type that unexpectedly deviates from the catalog specification, the renderer should handle it safely (e.g., ignoring the mismatched field or falling back to a default value) rather than causing uncaught runtime rendering errors.
-
-4. **Open Enums**:
-   - Renderers must treat all enum-like properties (e.g., button variant, text style, layout alignment) as open.
-   - If an agent sends an unrecognized enum value, the component implementation must fall back to a safe default (e.g., standard layout, primary/neutral style) rather than throwing an exception or failing to render.
-
-5. **Graceful Degradation**:
-   - **Unknown Components**: When encountering an unknown component type, renderers must provide a graceful fallback representation (or transparent container preserving child branches) instead of failing or unmounting the entire surface.
-   - **Component-Level Error Boundaries**: Framework adapters should isolate rendering and binding errors to the individual component (e.g. via framework error boundaries, safe builders, or try/catch blocks in render loops). An uncaught error in one component MUST NOT cause sibling or parent components to crash or disappear.
-
-6. **Round Trip Unknown Component/Field Preservation**:
-   - Framework adapters and renderers must preserve unknown properties and components when passing component data, caching trees, or dispatching actions, ensuring that client-side events or state round-trips do not strip unrecognized fields.
 
 ---
 
