@@ -22,6 +22,10 @@ from ..catalog import Catalog
 from ..catalog.catalog import TComponent, TFunction
 
 
+from collections.abc import Sequence
+from ..exceptions import A2uiCatalogError
+
+
 class SurfaceModel(Generic[TComponent, TFunction]):
     """Represents a single active UI Surface state tree."""
 
@@ -29,12 +33,16 @@ class SurfaceModel(Generic[TComponent, TFunction]):
         self,
         surface_id: str,
         default_catalog: Catalog[TComponent, TFunction],
+        available_catalogs: dict[str, Catalog[TComponent, TFunction]] | None = None,
         theme: dict[str, Any] | None = None,
         send_data_model: bool = False,
         data_model: DataModel | None = None,
     ) -> None:
         self.id = surface_id
         self.default_catalog = default_catalog
+        self.available_catalogs: dict[str, Catalog[TComponent, TFunction]] = (
+            dict(available_catalogs) if available_catalogs else {}
+        )
         self.theme = theme or {}
         self.send_data_model = send_data_model
 
@@ -76,13 +84,6 @@ class SurfaceModel(Generic[TComponent, TFunction]):
         if "surfaceId" not in err_payload:
             err_payload["surfaceId"] = self.id
         self.on_error.emit(err_payload)
-
-    @property
-    def catalogs(self) -> dict[str, Catalog[TComponent, TFunction]]:
-        res: dict[str, Catalog[TComponent, TFunction]] = {}
-        for comp in self.components_model.get_all().values():
-            res[comp.id] = cast(Catalog[TComponent, TFunction], comp.catalog)
-        return res
 
     def dispose(self) -> None:
         """Disposes of the surface and its resources."""

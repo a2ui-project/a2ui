@@ -15,10 +15,12 @@
 from .component_context import ComponentContext
 from .data_context import DataContext, MissingDataBindingWarning
 from .generic_binder import GenericBinder
+from .node_graph import NodeGraph
 
 __all__ = [
     "ComponentContext",
     "DataContext",
     "GenericBinder",
     "MissingDataBindingWarning",
+    "NodeGraph",
 ]

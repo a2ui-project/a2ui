@@ -19,7 +19,7 @@ from .component_model import (
 )
 from .component_node import ComponentNode
 from .data_model import DataModel
-from .node_graph import NodeGraph
+from ..resolution.node_graph import NodeGraph
 from .surface_components_model import SurfaceComponentsModel
 from .surface_group_model import SurfaceGroupModel
 from .surface_model import SurfaceModel

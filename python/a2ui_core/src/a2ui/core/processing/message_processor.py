@@ -441,9 +441,16 @@ class MessageProcessor:
                     f"Validation failed for theme on surface '{surface_id}': {e}"
                 ) from e
 
+        matching_available_catalogs = {
+            getattr(cat, "catalog_id", f"cat_{i}"): cat
+            for i, cat in enumerate(self.catalogs)
+            if getattr(cat, "protocol_version", None)
+            == getattr(surface_catalog, "protocol_version", None)
+        }
         new_surface = SurfaceModel(
             surface_id=surface_id,
             default_catalog=surface_catalog,
+            available_catalogs=matching_available_catalogs,
             theme=theme,
             send_data_model=send_data_model,
         )
@@ -478,35 +485,6 @@ class MessageProcessor:
         if not isinstance(components, list):
             raise A2uiValidationError("Components payload must be a list.")
 
-        component_catalogs: dict[str, Catalog[Any, Any]] = {}
-        for comp in components:
-            comp_dict = (
-                comp
-                if isinstance(comp, dict)
-                else comp.model_dump(by_alias=True, exclude_none=True)
-                if hasattr(comp, "model_dump")
-                else cast(dict[str, Any], comp)
-            )
-            comp_id = comp_dict.get("id")
-            if not comp_id:
-                raise A2uiValidationError(
-                    "Component update payload is missing an 'id' / missing required"
-                    " 'id' field."
-                )
-            comp_cat_id = comp_dict.get("catalogId")
-            if comp_cat_id:
-                matched_catalog = self._resolve_catalog(comp_cat_id)
-                if not matched_catalog:
-                    raise A2uiCatalogError(f"Catalog not found: {comp_cat_id}")
-                component_catalogs[comp_id] = matched_catalog
-
-            existing = surface.components_model.get(comp_id)
-            comp_type = comp_dict.get("component")
-            if not existing and not comp_type:
-                raise A2uiValidationError(
-                    f"Cannot create component {comp_id} without a type."
-                )
-
         new_component_models: list[ComponentModel] = []
         for comp in components:
             comp_dict = (
@@ -516,11 +494,36 @@ class MessageProcessor:
                 if hasattr(comp, "model_dump")
                 else cast(dict[str, Any], comp)
             )
-            c_id = cast(str, comp_dict.get("id"))
+            c_id = comp_dict.get("id")
+            if not c_id:
+                raise A2uiValidationError(
+                    "Component update payload is missing an 'id' / missing required"
+                    " 'id' field."
+                )
+
             existing = surface.components_model.get(c_id)
-            c_type = cast(
-                str, comp_dict.get("component") or (existing.type if existing else "")
-            )
+            comp_type_raw = comp_dict.get("component")
+            if not existing and not comp_type_raw:
+                raise A2uiValidationError(
+                    f"Cannot create component {c_id} without a type."
+                )
+            c_type = cast(str, comp_type_raw or (existing.type if existing else ""))
+
+            comp_cat_id = comp_dict.get("catalogId")
+            if comp_cat_id:
+                comp_catalog = self._resolve_catalog(comp_cat_id)
+                if not comp_catalog:
+                    raise A2uiCatalogError(f"Catalog not found: {comp_cat_id}")
+                comp_ver = getattr(comp_catalog, "protocol_version", None)
+                surface_ver = getattr(surface.default_catalog, "protocol_version", None)
+                if comp_ver and surface_ver and comp_ver != surface_ver:
+                    raise A2uiCatalogError(
+                        f"Component {c_id} catalog '{comp_cat_id}' has different"
+                        f" protocol version {comp_ver} than default catalog"
+                        f" {surface_ver}."
+                    )
+            else:
+                comp_catalog = surface.default_catalog
 
             properties = {
                 k: v
@@ -528,18 +531,6 @@ class MessageProcessor:
                 if k not in ("id", "component", "catalogId")
             }
 
-            comp_catalog = component_catalogs.get(
-                c_id,
-                existing.catalog
-                if (
-                    existing
-                    and (
-                        not comp_dict.get("component")
-                        or comp_dict.get("component") == existing.type
-                    )
-                )
-                else surface.default_catalog,
-            )
             new_comp = ComponentModel(c_id, c_type, comp_catalog, properties)
             new_component_models.append(new_comp)
 
