@@ -29,7 +29,7 @@ Before modifying or implementing Swift code, inspect the authoritative specifica
 - **Framework adapter blueprint**:
   [`a2ui_framework_adapter.blueprint.md`][framework-adapter-blueprint] specifies view mapping,
   reactive subscription lifecycles, and layout behavior.
-- **Reference implementation**: [`renderers/web_core/`](../../../renderers/web_core/) serves as
+- **Reference implementation**: [`typescript/web_core/`](../../../typescript/web_core/) serves as
   the canonical behavioral reference for edge-case resolution.
 
 [framework-adapter-blueprint]: ../../../blueprints/modules/a2ui_framework_adapter.blueprint.md

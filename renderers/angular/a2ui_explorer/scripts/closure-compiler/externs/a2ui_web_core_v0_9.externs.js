@@ -27,14 +27,14 @@
  */
 
 /**
- * Externs for `CreateSurfaceMessage` interface (`renderers/web_core/src/v0_9/schema/server-to-client.ts`).
+ * Externs for `CreateSurfaceMessage` interface (`typescript/web_core/src/v0_9/schema/server-to-client.ts`).
  * @record
  * @struct
  */
 function CreateSurfaceMessageExterns() {}
 /** @type {?} */ CreateSurfaceMessageExterns.prototype.createSurface;
 /**
- * Note: Accessed via dot notation (`renderers/web_core/src/v0_9/processing/message-processor.ts`, `renderers/web_core/src/v0_9/state/surface-model.ts`, and component actions).
+ * Note: Accessed via dot notation (`typescript/web_core/src/v0_9/processing/message-processor.ts`, `typescript/web_core/src/v0_9/state/surface-model.ts`, and component actions).
  * Also corresponds to `DeleteSurfaceMessage.surfaceId` and `Action.surfaceId`.
  * @type {?}
  */
@@ -44,7 +44,7 @@ CreateSurfaceMessageExterns.prototype.surfaceId;
 /** @type {?} */ CreateSurfaceMessageExterns.prototype.sendDataModel;
 
 /**
- * Externs for `UpdateComponentsMessage` interface (`renderers/web_core/src/v0_9/schema/server-to-client.ts`).
+ * Externs for `UpdateComponentsMessage` interface (`typescript/web_core/src/v0_9/schema/server-to-client.ts`).
  * @record
  * @struct
  */
@@ -53,7 +53,7 @@ function UpdateComponentsMessageExterns() {}
 /** @type {?} */ UpdateComponentsMessageExterns.prototype.components;
 
 /**
- * Externs for `AnyComponent` interface and component layout schemas (`renderers/web_core/src/v0_9/schema/common-types.ts`).
+ * Externs for `AnyComponent` interface and component layout schemas (`typescript/web_core/src/v0_9/schema/common-types.ts`).
  * @record
  * @struct
  */
@@ -98,14 +98,14 @@ function AnyComponentExterns() {}
 /** @type {?} */ AnyComponentExterns.prototype.accessibility;
 
 /**
- * Externs for `UpdateDataModelMessage` interface (`renderers/web_core/src/v0_9/schema/server-to-client.ts`).
+ * Externs for `UpdateDataModelMessage` interface (`typescript/web_core/src/v0_9/schema/server-to-client.ts`).
  * @record
  * @struct
  */
 function UpdateDataModelMessageExterns() {}
 /** @type {?} */ UpdateDataModelMessageExterns.prototype.updateDataModel;
 /**
- * Note: Accessed via dot notation (`renderers/web_core/src/v0_9/processing/message-processor.ts` and `renderers/web_core/src/v0_9/rendering/generic-binder.ts`).
+ * Note: Accessed via dot notation (`typescript/web_core/src/v0_9/processing/message-processor.ts` and `typescript/web_core/src/v0_9/rendering/generic-binder.ts`).
  * Also corresponds to `ChildList.path`.
  * @type {?}
  */
@@ -113,7 +113,7 @@ UpdateDataModelMessageExterns.prototype.path;
 /** @type {?} */ UpdateDataModelMessageExterns.prototype.value;
 
 /**
- * Externs for `DeleteSurfaceMessage` interface (`renderers/web_core/src/v0_9/schema/server-to-client.ts`).
+ * Externs for `DeleteSurfaceMessage` interface (`typescript/web_core/src/v0_9/schema/server-to-client.ts`).
  * @record
  * @struct
  */
@@ -121,7 +121,7 @@ function DeleteSurfaceMessageExterns() {}
 /** @type {?} */ DeleteSurfaceMessageExterns.prototype.deleteSurface;
 
 /**
- * Externs for `Action` and `A2uiClientAction` interfaces (`renderers/web_core/src/v0_9/schema/common-types.ts`, `renderers/web_core/src/v0_9/schema/client-to-server.ts`).
+ * Externs for `Action` and `A2uiClientAction` interfaces (`typescript/web_core/src/v0_9/schema/common-types.ts`, `typescript/web_core/src/v0_9/schema/client-to-server.ts`).
  * @record
  * @struct
  */
@@ -133,7 +133,7 @@ function ActionExterns() {}
 /** @type {?} */ ActionExterns.prototype.sourceComponentId;
 
 /**
- * Externs for `FunctionCall` interface (`renderers/web_core/src/v0_9/schema/common-types.ts`).
+ * Externs for `FunctionCall` interface (`typescript/web_core/src/v0_9/schema/common-types.ts`).
  * @record
  * @struct
  */
@@ -145,19 +145,19 @@ function FunctionCallExterns() {}
 /** @type {?} */ FunctionCallExterns.prototype.schema;
 
 /**
- * Externs for `ChildList` interface (`renderers/web_core/src/v0_9/schema/common-types.ts`).
+ * Externs for `ChildList` interface (`typescript/web_core/src/v0_9/schema/common-types.ts`).
  * @record
  * @struct
  */
 function ChildListExterns() {}
 /**
- * Note: Accessed via dot notation (`renderers/web_core/src/v0_9/rendering/generic-binder.ts`).
+ * Note: Accessed via dot notation (`typescript/web_core/src/v0_9/rendering/generic-binder.ts`).
  * @type {?}
  */
 ChildListExterns.prototype.componentId;
 
 /**
- * Externs for `Signal` and EventSource reactive interfaces (`renderers/web_core/src/v0_9/reactivity/signals.ts`, `renderers/web_core/src/v0_9/common/events.ts`).
+ * Externs for `Signal` and EventSource reactive interfaces (`typescript/web_core/src/v0_9/reactivity/signals.ts`, `typescript/web_core/src/v0_9/common/events.ts`).
  * @record
  * @struct
  */
@@ -166,7 +166,7 @@ function SignalExterns() {}
 /** @type {?} */ SignalExterns.prototype.subscribe;
 
 /**
- * Externs for `AndApi` and `OrApi` schema arguments (`renderers/web_core/src/v0_9/basic_catalog/functions/basic_functions_api.ts`).
+ * Externs for `AndApi` and `OrApi` schema arguments (`typescript/web_core/src/v0_9/basic_catalog/functions/basic_functions_api.ts`).
  * @record
  * @struct
  */
@@ -174,7 +174,7 @@ function AndApiExterns() {}
 /** @type {?} */ AndApiExterns.prototype.values;
 
 /**
- * Externs for `FormatDateApi` schema arguments (`renderers/web_core/src/v0_9/basic_catalog/functions/basic_functions_api.ts`).
+ * Externs for `FormatDateApi` schema arguments (`typescript/web_core/src/v0_9/basic_catalog/functions/basic_functions_api.ts`).
  * @record
  * @struct
  */
@@ -182,7 +182,7 @@ function FormatDateApiExterns() {}
 /** @type {?} */ FormatDateApiExterns.prototype.format;
 
 /**
- * Externs for `FormatCurrencyApi` schema arguments (`renderers/web_core/src/v0_9/basic_catalog/functions/basic_functions_api.ts`).
+ * Externs for `FormatCurrencyApi` schema arguments (`typescript/web_core/src/v0_9/basic_catalog/functions/basic_functions_api.ts`).
  * @record
  * @struct
  */
@@ -190,7 +190,7 @@ function FormatCurrencyApiExterns() {}
 /** @type {?} */ FormatCurrencyApiExterns.prototype.currency;
 
 /**
- * Externs for `PluralizeApi` schema arguments (`renderers/web_core/src/v0_9/basic_catalog/functions/basic_functions_api.ts`).
+ * Externs for `PluralizeApi` schema arguments (`typescript/web_core/src/v0_9/basic_catalog/functions/basic_functions_api.ts`).
  * @record
  * @struct
  */
