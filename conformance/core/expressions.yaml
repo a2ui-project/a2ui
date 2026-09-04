@@ -100,6 +100,36 @@
   input: "${1.5}"
   expect: [1.5]
 
+- name: test_expr_negative_integer_literal
+  description: Negative integer literals parse to negative numbers.
+  action: parse_expression_template
+  input: "${-42}"
+  expect: [-42]
+
+- name: test_expr_negative_decimal_literal
+  description: Negative decimal literals parse to negative numbers.
+  action: parse_expression_template
+  input: "${-3.14}"
+  expect: [-3.14]
+
+- name: test_expr_exponential_notation_positive
+  description: Scientific/exponential notation parses to numbers.
+  action: parse_expression_template
+  input: "${1e5}"
+  expect: [100000]
+
+- name: test_expr_exponential_notation_negative_exponent
+  description: Scientific notation with negative exponent parses to floating point numbers.
+  action: parse_expression_template
+  input: "${1.5e-3}"
+  expect: [0.0015]
+
+- name: test_expr_exponential_notation_capital_e
+  description: Scientific notation with capital E and plus sign parses correctly.
+  action: parse_expression_template
+  input: "${2.5E+4}"
+  expect: [25000]
+
 - name: test_expr_leading_zeros
   description: Leading zeros do not change the value.
   action: parse_expression_template
@@ -129,6 +159,12 @@
   action: parse_expression_template
   input: "sum is ${add(a: 10, b: 20)}"
   expect: ["sum is ", {call: "add", args: {a: 10, b: 20}, returnType: "any"}]
+
+- name: test_expr_function_call_negative_args
+  description: Function arguments may be negative numeric literals.
+  action: parse_expression_template
+  input: "${add(a: -5, b: 10)}"
+  expect: [{call: "add", args: {a: -5, b: 10}, returnType: "any"}]
 
 - name: test_expr_function_call_mixed_arg_types
   description: Arguments may be literals, paths or nested calls.

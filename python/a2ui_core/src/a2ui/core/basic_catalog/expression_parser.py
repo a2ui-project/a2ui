@@ -162,7 +162,8 @@ class ExpressionParser:
         if scanner.matches_string("'") or scanner.matches_string('"'):
             return self.parse_string_literal(scanner)
         if self.is_digit(scanner.peek()) or (
-            scanner.peek() == "-" and self.is_digit(scanner.peek(1))
+            (scanner.peek() == "-" or scanner.peek() == "+")
+            and self.is_digit(scanner.peek(1))
         ):
             return self.parse_number_literal(scanner)
         if scanner.matches_keyword("true"):
@@ -254,16 +255,24 @@ class ExpressionParser:
 
     def parse_number_literal(self, scanner: Scanner) -> int | float:
         start = scanner.pos
-        if scanner.peek() == "-":
+        if scanner.peek() == "-" or scanner.peek() == "+":
             scanner.advance()
         while not scanner.is_at_end() and (
             self.is_digit(scanner.peek()) or scanner.peek() == "."
         ):
             scanner.advance()
+        if not scanner.is_at_end() and (scanner.peek() == "e" or scanner.peek() == "E"):
+            scanner.advance()
+            if not scanner.is_at_end() and (
+                scanner.peek() == "+" or scanner.peek() == "-"
+            ):
+                scanner.advance()
+            while not scanner.is_at_end() and self.is_digit(scanner.peek()):
+                scanner.advance()
         num_str = scanner.input[start : scanner.pos]
-        if not re.match(r"^-?\d+\.?\d*$", num_str):
+        if not re.match(r"^[+-]?\d+\.?\d*(?:[eE][+-]?\d+)?$", num_str):
             raise A2uiExpressionError(f"Invalid number literal: '{num_str}'")
-        if "." in num_str:
+        if "." in num_str or "e" in num_str or "E" in num_str:
             f = float(num_str)
             return int(f) if f.is_integer() else f
         return int(num_str)
