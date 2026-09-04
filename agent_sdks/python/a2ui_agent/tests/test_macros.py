@@ -256,7 +256,7 @@ def test_macro_processor_expansion():
     flat = processor.expand(
         "status_badge",
         args={"status": "active", "title": "Server 1"},
-        invocation_id="badge_main",
+        instance_id="badge_main",
     )
 
     by_id = {c["id"]: c for c in flat}
@@ -290,7 +290,7 @@ def test_macro_processor_slot_coercion():
     flat = processor.expand(
         "slot_container",
         args={"title": "My Title", "content": "external_child_id"},
-        invocation_id="container_1",
+        instance_id="container_1",
     )
 
     by_id = {c["id"]: c for c in flat}

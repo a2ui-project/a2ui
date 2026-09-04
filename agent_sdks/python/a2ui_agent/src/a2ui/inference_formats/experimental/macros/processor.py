@@ -39,7 +39,6 @@ class MacroProcessor:
         self,
         macro_name: str,
         args: dict[str, Any],
-        invocation_id: Optional[str] = None,
         instance_id: Optional[str] = None,
     ) -> list[dict[str, Any]]:
         """Executes a macro by name with provided arguments and returns flat component dicts.
@@ -47,13 +46,12 @@ class MacroProcessor:
         Args:
             macro_name: The registered macro function name.
             args: Keyword arguments for the macro invocation.
-            invocation_id: The ID assigned to this macro invocation (becomes root component ID).
-            instance_id: Alias for invocation_id.
+            instance_id: The ID assigned to this macro component instance (becomes root component ID).
 
         Returns:
             List of standard A2UI component dictionaries ready for surfaceUpdate.
         """
-        root_id = invocation_id or instance_id
+        root_id = instance_id
         meta = get_macro(macro_name)
         if meta is None:
             raise KeyError(f"Macro '{macro_name}' is not registered.")
