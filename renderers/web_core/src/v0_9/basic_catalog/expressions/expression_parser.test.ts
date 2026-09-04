@@ -16,7 +16,11 @@
 
 import {describe, it, beforeEach} from 'node:test';
 import * as assert from 'node:assert';
-import {ExpressionParser} from './expression_parser.js';
+import {
+  ExpressionParser,
+  MAX_EXPRESSION_TEMPLATE_LENGTH,
+  MAX_EXPRESSION_PARTS,
+} from './expression_parser.js';
 
 describe('ExpressionParser', () => {
   let parser: ExpressionParser;
@@ -124,5 +128,21 @@ describe('ExpressionParser', () => {
     assert.throws(() => {
       parser.parseExpression('add(a 10, b: 20)');
     }, /Expected ':'/);
+  });
+
+  it('rejects template string exceeding MAX_EXPRESSION_TEMPLATE_LENGTH (Issue #2389)', () => {
+    assert.strictEqual(MAX_EXPRESSION_TEMPLATE_LENGTH, 10000);
+    const oversizedTemplate = 'a'.repeat(MAX_EXPRESSION_TEMPLATE_LENGTH + 1);
+    assert.throws(() => {
+      parser.parse(oversizedTemplate);
+    }, /exceeds maximum limit/);
+  });
+
+  it('rejects expression exceeding MAX_EXPRESSION_PARTS limit (Issue #2389)', () => {
+    assert.strictEqual(MAX_EXPRESSION_PARTS, 1000);
+    const manyParts = '${x}'.repeat(MAX_EXPRESSION_PARTS + 1);
+    assert.throws(() => {
+      parser.parse(manyParts);
+    }, /parts count exceeds maximum limit/);
   });
 });
