@@ -14,112 +14,119 @@
  * limitations under the License.
  */
 
+import type {ProtocolVersion} from './adapters/base.js';
+
 /**
  * Generic component representation within internal processing operations.
  */
 export interface InternalComponentPayload {
-  /** Unique identifier of the component. */
+  /** Identifier for the component instance within a surface. */
   id: string;
-  /** Component type name. */
+  /** Component type name as defined in the catalog (e.g. `'Button'`, `'Column'`). */
   component?: string;
+  /** Additional component properties, children references, or data bindings. */
   [key: string]: unknown;
 }
 
 /**
- * Canonical operation to create a surface and initialize state.
+ * Operation to create a surface and initialize its state and component tree.
  */
 export interface InternalCreateSurfaceOp {
-  /** Discriminator type for surface creation. */
+  /** Discriminator indicating surface creation. */
   readonly type: 'createSurface';
-  /** Target surface identifier. */
+  /** Identifier of the surface to create. */
   readonly surfaceId: string;
-  /** Optional catalog identifier to bind to the surface. */
+  /** Identifier of the component catalog to bind to this surface. If omitted, uses the default catalog. */
   readonly catalogId?: string;
-  /** Optional theme overrides or style parameters for the surface. */
+  /** Styling tokens or theme configuration to apply to the surface. */
   readonly theme?: unknown;
-  /** Whether the client should stream data model updates back to the agent. */
+  /** Whether the client should send data model mutations back to the agent. */
   readonly sendDataModel?: boolean;
-  /** Initial component definitions for the surface. */
+  /** Initial component tree definitions to instantiate on the surface. */
   readonly components?: InternalComponentPayload[];
-  /** Initial data model contents. */
+  /** Initial key-value state tree for the surface data model. */
   readonly dataModel?: Record<string, unknown>;
 }
 
 /**
- * Canonical operation to update components on a surface.
+ * Operation to add, update, or replace component definitions within an existing surface.
  */
 export interface InternalUpdateComponentsOp {
-  /** Discriminator type for component updates. */
+  /** Discriminator indicating component updates. */
   readonly type: 'updateComponents';
-  /** Target surface identifier. */
+  /** Identifier of the surface containing the components to update. */
   readonly surfaceId: string;
-  /** Array of component definitions to add or update. */
+  /** Component definitions to insert or update within the surface. */
   readonly components: InternalComponentPayload[];
 }
 
 /**
- * Canonical operation to update data model values at a JSON Pointer path.
+ * Operation to update data model values at a JSON Pointer path within a surface.
  */
 export interface InternalUpdateDataModelOp {
-  /** Discriminator type for data model updates. */
+  /** Discriminator indicating a data model update. */
   readonly type: 'updateDataModel';
-  /** Target surface identifier. */
+  /** Identifier of the surface whose data model is being updated. */
   readonly surfaceId: string;
-  /** Optional JSON Pointer path within the data model. */
+  /** JSON Pointer path (RFC 6901) where the value will be set. If omitted, replaces the root model. */
   readonly path?: string;
-  /** Value to set at the specified path. */
+  /** Data value to write at the target path. */
   readonly value: unknown;
 }
 
 /**
- * Canonical operation to delete a surface.
+ * Operation to delete a surface and tear down its associated component models and state.
  */
 export interface InternalDeleteSurfaceOp {
-  /** Discriminator type for surface deletion. */
+  /** Discriminator indicating surface deletion. */
   readonly type: 'deleteSurface';
-  /** Target surface identifier to delete. */
+  /** Identifier of the surface to delete and dispose. */
   readonly surfaceId: string;
 }
 
 /**
- * Canonical operation to execute a renderer function requested by the agent.
+ * Operation representing an agent request to execute a client-side function registered on the renderer.
  */
 export interface InternalCallRendererFunctionOp {
-  /** Discriminator type for remote function calls on the renderer. */
+  /** Discriminator indicating a renderer function call. */
   readonly type: 'callRendererFunction';
-  /** Unique identifier for the function call. */
+  /** Correlation identifier used to match this call with a subsequent response or error. */
   readonly functionCallId: string;
-  /** Function name to execute. */
+  /** Name of the registered catalog function to execute on the renderer. */
   readonly call: string;
-  /** Protocol version string. */
-  readonly version: string;
-  /** Optional catalog ID where the function is defined. */
+  /** Protocol specification version governing this function call. */
+  readonly version: ProtocolVersion;
+  /** Identifier of the catalog providing the function implementation. If omitted, defaults to the surface catalog. */
   readonly catalogId?: string;
-  /** Arguments passed to the function. */
+  /** Named argument map passed to the function implementation. */
   readonly args?: Record<string, unknown>;
-  /** Whether user activation gesture context was present for the call. */
+  /** Whether the call was initiated by a direct user gesture. */
   readonly isUserActivated?: boolean;
 }
 
 /**
- * Canonical operation to resolve a pending renderer-initiated agent function call.
+ * Operation containing the agent's response or error for a function previously invoked by the renderer.
  */
 export interface InternalAgentFunctionResponseOp {
-  /** Discriminator type for inbound agent function responses. */
+  /** Discriminator indicating an agent function response. */
   readonly type: 'agentFunctionResponse';
-  /** Unique identifier matching the initiating function call. */
+  /** Correlation identifier matching the original client-initiated function call. */
   readonly functionCallId: string;
-  /** Return value from agent function execution. */
+  /** Protocol specification version associated with the response, if present. */
+  readonly version?: ProtocolVersion;
+  /** Return value produced by the agent function upon successful execution. */
   readonly value?: unknown;
-  /** Error information if agent function execution failed. */
+  /** Error details if the agent function failed. */
   readonly error?: {
+    /** Error code describing the failure type (e.g. `'EXECUTION_ERROR'`). */
     code: string;
+    /** Human-readable explanation of why the function failed. */
     message: string;
   };
 }
 
 /**
- * Union of all version-agnostic internal operations processed by MessageProcessor.
+ * Union of all normalized internal operations processed by the message pipeline.
  */
 export type InternalOperation =
   | InternalCreateSurfaceOp
@@ -130,7 +137,7 @@ export type InternalOperation =
   | InternalAgentFunctionResponseOp;
 
 /**
- * List of all canonical internal operation type discriminators.
+ * All supported internal operation type discriminator strings.
  */
 export const INTERNAL_OPERATION_TYPES = [
   'createSurface',
@@ -142,15 +149,15 @@ export const INTERNAL_OPERATION_TYPES = [
 ] as const;
 
 /**
- * Discriminator string identifying the type of an internal operation.
+ * Type representing any valid internal operation type discriminator.
  */
 export type InternalOperationType = (typeof INTERNAL_OPERATION_TYPES)[number];
 
 /**
- * Type guard to check if a value is a canonical InternalOperation object.
+ * Determines whether a given value is a valid {@link InternalOperation}.
  *
- * @param payload The value to inspect.
- * @returns True if the payload conforms to an InternalOperation shape.
+ * @param payload The candidate value to inspect.
+ * @returns `true` if the payload conforms to an internal operation structure; otherwise `false`.
  */
 export function isInternalOperation(payload: unknown): payload is InternalOperation {
   return (

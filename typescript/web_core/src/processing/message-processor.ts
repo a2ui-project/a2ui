@@ -94,11 +94,6 @@ export interface ExecutionContext {
 }
 
 /**
- * @deprecated Prefer `ExecutionContext`.
- */
-export type ProcessMessagesOptions = ExecutionContext;
-
-/**
  * Options for generating renderer capabilities.
  */
 export interface CapabilitiesOptions {
@@ -500,7 +495,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         break;
       case 'agentFunctionResponse':
         this.rpc.handleAgentFunctionResponse({
-          version: 'v1.0',
+          version: (op.version ?? this.version ?? 'v1.0') as 'v1.0',
           agentFunctionResponse: {
             functionCallId: op.functionCallId,
             value: op.value,
@@ -525,7 +520,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const dataContext = surface ? new DataContext(surface, '/') : ({} as DataContext);
       const isUserActivated = context?.isUserActivated ?? op.isUserActivated ?? false;
       const callMsg: CallRendererFunctionMessage = {
-        version: (op.version as any) || 'v1.0',
+        version: (op.version ?? this.version ?? 'v1.0') as 'v1.0',
         callRendererFunction: {
           functionCallId: op.functionCallId,
           callFunction: {
@@ -551,7 +546,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const dataContext = surface ? new DataContext(surface, '/') : ({} as DataContext);
       const isUserActivated = context?.isUserActivated ?? op.isUserActivated ?? false;
       const callMsg: CallRendererFunctionMessage = {
-        version: (op.version as any) || 'v1.0',
+        version: (op.version ?? this.version ?? 'v1.0') as 'v1.0',
         callRendererFunction: {
           functionCallId: op.functionCallId,
           callFunction: {

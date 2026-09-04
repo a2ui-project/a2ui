@@ -62,4 +62,7 @@ export const basicCatalog = new Catalog<WebComponentImplementation>(
     A2uiModal,
   ],
   BASIC_FUNCTIONS,
+  undefined,
+  undefined,
+  'v0.9',
 );

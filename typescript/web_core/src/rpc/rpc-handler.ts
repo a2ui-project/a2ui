@@ -157,7 +157,7 @@ export class RpcHandler {
     const {functionCallId, callFunction} = message.callRendererFunction;
     const {call, catalogId, args} = callFunction;
 
-    const resolved = this.resolveFunctionImplementation(catalogId, call, context);
+    const resolved = this.resolveFunctionImplementation(catalogId, call, context, message.version);
     if ('error' in resolved) {
       const errorResponse = this.createResponseError(
         functionCallId,
@@ -335,6 +335,7 @@ export class RpcHandler {
     catalogId: string | undefined,
     call: string,
     context?: DataContext,
+    expectedVersion?: string,
   ): {funcImpl: FunctionImplementation} | {error: string} {
     let catalog: Catalog<any> | undefined;
     if (catalogId) {
@@ -344,12 +345,16 @@ export class RpcHandler {
       }
     } else if (context?.surface?.catalog) {
       catalog = context.surface.catalog;
-    } else if (this.catalogs.length > 0) {
-      catalog = this.catalogs[0];
     }
 
     if (!catalog) {
       return {error: 'No catalog available for function resolution.'};
+    }
+
+    if (catalog.protocolVersion && expectedVersion && catalog.protocolVersion !== expectedVersion) {
+      return {
+        error: `Catalog '${catalog.id}' specification version (${catalog.protocolVersion}) does not match message protocol version (${expectedVersion}).`,
+      };
     }
 
     const funcImpl = catalog.functions?.get(call);

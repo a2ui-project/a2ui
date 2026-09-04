@@ -97,6 +97,7 @@ export class V1Point0Adapter extends BaseVersionAdapter {
       ops.push({
         type: 'agentFunctionResponse',
         functionCallId: String(afr?.functionCallId || ''),
+        version: this.version,
         value: afr?.value,
         error:
           afr?.error && typeof afr.error === 'object'
