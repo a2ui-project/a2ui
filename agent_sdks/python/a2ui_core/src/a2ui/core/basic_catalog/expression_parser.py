@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
 from typing import Any, Dict, List, Union
 
 
@@ -50,7 +49,7 @@ class Scanner:
     def matches_keyword(self, keyword: str) -> bool:
         if self.input.startswith(keyword, self.pos):
             next_char = self.peek(len(keyword))
-            if not re.match(r"[a-zA-Z0-9_]", next_char):
+            if not (next_char.isalnum() or next_char == "_"):
                 self.advance(len(keyword))
                 return True
         return False
@@ -264,7 +263,7 @@ class ExpressionParser:
         return int(num_str)
 
     def is_alnum(self, c: str) -> bool:
-        return ("a" <= c <= "z") or ("A" <= c <= "Z") or ("0" <= c <= "9")
+        return c.isalnum()
 
     def is_digit(self, c: str) -> bool:
         return "0" <= c <= "9"

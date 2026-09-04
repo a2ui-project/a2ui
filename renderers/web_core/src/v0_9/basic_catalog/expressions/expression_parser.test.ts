@@ -125,4 +125,15 @@ describe('ExpressionParser', () => {
       parser.parseExpression('add(a 10, b: 20)');
     }, /Expected ':'/);
   });
+
+  it('parses non-ASCII identifiers and paths', () => {
+    assert.deepStrictEqual(parser.parse('${señor}'), [{path: 'señor'}]);
+    assert.deepStrictEqual(parser.parse('${café/precio}'), [{path: 'café/precio'}]);
+    assert.deepStrictEqual(parser.parse('${日本}'), [{path: '日本'}]);
+    assert.deepStrictEqual(parser.parse('hola ${señor} qué tal'), [
+      'hola ',
+      {path: 'señor'},
+      ' qué tal',
+    ]);
+  });
 });

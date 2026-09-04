@@ -106,3 +106,14 @@ def test_handles_parsing_paths_with_special_characters(parser):
 def test_returns_error_on_missing_colon_in_function_args(parser):
     with pytest.raises(ValueError, match="Expected ':'"):
         parser.parse_expression("add(a 10, b: 20)")
+
+
+def test_parses_non_ascii_identifiers_and_paths(parser):
+    assert parser.parse("${señor}") == [{"path": "señor"}]
+    assert parser.parse("${café/precio}") == [{"path": "café/precio"}]
+    assert parser.parse("${日本}") == [{"path": "日本"}]
+    assert parser.parse("hola ${señor} qué tal") == [
+        "hola ",
+        {"path": "señor"},
+        " qué tal",
+    ]

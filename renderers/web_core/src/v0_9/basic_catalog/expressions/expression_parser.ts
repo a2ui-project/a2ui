@@ -247,8 +247,16 @@ export class ExpressionParser {
     return Number(scanner.input.substring(start, scanner.pos));
   }
 
+  static readonly UNICODE_ALNUM = /\p{L}|\p{N}/u;
+
   private isAlnum(c: string): boolean {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
+    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) {
+      return true;
+    }
+    if (c.charCodeAt(0) < 128) {
+      return false;
+    }
+    return ExpressionParser.UNICODE_ALNUM.test(c);
   }
 
   private isDigit(c: string): boolean {
@@ -297,7 +305,7 @@ class Scanner {
   matchesKeyword(keyword: string): boolean {
     if (this.input.startsWith(keyword, this.pos)) {
       const next = this.peek(keyword.length);
-      if (!/[a-zA-Z0-9_]/.test(next)) {
+      if (!/[a-zA-Z0-9_]/.test(next) && !ExpressionParser.UNICODE_ALNUM.test(next)) {
         this.advance(keyword.length);
         return true;
       }
