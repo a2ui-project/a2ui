@@ -129,6 +129,54 @@ function isCheckableField(type: z.ZodTypeAny): boolean {
   return false;
 }
 
+function isActionOption(option: z.ZodTypeAny): boolean {
+  if (getRefDefName(option) === 'Action') return true;
+  const def = (option as any)._def;
+  return def?.typeName === 'ZodObject' && Boolean(def.shape?.().event);
+}
+
+function isDynamicOption(option: z.ZodTypeAny): boolean {
+  const refDef = getRefDefName(option);
+  if (refDef === 'DataBinding' || refDef.startsWith('Dynamic')) return true;
+  const def = (option as any)._def;
+  if (def?.typeName !== 'ZodObject') return false;
+  const shape = def.shape?.();
+  return Boolean(shape?.path && !shape?.componentId);
+}
+
+function isChildListOption(option: z.ZodTypeAny): boolean {
+  if (childRefKindOf(option) === 'child-list' || getRefDefName(option) === 'ChildList') {
+    return true;
+  }
+  const def = (option as any)._def;
+  if (def?.typeName !== 'ZodObject') return false;
+  const shape = def.shape?.();
+  return Boolean(shape?.componentId && shape?.path);
+}
+
+function isDynamicDef(defName: string, typeName?: string): boolean {
+  return (
+    (defName === 'DataBinding' || defName.startsWith('Dynamic')) &&
+    typeName !== 'ZodObject' &&
+    typeName !== 'ZodArray'
+  );
+}
+
+function matchUnionBehavior(options: z.ZodTypeAny[]): BehaviorNode | undefined {
+  if (options.some(isActionOption)) return {type: 'ACTION'};
+  if (options.some(isDynamicOption)) return {type: 'DYNAMIC'};
+  if (options.some(isChildListOption)) return {type: 'STRUCTURAL'};
+  return undefined;
+}
+
+function scrapeObjectShape(objShape: Record<string, z.ZodTypeAny>): Record<string, BehaviorNode> {
+  const shape: Record<string, BehaviorNode> = {};
+  for (const [key, value] of Object.entries(objShape)) {
+    shape[key] = getFieldBehavior(value);
+  }
+  return shape;
+}
+
 /**
  * Recursively maps a Zod schema to its corresponding BehaviorNode.
  *
@@ -143,7 +191,6 @@ function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
   }
 
   const defName = getRefDefName(current);
-
   if (defName === 'Action') {
     return {type: 'ACTION'};
   }
@@ -152,43 +199,14 @@ function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
     return {type: 'STRUCTURAL'};
   }
 
-  if (
-    (defName === 'DataBinding' || defName.startsWith('Dynamic')) &&
-    current._def.typeName !== 'ZodObject' &&
-    current._def.typeName !== 'ZodArray'
-  ) {
+  if (isDynamicDef(defName, current._def?.typeName)) {
     return {type: 'DYNAMIC'};
   }
 
   // Structural matching for A2UI primitives using typeName to avoid dual-module instanceof issues
   if (current._def.typeName === 'ZodUnion') {
-    const options = current._def.options as z.ZodTypeAny[];
-
-    // ActionSchema is a union containing { event: ... }
-    const isAction =
-      options.some(o => getRefDefName(o) === 'Action') ||
-      options.some(o => o._def.typeName === 'ZodObject' && o._def.shape().event);
-    if (isAction) return {type: 'ACTION'};
-
-    // Dynamic strings/values are unions containing DataBindingSchema { path: ... } but NOT { componentId: ... }
-    const isDynamic =
-      options.some(
-        o => getRefDefName(o) === 'DataBinding' || getRefDefName(o).startsWith('Dynamic'),
-      ) ||
-      options.some(
-        o => o._def.typeName === 'ZodObject' && o._def.shape().path && !o._def.shape().componentId,
-      );
-    if (isDynamic) return {type: 'DYNAMIC'};
-
-    // ChildList is a union containing an array and an object with { componentId, path }
-    const isChildList =
-      options.some(o => childRefKindOf(o) === 'child-list' || getRefDefName(o) === 'ChildList') ||
-      options.some(
-        o => o._def.typeName === 'ZodObject' && o._def.shape().componentId && o._def.shape().path,
-      );
-    if (isChildList) return {type: 'STRUCTURAL'};
-  } else if (current._def.typeName === 'ZodString') {
-    // ComponentId falls back to STATIC since we can't perfectly identify it, which is fine because STATIC returns strings as-is.
+    const unionBehavior = matchUnionBehavior(current._def.options as z.ZodTypeAny[]);
+    if (unionBehavior) return unionBehavior;
   }
 
   // Recursive array scraping
@@ -201,12 +219,10 @@ function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
 
   // Recursive object scraping
   if (current._def.typeName === 'ZodObject') {
-    const shape: Record<string, BehaviorNode> = {};
-    const objShape = current._def.shape();
-    for (const [key, value] of Object.entries(objShape)) {
-      shape[key] = getFieldBehavior(value as z.ZodTypeAny);
-    }
-    return {type: 'OBJECT', shape};
+    return {
+      type: 'OBJECT',
+      shape: scrapeObjectShape(current._def.shape()),
+    };
   }
 
   // Fallback
@@ -290,7 +306,7 @@ export class GenericBinder<T> {
   private dataListeners: (() => void)[] = [];
   private propsListeners: ((props: T) => void)[] = [];
   /** Snapshot of currently resolved properties. */
-  public currentProps: Partial<T> = {};
+  private currentProps: Partial<T> = {};
   private compUnsub?: () => void;
   private isConnected = false;
 
@@ -364,6 +380,19 @@ export class GenericBinder<T> {
     return bound.value;
   }
 
+  private resolveDeepSync(val: unknown): unknown {
+    if (typeof val !== 'object' || val === null) return val;
+    if ('path' in val || 'call' in val) {
+      return this.context.dataContext.resolveDynamicValue(val);
+    }
+    if (Array.isArray(val)) return val.map(item => this.resolveDeepSync(item));
+    const res: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(val)) {
+      res[k] = this.resolveDeepSync(v);
+    }
+    return res;
+  }
+
   private bindAction(value: unknown, path: string[]): () => void {
     const cacheKey = path.join('/');
     const cached = this.actionClosures.get(cacheKey);
@@ -371,20 +400,23 @@ export class GenericBinder<T> {
       return cached.closure;
     }
     const closure = () => {
-      const resolveDeepSync = (val: unknown): unknown => {
-        if (typeof val !== 'object' || val === null) return val;
-        if ('path' in val || 'call' in val) {
-          return this.context.dataContext.resolveDynamicValue(val);
-        }
-        if (Array.isArray(val)) return val.map(resolveDeepSync);
-        const res: Record<string, unknown> = {};
-        for (const [k, v] of Object.entries(val)) res[k] = resolveDeepSync(v);
-        return res;
-      };
-      this.context.dispatchAction(resolveDeepSync(value) as Action | Record<string, unknown>);
+      this.context.dispatchAction(this.resolveDeepSync(value) as Action | Record<string, unknown>);
     };
     this.actionClosures.set(cacheKey, {raw: value, closure});
     return closure;
+  }
+
+  private mapTemplateChildren(
+    rawArray: unknown,
+    templateComponentId: string,
+    templatePath: string,
+  ): ResolvedChildRef[] {
+    const arr = Array.isArray(rawArray) ? rawArray : [];
+    const listContext = this.context.dataContext.nested(templatePath);
+    return arr.map((_, i) => ({
+      id: templateComponentId,
+      basePath: listContext.nested(String(i)).path,
+    }));
   }
 
   private bindStructuralTemplate(
@@ -392,41 +424,129 @@ export class GenericBinder<T> {
     path: string[],
     isSync: boolean,
   ): ResolvedChildRef[] | unknown {
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      const templateObj = value as Record<string, unknown>;
-      const templatePath = typeof templateObj.path === 'string' ? templateObj.path : undefined;
-      const templateComponentId =
-        typeof templateObj.componentId === 'string' ? templateObj.componentId : undefined;
-      if (templatePath && templateComponentId) {
-        const bound = this.context.dataContext.subscribeDynamicValue(
-          {path: templatePath},
-          newVal => {
-            const arr = Array.isArray(newVal) ? newVal : [];
-            const listContext = this.context.dataContext.nested(templatePath);
-            const resolvedChildren: ResolvedChildRef[] = arr.map((_, i) => ({
-              id: templateComponentId,
-              basePath: listContext.nested(String(i)).path,
-            }));
-            this.updateDeepValue(path, resolvedChildren);
-            this.notify();
-          },
-        );
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return value;
+    }
 
-        if (!isSync) {
-          this.dataListeners.push(() => bound.unsubscribe());
-        } else {
-          bound.unsubscribe();
-        }
+    const templateObj = value as Record<string, unknown>;
+    const templatePath = typeof templateObj.path === 'string' ? templateObj.path : undefined;
+    const templateComponentId =
+      typeof templateObj.componentId === 'string' ? templateObj.componentId : undefined;
 
-        const currentArr = Array.isArray(bound.value) ? bound.value : [];
-        const listContext = this.context.dataContext.nested(templatePath);
-        return currentArr.map((_, i) => ({
-          id: templateComponentId,
-          basePath: listContext.nested(String(i)).path,
-        }));
+    if (!templatePath || !templateComponentId) {
+      return value;
+    }
+
+    const bound = this.context.dataContext.subscribeDynamicValue({path: templatePath}, newVal => {
+      const resolvedChildren = this.mapTemplateChildren(newVal, templateComponentId, templatePath);
+      this.updateDeepValue(path, resolvedChildren);
+      this.notify();
+    });
+
+    if (!isSync) {
+      this.dataListeners.push(() => bound.unsubscribe());
+    } else {
+      bound.unsubscribe();
+    }
+
+    return this.mapTemplateChildren(bound.value, templateComponentId, templatePath);
+  }
+
+  private extractValidationResult(
+    val: unknown,
+    fallbackMessage: string,
+  ): {valid: boolean; message: string} {
+    if (typeof val === 'object' && val !== null && 'valid' in val) {
+      const customMessage = (val as {message?: unknown}).message;
+      return {
+        valid: Boolean((val as {valid: unknown}).valid),
+        message:
+          customMessage !== undefined && customMessage !== null
+            ? String(customMessage)
+            : fallbackMessage,
+      };
+    }
+    return {
+      valid: Boolean(val),
+      message: fallbackMessage,
+    };
+  }
+
+  private bindCheckable(value: unknown, path: string[], isSync: boolean): unknown {
+    const rules = Array.isArray(value) ? value : [];
+    const ruleResults: {valid: boolean; message: string}[] = rules.map(() => ({
+      valid: true,
+      message: '',
+    }));
+
+    const parentPath = path.slice(0, -1);
+    const updateValidationState = () => {
+      const errors = ruleResults.filter(r => !r.valid).map(r => r.message);
+      this.updateDeepValue([...parentPath, 'isValid'], errors.length === 0);
+      this.updateDeepValue([...parentPath, 'validationErrors'], errors);
+      this.notify();
+    };
+
+    rules.forEach((rule: unknown, index: number) => {
+      const ruleObj =
+        typeof rule === 'object' && rule !== null ? (rule as Record<string, unknown>) : undefined;
+      const condition = ruleObj && ruleObj.condition !== undefined ? ruleObj.condition : rule;
+      const message = typeof ruleObj?.message === 'string' ? ruleObj.message : 'Validation failed';
+      ruleResults[index].message = message;
+
+      const bound = this.context.dataContext.subscribeDynamicValue(condition, newVal => {
+        ruleResults[index] = this.extractValidationResult(newVal, message);
+        updateValidationState();
+      });
+
+      if (!isSync) {
+        this.dataListeners.push(() => bound.unsubscribe());
+      } else {
+        bound.unsubscribe();
+      }
+
+      ruleResults[index] = this.extractValidationResult(bound.value, message);
+    });
+
+    // Set initial state
+    const initialErrors = ruleResults.filter(r => !r.valid).map(r => r.message);
+    this.updateDeepValue([...parentPath, 'isValid'], initialErrors.length === 0);
+    this.updateDeepValue([...parentPath, 'validationErrors'], initialErrors);
+
+    return value;
+  }
+
+  private bindObject(
+    valObj: Record<string, unknown>,
+    shape: Record<string, BehaviorNode>,
+    path: string[],
+    isSync: boolean,
+  ): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+
+    // 1. Resolve all provided properties
+    for (const [k, v] of Object.entries(valObj)) {
+      const childBehavior = shape[k] || {type: 'STATIC'};
+      result[k] = this.resolveAndBind(v, childBehavior, [...path, k], isSync);
+    }
+
+    // 2. Ensure all dynamic setters exist, even if the property wasn't provided in the payload
+    for (const [k, childBehavior] of Object.entries(shape)) {
+      if (childBehavior.type === 'DYNAMIC') {
+        const setterName = `set${k.charAt(0).toUpperCase() + k.slice(1)}`;
+        const rawPropValue = valObj[k];
+        result[setterName] = (newValue: unknown) => {
+          if (rawPropValue && typeof rawPropValue === 'object' && 'path' in rawPropValue) {
+            const pathVal = (rawPropValue as {path: unknown}).path;
+            if (typeof pathVal === 'string') {
+              this.context.dataContext.set(pathVal, newValue);
+            }
+          }
+        };
       }
     }
-    return value;
+
+    return result;
   }
 
   private resolveAndBind(
@@ -438,118 +558,30 @@ export class GenericBinder<T> {
     if (value === undefined || value === null) return value;
 
     switch (behavior.type) {
-      case 'DYNAMIC': {
+      case 'DYNAMIC':
         return this.bindDynamicValue(value, path, isSync);
-      }
 
-      case 'ACTION': {
+      case 'ACTION':
         return this.bindAction(value, path);
-      }
 
-      case 'STRUCTURAL': {
+      case 'STRUCTURAL':
         return this.bindStructuralTemplate(value, path, isSync);
-      }
 
-      case 'CHECKABLE': {
-        const rules = Array.isArray(value) ? value : [];
-        const ruleResults: {valid: boolean; message: string}[] = rules.map(() => ({
-          valid: true,
-          message: '',
-        }));
+      case 'CHECKABLE':
+        return this.bindCheckable(value, path, isSync);
 
-        const parentPath = path.slice(0, -1);
-        const updateValidationState = () => {
-          const errors = ruleResults.filter(r => !r.valid).map(r => r.message);
-          this.updateDeepValue([...parentPath, 'isValid'], errors.length === 0);
-          this.updateDeepValue([...parentPath, 'validationErrors'], errors);
-          this.notify();
-        };
-
-        rules.forEach((rule: unknown, index: number) => {
-          const ruleObj =
-            typeof rule === 'object' && rule !== null
-              ? (rule as Record<string, unknown>)
-              : undefined;
-          const condition = ruleObj && ruleObj.condition !== undefined ? ruleObj.condition : rule;
-          const message =
-            typeof ruleObj?.message === 'string' ? ruleObj.message : 'Validation failed';
-          ruleResults[index].message = message;
-
-          const extractResult = (val: unknown) => {
-            if (typeof val === 'object' && val !== null && 'valid' in val) {
-              ruleResults[index].valid = Boolean((val as {valid: unknown}).valid);
-              const customMessage = (val as {message?: unknown}).message;
-              ruleResults[index].message =
-                customMessage !== undefined && customMessage !== null
-                  ? String(customMessage)
-                  : message;
-            } else {
-              ruleResults[index].valid = Boolean(val);
-              ruleResults[index].message = message;
-            }
-          };
-
-          const bound = this.context.dataContext.subscribeDynamicValue(condition, newVal => {
-            extractResult(newVal);
-            updateValidationState();
-          });
-
-          if (!isSync) {
-            this.dataListeners.push(() => bound.unsubscribe());
-          } else {
-            bound.unsubscribe();
-          }
-          extractResult(bound.value);
-        });
-
-        // Set initial state
-        const initialErrors = ruleResults.filter(r => !r.valid).map(r => r.message);
-        this.updateDeepValue([...parentPath, 'isValid'], initialErrors.length === 0);
-        this.updateDeepValue([...parentPath, 'validationErrors'], initialErrors);
-
+      case 'STATIC':
         return value;
-      }
 
-      case 'STATIC': {
-        return value;
-      }
-
-      case 'ARRAY': {
+      case 'ARRAY':
         if (!Array.isArray(value)) return value;
         return value.map((item, index) =>
           this.resolveAndBind(item, behavior.element, [...path, index.toString()], isSync),
         );
-      }
 
-      case 'OBJECT': {
+      case 'OBJECT':
         if (typeof value !== 'object') return value;
-        const valObj = value as Record<string, unknown>;
-        const result: Record<string, unknown> = {};
-
-        // 1. Resolve all provided properties
-        for (const [k, v] of Object.entries(valObj)) {
-          const childBehavior = behavior.shape[k] || {type: 'STATIC'};
-          result[k] = this.resolveAndBind(v, childBehavior, [...path, k], isSync);
-        }
-
-        // 2. Ensure all dynamic setters exist, even if the property wasn't provided in the payload
-        for (const [k, childBehavior] of Object.entries(behavior.shape)) {
-          if (childBehavior.type === 'DYNAMIC') {
-            const setterName = `set${k.charAt(0).toUpperCase() + k.slice(1)}`;
-            const rawPropValue = valObj[k];
-            result[setterName] = (newValue: unknown) => {
-              if (rawPropValue && typeof rawPropValue === 'object' && 'path' in rawPropValue) {
-                const pathVal = (rawPropValue as {path: unknown}).path;
-                if (typeof pathVal === 'string') {
-                  this.context.dataContext.set(pathVal, newValue);
-                }
-              }
-            };
-          }
-        }
-
-        return result;
-      }
+        return this.bindObject(value as Record<string, unknown>, behavior.shape, path, isSync);
     }
   }
 
