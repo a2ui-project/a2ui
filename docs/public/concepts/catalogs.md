@@ -380,7 +380,7 @@ To maintain backward and forward compatibility, the following rules apply:
 
 1. **Additive Only**: It's safe to add new components, functions, or optional properties.
 2. **Deprecate Rather than Delete**: Never delete existing components, functions, or properties. Mark them `deprecated: true` along with an `x-deprecated-reason` instead. Renderers should retain handling logic for deprecated components and properties to maintain backward compatibility for historical transcripts, cached states, and templates.
-3. **Type Invariance**: Renderers may ignore fields that change the type of existing fields. Catalogs should avoid changing the data type of an existing field.
+3. **Type Invariance**: Renderers may ignore fields that change the type of existing fields. Catalogs should avoid changing the data type of an existing field. Note that add enum to a string doesn't change the type and won't break anything since enums are expected to be open.
 4. **Open Enums**: Treat enum definitions as open so older renderers do not fail when new enum variants are introduced upstream. Catalogs declare enums normally, just the renderer implementation should handle unknown enum variants.
 5. **Graceful Degradation**: Renderers should provide a graceful fallback for unknown components instead of failing the entire view hierarchy or surface.
 6. **Round-Trip Unknown Component/Field Preservation**: Intermediary services such as orchestrators should preserve unknown properties when serializing/deserializing messages.
