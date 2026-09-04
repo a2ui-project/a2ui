@@ -46,19 +46,21 @@ class DirectJsonPromptGenerator(PromptGenerator):
         include_schema: bool = True,
         catalog: Optional[Any] = None,
     ) -> str:
-        """Returns LLM instructions for a catalog."""
+        """Returns LLM instructions for a catalog or all supported catalogs."""
         if not include_schema:
             return ""
-        target_catalog = catalog or self.selected_catalog
-        if not target_catalog:
-            target_catalog = (
-                self._format._supported_catalogs[0]
-                if self._format._supported_catalogs
-                else None
-            )
-        if not target_catalog:
-            return ""
-        return target_catalog.render_as_llm_instructions() or ""
+        if catalog:
+            return catalog.render_as_llm_instructions() or ""
+        if self.selected_catalog:
+            return self.selected_catalog.render_as_llm_instructions() or ""
+        if self._format and self._format._supported_catalogs:
+            instructions = [
+                c.render_as_llm_instructions()
+                for c in self._format._supported_catalogs
+                if c.render_as_llm_instructions()
+            ]
+            return "\n\n".join(instructions)
+        return ""
 
     def generate_examples(
         self,

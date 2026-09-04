@@ -21,7 +21,6 @@ import yaml
 
 from a2ui.inference_formats.experimental.express import ExpressFormat
 from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
-from a2ui.skill.generator import SkillGenerator, generate_skill
 from a2ui.skill.skill import Skill, SkillSet
 
 

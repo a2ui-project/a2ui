@@ -165,7 +165,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
 
         # 1. JSON array block
         array_md = (
-            '```json\n[{"version": "1.0", "deleteSurface": {"surfaceId": "s1"}}]\n```'
+            '```json\n[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]\n```'
         )
         trans_array = generator.transform_examples(array_md)
         self.assertIn('deleteSurface("s1")', trans_array)

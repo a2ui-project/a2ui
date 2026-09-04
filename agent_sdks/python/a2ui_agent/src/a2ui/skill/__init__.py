@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI Skill Generation package."""
+"""Skill generation module for A2UI."""
 
-from a2ui.skill.skill import Skill, SkillSet
-from a2ui.skill.generator import SkillGenerator, generate_skill
+from .skill import Skill, SkillSet
 
-__all__ = ["Skill", "SkillSet", "SkillGenerator", "generate_skill"]
+__all__ = ["Skill", "SkillSet"]
