@@ -510,8 +510,16 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    */
   processOperation(op: InternalOperation, context?: ExecutionContext): void {
     if (op.type === 'callRendererFunction') {
-      const surface = this.model.surfacesMap.values().next().value;
-      const dataContext = surface ? new DataContext(surface, '/') : ({} as DataContext);
+      const targetCatalog =
+        (op.catalogId ? this.catalogs.find(c => c.id === op.catalogId) : undefined) ??
+        this.catalogs[0];
+      const surface =
+        (op.catalogId
+          ? Array.from(this.model.surfacesMap.values()).find(s => s.catalog?.id === op.catalogId)
+          : undefined) ?? this.model.surfacesMap.values().next().value;
+      const dataContext = surface
+        ? new DataContext(surface, '/')
+        : new DataContext(new SurfaceModel('_rpc_fallback', targetCatalog), '/');
       const isUserActivated = context?.isUserActivated ?? op.isUserActivated ?? false;
       const callMsg: CallRendererFunctionMessage = {
         version: (op.version ?? this.version ?? 'v1.0') as 'v1.0',
@@ -536,8 +544,16 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     context?: ExecutionContext,
   ): Promise<RendererFunctionResponseMessage | null> {
     if (op.type === 'callRendererFunction') {
-      const surface = this.model.surfacesMap.values().next().value;
-      const dataContext = surface ? new DataContext(surface, '/') : ({} as DataContext);
+      const targetCatalog =
+        (op.catalogId ? this.catalogs.find(c => c.id === op.catalogId) : undefined) ??
+        this.catalogs[0];
+      const surface =
+        (op.catalogId
+          ? Array.from(this.model.surfacesMap.values()).find(s => s.catalog?.id === op.catalogId)
+          : undefined) ?? this.model.surfacesMap.values().next().value;
+      const dataContext = surface
+        ? new DataContext(surface, '/')
+        : new DataContext(new SurfaceModel('_rpc_fallback', targetCatalog), '/');
       const isUserActivated = context?.isUserActivated ?? op.isUserActivated ?? false;
       const callMsg: CallRendererFunctionMessage = {
         version: (op.version ?? this.version ?? 'v1.0') as 'v1.0',
