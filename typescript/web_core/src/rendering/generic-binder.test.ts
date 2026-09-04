@@ -367,19 +367,42 @@ describe('GenericBinder Checkable Trait', () => {
 
   describe('scrapeSchemaBehavior schema inference', () => {
     it('should infer behavior from schema descriptions', () => {
-      // Description-based matching
+      // Description-based matching across formats (relative, URI, pipe-annotated)
       assert.deepStrictEqual(
         scrapeSchemaBehavior(z.unknown().describe('REF:common_types.json#/$defs/Action')),
-        {
-          type: 'ACTION',
-        },
+        {type: 'ACTION'},
       );
-      assert.deepStrictEqual(scrapeSchemaBehavior(z.unknown().describe('#/$defs/ChildList')), {
+      assert.deepStrictEqual(
+        scrapeSchemaBehavior(
+          z
+            .unknown()
+            .describe('REF:https://a2ui.org/v1_0/common_types.json#/$defs/Action|On click'),
+        ),
+        {type: 'ACTION'},
+      );
+      assert.deepStrictEqual(scrapeSchemaBehavior(z.unknown().describe('REF:#/$defs/ChildList')), {
         type: 'STRUCTURAL',
       });
-      assert.deepStrictEqual(scrapeSchemaBehavior(z.unknown().describe('#/$defs/DynamicString')), {
-        type: 'DYNAMIC',
-      });
+      assert.deepStrictEqual(
+        scrapeSchemaBehavior(
+          z.unknown().describe('REF:common_types.json#/$defs/ChildList|Children array'),
+        ),
+        {type: 'STRUCTURAL'},
+      );
+      assert.deepStrictEqual(
+        scrapeSchemaBehavior(z.unknown().describe('REF:#/$defs/DynamicString')),
+        {
+          type: 'DYNAMIC',
+        },
+      );
+      assert.deepStrictEqual(
+        scrapeSchemaBehavior(
+          z
+            .unknown()
+            .describe('REF:https://a2ui.org/v1_0/common_types.json#/$defs/DynamicNumber|Age'),
+        ),
+        {type: 'DYNAMIC'},
+      );
       assert.deepStrictEqual(
         scrapeSchemaBehavior(z.unknown().describe('REF:common_types.json#/$defs/DataBinding')),
         {
@@ -387,8 +410,21 @@ describe('GenericBinder Checkable Trait', () => {
         },
       );
 
-      // Checks property is CHECKABLE, while unannotated fields are STATIC
+      // Descriptions without the REF: prefix must NOT be treated as reference schemas
+      assert.deepStrictEqual(scrapeSchemaBehavior(z.unknown().describe('#/$defs/ChildList')), {
+        type: 'STATIC',
+      });
+      assert.deepStrictEqual(scrapeSchemaBehavior(z.unknown().describe('Action')), {
+        type: 'STATIC',
+      });
+      assert.deepStrictEqual(scrapeSchemaBehavior(z.unknown().describe('CheckRule')), {
+        type: 'STATIC',
+      });
+
+      // Ref-annotated Checkable or array of CheckRule is CHECKABLE, while unannotated fields (even if named 'checks') are STATIC
       const objSchema = z.object({
+        checkableField: CommonSchemas.Checkable.shape.checks,
+        rulesField: z.array(z.unknown().describe('REF:common_types.json#/$defs/CheckRule')),
         checks: z.unknown(),
         customProp: z.unknown(),
       });
@@ -396,16 +432,18 @@ describe('GenericBinder Checkable Trait', () => {
       const behavior = scrapeSchemaBehavior(objSchema);
       assert.strictEqual(behavior.type, 'OBJECT');
       if (behavior.type === 'OBJECT') {
-        assert.strictEqual(behavior.shape.checks.type, 'CHECKABLE');
+        assert.strictEqual(behavior.shape.checkableField.type, 'CHECKABLE');
+        assert.strictEqual(behavior.shape.rulesField.type, 'CHECKABLE');
+        assert.strictEqual(behavior.shape.checks.type, 'STATIC');
         assert.strictEqual(behavior.shape.customProp.type, 'STATIC');
       }
 
       // Do not short-circuit to DYNAMIC if property is a nested ZodObject or ZodArray
       const nestedSchema = z.object({
         value: z.object({
-          nestedField: z.string().describe('#/$defs/DynamicString'),
+          nestedField: z.string().describe('REF:#/$defs/DynamicString'),
         }),
-        text: z.array(z.string().describe('#/$defs/DynamicString')),
+        text: z.array(z.string().describe('REF:#/$defs/DynamicString')),
       });
       const nestedBehavior = scrapeSchemaBehavior(nestedSchema);
       assert.strictEqual(nestedBehavior.type, 'OBJECT');
@@ -456,5 +494,182 @@ describe('GenericBinder Checkable Trait', () => {
         },
       });
     });
+  });
+
+  it('should support v1.0 ValidationResult objects and dynamic messages', async () => {
+    const mockCatalog = new Catalog('test', [], []);
+    const surface = new SurfaceModel('s1', mockCatalog);
+    (surface.catalog as any).functions = new Map([
+      [
+        'validate_email',
+        {
+          execute: (args: any) => {
+            const ok = typeof args.val === 'string' && args.val.includes('@');
+            return {
+              valid: ok,
+              message: ok ? undefined : 'Must contain @ symbol',
+            };
+          },
+          schema: z.object({val: z.any()}),
+        },
+      ],
+    ]);
+    (surface.catalog as any).invoker = (name: string, args: any) => {
+      const fn = (surface.catalog as any).functions.get(name);
+      return fn.execute(args);
+    };
+
+    const schema = z.object({
+      email: CommonSchemas.DynamicString,
+      validationRules: z.array(CommonSchemas.CheckRule),
+    });
+
+    surface.dataModel.set('/email', 'invalid');
+    const compModel = new ComponentModel(
+      'c_val',
+      'EmailInput',
+      {
+        email: {path: '/email'},
+        validationRules: [
+          {
+            condition: {
+              call: 'validate_email',
+              args: {val: {path: '/email'}},
+            },
+          },
+        ],
+      },
+      surface.catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c_val');
+    const binder = new GenericBinder<any>(context, schema);
+    binder.subscribe(() => {});
+
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Must contain @ symbol']);
+
+    surface.dataModel.set('/email', 'user@domain.com');
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.strictEqual(binder.snapshot.isValid, true);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, []);
+  });
+
+  it('should reset custom message to fallback message when subsequent evaluation returns boolean or no custom message', async () => {
+    const mockCatalog = new Catalog('test', [], []);
+    const surface = new SurfaceModel('s1', mockCatalog);
+    (surface.catalog as any).functions = new Map([
+      [
+        'dynamic_validator',
+        {
+          execute: (args: any) => {
+            if (args.mode === 'custom_error') {
+              return {valid: false, message: 'Custom dynamic error'};
+            }
+            if (args.mode === 'boolean_error') {
+              return false;
+            }
+            if (args.mode === 'object_without_msg') {
+              return {valid: false};
+            }
+            return true;
+          },
+          schema: z.object({mode: z.any()}),
+        },
+      ],
+    ]);
+    (surface.catalog as any).invoker = (name: string, args: any) => {
+      const fn = (surface.catalog as any).functions.get(name);
+      return fn.execute(args);
+    };
+
+    const schema = z.object({
+      field: CommonSchemas.DynamicString,
+      checks: CommonSchemas.Checkable.shape.checks,
+    });
+
+    surface.dataModel.set('/mode', 'custom_error');
+    const compModel = new ComponentModel(
+      'c_reset',
+      'Input',
+      {
+        field: 'val',
+        checks: [
+          {
+            condition: {
+              call: 'dynamic_validator',
+              args: {mode: {path: '/mode'}},
+            },
+            message: 'Default rule failure message',
+          },
+        ],
+      },
+      surface.catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c_reset');
+    const binder = new GenericBinder<any>(context, schema);
+    binder.subscribe(() => {});
+
+    // Initial evaluation with custom message
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Custom dynamic error']);
+
+    // Subsequent evaluation returning boolean false -> should reset to default message
+    surface.dataModel.set('/mode', 'boolean_error');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Default rule failure message']);
+
+    // Subsequent evaluation returning { valid: false } without message -> should reset to default message
+    surface.dataModel.set('/mode', 'object_without_msg');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Default rule failure message']);
+
+    // Subsequent evaluation returning true -> valid
+    surface.dataModel.set('/mode', 'valid');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(binder.snapshot.isValid, true);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, []);
+  });
+
+  it('should not treat primitive fields or unannotated condition arrays as CHECKABLE', () => {
+    const {surface} = setupSurfaceAndMocks();
+
+    const schemaWithPrimitiveDesc = z.object({
+      status: z.string().describe('The validation status of the transaction'),
+      label: z.string().describe('Checkbox label to display'),
+      unannotatedChecks: z.array(
+        z.object({
+          condition: z.string(),
+        }),
+      ),
+    });
+
+    const compModel = new ComponentModel(
+      'c_primitive',
+      'Card',
+      {
+        status: 'pending',
+        label: 'Select all',
+        unannotatedChecks: [{condition: 'some_expr'}],
+      },
+      surface.catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c_primitive');
+    const binder = new GenericBinder<any>(context, schemaWithPrimitiveDesc);
+
+    // Primitive fields and unannotated arrays should remain plain static fields and not inject validation props
+    assert.strictEqual(binder.snapshot.status, 'pending');
+    assert.strictEqual(binder.snapshot.label, 'Select all');
+    assert.deepStrictEqual(binder.snapshot.unannotatedChecks, [{condition: 'some_expr'}]);
+    assert.strictEqual(binder.snapshot.isValid, undefined);
+    assert.strictEqual(binder.snapshot.validationErrors, undefined);
   });
 });
