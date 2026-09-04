@@ -273,8 +273,7 @@ class ExpressionParser:
         if not re.match(r"^[+-]?\d+\.?\d*(?:[eE][+-]?\d+)?$", num_str):
             raise A2uiExpressionError(f"Invalid number literal: '{num_str}'")
         if "." in num_str or "e" in num_str or "E" in num_str:
-            f = float(num_str)
-            return int(f) if f.is_integer() else f
+            return float(num_str)
         return int(num_str)
 
     def is_alnum(self, c: str) -> bool:
