@@ -22,7 +22,6 @@ Version 1.0 differs from 0.9 in the following ways:
 - Catalogs can now define composition constraints (`allowedParents` and `allowedChildren`) on component definitions, using `"Surface"` as the canonical root component type. Because JSON Schema cannot natively restrict child component types across a flat adjacency list of ID references, these rules allow catalogs to declare valid parent-child relationships without altering the wire format.
 - `CheckRule` in `common_types.json` supports dynamic structured validation result objects (`ValidationResult`) returned directly by function evaluations or data bindings (containing `valid`, `code`, `message`, and `severity`), and `message` on `CheckRule` is made optional as a fallback error message.
 - Enhanced `AccessibilityAttributes` in `common_types.json` with WAI-ARIA `live` region support (`"off"`, `"polite"`, `"assertive"`) and `hidden` (`DynamicBoolean`), while setting `"additionalProperties": false`. Established normative specification prose requiring catalog and renderer implementations to plumb accessibility attributes, infer default screen reader semantics from visible text properties, and enforce SDK linter checks.
-- Introduced `x-deprecated-reason` as a human-readable explanation for a deprecated component/function/property in addition to the standard JSON Schema `deprecated: true`.
 
 ## 2. Changes
 
@@ -41,6 +40,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added `"propertyNames": { "not": { "const": "Surface" } }` to the `components` map in `catalog_definition.json` to enforce reserving `"Surface"` at the schema validation level.
 - Added the canonical `"Surface"` container component type in `common_types.json` to represent the top-level container of a surface for `"allowedParents": ["Surface"]` rules. The protocol reserves the `"Surface"` component name. The `createSurface` message implicitly creates `Surface` with `"child": "root"`, and you cannot modify `Surface` using `updateComponents`. These schema additions are catalog-level metadata and do not alter the wire format of component instances in `createSurface` or `updateComponents`.
 - Added static `metadata` (containing `extensions`) property to `ComponentDefinition` inside `catalog_definition.json`.
+- Introduced `x-deprecated-reason` as a human-readable explanation for a deprecated component/function/property in addition to the standard JSON Schema `deprecated: true`.
 
 ### 2.2. Standard catalogs (basic)
 
