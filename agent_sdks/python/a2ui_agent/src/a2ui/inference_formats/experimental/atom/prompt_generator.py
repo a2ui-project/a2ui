@@ -113,6 +113,7 @@ class AtomPromptGenerator(PromptGenerator):
         Args:
             format_inst: The AtomFormat strategy instance.
         """
+        self._format = format_inst
         self.format = format_inst
         try:
             from a2ui.schema.schema_helper import CatalogSchemaHelper
