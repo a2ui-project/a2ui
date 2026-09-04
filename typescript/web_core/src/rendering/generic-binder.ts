@@ -17,22 +17,29 @@
 import {z} from 'zod';
 import {ComponentContext} from './component-context.js';
 import {Action, ChildList, DataBinding, childRefKindOf} from '../types/common-types.js';
+import {extractRefDefName} from '../catalog/reference-map.js';
 
 // --- Schema Scraping ---
 
 /**
- * Represents the intended runtime behavior of a property parsed from its Zod schema.
+ * Represents the intended runtime behavior of a property parsed from its Zod
+ * schema.
  *
- * - `DYNAMIC`: The property can be bound to the `DataModel` (e.g. `DynamicString`).
- *    The Binder will automatically subscribe to data changes and emit primitive values.
- * - `ACTION`: The property represents a user interaction (e.g. `Action`).
- *    The Binder will resolve deep payload bindings and output a ready-to-call `() => void` closure.
- * - `STRUCTURAL`: The property dictates the rendering of child components (e.g. `ChildList`).
- *    The Binder outputs lists of objects containing `{ id, basePath }` for structural layout.
- * - `CHECKABLE`: Special property for handling validation arrays (e.g. `checks`).
- *    The Binder will reactively evaluate the rules and inject `isValid` and `validationErrors` booleans into the parent object.
- * - `STATIC`: A primitive value that requires no reactive subscription or resolution.
- * - `OBJECT` / `ARRAY`: Recursive traversal nodes for complex nested schemas.
+ * - DYNAMIC: The property can be bound to the DataModel (e.g. DynamicString).
+ *   The Binder will automatically subscribe to data changes and emit primitive
+ *   values.
+ * - ACTION: The property represents a user interaction (e.g. Action). The
+ *   Binder will resolve deep payload bindings and output a ready-to-call () =>
+ *   void closure.
+ * - STRUCTURAL: The property dictates the rendering of child components (e.g.
+ *   ChildList). The Binder outputs lists of objects containing { id, basePath }
+ *   for structural layout.
+ * - CHECKABLE: Special property for handling validation arrays (e.g. checks).
+ *   The Binder will reactively evaluate the rules and inject isValid and
+ *   validationErrors booleans into the parent object.
+ * - STATIC: A primitive value that requires no reactive subscription or
+ *   resolution.
+ * - OBJECT / ARRAY: Recursive traversal nodes for complex nested schemas.
  */
 export type BehaviorNode =
   | {type: 'DYNAMIC'}
@@ -56,45 +63,114 @@ export function scrapeSchemaBehavior(schema: z.ZodTypeAny): BehaviorNode {
   return getFieldBehavior(schema);
 }
 
-// TODO(#2443): Export and reuse these schema reference constants from a central location across web_core.
-const ACTION_REF = 'REF:common_types.json#/$defs/Action';
-const DATA_BINDING_REF = 'REF:common_types.json#/$defs/DataBinding';
-const DYNAMIC_REF_PREFIX = '#/$defs/Dynamic';
-
-function getFieldBehavior(type: z.ZodTypeAny, propertyName?: string): BehaviorNode {
-  let current = type;
-
-  let description = current._def?.description || '';
-
-  // Unwrap optionals/nullables/defaults
-  while (
-    current._def.typeName === 'ZodOptional' ||
-    current._def.typeName === 'ZodNullable' ||
-    current._def.typeName === 'ZodDefault'
-  ) {
-    if (!description && current._def.description) {
-      description = current._def.description;
+function getRefDefName(type: z.ZodTypeAny): string {
+  let current: any = type;
+  while (current) {
+    const typeName = current._def?.typeName;
+    if (
+      typeName === 'ZodOptional' ||
+      typeName === 'ZodNullable' ||
+      typeName === 'ZodDefault' ||
+      typeName === 'ZodReadonly'
+    ) {
+      current = current._def.innerType;
+    } else if (typeName === 'ZodEffects') {
+      current = current._def.schema;
+    } else {
+      break;
     }
-    current = current._def.innerType;
   }
-  if (!description && current._def.description) {
-    description = current._def.description;
+  const desc: string = current?.description ?? current?._def?.description ?? '';
+  if (!desc || !desc.startsWith('REF:')) return '';
+  const cleanDesc = desc.slice(4);
+  return extractRefDefName(cleanDesc.split('|')[0]);
+}
+
+function isCheckableField(type: z.ZodTypeAny): boolean {
+  let current: any = type;
+  while (current) {
+    const typeName = current._def?.typeName;
+    if (
+      typeName === 'ZodOptional' ||
+      typeName === 'ZodNullable' ||
+      typeName === 'ZodDefault' ||
+      typeName === 'ZodReadonly'
+    ) {
+      current = current._def.innerType;
+    } else if (typeName === 'ZodEffects') {
+      current = current._def.schema;
+    } else {
+      break;
+    }
   }
 
-  if (propertyName === 'checks') {
+  const defName = getRefDefName(current);
+  if (defName === 'Checkable' || defName === 'CheckRule') {
+    return true;
+  }
+
+  if (current?._def?.typeName === 'ZodArray') {
+    let elem = current._def.type;
+    while (elem) {
+      const typeName = elem._def?.typeName;
+      if (
+        typeName === 'ZodOptional' ||
+        typeName === 'ZodNullable' ||
+        typeName === 'ZodDefault' ||
+        typeName === 'ZodReadonly'
+      ) {
+        elem = elem._def.innerType;
+      } else if (typeName === 'ZodEffects') {
+        elem = elem._def.schema;
+      } else {
+        break;
+      }
+    }
+    const elemDefName = getRefDefName(elem);
+    if (elemDefName === 'CheckRule') {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
+  let current: any = type;
+
+  // Unwrap optionals/nullables/defaults/effects
+  while (current) {
+    const typeName = current._def?.typeName;
+    if (
+      typeName === 'ZodOptional' ||
+      typeName === 'ZodNullable' ||
+      typeName === 'ZodDefault' ||
+      typeName === 'ZodReadonly'
+    ) {
+      current = current._def.innerType;
+    } else if (typeName === 'ZodEffects') {
+      current = current._def.schema;
+    } else {
+      break;
+    }
+  }
+
+  if (isCheckableField(current)) {
     return {type: 'CHECKABLE'};
   }
 
-  if (description.startsWith(ACTION_REF)) {
+  const defName = getRefDefName(current);
+
+  if (defName === 'Action') {
     return {type: 'ACTION'};
   }
 
-  if (childRefKindOf(current) === 'child-list' || description.includes('#/$defs/ChildList')) {
+  if (childRefKindOf(current) === 'child-list' || defName === 'ChildList') {
     return {type: 'STRUCTURAL'};
   }
 
   if (
-    (description.startsWith(DATA_BINDING_REF) || description.includes(DYNAMIC_REF_PREFIX)) &&
+    (defName === 'DataBinding' || defName.startsWith('Dynamic')) &&
     current._def.typeName !== 'ZodObject' &&
     current._def.typeName !== 'ZodArray'
   ) {
@@ -106,19 +182,27 @@ function getFieldBehavior(type: z.ZodTypeAny, propertyName?: string): BehaviorNo
     const options = current._def.options as z.ZodTypeAny[];
 
     // ActionSchema is a union containing { event: ... }
-    const isAction = options.some(o => o._def.typeName === 'ZodObject' && o._def.shape().event);
+    const isAction =
+      options.some(o => getRefDefName(o) === 'Action') ||
+      options.some(o => o._def.typeName === 'ZodObject' && o._def.shape().event);
     if (isAction) return {type: 'ACTION'};
 
     // Dynamic strings/values are unions containing DataBindingSchema { path: ... } but NOT { componentId: ... }
-    const isDynamic = options.some(
-      o => o._def.typeName === 'ZodObject' && o._def.shape().path && !o._def.shape().componentId,
-    );
+    const isDynamic =
+      options.some(
+        o => getRefDefName(o) === 'DataBinding' || getRefDefName(o).startsWith('Dynamic'),
+      ) ||
+      options.some(
+        o => o._def.typeName === 'ZodObject' && o._def.shape().path && !o._def.shape().componentId,
+      );
     if (isDynamic) return {type: 'DYNAMIC'};
 
     // ChildList is a union containing an array and an object with { componentId, path }
-    const isChildList = options.some(
-      o => o._def.typeName === 'ZodObject' && o._def.shape().componentId && o._def.shape().path,
-    );
+    const isChildList =
+      options.some(o => childRefKindOf(o) === 'child-list' || getRefDefName(o) === 'ChildList') ||
+      options.some(
+        o => o._def.typeName === 'ZodObject' && o._def.shape().componentId && o._def.shape().path,
+      );
     if (isChildList) return {type: 'STRUCTURAL'};
   } else if (current._def.typeName === 'ZodString') {
     // ComponentId falls back to STATIC since we can't perfectly identify it, which is fine because STATIC returns strings as-is.
@@ -137,7 +221,7 @@ function getFieldBehavior(type: z.ZodTypeAny, propertyName?: string): BehaviorNo
     const shape: Record<string, BehaviorNode> = {};
     const objShape = current._def.shape();
     for (const [key, value] of Object.entries(objShape)) {
-      shape[key] = getFieldBehavior(value as z.ZodTypeAny, key);
+      shape[key] = getFieldBehavior(value as z.ZodTypeAny);
     }
     return {type: 'OBJECT', shape};
   }
@@ -159,15 +243,18 @@ type ActionLike =
 type IsDynamic<T> = DataBinding extends NonNullable<T> ? true : false;
 
 /**
- * A resolved reference to a child component, containing its unique ID and bound data context path.
+ * Resolved reference to a child component with its unique identifier and data context path.
  */
 export interface ResolvedChildRef {
+  /** The unique identifier of the referenced child component. */
   id: string;
+  /** The base data model path scoped to this child component instance. */
   basePath: string;
 }
 
 /**
  * Maps raw Zod inferred types to their resolved runtime equivalents.
+ *
  * For example, an `Action` object becomes a callable `() => void` function.
  */
 export type ResolveA2uiProp<T> = [NonNullable<T>] extends [ActionLike]
@@ -179,8 +266,9 @@ export type ResolveA2uiProp<T> = [NonNullable<T>] extends [ActionLike]
       : Exclude<T, DynamicTypes>;
 
 /**
- * Automatically generates two-way binding setters for dynamic properties.
- * If a schema has a `value: DynamicString`, this type generates a `setValue(val: string)` method.
+ * Generates two-way binding setters for dynamic properties.
+ *
+ * For example, a `value: DynamicString` property produces a `setValue(val: string)` setter.
  */
 export type GenerateSetters<T> = {
   [K in keyof T as IsDynamic<T[K]> extends true ? `set${Capitalize<string & K>}` : never]-?: (
@@ -190,7 +278,8 @@ export type GenerateSetters<T> = {
 
 /**
  * The final output type of the Generic Binder, providing fully resolved, ready-to-use props.
- * This is what framework-specific adapters (like `createReactComponent`) pass to the developer's view logic.
+ *
+ * This is what framework-specific adapters (like createReactComponent) pass to the developer's view logic.
  */
 export type ResolveA2uiProps<T> = (T extends object
   ? {
@@ -211,6 +300,7 @@ export type ResolveA2uiProps<T> = (T extends object
 export class GenericBinder<T> {
   private dataListeners: (() => void)[] = [];
   private propsListeners: ((props: T) => void)[] = [];
+  /** Current snapshot of resolved properties. */
   public currentProps: Partial<T> = {};
   private compUnsub?: () => void;
   private isConnected = false;
@@ -390,8 +480,22 @@ export class GenericBinder<T> {
             typeof ruleObj?.message === 'string' ? ruleObj.message : 'Validation failed';
           ruleResults[index].message = message;
 
+          const extractResult = (val: unknown) => {
+            if (typeof val === 'object' && val !== null && 'valid' in val) {
+              ruleResults[index].valid = Boolean((val as {valid: unknown}).valid);
+              const customMessage = (val as {message?: unknown}).message;
+              ruleResults[index].message =
+                customMessage !== undefined && customMessage !== null
+                  ? String(customMessage)
+                  : message;
+            } else {
+              ruleResults[index].valid = Boolean(val);
+              ruleResults[index].message = message;
+            }
+          };
+
           const bound = this.context.dataContext.subscribeDynamicValue(condition, newVal => {
-            ruleResults[index].valid = !!newVal;
+            extractResult(newVal);
             updateValidationState();
           });
 
@@ -400,7 +504,7 @@ export class GenericBinder<T> {
           } else {
             bound.unsubscribe();
           }
-          ruleResults[index].valid = !!bound.value;
+          extractResult(bound.value);
         });
 
         // Set initial state
@@ -408,7 +512,7 @@ export class GenericBinder<T> {
         this.updateDeepValue([...parentPath, 'isValid'], initialErrors.length === 0);
         this.updateDeepValue([...parentPath, 'validationErrors'], initialErrors);
 
-        return value; // The 'checks' property itself remains as the original rules array
+        return value;
       }
 
       case 'STATIC': {
