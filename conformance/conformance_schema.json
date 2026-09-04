@@ -91,7 +91,10 @@
           "try_activate",
           "select_newest",
           "verify_cuttable_keys",
-          "accessibility_check"
+          "accessibility_check",
+          "data_model",
+          "process_messages",
+          "catalog_schema"
         ]
       }
     },
@@ -121,7 +124,10 @@
           {"$ref": "#/$defs/TryActivateTest"},
           {"$ref": "#/$defs/SelectNewestTest"},
           {"$ref": "#/$defs/VerifyCuttableKeysTest"},
-          {"$ref": "#/$defs/AccessibilityCheckTest"}
+          {"$ref": "#/$defs/AccessibilityCheckTest"},
+          {"$ref": "#/$defs/DataModelTest"},
+          {"$ref": "#/$defs/ProcessMessagesTest"},
+          {"$ref": "#/$defs/CatalogSchemaTest"}
         ]
       }
     ]
@@ -483,6 +489,170 @@
       },
       "required": ["action", "surface", "assertions"]
     },
+    "DataModelTest": {
+      "type": "object",
+      "properties": {
+        "action": {"const": "data_model"},
+        "initial": {
+          "description": "Initial contents of the data model. Defaults to an empty object."
+        },
+        "watch": {
+          "type": "array",
+          "description": "Paths observed for the duration of the case. A path may repeat to attach more than one observer.",
+          "items": {"type": "string"}
+        },
+        "steps": {
+          "type": "array",
+          "description": "Operations applied to the model, in order.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "description": "The operation to apply.",
+                "enum": ["get", "set", "delete", "dispose"]
+              },
+              "path": {
+                "type": "string",
+                "description": "JSON Pointer the operation targets. Required for every op except dispose."
+              },
+              "value": {"description": "Value to write. Only meaningful for set."},
+              "expect": {
+                "description": "Value the path is expected to hold. Only meaningful for get."
+              },
+              "expect_absent": {
+                "type": "boolean",
+                "description": "Whether the path is expected to hold no value. Only meaningful for get."
+              },
+              "expect_type": {
+                "type": "string",
+                "enum": ["list", "object"],
+                "description": "Structural type the path is expected to hold. Only meaningful for get."
+              },
+              "expect_values": {
+                "type": "object",
+                "description": "Value each watched path holds after this step, keyed by path."
+              },
+              "expect_notified": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Watched paths whose observers fired for this step, one entry per observer that fired."
+              },
+              "expect_error": {"$ref": "#/$defs/ExpectError"}
+            },
+            "required": ["op"]
+          }
+        }
+      },
+      "required": ["steps"]
+    },
+    "CatalogSchemaTest": {
+      "type": "object",
+      "description": "Rebuilding a catalog document from a parsed catalog. The case names a source document rather than an SDK's own bundled catalog, so every implementation converts the same input and the assertions compare like with like.",
+      "properties": {
+        "action": {"const": "catalog_schema"},
+        "expect": {
+          "type": "object",
+          "description": "Assertions about the rebuilt document. Each is optional; a case states only what it means to check.",
+          "properties": {
+            "metadata": {
+              "type": "object",
+              "description": "Top-level keys the rebuilt document must carry verbatim, such as `$schema`, `$id`, `title` and `catalogId`."
+            },
+            "absent_metadata": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Top-level keys the rebuilt document must not declare, because the source document did not."
+            },
+            "components": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Every component name the rebuilt document declares, and no others."
+            },
+            "functions": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Every function name the rebuilt document declares, and no others."
+            },
+            "unions_cover_all": {
+              "type": "boolean",
+              "description": "`$defs/anyComponent` and `$defs/anyFunction` reference exactly the components and functions the document declares, and `anyFunction` is absent when there are none."
+            },
+            "self_contained": {
+              "type": "boolean",
+              "description": "Every `#/` reference in the document resolves within it. References that leave the document, such as to `common_types.json`, are the validator's to resolve and are exempt."
+            },
+            "reparses_identically": {
+              "type": "boolean",
+              "description": "Parsing the rebuilt document and rebuilding it again yields the same document, so the conversion is a fixed point."
+            }
+          }
+        }
+      },
+      "required": ["expect"]
+    },
+    "ProcessMessagesTest": {
+      "type": "object",
+      "description": "Behaviour of the message processor. Uses the case vocabulary of the v1_0 branch so the two suites of this name converge rather than conflict: camelCase keys, `messages` rather than `payload`, and an exhaustive `components` list per surface.",
+      "properties": {
+        "action": {"const": "process_messages"},
+        "catalogPaths": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Catalog documents the case is written against, relative to the repository root. Harnesses register a native catalog under the id the messages use, because renderers build catalogs from code rather than from a JSON Schema document."
+        },
+        "messages": {
+          "description": "A2UI messages to process, in order: either the bare list or a {messages: [...]} wrapper.",
+          "oneOf": [
+            {"type": "array", "items": {"type": "object"}},
+            {
+              "type": "object",
+              "properties": {"messages": {"type": "array", "items": {"type": "object"}}},
+              "required": ["messages"]
+            }
+          ]
+        },
+        "expect": {
+          "type": "object",
+          "description": "Expected state after the messages have been processed.",
+          "properties": {
+            "surfaces": {
+              "type": "object",
+              "description": "Expectations per surface, keyed by surface id.",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "exists": {
+                    "type": "boolean",
+                    "description": "Whether the surface is open. False asserts it is not."
+                  },
+                  "catalogId": {"type": "string"},
+                  "sendDataModel": {"type": "boolean"},
+                  "theme": {"type": "object"},
+                  "components": {
+                    "type": "array",
+                    "description": "Every component the surface holds, each entry the component's flattened properties. The list is exhaustive, so an empty one asserts the surface holds none.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {"type": "string"},
+                        "component": {"type": "string"}
+                      },
+                      "required": ["id"]
+                    }
+                  },
+                  "dataModel": {
+                    "description": "Expected contents of the surface data model at the root."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "expectError": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["messages"]
+    },
     "ExpectError": {
       "oneOf": [
         {
@@ -500,7 +670,8 @@
                 "CatalogError",
                 "IntegrityError",
                 "RecursionError",
-                "CompileError"
+                "CompileError",
+                "DataError"
               ]
             },
             "message": {

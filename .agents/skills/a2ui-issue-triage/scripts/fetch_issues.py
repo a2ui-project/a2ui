@@ -145,7 +145,7 @@ def main():
             lname = l.get("name")
             if lname in priority_labels or lname in {
                 "status: waiting-for-author-response",
-                "status: in-discussion",
+                "status: needs-team-input",
                 "status: first-line-handled",
             }:
                 is_ignored = True

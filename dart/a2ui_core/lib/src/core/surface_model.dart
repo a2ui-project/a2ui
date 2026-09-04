@@ -25,7 +25,7 @@ import 'messages.dart';
 /// The state model for a single UI surface.
 class SurfaceModel<T extends ComponentApi> {
   final String id;
-  final Catalog<T> catalog;
+  final Catalog<T, FunctionImplementation> catalog;
   final Map<String, dynamic> theme;
   final bool sendDataModel;
 
