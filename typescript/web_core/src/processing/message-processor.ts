@@ -530,7 +530,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
           },
         },
       };
-      this.rpc.handleCallRendererFunction(callMsg, dataContext, isUserActivated);
+      void this.rpc.handleCallRendererFunction(callMsg, dataContext, isUserActivated).catch(err => {
+        console.error(`Unhandled error in callRendererFunction (${op.call}):`, err);
+      });
       return;
     }
 

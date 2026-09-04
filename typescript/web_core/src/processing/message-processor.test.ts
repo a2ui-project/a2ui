@@ -1781,5 +1781,69 @@ describe('MessageProcessor', () => {
         return true;
       });
     });
+
+    it('executes callRendererFunction in synchronous processMessages and emits to outboundListener', async () => {
+      let emittedResponse: any;
+      const proc = new MessageProcessor([rpcCatalog], undefined, {
+        outboundListener: msg => {
+          emittedResponse = msg;
+        },
+      });
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'rpc-cat'},
+      });
+
+      // Fire-and-forget callRendererFunction in synchronous pipeline
+      proc.processMessages({
+        version: 'v1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-sync-1',
+          callFunction: {
+            call: 'echoFunction',
+            catalogId: 'rpc-cat',
+            args: {text: 'SyncTest'},
+          },
+        },
+      });
+
+      // Give the asynchronous promise chain a tick to complete
+      await new Promise(resolve => setTimeout(resolve, 10));
+      assert.ok(emittedResponse);
+      assert.strictEqual(emittedResponse.rendererFunctionResponse.functionCallId, 'rpc-sync-1');
+      assert.strictEqual(emittedResponse.rendererFunctionResponse.value, 'Echo: SyncTest');
+    });
+
+    it('catches and logs unexpected promise rejections from callRendererFunction in processMessages', async () => {
+      let loggedError = false;
+      const originalConsoleError = console.error;
+      console.error = () => {
+        loggedError = true;
+      };
+
+      try {
+        const proc = new MessageProcessor([rpcCatalog]);
+        (proc as any).rpc.handleCallRendererFunction = async () => {
+          throw new Error('RPC exploded');
+        };
+
+        proc.processMessages({
+          version: 'v1.0',
+          callRendererFunction: {
+            functionCallId: 'rpc-sync-2',
+            callFunction: {
+              call: 'echoFunction',
+              catalogId: 'rpc-cat',
+              args: {},
+            },
+          },
+        });
+
+        await new Promise(resolve => setTimeout(resolve, 10));
+        assert.strictEqual(loggedError, true);
+      } finally {
+        console.error = originalConsoleError;
+      }
+    });
   });
 });
