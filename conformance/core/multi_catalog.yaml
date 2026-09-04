@@ -103,3 +103,26 @@
         a: 5
         b: 10
   expectSelected: "custom_math_catalog"
+
+- name: test_multi_catalog_cross_catalog_component_composition
+  description: Verifies creating a surface with multiple supportedCatalogIds and rendering components from distinct catalogs in a single hierarchy.
+  catalog:
+    protocolVersion: "v1.0"
+  action: select_catalog
+  args:
+    surface:
+      id: main_surface
+      defaultCatalogId: "basic"
+      supportedCatalogIds: ["basic", "chart_catalog", "map_catalog"]
+    components:
+      c1:
+        component: Text
+        catalogId: "basic"
+        text: "Dashboard"
+      c2:
+        component: BarChart
+        catalogId: "chart_catalog"
+      c3:
+        component: GeoMap
+        catalogId: "map_catalog"
+  expectSelected: "map_catalog"

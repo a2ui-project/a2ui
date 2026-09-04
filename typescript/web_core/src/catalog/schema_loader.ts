@@ -204,6 +204,13 @@ function convertPropertyToZod(
   switch (propSchema.type) {
     case 'string': {
       let s: z.ZodTypeAny = z.string();
+      if (typeof propSchema.pattern === 'string') {
+        try {
+          s = (s as z.ZodString).regex(new RegExp(propSchema.pattern, 'u'));
+        } catch {
+          // ignore regex compilation failure
+        }
+      }
       if (propSchema.default !== undefined) s = s.default(propSchema.default);
       if (typeof propSchema.description === 'string') s = s.describe(propSchema.description);
       return s;
@@ -477,9 +484,18 @@ export function loadCatalogFromSchema(
   const anyComp = defs?.anyComponent as Record<string, unknown> | undefined;
   const permittedNames = extractPermittedNames(anyComp?.oneOf, '#/components/');
 
+  const protocolVersion = catalogSchema.protocolVersion as string | undefined;
+  const isV10 = protocolVersion === 'v1.0' || protocolVersion === '1.0';
+
   const components: ComponentApi[] = [];
   const componentsMap = (catalogSchema.components as Record<string, unknown>) ?? {};
   for (const [name, rawCompSchema] of Object.entries(componentsMap)) {
+    if (isV10) {
+      const uax31Regex = /^@?[a-zA-Z_][a-zA-Z0-9_]*$/;
+      if (!uax31Regex.test(name)) {
+        throw new Error(`Invalid UAX #31 component identifier: '${name}'`);
+      }
+    }
     if (!permittedNames || permittedNames.has(name)) {
       const rawComp = (rawCompSchema as Record<string, unknown>) || {};
       const zodSchema = convertComponentJsonSchemaToZod(rawComp, catalogSchema);
@@ -509,6 +525,7 @@ export function loadCatalogFromSchema(
   const rawTheme =
     catalogSchema.theme ??
     catalogSchema.themeSchema ??
+    catalogSchema.styles ??
     (defs?.theme as Record<string, unknown> | undefined);
   const themeSchema =
     rawTheme && typeof rawTheme === 'object'
@@ -517,5 +534,5 @@ export function loadCatalogFromSchema(
   const instructions =
     typeof catalogSchema.instructions === 'string' ? catalogSchema.instructions : undefined;
 
-  return new Catalog(catalogId, components, functions, themeSchema, instructions);
+  return new Catalog(catalogId, components, functions, themeSchema, instructions, protocolVersion);
 }

@@ -252,3 +252,477 @@
             catalogId: "cat-v09"
   expectError:
     category: "CatalogError"
+
+- name: test_unsupported_protocol_version_error
+  description: Verifies rejecting unsupported protocol version strings (v99.0).
+  action: process_messages
+  messages:
+    - version: "v99.0"
+      createSurface:
+        surfaceId: "s1"
+  expectError:
+    category: "ValidationError"
+    message: "Unsupported protocol version 'v99.0'"
+
+- name: test_v091_version_string_compatibility
+  description: Verifies processing messages with version v0.9.1.
+  action: process_messages
+  protocolVersion: "v0.9.1"
+  messages:
+    - version: "v0.9.1"
+      createSurface:
+        surfaceId: "s_v091"
+        catalogId: "basic"
+  expect:
+    surfaces:
+      s_v091:
+        exists: true
+
+- name: test_missing_version_field_in_v10_process_messages_error
+  description: Verifies ValidationError on missing version field during process_messages.
+  action: process_messages
+  messages:
+    - createSurface:
+        surfaceId: "s1"
+        catalogId: "basic"
+  expectError:
+    category: "ValidationError"
+    message: "Missing required version field"
+
+- name: test_batch_multi_stage_lifecycle_pipeline
+  description: Verifies create, component update, data update, and component mutation within a single batch array.
+  action: process_messages
+  protocolVersion: "v1.0"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s_pipeline"
+        catalogId: "test-catalog-v10"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s_pipeline"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["btn1"]
+          - id: "btn1"
+            component: "Button"
+            title: "Initial"
+    - version: "v1.0"
+      updateDataModel:
+        surfaceId: "s_pipeline"
+        path: "/status"
+        value: "ready"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s_pipeline"
+        components:
+          - id: "btn1"
+            component: "Button"
+            title: "Updated"
+  expect:
+    surfaces:
+      s_pipeline:
+        exists: true
+        dataModel:
+          status: "ready"
+        components:
+          - id: "root"
+            component: "Column"
+          - id: "btn1"
+            component: "Button"
+
+- name: test_batch_duplicate_component_ids_in_same_message_error
+  description: Verifies IntegrityError on duplicate component IDs within a single updateComponents message.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s_dup"
+        catalogId: "basic"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s_dup"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["c1"]
+          - id: "c1"
+            component: "Text"
+            text: "First"
+          - id: "c1"
+            component: "Text"
+            text: "Duplicate"
+  expectError:
+    category: "IntegrityError"
+
+- name: test_batch_atomic_rollback_on_candidate_topology_cycle
+  description: Verifies candidate topology pre-flight cycle check aborts without mutating existing valid component tree.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  steps:
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s_cycle"
+            catalogId: "basic"
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["c1"]
+              - id: "c1"
+                component: "Text"
+                text: "Valid Text"
+      expect:
+        surfaces:
+          s_cycle:
+            exists: true
+            components:
+              - id: "root"
+                component: "Column"
+              - id: "c1"
+                component: "Text"
+    - messages:
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s_cycle"
+            components:
+              - id: "c1"
+                component: "Column"
+                children: ["c2"]
+              - id: "c2"
+                component: "Column"
+                children: ["c1"]
+      expectError:
+        category: "IntegrityError"
+
+- name: test_update_components_on_deleted_surface_error
+  description: Verifies updating components on a deleted surface raises IntegrityError.
+  action: process_messages
+  protocolVersion: "v1.0"
+  steps:
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s_del"
+            catalogId: "basic"
+        - version: "v1.0"
+          deleteSurface:
+            surfaceId: "s_del"
+      expect:
+        surfaces:
+          s_del:
+            exists: false
+    - messages:
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s_del"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Fail"
+      expectError:
+        category: "IntegrityError"
+
+- name: test_update_data_model_on_deleted_surface_error
+  description: Verifies updating data model on a deleted surface raises IntegrityError.
+  action: process_messages
+  protocolVersion: "v1.0"
+  steps:
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s_del_data"
+            catalogId: "basic"
+        - version: "v1.0"
+          deleteSurface:
+            surfaceId: "s_del_data"
+      expect:
+        surfaces:
+          s_del_data:
+            exists: false
+    - messages:
+        - version: "v1.0"
+          updateDataModel:
+            surfaceId: "s_del_data"
+            path: "/key"
+            value: "value"
+      expectError:
+        category: "IntegrityError"
+
+- name: test_delete_non_existent_surface_is_safe_noop
+  description: Verifies deleting a non-existent surface ID executes cleanly as a no-op.
+  action: process_messages
+  protocolVersion: "v1.0"
+  messages:
+    - version: "v1.0"
+      deleteSurface:
+        surfaceId: "non_existent_surface_id"
+  expect:
+    surfaces:
+      non_existent_surface_id:
+        exists: false
+
+- name: test_permissive_mode_allows_orphan_components
+  description: Verifies strictMode false accepts components unreachable from root.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: false
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s_permissive_orphan"
+        catalogId: "test-catalog-v10"
+        components:
+          - id: "root"
+            component: "Column"
+            children: []
+          - id: "orphan_comp"
+            component: "Button"
+            title: "Unreachable Button"
+  expect:
+    surfaces:
+      s_permissive_orphan:
+        exists: true
+        components:
+          - id: "root"
+            component: "Column"
+          - id: "orphan_comp"
+            component: "Button"
+
+- name: test_permissive_mode_allows_dangling_references
+  description: Verifies strictMode false accepts containers referencing uncreated child IDs.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: false
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s_permissive_dangling"
+        catalogId: "test-catalog-v10"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["uncreated_child_node"]
+  expect:
+    surfaces:
+      s_permissive_dangling:
+        exists: true
+        components:
+          - id: "root"
+            component: "Column"
+
+- name: test_composition_constraints_preserved_on_partial_parent_update
+  description: Verifies updating container property without redefining children preserves existing child relationships.
+  action: process_messages
+  protocolVersion: "v1.0"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s_partial_parent"
+        catalogId: "test-catalog-v10"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["btn_child"]
+          - id: "btn_child"
+            component: "Button"
+            title: "Child Button"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s_partial_parent"
+        components:
+          - id: "btn_child"
+            component: "Button"
+            title: "Updated Child Title"
+  expect:
+    surfaces:
+      s_partial_parent:
+        exists: true
+        components:
+          - id: "root"
+            component: "Column"
+          - id: "btn_child"
+            component: "Button"
+
+- name: test_global_recursion_depth_limit_exceeded_error
+  description: Verifies object nesting exceeding limit (>50) raises RecursionError.
+  action: validate
+  protocolVersion: "v1.0"
+  strictMode: true
+  steps:
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s_rec"
+            catalogId: "basic"
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s_rec"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Deep"
+                meta:
+                  {
+                    "l1":
+                      {
+                        "l2":
+                          {
+                            "l3":
+                              {
+                                "l4":
+                                  {
+                                    "l5":
+                                      {
+                                        "l6":
+                                          {
+                                            "l7":
+                                              {
+                                                "l8":
+                                                  {
+                                                    "l9":
+                                                      {
+                                                        "l10":
+                                                          {
+                                                            "l11":
+                                                              {
+                                                                "l12":
+                                                                  {
+                                                                    "l13":
+                                                                      {
+                                                                        "l14":
+                                                                          {
+                                                                            "l15":
+                                                                              {
+                                                                                "l16":
+                                                                                  {
+                                                                                    "l17":
+                                                                                      {
+                                                                                        "l18":
+                                                                                          {
+                                                                                            "l19":
+                                                                                              {
+                                                                                                "l20":
+                                                                                                  {
+                                                                                                    "l21":
+                                                                                                      {
+                                                                                                        "l22":
+                                                                                                          {
+                                                                                                            "l23":
+                                                                                                              {
+                                                                                                                "l24":
+                                                                                                                  {
+                                                                                                                    "l25":
+                                                                                                                      {
+                                                                                                                        "l26":
+                                                                                                                          {
+                                                                                                                            "l27":
+                                                                                                                              {
+                                                                                                                                "l28":
+                                                                                                                                  {
+                                                                                                                                    "l29":
+                                                                                                                                      {
+                                                                                                                                        "l30":
+                                                                                                                                          {
+                                                                                                                                            "l31":
+                                                                                                                                              {
+                                                                                                                                                "l32":
+                                                                                                                                                  {
+                                                                                                                                                    "l33":
+                                                                                                                                                      {
+                                                                                                                                                        "l34":
+                                                                                                                                                          {
+                                                                                                                                                            "l35":
+                                                                                                                                                              {
+                                                                                                                                                                "l36":
+                                                                                                                                                                  {
+                                                                                                                                                                    "l37":
+                                                                                                                                                                      {
+                                                                                                                                                                        "l38":
+                                                                                                                                                                          {
+                                                                                                                                                                            "l39":
+                                                                                                                                                                              {
+                                                                                                                                                                                "l40":
+                                                                                                                                                                                  {
+                                                                                                                                                                                    "l41":
+                                                                                                                                                                                      {
+                                                                                                                                                                                        "l42":
+                                                                                                                                                                                          {
+                                                                                                                                                                                            "l43":
+                                                                                                                                                                                              {
+                                                                                                                                                                                                "l44":
+                                                                                                                                                                                                  {
+                                                                                                                                                                                                    "l45":
+                                                                                                                                                                                                      {
+                                                                                                                                                                                                        "l46":
+                                                                                                                                                                                                          {
+                                                                                                                                                                                                            "l47":
+                                                                                                                                                                                                              {
+                                                                                                                                                                                                                "l48":
+                                                                                                                                                                                                                  {
+                                                                                                                                                                                                                    "l49":
+                                                                                                                                                                                                                      {
+                                                                                                                                                                                                                        "l50":
+                                                                                                                                                                                                                          {
+                                                                                                                                                                                                                            "l51":
+                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                "l52": "too deep",
+                                                                                                                                                                                                                              },
+                                                                                                                                                                                                                          },
+                                                                                                                                                                                                                      },
+                                                                                                                                                                                                                  },
+                                                                                                                                                                                                              },
+                                                                                                                                                                                                          },
+                                                                                                                                                                                                      },
+                                                                                                                                                                                                  },
+                                                                                                                                                                                              },
+                                                                                                                                                                                          },
+                                                                                                                                                                                      },
+                                                                                                                                                                                  },
+                                                                                                                                                                              },
+                                                                                                                                                                          },
+                                                                                                                                                                      },
+                                                                                                                                                                  },
+                                                                                                                                                              },
+                                                                                                                                                          },
+                                                                                                                                                      },
+                                                                                                                                                  },
+                                                                                                                                              },
+                                                                                                                                          },
+                                                                                                                                      },
+                                                                                                                                  },
+                                                                                                                              },
+                                                                                                                          },
+                                                                                                                      },
+                                                                                                                  },
+                                                                                                              },
+                                                                                                          },
+                                                                                                      },
+                                                                                                  },
+                                                                                              },
+                                                                                          },
+                                                                                      },
+                                                                                  },
+                                                                              },
+                                                                          },
+                                                                      },
+                                                                  },
+                                                              },
+                                                          },
+                                                      },
+                                                  },
+                                              },
+                                          },
+                                      },
+                                  },
+                              },
+                          },
+                      },
+                  }
+      expectError:
+        category: "RecursionError"
+        message: "Global recursion limit exceeded"

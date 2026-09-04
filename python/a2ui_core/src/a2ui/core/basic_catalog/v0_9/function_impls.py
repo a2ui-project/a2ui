@@ -75,6 +75,11 @@ def _to_str(val: Any) -> str:
         return json.dumps(val, separators=(",", ":"))
     if isinstance(val, bool):
         return "true" if val else "false"
+    if isinstance(val, float):
+        if math.isinf(val):
+            return "-Infinity" if val < 0 else "Infinity"
+        if math.isnan(val):
+            return "NaN"
     return str(val)
 
 
@@ -166,10 +171,7 @@ def _format_string(
         return ""
 
     parser = ExpressionParser()
-    try:
-        parts = parser.parse(template)
-    except Exception:
-        return template
+    parts = parser.parse(template)
 
     if not parts:
         return ""

@@ -436,13 +436,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       return [messages];
     }
 
-    let adapter;
-    try {
-      adapter = this.adapterRegistry.resolveFromPayload(messages);
-    } catch {
-      adapter = this.adapterRegistry.getAdapter(this.version);
-    }
-
+    const adapter = this.adapterRegistry.resolveFromPayload(messages);
     return adapter.extractOperations(messages);
   }
 
@@ -802,6 +796,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
           if (enforceTopLevel && !componentApi.allowedParents.includes('Surface')) {
             throw new A2uiValidationError(
               `Component '${id}' (${componentType}) cannot be placed under parent 'Surface' (Surface). Allowed parents: ${JSON.stringify(componentApi.allowedParents)}.`,
+              undefined,
+              'UNALLOWED_PARENT',
             );
           }
         } else {
@@ -809,6 +805,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
             if (!componentApi.allowedParents.includes(parentInfo.parentType)) {
               throw new A2uiValidationError(
                 `Component '${id}' (${componentType}) cannot be placed under parent '${parentInfo.parentId}' (${parentInfo.parentType || 'unknown'}). Allowed parents: ${JSON.stringify(componentApi.allowedParents)}.`,
+                undefined,
+                'UNALLOWED_PARENT',
               );
             }
           }
@@ -822,6 +820,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
           if (childType && !componentApi.allowedChildren.includes(childType)) {
             throw new A2uiValidationError(
               `Container '${id}' (${componentType}) cannot contain child '${childId}' (${childType}). Allowed children: ${JSON.stringify(componentApi.allowedChildren)}.`,
+              undefined,
+              'UNALLOWED_CHILD',
             );
           }
         }

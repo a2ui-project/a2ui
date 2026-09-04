@@ -41,7 +41,10 @@ export class ExpressionParser {
     if (depth > ExpressionParser.MAX_DEPTH) {
       throw new A2uiExpressionError('Max recursion depth reached in parse');
     }
-    if (!input || !input.includes('${')) {
+    if (!input) {
+      return [];
+    }
+    if (!input.includes('${')) {
       return [input];
     }
 
@@ -249,7 +252,11 @@ export class ExpressionParser {
     while (!scanner.isAtEnd() && (this.isDigit(scanner.peek()) || scanner.peek() === '.')) {
       scanner.advance();
     }
-    return Number(scanner.input.substring(start, scanner.pos));
+    const text = scanner.input.substring(start, scanner.pos);
+    if (!/^\d+\.?\d*$/.test(text)) {
+      throw new A2uiExpressionError(`Invalid number literal: '${text}'`);
+    }
+    return Number(text);
   }
 
   private isAlnum(c: string): boolean {

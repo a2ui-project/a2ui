@@ -95,6 +95,12 @@ class MessageProcessor:
         callback: PendingAgentCallCallback,
     ) -> None:
         """Registers a pending callback for an outbound callAgentFunction invocation."""
+        if function_call_id in self._pending_agent_calls:
+            raise A2uiRpcError(
+                f"A call with functionCallId '{function_call_id}' is already pending.",
+                function_call_id=function_call_id,
+                code=RpcErrorCode.DUPLICATE.value,
+            )
         self._pending_agent_calls[function_call_id] = callback
 
     def register_pending_future(
@@ -346,6 +352,14 @@ class MessageProcessor:
             return make_error(
                 RpcErrorCode.INVALID_FUNCTION_CALL,
                 f"Catalog not found: {op.catalog_id}",
+            )
+
+        cat_ver = getattr(matched_catalog, "protocol_version", None)
+        if cat_ver and version and cat_ver != version:
+            return make_error(
+                RpcErrorCode.INVALID_FUNCTION_CALL,
+                f"Catalog '{matched_catalog.catalog_id}' specification version"
+                f" ({cat_ver}) does not match message protocol version ({version}).",
             )
 
         fn = (

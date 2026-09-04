@@ -1,0 +1,217 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: test_function_format_date_tr35_tokens
+  description: Verifies formatDate TR35 token expansion (yyyy-MM-dd).
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "basic"
+            components:
+              - id: "root"
+                component: "Text"
+                text:
+                  call: "formatDate"
+                  args:
+                    value: "2026-09-04T12:00:00Z"
+                    format: "yyyy-MM-dd"
+  expect:
+    surfaces:
+      main:
+        components:
+          root:
+            component: "Text"
+            text: "2026-09-04"
+
+- name: test_function_format_currency_locale_and_symbol
+  description: Verifies formatCurrency with currency symbol, decimals, and grouping separators.
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "basic"
+            components:
+              - id: "root"
+                component: "Text"
+                text:
+                  call: "formatCurrency"
+                  args:
+                    value: 1234.5
+                    currency: "USD"
+                    decimals: 2
+  expect:
+    surfaces:
+      main:
+        components:
+          root:
+            component: "Text"
+            text: "$1,234.50"
+
+- name: test_function_pluralize_categories
+  description: Verifies pluralize resolving CLDR categories (one, other).
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "basic"
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["t1", "t2"]
+              - id: "t1"
+                component: "Text"
+                text:
+                  call: "pluralize"
+                  args:
+                    value: 1
+                    one: "1 item"
+                    other: "items"
+              - id: "t2"
+                component: "Text"
+                text:
+                  call: "pluralize"
+                  args:
+                    value: 5
+                    one: "1 item"
+                    other: "5 items"
+  expect:
+    surfaces:
+      main:
+        components:
+          t1:
+            component: "Text"
+            text: "1 item"
+          t2:
+            component: "Text"
+            text: "5 items"
+
+- name: test_function_logical_and_or_not
+  description: Verifies and, or, and not logical function evaluations.
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "basic"
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["t_and", "t_or", "t_not"]
+              - id: "t_and"
+                component: "Text"
+                text:
+                  call: "and"
+                  args:
+                    values: [true, false]
+              - id: "t_or"
+                component: "Text"
+                text:
+                  call: "or"
+                  args:
+                    values: [true, false]
+              - id: "t_not"
+                component: "Text"
+                text:
+                  call: "not"
+                  args:
+                    value: false
+  expect:
+    surfaces:
+      main:
+        components:
+          t_and:
+            component: "Text"
+            text: false
+          t_or:
+            component: "Text"
+            text: true
+          t_not:
+            component: "Text"
+            text: true
+
+- name: test_function_arithmetic_divide_by_zero
+  description: Verifies divide operator handling standard division and zero divisor returning infinity representation.
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "basic"
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["t_div", "t_zero"]
+              - id: "t_div"
+                component: "Text"
+                text:
+                  call: "formatString"
+                  args:
+                    value: "${divide(a: 10, b: 2)}"
+              - id: "t_zero"
+                component: "Text"
+                text:
+                  call: "formatString"
+                  args:
+                    value: "${divide(a: 10, b: 0)}"
+  expect:
+    surfaces:
+      main:
+        components:
+          t_div:
+            component: "Text"
+            text: "5"
+          t_zero:
+            component: "Text"
+            text: "Infinity"
+
+- name: test_function_invalid_argument_schema_error
+  description: Verifies ValidationError when function is invoked with invalid arguments.
+  catalog:
+    protocolVersion: "v1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "basic"
+            components:
+              - id: "root"
+                component: "Text"
+                text:
+                  call: "divide"
+                  args:
+                    a: 10
+                    b: "not_a_number"
+      expectError:
+        category: "ValidationError"

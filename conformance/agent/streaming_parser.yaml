@@ -3039,3 +3039,198 @@
                   - id: "root"
                     component: "Text"
                     customCuttable: "partial"
+
+- name: test_cut_unicode_multibyte_emoji_v09
+  description: Tests that 4-byte UTF-8 multibyte emoji characters cut across streaming chunks are buffered and yielded without corruption.
+  catalog:
+    protocolVersion: "v0.9"
+    commonTypesSchema: "test_data/simplified_common_types_v09.json"
+    s2cSchema: "test_data/simplified_s2c_v09.json"
+    catalogSchema:
+      catalogId: "test_catalog"
+      components:
+        Text:
+          type: object
+          properties:
+            component: {const: "Text"}
+            text: {type: string}
+          required: ["component"]
+      $defs:
+        anyComponent:
+          oneOf:
+            - {$ref: "#/components/Text"}
+          discriminator: {propertyName: "component"}
+  action: process_chunk
+  steps:
+    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}, '
+      expect:
+        - a2ui:
+            - version: "v0.9"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "test_catalog"
+    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Rocket \ud83d'
+      expect:
+        - a2ui:
+            - version: "v0.9"
+              updateComponents:
+                surfaceId: "s1"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Rocket \ud83d"
+    - input: '\ude80 Launch!"}]}}]</a2ui-json>'
+      expect:
+        - a2ui:
+            - version: "v0.9"
+              updateComponents:
+                surfaceId: "s1"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Rocket 🚀 Launch!"
+
+- name: test_cut_escape_sequences_v09
+  description: Tests that escape sequences cut across streaming chunk boundaries are buffered and reconstructed without breaking JSON parsing.
+  catalog:
+    protocolVersion: "v0.9"
+    commonTypesSchema: "test_data/simplified_common_types_v09.json"
+    s2cSchema: "test_data/simplified_s2c_v09.json"
+    catalogSchema:
+      catalogId: "test_catalog"
+      components:
+        Text:
+          type: object
+          properties:
+            component: {const: "Text"}
+            text: {type: string}
+          required: ["component"]
+      $defs:
+        anyComponent:
+          oneOf:
+            - {$ref: "#/components/Text"}
+          discriminator: {propertyName: "component"}
+  action: process_chunk
+  steps:
+    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}, '
+      expect:
+        - a2ui:
+            - version: "v0.9"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "test_catalog"
+    - input: "<a2ui-json>[{\"version\": \"v0.9\", \"updateComponents\": {\"surfaceId\": \"s1\", \"components\": [{\"id\": \"root\", \"component\": \"Text\", \"text\": \"Line 1\\"
+      expect: []
+    - input: 'nLine 2 \"quoted\""}]}}]</a2ui-json>'
+      expect:
+        - a2ui:
+            - version: "v0.9"
+              updateComponents:
+                surfaceId: "s1"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Line 1\nLine 2 \"quoted\""
+
+- name: test_cut_number_literals_v09
+  description: Tests that negative, decimal, and floating-point number literals cut across streaming chunks are buffered until complete.
+  catalog:
+    protocolVersion: "v0.9"
+    commonTypesSchema: "test_data/simplified_common_types_v09.json"
+    s2cSchema: "test_data/simplified_s2c_v09.json"
+    catalogSchema:
+      catalogId: "test_catalog"
+      components:
+        Metric:
+          type: object
+          properties:
+            component: {const: "Metric"}
+            value: {type: number}
+          required: ["component"]
+      $defs:
+        anyComponent:
+          oneOf:
+            - {$ref: "#/components/Metric"}
+          discriminator: {propertyName: "component"}
+  action: process_chunk
+  steps:
+    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}, '
+      expect:
+        - a2ui:
+            - version: "v0.9"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "test_catalog"
+    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Metric", "value": '
+      expect: []
+    - input: "-42.5}}]}]</a2ui-json>"
+      expect:
+        - a2ui:
+            - version: "v0.9"
+              updateComponents:
+                surfaceId: "s1"
+                components:
+                  - id: "root"
+                    component: "Metric"
+                    value: -42.5
+
+- name: test_url_binding_heuristic_buffers_partial_urls_v09
+  description: Tests that partial URL strings under link and image keys are withheld from partial yielding to prevent broken image renders.
+  catalog:
+    protocolVersion: "v0.8"
+    s2cSchema: "test_data/simplified_s2c_v08.json"
+    catalogSchema:
+      catalogId: "test_catalog"
+      components:
+        Image:
+          type: object
+          properties:
+            url: {type: string}
+  action: process_chunk
+  steps:
+    - input: '<a2ui-json>[{"beginRendering": {"surfaceId": "s1", "root": "root"}}, '
+      expect:
+        - a2ui:
+            - beginRendering:
+                surfaceId: "s1"
+                root: "root"
+    - input: '{"dataModelUpdate": {"surfaceId": "s1", "contents": [{"key": "imageUrl", "valueString": "https://example.com/images/'
+      expect: []
+    - input: 'banner.png"}]}}]</a2ui-json>'
+      expect:
+        - a2ui:
+            - dataModelUpdate:
+                surfaceId: "s1"
+                contents:
+                  - key: "imageUrl"
+                    valueString: "https://example.com/images/banner.png"
+
+- name: test_v1_0_streaming_create_surface_inline_components
+  description: Verifies streaming v1.0 createSurface messages with inline components and data model.
+  catalog:
+    protocolVersion: "v1.0"
+    catalogSchema:
+      catalogId: "basic"
+  disableValidation: true
+  action: process_chunk
+  steps:
+    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "basic", "components": [{"id": "root", "component": "Text", "text": "Streaming v1.0"}], "dataModel": {"count": 10}}}]</a2ui-json>'
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "main"
+                catalogId: "basic"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Streaming v1.0"
+                dataModel:
+                  count: 10
+            - version: "v0.9"
+              updateComponents:
+                surfaceId: "main"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Streaming v1.0"

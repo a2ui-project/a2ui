@@ -56,6 +56,34 @@ def is_v0_8_heuristic_child_prop_key(
     NOTE: This is ONLY a fallback for legacy v0.8 protocol support, where catalog component schemas
     do not define formal ComponentId or ChildList $ref types.
     """
+    if key.lower() in (
+        "text",
+        "title",
+        "label",
+        "description",
+        "icon",
+        "url",
+        "path",
+        "value",
+        "key",
+        "id",
+        "component",
+        "type",
+        "variant",
+        "size",
+        "color",
+        "action",
+        "style",
+        "styles",
+        "theme",
+        "weight",
+        "align",
+        "distribution",
+        "disabled",
+        "selected",
+    ):
+        return False
+
     # Naming conventions
     if (
         key in V0_8_SINGLE_REF_FIELDS

@@ -15,6 +15,8 @@
 import re
 from typing import Any
 
+from a2ui.core.exceptions import A2uiExpressionError
+
 
 class Scanner:
 
@@ -259,8 +261,11 @@ class ExpressionParser:
         ):
             scanner.advance()
         num_str = scanner.input[start : scanner.pos]
+        if not re.match(r"^-?\d+\.?\d*$", num_str):
+            raise A2uiExpressionError(f"Invalid number literal: '{num_str}'")
         if "." in num_str:
-            return float(num_str)
+            f = float(num_str)
+            return int(f) if f.is_integer() else f
         return int(num_str)
 
     def is_alnum(self, c: str) -> bool:

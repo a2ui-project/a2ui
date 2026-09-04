@@ -113,3 +113,97 @@
     accessibilityTree:
       submit_btn:
         label: "Submit Form"
+
+- name: test_accessibility_interactive_roles_and_states
+  description: Verifies accessibility role mapping and ARIA states for Button, TextField, CheckBox, ChoicePicker.
+  protocolVersion: "v1.0"
+  catalogPath: "specification/v1_0/catalogs/basic/catalog.json"
+  action: accessibility_check
+  surface:
+    id: root
+    component: Column
+    children: [btn, text_input, check_box, choice_picker]
+    components:
+      btn:
+        component: Button
+        title: "Submit"
+        accessibility:
+          label: "Submit Feedback"
+      text_input:
+        component: TextField
+        label: "Your Email"
+        accessibility:
+          description: "Enter a valid email address"
+      check_box:
+        component: CheckBox
+        label: "I agree to terms"
+        checked: true
+        accessibility:
+          label: "Accept Terms and Conditions"
+      choice_picker:
+        component: ChoicePicker
+        options:
+          - label: "Option 1"
+            value: "1"
+          - label: "Option 2"
+            value: "2"
+        selectedIndex: 0
+        accessibility:
+          label: "Select Preference"
+  assertions:
+    axeCore:
+      - "button-name"
+      - "aria-valid-attr-value"
+      - "aria-allowed-attr"
+    accessibilityTree:
+      btn:
+        label: "Submit Feedback"
+        role: "button"
+      text_input:
+        description: "Enter a valid email address"
+        role: "textbox"
+      check_box:
+        label: "Accept Terms and Conditions"
+        role: "checkbox"
+        checked: true
+      choice_picker:
+        label: "Select Preference"
+        role: "radiogroup"
+
+- name: test_accessibility_dynamic_label_and_hidden_binding
+  description: Verifies dynamic data bindings in accessibility attributes (label, hidden) reactively update accessibility trees.
+  protocolVersion: "v1.0"
+  catalogPath: "specification/v1_0/catalogs/basic/catalog.json"
+  action: accessibility_check
+  surface:
+    id: root
+    component: Column
+    children: [dynamic_btn, dynamic_status]
+    components:
+      dynamic_btn:
+        component: Button
+        title: "Dynamic Action"
+        accessibility:
+          label:
+            path: "/buttonLabel"
+          hidden:
+            path: "/isButtonHidden"
+      dynamic_status:
+        component: Text
+        text: "Status"
+        accessibility:
+          hidden:
+            path: "/isStatusHidden"
+  assertions:
+    axeCore:
+      - "button-name"
+      - "aria-hidden-focus"
+    accessibilityTree:
+      dynamic_btn:
+        label:
+          path: "/buttonLabel"
+        hidden:
+          path: "/isButtonHidden"
+      dynamic_status:
+        hidden:
+          path: "/isStatusHidden"

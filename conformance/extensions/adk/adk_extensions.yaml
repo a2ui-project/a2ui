@@ -54,3 +54,90 @@
   expect:
     success: false
     errorContains: "missing required arg a2ui_json"
+
+- name: test_subagent_map_record_surface_ownership
+  description: Verifies surface creation assigns ownership to authoring subagent in session state.
+  action: convert_event
+  args:
+    subagent: "agent_alpha"
+    surfaceId: "surface1"
+    message:
+      createSurface:
+        surfaceId: "surface1"
+  expect:
+    stateDelta:
+      a2ui_surface_id_surface1: "agent_alpha"
+
+- name: test_subagent_map_surface_collision_error
+  description: Verifies attempting to create a surface with an existing ID owned by another agent raises SurfaceIdAlreadyExistsError.
+  action: convert_event
+  args:
+    subagent: "agent_beta"
+    surfaceId: "surface1"
+    state:
+      a2ui_surface_id_surface1: "agent_alpha"
+    message:
+      createSurface:
+        surfaceId: "surface1"
+  expectError:
+    category: "IntegrityError"
+    message: "already exists"
+
+- name: test_subagent_map_strip_unowned_surfaces
+  description: Verifies client data models strip surfaces not owned by the recipient subagent.
+  action: data_model
+  args:
+    subagent: "subagent_a"
+    state:
+      a2ui_surface_id_surface_1: "subagent_a"
+      a2ui_surface_id_surface_2: "subagent_b"
+      a2ui_surface_id_surface_3: "subagent_a"
+    clientDataModel:
+      surfaces:
+        surface_1:
+          count: 1
+        surface_2:
+          count: 2
+        surface_3:
+          count: 3
+  expect:
+    clientDataModel:
+      surfaces:
+        surface_1:
+          count: 1
+        surface_3:
+          count: 3
+
+- name: test_file_resolver_data_uri_base64
+  description: Verifies resolving base64 data URIs with verified MIME type.
+  action: resolve_path
+  args:
+    fileInfo:
+      fileId: "data:text/plain;base64,SGVsbG8sIEEyVUkgV29ybGQh"
+      fileName: "test.txt"
+      mimeType: "text/plain"
+  expect:
+    text: "Hello, A2UI World!"
+    mimeType: "text/plain"
+
+- name: test_file_resolver_mime_magic_mismatch_security_error
+  description: Verifies claiming image/png for content with %PDF magic header triggers a security error.
+  action: resolve_path
+  args:
+    fileInfo:
+      fileId: "data:image/png;base64,JVBERi0xLjQgZGlzZ3Vpc2VkIGFzIGltYWdl"
+      mimeType: "image/png"
+  expectError:
+    category: "ValidationError"
+    message: "MIME mismatch"
+
+- name: test_file_resolver_ssrf_private_ip_blocked
+  description: Verifies HTTP downloads to private and link-local addresses are blocked.
+  action: resolve_path
+  args:
+    fileInfo:
+      fileId: "http://169.254.169.254/latest/meta-data"
+      mimeType: "text/plain"
+  expectError:
+    category: "ValidationError"
+    message: "169.254.169.254"

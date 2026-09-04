@@ -1,4 +1,4 @@
-# Generated from /Users/gspencer/code/a2ui/v1_0/specification/inference_formats/express/Express.g4 by ANTLR 4.13.2
+# Generated from /Users/gspencer/code/a2ui/v1_0_conformance_audit/specification/inference_formats/express/Express.g4 by ANTLR 4.13.2
 from antlr4 import *
 from io import StringIO
 import sys
@@ -6,6 +6,7 @@ if sys.version_info[1] > 5:
     from typing import TextIO
 else:
     from typing.io import TextIO
+
 
 def serializedATN():
     return [
@@ -148,4 +149,5 @@ class ExpressLexer(Lexer):
         self._interp = LexerATNSimulator(self, self.atn, self.decisionsToDFA, PredictionContextCache())
         self._actions = None
         self._predicates = None
+
 
