@@ -14,9 +14,13 @@
  * limitations under the License.
  */
 
+import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
+import {renderMarkdown} from '@a2ui/markdown-it';
 import {LocalGallery} from '../../src/local-gallery';
 
 import {ReactiveElement} from 'lit';
+
+setMarkdownRenderer(renderMarkdown);
 
 /**
  * Mounts the <local-gallery> element on the specified example.
