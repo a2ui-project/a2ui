@@ -1,5 +1,6 @@
 ## Unreleased
 
+- (v0_9) Fix the setter `GenericBinder` generates for a property declared as a binding with no literal branch: its parameter resolved to `never`, making the setter uncallable. It now falls back to `unknown`, matching the fallback `ResolveA2uiProp` already applies to the resolved property ([#2528](https://github.com/a2ui-project/a2ui/issues/2528)).
 - `Catalog.fromSchema` no longer drops properties mixed in through an external
   `allOf` reference, so Checkable components in the basic catalogs now accept
   `checks`.
