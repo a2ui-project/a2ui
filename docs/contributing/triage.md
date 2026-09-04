@@ -64,7 +64,7 @@ The [triage.mjs](../../scripts/triage.mjs) script runs via the [`Flag/Unflag iss
    - **Items waiting on author**: If an item has `status: waiting-for-author-response`, it is skipped. The automation removes this label once the author posts a comment or review submitted after the label was added.
    - **Assigned issues**: When an issue is assigned, it is assumed that a team member is looking into it.
    
-3. **Issues**: Flagged with `status: needs-triage` if any of the following apply:
+2. **Issues**: Flagged with `status: needs-triage` if any of the following apply:
     - **No priority**: The issue lacks a priority label (`P0`–`P4`).
     - **Unassigned high priority**: Labeled `P0` or `P1` without an assignee.
     - **Stale**: Inactive beyond the priority threshold:
@@ -74,7 +74,7 @@ The [triage.mjs](../../scripts/triage.mjs) script runs via the [`Flag/Unflag iss
         - (`P3` and `P4` issues are never flagged for staleness)
     - **Unanswered external comment**: The latest human comment is from an external contributor.
 
-4. **Pull Requests**: Flagged with `status: needs-triage` if opened by an external contributor and no maintainer has responded to the author's latest contribution for > 1 day. (Maintainer-authored PRs are not flagged).
+3. **Pull Requests**: Flagged with `status: needs-triage` if opened by an external contributor and no maintainer has responded to the author's latest contribution for > 1 day. (Maintainer-authored PRs are not flagged).
 
 Staleness is calculated from the last human contribution (comment, review, or issue/PR creation) rather than `updated_at` to avoid bot edits resetting the timer.
 
