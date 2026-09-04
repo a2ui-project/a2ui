@@ -331,19 +331,28 @@ describe('flagReason — PRs', () => {
       user: {login: 'maintainer', type: 'User'},
     });
 
-  it('flags a stale external PR with no maintainer response', () => {
+  it('flags an external PR with no maintainer response', () => {
     const item = pr({created_at: daysAgo(5), comments: 1});
     assert.match(flagReason(item, [externalComment(2)], NOW), /no maintainer/);
   });
 
-  it('flags a fresh external PR that has never been answered', () => {
+  it('flags an external PR that has never been answered', () => {
     // No comments: the opening post itself is the unanswered external word.
     const item = pr({created_at: daysAgo(2)});
     assert.match(flagReason(item, [], NOW), /no maintainer/);
   });
 
-  it('does not flag a fresh external PR (< 1 day old)', () => {
-    assert.equal(flagReason(pr({created_at: daysAgo(0)}), [], NOW), null);
+  // There is no grace period any more: a PR is triage work from the moment it
+  // is opened, not a day later.
+  it('flags an external PR opened moments ago', () => {
+    assert.match(flagReason(pr({created_at: daysAgo(0)}), [], NOW), /no maintainer/);
+  });
+
+  it('does not flag an assigned external PR — a PR assignee is its reviewer', () => {
+    // Rule 1b skips assigned issues; PRs stay in scope, since the reviewer
+    // going quiet is exactly what rule 3 watches for.
+    const item = pr({created_at: daysAgo(5), assignees: [{login: 'dev'}]});
+    assert.match(flagReason(item, [], NOW), /no maintainer/);
   });
 
   it('does not flag when a maintainer commented after the author', () => {
@@ -352,7 +361,7 @@ describe('flagReason — PRs', () => {
     assert.equal(flagReason(item, comments, NOW), null);
   });
 
-  it('never flags a maintainer-authored PR, even when stale', () => {
+  it('never flags a maintainer-authored PR, however old', () => {
     for (const association of ['OWNER', 'MEMBER', 'COLLABORATOR']) {
       const item = pr({created_at: daysAgo(30), author_association: association});
       assert.equal(flagReason(item, [], NOW), null, association);
@@ -373,6 +382,12 @@ describe('flagReason — external comment awaiting response', () => {
     assert.match(flagReason(item, [externalComment(2)], NOW), /external contributor/);
   });
 
+  // No grace period: the comment is triage work the moment it lands.
+  it('flags an external comment posted moments ago', () => {
+    const item = issue({labels: ['P3'], comments: 1, created_at: daysAgo(5)});
+    assert.match(flagReason(item, [externalComment(0)], NOW), /external contributor/);
+  });
+
   it('does not flag when a maintainer replied last', () => {
     const item = issue({labels: ['P3'], comments: 2, created_at: daysAgo(5)});
     const comments = [
@@ -386,9 +401,14 @@ describe('flagReason — external comment awaiting response', () => {
     assert.equal(flagReason(item, comments, NOW), null);
   });
 
-  it('does not flag a fresh external comment (< 1 day)', () => {
-    const item = issue({labels: ['P3'], comments: 1, created_at: daysAgo(5)});
-    assert.equal(flagReason(item, [externalComment(0)], NOW), null);
+  it('does not flag when the issue is assigned, however old the comment', () => {
+    const item = issue({
+      labels: ['P3'],
+      assignees: [{login: 'dev'}],
+      comments: 1,
+      created_at: daysAgo(5),
+    });
+    assert.equal(flagReason(item, [externalComment(2)], NOW), null);
   });
 });
 
@@ -456,11 +476,9 @@ describe('issueTriage reconciliation', () => {
   });
 
   it('removes the label when an item no longer matches any rule', async () => {
-    const item = issue({
-      number: 8,
-      labels: ['P3', FLAG_LABEL],
-      assignees: [{login: 'dev'}],
-    });
+    // Prioritized, answered and unassigned: it reaches the end of the rules
+    // rather than being skipped by rule 1b.
+    const item = issue({number: 8, labels: ['P3', FLAG_LABEL]});
     github = makeGithub([item]);
     await issueTriage({github, context});
 
@@ -469,7 +487,7 @@ describe('issueTriage reconciliation', () => {
   });
 
   it('is a no-op when the desired and actual state already agree', async () => {
-    const flagged = issue({number: 9, labels: [FLAG_LABEL]}); // matches rule 1a
+    const flagged = issue({number: 9, labels: [FLAG_LABEL]}); // matches rule 2a
     const clean = issue({number: 10, labels: ['P3']}); // matches no rule
     github = makeGithub([flagged, clean]);
     await issueTriage({github, context});
@@ -517,7 +535,7 @@ describe('issueTriage reconciliation', () => {
   });
 
   it('skips an item the listing reported as open but that is already closed', async () => {
-    // GitHub's index lags: the snapshot matches rule 1a, but the live re-read
+    // GitHub's index lags: the snapshot matches rule 2a, but the live re-read
     // shows the item closed, and a closed item is nobody's triage work.
     const item = issue({number: 25});
     item.__fresh = issue({number: 25, state: 'closed'});
@@ -594,7 +612,7 @@ describe('issueTriage reconciliation', () => {
     it('keeps the label, and the item out of triage, until someone replies', async () => {
       // With no replies the opening post is the last human contribution, and it
       // predates the label — it must not be mistaken for a response.
-      github = makeGithub([parked(15)]); // would otherwise match rule 1a
+      github = makeGithub([parked(15)]); // would otherwise match rule 2a
       await issueTriage({github, context});
 
       assert.equal(calls.get.length, 0); // nothing to change, so no live re-read
@@ -603,12 +621,27 @@ describe('issueTriage reconciliation', () => {
     });
 
     it('clears the label once the reporter has replied', async () => {
-      // P3, so no triage rule fires once the label is gone.
+      // The reply that unparks the item is itself an unanswered external
+      // contribution, so rule 2d puts it back on the triage queue at once.
       github = makeGithub([parked(16, {comments: 1, labels: [WAITING_LABEL, 'P3']})]);
       await issueTriage({github, context});
 
       assert.deepEqual(calls.listEvents, [16]);
       assert.deepEqual(calls.removeLabel, [{number: 16, name: WAITING_LABEL}]);
+      assert.deepEqual(calls.addLabels, [16]);
+    });
+
+    it('leaves an assigned issue off the queue when it unparks', async () => {
+      // Rule 1b outranks the reply: a team member already has this one.
+      const item = parked(29, {
+        comments: 1,
+        labels: [WAITING_LABEL, 'P3'],
+        assignees: [{login: 'dev'}],
+      });
+      github = makeGithub([item]);
+      await issueTriage({github, context});
+
+      assert.deepEqual(calls.removeLabel, [{number: 29, name: WAITING_LABEL}]);
       assert.equal(calls.addLabels.length, 0);
     });
 
@@ -697,7 +730,7 @@ describe('issueTriage reconciliation', () => {
     });
 
     it('flags in the same run in which it clears the label', async () => {
-      // Rule 1a matches once the label is gone; that must not wait a whole run.
+      // Rule 2a matches once the label is gone; that must not wait a whole run.
       github = makeGithub([parked(17, {comments: 1})]);
       await issueTriage({github, context});
 
