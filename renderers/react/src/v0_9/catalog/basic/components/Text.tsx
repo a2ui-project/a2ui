@@ -19,9 +19,6 @@ import {TextApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {getBaseLeafStyle, getWeightStyle, useBasicCatalogStyles} from '../utils';
 import {useMarkdown} from '../hooks/useMarkdown';
 
-// Import CSS Module
-import styles from './Text.module.css';
-
 /** Variants rendered with declarative HTML instead of the Markdown pipeline. */
 const NON_MARKDOWN_VARIANTS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'caption']);
 
@@ -84,10 +81,10 @@ export const Text = createComponentImplementation(TextApi, ({props}) => {
 
   if (variant && NON_MARKDOWN_VARIANTS.has(variant)) {
     const isCaption = variant === 'caption';
-    const className = [styles.a2uiText, isCaption ? styles.a2uiCaption : variant].join(' ');
+    const className = ['a2ui-text', isCaption ? 'a2ui-caption' : variant].join(' ');
     return <NonMarkdownText text={text} variant={variant} className={className} style={style} />;
   }
 
-  const className = [styles.a2uiText, variant || 'body'].join(' ');
+  const className = ['a2ui-text', variant || 'body'].join(' ');
   return <MarkdownText text={text} className={className} style={style} />;
 });

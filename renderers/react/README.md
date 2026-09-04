@@ -238,13 +238,13 @@ The `@a2ui/react/v0_9` package includes a `basicCatalog` with standard component
 - **Content**: `Text`, `Image`, `Icon`, `Video`, `AudioPlayer`
 - **Input**: `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`, `DateTimeInput`
 
-## Styling and CSS Modules
+## Styling
 
-The basic catalog components are designed to be self-contained and styled using CSS variables exposed from `@a2ui/web_core`.
+The basic catalog components are self-styled: when the first component renders, the package injects its component rules and the shared design tokens from `@a2ui/web_core` into the document. No stylesheet import or bundler configuration is needed.
 
-Some components in this package (like `Text`) use **CSS Modules** for style encapsulation. Most modern React environments (like Vite, Next.js, and Create React App) support CSS Modules out of the box. If you are using a custom build setup, you must ensure it is configured to handle `.module.css` files (e.g., using `css-loader` with modules enabled in Webpack).
+Components carry stable, literal class names (`a2ui-button`, `a2ui-text`, `a2ui-choice-picker`, ...). Customize appearance by redefining the `--a2ui-*` CSS variables, or by targeting those classes with a selector more specific than the package's own: its rules are adopted into the document, so an equally specific rule will not win.
 
-You can also use CSS Modules for styling your custom components or extending the basic catalog:
+You can use CSS Modules for styling your custom components or extending the basic catalog, as long as your build processes them:
 
 ```css
 /* MyComponent.module.css */
