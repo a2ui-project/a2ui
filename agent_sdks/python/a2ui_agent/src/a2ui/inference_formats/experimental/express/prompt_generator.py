@@ -158,7 +158,7 @@ class ExpressPromptGenerator(PromptGenerator):
         """Assembles positional signatures and instructions for a catalog."""
         if not include_schema:
             return ""
-        return self.catalog_description(include_schema=True, catalog=catalog)
+        return self._catalog_description(include_schema=True, catalog=catalog)
 
     def generate_examples(
         self,
@@ -176,7 +176,7 @@ class ExpressPromptGenerator(PromptGenerator):
             return ""
         return self.transform_examples(raw_examples)
 
-    def generate_component_signatures(
+    def _generate_component_signatures(
         self, helper: Optional[CatalogSchemaHelper] = None
     ) -> str:
         """Compiles component definitions into clean function-like signatures.
@@ -285,7 +285,7 @@ class ExpressPromptGenerator(PromptGenerator):
             signatures.append(sig)
         return "\n".join(signatures)
 
-    def generate_function_signatures(
+    def _generate_function_signatures(
         self, helper: Optional[CatalogSchemaHelper] = None
     ) -> str:
         """Compiles function definitions into clean signatures.
@@ -334,9 +334,9 @@ class ExpressPromptGenerator(PromptGenerator):
         return "\n".join(signatures)
 
     def _build_schema_prompt(self) -> str:
-        return self.catalog_description(include_schema=True)
+        return self._catalog_description(include_schema=True)
 
-    def catalog_description(
+    def _catalog_description(
         self, include_schema: bool = True, catalog: Optional[Any] = None
     ) -> str:
         """Assembles the system prompt component catalog signatures block.
@@ -352,8 +352,8 @@ class ExpressPromptGenerator(PromptGenerator):
             return ""
 
         h = CatalogSchemaHelper(catalog) if catalog else self.helper
-        comp_sigs = self.generate_component_signatures(helper=h)
-        func_sigs = self.generate_function_signatures(helper=h)
+        comp_sigs = self._generate_component_signatures(helper=h)
+        func_sigs = self._generate_function_signatures(helper=h)
         catalog_instructions = h.catalog.get("instructions", "") if h else ""
 
         # Translate json examples in catalog instructions into A2UI Express DSL

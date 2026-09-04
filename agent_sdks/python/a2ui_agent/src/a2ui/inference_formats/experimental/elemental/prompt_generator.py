@@ -135,7 +135,7 @@ class ElementalPromptGenerator(PromptGenerator):
         """Assembles TypeScript interfaces and catalog instructions."""
         if not include_schema:
             return ""
-        return self.catalog_description(include_schema=True, catalog=catalog)
+        return self._catalog_description(include_schema=True, catalog=catalog)
 
     def generate_examples(
         self,
@@ -290,7 +290,7 @@ class ElementalPromptGenerator(PromptGenerator):
             lines.append(f"{indent}// {line}")
         return lines
 
-    def generate_component_declarations(
+    def _generate_component_declarations(
         self, helper: Optional[CatalogSchemaHelper] = None
     ) -> str:
         """Compiles component definitions into TypeScript element interfaces.
@@ -347,7 +347,7 @@ class ElementalPromptGenerator(PromptGenerator):
 
         return "\n\n".join(declarations)
 
-    def generate_function_declarations(
+    def _generate_function_declarations(
         self, helper: Optional[CatalogSchemaHelper] = None
     ) -> str:
         """Compiles function definitions into TypeScript function declarations.
@@ -481,7 +481,7 @@ class ElementalPromptGenerator(PromptGenerator):
             self.catalog_id = catalog.catalog_id
             self.parser = ElementalParser(catalog)
 
-        prompt = self.catalog_description(include_schema=True)
+        prompt = self._catalog_description(include_schema=True)
 
         parts = [role_description]
 
@@ -506,7 +506,7 @@ class ElementalPromptGenerator(PromptGenerator):
 
         return "\n\n".join(parts)
 
-    def catalog_description(
+    def _catalog_description(
         self, include_schema: bool = True, catalog: Optional[Any] = None
     ) -> str:
         """Assembles the system prompt component catalog signatures block.
@@ -522,8 +522,8 @@ class ElementalPromptGenerator(PromptGenerator):
             return ""
 
         h = CatalogSchemaHelper(catalog) if catalog else self.helper
-        comp_decls = self.generate_component_declarations(helper=h)
-        func_decls = self.generate_function_declarations(helper=h)
+        comp_decls = self._generate_component_declarations(helper=h)
+        func_decls = self._generate_function_declarations(helper=h)
 
         catalog_instructions = h.catalog.get("instructions", "") if h else ""
         if catalog_instructions:

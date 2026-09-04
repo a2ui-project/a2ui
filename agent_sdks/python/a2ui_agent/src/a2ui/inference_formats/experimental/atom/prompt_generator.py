@@ -149,8 +149,8 @@ class AtomPromptGenerator(PromptGenerator):
             helper = CatalogSchemaHelper(catalog)
         else:
             helper = self.schema_helper
-        comps = self.generate_component_signatures(helper=helper)
-        funcs = self.generate_function_signatures(helper=helper)
+        comps = self._generate_component_signatures(helper=helper)
+        funcs = self._generate_function_signatures(helper=helper)
         return (comps + ("\n\n" if funcs else "") + funcs).strip()
 
     def generate_examples(
@@ -207,8 +207,8 @@ class AtomPromptGenerator(PromptGenerator):
         parts.append(f"## Instructions:\n{rules}")
 
         if include_schema and self.schema_helper:
-            comp_sigs = self.generate_component_signatures()
-            func_sigs = self.generate_function_signatures()
+            comp_sigs = self._generate_component_signatures()
+            func_sigs = self._generate_function_signatures()
             if comp_sigs:
                 parts.append(f"## Component Catalog Signatures:\n{comp_sigs}")
             if func_sigs:
@@ -216,7 +216,7 @@ class AtomPromptGenerator(PromptGenerator):
 
         return "\n\n".join(parts)
 
-    def generate_component_signatures(self, helper: Optional[Any] = None) -> str:
+    def _generate_component_signatures(self, helper: Optional[Any] = None) -> str:
         """Compiles component definitions into S-expression signatures."""
         h = helper or self.schema_helper
         if not h:
@@ -261,7 +261,7 @@ class AtomPromptGenerator(PromptGenerator):
             signatures.append(sig)
         return "\n".join(signatures)
 
-    def generate_function_signatures(self, helper: Optional[Any] = None) -> str:
+    def _generate_function_signatures(self, helper: Optional[Any] = None) -> str:
         """Compiles function definitions into S-expression signatures."""
         h = helper or self.schema_helper
         if not h:

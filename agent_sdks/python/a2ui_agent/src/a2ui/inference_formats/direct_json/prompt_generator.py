@@ -130,7 +130,7 @@ class DirectJsonPromptGenerator(PromptGenerator):
             parts.append(f"## UI Description:\n{ui_description}")
 
         if include_schema:
-            instructions = self.catalog_description(include_schema=True)
+            instructions = self._catalog_description(include_schema=True)
             if instructions:
                 parts.append(instructions)
 
@@ -139,7 +139,7 @@ class DirectJsonPromptGenerator(PromptGenerator):
 
         return "\n\n".join(parts)
 
-    def catalog_description(self, include_schema: bool = True) -> str:
+    def _catalog_description(self, include_schema: bool = True) -> str:
         """Assembles the system prompt component catalog signatures block.
 
         Args:
@@ -150,11 +150,11 @@ class DirectJsonPromptGenerator(PromptGenerator):
         """
         if not include_schema:
             return ""
-        catalog = self.selected_catalog
+        catalog = getattr(self, "selected_catalog", None)
         if not catalog:
             catalog = (
                 self._format._supported_catalogs[0]
-                if self._format._supported_catalogs
+                if self._format and self._format._supported_catalogs
                 else None
             )
         if not catalog:
