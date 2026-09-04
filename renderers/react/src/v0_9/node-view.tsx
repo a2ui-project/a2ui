@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-import type React from 'react';
-import {
+import React, {
   createContext,
   useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
+  memo,
   useSyncExternalStore,
 } from 'react';
 import {
@@ -35,25 +36,31 @@ import {
   type NodeProps,
   type Signal,
   type SurfaceModel,
+  isWebComponentImplementation,
 } from '@a2ui/web_core/v0_9';
-import type {ReactComponentImplementation} from './adapter';
+import {
+  type ReactCatalogComponent,
+  type ReactComponentImplementation,
+  type A2uiWebComponentElement,
+  isReactComponentImplementation,
+} from './adapter';
+import {useA2UI} from './core/A2UIProvider';
+import {toWebComponent} from './catalog/to_web_component';
 
 /** Renders a resolved child node, or falls back for an unresolved id. */
 export type NodeBuildChild = (
-  child: ComponentNode<ReactComponentImplementation> | string,
+  child: ComponentNode<ReactCatalogComponent> | string,
   basePath?: string,
 ) => React.ReactNode;
 
 /** What a component implementation's `view` receives from the node surface. */
 export type NodeViewProps = {
-  node: ComponentNode<ReactComponentImplementation>;
+  node: ComponentNode<ReactCatalogComponent>;
   buildChild: NodeBuildChild;
 };
 
 /** The surface a node view renders under, provided by `A2uiSurface`. */
-export const NodeSurfaceContext = createContext<SurfaceModel<ReactComponentImplementation> | null>(
-  null,
-);
+export const NodeSurfaceContext = createContext<SurfaceModel<ReactCatalogComponent> | null>(null);
 
 /** Stands in for a component that has not arrived, or has just been removed. */
 export const LoadingPlaceholder: React.FC<{componentId: string}> = ({componentId}) => (
@@ -61,7 +68,7 @@ export const LoadingPlaceholder: React.FC<{componentId: string}> = ({componentId
 );
 
 /** Unresolved-reference reports already dispatched, per surface. */
-const reportedUnresolved = new WeakMap<SurfaceModel<ReactComponentImplementation>, Set<string>>();
+const reportedUnresolved = new WeakMap<SurfaceModel<ReactCatalogComponent>, Set<string>>();
 
 /**
  * The in-tree notice for a child reference the resolver built no node for.
@@ -72,7 +79,7 @@ const reportedUnresolved = new WeakMap<SurfaceModel<ReactComponentImplementation
  * that sets state would then warn.
  */
 export const UnresolvedChildReference: React.FC<{
-  surface: SurfaceModel<ReactComponentImplementation> | null;
+  surface: SurfaceModel<ReactCatalogComponent> | null;
   id: string;
   requestedPath: string;
   detail: string;
@@ -110,7 +117,7 @@ export function useSignalValue<T>(signal: Signal<T>): T {
 }
 
 /** Child nodes of one view, keyed by id, then by the child's data path. */
-type ChildMap = Map<string, Map<string, ComponentNode<ReactComponentImplementation>>>;
+type ChildMap = Map<string, Map<string, ComponentNode<ReactCatalogComponent>>>;
 
 /**
  * The two id namespaces `buildChild` callers use. Views hand back the tokens
@@ -132,7 +139,7 @@ function newChildIndex(): ChildIndex {
 function setChild(
   map: ChildMap,
   id: string,
-  child: ComponentNode<ReactComponentImplementation>,
+  child: ComponentNode<ReactCatalogComponent>,
   firstWins: boolean,
 ): void {
   let byPath = map.get(id);
@@ -153,10 +160,7 @@ function setChild(
  * keeps the first occurrence, matching how a raw reference has no way to
  * name a later one.
  */
-function registerChild(
-  index: ChildIndex,
-  child: ComponentNode<ReactComponentImplementation>,
-): string {
+function registerChild(index: ChildIndex, child: ComponentNode<ReactCatalogComponent>): string {
   setChild(index.byToken, child.instanceId, child, false);
   setChild(index.byId, child.componentId, child, true);
   return child.instanceId;
@@ -169,11 +173,15 @@ function registerChild(
  * scoped path (a template item). The nodes themselves are collected into
  * `index` for `buildChild` to find again.
  */
-function toViewValue(parent: ComponentNode, value: unknown, index: ChildIndex): unknown {
+function toViewValue(
+  parent: ComponentNode<ReactCatalogComponent>,
+  value: unknown,
+  index: ChildIndex,
+): unknown {
   if (isComponentNode(value)) {
     // Every node in this surface's props came from its own resolver, whose
-    // catalog carries ReactComponentImplementation entries.
-    const token = registerChild(index, value as ComponentNode<ReactComponentImplementation>);
+    // catalog carries ReactCatalogComponent entries.
+    const token = registerChild(index, value as ComponentNode<ReactCatalogComponent>);
     if (value.dataPath !== parent.dataPath) {
       return {id: token, basePath: value.dataPath};
     }
@@ -208,7 +216,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * synthesizes for literal-valued properties.
  */
 function toViewProps(
-  parent: ComponentNode,
+  parent: ComponentNode<ReactCatalogComponent>,
   props: Record<string, unknown>,
   index: ChildIndex,
 ): Record<string, unknown> {
@@ -234,7 +242,7 @@ function toViewProps(
  * surface-provided `buildChild`.
  */
 export function useNodeView(
-  node: ComponentNode,
+  node: ComponentNode<ReactCatalogComponent>,
   buildChild: NodeBuildChild,
 ): {
   viewProps: NodeProps;
@@ -307,3 +315,142 @@ export function useNodeView(
   }
   return {viewProps, context, viewBuildChild, rawBuildChild};
 }
+
+export const WebComponentNode = memo(
+  ({tagName, context}: {tagName: string; context: ComponentContext}) => {
+    const elRef = useRef<HTMLElement | null>(null);
+    const contextRef = useRef(context);
+    contextRef.current = context;
+
+    const setRef = useCallback((node: HTMLElement | null) => {
+      elRef.current = node;
+      if (node) {
+        (node as A2uiWebComponentElement).context = contextRef.current;
+      }
+    }, []);
+
+    useEffect(() => {
+      if (elRef.current) {
+        (elRef.current as A2uiWebComponentElement).context = context;
+      }
+    }, [context]);
+
+    return React.createElement(tagName, {ref: setRef});
+  },
+);
+WebComponentNode.displayName = 'WebComponentNode';
+
+export const WebComponentFallback: React.FC<{
+  tagName: string;
+  node: ComponentNode<ReactCatalogComponent>;
+  buildChild: NodeBuildChild;
+}> = ({tagName, node, buildChild}) => {
+  const {context} = useNodeView(node, buildChild);
+  if (!context) {
+    return <LoadingPlaceholder componentId={node.componentId} />;
+  }
+  return <WebComponentNode tagName={tagName} context={context} />;
+};
+
+/** Renders an implementation that has no `view`: its wrapper binds itself. */
+export const RenderFallback: React.FC<{
+  node: ComponentNode<ReactCatalogComponent>;
+  impl: ReactComponentImplementation;
+  buildChild: NodeBuildChild;
+}> = ({node, impl, buildChild}) => {
+  // `render` reads raw component ids from the model, not the tokens the
+  // conversion puts in view props, so it resolves through the raw-id map.
+  const {context, rawBuildChild} = useNodeView(node, buildChild);
+  const Render = impl.render;
+  if (!context) {
+    return <LoadingPlaceholder componentId={node.componentId} />;
+  }
+  return <Render context={context} buildChild={rawBuildChild} />;
+};
+
+export const NodeView = memo(
+  ({
+    surface,
+    node,
+  }: {
+    surface: SurfaceModel<ReactCatalogComponent>;
+    node: ComponentNode<ReactCatalogComponent>;
+  }) => {
+    const {useUniversalComponents} = useA2UI();
+    const buildChild = useCallback<NodeBuildChild>(
+      (child, basePath) => {
+        if (isComponentNode(child)) {
+          return <NodeView key={child.instanceId} surface={surface} node={child} />;
+        }
+        // The resolver turns every child reference it can identify into a
+        // node, so a leftover id was never classified. Distinguish the two
+        // causes a catalog author can actually have.
+        const requested = basePath ?? node.dataPath;
+        const detail = surface.componentsModel.get(child)
+          ? 'the component exists, but the catalog schema does not mark the referencing ' +
+            'property as a component id. Use componentId() or childList() from ' +
+            '@a2ui/web_core.'
+          : 'no component with this id exists on the surface.';
+        return (
+          <UnresolvedChildReference
+            key={JSON.stringify([child, requested])}
+            surface={surface}
+            id={child}
+            requestedPath={requested}
+            detail={detail}
+          />
+        );
+      },
+      [surface, node],
+    );
+
+    if (node.state === 'unknown-type') {
+      return <div style={{color: 'red'}}>Unknown component type: {node.type}</div>;
+    }
+    if (node.isPlaceholder) {
+      return <LoadingPlaceholder componentId={node.componentId} />;
+    }
+    const impl = node.impl;
+    if (!impl) {
+      // Type narrowing; unreachable for a resolved node.
+      return null;
+    }
+
+    const hasViewOrRender = Boolean(
+      ('view' in impl && typeof (impl as ReactComponentImplementation).view === 'function') ||
+      ('render' in impl && typeof (impl as ReactComponentImplementation).render === 'function'),
+    );
+    const preferUniversal =
+      useUniversalComponents || (!hasViewOrRender && isWebComponentImplementation(impl));
+
+    if (preferUniversal) {
+      let universalComp: ReactCatalogComponent | undefined = isWebComponentImplementation(impl)
+        ? impl
+        : undefined;
+      if (!universalComp && isReactComponentImplementation(impl)) {
+        universalComp = toWebComponent(impl);
+      }
+      if (universalComp && isWebComponentImplementation(universalComp)) {
+        return (
+          <WebComponentFallback
+            tagName={universalComp.tagName}
+            node={node}
+            buildChild={buildChild}
+          />
+        );
+      }
+    }
+
+    const View = 'view' in impl ? (impl as ReactComponentImplementation).view : undefined;
+    if (!View) {
+      if (isReactComponentImplementation(impl)) {
+        return <RenderFallback node={node} impl={impl} buildChild={buildChild} />;
+      }
+      return null;
+    }
+    return <View node={node} buildChild={buildChild} />;
+  },
+);
+NodeView.displayName = 'NodeView';
+
+export const NodeComponent = NodeView;

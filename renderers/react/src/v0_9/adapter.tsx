@@ -15,15 +15,23 @@
  */
 
 import React, {useRef, useSyncExternalStore, useCallback, memo, useEffect} from 'react';
-import {type ComponentContext, GenericBinder} from '@a2ui/web_core/v0_9';
+import {
+  type ComponentContext,
+  GenericBinder,
+  type WebComponentImplementation,
+} from '@a2ui/web_core/v0_9';
 import type {
   ComponentApi,
   InferredComponentApiSchemaType,
   ResolveA2uiProps,
 } from '@a2ui/web_core/v0_9';
 import {LoadingPlaceholder, useNodeView, type NodeViewProps} from './node-view';
+import type {ZodTypeAny} from 'zod';
 
-export interface ReactComponentImplementation extends ComponentApi {
+export interface ReactComponentImplementation<
+  Schema extends ZodTypeAny = ZodTypeAny,
+> extends ComponentApi<Schema> {
+  tagName?: string;
   /** The framework-specific rendering wrapper. */
   render: React.FC<{
     context: ComponentContext;
@@ -37,11 +45,38 @@ export interface ReactComponentImplementation extends ComponentApi {
   view?: React.FC<NodeViewProps>;
 }
 
+/**
+ * Union type representing any component usable in the React A2UI catalog (native React or universal Web Component).
+ */
+export type ReactCatalogComponent<Schema extends ZodTypeAny = ZodTypeAny> =
+  | ReactComponentImplementation<Schema>
+  | WebComponentImplementation<Schema>;
+
+/**
+ * Expected DOM interface for a Custom Element to be A2UI compliant in the React renderer,
+ * receiving the reactive ComponentContext from the host renderer.
+ */
+export interface A2uiWebComponentElement extends HTMLElement {
+  context?: ComponentContext;
+}
+
 export type ReactA2uiComponentProps<T> = {
   props: T;
   buildChild: (id: string, basePath?: string) => React.ReactNode;
   context: ComponentContext;
 };
+
+/**
+ * Type guard to check if an API or component implementation is a ReactComponentImplementation.
+ */
+export function isReactComponentImplementation(api: unknown): api is ReactComponentImplementation {
+  return (
+    typeof api === 'object' &&
+    api !== null &&
+    'render' in api &&
+    typeof (api as {render: unknown}).render === 'function'
+  );
+}
 
 // --- Component Factories ---
 
