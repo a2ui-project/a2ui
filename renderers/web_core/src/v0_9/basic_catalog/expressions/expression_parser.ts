@@ -26,7 +26,7 @@ import {A2uiExpressionError} from '../../errors.js';
  */
 export class ExpressionParser {
   /** The maximum allowed recursion depth for nested expressions to prevent stack overflows. */
-  private static readonly MAX_DEPTH = 10;
+  public static readonly MAX_DEPTH = 100;
 
   /**
    * Parses an input string into an array of DynamicValues.

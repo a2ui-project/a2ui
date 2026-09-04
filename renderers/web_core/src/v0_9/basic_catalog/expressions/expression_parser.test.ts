@@ -69,7 +69,7 @@ describe('ExpressionParser', () => {
 
   it('returns error on max depth exceeded', () => {
     assert.throws(() => {
-      parser.parse('depth', 11);
+      parser.parse('depth', ExpressionParser.MAX_DEPTH + 1);
     }, /Max recursion depth reached/);
   });
 
@@ -78,8 +78,7 @@ describe('ExpressionParser', () => {
   });
 
   describe('nesting depth', () => {
-    // ExpressionParser.MAX_DEPTH is private, so these mirror its value of 10.
-    const MAX_DEPTH = 10;
+    const MAX_DEPTH = ExpressionParser.MAX_DEPTH;
 
     // '${f(a: f(a: ... 1 ...))}'. The interpolation is itself a level, so this
     // nests `calls + 1` deep.
