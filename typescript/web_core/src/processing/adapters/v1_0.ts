@@ -15,7 +15,11 @@
  */
 
 import {BaseVersionAdapter, ProtocolVersion} from './base.js';
-import {InternalComponentPayload, InternalOperation} from '../operations.js';
+import {
+  InternalComponentPayload,
+  InternalOperation,
+  INTERNAL_OPERATION_TYPES,
+} from '../operations.js';
 import {AgentToRendererMessageSchema} from '../../v1_0/schema/agent-to-renderer.js';
 
 /**
@@ -26,14 +30,7 @@ export class V1Point0Adapter extends BaseVersionAdapter {
   protected readonly schema = AgentToRendererMessageSchema;
 
   protected getNativeActionKeys(): string[] {
-    return [
-      'createSurface',
-      'updateComponents',
-      'updateDataModel',
-      'deleteSurface',
-      'callRendererFunction',
-      'agentFunctionResponse',
-    ];
+    return [...INTERNAL_OPERATION_TYPES];
   }
 
   protected extractOperationsFromObject(msgObj: Record<string, unknown>): InternalOperation[] {
@@ -78,6 +75,34 @@ export class V1Point0Adapter extends BaseVersionAdapter {
       ops.push({
         type: 'deleteSurface',
         surfaceId: String(ds?.surfaceId || ''),
+      });
+    }
+    if ('callRendererFunction' in msgObj) {
+      const crf = msgObj.callRendererFunction as Record<string, unknown>;
+      const cf = (crf?.callFunction || {}) as Record<string, unknown>;
+      ops.push({
+        type: 'callRendererFunction',
+        functionCallId: String(crf?.functionCallId || ''),
+        call: String(cf?.call || ''),
+        version: this.version,
+        catalogId: typeof cf?.catalogId === 'string' ? cf.catalogId : undefined,
+        args:
+          cf?.args && typeof cf.args === 'object' && !Array.isArray(cf.args)
+            ? (cf.args as Record<string, unknown>)
+            : {},
+      });
+    }
+    if ('agentFunctionResponse' in msgObj) {
+      const afr = msgObj.agentFunctionResponse as Record<string, unknown>;
+      ops.push({
+        type: 'agentFunctionResponse',
+        functionCallId: String(afr?.functionCallId || ''),
+        version: this.version,
+        value: afr?.value,
+        error:
+          afr?.error && typeof afr.error === 'object'
+            ? (afr.error as {code: string; message: string})
+            : undefined,
       });
     }
     return ops;

@@ -15,6 +15,7 @@
  */
 
 import {z} from 'zod';
+import type {ProtocolVersion} from '../processing/adapters/base.js';
 import {DataContext} from '../rendering/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiExpressionError} from '../errors.js';
@@ -209,6 +210,8 @@ export declare interface CatalogInterface<
 > {
   /** Unique identifier for the catalog (usually a URI). */
   readonly id: string;
+  /** Optional protocol specification version supported by this catalog. */
+  readonly protocolVersion?: ProtocolVersion | string;
   /** Map of registered component definitions. */
   readonly components: ReadonlyMap<string, T>;
   /** Map of registered function definitions. */
@@ -242,6 +245,11 @@ export class Catalog<
 > implements CatalogInterface<T, F> {
   /** Unique identifier for the catalog. */
   readonly id: string;
+
+  /**
+   * Optional protocol specification version supported by this catalog.
+   */
+  readonly protocolVersion?: ProtocolVersion | string;
 
   /**
    * Map of available components keyed by component name.
@@ -300,8 +308,10 @@ export class Catalog<
     functions: F[] = [],
     themeSchema?: z.ZodObject<any>,
     instructions?: string,
+    protocolVersion?: ProtocolVersion | string,
   ) {
     this.id = id;
+    this.protocolVersion = protocolVersion;
 
     const compMap = new Map<string, T>();
     for (const comp of components) {

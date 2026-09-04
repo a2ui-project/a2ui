@@ -22,8 +22,14 @@ import {
   STRICT_VALIDATION,
   RELAXED_VALIDATION,
   ProcessableMessagePayload,
+  RpcErrorCode,
 } from './message-processor.js';
-import {Catalog, ComponentApi, FunctionImplementation} from '../catalog/types.js';
+import {
+  Catalog,
+  ComponentApi,
+  FunctionImplementation,
+  createFunctionImplementation,
+} from '../catalog/types.js';
 import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_components.js';
 import {BASIC_COMPONENTS} from '../v1_0/basic_catalog/components/basic_components.js';
 import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
@@ -1633,6 +1639,211 @@ describe('MessageProcessor', () => {
       const surface = proc.getSurface('stream-surface');
       assert.ok(surface);
       assert.strictEqual(surface.componentsModel.size, 2);
+    });
+  });
+
+  describe('MessageProcessor Bidirectional RPC & Asynchronous Pipeline', () => {
+    const rpcApi = {
+      name: 'echoFunction',
+      returnType: 'string' as const,
+      schema: z.object({text: z.string()}),
+      allowedCallers: 'rendererOrAgent' as const,
+    };
+    const rpcImpl = createFunctionImplementation(rpcApi, (args: any) => `Echo: ${args.text}`);
+
+    const secureApi = {
+      name: 'secureAction',
+      returnType: 'boolean' as const,
+      schema: z.object({}),
+      allowedCallers: 'rendererOrAgent' as const,
+      requiresUserActivation: true,
+    };
+    const secureImpl = createFunctionImplementation(secureApi, () => true);
+
+    const rpcCatalog = new Catalog('rpc-cat', [], [rpcImpl, secureImpl]);
+
+    it('processes callRendererFunction via processMessagesAsync and returns response', async () => {
+      const proc = new MessageProcessor([rpcCatalog]);
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'rpc-cat'},
+      });
+
+      const responses = await proc.processMessagesAsync({
+        version: 'v1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-call-1',
+          callFunction: {
+            call: 'echoFunction',
+            catalogId: 'rpc-cat',
+            args: {text: 'World'},
+          },
+        },
+      });
+
+      assert.strictEqual(responses.length, 1);
+      assert.strictEqual(responses[0].rendererFunctionResponse.functionCallId, 'rpc-call-1');
+      assert.strictEqual(responses[0].rendererFunctionResponse.value, 'Echo: World');
+      assert.strictEqual(responses[0].rendererFunctionResponse.error, undefined);
+    });
+
+    it('enforces requiresUserActivation in processMessagesAsync via context options', async () => {
+      const proc = new MessageProcessor([rpcCatalog]);
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'rpc-cat'},
+      });
+
+      // Without user activation
+      const unauthResponses = await proc.processMessagesAsync({
+        version: 'v1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-call-2',
+          callFunction: {
+            call: 'secureAction',
+            catalogId: 'rpc-cat',
+            args: {},
+          },
+        },
+      });
+
+      assert.strictEqual(unauthResponses.length, 1);
+      assert.strictEqual(
+        unauthResponses[0].rendererFunctionResponse.error?.code,
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+      );
+
+      // With user activation
+      const authResponses = await proc.processMessagesAsync(
+        {
+          version: 'v1.0',
+          callRendererFunction: {
+            functionCallId: 'rpc-call-3',
+            callFunction: {
+              call: 'secureAction',
+              catalogId: 'rpc-cat',
+              args: {},
+            },
+          },
+        },
+        {isUserActivated: true},
+      );
+
+      assert.strictEqual(authResponses.length, 1);
+      assert.strictEqual(authResponses[0].rendererFunctionResponse.value, true);
+    });
+
+    it('initiates callAgentFunction and resolves via inbound agentFunctionResponse in processMessages', async () => {
+      let emittedMessage: any;
+      const proc = new MessageProcessor([rpcCatalog], undefined, {
+        outboundListener: msg => {
+          emittedMessage = msg;
+        },
+      });
+
+      const callPromise = proc.callAgentFunction('s1', {
+        call: 'fetchAgentData',
+        catalogId: 'rpc-cat',
+        args: {id: '42'},
+      });
+
+      assert.ok(emittedMessage);
+      assert.strictEqual(emittedMessage.callAgentFunction.surfaceId, 's1');
+      assert.strictEqual(emittedMessage.callAgentFunction.callFunction.call, 'fetchAgentData');
+      const callId = emittedMessage.callAgentFunction.functionCallId;
+
+      // Inbound response processed through standard message processing pipeline
+      proc.processMessages({
+        version: 'v1.0',
+        agentFunctionResponse: {
+          functionCallId: callId,
+          value: {data: 'Agent Result'},
+        },
+      });
+
+      const result = await callPromise;
+      assert.deepStrictEqual(result, {data: 'Agent Result'});
+    });
+
+    it('rejects pending callAgentFunction on processor disposal', async () => {
+      const proc = new MessageProcessor([rpcCatalog], undefined, {
+        outboundListener: () => {},
+      });
+
+      const callPromise = proc.callAgentFunction('s1', {
+        call: 'fetchData',
+      });
+
+      proc.dispose();
+
+      await assert.rejects(callPromise, (err: any) => {
+        assert.strictEqual(err.code, RpcErrorCode.CANCELLED);
+        return true;
+      });
+    });
+
+    it('executes callRendererFunction in synchronous processMessages and emits to outboundListener', async () => {
+      let emittedResponse: any;
+      const proc = new MessageProcessor([rpcCatalog], undefined, {
+        outboundListener: msg => {
+          emittedResponse = msg;
+        },
+      });
+      proc.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'rpc-cat'},
+      });
+
+      // Fire-and-forget callRendererFunction in synchronous pipeline
+      proc.processMessages({
+        version: 'v1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-sync-1',
+          callFunction: {
+            call: 'echoFunction',
+            catalogId: 'rpc-cat',
+            args: {text: 'SyncTest'},
+          },
+        },
+      });
+
+      // Give the asynchronous promise chain a tick to complete
+      await new Promise(resolve => setTimeout(resolve, 10));
+      assert.ok(emittedResponse);
+      assert.strictEqual(emittedResponse.rendererFunctionResponse.functionCallId, 'rpc-sync-1');
+      assert.strictEqual(emittedResponse.rendererFunctionResponse.value, 'Echo: SyncTest');
+    });
+
+    it('catches and logs unexpected promise rejections from callRendererFunction in processMessages', async () => {
+      let loggedError = false;
+      const originalConsoleError = console.error;
+      console.error = () => {
+        loggedError = true;
+      };
+
+      try {
+        const proc = new MessageProcessor([rpcCatalog]);
+        (proc as any).rpc.handleCallRendererFunction = async () => {
+          throw new Error('RPC exploded');
+        };
+
+        proc.processMessages({
+          version: 'v1.0',
+          callRendererFunction: {
+            functionCallId: 'rpc-sync-2',
+            callFunction: {
+              call: 'echoFunction',
+              catalogId: 'rpc-cat',
+              args: {},
+            },
+          },
+        });
+
+        await new Promise(resolve => setTimeout(resolve, 10));
+        assert.strictEqual(loggedError, true);
+      } finally {
+        console.error = originalConsoleError;
+      }
     });
   });
 });
