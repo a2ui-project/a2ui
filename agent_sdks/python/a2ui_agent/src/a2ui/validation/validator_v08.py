@@ -211,7 +211,7 @@ class LegacyA2uiValidatorV08:
         if not self._catalog.s2c_schema:
             return {}
 
-        bundled = copy.deepcopy(self._catalog.s2c_schema)
+        bundled: dict[str, Any] = copy.deepcopy(dict(self._catalog.s2c_schema))
 
         # Prepare catalog components and styles for injection
         source_properties = {}

@@ -13,7 +13,7 @@
 # limitations under the License.
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Set, Tuple, Union, get_args, get_origin, cast
+from typing import Any, Dict, List, Optional, Set, Tuple, Union, Mapping, get_args, get_origin, cast
 from jsonschema import Draft202012Validator
 from pydantic import BaseModel, ValidationError
 from referencing import Registry, Resource
@@ -45,7 +45,7 @@ class CatalogSchemaValidator:
     def __init__(
         self,
         catalog: Catalog[TComponent, TFunction],
-        common_types_schema: Optional[Dict[str, Any]] = None,
+        common_types_schema: Optional[Mapping[str, Any]] = None,
     ):
         self.catalog = catalog
         self.common_types_schema = common_types_schema or {}
@@ -390,7 +390,7 @@ class CatalogSchemaValidator:
     def from_catalog(
         cls,
         catalog: Any,
-        common_types_schema: Optional[Dict[str, Any]] = None,
+        common_types_schema: Optional[Mapping[str, Any]] = None,
     ) -> "CatalogSchemaValidator":
         if isinstance(catalog, CatalogSchemaValidator):
             return catalog

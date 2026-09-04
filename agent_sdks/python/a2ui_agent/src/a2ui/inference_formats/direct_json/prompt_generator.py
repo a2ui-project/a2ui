@@ -14,7 +14,7 @@
 
 """Generator for standard A2UI JSON schema system prompt instructions."""
 
-from typing import Optional, Any, TYPE_CHECKING, Union
+from typing import Optional, Any, TYPE_CHECKING, Union, Sequence, Mapping
 from a2ui.prompt import PromptGenerator
 from a2ui.core.schema.client_capabilities import V09Capabilities
 
@@ -40,9 +40,11 @@ class DirectJsonPromptGenerator(PromptGenerator):
         role_description: str,
         workflow_description: str = "",
         ui_description: str = "",
-        client_ui_capabilities: Optional[Union[dict[str, Any], V09Capabilities]] = None,
-        allowed_components: Optional[list[str]] = None,
-        allowed_messages: Optional[list[str]] = None,
+        client_ui_capabilities: Optional[
+            Union[dict[str, Any], Mapping[str, Any], V09Capabilities]
+        ] = None,
+        allowed_components: Optional[Sequence[str]] = None,
+        allowed_messages: Optional[Sequence[str]] = None,
         include_schema: bool = False,
         include_examples: bool = False,
         validate_examples: bool = False,
