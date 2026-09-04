@@ -16,7 +16,8 @@
 
 import {ApplicationConfig, provideBrowserGlobalErrorListeners} from '@angular/core';
 import {provideMarkdownRenderer} from '../../../src/v0_9/core/markdown';
+import {renderMarkdown} from '@a2ui/markdown-it';
 
 export const appConfig: ApplicationConfig = {
-  providers: [provideBrowserGlobalErrorListeners(), provideMarkdownRenderer()],
+  providers: [provideBrowserGlobalErrorListeners(), provideMarkdownRenderer(renderMarkdown as any)],
 };
