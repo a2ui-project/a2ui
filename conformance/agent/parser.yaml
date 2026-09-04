@@ -147,3 +147,65 @@
   action: fix_payload
   input: '[{"a": [1, 2, 3,]}]'
   expect: [{"a": [1, 2, 3]}]
+
+- name: test_lexer_embedded_tag_in_string_literal
+  description: Verifies literal closing tags inside string values do not prematurely close A2UI blocks.
+  action: parse_full
+  input: |
+    Preamble
+    <a2ui-json>
+    [{"id": "root", "text": "Closing tag is </a2ui-json> inside string"}]
+    </a2ui-json>
+    Postamble
+  expect:
+    - text: "Preamble"
+      a2ui:
+        - id: "root"
+          text: "Closing tag is </a2ui-json> inside string"
+    - text: "Postamble"
+
+- name: test_lexer_open_tag_with_attributes
+  description: Verifies opening tags with XML attributes (<a2ui-json surfaceId="s1">) are matched and parsed.
+  action: parse_full
+  input: |
+    Preamble
+    <a2ui-json id="main" surfaceId="s1">
+    [{"id": "root", "component": "Text"}]
+    </a2ui-json>
+    Postamble
+  expect:
+    - text: "Preamble"
+      a2ui:
+        - id: "root"
+          component: "Text"
+    - text: "Postamble"
+
+- name: test_conversational_text_and_code_block_disambiguation
+  description: Verifies conversational text containing non-A2UI markdown code blocks is correctly preserved and disambiguated from A2UI payload blocks.
+  action: parse_full
+  input: |
+    Here is some Python sample code:
+    ```python
+    def calculate():
+        return 42
+    ```
+    Explanation of code above.
+    <a2ui-json>
+    [{"id": "root", "component": "Text", "text": "Calculation Result"}]
+    </a2ui-json>
+    Let me know if you need more assistance.
+  expect:
+    - text: "Here is some Python sample code:\n```python\ndef calculate():\n    return 42\n```\nExplanation of code above."
+      a2ui:
+        - id: "root"
+          component: "Text"
+          text: "Calculation Result"
+    - text: "Let me know if you need more assistance."
+
+- name: test_fix_payload_unescaped_latex_backslashes_diagnostic_hint
+  description: Verifies invalid unescaped backslashes produce an actionable error hint.
+  action: fix_payload
+  input: '{"formula": "\approx \Delta x"}'
+  expectError:
+    category: "ParseError"
+    message: "Unescaped backslash found"

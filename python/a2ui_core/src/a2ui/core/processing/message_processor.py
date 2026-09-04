@@ -119,6 +119,12 @@ class MessageProcessor:
         callback: PendingAgentCallCallback,
     ) -> None:
         """Registers a pending callback for an outbound callAgentFunction invocation."""
+        if function_call_id in self._pending_agent_calls:
+            raise A2uiRpcError(
+                f"A call with functionCallId '{function_call_id}' is already pending.",
+                function_call_id=function_call_id,
+                code=RpcErrorCode.DUPLICATE.value,
+            )
         self._pending_agent_calls[function_call_id] = callback
 
     def register_pending_future(

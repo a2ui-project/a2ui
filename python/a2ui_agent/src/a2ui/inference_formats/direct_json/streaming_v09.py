@@ -23,6 +23,7 @@ from a2ui.parser.response_part import ResponsePart
 from a2ui.parser.constants import *
 from a2ui.schema.constants import SURFACE_ID_KEY, CATALOG_COMPONENTS_KEY
 from a2ui.core.validation import RELAXED_VALIDATION
+from a2ui.core import A2uiValidationError
 
 if TYPE_CHECKING:
     from a2ui.schema.catalog import A2uiCatalog
@@ -57,6 +58,7 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
                 MSG_TYPE_CREATE_SURFACE,
                 MSG_TYPE_UPDATE_COMPONENTS,
                 MSG_TYPE_UPDATE_DATA_MODEL,
+                MSG_TYPE_DELETE_SURFACE,
             )
         )
 
@@ -96,7 +98,15 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
         if not isinstance(obj, dict):
             return False
 
-        # TODO: Leverage MessageProcessor to validate the json data.
+        if self._validator:
+            v = self._get_s2c_validator()
+            if v:
+                from jsonschema.exceptions import best_match
+
+                errors = list(v.iter_errors(obj))
+                if errors:
+                    err = best_match(errors) or errors[0]
+                    raise A2uiValidationError(f'Validation failed: {err.message}')
 
         # Update state based on the message content
         surface_id = obj.get(SURFACE_ID_KEY, self.surface_id)

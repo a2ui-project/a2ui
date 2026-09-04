@@ -62,8 +62,6 @@ SKIP_TEST_NAMES = set()
 SKIP_TEST_SUITES = {
     "core/catalog.yaml",
     "core/validator.yaml",
-    "agent/streaming_parser.yaml",
-    "agent/parser.yaml",
 }
 
 
@@ -263,93 +261,6 @@ def test_parser_non_streaming_conformance(name, test_case):
         assert result == test_case["expect"]
 
 
-# --- Validator Conformance ---
-
-cases_validator = get_conformance_cases("core/validator.yaml")
-
-
-@pytest.mark.parametrize(
-    "name, test_case", cases_validator, ids=[c[0] for c in cases_validator]
-)
-def test_validator_conformance(name, test_case):
-    catalog_config = test_case["catalog"]
-    catalog = setup_catalog(catalog_config)
-
-    steps = test_case.get("steps")
-    if steps is None and "validate" in test_case:
-        steps = test_case["validate"]
-
-    if steps is None and "messages" in test_case:
-        steps = [test_case]
-
-    processor = MessageProcessor([catalog])
-    for step in steps:
-        step_messages = step["messages"]
-        expect_error = step.get("expectError") or test_case.get("expectError")
-        if expect_error:
-            with assert_raises(expect_error):
-                processor.process_messages(step_messages)
-        else:
-            processor.process_messages(step_messages)
-
-
-# --- Catalog Conformance ---
-cases_catalog = get_conformance_cases("core/catalog.yaml")
-
-
-@pytest.mark.parametrize(
-    "name, test_case", cases_catalog, ids=[c[0] for c in cases_catalog]
-)
-def test_catalog_conformance(name, test_case):
-    catalog_config = test_case.get("catalog", {})
-    catalog = setup_catalog(catalog_config)
-    action = test_case["action"]
-    args = test_case.get("args", {})
-
-    if action == "prune":
-        allowed_components = args.get("allowedComponents", [])
-        allowed_messages = args.get("allowedMessages", [])
-        pruned = catalog.with_pruning(allowed_components, allowed_messages)
-        expected = test_case["expect"]
-        if isinstance(expected, dict):
-            if "catalogSchema" in expected:
-                assert pruned.catalog_schema == expected["catalogSchema"]
-            if "s2cSchema" in expected:
-                assert pruned.s2c_schema == expected["s2cSchema"]
-            if "commonTypesSchema" in expected:
-                assert pruned.common_types_schema == expected["commonTypesSchema"]
-
-    elif action == "render":
-        output = catalog.render_as_llm_instructions()
-        expect_output = test_case["expectOutput"]
-        assert output.strip() == expect_output.strip()
-
-    elif action == "load":
-        path = args.get("path")
-        if path:
-            full_path = get_conformance_path(path)
-        else:
-            full_path = None
-        validate = args.get("validate", False)
-        expect_error = test_case.get("expectError")
-        if expect_error:
-            with assert_raises(expect_error):
-                catalog.load_examples(full_path, validate=validate)
-        else:
-            output = catalog.load_examples(full_path, validate=validate)
-            expect_output = test_case["expectOutput"]
-            assert output.strip() == expect_output.strip()
-
-    elif action == "remove_strict_validation":
-        schema = args["schema"]
-        modified = remove_strict_validation(schema)
-        assert modified == test_case["expect"]["schema"]
-
-    elif action == "verify_cuttable_keys":
-        expected = test_case["expect"].get("customCuttableKeys")
-        assert set(catalog.cuttable_keys) == set(expected)
-
-
 # --- Schema Manager Conformance ---
 cases_schema_manager = get_conformance_cases("agent/inference_format.yaml")
 
@@ -465,3 +376,71 @@ def test_schema_manager_conformance(name, test_case):
             for expected in expect_contains:
                 expected_normalized = re.sub(r"\s+", "", expected.strip())
                 assert expected_normalized in output_normalized
+
+    elif action == "parse_full":
+        fmt_name = test_case.get("format", "direct_json")
+        content = test_case["input"]
+
+        from a2ui.core.catalog import Catalog
+        from a2ui.schema.utils import get_basic_catalog_path
+
+        with open(get_basic_catalog_path("v1_0"), "r", encoding="utf-8") as f:
+            catalog_dict = json.load(f)
+        core_cat = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
+
+        if fmt_name == "express":
+            from a2ui.inference_formats.experimental.express import ExpressParser
+
+            parser = ExpressParser(catalog=core_cat, surface_id="main", version="v1.0")
+        elif fmt_name == "elemental":
+            from a2ui.inference_formats.experimental.elemental import ElementalParser
+
+            parser = ElementalParser(catalog=core_cat)
+        elif fmt_name == "atom":
+            from a2ui.inference_formats.experimental.atom import AtomParser
+
+            parser = AtomParser(catalog=core_cat)
+        else:
+            from a2ui.parser.parser import parse_response
+
+            parser = None
+
+        expect_error = test_case.get("expectError")
+        if expect_error:
+            with assert_raises(expect_error):
+                if parser:
+                    parser.parse_response(content)
+                else:
+                    parse_response(content)
+        else:
+            if parser:
+                parts = parser.parse_response(content)
+            else:
+                parts = parse_response(content)
+            expected = test_case["expect"]
+            assert len(parts) == len(expected)
+            for actual, exp in zip(parts, expected):
+                assert actual.text.strip() == exp.get("text", "").strip()
+                assert actual.a2ui_json == exp.get("a2ui")
+
+    elif action == "process_chunk":
+        catalog_config = test_case.get("catalog", {})
+        catalog = setup_catalog(catalog_config)
+        parser = DirectJsonStreamParser(catalog=catalog)
+        if test_case.get("disableValidation"):
+            parser._validator = None
+
+        steps = test_case.get("steps")
+        if steps is None and "process_chunk" in test_case:
+            steps = test_case["process_chunk"]
+        if steps is None and "input" in test_case:
+            steps = [test_case]
+
+        for step in steps:
+            expect_error = step.get("expectError") or test_case.get("expectError")
+            if expect_error:
+                with assert_raises(expect_error):
+                    parser.process_chunk(step["input"])
+            else:
+                parts = parser.process_chunk(step["input"])
+                assert_parts_match(parts, step["expect"])

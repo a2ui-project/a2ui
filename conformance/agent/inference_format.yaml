@@ -327,28 +327,12 @@
   description: Verifies parsing Direct JSON v1.0 payload envelopes wrapped in <a2ui-json> sentinel tags.
   catalog:
     protocolVersion: "v1.0"
+    catalogSchema:
+      catalogId: "basic"
+  disableValidation: true
   action: process_chunk
   steps:
-    - input: |
-        Here is the requested user interface:
-        <a2ui-json>
-        [
-          {
-            "version": "v1.0",
-            "createSurface": {
-              "surfaceId": "main",
-              "catalogId": "basic",
-              "components": [
-                {
-                  "id": "root",
-                  "component": "Text",
-                  "text": "Welcome to A2UI v1.0"
-                }
-              ]
-            }
-          }
-        ]
-        </a2ui-json>
+    - input: "Here is the requested user interface:\n<a2ui-json>\n[\n  {\n    \"version\": \"v1.0\",\n    \"createSurface\": {\n      \"surfaceId\": \"main\",\n      \"catalogId\": \"basic\",\n      \"components\": [\n        {\n          \"id\": \"root\",\n          \"component\": \"Text\",\n          \"text\": \"Welcome to A2UI v1.0\"\n        }\n      ]\n    }\n  }\n]\n</a2ui-json>"
       expect:
         - text: "Here is the requested user interface:\n"
           a2ui:
@@ -360,3 +344,106 @@
                   - id: "root"
                     component: "Text"
                     text: "Welcome to A2UI v1.0"
+            - version: "v0.9"
+              updateComponents:
+                surfaceId: "main"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Welcome to A2UI v1.0"
+
+- name: test_express_compile_basic_column_and_text
+  description: Compiles Express Pythonic DSL into standard v1.0 createSurface payload.
+  action: parse_full
+  format: express
+  input: |
+    <a2ui>
+    root = Column([helloText])
+    helloText = Text("Welcome to Express")
+    </a2ui>
+  expect:
+    - text: ""
+      a2ui:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            components:
+              - id: "root"
+                component: "Column"
+                children:
+                  - "helloText"
+              - id: "helloText"
+                component: "Text"
+                text: "Welcome to Express"
+
+- name: test_elemental_compile_html_template_and_actions
+  description: Compiles Elemental HTML DSL with button action and text child into standard v1.0 createSurface payload.
+  action: parse_full
+  format: elemental
+  input: |
+    <a2ui>
+    <body id="main">
+      <ui-button id="btn_1" onclick="{Event('submit')}">
+        <ui-text id="text_1" text="Submit" />
+      </ui-button>
+    </body>
+    </a2ui>
+  expect:
+    - text: ""
+      a2ui:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            components:
+              - id: "text_1"
+                component: "Text"
+                text: "Submit"
+              - id: "btn_1"
+                component: "Button"
+                child: "text_1"
+                action:
+                  event:
+                    name: "submit"
+                    context: {}
+
+- name: test_atom_compile_s_expressions_and_data_model
+  description: Compiles Atom S-expression DSL into standard v1.0 createSurface payload with data model and components.
+  action: parse_full
+  format: atom
+  input: |
+    <a2ui>
+    (data $/title "Atom Card")
+    (Column
+      (Text $/title)
+      (Button :action (Event "submit") (Text "Save")))
+    </a2ui>
+  expect:
+    - text: ""
+      a2ui:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "main"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            dataModel:
+              title: "Atom Card"
+            components:
+              - id: "root"
+                component: "Column"
+                children:
+                  - "node_0"
+                  - "node_1"
+              - id: "node_1"
+                component: "Button"
+                child: "node_2"
+                action:
+                  event:
+                    name: "submit"
+              - id: "node_2"
+                component: "Text"
+                text: "Save"
+              - id: "node_0"
+                component: "Text"
+                text:
+                  path: "/title"

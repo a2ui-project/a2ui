@@ -52,6 +52,9 @@
           allowedParents: ["Column"]
         Row:
           type: "object"
+          properties:
+            children:
+              $ref: "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList"
   action: validate
   steps:
     - payload:
@@ -79,6 +82,9 @@
       components:
         RestrictedBox:
           allowedChildren: ["Text", "Button"]
+          properties:
+            children:
+              $ref: "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList"
         Video:
           type: "object"
   action: validate

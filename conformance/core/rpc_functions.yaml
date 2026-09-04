@@ -282,3 +282,105 @@
           status: "verified"
   expect:
     response: null
+
+- name: test_rpc_call_renderer_function_invalid_argument_schema
+  description: Verifies callRendererFunction returns INVALID_FUNCTION_CALL when argument schema validation fails.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-301"
+        callFunction:
+          call: "calculateTax"
+          catalogId: "basic"
+          args:
+            amount: "invalid_string_amount"
+    functionMetadata:
+      calculateTax:
+        allowedCallers: "rendererOrAgent"
+        parameters:
+          type: "object"
+          properties:
+            amount:
+              type: "number"
+          required: ["amount"]
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-301"
+        error:
+          code: "INVALID_FUNCTION_CALL"
+          message: "Invalid"
+
+- name: test_rpc_call_renderer_function_protocol_version_mismatch
+  description: Verifies callRendererFunction returns INVALID_FUNCTION_CALL when catalog protocol version mismatches message protocol version.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    catalogId: "legacy_cat"
+    catalogVersion: "v0.9"
+    message:
+      version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call-302"
+        callFunction:
+          call: "playMedia"
+          catalogId: "legacy_cat"
+          args:
+            mediaId: "vid1"
+    functionMetadata:
+      playMedia:
+        allowedCallers: "rendererOrAgent"
+  expect:
+    response:
+      version: "v1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-302"
+        error:
+          code: "INVALID_FUNCTION_CALL"
+          message: "does not match message protocol version"
+
+- name: test_rpc_call_agent_function_timeout_handling
+  description: Verifies callAgentFunction timeout emitting TIMEOUT error code.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    outboundCall:
+      surfaceId: "main_surface"
+      functionCallId: "call-timeout-1"
+      timeoutMs: 10
+      callFunction:
+        call: "longRunningTask"
+        catalogId: "basic"
+        args: {}
+  expectError:
+    code: "TIMEOUT"
+
+- name: test_rpc_call_agent_function_duplicate_call_id_error
+  description: Verifies callAgentFunction rejecting duplicate pending functionCallId with DUPLICATE error code.
+  catalog:
+    protocolVersion: "v1.0"
+  action: handle_rpc
+  args:
+    outboundCall:
+      surfaceId: "main_surface"
+      functionCallId: "call-dup-1"
+      callFunction:
+        call: "fetchData"
+        catalogId: "basic"
+        args: {}
+    secondOutboundCall:
+      surfaceId: "main_surface"
+      functionCallId: "call-dup-1"
+      callFunction:
+        call: "fetchData"
+        catalogId: "basic"
+        args: {}
+  expectError:
+    code: "DUPLICATE"

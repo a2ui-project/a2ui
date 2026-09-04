@@ -652,3 +652,54 @@
       path: "/k"
       value: "w"
       expect_notified: ["/k"]
+
+- name: test_data_model_reactivity_child_deletion_notifies_parent_and_child
+  description: >-
+    Deleting a child property notifies both the child path and ancestor containers.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}}
+  watch: ["/user", "/user/name"]
+  steps:
+    - op: "delete"
+      path: "/user/name"
+      expect_notified: ["/user", "/user/name"]
+      expect_values:
+        "/user": {"settings": {"theme": "dark"}}
+    - op: "get"
+      path: "/user/name"
+      expect_absent: true
+
+- name: test_data_model_reactivity_array_element_update_notifies_array
+  description: >-
+    Updating an array element notifies both the element observer and the array observer.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"items": ["a", "b", "c"]}
+  watch: ["/items", "/items/1"]
+  steps:
+    - op: "set"
+      path: "/items/1"
+      value: "updated"
+      expect_notified: ["/items", "/items/1"]
+      expect_values:
+        "/items": ["a", "updated", "c"]
+        "/items/1": "updated"
+
+- name: test_data_model_reactivity_ancestor_deletion_notifies_descendants
+  description: >-
+    Deleting a parent container notifies observers on nested descendant paths whose values become absent.
+  catalog:
+    version: "0.9"
+  action: data_model
+  initial: {"user": {"settings": {"theme": "dark"}}}
+  watch: ["/user", "/user/settings", "/user/settings/theme"]
+  steps:
+    - op: "delete"
+      path: "/user"
+      expect_notified: ["/user", "/user/settings", "/user/settings/theme"]
+    - op: "get"
+      path: "/user/settings/theme"
+      expect_absent: true
