@@ -18,8 +18,8 @@ import {html, nothing, css} from 'lit';
 import {customElement} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {ButtonApi} from './basic_components.js';
-import {BasicCatalogA2uiLitElement} from '../basic-catalog-a2ui-lit-element.js';
-import {createComponentImplementation} from '../../catalog/types.js';
+import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
+import {createComponentImplementation} from '../../universal/index.js';
 
 /**
  * A button component that can be used to trigger an action.

@@ -18,7 +18,7 @@ import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
 import {z} from 'zod';
 import {createComponentImplementation} from './create_component_implementation.js';
-import type {ComponentApi} from './types.js';
+import type {ComponentApi} from '../catalog/types.js';
 
 describe('createComponentImplementation', () => {
   const sampleApi = {

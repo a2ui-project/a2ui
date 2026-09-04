@@ -14,11 +14,9 @@
  * limitations under the License.
  */
 
-export type {LitComponentApi} from './types.js';
-export {createComponentImplementation} from '@a2ui/web_core/v0_9/universal';
-export type {WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
-export {A2uiSurface} from './surface/a2ui-surface.js';
-export {A2uiLitElement} from './a2ui-lit-element.js';
+export {A2uiLitElement, type ResolvedChildList, type A2uiChildRef} from './a2ui-lit-element.js';
 export {A2uiController} from './a2ui-controller.js';
-export {Context} from './context/context.js';
-export {basicCatalog, BasicCatalogA2uiLitElement} from './catalogs/basic/index.js';
+export {createComponentImplementation} from './create_component_implementation.js';
+export {renderA2uiNode} from './render-a2ui-node.js';
+export type {WebComponentImplementation} from '../catalog/types.js';
+export {isWebComponentImplementation} from '../catalog/types.js';
