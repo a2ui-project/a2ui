@@ -13,6 +13,7 @@ Test suites are organized by functional domain:
 - `core/validator.yaml`: Contains test cases for schema and structural validators, verifying structural integrity, cycle detection, and reachability.
 - `core/data_model.yaml`: Contains test cases for the reactive data model, verifying JSON Pointer reads and writes, container creation, deletion, and observer notification.
 - `core/message_processor.yaml`: Contains test cases for the message processor's state machine. Written in the case vocabulary of the `v1_0` branch, whose suite of the same name is the primary one, so the two converge rather than conflict.
+- `core/expressions.yaml`: Contains test cases for the client-side expression parser behind `formatString`, covering literals, data bindings, function calls, nested interpolation, escaped markers and parse errors.
 
 ### Agent (`agent/`)
 
@@ -38,3 +39,18 @@ Each language SDK must implement a test harness that:
 3.  Asserts that the output matches the expected results defined in the YAML.
 
 Refer to `agent_sdks/python/a2ui_agent/tests/conformance/test_conformance.py` for a reference implementation of a harness.
+
+Client-side implementations run these suites too:
+
+- Dart: `dart/a2ui_core/test/conformance/expressions_conformance_test.dart`
+- TypeScript: `renderers/web_core/src/v0_9/basic_catalog/expressions/expression_parser.conformance.test.ts`
+
+Both locate the suite by walking up from the test file, so they need no configured path.
+
+### Writing cases for `parse_expression_template`
+
+`input` is the template string handed to the parser, and `expect` is the sequence of parsed parts — literal strings, data bindings (`{path: ...}`) and function calls (`{call: ..., args: ..., returnType: ...}`).
+
+Harnesses join adjacent literal parts before comparing, and drop empty ones. A case therefore fixes what a template _means_, not how a given implementation splits the literal text around its values; implementations that split literal runs differently still conform as long as the values and the text agree.
+
+Errors are expressed with the suite's language-agnostic categories rather than an SDK's class names: `ParseError` maps to `A2uiExpressionError` in both the Dart and TypeScript clients, and `message` is matched as a regular expression against the error's text.
