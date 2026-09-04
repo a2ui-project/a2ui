@@ -1,0 +1,55 @@
+{
+  "templateId": "TwoColumnLayout",
+  "description": "Multi-column layout with header and dual column bodies.",
+  "parameters": {
+    "headerChild": {
+      "type": "child",
+      "title": "Header Element",
+      "description": "Single component rendered as the layout header."
+    },
+    "leftChildren": {
+      "type": "children",
+      "title": "Left Column Children",
+      "description": "Array of components displayed in the left column.",
+      "default": []
+    },
+    "rightChildren": {
+      "type": "children",
+      "title": "Right Column Children",
+      "description": "Array of components displayed in the right column.",
+      "default": []
+    }
+  },
+  "components": [
+    {
+      "id": "root",
+      "component": "Column",
+      "children": ["header_slot", "columns_row"]
+    },
+    {
+      "id": "header_slot",
+      "component": "Column",
+      "children": {"param": "headerChild"}
+    },
+    {
+      "id": "columns_row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "children": ["left_col", "right_col"]
+    },
+    {
+      "id": "left_col",
+      "component": "Column",
+      "children": {"param": "leftChildren"}
+    },
+    {
+      "id": "right_col",
+      "component": "Column",
+      "children": {"param": "rightChildren"}
+    }
+  ],
+  "sampleData": {
+    "leftChildren": [],
+    "rightChildren": []
+  }
+}

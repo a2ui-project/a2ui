@@ -1,0 +1,93 @@
+{
+  "templateId": "GoalItem",
+  "description": "Card showing an individual objective with priority, title, target date, and action button.",
+  "parameters": {
+    "title": {
+      "type": "string",
+      "title": "Goal Title",
+      "description": "Summary title of the objective."
+    },
+    "priority": {
+      "type": "enum",
+      "title": "Priority Level",
+      "description": "Urgency rating for the objective.",
+      "values": ["High", "Medium", "Low"],
+      "default": "Medium"
+    },
+    "targetDate": {
+      "type": "string",
+      "title": "Target Date",
+      "description": "Target completion date in YYYY-MM-DD format.",
+      "default": "2026-12-31"
+    }
+  },
+  "components": [
+    {
+      "id": "root",
+      "component": "Card",
+      "child": "col"
+    },
+    {
+      "id": "col",
+      "component": "Column",
+      "children": ["top_row", "title_txt", "divider", "footer_row"]
+    },
+    {
+      "id": "top_row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "center",
+      "children": ["priority_txt", "star_icon"]
+    },
+    {
+      "id": "priority_txt",
+      "component": "Text",
+      "text": {"concat": ["Priority: ", {"param": "priority"}]},
+      "variant": "caption"
+    },
+    {
+      "id": "star_icon",
+      "component": "Icon",
+      "name": "star"
+    },
+    {
+      "id": "title_txt",
+      "component": "Text",
+      "text": {"param": "title"},
+      "variant": "h4"
+    },
+    {
+      "id": "divider",
+      "component": "Divider",
+      "axis": "horizontal"
+    },
+    {
+      "id": "footer_row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "center",
+      "children": ["due_txt", "details_btn"]
+    },
+    {
+      "id": "due_txt",
+      "component": "Text",
+      "text": {"concat": ["Due: ", {"param": "targetDate"}]},
+      "variant": "caption"
+    },
+    {
+      "id": "details_btn",
+      "component": "Button",
+      "child": "details_btn_txt"
+    },
+    {
+      "id": "details_btn_txt",
+      "component": "Text",
+      "text": "View Details"
+    }
+  ],
+  "sampleData": {
+    "title": "Launch A2UI SDK v1.0",
+    "priority": "High",
+    "targetDate": "2026-09-30"
+  }
+}

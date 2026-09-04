@@ -1,0 +1,56 @@
+{
+  "templateId": "TeamRoster",
+  "description": "Top-level directory container holding nested team cards or components.",
+  "parameters": {
+    "directoryTitle": {
+      "type": "string",
+      "title": "Directory Title",
+      "description": "Main title text of the roster directory header.",
+      "default": "Organization Directory"
+    },
+    "children": {
+      "type": "children",
+      "title": "Roster Children",
+      "description": "Child components (TeamCard instances or other layout cards) rendered inside this roster.",
+      "default": []
+    }
+  },
+  "components": [
+    {
+      "id": "root",
+      "component": "Column",
+      "children": ["title_banner", "roster_list"]
+    },
+    {
+      "id": "title_banner",
+      "component": "Card",
+      "child": "title_row"
+    },
+    {
+      "id": "title_row",
+      "component": "Row",
+      "align": "center",
+      "children": ["org_icon", "dir_text"]
+    },
+    {
+      "id": "org_icon",
+      "component": "Icon",
+      "name": "folder"
+    },
+    {
+      "id": "dir_text",
+      "component": "Text",
+      "text": {"param": "directoryTitle"},
+      "variant": "h2"
+    },
+    {
+      "id": "roster_list",
+      "component": "Column",
+      "children": {"param": "children"}
+    }
+  ],
+  "sampleData": {
+    "directoryTitle": "Global Technology Roster",
+    "children": []
+  }
+}
