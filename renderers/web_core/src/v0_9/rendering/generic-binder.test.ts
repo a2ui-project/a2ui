@@ -383,6 +383,19 @@ describe('GenericBinder Checkable Trait', () => {
       assert.deepStrictEqual((behavior as any).shape.min, {type: 'DYNAMIC'});
       assert.deepStrictEqual((behavior as any).shape.deep, {type: 'DYNAMIC'});
     });
+
+    it('should see dynamic branches through Optional/Nullable/Default wrappers', () => {
+      const schema = z.object({
+        a: z.union([DynamicStringSchema.nullable(), z.number()]),
+        b: z.union([DynamicStringSchema.optional(), z.number()]),
+        c: z.union([DynamicStringSchema.default('fallback'), z.number()]),
+      });
+
+      const behavior = scrapeSchemaBehavior(schema);
+      assert.deepStrictEqual((behavior as any).shape.a, {type: 'DYNAMIC'});
+      assert.deepStrictEqual((behavior as any).shape.b, {type: 'DYNAMIC'});
+      assert.deepStrictEqual((behavior as any).shape.c, {type: 'DYNAMIC'});
+    });
   });
 
   describe('Static behavior for unannotated schemas', () => {
