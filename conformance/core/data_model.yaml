@@ -15,7 +15,7 @@
 # Behaviour of the reactive data model: JSON Pointer resolution, structural
 # auto-vivification, and observer notification routing.
 #
-# Migrated from `renderers/web_core/src/v0_9/state/data-model.test.ts` so that
+# Migrated from `typescript/web_core/src/v0_9/state/data-model.test.ts` so that
 # every implementation of the data model is measured against one dataset.
 #
 # Each case builds a model from `initial`, attaches an observer to every path in
