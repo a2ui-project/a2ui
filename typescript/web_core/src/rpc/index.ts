@@ -14,10 +14,4 @@
  * limitations under the License.
  */
 
-export * from './schema/index.js';
-export * from './standard_defs.js';
-export * from './functions/system_functions.js';
-export * from './functions/validation_functions_api.js';
-export * from './functions/validation_functions.js';
-export * from '../rpc/index.js';
-export * from '../validating/integrity-checker.js';
+export * from './rpc-handler.js';

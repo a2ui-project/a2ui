@@ -53,7 +53,7 @@ import {
   OutboundMessageListener,
   RpcError,
   RpcErrorCode,
-} from '../v1_0/rpc/rpc-handler.js';
+} from '../rpc/index.js';
 import {DataContext} from '../rendering/data-context.js';
 import {
   getComponentReferences,
@@ -88,10 +88,15 @@ export {STRICT_VALIDATION, RELAXED_VALIDATION, RpcError, RpcErrorCode};
 /**
  * Contextual execution options for message processing.
  */
-export interface ProcessMessagesOptions {
+export interface ExecutionContext {
   /** Whether execution occurs in an active user gesture context. */
   isUserActivated?: boolean;
 }
+
+/**
+ * @deprecated Prefer `ExecutionContext`.
+ */
+export type ProcessMessagesOptions = ExecutionContext;
 
 /**
  * Options for generating renderer capabilities.
@@ -390,34 +395,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Processes a list of messages, a message wrapper, or raw operations synchronously.
    *
    * @param messages The messages or operations to process.
-   * @param options Contextual execution options.
+   * @param context Contextual execution options.
    */
-  processMessages(messages: ProcessableMessagePayload, options?: ProcessMessagesOptions): void {
-    if (!messages || (Array.isArray(messages) && messages.length === 0)) return;
-
-    if (this.validationConfig) {
-      validateRecursionAndPaths(messages);
-    }
-
-    if (this.validationConfig?.targetVersion) {
-      this.validateTargetVersion(messages);
-    }
-
-    if (isInternalOperation(messages)) {
-      this.processOperation(messages, options);
-      return;
-    }
-
-    let adapter;
-    try {
-      adapter = this.adapterRegistry.resolveFromPayload(messages);
-    } catch {
-      adapter = this.adapterRegistry.getAdapter(this.version);
-    }
-
-    const operations = adapter.extractOperations(messages);
+  processMessages(messages: ProcessableMessagePayload, context?: ExecutionContext): void {
+    const operations = this.prepareOperations(messages);
     for (const op of operations) {
-      this.processOperation(op, options);
+      this.processOperation(op, context);
     }
   }
 
@@ -425,13 +408,25 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Asynchronously processes messages, executing RPC calls and returning all produced responses.
    *
    * @param messages The messages or operations to process.
-   * @param options Contextual execution options.
+   * @param context Contextual execution options.
    * @returns Array of rendererFunctionResponse messages produced during execution.
    */
   async processMessagesAsync(
     messages: ProcessableMessagePayload,
-    options?: ProcessMessagesOptions,
+    context?: ExecutionContext,
   ): Promise<RendererFunctionResponseMessage[]> {
+    const operations = this.prepareOperations(messages);
+    const responses: RendererFunctionResponseMessage[] = [];
+    for (const op of operations) {
+      const resp = await this.processOperationAsync(op, context);
+      if (resp) {
+        responses.push(resp);
+      }
+    }
+    return responses;
+  }
+
+  private prepareOperations(messages: ProcessableMessagePayload): InternalOperation[] {
     if (!messages || (Array.isArray(messages) && messages.length === 0)) return [];
 
     if (this.validationConfig) {
@@ -442,12 +437,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       this.validateTargetVersion(messages);
     }
 
-    const responses: RendererFunctionResponseMessage[] = [];
-
     if (isInternalOperation(messages)) {
-      const resp = await this.processOperationAsync(messages, options);
-      if (resp) responses.push(resp);
-      return responses;
+      return [messages];
     }
 
     let adapter;
@@ -457,12 +448,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       adapter = this.adapterRegistry.getAdapter(this.version);
     }
 
-    const operations = adapter.extractOperations(messages);
-    for (const op of operations) {
-      const resp = await this.processOperationAsync(op, options);
-      if (resp) responses.push(resp);
-    }
-    return responses;
+    return adapter.extractOperations(messages);
   }
 
   private validateTargetVersion(messages: ProcessableMessagePayload): void {
@@ -489,120 +475,97 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
   }
 
+  private applyStateOperation(op: InternalOperation): void {
+    if (
+      this.validationConfig?.allowedMessages &&
+      !this.validationConfig.allowedMessages.includes(op.type)
+    ) {
+      throw new A2uiValidationError(
+        `Operation '${op.type}' is not permitted by ValidationConfig.allowedMessages`,
+      );
+    }
+
+    switch (op.type) {
+      case 'createSurface':
+        this.processCreateSurfaceOp(op);
+        break;
+      case 'deleteSurface':
+        this.processDeleteSurfaceOp(op);
+        break;
+      case 'updateComponents':
+        this.processUpdateComponentsOp(op);
+        break;
+      case 'updateDataModel':
+        this.processUpdateDataModelOp(op);
+        break;
+      case 'agentFunctionResponse':
+        this.rpc.handleAgentFunctionResponse({
+          version: 'v1.0',
+          agentFunctionResponse: {
+            functionCallId: op.functionCallId,
+            value: op.value,
+            error: op.error,
+          },
+        });
+        break;
+      case 'callRendererFunction':
+        break;
+    }
+  }
+
   /**
    * Processes a single canonical internal operation.
    *
    * @param op The internal operation to execute.
-   * @param options Contextual execution options.
+   * @param context Contextual execution options.
    */
-  processOperation(op: InternalOperation, options?: ProcessMessagesOptions): void {
-    if (
-      this.validationConfig?.allowedMessages &&
-      !this.validationConfig.allowedMessages.includes(op.type)
-    ) {
-      throw new A2uiValidationError(
-        `Operation '${op.type}' is not permitted by ValidationConfig.allowedMessages`,
-      );
+  processOperation(op: InternalOperation, context?: ExecutionContext): void {
+    if (op.type === 'callRendererFunction') {
+      const surface = this.model.surfacesMap.values().next().value;
+      const dataContext = surface ? new DataContext(surface, '/') : ({} as DataContext);
+      const isUserActivated = context?.isUserActivated ?? op.isUserActivated ?? false;
+      const callMsg: CallRendererFunctionMessage = {
+        version: (op.version as any) || 'v1.0',
+        callRendererFunction: {
+          functionCallId: op.functionCallId,
+          callFunction: {
+            call: op.call,
+            catalogId: op.catalogId,
+            args: op.args,
+          },
+        },
+      };
+      this.rpc.handleCallRendererFunction(callMsg, dataContext, isUserActivated);
+      return;
     }
 
-    switch (op.type) {
-      case 'createSurface':
-        this.processCreateSurfaceOp(op);
-        break;
-      case 'deleteSurface':
-        this.processDeleteSurfaceOp(op);
-        break;
-      case 'updateComponents':
-        this.processUpdateComponentsOp(op);
-        break;
-      case 'updateDataModel':
-        this.processUpdateDataModelOp(op);
-        break;
-      case 'agentFunctionResponse':
-        this.rpc.handleAgentFunctionResponse({
-          version: 'v1.0',
-          agentFunctionResponse: {
-            functionCallId: op.functionCallId,
-            value: op.value,
-            error: op.error,
-          },
-        });
-        break;
-      case 'callRendererFunction': {
-        const surface = this.model.surfacesMap.values().next().value;
-        const dataContext = surface ? new DataContext(surface, '/') : ({} as DataContext);
-        const isUserActivated = options?.isUserActivated ?? op.isUserActivated ?? false;
-        const callMsg: CallRendererFunctionMessage = {
-          version: (op.version as any) || 'v1.0',
-          callRendererFunction: {
-            functionCallId: op.functionCallId,
-            callFunction: {
-              call: op.call,
-              catalogId: op.catalogId,
-              args: op.args,
-            },
-          },
-        };
-        this.rpc.handleCallRendererFunction(callMsg, dataContext, isUserActivated);
-        break;
-      }
-    }
+    this.applyStateOperation(op);
   }
 
   private async processOperationAsync(
     op: InternalOperation,
-    options?: ProcessMessagesOptions,
+    context?: ExecutionContext,
   ): Promise<RendererFunctionResponseMessage | null> {
-    if (
-      this.validationConfig?.allowedMessages &&
-      !this.validationConfig.allowedMessages.includes(op.type)
-    ) {
-      throw new A2uiValidationError(
-        `Operation '${op.type}' is not permitted by ValidationConfig.allowedMessages`,
-      );
+    if (op.type === 'callRendererFunction') {
+      const surface = this.model.surfacesMap.values().next().value;
+      const dataContext = surface ? new DataContext(surface, '/') : ({} as DataContext);
+      const isUserActivated = context?.isUserActivated ?? op.isUserActivated ?? false;
+      const callMsg: CallRendererFunctionMessage = {
+        version: (op.version as any) || 'v1.0',
+        callRendererFunction: {
+          functionCallId: op.functionCallId,
+          callFunction: {
+            call: op.call,
+            catalogId: op.catalogId,
+            args: op.args,
+          },
+        },
+      };
+      return await this.rpc.handleCallRendererFunction(callMsg, dataContext, isUserActivated);
     }
 
-    switch (op.type) {
-      case 'createSurface':
-        this.processCreateSurfaceOp(op);
-        return null;
-      case 'deleteSurface':
-        this.processDeleteSurfaceOp(op);
-        return null;
-      case 'updateComponents':
-        this.processUpdateComponentsOp(op);
-        return null;
-      case 'updateDataModel':
-        this.processUpdateDataModelOp(op);
-        return null;
-      case 'agentFunctionResponse':
-        this.rpc.handleAgentFunctionResponse({
-          version: 'v1.0',
-          agentFunctionResponse: {
-            functionCallId: op.functionCallId,
-            value: op.value,
-            error: op.error,
-          },
-        });
-        return null;
-      case 'callRendererFunction': {
-        const surface = this.model.surfacesMap.values().next().value;
-        const dataContext = surface ? new DataContext(surface, '/') : ({} as DataContext);
-        const isUserActivated = options?.isUserActivated ?? op.isUserActivated ?? false;
-        const callMsg: CallRendererFunctionMessage = {
-          version: (op.version as any) || 'v1.0',
-          callRendererFunction: {
-            functionCallId: op.functionCallId,
-            callFunction: {
-              call: op.call,
-              catalogId: op.catalogId,
-              args: op.args,
-            },
-          },
-        };
-        return await this.rpc.handleCallRendererFunction(callMsg, dataContext, isUserActivated);
-      }
-    }
+    this.applyStateOperation(op);
+    return null;
   }
 
   private processCreateSurfaceOp(op: InternalCreateSurfaceOp): void {

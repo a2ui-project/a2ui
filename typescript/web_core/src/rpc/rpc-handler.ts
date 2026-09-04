@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-import {Catalog, FunctionImplementation} from '../../catalog/types.js';
-import {DataContext} from '../../rendering/data-context.js';
-import {isSignal, getValue} from '../../reactivity/signals.js';
-import {FunctionCall} from '../schema/common-types.js';
+import {Catalog, FunctionImplementation} from '../catalog/types.js';
+import {DataContext} from '../rendering/data-context.js';
+import {isSignal, getValue} from '../reactivity/signals.js';
+import {FunctionCall} from '../v1_0/schema/common-types.js';
 import {
   CallRendererFunctionMessage,
   AgentFunctionResponseMessage,
-} from '../schema/agent-to-renderer.js';
+} from '../v1_0/schema/agent-to-renderer.js';
 import {
   RendererFunctionResponseMessage,
   CallAgentFunctionMessage,
-} from '../schema/renderer-to-agent.js';
+} from '../v1_0/schema/renderer-to-agent.js';
 
 /**
  * Standard error codes for A2UI RPC failures.
@@ -150,6 +150,7 @@ export class RpcHandler {
   ): Promise<RendererFunctionResponseMessage> {
     const validationError = this.validateInboundMessage(message);
     if (validationError) {
+      await this.emitOutboundResponse(validationError);
       return validationError;
     }
 
@@ -158,37 +159,45 @@ export class RpcHandler {
 
     const resolved = this.resolveFunctionImplementation(catalogId, call, context);
     if ('error' in resolved) {
-      return this.createResponseError(
+      const errorResponse = this.createResponseError(
         functionCallId,
         RpcErrorCode.INVALID_FUNCTION_CALL,
         resolved.error,
       );
+      await this.emitOutboundResponse(errorResponse);
+      return errorResponse;
     }
 
     const accessError = this.checkExecutionPermissions(resolved.funcImpl, call, isUserActivated);
     if (accessError) {
-      return this.createResponseError(
+      const errorResponse = this.createResponseError(
         functionCallId,
         RpcErrorCode.INVALID_FUNCTION_CALL,
         accessError,
       );
+      await this.emitOutboundResponse(errorResponse);
+      return errorResponse;
     }
 
     const parsedArgsResult = this.parseArguments(resolved.funcImpl, args, call);
     if ('error' in parsedArgsResult) {
-      return this.createResponseError(
+      const errorResponse = this.createResponseError(
         functionCallId,
         RpcErrorCode.INVALID_FUNCTION_CALL,
         parsedArgsResult.error,
       );
+      await this.emitOutboundResponse(errorResponse);
+      return errorResponse;
     }
 
-    return this.executeFunctionSafely(
+    const response = await this.executeFunctionSafely(
       resolved.funcImpl,
       parsedArgsResult.args,
       context,
       functionCallId,
     );
+    await this.emitOutboundResponse(response);
+    return response;
   }
 
   /**
@@ -222,30 +231,6 @@ export class RpcHandler {
     surfaceId: string,
     call: FunctionCall,
     options?: CallOptions,
-  ): Promise<T>;
-
-  /**
-   * Invokes a remote function on the server agent using positional parameters.
-   *
-   * @deprecated Prefer the options-bag overload: `callAgentFunction(surfaceId, call, options)`.
-   * @param surfaceId The ID of the surface requesting execution.
-   * @param functionCallId The unique ID for this invocation instance.
-   * @param call The function call details.
-   * @param timeoutMs Optional timeout duration in milliseconds.
-   * @returns A promise resolving to the agent function return value.
-   */
-  callAgentFunction<T = unknown>(
-    surfaceId: string,
-    functionCallId: string,
-    call: FunctionCall,
-    timeoutMs?: number,
-  ): Promise<T>;
-
-  callAgentFunction<T = unknown>(
-    surfaceId: string,
-    functionCallIdOrCall: string | FunctionCall,
-    callOrOptions?: FunctionCall | CallOptions,
-    timeoutMs?: number,
   ): Promise<T> {
     if (this.isDisposed) {
       return Promise.reject(new RpcError(RpcErrorCode.DISPOSED, 'RpcHandler has been disposed.'));
@@ -259,22 +244,31 @@ export class RpcHandler {
       );
     }
 
-    const normalized = this.normalizeAgentCallArgs(functionCallIdOrCall, callOrOptions, timeoutMs);
-    if (!normalized.call || !normalized.call.call) {
+    if (!call || !call.call) {
       return Promise.reject(
         new RpcError(RpcErrorCode.INVALID_FUNCTION_CALL, 'Missing or invalid function call name.'),
       );
     }
 
-    if (this.pendingAgentCalls.has(normalized.functionCallId)) {
+    const opts = options ?? {};
+    const functionCallId = opts.functionCallId ?? this.generateFunctionCallId();
+    const effectiveTimeoutMs = opts.timeoutMs ?? this.defaultTimeoutMs;
+
+    if (this.pendingAgentCalls.has(functionCallId)) {
       return Promise.reject(
         new RpcError(
           RpcErrorCode.DUPLICATE,
-          `A call with functionCallId '${normalized.functionCallId}' is already pending.`,
-          normalized.functionCallId,
+          `A call with functionCallId '${functionCallId}' is already pending.`,
+          functionCallId,
         ),
       );
     }
+
+    const normalized: NormalizedAgentCall = {
+      functionCallId,
+      call,
+      effectiveTimeoutMs,
+    };
 
     return this.dispatchAgentCall<T>(surfaceId, normalized);
   }
@@ -295,6 +289,19 @@ export class RpcHandler {
       );
     }
     this.pendingAgentCalls.clear();
+  }
+
+  private async emitOutboundResponse(response: RendererFunctionResponseMessage): Promise<void> {
+    if (this.outboundListener) {
+      try {
+        const res = this.outboundListener(response);
+        if (res && typeof (res as any).catch === 'function') {
+          await res;
+        }
+      } catch {
+        // Outbound listener errors should not mask execution response
+      }
+    }
   }
 
   private validateInboundMessage(
@@ -415,26 +422,6 @@ export class RpcHandler {
         },
       };
     }
-  }
-
-  private normalizeAgentCallArgs(
-    functionCallIdOrCall: string | FunctionCall,
-    callOrOptions?: FunctionCall | CallOptions,
-    timeoutMs?: number,
-  ): NormalizedAgentCall {
-    if (typeof functionCallIdOrCall === 'string') {
-      return {
-        functionCallId: functionCallIdOrCall,
-        call: callOrOptions as FunctionCall,
-        effectiveTimeoutMs: timeoutMs ?? this.defaultTimeoutMs,
-      };
-    }
-    const opts = (callOrOptions as CallOptions) ?? {};
-    return {
-      functionCallId: opts.functionCallId ?? this.generateFunctionCallId(),
-      call: functionCallIdOrCall,
-      effectiveTimeoutMs: opts.timeoutMs ?? this.defaultTimeoutMs,
-    };
   }
 
   private generateFunctionCallId(): string {
