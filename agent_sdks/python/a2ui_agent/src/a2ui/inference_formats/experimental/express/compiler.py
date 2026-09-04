@@ -209,7 +209,6 @@ class ExpressCompiler:
         catalog_id: str = "",
         is_final: bool = True,
         version: Optional[str] = None,
-        emit_create_surface: bool = True,
     ) -> list[dict[str, Any]]:
         """Compiles plain A2UI Express DSL into standard A2UI wire JSON.
 
@@ -424,24 +423,7 @@ class ExpressCompiler:
             compiled_components.extend(ctx.extra_components)
             ctx.extra_components = []
 
-            if not emit_create_surface:
-                result_messages.append({
-                    "version": target_version,
-                    SurfaceOperation.UPDATE_COMPONENTS: {
-                        "surfaceId": scope_surf_id,
-                        "components": compiled_components,
-                    },
-                })
-                if data_model:
-                    result_messages.append({
-                        "version": target_version,
-                        SurfaceOperation.UPDATE_DATA: {
-                            "surfaceId": scope_surf_id,
-                            "path": "/",
-                            "value": data_model,
-                        },
-                    })
-            elif target_version in ("v0.9", "v0.9.1"):
+            if target_version in ("v0.9", "v0.9.1"):
                 result_messages.extend([
                     {
                         "version": target_version,
@@ -577,9 +559,6 @@ class ExpressCompiler:
                         f" Allowed values are: {enum_vals}"
                     )
             comp_dict[prop_name] = mapped_val
-
-            if self.version in ("v0.9", "v0.9.1") and "placeholder" in comp_dict:
-                del comp_dict["placeholder"]
 
             if (
                 prop_name == "value"

@@ -34,7 +34,6 @@ class ExpressParser(Parser):
         catalog: Union[Catalog[Any, Any], A2uiCatalog],
         surface_id: str = "main",
         version: str = "v1.0",
-        emit_create_surface: bool = True,
     ):
         """Initializes the Express parser with a catalog schema and target version.
 
@@ -42,12 +41,10 @@ class ExpressParser(Parser):
             catalog: Catalog or A2uiCatalog schema helper.
             surface_id: Surface identifier for compiled messages.
             version: Target A2UI protocol version ("v0.9", "v0.9.1", or "v1.0").
-            emit_create_surface: Whether to emit createSurface messages.
         """
         self.catalog = catalog
         self.surface_id = surface_id
         self.version = version
-        self.emit_create_surface = emit_create_surface
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
         """Checks whether the given content string contains A2UI Express sentinel tags.
@@ -87,10 +84,7 @@ class ExpressParser(Parser):
         compiler = ExpressCompiler(self.catalog, version=self.version)
         try:
             return compiler.compile(
-                format_content,
-                surface_id=self.surface_id,
-                is_final=is_final,
-                emit_create_surface=self.emit_create_surface,
+                format_content, surface_id=self.surface_id, is_final=is_final
             )
         except (SyntaxError, ValueError) as e:
             orig_err = e
