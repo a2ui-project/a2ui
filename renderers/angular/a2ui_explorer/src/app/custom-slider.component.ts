@@ -16,18 +16,18 @@
 
 import {Component, ChangeDetectionStrategy} from '@angular/core';
 import {CommonModule} from '@angular/common';
-import {CatalogComponent} from '@a2ui/angular/v0_9';
+import {CatalogComponent, createComponentImplementation} from '@a2ui/angular/v0_9';
 import z from 'zod';
-import {ComponentApi} from '@a2ui/web_core/v0_9';
+import {ComponentApi, DynamicStringSchema, DynamicNumberSchema} from '@a2ui/web_core/v0_9';
 
 const customSliderApi = {
   name: 'CustomSlider',
   schema: z.object({
-    label: z.string().optional(),
-    value: z.number().optional(),
-    min: z.number().optional(),
-    max: z.number().optional(),
-  }) as any,
+    label: DynamicStringSchema.optional(),
+    value: DynamicNumberSchema.optional(),
+    min: DynamicNumberSchema.optional(),
+    max: DynamicNumberSchema.optional(),
+  }),
 } satisfies ComponentApi;
 
 /**
@@ -71,7 +71,7 @@ export class CustomSliderComponent extends CatalogComponent<typeof customSliderA
   }
 }
 
-export const customSliderComponentDeclaration = {
-  ...customSliderApi,
-  component: CustomSliderComponent,
-};
+export const customSliderComponentDeclaration = createComponentImplementation(
+  customSliderApi,
+  CustomSliderComponent,
+);
