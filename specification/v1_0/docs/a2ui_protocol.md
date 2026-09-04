@@ -612,7 +612,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
    - No other top-level keys are permitted.
 
 8. **Deprecation Annotations:**
-   - Components, functions, and individual properties may declare deprecated: true along with an optional human-readable x-deprecated-reason (string). Catalogs are expected to be backward and forward compatible with different versions, so they should deprecate and continue to support components, functions, and properties for a period of time rather than deleting them.
+   - Components, functions, and individual properties may declare deprecated: true along with an optional human-readable x-deprecated-reason (string).
 
 ##### Example Schema Template
 
@@ -709,19 +709,6 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
   },
 }
 ```
-
-### Catalog Versioning
-
-A2UI catalogs form the primary contract between agents and clients. Because agents, renderers, and intermediary services (such as orchestrators) may operate on different versions of a catalog at any given time, catalogs must remain forward and backward compatible so that components and templates evolve without breaking active sessions or stored transcripts.
-
-#### Catalog Rules
-
-1. **Ignore Unknown Functions/Fields**: Renderers should ignore unknown functions and properties.
-2. **Deprecate Rather than Delete**: Catalogs should not delete existing components, functions, or properties. Mark them `deprecated: true` along with an `x-deprecated-reason` instead. Renderers should retain handling logic for deprecated components and properties to maintain backward compatibility for historical transcripts, cached states, and templates.
-3. **Type Invariance**: Renderers may ignore fields that change the type of existing fields. Note that string to enum conversions are fine, since enums are open. Catalogs should avoid changing the data type of an existing field. 
-4. **Open Enums**: Renderers should treat enum definitions as open so older renderers do not fail when new enum variants are introduced upstream. Catalogs declare enums normally, just the renderer implementation should handle unknown enum variants.
-5. **Graceful Degradation**: Renderers should provide a graceful fallback for unknown components and other errors instead of failing the entire view hierarchy or surface.
-6. **Round Trip Unknown Component/Field Preservation**: Intermediary services such as orchestrators should preserve unknown properties when serializing/deserializing messages.
 
 #### Deprecating Catalog Properties
 

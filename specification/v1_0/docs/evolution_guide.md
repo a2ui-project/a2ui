@@ -22,7 +22,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Catalogs can now define composition constraints (`allowedParents` and `allowedChildren`) on component definitions, using `"Surface"` as the canonical root component type. Because JSON Schema cannot natively restrict child component types across a flat adjacency list of ID references, these rules allow catalogs to declare valid parent-child relationships without altering the wire format.
 - `CheckRule` in `common_types.json` supports dynamic structured validation result objects (`ValidationResult`) returned directly by function evaluations or data bindings (containing `valid`, `code`, `message`, and `severity`), and `message` on `CheckRule` is made optional as a fallback error message.
 - Enhanced `AccessibilityAttributes` in `common_types.json` with WAI-ARIA `live` region support (`"off"`, `"polite"`, `"assertive"`) and `hidden` (`DynamicBoolean`), while setting `"additionalProperties": false`. Established normative specification prose requiring catalog and renderer implementations to plumb accessibility attributes, infer default screen reader semantics from visible text properties, and enforce SDK linter checks.
-- Formalized catalog versioning guidance that catalogs should be forward and backward compatible across versions so that agents, renderers, and templates can evolve without breaking running sessions or stored transcripts. Introduced x-deprecated-reason as a human-readable explanation for a deprecated property in addition to standard deprecated: true.
+- Introduced `x-deprecated-reason` as a human-readable explanation for a deprecated component/function/property in addition to the standard JSON Schema `deprecated: true`.
 
 ## 2. Changes
 
