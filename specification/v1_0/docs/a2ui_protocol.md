@@ -643,7 +643,7 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
           "description": "Text content to display.",
         },
-        // Deprecated properties rather than just delete them for backward compatibility.
+        // Deprecated property.
         "rawContent": {
           "type": "string",
           "description": "Legacy unescaped text content.",
