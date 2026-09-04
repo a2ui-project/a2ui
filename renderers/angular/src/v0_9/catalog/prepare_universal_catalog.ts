@@ -18,7 +18,7 @@ import {Injector} from '@angular/core';
 import {toWebComponent, registerComponentInjector} from './to_web_component';
 import {AngularCatalog, isAngularComponentImplementation} from './types';
 
-const preparedUniversalCatalogIds = new Set<string>();
+const preparedUniversalCatalogs = new WeakSet<object>();
 
 /**
  * Prepares an Angular catalog for universal Web Component rendering by ensuring
@@ -27,13 +27,13 @@ const preparedUniversalCatalogIds = new Set<string>();
  * For Angular component declarations (`.component`), they are bridged into
  * W3C Custom Elements using the provided Angular `Injector`.
  *
- * This operation is cached via a `Set` of catalog IDs and is idempotent.
+ * This operation is cached via a `WeakSet` of catalog instances and is idempotent.
  *
  * @param catalog The catalog to prepare.
  * @param injector The Angular Injector or EnvironmentInjector.
  */
 export function prepareUniversalCatalog(catalog: AngularCatalog, injector: Injector): void {
-  if (preparedUniversalCatalogIds.has(catalog.id)) {
+  if (preparedUniversalCatalogs.has(catalog)) {
     return;
   }
 
@@ -55,5 +55,5 @@ export function prepareUniversalCatalog(catalog: AngularCatalog, injector: Injec
     }
   }
 
-  preparedUniversalCatalogIds.add(catalog.id);
+  preparedUniversalCatalogs.add(catalog);
 }

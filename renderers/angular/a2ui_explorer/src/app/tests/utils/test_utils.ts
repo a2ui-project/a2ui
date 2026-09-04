@@ -18,6 +18,7 @@ import {TestBed} from '@angular/core/testing';
 import {DemoComponent} from '../../demo.component';
 import {EXAMPLES_V08, EXAMPLES_V09} from '../../generated/examples-bundle';
 import {provideMarkdownRenderer} from '../../../../../src/v0_9/core/markdown';
+import {renderMarkdown} from '@a2ui/markdown-it';
 import {A2UI_VERSION, Version} from '../../types';
 
 export {Version};
@@ -30,7 +31,7 @@ export async function loadExample(exampleName: string, version: Version = Versio
   await TestBed.configureTestingModule({
     imports: [DemoComponent],
     providers: [
-      provideMarkdownRenderer(),
+      provideMarkdownRenderer(renderMarkdown as any),
       {
         provide: A2UI_VERSION,
         useValue: version,
