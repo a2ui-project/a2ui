@@ -38,6 +38,8 @@ from a2ui.builder import (
 )
 from a2ui.inference_formats.experimental.macros.format import (
     MacroInferenceFormat,
+)
+from a2ui.inference_formats.experimental.macros.parser import (
     MacroParser,
 )
 from a2ui.inference_formats.experimental.macros.macro import (

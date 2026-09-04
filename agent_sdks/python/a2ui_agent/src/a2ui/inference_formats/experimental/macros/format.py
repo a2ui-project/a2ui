@@ -12,17 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Macro inference format and parser expanding macro components into standard A2UI."""
+"""Macro inference format coordinating prompt generation and macro catalog synthesis."""
 
 from __future__ import annotations
 
-import copy
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from typing import Any, Callable, Optional, Sequence, Union
 
-from a2ui.core.catalog import Catalog
 from a2ui.inference_format import InferenceFormat
 from a2ui.parser.parser import Parser
-from a2ui.parser.response_part import ResponsePart
 from a2ui.prompt import PromptGenerator
 from a2ui.schema.catalog import A2uiCatalog
 from a2ui.schema.constants import (
@@ -38,6 +35,7 @@ from a2ui.inference_formats.experimental.macros.macro import (
     get_macro,
     list_macros,
 )
+from a2ui.inference_formats.experimental.macros.parser import MacroParser
 from a2ui.inference_formats.experimental.macros.processor import MacroProcessor
 
 
@@ -46,160 +44,14 @@ def _clean_version(version: str) -> str:
     return version.lstrip("v")
 
 
-class MacroParser(Parser):
-    """Parser decorator that runs macro expansion on compiled A2UI messages."""
-
-    def __init__(self, underlying_parser: Parser, processor: MacroProcessor):
-        self.underlying_parser = underlying_parser
-        self.processor = processor
-
-    def has_format_content(self, content: str, *, complete: bool = False) -> bool:
-        return self.underlying_parser.has_format_content(content, complete=complete)
-
-    def unwrap(self, content: str) -> List[ResponsePart]:
-        return self.underlying_parser.unwrap(content)
-
-    @property
-    def supports_streaming(self) -> bool:
-        return self.underlying_parser.supports_streaming
-
-    def decompile(self, val: Any) -> str:
-        return self.underlying_parser.decompile(val)
-
-    def compile(
-        self, format_content: str, *, is_final: bool = True
-    ) -> List[Dict[str, Any]]:
-        raw_msgs = self.underlying_parser.compile(format_content, is_final=is_final)
-        expanded_msgs: List[Dict[str, Any]] = []
-
-        for msg in raw_msgs:
-            if not isinstance(msg, dict):
-                expanded_msgs.append(msg)
-                continue
-
-            if "surfaceUpdate" in msg and isinstance(msg["surfaceUpdate"], dict):
-                surf = msg["surfaceUpdate"]
-                comps = surf.get("components", [])
-                expanded_comps: List[Dict[str, Any]] = []
-
-                for comp in comps:
-                    if not isinstance(comp, dict):
-                        expanded_comps.append(comp)
-                        continue
-
-                    c_name = comp.get("component")
-                    c_id = comp.get("id")
-
-                    if c_name and self.processor.has_macro(c_name):
-                        params = {
-                            k: v
-                            for k, v in comp.items()
-                            if k not in ("component", "id")
-                        }
-                        try:
-                            expanded = self.processor.expand(
-                                c_name, params, instance_id=c_id
-                            )
-                            expanded_comps.extend(expanded)
-                        except Exception:
-                            expanded_comps.append(comp)
-                    else:
-                        expanded_comps.append(comp)
-
-                new_msg = dict(msg)
-                new_surf = dict(surf)
-                new_surf["components"] = expanded_comps
-                new_msg["surfaceUpdate"] = new_surf
-                expanded_msgs.append(new_msg)
-
-            elif "updateComponents" in msg and isinstance(
-                msg["updateComponents"], dict
-            ):
-                upd = msg["updateComponents"]
-                comps = upd.get("components", [])
-                expanded_comps = []
-
-                for comp in comps:
-                    if not isinstance(comp, dict):
-                        expanded_comps.append(comp)
-                        continue
-
-                    c_name = comp.get("component")
-                    c_id = comp.get("id")
-
-                    if c_name and self.processor.has_macro(c_name):
-                        params = {
-                            k: v
-                            for k, v in comp.items()
-                            if k not in ("component", "id")
-                        }
-                        try:
-                            expanded = self.processor.expand(
-                                c_name, params, instance_id=c_id
-                            )
-                            expanded_comps.extend(expanded)
-                        except Exception:
-                            expanded_comps.append(comp)
-                    else:
-                        expanded_comps.append(comp)
-
-                new_msg = dict(msg)
-                new_upd = dict(upd)
-                new_upd["components"] = expanded_comps
-                new_msg["updateComponents"] = new_upd
-                expanded_msgs.append(new_msg)
-
-            elif (
-                "createSurface" in msg
-                and isinstance(msg["createSurface"], dict)
-                and "components" in msg["createSurface"]
-            ):
-                cs = msg["createSurface"]
-                comps = cs.get("components", [])
-                expanded_comps = []
-
-                for comp in comps:
-                    if not isinstance(comp, dict):
-                        expanded_comps.append(comp)
-                        continue
-
-                    c_name = comp.get("component")
-                    c_id = comp.get("id")
-
-                    if c_name and self.processor.has_macro(c_name):
-                        params = {
-                            k: v
-                            for k, v in comp.items()
-                            if k not in ("component", "id")
-                        }
-                        try:
-                            expanded = self.processor.expand(
-                                c_name, params, instance_id=c_id
-                            )
-                            expanded_comps.extend(expanded)
-                        except Exception:
-                            expanded_comps.append(comp)
-                    else:
-                        expanded_comps.append(comp)
-
-                new_msg = dict(msg)
-                new_cs = dict(cs)
-                new_cs["components"] = expanded_comps
-                new_msg["createSurface"] = new_cs
-                expanded_msgs.append(new_msg)
-
-            else:
-                expanded_msgs.append(msg)
-
-        return expanded_msgs
-
-
 @experimental
 class MacroInferenceFormat(InferenceFormat):
     """Inference format coordinating prompt generation and expansion of macros.
 
-    Requires a base_format (e.g. ExpressFormat, ElementalFormat) to define the
-    underlying syntax and surface.
+    Wraps a base inference format (e.g. ExpressFormat, ElementalFormat),
+    synthesizes a unified catalog that combines base catalog components with
+    registered macro definitions, and returns a MacroParser that expands
+    macro component tags into standard A2UI wire messages.
     """
 
     def __init__(
@@ -211,6 +63,19 @@ class MacroInferenceFormat(InferenceFormat):
         surface_id: Optional[str] = None,
         version: Optional[str] = None,
     ):
+        """Initializes the macro inference format.
+
+        Args:
+            base_format: The underlying syntax format to wrap (e.g., ExpressFormat).
+            catalog: Optional override catalog. If omitted, uses base_format.catalog.
+            macros: Explicit sequence of macro functions or MacroMetadata objects.
+                If None, defaults to all globally registered macros.
+            surface_id: Target surface identifier for emitted envelopes.
+            version: A2UI protocol version (defaults to '0.9.1').
+
+        Raises:
+            ValueError: If base_format or a valid catalog is not provided.
+        """
         if base_format is None:
             raise ValueError(
                 "MacroInferenceFormat requires a base_format to be passed (e.g."
@@ -219,11 +84,11 @@ class MacroInferenceFormat(InferenceFormat):
             )
 
         self.surface_id = surface_id or getattr(base_format, "surface_id", "main")
-        raw_version = version or getattr(base_format, "version", "0.9.1")
+        raw_version = version or getattr(base_format, "version", "v0.9.1")
         clean_v = _clean_version(raw_version)
-        if clean_v not in ("0.9", "0.9.1", "0.8"):
+        if clean_v not in ("0.9", "0.9.1", "0.8", "1.0"):
             clean_v = "0.9.1"
-        self.version = clean_v
+        self.version = raw_version
         self.processor = MacroProcessor()
 
         # Ingest macros
@@ -253,10 +118,10 @@ class MacroInferenceFormat(InferenceFormat):
             self.base_catalog = extracted_catalog
         else:
             s2c = load_from_bundled_resource(
-                self.version, SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
+                clean_v, SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
             )
             common_types = load_from_bundled_resource(
-                self.version, COMMON_TYPES_SCHEMA_KEY, SPEC_VERSION_MAP
+                clean_v, COMMON_TYPES_SCHEMA_KEY, SPEC_VERSION_MAP
             )
             self.base_catalog = A2uiCatalog(
                 version=self.version,
@@ -268,27 +133,9 @@ class MacroInferenceFormat(InferenceFormat):
                 common_types_schema=common_types,
             )
 
-        # 2. Inject macros into catalog schema
-        synthetic_schema = copy.deepcopy(self.base_catalog.catalog_schema or {})
-        components_map = dict(synthetic_schema.get("components", {}))
-        defs_map = synthetic_schema.setdefault("$defs", {})
-        any_comp_refs = defs_map.setdefault("anyComponent", {}).setdefault("oneOf", [])
-
-        for m in self.macros:
-            components_map[m.name] = m.to_json_schema()
-            ref_entry = {"$ref": f"#/components/{m.name}"}
-            if ref_entry not in any_comp_refs:
-                any_comp_refs.append(ref_entry)
-
-        synthetic_schema["components"] = components_map
-
-        self.combined_catalog = A2uiCatalog(
-            version=self.version,
-            name=self.base_catalog.name,
-            catalog_schema=synthetic_schema,
-            s2c_schema=self.base_catalog.s2c_schema,
-            common_types_schema=self.base_catalog.common_types_schema,
-        )
+        # 2. Programmatically combine base catalog with macro component schemas
+        macro_components = {m.name: m.to_json_schema() for m in self.macros}
+        self.combined_catalog = self.base_catalog.with_components(macro_components)
 
         # 3. Instantiate underlying inference format with the combined catalog
         fmt_cls = base_format.__class__
@@ -308,8 +155,13 @@ class MacroInferenceFormat(InferenceFormat):
 
     @property
     def prompt_generator(self) -> PromptGenerator:
+        """Returns the prompt generator configured with combined catalog components."""
         return self.underlying_format.prompt_generator
 
     @property
     def parser(self) -> Parser:
+        """Returns the MacroParser wrapping the underlying syntax parser."""
         return MacroParser(self.underlying_format.parser, processor=self.processor)
+
+
+__all__ = ["MacroInferenceFormat", "MacroParser"]
