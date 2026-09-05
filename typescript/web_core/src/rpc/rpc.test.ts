@@ -685,4 +685,37 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     assert.strictEqual(res.rendererFunctionResponse.value, 'Processed: matched');
     assert.strictEqual(res.rendererFunctionResponse.error, undefined);
   });
+
+  it('allows callRendererFunction when version prefix differs (e.g. 1.0 vs v1.0)', async () => {
+    const unprefixCatalog = new Catalog(
+      'unprefix_catalog',
+      [],
+      [customRpcImpl],
+      undefined,
+      undefined,
+      '1.0',
+    );
+    const handler = new RpcHandler([unprefixCatalog]);
+    const surface = new SurfaceModel('s1', unprefixCatalog);
+    const context = new DataContext(surface, '/');
+
+    const res = await handler.handleCallRendererFunction(
+      {
+        version: 'v1.0',
+        callRendererFunction: {
+          functionCallId: 'call-version-prefix-norm',
+          callFunction: {
+            call: 'customRpc',
+            catalogId: 'unprefix_catalog',
+            args: {text: 'normalized'},
+          },
+        },
+      },
+      context,
+      true,
+    );
+
+    assert.strictEqual(res.rendererFunctionResponse.value, 'Processed: normalized');
+    assert.strictEqual(res.rendererFunctionResponse.error, undefined);
+  });
 });

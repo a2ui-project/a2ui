@@ -351,7 +351,9 @@ export class RpcHandler {
       return {error: 'No catalog available for function resolution.'};
     }
 
-    if (catalog.protocolVersion && expectedVersion && catalog.protocolVersion !== expectedVersion) {
+    const normCatalogVer = catalog.protocolVersion?.replace(/^v/, '');
+    const normExpectedVer = expectedVersion?.replace(/^v/, '');
+    if (normCatalogVer && normExpectedVer && normCatalogVer !== normExpectedVer) {
       return {
         error: `Catalog '${catalog.id}' specification version (${catalog.protocolVersion}) does not match message protocol version (${expectedVersion}).`,
       };

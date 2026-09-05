@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import json
+from pathlib import Path
 from typing import (
     Any,
     Dict,
@@ -61,6 +63,22 @@ RELAXED_VALIDATION = ValidationConfig(
 )
 
 JSON_SCHEMA_DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
+
+
+@functools.lru_cache(maxsize=32)
+def _load_spec_file_cached(rel_path: str) -> dict[str, Any] | None:
+    cur = Path(__file__).resolve()
+    for parent in list(cur.parents):
+        cand = parent / rel_path
+        if cand.exists():
+            try:
+                with open(cand, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        return cast(dict[str, Any], data)
+            except Exception:
+                pass
+    return None
 
 
 def _schema_has_property(schema: Any, prop_name: str) -> bool:
@@ -587,20 +605,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                 pass
 
     def _get_spec_file(self, rel_path: str) -> dict[str, Any] | None:
-        from pathlib import Path
-
-        cur = Path(__file__).resolve()
-        for parent in list(cur.parents):
-            cand = parent / rel_path
-            if cand.exists():
-                try:
-                    with open(cand, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                        if isinstance(data, dict):
-                            return cast(dict[str, Any], data)
-                except Exception:
-                    pass
-        return None
+        return _load_spec_file_cached(rel_path)
 
     def _get_registry(self, target_cat: Any = None) -> Any:
         cat = target_cat or self.catalog

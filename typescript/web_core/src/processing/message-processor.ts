@@ -532,7 +532,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
           },
         },
       };
-      this.rpc.handleCallRendererFunction(callMsg, dataContext, isUserActivated);
+      void this.rpc.handleCallRendererFunction(callMsg, dataContext, isUserActivated);
       return;
     }
 
@@ -621,6 +621,94 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     this.model.deleteSurface(op.surfaceId);
   }
 
+  private validateComponentProperties(
+    comp: Record<string, unknown>,
+    surface: SurfaceModel<T>,
+  ): void {
+    const {id, component, ...properties} = comp;
+    const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
+
+    if (!id) {
+      throw new A2uiValidationError(`Component '${component}' is missing an 'id'.`);
+    }
+
+    let targetCatalog = surface.catalog;
+    if (typeof rawCatalogId === 'string' && rawCatalogId) {
+      const found = this.catalogs.find(c => c.id === rawCatalogId);
+      if (!found) {
+        throw new A2uiValidationError(
+          `Unknown catalog ID '${rawCatalogId}' for component '${id}'. Available catalogs: ${this.catalogs.map(c => c.id).join(', ')}`,
+        );
+      }
+      targetCatalog = found;
+    }
+
+    const existing = surface.componentsModel.get(id as string);
+    const componentType = typeof component === 'string' ? component : existing?.type;
+    if (!existing && !component) {
+      throw new A2uiValidationError(`Cannot create component ${id} without a type.`);
+    }
+    if (componentType) {
+      const componentApi = targetCatalog.components.get(componentType);
+      if (!componentApi) {
+        if (this.validationConfig && !this.validationConfig.allowUnknownElements) {
+          throw new A2uiValidationError(
+            `Unknown component type '${componentType}' not found in catalog '${targetCatalog.id}'.`,
+          );
+        }
+      } else {
+        const validationResult = componentApi.schema.safeParse(properties);
+        if (!validationResult.success) {
+          const formattedErrors = validationResult.error.errors.map(formatZodIssue).join(', ');
+          console.error("[A2UI Validation Error] Component '" + componentType + "' (" + id + '):', {
+            propertyKeys: Object.keys(properties),
+            issues: validationResult.error.issues,
+          });
+          throw new A2uiValidationError(
+            `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
+            validationResult.error.issues,
+          );
+        }
+      }
+    }
+  }
+
+  private applyComponentUpdate(comp: Record<string, unknown>, surface: SurfaceModel<T>): void {
+    const {id, component, ...properties} = comp;
+    if (typeof id !== 'string') return;
+    const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
+    const existing = surface.componentsModel.get(id);
+
+    let targetCatalog = surface.catalog;
+    if (typeof rawCatalogId === 'string' && rawCatalogId) {
+      const found = this.catalogs.find(c => c.id === rawCatalogId);
+      if (found) {
+        targetCatalog = found;
+      }
+    }
+
+    if (existing) {
+      const componentType = typeof component === 'string' ? component : existing.type;
+      if (
+        componentType !== existing.type ||
+        (rawCatalogId && existing.catalog?.id !== targetCatalog.id)
+      ) {
+        // Recreate component if type or catalog changes
+        surface.componentsModel.removeComponent(id);
+        const newComponent = new ComponentModel(id, componentType, properties, targetCatalog);
+        surface.componentsModel.addComponent(newComponent);
+      } else {
+        existing.properties = properties;
+      }
+    } else {
+      if (typeof component !== 'string' || !component) {
+        throw new A2uiValidationError(`Cannot create component ${id} without a type.`);
+      }
+      const newComponent = new ComponentModel(id, component, properties, targetCatalog);
+      surface.componentsModel.addComponent(newComponent);
+    }
+  }
+
   private processUpdateComponentsOp(op: InternalUpdateComponentsOp): void {
     if (!op.surfaceId) return;
 
@@ -631,55 +719,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     // 1. Validation pass: validate all components before mutating state
     for (const comp of op.components) {
-      const {id, component, ...properties} = comp;
-      const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
-
-      if (!id) {
-        throw new A2uiValidationError(`Component '${component}' is missing an 'id'.`);
-      }
-
-      let targetCatalog = surface.catalog;
-      if (typeof rawCatalogId === 'string' && rawCatalogId) {
-        const found = this.catalogs.find(c => c.id === rawCatalogId);
-        if (!found) {
-          throw new A2uiValidationError(
-            `Unknown catalog ID '${rawCatalogId}' for component '${id}'. Available catalogs: ${this.catalogs.map(c => c.id).join(', ')}`,
-          );
-        }
-        targetCatalog = found;
-      }
-
-      const existing = surface.componentsModel.get(id);
-      const componentType = component || existing?.type;
-      if (!existing && !component) {
-        throw new A2uiValidationError(`Cannot create component ${id} without a type.`);
-      }
-      if (componentType) {
-        const componentApi = targetCatalog.components.get(componentType);
-        if (!componentApi) {
-          if (this.validationConfig && !this.validationConfig.allowUnknownElements) {
-            throw new A2uiValidationError(
-              `Unknown component type '${componentType}' not found in catalog '${targetCatalog.id}'.`,
-            );
-          }
-        } else {
-          const validationResult = componentApi.schema.safeParse(properties);
-          if (!validationResult.success) {
-            const formattedErrors = validationResult.error.errors.map(formatZodIssue).join(', ');
-            console.error(
-              "[A2UI Validation Error] Component '" + componentType + "' (" + id + '):',
-              {
-                propertyKeys: Object.keys(properties),
-                issues: validationResult.error.issues,
-              },
-            );
-            throw new A2uiValidationError(
-              `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
-              validationResult.error.issues,
-            );
-          }
-        }
-      }
+      this.validateComponentProperties(comp, surface);
     }
 
     this.validateCompositionConstraints(surface, op.components);
@@ -687,38 +727,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     // 2. Mutation pass: apply state updates
     for (const comp of op.components) {
-      const {id, component, ...properties} = comp;
-      const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
-      const existing = surface.componentsModel.get(id);
-
-      let targetCatalog = surface.catalog;
-      if (typeof rawCatalogId === 'string' && rawCatalogId) {
-        const found = this.catalogs.find(c => c.id === rawCatalogId);
-        if (found) {
-          targetCatalog = found;
-        }
-      }
-
-      if (existing) {
-        const componentType = component || existing.type;
-        if (
-          componentType !== existing.type ||
-          (rawCatalogId && existing.catalog?.id !== targetCatalog.id)
-        ) {
-          // Recreate component if type or catalog changes
-          surface.componentsModel.removeComponent(id);
-          const newComponent = new ComponentModel(id, componentType, properties, targetCatalog);
-          surface.componentsModel.addComponent(newComponent);
-        } else {
-          existing.properties = properties;
-        }
-      } else {
-        if (!component) {
-          throw new A2uiValidationError(`Cannot create component ${id} without a type.`);
-        }
-        const newComponent = new ComponentModel(id, component, properties, targetCatalog);
-        surface.componentsModel.addComponent(newComponent);
-      }
+      this.applyComponentUpdate(comp, surface);
     }
   }
 
@@ -735,11 +744,60 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     surface.dataModel.set(path, value);
   }
 
-  private validateCompositionConstraints(
+  private validateParentConstraints(
+    id: string,
+    componentType: string,
+    allowedParents: string[],
+    parents?: Array<{parentId: string; parentType: string}>,
+  ): void {
+    if (!parents || parents.length === 0) {
+      const isRoot = id === 'root';
+      const enforceTopLevel =
+        isRoot || (this.validationConfig && this.validationConfig.allowOrphanComponents === false);
+      if (enforceTopLevel && !allowedParents.includes('Surface')) {
+        throw new A2uiValidationError(
+          `Component '${id}' (${componentType}) cannot be placed under parent 'Surface' (Surface). Allowed parents: ${JSON.stringify(allowedParents)}.`,
+          undefined,
+          'UNALLOWED_PARENT',
+        );
+      }
+      return;
+    }
+
+    for (const parentInfo of parents) {
+      if (!allowedParents.includes(parentInfo.parentType)) {
+        throw new A2uiValidationError(
+          `Component '${id}' (${componentType}) cannot be placed under parent '${parentInfo.parentId}' (${parentInfo.parentType || 'unknown'}). Allowed parents: ${JSON.stringify(allowedParents)}.`,
+          undefined,
+          'UNALLOWED_PARENT',
+        );
+      }
+    }
+  }
+
+  private validateChildConstraints(
+    id: string,
+    componentType: string,
+    allowedChildren: string[],
+    children: string[],
+    typeMap: Map<string, string>,
+  ): void {
+    for (const childId of children) {
+      const childType = typeMap.get(childId);
+      if (childType && !allowedChildren.includes(childType)) {
+        throw new A2uiValidationError(
+          `Container '${id}' (${componentType}) cannot contain child '${childId}' (${childType}). Allowed children: ${JSON.stringify(allowedChildren)}.`,
+          undefined,
+          'UNALLOWED_CHILD',
+        );
+      }
+    }
+  }
+
+  private buildCompositionTopology(
     surface: SurfaceModel<T>,
     newComponents: Array<Record<string, unknown>>,
-  ): void {
-    // 1. Build map of all component types and catalogs in the surface (combining existing & new)
+  ) {
     const typeMap = new Map<string, string>();
     const compCatalogMap = new Map<string, Catalog<T>>();
     const childMap = new Map<string, string[]>();
@@ -784,7 +842,6 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       }
     }
 
-    // Build parent map: childId -> Array<{ parentId, parentType }>
     const parentMap = new Map<string, Array<{parentId: string; parentType: string}>>();
     for (const [parentId, children] of childMap.entries()) {
       const parentType = typeMap.get(parentId) || 'Unknown';
@@ -795,52 +852,40 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       }
     }
 
-    // 2. Validate constraints for each component
+    return {typeMap, compCatalogMap, childMap, parentMap};
+  }
+
+  private validateCompositionConstraints(
+    surface: SurfaceModel<T>,
+    newComponents: Array<Record<string, unknown>>,
+  ): void {
+    const {typeMap, compCatalogMap, childMap, parentMap} = this.buildCompositionTopology(
+      surface,
+      newComponents,
+    );
+
     for (const [id, componentType] of typeMap.entries()) {
       const compCatalog = compCatalogMap.get(id) ?? surface.catalog;
       const componentApi = compCatalog.components.get(componentType);
       if (!componentApi) continue;
 
-      // Parent constraint validation
       if (componentApi.allowedParents && componentApi.allowedParents.length > 0) {
-        const parents = parentMap.get(id);
-        if (!parents || parents.length === 0) {
-          const isRoot = id === 'root';
-          const enforceTopLevel =
-            isRoot ||
-            (this.validationConfig && this.validationConfig.allowOrphanComponents === false);
-          if (enforceTopLevel && !componentApi.allowedParents.includes('Surface')) {
-            throw new A2uiValidationError(
-              `Component '${id}' (${componentType}) cannot be placed under parent 'Surface' (Surface). Allowed parents: ${JSON.stringify(componentApi.allowedParents)}.`,
-              undefined,
-              'UNALLOWED_PARENT',
-            );
-          }
-        } else {
-          for (const parentInfo of parents) {
-            if (!componentApi.allowedParents.includes(parentInfo.parentType)) {
-              throw new A2uiValidationError(
-                `Component '${id}' (${componentType}) cannot be placed under parent '${parentInfo.parentId}' (${parentInfo.parentType || 'unknown'}). Allowed parents: ${JSON.stringify(componentApi.allowedParents)}.`,
-                undefined,
-                'UNALLOWED_PARENT',
-              );
-            }
-          }
-        }
+        this.validateParentConstraints(
+          id,
+          componentType,
+          componentApi.allowedParents,
+          parentMap.get(id),
+        );
       }
 
       if (componentApi.allowedChildren && componentApi.allowedChildren.length > 0) {
-        const children = childMap.get(id) || [];
-        for (const childId of children) {
-          const childType = typeMap.get(childId);
-          if (childType && !componentApi.allowedChildren.includes(childType)) {
-            throw new A2uiValidationError(
-              `Container '${id}' (${componentType}) cannot contain child '${childId}' (${childType}). Allowed children: ${JSON.stringify(componentApi.allowedChildren)}.`,
-              undefined,
-              'UNALLOWED_CHILD',
-            );
-          }
-        }
+        this.validateChildConstraints(
+          id,
+          componentType,
+          componentApi.allowedChildren,
+          childMap.get(id) || [],
+          typeMap,
+        );
       }
     }
   }
