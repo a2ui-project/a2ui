@@ -21,10 +21,10 @@ import '../core/catalog.dart';
 import '../core/messages.dart';
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
+import '../primitives/schema_resolution.dart';
 import 'common_types.g.dart';
 import 'component_graph.dart';
 import 'component_refs.dart';
-import 'schema_resolution.dart';
 
 /// Everything one surface declares across a payload.
 class _SurfacePayload {

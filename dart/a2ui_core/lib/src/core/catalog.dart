@@ -13,11 +13,8 @@
 // limitations under the License.
 
 import 'package:json_schema_builder/json_schema_builder.dart';
-import '../primitives/cancellation.dart';
 import '../primitives/errors.dart';
-import '../primitives/reactivity.dart';
-import '../validation/schema_resolution.dart';
-import 'contexts.dart';
+import '../primitives/schema_resolution.dart';
 
 /// A definition of a UI component's API.
 ///
@@ -55,7 +52,7 @@ enum A2uiReturnType {
 ///
 /// Declares a signature only, so it is what [Catalog.fromJson] produces
 /// directly. Renderers that also evaluate the function supply a
-/// [FunctionImplementation] instead.
+/// `FunctionImplementation` instead.
 class FunctionApi {
   final String name;
   final A2uiReturnType returnType;
@@ -68,22 +65,6 @@ class FunctionApi {
   });
 }
 
-/// A function implementation that can be registered with a catalog.
-abstract class FunctionImplementation extends FunctionApi {
-  const FunctionImplementation({
-    required super.name,
-    required super.argumentSchema,
-    super.returnType,
-  });
-
-  /// Executes the function. Can return a static value or a [ReadonlySignal].
-  Object? execute(
-    Map<String, dynamic> args,
-    DataContext context, [
-    CancellationSignal? cancellationSignal,
-  ]);
-}
-
 /// A catalog whose components and functions carry schemas only.
 ///
 /// What [Catalog.fromJson] produces, and what agents work with: they prompt
@@ -93,7 +74,7 @@ typedef SchemaCatalog = Catalog<ComponentApi, FunctionApi>;
 /// A collection of available components and functions.
 ///
 /// [C] is the component representation and [F] the function representation.
-/// For renderers, [F] is [FunctionImplementation], for agents [F] is
+/// For renderers, [F] is `FunctionImplementation`, for agents [F] is
 /// [FunctionApi].
 ///
 /// For a catalog that declares no functions, pass `Never`
