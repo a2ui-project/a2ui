@@ -15,10 +15,12 @@ local_development:
 
 The native SwiftUI rendering adaptation layer for A2UI.
 
-- **A2UISwiftUI** (`swift/swiftui/Sources/A2UISwiftUI`): Bridge layer hosting the root `Surface`
-  view, recursive `ComponentNodeView`, dynamic binding helpers, and theme injection.
-- **BasicCatalogSwiftUI** (`swift/swiftui/Sources/BasicCatalog`): Native SwiftUI component
-  implementations conforming to `ComponentImplementation` for all Basic Catalog elements.
+- **A2UISwiftUI** (`swift/swiftui/Sources/A2UISwiftUI`): Bridge layer hosting the root
+  [`Surface`](../../../../docs/public/concepts/glossary.md#surface) view, recursive `ComponentNodeView`, dynamic binding helpers,
+  and theme injection.
+- **BasicCatalogSwiftUI** (`swift/swiftui/Sources/BasicCatalog`): Native SwiftUI
+  [component](../../../../docs/public/concepts/glossary.md#genui-component) implementations conforming to `ComponentImplementation`
+  for all [Basic Catalog](../../../../docs/public/concepts/glossary.md#basic-catalog) elements.
 - **Swift Testing**: Validates view instantiation, property binding, dynamic child lists,
   theme propagation, and stress scenarios.
 

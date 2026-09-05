@@ -13,14 +13,14 @@ local_development:
 
 ## **Architecture & Ecosystem Map**
 
-The official Lit-element Web Components renderer for A2UI.
+The official Lit-element Web Components [renderer](../../../../docs/public/concepts/glossary.md#a2ui-agent-and-a2ui-renderer) for A2UI.
 
 - **Reactivity**: Converts reactive Preact Signals directly into custom Lit property updates using a specialized controller wrapper.
 - **Context Mapping**: Employs Shadow DOM boundaries and element-based relative data path traversals.
 
 ## **Local Technical Decisions & Overrides**
 
-- **Lazy Mounting**: Postpones active property subscriptions and events registration until components are connected to the document DOM.
+- **Lazy Mounting**: Postpones active property subscriptions and events registration until [components](../../../../docs/public/concepts/glossary.md#genui-component) are connected to the document DOM.
 
 ## **Validation & Execution Recipes**
 

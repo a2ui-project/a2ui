@@ -6,18 +6,20 @@ description: Agent SDK specification for catalog management, prompt engineering,
 
 # Agent SDK Development Guide
 
-This document describes the architecture of an A2UI Agent SDK. The design separates concerns into distinct layers to follow a similar structure for consistency across languages, providing a streamlined developer experience for building AI agents that generate rich UI.
+This document describes the architecture of an A2UI [**Agent**](../../docs/public/concepts/glossary.md#a2ui-agent-and-a2ui-renderer) SDK. The design separates concerns into distinct layers to follow a similar structure for consistency across languages, providing a streamlined developer experience for building AI agents that generate rich UI.
 
 The Agent SDK is responsible for:
 
-- **Catalog management**
-- **Capability negotiation**
+- **[Catalog](../../docs/public/concepts/glossary.md#catalog) management**
+- **[Capability](../../docs/public/concepts/glossary.md#capabilities-object) negotiation**
 - **Prompt engineering**
 - **Response parsing**
 - **Payload validation**
 - **Transport packaging**
 
-It enables Large Language Models (LLMs) and autonomous agents to understand available UI capabilities and ensures that generated UI payloads conform strictly to negotiated specification contracts before transmission to client renderers.
+It enables Large Language Models (LLMs) and autonomous agents to understand available UI capabilities and ensures that generated UI payloads conform strictly to negotiated specification contracts before transmission to client [**renderers**](../../docs/public/concepts/glossary.md#a2ui-agent-and-a2ui-renderer).
+
+Terms in **bold** on first use are defined in the [Glossary](../../docs/public/concepts/glossary.md).
 
 ---
 
@@ -43,15 +45,15 @@ graph TD
 
 1. **Decoupled Primitive Layer**:
    - **Catalog Representation**: Directly uses canonical `Catalog` models from `a2ui_core`.
-   - **Catalog Transformers**: Standalone rule sets (`CatalogTransformer`, `ComponentPruningTransformer`, `FunctionPruningTransformer`) for filtering component definitions and function signatures from pristine catalogs.
+   - **[Catalog Transformers](../../docs/public/concepts/glossary.md#catalog-transformer)**: Standalone rule sets (`CatalogTransformer`, `ComponentPruningTransformer`, `FunctionPruningTransformer`) for filtering [**component**](../../docs/public/concepts/glossary.md#genui-component) definitions and function signatures from pristine catalogs.
    - **Inference Formats**: Strategy facades (`InferenceFormat`, `InferenceFormatFactory`) pairing format-specific prompt generators (`PromptGenerator`) and parsers (`Parser`). Supported strategies include `DirectJsonFormat` and `ExpressFormat`.
    - **Prompt Generators**: Format builders consuming transformed catalogs and prompt examples to generate system instruction snippets.
-   - **Parsers**: Response extraction engines performing tag unwrapping (`unwrap`), streaming chunk processing (`parse_chunk`), syntax compilation (`compile`) and decompilation (`decompile`).
+   - **Parsers**: Response extraction engines performing [**tag unwrapping**](../../docs/public/concepts/glossary.md#tag-unwrapping) (`unwrap`), streaming chunk processing (`parse_chunk`), syntax [**compilation**](../../docs/public/concepts/glossary.md#compilation) (`compile`) and decompilation (`decompile`).
    - **Validation Layer**: Leverages core `A2uiValidator` capabilities directly from `a2ui_core`, natively supporting protocol version branching (`v0_8`, `v0_9`, `v0_9_1`, `v1_0`).
 2. **Encapsulated Application Processor**:
    - `CatalogConfig`: Configuration dataclass encapsulating catalog providers (`BundledCatalogProvider`, `FileSystemCatalogProvider`, `InMemoryCatalogProvider`), custom transformers, and examples.
    - `A2uiGenerator`: Agent-level lifecycle manager holding supported `CatalogConfig`s, generating pre-negotiated `A2uiRequestProcessor` instances per renderer capability signature.
-   - `A2uiRequestProcessor`: Central processor facade object unifying multi-catalog capability resolution (`resolve_catalogs`), system prompt snippet rendering, turn-scoped parser creation, and response validation.
+   - `A2uiRequestProcessor`: Central processor facade object unifying multi-catalog capability resolution (`resolve_catalogs`), system prompt snippet rendering, [**turn**](../../docs/public/concepts/glossary.md#agent-turn)-scoped parser creation, and response validation.
 
 ---
 
@@ -340,7 +342,7 @@ Validation is handled directly by `a2ui.core.validating.A2uiValidator` from the 
 
 #### Surface state during validation
 
-`A2uiValidator` checks one outbound payload at a time, the agent-to-renderer messages the agent is about to send, with nothing else to compare it against. When that payload updates a surface it did not itself create, it carries no component tree, so a reference to a component the agent sent in an earlier payload cannot be checked and is accepted.
+`A2uiValidator` checks one outbound payload at a time, the agent-to-renderer messages the agent is about to send, with nothing else to compare it against. When that payload updates a [**surface**](../../docs/public/concepts/glossary.md#surface) it did not itself create, it carries no component tree, so a reference to a component the agent sent in an earlier payload cannot be checked and is accepted.
 
 An agent that runs `a2ui.core.processing.MessageProcessor` over its own outbound messages holds that tree. References then resolve against the components the surface already has, and cycles are found across the whole surface instead of one payload at a time. The renderer runs these same checks when the payload arrives, so an agent that runs them first catches a bad payload before sending it rather than after.
 
@@ -624,7 +626,7 @@ def resolve_catalogs(
 
 ### A. DIRECT_JSON Format (`a2ui.inference_formats.direct_json`)
 
-Standard A2UI JSON payload format enclosed in `<a2ui-json>` sentinel tags.
+Standard A2UI JSON payload format enclosed in `<a2ui-json>` [**sentinel tags**](../../docs/public/concepts/glossary.md#a2ui-tag).
 
 ```python
 class DirectJsonFormatFactory(InferenceFormatFactory):

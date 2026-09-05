@@ -13,7 +13,7 @@ local_development:
 
 ## **Architecture & Ecosystem Map**
 
-The Angular-native adapter rendering visual components dynamically.
+The Angular-native [adapter](../../../../docs/public/concepts/glossary.md#fw-adapter) rendering visual [components](../../../../docs/public/concepts/glossary.md#genui-component) dynamically.
 
 - **Reactivity**: Maps multi-cast Observables and BehaviorSubjects directly into native Angular Signals.
 - **Context Nesting**: Uses Angular's hierarchical Dependency Injection (DI) system to propagate context scopes and relative pointer paths seamlessly.

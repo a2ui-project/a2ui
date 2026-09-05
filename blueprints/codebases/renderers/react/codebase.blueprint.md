@@ -13,7 +13,7 @@ local_development:
 
 ## **Architecture & Ecosystem Map**
 
-The reference React renderer for the A2UI ecosystem.
+The reference React [renderer](../../../../docs/public/concepts/glossary.md#a2ui-agent-and-a2ui-renderer) for the A2UI ecosystem.
 
 - **State Integration**: Uses standard React hooks to bridge and map Preact signals from the core layer.
 - **Context propagation**: Instantiates hierarchical context (`ComponentContext.Provider`) to propagate relative bindings recursively down visual nodes.

@@ -16,12 +16,12 @@ local_development:
 This is the reference TypeScript implementation of the A2UI Core State Layer (`a2ui_core`).
 
 - **Reactivity & Signaling**: Powered by `@preact/signals-core`. Standard multi-cast BehaviorSubjects and discrete EventEmitters coordinate state changes, allowing reactive updates to bubble and cascade efficiently.
-- **Validation & Parsing**: Employs `zod` for type-safe compile-time assertions and `zod-to-json-schema` to dynamically output compliant client capabilities.
+- **Validation & Parsing**: Employs `zod` for type-safe compile-time assertions and `zod-to-json-schema` to dynamically output compliant [client capabilities](../../../../docs/public/concepts/glossary.md#capabilities-object).
 - **Pathing**: Native string-based and array-based JSON Pointer resolver matching the custom relative and absolute data binding requirements.
 
 ## **Local Technical Decisions & Overrides**
 
-- **TypeScript Reflection**: We utilize Zod runtime reflection to implement the automated generic binder layer. This automatically resolves complex properties (such as `DynamicString` or action callbacks) into simple static native types, freeing renderers (React, Angular, Lit) from having to deal with raw subscription loops.
+- **TypeScript Reflection**: We utilize Zod runtime reflection to implement the automated generic binder layer. This automatically resolves complex properties (such as `DynamicString` or [action](../../../../docs/public/concepts/glossary.md#action) callbacks) into simple static native types, freeing [renderers](../../../../docs/public/concepts/glossary.md#a2ui-agent-and-a2ui-renderer) (React, Angular, Lit) from having to deal with raw subscription loops.
 - **State Partitioning**: State is segmented under `src/v0_9/state` and `src/v1_0/state` to support side-by-side protocol evolution while sharing utilities inside `src/common`.
 
 ## **Validation & Execution Recipes**
