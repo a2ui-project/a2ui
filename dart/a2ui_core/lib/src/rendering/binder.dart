@@ -17,6 +17,7 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import '../core/common.dart';
 import '../core/component_model.dart';
 import '../core/contexts.dart';
+import '../core/surface_model.dart';
 import '../primitives/reactivity.dart';
 
 /// Represents the intended runtime behavior of a property parsed from

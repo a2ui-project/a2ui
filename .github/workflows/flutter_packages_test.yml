@@ -79,7 +79,7 @@ jobs:
       - name: Check for cycles across packages
         run: |
           dart pub global activate layerlens
-          DIRS=$(find samples -name pubspec.yaml -not -path "*/.dart_tool/*" -not -path "*/e2e_test/*" -exec dirname {} \;)
+          DIRS=$(find samples dart -name pubspec.yaml -not -path "*/.dart_tool/*" -not -path "*/e2e_test/*" -exec dirname {} \;)
           for dir in $DIRS; do
             echo "Checking cycles in $dir..."
             (cd "$dir" && dart pub get && layerlens --fail-on-cycles)
