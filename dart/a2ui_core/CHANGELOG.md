@@ -4,8 +4,11 @@
 
 - **Breaking:** `MessageProcessor` validates messages as it processes them.
   A message that does not match its catalog now throws instead of being
-  applied. Added `processPayload` and an optional `validator` constructor
-  parameter.
+  applied. Added `processPayload`, and the `protocolVersion` and
+  `commonTypesSchema` constructor parameters that configure the validators it
+  builds. It keeps one validator per catalog, reachable through
+  `validatorFor`, and checks each surface against the catalog it was created
+  with rather than against every catalog the processor supports.
 - **Breaking:** `MessageProcessor` checks each batch of components as a graph
   against the surface it joins, so duplicate ids, references naming no
   component, cycles and over-deep chains now throw. References resolve against
@@ -34,11 +37,13 @@
 - Added `A2uiRendererCapabilities` and `A2uiVersionCapabilities`.
 - Added `A2uiValidator`, which validates a payload in three synchronous
   stages, and `A2uiValidator.commonTypesSchema`.
-- `A2uiValidator.validate`, `validateStructure` and `validateAgainstCatalogs`
-  take an optional `surfaceCatalogs` map naming the catalog each surface uses.
-  A payload that only updates a surface carries no catalog id, so without it a
-  validator holding several catalogs now throws `A2uiCatalogError` where it
-  previously skipped those components and reported the payload valid.
+- `A2uiValidator` is scoped to a single `catalog`, since a component belongs to
+  exactly one. A payload that only updates a surface carries no catalog id, so
+  a validator holding several catalogs could not tell which one applied and
+  skipped those components while reporting the payload valid. With one catalog
+  the question does not arise, and a payload creating a surface against any
+  other catalog throws `A2uiCatalogError`. Added
+  `A2uiValidator.parseMessagesFor`, which checks envelopes without a catalog.
 - The package now publishes the specification's `common_types.json` as
   `A2uiValidator.commonTypesFor`, and `commonTypesSchema` defaults to it, so
   the shared types are checked without the caller supplying the document.

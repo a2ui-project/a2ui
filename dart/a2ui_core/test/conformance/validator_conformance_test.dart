@@ -68,7 +68,7 @@ void _runCase(Map<String, Object?> testCase) {
     // A fresh validator per step, as the reference Python harness does: each
     // step is an independent payload, not a continuation of the previous one.
     final A2uiValidator<ComponentApi, FunctionApi> validator = A2uiValidator(
-      catalogs: _catalogsFor(catalogDocument, payload),
+      catalog: _catalogFor(catalogDocument, payload),
       commonTypesSchema: commonTypes,
     );
 
@@ -110,29 +110,28 @@ Map<String, Object?> _document(Object? value) {
   throw StateError('Case declares no catalog schema.');
 }
 
-/// Builds the catalogs a payload needs from the one document a case declares.
+/// Builds the catalog a payload is validated against from the one document a
+/// case declares.
 ///
 /// The suite's fixtures name the catalog `standard` in the document but `std`
-/// in the payloads that use it. A validator that indexes catalogs by id would
-/// reject those payloads outright, which is not what these cases are testing —
-/// they are about the component graph. So the document is registered under
-/// every id the payload actually names, and the unknown-catalog check keeps
-/// its own coverage in `validator_test.dart`.
-List<SchemaCatalog> _catalogsFor(
+/// in the payloads that use it. A validator checks that a `createSurface`
+/// names its own catalog, so the mismatch would reject those payloads
+/// outright, which is not what these cases are testing — they are about the
+/// component graph. So the document is taken under the id the payload names,
+/// and the wrong-catalog check keeps its own coverage in `validator_test.dart`.
+SchemaCatalog _catalogFor(
   Map<String, Object?> document,
   List<Map<String, Object?>> payload,
 ) {
-  final ids = <String>{document['catalogId'] as String? ?? 'standard'};
+  String id = document['catalogId'] as String? ?? 'standard';
   for (final envelope in payload) {
     final Object? body = envelope['createSurface'];
     if (body is Map<String, Object?> && body['catalogId'] is String) {
-      ids.add(body['catalogId']! as String);
+      id = body['catalogId']! as String;
+      break;
     }
   }
-  return [
-    for (final String id in ids)
-      Catalog.fromJson(<String, Object?>{...document, 'catalogId': id}),
-  ];
+  return Catalog.fromJson(<String, Object?>{...document, 'catalogId': id});
 }
 
 /// Matches the error a case expects, by category and message.
