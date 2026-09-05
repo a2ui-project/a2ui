@@ -111,7 +111,7 @@ Neither direction has a name today. They hide behind `format_content`, `response
 | `DirectJsonParser.has_format_content` | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L91) | `DirectJsonParser.has_model_to_agent_response` |
 | `DirectJsonParser.unwrap` | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L98) | `DirectJsonParser.unwrap_model_to_agent_response` |
 | `DirectJsonParser.process_chunk` | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L129) | `DirectJsonParser.process_model_to_agent_chunk` |
-| `A2uiRequestProcessor.examples`, `A2uiGenerator.examples` | [blueprint](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L518) | `A2uiRequestProcessor.agent_to_model_examples` |
+| `A2uiRequestProcessor.examples`, `A2uiGenerator.examples` | [blueprint](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L518) | `A2uiProcessor.agent_to_model_examples` |
 
 ### 4. Validators
 
@@ -129,13 +129,22 @@ Python declares `A2uiValidator` twice, once in a2ui_core and once in a2ui_agent,
 
 Leave alone: [`CatalogSchemaValidator`](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/validating/catalog_schema_validator.py#L42) and [`GraphTopologyValidator`](https://github.com/a2ui-project/a2ui/blob/main/swift/core/Sources/A2UICore/Validation/GraphTopologyValidator.swift#L19) validate catalog documents and component graphs, not envelopes, so no direction applies.
 
-### 5. Needs a decision, not a mechanical rename
+### 5. The agent facade, which spans every direction
 
-[`A2uiRequestProcessor`](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L565) spans three of the four envelopes: it renders the agent to model prompt, parses the model to agent output, and validates the agent to renderer result. No direction fits, so the mechanical rule above gives no answer. The misleading word is `Request`, which here means an inbound user request and not any A2UI envelope. Options are `A2uiTurnProcessor`, naming its scope rather than a direction, or splitting it along the three directions it serves.
+| Current | Declarations | Proposed |
+| :--- | :--- | :--- |
+| `A2uiRequestProcessor` | [blueprint](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L565) | `A2uiProcessor` |
+| `A2uiGenerator` | [blueprint](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L518) | unchanged |
 
-[`A2uiGenerator`](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L518) generates neither UI nor messages. It holds the agent's catalogs and hands out a processor per renderer capability signature. `A2uiCatalogRegistry` describes what it does.
+`A2uiRequestProcessor` touches three of the four envelopes: it renders the agent to model request, parses the model to agent response, and validates the agent to renderer response. No direction fits, so the rule above gives no answer, and any direction in the name would be a lie about two thirds of what the class does.
 
-Both are blueprint-only. Neither name appears in any implementation, so renaming them costs nothing today and settles the vocabulary before the python agent SDK grows into the specified shape.
+`Request` is the word to lose. It means an inbound user request here, which is not an A2UI envelope at all, and this proposal gives `Request` a precise second meaning: the renderer to agent and agent to model envelopes. A class named `...RequestProcessor` that processes neither is worse after this rename than before it.
+
+Dropping it leaves `A2uiProcessor`, and the `A2ui` prefix earns its place here for once. The Problem section above notes that the prefix does not help on envelope types, because every envelope is an A2UI envelope. This is not an envelope type. It is the facade over all four, so the prefix says exactly what is true of it and of nothing else. The absence of a direction becomes informative rather than vague: `AgentToRendererProcessor` handles one direction, `A2uiProcessor` handles them all, and the two names sit next to each other without either needing a footnote.
+
+`A2uiGenerator` stays as it is. The name is imprecise, since the class generates no UI and no messages, but it is a lifecycle object rather than anything on the wire, so no envelope word misleads a reader here. Renaming it would widen this proposal past the payload, message and request vocabulary it is meant to fix.
+
+Both are blueprint-only. Neither name appears in any implementation, so this rename costs nothing today and settles the vocabulary before the python agent SDK grows into the specified shape.
 
 ### Where the postfix does not fit
 
