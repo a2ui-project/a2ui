@@ -20,6 +20,7 @@ import '../core/messages.dart';
 import '../core/surface_group_model.dart';
 import '../core/surface_model.dart';
 import '../primitives/errors.dart';
+import '../primitives/protocol_version.dart';
 import '../validation/component_graph.dart';
 import '../validation/validator.dart';
 
@@ -36,49 +37,86 @@ import '../validation/validator.dart';
 /// Checks a batch against the surface it joins, which needs that state. For
 /// checking a payload on its own, before any surface exists, see
 /// [A2uiValidator.validate].
+///
+/// Validation is phased rather than a single pass: [processPayload] checks
+/// envelopes as it parses, a surface's theme is checked when the surface is
+/// created, and each batch of components is checked against its surface's
+/// catalog and against the surface's existing component graph as the batch
+/// arrives. The graph checks resolve references against what the surface
+/// already holds, which a payload-scoped validator cannot see, so an
+/// incremental update is checked rather than waved through. Each of those
+/// checks runs on the validator for that surface's catalog, from
+/// [validatorFor].
 class MessageProcessor<T extends ComponentApi> {
   final SurfaceGroupModel<T> groupModel;
   final List<Catalog<T, FunctionImplementation>> catalogs;
 
-  /// Validates messages as they are processed.
+  /// The protocol version this processor accepts, on envelopes and in the
+  /// validators it builds.
+  final A2uiProtocolVersion protocolVersion;
+
+  /// The shared `common_types.json` definitions the validators resolve
+  /// against.
   ///
-  /// Validation is phased rather than a single pass: [processPayload] checks
-  /// envelopes as it parses, [processMessages] checks a surface's theme when
-  /// the surface is created, and each batch of components against its
-  /// surface's catalog and against the surface's existing component graph as
-  /// the batch arrives. The graph checks resolve references against what the
-  /// surface already holds, which a payload-scoped validator cannot see, so an
-  /// incremental update is checked rather than waved through.
-  ///
-  /// Defaults to a validator over [catalogs], resolving the shared types
-  /// against the `common_types.json` this package publishes. Supply one to
-  /// configure it — to override that document, or to accept a different
-  /// protocol version.
-  final A2uiValidator<T, FunctionImplementation> validator;
+  /// Defaults to the copy this package publishes for [protocolVersion]; pass
+  /// a different document to override it, or an empty map to leave the shared
+  /// types unchecked.
+  final Map<String, Object?> commonTypesSchema;
+
+  /// One validator per catalog, built on first use.
+  final Map<String, A2uiValidator<T, FunctionImplementation>> _validators = {};
 
   MessageProcessor({
     required this.catalogs,
-    A2uiValidator<T, FunctionImplementation>? validator,
+    this.protocolVersion = A2uiProtocolVersion.v0_9,
+    Map<String, Object?>? commonTypesSchema,
     void Function(A2uiClientAction)? onAction,
-  }) : validator =
-           validator ??
-           A2uiValidator<T, FunctionImplementation>(catalogs: catalogs),
+  }) : commonTypesSchema =
+           commonTypesSchema ?? A2uiValidator.commonTypesFor(protocolVersion),
        groupModel = SurfaceGroupModel<T>() {
     if (onAction != null) {
       groupModel.onAction.addListener(onAction);
     }
   }
 
+  /// The validator for [catalog].
+  ///
+  /// A component belongs to exactly one catalog, so a validator is scoped to
+  /// one rather than handed the whole supported set: a processor that
+  /// supports several catalogs must not accept a component of one surface's
+  /// catalog on a surface created against another. Each surface records the
+  /// catalog it was created with, and every check below goes through the
+  /// validator for that catalog.
+  ///
+  /// Built once per catalog and reused. The validator caches resolved
+  /// component schemas, which a fresh instance per batch would rebuild on
+  /// every message.
+  A2uiValidator<T, FunctionImplementation> validatorFor(
+    Catalog<T, FunctionImplementation> catalog,
+  ) => _validators.putIfAbsent(
+    catalog.id,
+    () => A2uiValidator<T, FunctionImplementation>(
+      catalog: catalog,
+      commonTypesSchema: commonTypesSchema,
+      protocolVersion: protocolVersion,
+    ),
+  );
+
   /// Parses a raw payload, then processes it.
   ///
   /// Envelope validation happens here, as the payload is parsed: every message
-  /// must declare a protocol version this SDK implements and be a well-formed
-  /// message of it. Returns the parsed messages.
+  /// must declare a protocol version this SDK implements and carry exactly one
+  /// update type. Neither check needs a catalog, which is what lets a payload
+  /// be parsed before each message is matched to the surface, and so the
+  /// catalog, it belongs to. Returns the parsed messages.
   ///
-  /// Throws [A2uiValidationError] for a malformed envelope, before any message
-  /// reaches the models.
+  /// Throws [A2uiValidationError] for a malformed envelope, including one
+  /// mixing update types, before any message reaches the models.
   List<A2uiMessage> processPayload(List<Map<String, Object?>> payload) {
-    final List<A2uiMessage> messages = validator.parseMessages(payload);
+    final List<A2uiMessage> messages = A2uiValidator.parseMessagesFor(
+      payload,
+      protocolVersion: protocolVersion,
+    );
     processMessages(messages);
     return messages;
   }
@@ -115,7 +153,7 @@ class MessageProcessor<T extends ComponentApi> {
 
     // The theme arrives once, with the surface, so it is checked here rather
     // than on every later message.
-    validator.validateTheme(message.theme, catalog);
+    validatorFor(catalog).validateTheme(message.theme);
 
     final surface = SurfaceModel<T>(
       message.surfaceId,
@@ -159,7 +197,7 @@ class MessageProcessor<T extends ComponentApi> {
       // that names none is an update to one this surface already holds, which
       // the catalog was consulted for when it first arrived.
       if (type != null) {
-        validator.validateComponent(compJson, surface.catalog);
+        validatorFor(surface.catalog).validateComponent(compJson);
       }
     }
 
@@ -168,13 +206,12 @@ class MessageProcessor<T extends ComponentApi> {
     // and over-deep chains. Resolving against the surface is what a
     // payload-scoped validator cannot do, so an incremental update is checked
     // here rather than waved through.
-    validator.validateComponentBatch(
+    validatorFor(surface.catalog).validateComponentBatch(
       [
         for (final Map<String, dynamic> c in message.components)
           c.cast<String, Object?>(),
       ],
       [for (final ComponentModel c in surface.componentsModel.all) c.toJson()],
-      surface.catalog,
     );
 
     // Data-model paths and nested function calls, which need no surface state.

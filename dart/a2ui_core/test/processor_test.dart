@@ -20,9 +20,83 @@ import 'package:a2ui_core/src/core/minimal_catalog.dart';
 import 'package:a2ui_core/src/core/surface_model.dart';
 import 'package:a2ui_core/src/primitives/errors.dart';
 import 'package:a2ui_core/src/processing/processor.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('MessageProcessor catalog scope', () {
+    Catalog<ComponentApi, FunctionImplementation> namedCatalog(
+      String id,
+      String component,
+    ) => Catalog<ComponentApi, FunctionImplementation>(
+      id: id,
+      components: [
+        ComponentApi(
+          name: component,
+          schema: Schema.object(
+            properties: {
+              'id': Schema.string(),
+              'component': Schema.string(),
+              'a': Schema.string(),
+            },
+            required: ['component', 'a'],
+            additionalProperties: false,
+          ),
+        ),
+      ],
+    );
+
+    late MessageProcessor<ComponentApi> processor;
+
+    setUp(() {
+      processor = MessageProcessor<ComponentApi>(
+        catalogs: [namedCatalog('cat1', 'Alpha'), namedCatalog('cat2', 'Beta')],
+      );
+      processor.processMessages([
+        CreateSurfaceMessage(surfaceId: 's1', catalogId: 'cat1'),
+        CreateSurfaceMessage(surfaceId: 's2', catalogId: 'cat2'),
+      ]);
+    });
+
+    void update(String surfaceId, String component) =>
+        processor.processMessages([
+          UpdateComponentsMessage(
+            surfaceId: surfaceId,
+            components: [
+              {'id': 'root', 'component': component, 'a': 'x'},
+            ],
+          ),
+        ]);
+
+    test('checks each surface against the catalog it was created with', () {
+      // A processor supports several catalogs at once, but a component belongs
+      // to exactly one. Each surface is checked against its own catalog, not
+      // against the union of everything the processor supports.
+      expect(() => update('s1', 'Alpha'), returnsNormally);
+      expect(() => update('s2', 'Beta'), returnsNormally);
+    });
+
+    test('rejects a component from another surface\'s catalog', () {
+      expect(() => update('s1', 'Beta'), throwsA(isA<A2uiValidationError>()));
+      expect(() => update('s2', 'Alpha'), throwsA(isA<A2uiValidationError>()));
+    });
+
+    test('builds one validator per catalog and reuses it', () {
+      final Catalog<ComponentApi, FunctionImplementation> cat1 =
+          processor.catalogs.first;
+      expect(processor.validatorFor(cat1).catalog.id, 'cat1');
+      expect(
+        processor.validatorFor(cat1),
+        same(processor.validatorFor(cat1)),
+        reason: 'resolved component schemas are cached on the validator',
+      );
+      expect(
+        processor.validatorFor(processor.catalogs.last).catalog.id,
+        'cat2',
+      );
+    });
+  });
+
   group('MessageProcessor', () {
     late MinimalCatalog catalog;
     late MessageProcessor processor;
@@ -168,6 +242,29 @@ void main() {
           },
         ]),
         throwsA(isA<A2uiValidationError>()),
+      );
+      expect(processor.groupModel.getSurface('s1'), isNull);
+    });
+
+    test('processPayload rejects an envelope mixing update types', () {
+      // An envelope carries exactly one update type. Two of them name no
+      // single surface, so the message cannot be matched to the catalog its
+      // components must be checked against.
+      expect(
+        () => processor.processPayload([
+          {
+            'version': 'v0.9',
+            'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
+            'updateComponents': {'surfaceId': 's2', 'components': <Object?>[]},
+          },
+        ]),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('exactly one of'),
+          ),
+        ),
       );
       expect(processor.groupModel.getSurface('s1'), isNull);
     });

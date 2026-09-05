@@ -444,7 +444,7 @@ agentProcessor.processMessages(generatedLlmPayloadMessages);
 | Execution Aspect              | Renderer                                                                                                          | Agent                                                                    |
 | :---------------------------- | :---------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------- |
 | **Architectural Role**        | Processes inbound messages and updates surface state.                                                             | Optional helper for checking and converting outbound messages.           |
-| **`catalogs` Parameter**      | Passes all renderer-supported catalogs (`catalogs: [catA, catB]`).                                                | Passes single negotiated catalog (`catalogs: [negotiatedCatalog]`).      |
+| **`catalogs` Parameter**      | Passes all renderer-supported catalogs (`catalogs: [catA, catB]`), one validator built per catalog.               | Passes single negotiated catalog (`catalogs: [negotiatedCatalog]`).      |
 | **`actionHandler` Parameter** | UI event callback (`actionHandler: onUiEvent`).                                                                   | Omitted or `undefined` (`actionHandler: undefined`).                     |
 | **Catalog Compliance**        | Matches `createSurface.catalogId` and component/function `catalogId` overrides against renderer's supported list. | Fails if LLM generates payload referencing un-negotiated catalog.        |
 | **Primary Goal**              | Maintains live view models and routes user action events.                                                         | Verifies LLM-generated payloads and data path references before sending. |
@@ -464,9 +464,12 @@ export interface ValidationConfig {
   allowedMessages?: string[];
 }
 
-/** Stateless validator executing envelope structure, component property schema, theme schema, and path syntax checks. */
+/** Stateless validator executing envelope structure, component property schema, theme schema, and path syntax checks. Scoped to a single catalog. */
 export class A2uiValidator {
-  constructor(catalogs: Catalog<any, any>[], validationConfig?: ValidationConfig);
+  constructor(catalog: Catalog<any, any>, validationConfig?: ValidationConfig);
+
+  /** Parses envelopes without a catalog: version tag and single update type. */
+  static parseMessages(payload: object[], targetVersion?: string): AgentToRendererMessage[];
 
   /** Single public entry point: performs catalog property schema validation. */
   validate(messages: AgentToRendererMessage[]): void;
@@ -482,18 +485,37 @@ export class A2uiValidator {
 }
 ```
 
+#### Catalog Scope
+
+Scope every validator to a single catalog. Take that catalog in the constructor and check every component against it.
+
+Raise `A2uiCatalogError` from `validate` and `validateStructure` when a payload creates a surface against any other catalog.
+
+Expose envelope parsing without a catalog: the protocol version tag and the single-update-type rule read no catalog, so parsing must not require one.
+
+In `MessageProcessor`:
+
+* Build one validator per supported catalog. Build each on first use and reuse it, so resolved component schemas are cached across messages.
+* Record the catalog on the `SurfaceModel` when the surface is created.
+* Parse the payload first, without a catalog, then dispatch each message to the validator for its surface's catalog.
+* Check each surface against the catalog it was created with, never against the full supported set.
+
+In an agent, pass the negotiated catalog.
+
 #### Validation Implementation Matrix
 
 The matrix below details the specific validation checks, their responsible component/method in `a2ui_core`, and the specific error class raised upon failure:
 
 | Validation Category      | Specific Validation Check                                                                         | Responsible Component / Implementation                                    | Raised Error Type     |
 | :----------------------- | :------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------ | :-------------------- |
-| **Protocol Envelope**    | Single update type per message (`createSurface`, `updateComponents`, etc.)                        | `A2uiValidator` (Zod envelope schema)                                     | `A2uiValidationError` |
-| **Protocol Envelope**    | Valid `version` tag (`v0.8`, `v0.9`, `v1.0`) & required envelope keys                             | `A2uiValidator` (Zod envelope schema)                                     | `A2uiValidationError` |
+| **Protocol Envelope**    | Single update type per message (`createSurface`, `updateComponents`, etc.)                        | `A2uiValidator.parseMessages()` (envelope schema, no catalog needed)      | `A2uiValidationError` |
+| **Protocol Envelope**    | Valid `version` tag (`v0.8`, `v0.9`, `v1.0`) & required envelope keys                             | `A2uiValidator.parseMessages()` (envelope schema, no catalog needed)      | `A2uiValidationError` |
 | **Surface Lifecycle**    | Surface non-existence on `createSurface` (no duplicates)                                          | `MessageProcessor.processCreateSurface()` (`SurfaceGroupModel`)           | `A2uiIntegrityError`  |
 | **Surface Lifecycle**    | Surface existence on `updateComponents`, `updateDataModel`, `deleteSurface`                       | `MessageProcessor.processUpdateComponents()` / `processUpdateDataModel()` | `A2uiIntegrityError`  |
 | **Catalog Negotiation**  | `createSurface.catalogId` and component/function `catalogId` match negotiated renderer capability | `new MessageProcessor({ catalogs: [negotiatedCatalog] })`                 | `A2uiCatalogError`    |
 | **Catalog Resolution**   | `createSurface.catalogId` and component/function `catalogId` exist in supported catalogs list     | `MessageProcessor.processCreateSurface()`                                 | `A2uiCatalogError`    |
+| **Catalog Scope**        | `createSurface.catalogId` matches the catalog the validator is scoped to                          | `A2uiValidator.validate()` / `validateStructure()`                        | `A2uiCatalogError`    |
+| **Catalog Scope**        | Components checked against their own surface's catalog, not the supported set                     | `MessageProcessor.validatorFor(surface.catalog)`                          | `A2uiValidationError` |
 | **Component Keys**       | Required `id` and `component` (type name) on creation                                             | `A2uiValidator` (Zod envelope schema)                                     | `A2uiValidationError` |
 | **Component Properties** | Property schema validation against catalog definition                                             | `A2uiValidator(CatalogSchemaValidator.validateComponents())`              | `A2uiValidationError` |
 | **Theme / Properties**   | `Theme` / `surfaceProperties` validation against catalog schema                                   | `A2uiValidator(CatalogSchemaValidator.validateSurfaceProperties())`       | `A2uiValidationError` |
