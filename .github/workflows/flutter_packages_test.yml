@@ -82,7 +82,7 @@ jobs:
           DIRS=$(find samples -name pubspec.yaml -not -path "*/.dart_tool/*" -not -path "*/e2e_test/*" -exec dirname {} \;)
           for dir in $DIRS; do
             echo "Checking cycles in $dir..."
-            (cd "$dir" && dart pub get && layerlens --fail-on-cycles --except "lib/src/schema")
+            (cd "$dir" && dart pub get && layerlens --fail-on-cycles)
           done
 
   analyze_and_test:
