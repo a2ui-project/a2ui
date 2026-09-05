@@ -6,7 +6,7 @@
 
 1. A2UI protocol enables interaction between **agent** and **renderer**.  
      
-2. A2UI SDK consists of the packages: a2ui_core, a2ui_agent, a2ui_renderer.
+2. A2UI SDK consists of the packages, implemented in multiple languages: a2ui_core, a2ui_agent, a2ui_renderer.
 
 3. The packages are specified by language-agnostic [blueprints](https://github.com/a2ui-project/a2ui/tree/main/blueprints/modules).
 
@@ -121,14 +121,13 @@ Python splits the union into [`A2uiClientActionMessage`](https://github.com/a2ui
 
 ### 3. Agent to model request, model to agent response
 
-Neither direction has a name today. They hide behind [`format_content`](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L110), [`unwrap_response`](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L28) and [`examples`](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L518). No enclosing type carries the direction, so these names spell it out in full.
+Neither direction has a name today. Model output arrives as `content` in [`unwrap_response`](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L28) and [`unwrap`](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L98), and as `chunk` in [`process_chunk`](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L129). Prompt examples travel as [`examples`](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L518). No enclosing type carries the direction, so these names spell it out in full.
 
 All of this is python only. No other agent SDK implements these directions. [`compile`](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L109) and [`decompile`](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L144) already say what they do, so they are not listed.
 
 | Current | Declarations | Proposed |
 | :--- | :--- | :--- |
 | `unwrap_response` (module level) | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L28) | `unwrap_model_to_agent_response` (module level) |
-| `DirectJsonParser.has_format_content` | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L91) | `DirectJsonParser.has_model_to_agent_response` |
 | `DirectJsonParser.unwrap` | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L98) | `DirectJsonParser.unwrap_model_to_agent_response` |
 | `DirectJsonParser.process_chunk` | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L129) | `DirectJsonParser.process_model_to_agent_chunk` |
 | `A2uiRequestProcessor.examples`, `A2uiGenerator.examples` | [blueprint](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L518) | `A2uiProcessor.agent_to_model_examples` |
