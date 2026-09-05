@@ -92,11 +92,19 @@ The envelopes [`createSurface`](https://github.com/a2ui-project/a2ui/blob/main/d
 | `Parser.decompile(a2ui_payload)` | [blueprint](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L283) | `Parser.decompile(agent_to_renderer_responses)` |
 | `InferenceFormat.generate_system_prompt(allowed_messages)`, `DirectJsonPromptGenerator.generate(allowed_messages)` | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_format.py#L52), [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/prompt_generator.py#L45) | `InferenceFormat.generate_system_prompt(allowed_response_types)`, `DirectJsonPromptGenerator.generate(allowed_response_types)` |
 
+**`CreateSurfaceMessage` and the other variants -> unchanged:**
+
 [`CreateSurfaceMessage`](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/core/messages.dart#L175), [`UpdateComponentsMessage`](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/core/messages.dart#L202), [`UpdateDataModelMessage`](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/core/messages.dart#L220) and [`DeleteSurfaceMessage`](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/core/messages.dart#L244) keep their names. Each already says what it is, and each is only ever agent to renderer.
+
+**`ServerToClientMessage` and `A2uiMessage` -> `AgentToRendererResponse`:**
 
 Swift calls the union [`ServerToClientMessage`](https://github.com/a2ui-project/a2ui/blob/main/swift/core/Sources/A2UICore/Messages/ServerToClientMessage.swift#L21). Dart, ts and python call it [`A2uiMessage`](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/core/messages.dart#L19). So one type needs two different renames.
 
+**Elements that exist in one language only:**
+
 [`processPayload`](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/processing/processor.dart#L115) and [`parseMessagesFor`](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/validation/validator.dart#L213) exist in dart only. Swift spells [`processMessages`](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/processing/processor.dart#L125) as [`process(messages:)`](https://github.com/a2ui-project/a2ui/blob/main/swift/core/Sources/A2UICore/Processing/MessageProcessor.swift#L289). [`a2ui_payload`](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L283) appears in the blueprint but in no implementation.
+
+**`server_to_client.json` -> out of scope:**
 
 The v0.9 schema files behind these types are published, so they are not listed.
 
@@ -115,7 +123,11 @@ The v0.9 schema files behind these types are published, so they are not listed.
 | `MessageProcessor.getClientCapabilities` | [dart](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/processing/processor.dart#L258), [ts](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/processing/message-processor.ts#L127), [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/processing/message_processor.py#L62) | `AgentToRendererProcessor.getRendererCapabilities` |
 | `MessageProcessor.getClientDataModel` | [dart](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/processing/processor.dart#L354), [ts](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/processing/message-processor.ts#L238), [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/processing/message_processor.py#L83) | `AgentToRendererProcessor.getRendererDataModel` |
 
+**`getClientCapabilities` -> `getRendererCapabilities`:**
+
 The capabilities rename is half done. Dart already has [`A2uiRendererCapabilities`](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/core/renderer_capabilities.dart#L93), but the v0.9 schema file it reads is still [`client_capabilities.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v0_9/json/client_capabilities.json). That file is published and cannot change, so only the accessors appear above.
+
+**`A2uiClientActionMessage` and `A2uiClientErrorMessage` -> `RendererToAgentAction`:**
 
 Python splits the union into [`A2uiClientActionMessage`](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/schema/client_to_server.py#L91) and [`A2uiClientErrorMessage`](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/schema/client_to_server.py#L96). Ts and dart carry the action alone. So these entries reach `RendererToAgentAction` differently in each language.
 
@@ -142,17 +154,23 @@ All of this is python only. No other agent SDK implements these directions. [`co
 | `ValidationConfig` | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/validating/validator.py#L44), [swift](https://github.com/a2ui-project/a2ui/blob/main/swift/core/Sources/A2UICore/Validation/ValidationConfig.swift#L16) | `AgentToRendererValidationConfig` |
 | `A2uiValidationError` (wire) | [ts](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/schema/client-to-server.ts#L42), [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/schema/client_to_server.py#L52) | `RendererToAgentValidationError` |
 
-That row is a name collision, not just a vague name. `A2uiValidationError` means two different things in both ts and python.
+**`A2uiValidationError` -> `RendererToAgentValidationError`:**
+
+This is a name collision, not just a vague name. `A2uiValidationError` means two different things in both ts and python.
 
 It is a thrown error class, in [`errors.ts`](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/errors.ts#L50) and [`exceptions.py`](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/exceptions.py#L48). It is also the wire shape a renderer sends an agent to report a validation failure. Same name, same package, opposite directions.
 
 The thrown class keeps its name, so renaming the wire model is what tells them apart.
 
+**`A2uiValidator` -> `AgentToRendererValidator`:**
+
 Python declares `A2uiValidator` twice, in [a2ui_core](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/validating/validator.py#L40) and in [a2ui_agent](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/validation/validator.py#L267). The agent file also has [`A2uiValidatorWrapper`](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/validation/validator.py#L66) and [`A2uiValidatorWrapperV10`](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/validation/validator.py#L91). Whether those merge is a separate question.
 
 Web_core has no validator class, because ts validates through zod schemas. Kotlin's validator lives in [`agent_sdk_legacy`](https://github.com/a2ui-project/a2ui/blob/main/kotlin/agent_sdk_legacy/src/main/kotlin/com/google/a2ui/schema/Validator.kt#L45).
 
-Leave [`CatalogSchemaValidator`](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/validating/catalog_schema_validator.py#L42) and [`GraphTopologyValidator`](https://github.com/a2ui-project/a2ui/blob/main/swift/core/Sources/A2UICore/Validation/GraphTopologyValidator.swift#L19) alone. They validate catalog documents and component graphs, not envelopes, so no direction applies.
+**`CatalogSchemaValidator` and `GraphTopologyValidator` -> unchanged:**
+
+[`CatalogSchemaValidator`](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/validating/catalog_schema_validator.py#L42) and [`GraphTopologyValidator`](https://github.com/a2ui-project/a2ui/blob/main/swift/core/Sources/A2UICore/Validation/GraphTopologyValidator.swift#L19) validate catalog documents and component graphs, not envelopes. No direction applies, so they stay as they are.
 
 ### 5. The agent facade, which spans every direction
 
@@ -160,6 +178,8 @@ Leave [`CatalogSchemaValidator`](https://github.com/a2ui-project/a2ui/blob/main/
 | :--- | :--- | :--- |
 | `A2uiRequestProcessor` | [blueprint](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L565) | `A2uiProcessor` |
 | `A2uiGenerator` | [blueprint](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L518) | unchanged |
+
+**`A2uiRequestProcessor` -> `A2uiProcessor`:**
 
 [`A2uiRequestProcessor`](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L565) touches three of the four envelopes. It renders the agent to model request, parses the model to agent response, and validates the agent to renderer response. No direction fits all three, so the rule above gives no answer.
 
@@ -171,11 +191,15 @@ That leaves `A2uiProcessor`. The `A2ui` prefix works here, even though the Probl
 
 The missing direction then reads as information. `AgentToRendererProcessor` handles one direction. `A2uiProcessor` handles all of them.
 
-[`A2uiGenerator`](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L518) stays. The name is imprecise, since the class generates no UI and no messages. But it is a lifecycle object, not anything on the wire, so no envelope word misleads a reader.
+**`A2uiGenerator` -> unchanged:**
+
+[`A2uiGenerator`](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L518) is imprecise: the class generates no UI and no messages. But it is a lifecycle object, not anything on the wire, so no envelope word misleads a reader.
 
 Renaming it would take this proposal past the payload, message and request problem it is meant to fix.
 
-Both names live in the blueprint only. Neither appears in any implementation, so this rename costs nothing today. It settles the vocabulary before the python agent SDK is built to the specified shape.
+**Neither name is implemented yet:**
+
+Both are blueprint-only, so this rename costs nothing today. It settles the vocabulary before the python agent SDK is built to the specified shape.
 
 ### Where the postfix does not fit
 
