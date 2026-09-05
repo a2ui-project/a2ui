@@ -79,11 +79,18 @@ class _SurfacePayload {
   }
 }
 
-/// Validates A2UI payloads against the protocol schemas and a set of catalogs.
+/// Validates A2UI payloads against the protocol schemas and one catalog.
 ///
 /// Lives in `a2ui_core` because renderers and agents validate the same
 /// payloads against the same catalogs. Implements v0.9 only: [checkVersion]
 /// and [parseMessages] reject any other version, or none.
+///
+/// A validator is scoped to a single [catalog], because a component belongs to
+/// exactly one. A renderer supports several catalogs at once, but each surface
+/// is created against one of them, so `MessageProcessor` keeps a validator per
+/// catalog and reaches for the one the surface was created with. An agent
+/// negotiates a catalog before it generates anything, so agent-side there is
+/// one to begin with.
 ///
 /// Both sides, agent and renderer, are meant to use it, through different
 /// entry points. [validate] checks a payload on its own, which is what an
@@ -98,7 +105,7 @@ class _SurfacePayload {
 ///
 /// Validation runs in three stages, which [validate] performs in order:
 /// [parseMessages] checks envelopes, [validateStructure] checks the component
-/// graph, and [validateAgainstCatalogs] checks each component against its
+/// graph, and [validateAgainstCatalogs] checks each component against the
 /// catalog's schema.
 ///
 /// A payload that creates a surface is a full render: it must declare a
@@ -108,8 +115,12 @@ class _SurfacePayload {
 /// components the client already holds; duplicate ids, self-references and
 /// cycles still fail.
 class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
-  /// The catalogs payloads are validated against, keyed by catalog id.
-  final Map<String, Catalog<C, F>> catalogs;
+  /// The catalog payloads are validated against.
+  ///
+  /// Every component a payload declares is checked against this catalog. A
+  /// payload that creates a surface against a different one is rejected
+  /// rather than skipped, so nothing passes unchecked.
+  final Catalog<C, F> catalog;
 
   /// The protocol version this validator accepts.
   final A2uiProtocolVersion protocolVersion;
@@ -124,18 +135,17 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
   /// map to leave the shared types unchecked.
   final Map<String, Object?> commonTypesSchema;
 
-  /// Child-referencing properties per catalog id, derived on first use.
-  final Map<String, Map<String, ComponentRefFields>> _refFields = {};
+  /// Child-referencing properties of [catalog], derived on first use.
+  Map<String, ComponentRefFields>? _refFields;
 
-  /// Component schemas with their `$ref`s inlined, keyed by catalog id.
-  final Map<String, Map<String, Schema>> _resolvedComponents = {};
+  /// [catalog]'s component schemas with their `$ref`s inlined, on first use.
+  Map<String, Schema>? _resolvedComponents;
 
   A2uiValidator({
-    List<Catalog<C, F>> catalogs = const [],
+    required this.catalog,
     Map<String, Object?>? commonTypesSchema,
     this.protocolVersion = A2uiProtocolVersion.v0_9,
-  }) : catalogs = {for (final Catalog<C, F> c in catalogs) c.id: c},
-       commonTypesSchema = commonTypesSchema ?? commonTypesFor(protocolVersion);
+  }) : commonTypesSchema = commonTypesSchema ?? commonTypesFor(protocolVersion);
 
   /// The `common_types.json` document this package publishes for [version].
   ///
@@ -156,10 +166,10 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
   /// implement.
   factory A2uiValidator.forVersion(
     Object? version, {
-    List<Catalog<C, F>> catalogs = const [],
+    required Catalog<C, F> catalog,
     Map<String, Object?>? commonTypesSchema,
   }) => A2uiValidator<C, F>(
-    catalogs: catalogs,
+    catalog: catalog,
     commonTypesSchema: commonTypesSchema,
     protocolVersion: A2uiProtocolVersion.fromJson(version),
   );
@@ -187,10 +197,36 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
   ///
   /// Throws [A2uiValidationError] for any envelope that is not a well-formed
   /// message of the accepted version.
-  List<A2uiMessage> parseMessages(List<Map<String, Object?>> payload) {
+  List<A2uiMessage> parseMessages(List<Map<String, Object?>> payload) =>
+      parseMessagesFor(payload, protocolVersion: protocolVersion);
+
+  /// Parses payload envelopes into typed messages, without a catalog.
+  ///
+  /// An envelope declares its protocol version and exactly one update type;
+  /// neither depends on a catalog. A caller holding several catalogs — a
+  /// renderer, through `MessageProcessor` — therefore parses a payload before
+  /// it knows which surface, and so which catalog, each message belongs to.
+  ///
+  /// Throws [A2uiValidationError] for any envelope that is not a well-formed
+  /// message of [protocolVersion], including one carrying more than a single
+  /// update type.
+  static List<A2uiMessage> parseMessagesFor(
+    List<Map<String, Object?>> payload, {
+    A2uiProtocolVersion protocolVersion = A2uiProtocolVersion.v0_9,
+  }) {
     final messages = <A2uiMessage>[];
     for (final envelope in payload) {
-      checkVersion(envelope);
+      final A2uiProtocolVersion version = A2uiProtocolVersion.fromJson(
+        envelope['version'],
+        details: envelope,
+      );
+      if (version != protocolVersion) {
+        throw A2uiValidationError(
+          "Payload declares version '${version.jsonValue}' but this validator "
+          "accepts only '${protocolVersion.jsonValue}'.",
+          details: envelope,
+        );
+      }
       messages.add(A2uiMessage.fromJson(Map<String, dynamic>.from(envelope)));
     }
     return messages;
@@ -202,10 +238,8 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
   /// Throws [A2uiIntegrityError] for graph defects, [A2uiRecursionError] for
   /// cycles and depth overruns, and [A2uiValidationError] for a malformed
   /// data-model path.
-  void validateStructure(
-    List<A2uiMessage> messages, {
-    Map<String, String> surfaceCatalogs = const {},
-  }) {
+  void validateStructure(List<A2uiMessage> messages) {
+    _checkDeclaredCatalogs(messages);
     for (final message in messages) {
       checkPathsAndRecursion(message.toJson());
       // Two components sharing an id in one message contradict each other.
@@ -221,18 +255,12 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
       }
     }
 
-    for (final MapEntry<String, _SurfacePayload> entry in _groupBySurface(
-      messages,
-    ).entries) {
-      final _SurfacePayload surface = entry.value;
+    for (final _SurfacePayload surface in _groupBySurface(messages).values) {
       if (surface.components.isEmpty) continue;
 
-      final Map<String, ComponentRefFields> refFields = _refFieldsFor(
-        _catalogFor(entry.key, surface, surfaceCatalogs),
-      );
       checkComponentIntegrity(
         surface.components,
-        refFields,
+        _catalogRefFields,
         requireRoot: surface.created,
         // A payload that creates the surface must satisfy every reference
         // itself. One that does not cannot know what the client already
@@ -241,37 +269,28 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
       );
       checkComponentTopology(
         surface.components,
-        refFields,
+        _catalogRefFields,
         requireRoot: surface.created,
         allowOrphans: !surface.isSingleRender,
       );
     }
   }
 
-  /// Checks each component and function call against its surface's catalog.
+  /// Checks each component and function call against [catalog].
   ///
-  /// Throws [A2uiCatalogError] if a message names a catalog this validator
-  /// does not hold, and [A2uiValidationError] for schema violations.
+  /// Throws [A2uiCatalogError] if the payload creates a surface against a
+  /// catalog other than this validator's, and [A2uiValidationError] for schema
+  /// violations.
   ///
   /// A surface the payload only updates carries no catalog id, because v0.9
-  /// declares one on `createSurface` alone. Name it in [surfaceCatalogs],
-  /// keyed by surface id; a caller that sent the `createSurface` knows it.
-  /// Without it, a validator holding one catalog uses that catalog and one
-  /// holding several throws rather than leave the components unchecked.
-  void validateAgainstCatalogs(
-    List<A2uiMessage> messages, {
-    Map<String, String> surfaceCatalogs = const {},
-  }) {
-    final Map<String, _SurfacePayload> surfaces = _groupBySurface(messages);
-
-    for (final MapEntry<String, _SurfacePayload> entry in surfaces.entries) {
-      final Catalog<C, F> catalog = _catalogFor(
-        entry.key,
-        entry.value,
-        surfaceCatalogs,
-      );
-      for (final Map<String, Object?> component in entry.value.components) {
-        validateComponent(component, catalog);
+  /// declares one on `createSurface` alone. That used to leave the catalog
+  /// ambiguous; scoping the validator to one settles it, so an incremental
+  /// payload is checked rather than skipped.
+  void validateAgainstCatalogs(List<A2uiMessage> messages) {
+    _checkDeclaredCatalogs(messages);
+    for (final _SurfacePayload surface in _groupBySurface(messages).values) {
+      for (final Map<String, Object?> component in surface.components) {
+        validateComponent(component);
       }
     }
   }
@@ -280,13 +299,10 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
   /// schemas.
   ///
   /// Returns the parsed messages, and throws as the individual steps do.
-  List<A2uiMessage> validate(
-    List<Map<String, Object?>> payload, {
-    Map<String, String> surfaceCatalogs = const {},
-  }) {
+  List<A2uiMessage> validate(List<Map<String, Object?>> payload) {
     final List<A2uiMessage> messages = parseMessages(payload);
-    validateStructure(messages, surfaceCatalogs: surfaceCatalogs);
-    validateAgainstCatalogs(messages, surfaceCatalogs: surfaceCatalogs);
+    validateStructure(messages);
+    validateAgainstCatalogs(messages);
     return messages;
   }
 
@@ -311,12 +327,10 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
   void validateComponentBatch(
     List<Map<String, Object?>> incoming,
     List<Map<String, Object?>> existing,
-    Catalog<C, F> catalog,
   ) {
-    final Map<String, ComponentRefFields> refFields = _refFieldsFor(catalog);
     checkComponentIntegrity(
       incoming,
-      refFields,
+      _catalogRefFields,
       // The root may arrive in a later message, so its absence is not an
       // error at this point; the surface is not yet claimed to be complete.
       requireRoot: false,
@@ -327,7 +341,7 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
     );
     checkComponentTopology(
       [...existing, ...incoming],
-      refFields,
+      _catalogRefFields,
       requireRoot: false,
       // A component left unreachable by an update is the residue of a
       // replacement rather than a defect.
@@ -346,7 +360,7 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
   ///
   /// Throws [A2uiValidationError] if the theme does not match the schema.
   @internal
-  void validateTheme(Map<String, Object?>? theme, Catalog<C, F> catalog) {
+  void validateTheme(Map<String, Object?>? theme) {
     final Schema? schema = catalog.themeSchema;
     if (schema == null || theme == null) return;
 
@@ -370,10 +384,7 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
   /// Throws [A2uiValidationError] if the component names no type, names one
   /// the catalog does not declare, or does not match its schema.
   @internal
-  void validateComponent(
-    Map<String, Object?> component,
-    Catalog<C, F> catalog,
-  ) {
+  void validateComponent(Map<String, Object?> component) {
     final Object? type = component['component'];
     if (type is! String) {
       throw A2uiValidationError(
@@ -381,7 +392,7 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
         details: component,
       );
     }
-    final Schema? schema = _resolvedComponentSchemas(catalog)[type];
+    final Schema? schema = _resolvedComponentSchemas[type];
     if (schema == null) {
       throw A2uiValidationError(
         "Catalog '${catalog.id}' declares no component named '$type'.",
@@ -425,60 +436,46 @@ class A2uiValidator<C extends ComponentApi, F extends FunctionApi> {
     return surfaces;
   }
 
-  /// The catalog a surface's components belong to, when it can be determined.
-  /// The catalog a surface's components are checked against.
+  /// Checks that every `createSurface` in [messages] names [catalog].
   ///
-  /// Settled in order: the id the payload declares on `createSurface`, then
-  /// the id [surfaceCatalogs] gives for a surface the payload only updates,
-  /// then the sole catalog when this validator holds one.
+  /// A validator holds one catalog, so a surface created against another one
+  /// cannot be checked here at all. Rejecting the payload is the honest
+  /// answer: skipping those components would report it valid when nothing had
+  /// looked at them. A renderer supporting several catalogs reaches the right
+  /// validator through `MessageProcessor`, which knows the catalog each
+  /// surface was created with.
   ///
-  /// Throws [A2uiCatalogError] when none of those settles it. Skipping the
-  /// surface instead would report a payload valid that nothing had checked.
-  Catalog<C, F> _catalogFor(
-    String surfaceId,
-    _SurfacePayload surface,
-    Map<String, String> surfaceCatalogs,
-  ) {
-    final String? declared = surface.catalogId ?? surfaceCatalogs[surfaceId];
-    if (declared != null) {
-      final Catalog<C, F>? catalog = catalogs[declared];
-      if (catalog != null) return catalog;
+  /// Throws [A2uiCatalogError] for a surface created against another catalog.
+  void _checkDeclaredCatalogs(List<A2uiMessage> messages) {
+    for (final message in messages) {
+      if (message is! CreateSurfaceMessage) continue;
+      if (message.catalogId == catalog.id) continue;
       throw A2uiCatalogError(
-        "Unknown catalog '$declared'. This validator holds: "
-        '${catalogs.keys.join(', ')}.',
-        catalogId: declared,
+        "Surface '${message.surfaceId}' is created against catalog "
+        "'${message.catalogId}', but this validator is scoped to "
+        "'${catalog.id}'.",
+        catalogId: message.catalogId,
       );
     }
-    if (catalogs.length == 1) return catalogs.values.first;
-    throw A2uiCatalogError(
-      "Cannot tell which catalog surface '$surfaceId' uses: the payload does "
-      'not create it, so it carries no catalog id, and this validator holds '
-      '${catalogs.length} catalogs. Pass surfaceCatalogs to name it, or use '
-      'MessageProcessor, which tracks the catalog each surface was created '
-      'with.',
-    );
   }
 
-  Map<String, ComponentRefFields> _refFieldsFor(Catalog<C, F>? catalog) {
-    if (catalog == null) return const {};
-    return _refFields.putIfAbsent(
-      catalog.id,
-      () => extractComponentRefFields(catalog),
-    );
-  }
+  Map<String, ComponentRefFields> get _catalogRefFields =>
+      _refFields ??= extractComponentRefFields(catalog);
 
-  Map<String, Schema> _resolvedComponentSchemas(Catalog<C, F> catalog) =>
-      _resolvedComponents.putIfAbsent(catalog.id, () {
-        final Map<String, Object?> document = catalog.catalogSchema;
-        return {
-          for (final MapEntry<String, C> entry in catalog.components.entries)
-            entry.key: Schema.fromMap(
-              resolveSchemaRefs(
-                entry.value.schema.value,
-                document,
-                commonTypes: commonTypesSchema,
-              ),
-            ),
-        };
-      });
+  Map<String, Schema> get _resolvedComponentSchemas =>
+      _resolvedComponents ??= _resolveComponentSchemas();
+
+  Map<String, Schema> _resolveComponentSchemas() {
+    final Map<String, Object?> document = catalog.catalogSchema;
+    return {
+      for (final MapEntry<String, C> entry in catalog.components.entries)
+        entry.key: Schema.fromMap(
+          resolveSchemaRefs(
+            entry.value.schema.value,
+            document,
+            commonTypes: commonTypesSchema,
+          ),
+        ),
+    };
+  }
 }
