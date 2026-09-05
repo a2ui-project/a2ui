@@ -49,6 +49,10 @@
 - `A2uiValidator` and `DataModel` are exercised by the shared
   `conformance/core/validator.yaml` and `conformance/core/data_model.yaml`
   suites.
+- `FunctionImplementation` and `ComponentContext` moved to different libraries
+  under `src/` so that `a2ui_core` no longer has import cycles. Both are still
+  exported from `package:a2ui_core/a2ui_core.dart`, so code importing the
+  public library is unaffected.
 
 ## 0.1.1
 
