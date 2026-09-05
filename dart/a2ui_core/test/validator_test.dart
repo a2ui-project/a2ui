@@ -118,7 +118,7 @@ Map<String, Object?> commonTypes() => {
 A2uiValidator<ComponentApi, FunctionApi> newValidator({
   bool withCommonTypes = false,
 }) => A2uiValidator(
-  catalogs: [testCatalog()],
+  catalog: testCatalog(),
   commonTypesSchema: withCommonTypes ? commonTypes() : const {},
 );
 
@@ -193,25 +193,28 @@ void main() {
 
     test('is constructed for a supported version by name', () {
       expect(
-        A2uiValidator.forVersion('v0.9').protocolVersion,
+        A2uiValidator.forVersion(
+          'v0.9',
+          catalog: testCatalog(),
+        ).protocolVersion,
         A2uiProtocolVersion.v0_9,
       );
     });
 
     test('cannot be constructed for an unsupported version', () {
       expect(
-        () => A2uiValidator.forVersion('v1.0'),
+        () => A2uiValidator.forVersion('v1.0', catalog: testCatalog()),
         throwsA(isA<A2uiValidationError>()),
       );
       expect(
-        () => A2uiValidator.forVersion(null),
+        () => A2uiValidator.forVersion(null, catalog: testCatalog()),
         throwsA(isA<A2uiValidationError>()),
       );
     });
 
-    test('indexes the catalogs it validates against by id', () {
+    test('is scoped to the catalog it validates against', () {
       final A2uiValidator<ComponentApi, FunctionApi> validator = newValidator();
-      expect(validator.catalogs.keys, [catalogId]);
+      expect(validator.catalog.id, catalogId);
     });
   });
 
@@ -514,7 +517,7 @@ void main() {
       }, reason: 'id must not be read as a child reference');
 
       final A2uiValidator<ComponentApi, FunctionApi> validator = A2uiValidator(
-        catalogs: [inlined],
+        catalog: inlined,
       );
       expect(
         () => validator.validateStructure(
@@ -800,7 +803,7 @@ void main() {
     });
   });
 
-  group('A2uiValidator surface-to-catalog resolution', () {
+  group('A2uiValidator catalog scope', () {
     SchemaCatalog namedCatalog(String id, String component) =>
         Catalog.fromJson({
           'catalogId': id,
@@ -841,70 +844,50 @@ void main() {
       'totally': 'bogus',
     };
 
-    A2uiValidator<ComponentApi, FunctionApi> over(List<String> ids) =>
-        A2uiValidator(
-          catalogs: [
-            for (final String id in ids)
-              namedCatalog(id, id == 'cat1' ? 'Alpha' : 'Beta'),
-          ],
-        );
+    A2uiValidator<ComponentApi, FunctionApi> over(String id) => A2uiValidator(
+      catalog: namedCatalog(id, id == 'cat1' ? 'Alpha' : 'Beta'),
+    );
 
-    test('uses the only catalog when the validator holds one', () {
+    test('checks an incremental payload against its own catalog', () {
+      // A payload that only updates a surface carries no catalog id. Scoping
+      // the validator to one settles which catalog applies, so the components
+      // are checked rather than skipped.
+      expect(() => over('cat1').validate(incremental(valid)), returnsNormally);
       expect(
-        () => over(['cat1']).validate(incremental(valid)),
-        returnsNormally,
-      );
-      expect(
-        () => over(['cat1']).validate(incremental(bogus)),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-
-    test('throws rather than skip when several catalogs are ambiguous', () {
-      // Reporting a payload valid that nothing checked is the worse failure.
-      expect(
-        () => over(['cat1', 'cat2']).validate(incremental(bogus)),
-        throwsA(isA<A2uiCatalogError>()),
-      );
-      expect(
-        () => over(['cat1', 'cat2']).validate(incremental(valid)),
-        throwsA(isA<A2uiCatalogError>()),
-      );
-    });
-
-    test('checks against the catalog surfaceCatalogs names', () {
-      expect(
-        () => over([
-          'cat1',
-          'cat2',
-        ]).validate(incremental(valid), surfaceCatalogs: const {'s1': 'cat1'}),
-        returnsNormally,
-      );
-      expect(
-        () => over([
-          'cat1',
-          'cat2',
-        ]).validate(incremental(bogus), surfaceCatalogs: const {'s1': 'cat1'}),
+        () => over('cat1').validate(incremental(bogus)),
         throwsA(isA<A2uiValidationError>()),
       );
     });
 
     test('rejects a component belonging to another catalog', () {
       expect(
-        () => over([
-          'cat1',
-          'cat2',
-        ]).validate(incremental(valid), surfaceCatalogs: const {'s1': 'cat2'}),
+        () => over('cat2').validate(incremental(valid)),
         throwsA(isA<A2uiValidationError>()),
       );
     });
 
-    test('throws when surfaceCatalogs names a catalog it does not hold', () {
+    test('rejects a surface created against another catalog', () {
+      final List<Map<String, Object?>> payload = [
+        {
+          'version': 'v0.9',
+          'createSurface': {'surfaceId': 's1', 'catalogId': 'cat2'},
+        },
+      ];
+
       expect(
-        () => over([
+        () => over('cat1').validate(payload),
+        throwsA(
+          isA<A2uiCatalogError>().having(
+            (e) => e.catalogId,
+            'catalogId',
+            'cat2',
+          ),
+        ),
+      );
+      expect(
+        () => over(
           'cat1',
-          'cat2',
-        ]).validate(incremental(valid), surfaceCatalogs: const {'s1': 'nope'}),
+        ).validateStructure(A2uiValidator.parseMessagesFor(payload)),
         throwsA(isA<A2uiCatalogError>()),
       );
     });
