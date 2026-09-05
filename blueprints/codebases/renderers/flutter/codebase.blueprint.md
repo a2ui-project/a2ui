@@ -13,9 +13,9 @@ local_development:
 
 ## **Architecture & Ecosystem Map**
 
-A planned Flutter/Dart declarative renderer for the A2UI ecosystem.
+A planned Flutter/Dart declarative [renderer](../../../../docs/public/concepts/glossary.md#a2ui-agent-and-a2ui-renderer) for the A2UI ecosystem.
 
-- **Architecture Goal**: Map A2UI component schemas into Flutter widget trees.
+- **Architecture Goal**: Map A2UI [component](../../../../docs/public/concepts/glossary.md#genui-component) schemas into Flutter widget trees.
 - **Expected Reactivity**: Bind streams to stateful Bloc or signals-like providers.
 
 ## **Local Technical Decisions & Overrides**

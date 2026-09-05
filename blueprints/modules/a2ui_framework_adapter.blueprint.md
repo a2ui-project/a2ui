@@ -6,9 +6,11 @@ description: View and Rendering layer interface bridging A2UI Core SDK to native
 
 # A2UI Framework Adapter Specification
 
-This document describes the specification and architecture of an A2UI Framework-Specific Adapter (the View/Rendering Layer). The design defines how a framework-agnostic A2UI Core SDK (documented in the [A2UI Core SDK Specification](a2ui_core.blueprint.md)) connects to native UI frameworks to paint the pixels.
+This document describes the specification and architecture of an A2UI [**Framework-Specific Adapter**](../../docs/public/concepts/glossary.md#fw-adapter) (the View/Rendering Layer). The design defines how a framework-agnostic A2UI Core SDK (documented in the [A2UI Core SDK Specification](a2ui_core.blueprint.md)) connects to native UI frameworks to paint the pixels.
 
-Both the core data structures and the rendering components interact with **Catalogs**. Within a catalog, the implementation follows a structured split: from the pure **Component Schema** (defined in the Core SDK) down to the **Framework-Specific Adapter** that renders native components (React, Angular, Flutter, SwiftUI, Jetpack Compose, iOS Views, Android Views, Vanilla DOM). Note that a catalog's `id` (`catalogId`) is an arbitrary string identifier rather than a resolvable URI.
+Both the core data structures and the rendering [**components**](../../docs/public/concepts/glossary.md#genui-component) interact with **[Catalogs](../../docs/public/concepts/glossary.md#catalog)**. Within a catalog, the implementation follows a structured split: from the pure **Component Schema** (defined in the Core SDK) down to the **Framework-Specific Adapter** that renders native components (React, Angular, Flutter, SwiftUI, Jetpack Compose, iOS Views, Android Views, Vanilla DOM). Note that a catalog's `id` (`catalogId`) is an arbitrary string identifier rather than a resolvable URI.
+
+Terms in **bold** on first use are defined in the [Glossary](../../docs/public/concepts/glossary.md).
 
 ---
 
@@ -16,9 +18,9 @@ Both the core data structures and the rendering components interact with **Catal
 
 The A2UI client architecture has a well-defined data flow that bridges language-agnostic data structures with native UI frameworks.
 
-1. **A2UI Messages** arrive from the server (JSON).
+1. **[A2UI Messages](../../docs/public/concepts/glossary.md#a2ui-message)** arrive from the server (JSON).
 2. The **`MessageProcessor`** (part of Core SDK) parses these and updates the **`SurfaceModel`** (Agnostic State).
-3. The **`Surface`** (Framework Entry View) listens to the `SurfaceModel` and begins rendering.
+3. The **[`Surface`](../../docs/public/concepts/glossary.md#surface)** (Framework Entry View) listens to the `SurfaceModel` and begins rendering.
 4. The `Surface` instantiates and renders individual **`ComponentImplementation`** nodes to build the UI tree.
 
 This establishes a fundamental split:
@@ -78,7 +80,7 @@ The entrypoint widget/view for a specific framework. It is instantiated with a `
 
 ## 3. Component Implementation Strategies
 
-While the `ComponentImplementation` API dictates that a component must be able to `build()` or `mount()`, _how_ a developer connects that view to the reactive data model inside `ComponentContext` varies by language and framework capabilities.
+While the `ComponentImplementation` API dictates that a component must be able to `build()` or `mount()`, _how_ a developer connects that view to the reactive [**data model**](../../docs/public/concepts/glossary.md#data-model) inside `ComponentContext` varies by language and framework capabilities.
 
 ### Strategy 1: Direct / Binderless Implementation
 
@@ -235,13 +237,13 @@ Interactive components that support the `checks` property should implement the `
 
 - **Aggregate Error Stream**: The component should subscribe to all `CheckRule` conditions defined in its properties.
 - **UI Feedback**: It should reactively display the `message` of the first failing check as a validation error hint.
-- **Action Blocking**: Actions (like `Button` clicks) should be reactively disabled or blocked if any validation check fails.
+- **Action Blocking**: [**Actions**](../../docs/public/concepts/glossary.md#action) (like `Button` clicks) should be reactively disabled or blocked if any validation check fails.
 
 ---
 
 ## 6. Standard & Custom Component Overrides
 
-The standard A2UI Basic Catalog specifies a set of core components (Button, Text, Row, Column) and functions.
+The standard A2UI [**Basic Catalog**](../../docs/public/concepts/glossary.md#basic-catalog) specifies a set of core components (Button, Text, Row, Column) and functions.
 
 ### Strict API / Implementation Separation
 
@@ -256,7 +258,7 @@ For a detailed walkthrough on how to visually and functionally implement each ba
 
 ## 7. The Gallery App Specification
 
-The Gallery App is a comprehensive development and debugging tool that serves as the reference environment for an A2UI renderer. It allows developers to visualize components, inspect the live data model, step through progressive rendering, and verify interaction logic.
+The Gallery App is a comprehensive development and debugging tool that serves as the reference environment for an A2UI [**renderer**](../../docs/public/concepts/glossary.md#a2ui-agent-and-a2ui-renderer). It allows developers to visualize components, inspect the live data model, step through progressive rendering, and verify interaction logic.
 
 ### UX Architecture
 

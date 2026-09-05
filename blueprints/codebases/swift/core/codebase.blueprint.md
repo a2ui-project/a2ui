@@ -18,9 +18,10 @@ The native Swift runtime processing engine and state model implementation for A2
 - **A2UIJSON** (`swift/core/Sources/A2UIJSON`): Decoupled target defining A2UI JSON Schema
   2020-12 structures and remote schema resolution.
 - **A2UICore** (`swift/core/Sources/A2UICore`): Stateful engine managing message processing,
-  JSON pointer cascades, DataModel bindings, and action dispatch.
+  JSON pointer cascades, [DataModel](../../../../docs/public/concepts/glossary.md#data-model) bindings,
+  and [action](../../../../docs/public/concepts/glossary.md#action) dispatch.
 - **BasicCatalog** (`swift/core/Sources/BasicCatalog`): Core schemas and function handlers
-  for the standard Basic Catalog.
+  for the standard [Basic Catalog](../../../../docs/public/concepts/glossary.md#basic-catalog).
 - **Swift Testing**: Uses Apple's native Swift Testing framework (`import Testing`).
 
 ## **Local Technical Decisions & Overrides**
