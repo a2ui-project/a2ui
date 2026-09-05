@@ -21,7 +21,7 @@
 
 ## **Problem**
 
-API, declared in [blueprints](https://github.com/a2ui-project/a2ui/tree/main/blueprints/modules) uses words **‘payload’, ‘message’ and ‘request’**. It takes **significant mental effort** for developers (both contributors and users) to map **payload/message/request** to one of four envelopes.
+API, declared in [blueprints](https://github.com/a2ui-project/a2ui/tree/main/blueprints/modules) uses words **‘payload’, ‘message’ and ‘request’**. It takes **significant mental effort** for developers (both contributors and users) to map **payload/message/request** to one of the four envelopes.
 
 Coding agents understand the difference, which results in developers having a **hard time understanding what the agent is saying**.
 
