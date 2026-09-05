@@ -495,10 +495,10 @@ Expose envelope parsing without a catalog: the protocol version tag and the sing
 
 In `MessageProcessor`:
 
-* Build one validator per supported catalog. Build each on first use and reuse it, so resolved component schemas are cached across messages.
-* Record the catalog on the `SurfaceModel` when the surface is created.
-* Parse the payload first, without a catalog, then dispatch each message to the validator for its surface's catalog.
-* Check each surface against the catalog it was created with, never against the full supported set.
+- Build one validator per supported catalog. Build each on first use and reuse it, so resolved component schemas are cached across messages.
+- Record the catalog on the `SurfaceModel` when the surface is created.
+- Parse the payload first, without a catalog, then dispatch each message to the validator for its surface's catalog.
+- Check each surface against the catalog it was created with, never against the full supported set.
 
 In an agent, pass the negotiated catalog.
 
