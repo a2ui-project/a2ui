@@ -29,6 +29,8 @@ Sometimes there is the prefix ‘a2ui’, but that does not help because all the
 
 ## **Proposal**
 
+### Overview
+
 Update A2UI SDK to use words that are easy to map to envelopes.
 
 Specifically:
@@ -38,11 +40,11 @@ Specifically:
 3. modelToAgentResponse  
 4. agentToRendererResponse
 
-That means the code elements will be renamed as follows:
+Where sometimes postfix 'request'/'response' can be used instead of 'message' and 'payload', and sometimes dropped.
 
 ### Naming rule
 
-Types carry the direction. The envelope union type carries `Request` or `Response`; its variants and the things that act on it do not, so `AgentToRendererResponse` has variants `CreateSurfaceMessage` and so on, and is handled by `AgentToRendererProcessor`. Methods and parameters do not repeat the direction, because the enclosing type or the parameter type already says it: `AgentToRendererProcessor.processJson(json)`, not `processAgentToRendererResponseJson`.
+Types carry the direction and nothing more, so the envelope union is `AgentToRendererMessage`, its variants stay `CreateSurfaceMessage` and so on, and it is handled by `AgentToRendererProcessor`. Methods and parameters do not repeat the direction, because the enclosing type or the parameter type already says it: `AgentToRendererProcessor.processJson(json)`, not `processAgentToRendererMessageJson`.
 
 Each row links every declaration of the element. Methods are written as `Class.method`, using the name the class has in that column, so the proposed column shows the full name after both renames. An element declared in one language only is a gap, not an oversight, and the note under the table says which.
 
@@ -50,27 +52,27 @@ Protocol v0.9 and v0.9.1 are published, so their specifications cannot change. E
 
 The v1.0 specification has already made this rename. Its files are [`agent_to_renderer.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v1_0/json/agent_to_renderer.json), [`renderer_to_agent.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v1_0/json/renderer_to_agent.json), [`agent_capabilities.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v1_0/json/agent_capabilities.json), [`renderer_capabilities.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v1_0/json/renderer_capabilities.json) and [`renderer_data_model.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v1_0/json/renderer_data_model.json), where v0.9 has `server_to_client.json`, `client_to_server.json` and the rest. So this proposal is not inventing a vocabulary. It is bringing the SDKs to the one v1.0 already uses.
 
-### 1. Agent to renderer, response
+### 1. Agent to renderer
 
 The envelopes `createSurface`, `updateComponents`, `updateDataModel` and `deleteSurface`, and everything that carries them.
 
 | Current | Declarations | Proposed |
 | :--- | :--- | :--- |
-| `A2uiMessage` | [dart](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/core/messages.dart#L19), [ts](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/schema/server-to-client.ts#L130), [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/schema/server_to_client.py#L120) | `AgentToRendererResponse` |
-| `ServerToClientMessage` | [swift](https://github.com/a2ui-project/a2ui/blob/main/swift/core/Sources/A2UICore/Messages/ServerToClientMessage.swift#L21) | `AgentToRendererResponse` |
-| `A2uiMessageList` | [ts](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/schema/server-to-client.ts#L138) | `AgentToRendererResponseList` |
-| `A2uiMessageListWrapper` | [ts](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/schema/server-to-client.ts#L147), [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/schema/server_to_client.py#L128) | `AgentToRendererResponseListWrapper` |
+| `A2uiMessage` | [dart](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/core/messages.dart#L19), [ts](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/schema/server-to-client.ts#L130), [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/schema/server_to_client.py#L120) | `AgentToRendererMessage` |
+| `ServerToClientMessage` | [swift](https://github.com/a2ui-project/a2ui/blob/main/swift/core/Sources/A2UICore/Messages/ServerToClientMessage.swift#L21) | `AgentToRendererMessage` |
+| `A2uiMessageList` | [ts](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/schema/server-to-client.ts#L138) | `AgentToRendererMessageList` |
+| `A2uiMessageListWrapper` | [ts](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/schema/server-to-client.ts#L147), [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/schema/server_to_client.py#L128) | `AgentToRendererMessageListWrapper` |
 | `MessageProcessor` | [dart](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/processing/processor.dart#L50), [ts](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/processing/message-processor.ts#L98), [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/processing/message_processor.py#L30), [swift](https://github.com/a2ui-project/a2ui/blob/main/swift/core/Sources/A2UICore/Processing/MessageProcessor.swift#L24) | `AgentToRendererProcessor` |
 | `MessageProcessorOptions` | [ts](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/processing/message-processor.ts#L50) | `AgentToRendererProcessorOptions` |
 | `MessageParser` | [swift](https://github.com/a2ui-project/a2ui/blob/main/swift/core/Sources/A2UICore/Processing/MessageParser.swift#L18) | `AgentToRendererParser` |
 | `MessageErrorMapper` | [swift](https://github.com/a2ui-project/a2ui/blob/main/swift/core/Sources/A2UICore/Processing/MessageErrorMapper.swift#L24) | `AgentToRendererErrorMapper` |
 | `MessageParseError` | [swift](https://github.com/a2ui-project/a2ui/blob/main/swift/core/Sources/A2UICore/Errors/MessageParseError.swift#L18) | `AgentToRendererParseError` |
 | `MessageProcessor.processPayload` | [dart](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/processing/processor.dart#L115) | `AgentToRendererProcessor.processJson` |
-| `MessageProcessor.processMessages` | [dart](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/processing/processor.dart#L125), [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/processing/message_processor.py#L48), [swift](https://github.com/a2ui-project/a2ui/blob/main/swift/core/Sources/A2UICore/Processing/MessageProcessor.swift#L289) | `AgentToRendererProcessor.processResponses` |
-| `A2uiValidator.parseMessages` | [dart](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/validation/validator.dart#L200) | `AgentToRendererValidator.parseResponses` |
+| `MessageProcessor.processMessages` | [dart](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/processing/processor.dart#L125), [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/processing/message_processor.py#L48), [swift](https://github.com/a2ui-project/a2ui/blob/main/swift/core/Sources/A2UICore/Processing/MessageProcessor.swift#L289) | `AgentToRendererProcessor.processMessages`, method name unchanged |
+| `A2uiValidator.parseMessages` | [dart](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/validation/validator.dart#L200) | `AgentToRendererValidator.parseMessages`, method name unchanged |
 | `A2uiValidator.parseMessagesFor` | [dart](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/validation/validator.dart#L213) | `AgentToRendererValidator.parseJson` |
-| `Parser.decompile(a2ui_payload)` | [blueprint](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L283) | `Parser.decompile(agent_to_renderer_responses)` |
-| `InferenceFormat.generate_system_prompt(allowed_messages)`, `DirectJsonPromptGenerator.generate(allowed_messages)` | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_format.py#L52), [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/prompt_generator.py#L45) | `InferenceFormat.generate_system_prompt(allowed_response_types)`, `DirectJsonPromptGenerator.generate(allowed_response_types)` |
+| `Parser.decompile(a2ui_payload)` | [blueprint](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L283) | `Parser.decompile(agent_to_renderer_messages)` |
+| `InferenceFormat.generate_system_prompt(allowed_messages)`, `DirectJsonPromptGenerator.generate(allowed_messages)` | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_format.py#L52), [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/prompt_generator.py#L45) | `InferenceFormat.generate_system_prompt(allowed_agent_to_renderer_types)`, `DirectJsonPromptGenerator.generate(allowed_agent_to_renderer_types)` |
 | `server_to_client.json`, `_list`, `_list_wrapper` | [v0.9](https://github.com/a2ui-project/a2ui/blob/main/specification/v0_9/json/server_to_client.json), [v0.9.1](https://github.com/a2ui-project/a2ui/blob/main/specification/v0_9_1/json/server_to_client.json), [web_core copy](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/schemas/server_to_client.json) | out of scope, published |
 | `agent_to_renderer.json` `$defs` and `title` | [v1.0](https://github.com/a2ui-project/a2ui/blob/main/specification/v1_0/json/agent_to_renderer.json) | filenames already renamed; `title` is still `A2UI Message Schema` |
 
@@ -78,14 +80,14 @@ The envelopes `createSurface`, `updateComponents`, `updateDataModel` and `delete
 
 Swift names the union `ServerToClientMessage` while dart, ts and python name it `A2uiMessage`, so this one type needs two different renames. `processPayload` and `parseMessagesFor` are dart only; swift spells `processMessages` as `process(messages:)`; `a2ui_payload` exists in the blueprint but in no implementation.
 
-### 2. Renderer to agent, request
+### 2. Renderer to agent
 
 | Current | Declarations | Proposed |
 | :--- | :--- | :--- |
-| `A2uiClientMessage` | [ts](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/schema/client-to-server.ts#L103), [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/schema/client_to_server.py#L101) | `RendererToAgentRequest` |
-| `ClientToServerMessage` | [swift](https://github.com/a2ui-project/a2ui/blob/main/swift/core/Sources/A2UICore/Messages/ClientToServerMessage.swift#L18) | `RendererToAgentRequest` |
-| `A2uiClientMessageList` | [ts](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/schema/client-to-server.ts#L110), [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/schema/client_to_server.py#L111) | `RendererToAgentRequestList` |
-| `A2uiClientMessageListWrapper` | [ts](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/schema/client-to-server.ts#L119), [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/schema/client_to_server.py#L114) | `RendererToAgentRequestListWrapper` |
+| `A2uiClientMessage` | [ts](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/schema/client-to-server.ts#L103), [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/schema/client_to_server.py#L101) | `RendererToAgentMessage` |
+| `ClientToServerMessage` | [swift](https://github.com/a2ui-project/a2ui/blob/main/swift/core/Sources/A2UICore/Messages/ClientToServerMessage.swift#L18) | `RendererToAgentMessage` |
+| `A2uiClientMessageList` | [ts](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/schema/client-to-server.ts#L110), [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/schema/client_to_server.py#L111) | `RendererToAgentMessageList` |
+| `A2uiClientMessageListWrapper` | [ts](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/schema/client-to-server.ts#L119), [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/schema/client_to_server.py#L114) | `RendererToAgentMessageListWrapper` |
 | `A2uiClientAction` | [dart](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/core/messages.dart#L257), [ts](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/schema/client-to-server.ts#L101), [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/schema/client_to_server.py#L22) | `RendererToAgentAction` |
 | `A2uiClientActionMessage` | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/schema/client_to_server.py#L91) | `RendererToAgentAction` |
 | `A2uiClientErrorMessage` | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_core/src/a2ui/core/schema/client_to_server.py#L96) | `RendererToAgentError` |
@@ -101,15 +103,15 @@ The capabilities rename is already half done: dart has `A2uiRendererCapabilities
 
 Python splits the union into `A2uiClientActionMessage` and `A2uiClientErrorMessage` while ts and dart carry the action alone, so the two rows collapse to `RendererToAgentAction` in different ways per language.
 
-### 3. Agent to model, request. Model to agent, response
+### 3. Agent to model, and model to agent
 
-Neither direction has a name today. They hide behind `format_content`, `response` and `examples`. Everything here is python only; no other agent SDK implements these directions.
+Neither direction has a name today. They hide behind `format_content`, `response` and `examples`. The proposed names spell the direction out, since no enclosing type carries it here. Everything here is python only; no other agent SDK implements these directions.
 
 | Current | Declarations | Proposed |
 | :--- | :--- | :--- |
-| `unwrap_response` (module level) | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L28) | `unwrap_model_to_agent_response` (module level) |
-| `DirectJsonParser.has_format_content` | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L91) | `DirectJsonParser.has_model_to_agent_response` |
-| `DirectJsonParser.unwrap` | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L98) | `DirectJsonParser.unwrap_model_to_agent_response` |
+| `unwrap_response` (module level) | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L28) | `unwrap_model_to_agent` (module level) |
+| `DirectJsonParser.has_format_content` | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L91) | `DirectJsonParser.has_model_to_agent_content` |
+| `DirectJsonParser.unwrap` | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L98) | `DirectJsonParser.unwrap_model_to_agent` |
 | `DirectJsonParser.compile` | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L109) | `DirectJsonParser.compile`, unchanged: model to agent in, agent to renderer out |
 | `DirectJsonParser.process_chunk` | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L129) | `DirectJsonParser.process_model_to_agent_chunk` |
 | `DirectJsonParser.decompile` | [python](https://github.com/a2ui-project/a2ui/blob/main/agent_sdks/python/a2ui_agent/src/a2ui/inference_formats/direct_json/parser.py#L144) | `DirectJsonParser.decompile`, unchanged |
@@ -137,17 +139,23 @@ Leave alone: [`CatalogSchemaValidator`](https://github.com/a2ui-project/a2ui/blo
 
 ### 5. Needs a decision, not a mechanical rename
 
-[`A2uiRequestProcessor`](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L565) spans three of the four envelopes: it renders the agent to model request, parses the model to agent response, and validates the agent to renderer response. No direction fits. Worse under this proposal than before it, because `Request` becomes a reserved word naming two specific envelope kinds, and this class processes neither exclusively. Options are `A2uiTurnProcessor`, naming its scope rather than a direction, or splitting it along the three directions it serves.
+[`A2uiRequestProcessor`](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L565) spans three of the four envelopes: it renders the agent to model prompt, parses the model to agent output, and validates the agent to renderer result. No direction fits, so the mechanical rule above gives no answer. The misleading word is `Request`, which here means an inbound user request and not any A2UI envelope. Options are `A2uiTurnProcessor`, naming its scope rather than a direction, or splitting it along the three directions it serves.
 
 [`A2uiGenerator`](https://github.com/a2ui-project/a2ui/blob/main/blueprints/modules/a2ui_agent.blueprint.md#L518) generates neither UI nor messages. It holds the agent's catalogs and hands out a processor per renderer capability signature. `A2uiCatalogRegistry` describes what it does.
 
 Both are blueprint-only. Neither name appears in any implementation, so renaming them costs nothing today and settles the vocabulary before the python agent SDK grows into the specified shape.
 
-### Note on the suffix
+### Considered and rejected: a Request/Response suffix
 
-`Request` and `Response` are derivable from the direction: renderer to agent and agent to model are always requests, the two return directions are always responses. The suffix adds no information a reader could not infer, which is why the rule above keeps it off variants and off processors and validators, where it would double the length of a name that is already unambiguous. It earns its place on the four envelope union types, where naming the role is what makes the pairing visible.
+An earlier draft named the four types `AgentToRendererResponse`, `RendererToAgentRequest`, `AgentToModelRequest` and `ModelToAgentResponse`, on the reasoning that each direction plays one role in a pair. Three findings ruled it out.
 
-Two things to settle before the suffix is fixed. The v1.0 specification names its files by direction alone, [`agent_to_renderer.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v1_0/json/agent_to_renderer.json) rather than `agent_to_renderer_response.json`, so SDK types carrying the suffix will not match the schema files they implement. And v1.0 already spends the word on something else: [`agent_to_renderer.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v1_0/json/agent_to_renderer.json) defines `AgentFunctionResponseMessage`, where `Response` means the result of a renderer's function call, not a direction. Under this proposal that becomes a variant of `AgentToRendererResponse`, and the word carries two meanings one nesting level apart.
+v1.0 carries calls and responses in both directions. [`agent_to_renderer.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v1_0/json/agent_to_renderer.json) defines `callRendererFunction` alongside `agentFunctionResponse`, and [`renderer_to_agent.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v1_0/json/renderer_to_agent.json) defines `callAgentFunction` alongside `rendererFunctionResponse`. So `RendererToAgentRequest` would be a request containing `rendererFunctionResponse`. The suffix is not merely redundant with the direction, it is contradicted by what the envelope holds.
+
+The v1.0 filenames use direction alone. Suffixed type names would not match the schema files they implement.
+
+`Response` is already taken. v1.0 uses it for the result of a function call, one nesting level below the envelope.
+
+Direction alone avoids all three, and `AgentToRendererMessage` is already the name the blueprints use.
 
 ### Out of scope
 
