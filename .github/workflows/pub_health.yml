@@ -34,3 +34,15 @@ jobs:
       fail_on: "changelog"
     permissions:
       pull-requests: write
+
+  # See https://github.com/dart-lang/ecosystem/issues/455;
+  # this job can go away if that lands.
+  hint:
+    needs: health
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Point at the skip label
+        run: |
+          echo "::notice::The changelog health check failed. If this change genuinely needs no changelog entry, label the PR 'skip-changelog-check' to skip the check."
