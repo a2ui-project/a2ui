@@ -85,16 +85,12 @@ def format_system_prompt(format_name: str, version: str) -> Solver:
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
         strategy = _get_strategy(format_name, version, catalog_config)
 
-        role_description = state.metadata.get("protocol_role") or state.metadata.get(
-            "role_description", ""
-        )
-        workflow_description = state.metadata.get(
-            "generation_rules"
-        ) or state.metadata.get("workflow_description", "")
+        protocol_role = state.metadata.get("protocol_role", "")
+        generation_rules = state.metadata.get("generation_rules", "")
 
         a2ui_prompt = strategy.prompt_generator.generate(
-            role_description=role_description,
-            workflow_description=workflow_description,
+            role_description=protocol_role,
+            workflow_description=generation_rules,
             include_schema=True,
         )
 

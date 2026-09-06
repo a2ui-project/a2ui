@@ -43,8 +43,8 @@ async def test_a2ui_system_prompt(tmp_path: Path) -> None:
         messages=[],
         metadata={
             "catalog": str(catalog_file),
-            "role_description": "mock role",
-            "workflow_description": "mock workflow",
+            "protocol_role": "mock role",
+            "generation_rules": "mock workflow",
         },
     )
 
@@ -55,12 +55,18 @@ async def test_a2ui_system_prompt(tmp_path: Path) -> None:
     assert "https://a2ui.org/test_catalog" in state.messages[0].content
 
 
-from a2ui_eval.strategies.subagent_tool import extract_subagent_payload, PAYLOAD_STORE_KEY
+from a2ui_eval.strategies.subagent_tool import (
+    extract_subagent_payload,
+    push_metadata_to_store,
+    subagent_system_prompt,
+    subagent_tool_solver,
+    PAYLOAD_STORE_KEY,
+)
 from inspect_ai.model import ModelOutput, ChatCompletionChoice, ChatMessageAssistant, ChatMessageTool
 
 
 @pytest.mark.asyncio
-async def test_extract_subagent_payload() -> None:
+async def test_extract_subagent_payload_with_prose() -> None:
     solver = extract_subagent_payload()
 
     state = TaskState(
@@ -75,9 +81,34 @@ async def test_extract_subagent_payload() -> None:
             model="mock/model",
             choices=[
                 ChatCompletionChoice(
-                    message=ChatMessageAssistant(content="old content")
+                    message=ChatMessageAssistant(content="Here are the findings [1].")
                 )
             ],
+        ),
+    )
+    state.store.set(PAYLOAD_STORE_KEY, '{"test": "payload"}')
+
+    state = await solver(state, dummy_generate)
+    assert (
+        state.output.completion
+        == 'Here are the findings [1].\n\n<a2ui-json>\n{"test":'
+        ' "payload"}\n</a2ui-json>'
+    )
+
+
+@pytest.mark.asyncio
+async def test_extract_subagent_payload_empty_prose() -> None:
+    solver = extract_subagent_payload()
+
+    state = TaskState(
+        model=ModelName("mock/model"),
+        sample_id=1,
+        epoch=1,
+        input="test",
+        messages=[],
+        output=ModelOutput(
+            model="mock/model",
+            choices=[ChatCompletionChoice(message=ChatMessageAssistant(content=""))],
         ),
     )
     state.store.set(PAYLOAD_STORE_KEY, '{"test": "payload"}')
@@ -86,7 +117,65 @@ async def test_extract_subagent_payload() -> None:
     assert state.output.completion == '<a2ui-json>\n{"test": "payload"}\n</a2ui-json>'
 
 
-from a2ui_eval.strategies.subagent_tool import subagent_tool_solver
+@pytest.mark.asyncio
+async def test_subagent_system_prompt() -> None:
+    prompt_solver = subagent_system_prompt()
+
+    # Without domain prompt metadata
+    state = TaskState(
+        model=ModelName("mock/model"),
+        sample_id=1,
+        epoch=1,
+        input="test",
+        messages=[],
+        metadata={},
+    )
+    state = await prompt_solver(state, dummy_generate)
+    assert len(state.messages) == 1
+    assert state.messages[0].role == "system"
+    assert "a2ui_specialist" in state.messages[0].content
+    assert "## Domain Instructions" not in state.messages[0].content
+
+    # With domain prompt metadata
+    state_with_domain = TaskState(
+        model=ModelName("mock/model"),
+        sample_id=1,
+        epoch=1,
+        input="test",
+        messages=[],
+        metadata={"system_prompt": "You are a research simulation assistant."},
+    )
+    state_with_domain = await prompt_solver(state_with_domain, dummy_generate)
+    assert len(state_with_domain.messages) == 1
+    assert "## Domain Instructions" in state_with_domain.messages[0].content
+    assert (
+        "You are a research simulation assistant."
+        in state_with_domain.messages[0].content
+    )
+    assert "a2ui_specialist" in state_with_domain.messages[0].content
+
+
+@pytest.mark.asyncio
+async def test_push_metadata_to_store() -> None:
+    solver = push_metadata_to_store(version="0.9.1")
+
+    state = TaskState(
+        model=ModelName("mock/model"),
+        sample_id=1,
+        epoch=1,
+        input="test",
+        messages=[],
+        metadata={
+            "catalog": "path/to/catalog.json",
+            "protocol_role": "Custom Role",
+            "generation_rules": "Custom Workflow Rules",
+        },
+    )
+    state = await solver(state, dummy_generate)
+    assert state.store.get("version") == "0.9.1"
+    assert state.store.get("catalog") == "path/to/catalog.json"
+    assert state.store.get("protocol_role") == "Custom Role"
+    assert state.store.get("generation_rules") == "Custom Workflow Rules"
 
 
 def test_subagent_tool_solver(tmp_path: Path) -> None:
