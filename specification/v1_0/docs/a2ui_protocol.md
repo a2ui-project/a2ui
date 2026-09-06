@@ -612,6 +612,9 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `$defs`
    - No other top-level keys are permitted.
 
+8. **Deprecation Annotations:**
+   - Components, functions, and individual properties may declare `deprecated: true` along with an optional human-readable `x-deprecated-reason` (string).
+
 ##### Example Schema Template
 
 Below is an annotated, fully compliant `catalog.json` schema template (written in JSONC format with comments) representing a visual, complete model of these rules in action:
@@ -640,6 +643,13 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
         "text": {
           "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
           "description": "Text content to display.",
+        },
+        // Deprecated property.
+        "rawContent": {
+          "type": "string",
+          "description": "Legacy unescaped text content.",
+          "deprecated": true,
+          "x-deprecated-reason": "Use 'text' property with Markdown formatting instead.",
         },
       },
       "required": ["component", "text"],
@@ -700,6 +710,11 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
   },
 }
 ```
+
+#### Deprecating Catalog Properties
+
+- **`deprecated`** (boolean, optional): Standard JSON Schema annotation indicating that a component, function, or property is deprecated.
+- **`x-deprecated-reason`** (string, optional): Human-readable explanation of why the entity is deprecated and what to use instead.
 
 ### UI composition: the adjacency list model
 
