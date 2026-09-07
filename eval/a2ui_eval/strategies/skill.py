@@ -31,7 +31,7 @@ from inspect_ai.tool import tool, Tool
 from inspect_ai.util import store
 
 from a2ui.schema.catalog import CatalogConfig
-from a2ui.skill.skill import Skill, SkillSet
+from a2ui.skill import SkillGenerator
 
 from .format import _get_strategy, compile_format_payload
 from ..shared.utils import GIT_ROOT, measured_generate
@@ -58,7 +58,8 @@ def load_skill() -> Tool:
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
 
         strategy = _get_strategy(format_name, version, catalog_config)
-        skill_set = SkillSet.from_format(strategy)
+        generator = SkillGenerator(strategy)
+        skill_set = generator.generate_skillset()
 
         # Normalize skill lookup key
         key = (
@@ -71,7 +72,7 @@ def load_skill() -> Tool:
 
         # Fallback to monolithic skill if requested
         if skill_name in ["a2ui", "a2ui/SKILL.md"]:
-            mono_skill = Skill.from_format(strategy, name="a2ui")
+            mono_skill = generator.generate_skill(name="a2ui")
             return mono_skill.to_markdown()
 
         available = list(skill_set.to_dict().keys())
@@ -90,7 +91,8 @@ def skill_preloaded_prompt(format_name: str, version: str) -> Solver:
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
 
         strategy = _get_strategy(format_name, version, catalog_config)
-        skill = Skill.from_format(strategy, name="a2ui")
+        generator = SkillGenerator(strategy)
+        skill = generator.generate_skill(name="a2ui")
 
         domain_prompt = state.metadata.get("system_prompt", "").strip()
         state.messages.insert(
@@ -125,7 +127,8 @@ def skill_interactive_system_prompt(format_name: str, version: str) -> Solver:
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
 
         strategy = _get_strategy(format_name, version, catalog_config)
-        skill_set = SkillSet.from_format(strategy)
+        generator = SkillGenerator(strategy)
+        skill_set = generator.generate_skillset()
 
         frontmatter_lines = []
         for sk_obj in skill_set.values():
