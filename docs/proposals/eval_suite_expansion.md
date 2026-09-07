@@ -204,8 +204,8 @@ Across the LLM ecosystem (OpenAI, Anthropic, LiteLLM, Ollama, and Inspect AI), `
 - **Direct framework alignment**: Inspect AI stores conversation turns in `state.messages`. Using `messages` in our YAML schema creates a 1:1 conceptual mapping.
 - **Avoids ambiguity**: The word "context" is overloaded in AI (often referring to RAG retrieval chunks, context windows, or A2UI action event contexts like `action.event.context`). `messages` unambiguously refers to the chat history.
 - **Consistent single-turn and multi-turn authoring**:
-  - **Single-turn prompt**: `messages` contains a single user turn (`role: user`, `content: "Create a login form"`).
-  - **Multi-turn conversation**: `messages` contains prior user, assistant, and tool turns, ending with the user turn that prompts the UI response.
+    - **Single-turn prompt**: `messages` contains a single user turn (`role: user`, `content: "Create a login form"`).
+    - **Multi-turn conversation**: `messages` contains prior user, assistant, and tool turns, ending with the user turn that prompts the UI response.
 
 #### 3. `target` vs `description`
 
@@ -423,12 +423,12 @@ The solver invokes `measured_generate()`, passing the assembled message list to 
 ### Step 4: Multi-stage scoring
 
 1. **Programmatic validation ([a2ui_scorer](../../eval/a2ui_eval/scorers.py))**:
-   - Resolves the required `catalog` path specified in the data point.
-   - Parses JSON from `<a2ui-json>` tags.
-   - Runs the catalog validator ([A2uiValidator](../../agent_sdks/python/a2ui_agent/README.md)) to verify schema adherence, parent-child references, and root component presence.
+    - Resolves the required `catalog` path specified in the data point.
+    - Parses JSON from `<a2ui-json>` tags.
+    - Runs the catalog validator ([A2uiValidator](../../agent_sdks/python/a2ui_agent/README.md)) to verify schema adherence, parent-child references, and root component presence.
 2. **LLM judge scoring ([measured_model_graded_qa](../../eval/a2ui_eval/scorers.py))**:
-   - Evaluates the generated UI against the `target` criteria using the grading model (e.g. `google/gemini-3.5-flash`).
-   - Produces a grade of `C` (Correct), `P` (Partial Credit), or `I` (Incorrect).
+    - Evaluates the generated UI against the `target` criteria using the grading model (e.g. `google/gemini-3.5-flash`).
+    - Produces a grade of `C` (Correct), `P` (Partial Credit), or `I` (Incorrect).
 
 ---
 
