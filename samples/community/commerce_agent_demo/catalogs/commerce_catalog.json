@@ -1,0 +1,108 @@
+{
+  "catalogId": "https://a2ui.org/catalogs/commerce/v1.0/catalog.json",
+  "version": "1.0",
+  "components": {
+    "ProductCard": {
+      "description": "Renders a product showcase card with title, price, image thumbnail, stock badge, star rating, and action trigger.",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Name or title of the product."
+        },
+        "price": {
+          "type": "number",
+          "description": "Price amount in USD."
+        },
+        "image": {
+          "type": "string",
+          "description": "URL to product thumbnail image."
+        },
+        "inStock": {
+          "type": "boolean",
+          "description": "Whether the product is currently in stock."
+        },
+        "rating": {
+          "type": "number",
+          "description": "Average star rating (e.g. 4.8)."
+        },
+        "action": {
+          "$ref": "#/$defs/Action",
+          "description": "Action event triggered when clicking View Details or Add to Cart."
+        }
+      },
+      "required": ["title", "price", "action"]
+    },
+    "ProductGrid": {
+      "description": "Responsive grid layout container for displaying product cards.",
+      "properties": {
+        "children": {
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList",
+          "description": "List of ProductCard component IDs to display in grid."
+        },
+        "columns": {
+          "type": "number",
+          "description": "Number of grid columns (default: 3)."
+        }
+      },
+      "required": ["children"]
+    },
+    "InventoryBadge": {
+      "description": "Visual inventory status badge for product availability.",
+      "properties": {
+        "quantity": {
+          "type": "number",
+          "description": "Units available in stock."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["in_stock", "low_stock", "out_of_stock"],
+          "description": "Status level."
+        }
+      },
+      "required": ["quantity", "status"]
+    },
+    "PriceTag": {
+      "description": "Formatted price tag with optional list price and discount badge.",
+      "properties": {
+        "amount": {
+          "type": "number",
+          "description": "Current price amount."
+        },
+        "currency": {
+          "type": "string",
+          "description": "Currency code (e.g. USD)."
+        },
+        "discountPercent": {
+          "type": "number",
+          "description": "Discount percentage (e.g. 15 for 15% off)."
+        }
+      },
+      "required": ["amount", "currency"]
+    },
+    "CartSummary": {
+      "description": "Shopping cart overview panel with items breakdown and checkout action.",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {"type": "string"},
+              "price": {"type": "number"},
+              "quantity": {"type": "number"}
+            }
+          },
+          "description": "List of cart items."
+        },
+        "subtotal": {"type": "number"},
+        "tax": {"type": "number"},
+        "total": {"type": "number"},
+        "checkoutAction": {
+          "$ref": "#/$defs/Action",
+          "description": "Action event triggered when user clicks Proceed to Checkout."
+        }
+      },
+      "required": ["subtotal", "total", "checkoutAction"]
+    }
+  }
+}

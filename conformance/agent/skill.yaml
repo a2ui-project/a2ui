@@ -1,0 +1,51 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# --- Skill Generator Conformance Tests ---
+
+- name: test_express_monolithic_skill
+  description: Generates a complete monolithic skill for Express format and basic catalog.
+  action: from_format
+  args:
+    format: express
+    catalog: specification/v1_0/catalogs/basic/catalog.json
+    name: a2ui
+  expected_file: conformance/test_data/skills/express_basic_monolithic.skill.md
+
+- name: test_express_core_skill
+  description: Generates a core syntax skill for Express format.
+  action: core_syntax
+  args:
+    format: express
+    catalog: specification/v1_0/catalogs/basic/catalog.json
+    name: a2ui-core
+  expected_file: conformance/test_data/skills/express_core.skill.md
+
+- name: test_express_catalog_skill
+  description: Generates a catalog skill for basic catalog in Express format.
+  action: from_catalog
+  args:
+    format: express
+    catalog: specification/v1_0/catalogs/basic/catalog.json
+  expected_file: conformance/test_data/skills/express_basic_catalog.skill.md
+
+- name: test_express_skill_set
+  description: Generates a modular SkillSet for Express format.
+  action: skill_set
+  args:
+    format: express
+    catalog: specification/v1_0/catalogs/basic/catalog.json
+  expected_skills:
+    - a2ui-core/SKILL.md
+    - a2ui-basic/SKILL.md
