@@ -20,7 +20,7 @@ import yaml
 
 from a2ui.inference_formats.experimental.express import ExpressFormat
 from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
-from a2ui.skill import Skill, SkillSet
+from a2ui.skill import Skill, SkillGenerator, SkillSet
 
 
 REPO_ROOT = os.path.abspath(
@@ -100,9 +100,11 @@ class TestSkillConformance(unittest.TestCase):
                 fmt_name = args.get("format", "express")
                 fmt = ExpressFormat(catalog=catalog) if catalog else ExpressFormat()
 
+                generator = SkillGenerator(fmt)
+
                 if action == "from_format":
                     mono_name = args.get("name", "a2ui")
-                    skill_obj = Skill.from_format(fmt, name=mono_name)
+                    skill_obj = generator.generate_skill(name=mono_name)
                     expected_rel = case["expected_file"]
                     expected_abs = os.path.join(REPO_ROOT, expected_rel)
                     with open(expected_abs, "r", encoding="utf-8") as gf:
@@ -111,7 +113,7 @@ class TestSkillConformance(unittest.TestCase):
 
                 elif action == "core_syntax":
                     core_name = args.get("name", "a2ui-core")
-                    skill_obj = Skill.core_syntax(fmt, name=core_name)
+                    skill_obj = generator.generate_core_skill(name=core_name)
                     expected_rel = case["expected_file"]
                     expected_abs = os.path.join(REPO_ROOT, expected_rel)
                     with open(expected_abs, "r", encoding="utf-8") as gf:
@@ -119,7 +121,7 @@ class TestSkillConformance(unittest.TestCase):
                     self.assertEqual(skill_obj.to_markdown(), expected_content)
 
                 elif action == "from_catalog":
-                    skill_obj = Skill.from_catalog(catalog, fmt)
+                    skill_obj = generator.generate_catalog_skill(catalog)
                     expected_rel = case["expected_file"]
                     expected_abs = os.path.join(REPO_ROOT, expected_rel)
                     with open(expected_abs, "r", encoding="utf-8") as gf:
@@ -127,7 +129,7 @@ class TestSkillConformance(unittest.TestCase):
                     self.assertEqual(skill_obj.to_markdown(), expected_content)
 
                 elif action == "skill_set":
-                    skill_set = SkillSet.from_format(fmt)
+                    skill_set = generator.generate_skillset()
                     expected_keys = case.get("expected_skills", [])
                     for k in expected_keys:
                         self.assertIn(k, skill_set.to_dict())

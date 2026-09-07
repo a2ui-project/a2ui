@@ -83,110 +83,6 @@ class Skill:
         self.metadata = metadata or {}
         self.filename = filename or f"{name}/SKILL.md"
 
-    # --- Factory Constructors ---
-
-    @classmethod
-    def from_format(
-        cls,
-        fmt: InferenceFormat,
-        name: str = "a2ui",
-        description: Optional[str] = None,
-        catalogs: Optional[list[Union[str, A2uiCatalog]]] = None,
-    ) -> "Skill":
-        """Compiles ANY InferenceFormat into a single unified (monolithic) Skill."""
-        resolved_catalogs = _resolve_catalogs_list(catalogs, fmt)
-        prompt_gen = fmt.prompt_generator
-
-        base_rules = prompt_gen.generate_base_rules()
-
-        cat_blocks = []
-        ex_blocks = []
-        for c in resolved_catalogs:
-            inst = prompt_gen.generate_catalog_instructions(catalog=c)
-            if inst:
-                cat_blocks.append(inst)
-            ex = prompt_gen.generate_examples(catalog=c)
-            if ex:
-                ex_blocks.append(ex)
-
-        body_parts = []
-        if base_rules:
-            body_parts.append(base_rules)
-        if cat_blocks:
-            body_parts.extend(cat_blocks)
-        if ex_blocks:
-            body_parts.append("### Examples:\n\n" + "\n\n".join(ex_blocks))
-
-        content_str = "\n\n".join(body_parts) + "\n"
-        desc = (
-            description
-            or "Generates interactive user interface components for user requests."
-        )
-
-        return cls(
-            name=name,
-            description=desc,
-            content=content_str,
-            filename=f"{name}/SKILL.md",
-        )
-
-    @classmethod
-    def from_catalog(
-        cls,
-        catalog: A2uiCatalog,
-        fmt: InferenceFormat,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        include_examples: bool = True,
-    ) -> "Skill":
-        """Compiles a single catalog into a dedicated catalog Skill."""
-        clean_name = _clean_catalog_name(catalog)
-        skill_name = name or f"a2ui-{clean_name}"
-        prompt_gen = fmt.prompt_generator
-
-        cat_body = prompt_gen.generate_catalog_instructions(catalog=catalog)
-        if include_examples:
-            ex = prompt_gen.generate_examples(catalog=catalog)
-            if ex:
-                cat_body += f"\n\n### Examples:\n\n{ex}"
-
-        desc = (
-            description
-            or getattr(catalog, "description", None)
-            or f"UI component catalog signatures for {clean_name}. Use when building {clean_name} user interface components."
-        )
-
-        return cls(
-            name=skill_name,
-            description=desc,
-            content=cat_body.strip() + "\n",
-            filename=f"{skill_name}/SKILL.md",
-        )
-
-    @classmethod
-    def core_syntax(
-        cls,
-        fmt: InferenceFormat,
-        name: str = "a2ui-core",
-        description: Optional[str] = None,
-    ) -> "Skill":
-        """Compiles core syntax rules for any format into a base core skill."""
-        prompt_gen = fmt.prompt_generator
-        base_rules = prompt_gen.generate_base_rules()
-        desc = (
-            description
-            or "Core A2UI protocol instructions and syntax rules for UI generation."
-        )
-
-        return cls(
-            name=name,
-            description=desc,
-            content=base_rules.strip() + "\n",
-            filename=f"{name}/SKILL.md",
-        )
-
-    # --- Serialization ---
-
     def to_markdown(self) -> str:
         """Serializes skill object back to complete markdown string with YAML frontmatter."""
         fm: dict[str, Any] = {
@@ -211,26 +107,6 @@ class SkillSet:
 
     def __init__(self, skills: Optional[dict[str, Skill]] = None):
         self._skills: dict[str, Skill] = skills or {}
-
-    @classmethod
-    def from_format(
-        cls,
-        fmt: InferenceFormat,
-        catalogs: Optional[list[Union[str, A2uiCatalog]]] = None,
-        core_name: str = "a2ui-core",
-    ) -> "SkillSet":
-        """Generates standard modular skills (a2ui-core + 1 skill per catalog) for ANY format."""
-        skill_set = cls()
-
-        # 1. Core Syntax Skill
-        skill_set.add(Skill.core_syntax(fmt, name=core_name))
-
-        # 2. Per-Catalog Skills
-        resolved_catalogs = _resolve_catalogs_list(catalogs, fmt)
-        for cat in resolved_catalogs:
-            skill_set.add(Skill.from_catalog(cat, fmt))
-
-        return skill_set
 
     def add(self, skill: Skill) -> None:
         """Adds a Skill to the collection."""
