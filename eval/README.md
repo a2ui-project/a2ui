@@ -91,6 +91,49 @@ For a quick 2-sample validation using `gemini-3.1-flash-lite`:
 uv run main.py --sanity
 ```
 
+### Running Evaluations on Gemma Models (Express Format)
+
+Gemma models can be evaluated directly through the Google AI Studio / Gemini API cloud service using your standard `GEMINI_API_KEY` (or `GOOGLE_API_KEY`). **No local GPU, Ollama, or custom server hosting is required.**
+
+> [!NOTE]
+> Gemma evaluations do not run by default or as part of CI workflows. CI evaluations continue to use `google/gemini-3.5-flash`.
+
+#### Required API Keys
+
+Set your standard Google Gemini API key:
+
+```bash
+export GEMINI_API_KEY="your_api_key_here"
+```
+
+You can obtain an API key from [Google AI Studio](https://aistudio.google.com/).
+
+#### Available Cloud Gemma Models
+
+- **Mobile / On-Device Tier (`--gemma` or `--gemma mobile` or `--model gemma-4-26b`)**:
+  `google/gemma-4-26b-a4b-it` — A Mixture-of-Experts model with 26B total parameters and **4B active parameters** (`a4b`), representative of the class of lightweight models feasible for execution on modern mobile hardware.
+- **Large / Workstation Tier (`--gemma large` or `--model gemma-4-31b`)**:
+  `google/gemma-4-31b-it` — A 31B dense parameter model offering higher reasoning capacity.
+
+#### Example Commands
+
+```bash
+# Run Gemma 4 mobile tier on Express format (default strategy for --gemma is express)
+uv run main.py --gemma
+
+# Run Gemma 4 large tier (31B) on Express format
+uv run main.py --gemma large
+
+# Run on a specific dataset or limit sample count for quick checks
+uv run main.py --gemma --dataset core_v1_0 --limit 3
+
+# Run across specific prompts
+uv run main.py --gemma --dataset core_v1_0 --prompt deleteSurface --prompt loginForm
+```
+
+> [!IMPORTANT]
+> **LLM-as-a-Judge Rule**: Gemma models must **never** be used as the evaluation grader (`--grading-model`). The grading model defaults to and must remain a Gemini Flash model (e.g. `google/gemini-3.5-flash` or `google/gemini-3.1-flash-lite`) to ensure consistent, unbiased grading.
+
 ## Viewing Evaluation Results
 
 Inspect AI provides a web-based log viewer to explore interactive traces and judge rationales:

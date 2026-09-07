@@ -26,6 +26,37 @@ os.environ["INSPECT_MODEL_MAX_BACKOFF"] = "300"
 
 from inspect_ai.dataset import MemoryDataset
 
+MODEL_ALIASES: dict[str, str] = {
+    # Gemma models (cloud hosted via Google AI Studio / Gemini API)
+    "gemma": "google/gemma-4-26b-a4b-it",
+    "gemma-mobile": "google/gemma-4-26b-a4b-it",
+    "gemma-4-26b": "google/gemma-4-26b-a4b-it",
+    "gemma-4-26b-a4b": "google/gemma-4-26b-a4b-it",
+    "gemma-4-26b-a4b-it": "google/gemma-4-26b-a4b-it",
+    "gemma-large": "google/gemma-4-31b-it",
+    "gemma-4-31b": "google/gemma-4-31b-it",
+    "gemma-4-31b-it": "google/gemma-4-31b-it",
+    # Gemini models
+    "flash": "google/gemini-3.5-flash",
+    "gemini-flash": "google/gemini-3.5-flash",
+    "gemini-3-flash": "google/gemini-3.5-flash",
+    "gemini-3.5-flash": "google/gemini-3.5-flash",
+    "flash-lite": "google/gemini-3.1-flash-lite",
+    "gemini-flash-lite": "google/gemini-3.1-flash-lite",
+    "gemini-3-flash-lite": "google/gemini-3.1-flash-lite",
+    "gemini-3.1-flash-lite": "google/gemini-3.1-flash-lite",
+}
+
+
+def resolve_model_name(model_name: str) -> str:
+    """Resolves convenience aliases and short names to fully qualified model IDs."""
+    lower_name = model_name.lower().strip()
+    if lower_name in MODEL_ALIASES:
+        return MODEL_ALIASES[lower_name]
+    if lower_name.startswith(("gemma-", "gemini-")):
+        return f"google/{model_name}"
+    return model_name
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run A2UI evaluations")
@@ -33,6 +64,17 @@ def main() -> None:
         "--sanity",
         action="store_true",
         help="Run a quick sanity check (2 samples, gemini-3.1-flash-lite, 0 retry)",
+    )
+    parser.add_argument(
+        "--gemma",
+        nargs="?",
+        const="mobile",
+        choices=["mobile", "26b", "large", "31b"],
+        help=(
+            "Evaluate using Gemma models via cloud API (choices: mobile, 26b, large,"
+            " 31b). Defaults to mobile (26b-a4b-it, 4B active params). Sets"
+            " default strategy to 'express'."
+        ),
     )
     parser.add_argument(
         "--dataset",
@@ -52,13 +94,18 @@ def main() -> None:
         "--model",
         type=str,
         default="google/gemini-3.5-flash",
-        help="Model used to evaluate tasks",
+        help=(
+            "Model used to evaluate tasks (or alias like 'gemma-mobile', 'gemma-4-26b')"
+        ),
     )
     parser.add_argument(
         "--grading-model",
         type=str,
         default="google/gemini-3.5-flash",
-        help="Model used for grading",
+        help=(
+            "Model used for grading (default: google/gemini-3.5-flash). Flash models"
+            " must always be used for judging; Gemma should never be used as judge."
+        ),
     )
     parser.add_argument(
         "--max-retries", type=int, default=0, help="Maximum number of retries"
@@ -116,7 +163,24 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    model = "google/gemini-3.1-flash-lite" if args.sanity else args.model
+    if args.sanity:
+        model = "google/gemini-3.1-flash-lite"
+    elif args.gemma:
+        if args.gemma in ["large", "31b"]:
+            model = "google/gemma-4-31b-it"
+        else:
+            model = "google/gemma-4-26b-a4b-it"
+    else:
+        model = resolve_model_name(args.model)
+
+    grading_model = resolve_model_name(args.grading_model)
+    if "gemma" in grading_model.lower():
+        raise ValueError(
+            f"Invalid grading model '{grading_model}'. Gemma models must not be used"
+            " as LLM-as-a-judge; please use a Gemini Flash model (e.g."
+            " 'google/gemini-3.5-flash' or 'google/gemini-3.1-flash-lite')."
+        )
+
     limit = 2 if args.sanity else args.limit
     retry_attempts = 0 if args.sanity else args.max_retries
     sample_shuffle = None if args.sanity else args.sample_shuffle
@@ -129,7 +193,12 @@ def main() -> None:
 
     # Parse and validate strategies
     selected_strategies = []
-    raw_strategies = args.strategies if args.strategies else ["direct", "subagent_tool"]
+    if args.strategies:
+        raw_strategies = args.strategies
+    elif args.gemma:
+        raw_strategies = ["express"]
+    else:
+        raw_strategies = ["direct", "subagent_tool"]
     for item in raw_strategies:
         for s in item.split(","):
             s_clean = s.strip()
@@ -150,7 +219,7 @@ def main() -> None:
         )
         task_obj = task_func(
             strategy=strat,
-            grading_model=args.grading_model,
+            grading_model=grading_model,
             dataset=selected_dataset,
         )
         if args.prompt:

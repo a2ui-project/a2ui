@@ -1,0 +1,98 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Unit tests for eval main.py CLI and model resolution logic."""
+
+import pytest
+import sys
+from unittest.mock import patch
+from main import resolve_model_name, main
+
+
+def test_resolve_model_name_aliases():
+    """Verify standard Gemma and Gemini convenience aliases resolve properly."""
+    assert resolve_model_name("gemma") == "google/gemma-4-26b-a4b-it"
+    assert resolve_model_name("gemma-mobile") == "google/gemma-4-26b-a4b-it"
+    assert resolve_model_name("gemma-4-26b") == "google/gemma-4-26b-a4b-it"
+    assert resolve_model_name("gemma-4-26b-a4b-it") == "google/gemma-4-26b-a4b-it"
+
+    assert resolve_model_name("gemma-large") == "google/gemma-4-31b-it"
+    assert resolve_model_name("gemma-4-31b") == "google/gemma-4-31b-it"
+    assert resolve_model_name("gemma-4-31b-it") == "google/gemma-4-31b-it"
+
+    assert resolve_model_name("flash") == "google/gemini-3.5-flash"
+    assert resolve_model_name("gemini-flash") == "google/gemini-3.5-flash"
+    assert resolve_model_name("flash-lite") == "google/gemini-3.1-flash-lite"
+    assert resolve_model_name("gemini-flash-lite") == "google/gemini-3.1-flash-lite"
+
+
+def test_resolve_model_name_prefixes():
+    """Verify models with gemma- or gemini- prefix without google/ are prefixed."""
+    assert resolve_model_name("gemma-custom-model") == "google/gemma-custom-model"
+    assert resolve_model_name("gemini-custom-model") == "google/gemini-custom-model"
+    # Fully qualified remains unchanged
+    assert (
+        resolve_model_name("google/gemma-4-26b-a4b-it") == "google/gemma-4-26b-a4b-it"
+    )
+    assert resolve_model_name("openai/gpt-4o") == "openai/gpt-4o"
+
+
+def test_grading_model_rejects_gemma():
+    """Verify that using a Gemma model as LLM-as-a-judge raises ValueError."""
+    test_args = ["main.py", "--grading-model", "gemma"]
+    with patch.object(sys, "argv", test_args):
+        with pytest.raises(
+            ValueError, match="Gemma models must not be used as LLM-as-a-judge"
+        ):
+            main()
+
+
+def test_gemma_flag_configuration():
+    """Verify that --gemma configures mobile model and defaults to express strategy."""
+    test_args = ["main.py", "--gemma", "--dataset", "core_v1_0", "--limit", "1"]
+    with patch.object(sys, "argv", test_args), patch(
+        "main.eval_set", return_value=(True, [])
+    ) as mock_eval_set, patch("main.a2ui_v1_0_eval") as mock_v1_eval:
+        main()
+
+        assert mock_eval_set.called
+        call_kwargs = mock_eval_set.call_args.kwargs
+        assert call_kwargs["model"] == "google/gemma-4-26b-a4b-it"
+        # Verify express was passed as strategy to task
+        assert mock_v1_eval.call_args.kwargs["strategy"] == "express"
+        assert (
+            mock_v1_eval.call_args.kwargs["grading_model"] == "google/gemini-3.5-flash"
+        )
+
+
+def test_gemma_large_flag_configuration():
+    """Verify that --gemma large configures the 31B dense model."""
+    test_args = [
+        "main.py",
+        "--gemma",
+        "large",
+        "--dataset",
+        "core_v1_0",
+        "--limit",
+        "1",
+    ]
+    with patch.object(sys, "argv", test_args), patch(
+        "main.eval_set", return_value=(True, [])
+    ) as mock_eval_set, patch("main.a2ui_v1_0_eval") as mock_v1_eval:
+        main()
+
+        assert mock_eval_set.called
+        call_kwargs = mock_eval_set.call_args.kwargs
+        assert call_kwargs["model"] == "google/gemma-4-31b-it"
+        assert mock_v1_eval.call_args.kwargs["strategy"] == "express"
