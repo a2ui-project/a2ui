@@ -2,6 +2,18 @@
   "dependencyTypes": ["dev", "prod", "peer"],
   "versionGroups": [
     {
+      "label": "Allow multi-version React peer dependencies in published packages",
+      "dependencyTypes": ["peer"],
+      "packages": ["@a2ui/react"],
+      "dependencies": ["react", "react-dom"],
+      "isIgnored": true
+    },
+    {
+      "label": "Ignore @a2ui/markdown-it version string variation",
+      "dependencies": ["@a2ui/markdown-it"],
+      "isIgnored": true
+    },
+    {
       "label": "Unified TypeScript version",
       "packages": ["**"],
       "dependencies": ["typescript"],
