@@ -102,32 +102,74 @@ Use these exact positional signatures to instantiate components. Do not output p
 Use these exact positional signatures to instantiate check rules or logic functions:
 • and(values)
   - Description: Performs a logical AND operation on a list of boolean values.
+  - values: The list of boolean values to evaluate.
 • email(value)
   - Description: Checks that the value is a valid email address.
 • formatCurrency(value, currency, decimals?, grouping?)
   - Description: Formats a number as a currency string.
+  - value: The monetary amount.
+  - currency: The ISO 4217 currency code (e.g., 'USD', 'EUR').
+  - decimals: Optional. The number of decimal places to show. Defaults to 0 or 2 depending on locale.
+  - grouping: Optional. If true, uses locale-specific grouping separators (e.g. '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true.
 • formatDate(value, format)
   - Description: Formats a timestamp into a string using a pattern.
+  - value: The date to format.
+  - format: A Unicode TR35 date pattern string.
+
+Token Reference:
+- Year: 'yy' (26), 'yyyy' (2026)
+- Month: 'M' (1), 'MM' (01), 'MMM' (Jan), 'MMMM' (January)
+- Day: 'd' (1), 'dd' (01), 'E' (Tue), 'EEEE' (Tuesday)
+- Hour (12h): 'h' (1-12), 'hh' (01-12) - requires 'a' for AM/PM
+- Hour (24h): 'H' (0-23), 'HH' (00-23) - Military Time
+- Minute: 'mm' (00-59)
+- Second: 'ss' (00-59)
+- Period: 'a' (AM/PM)
+
+Examples:
+- 'MMM dd, yyyy' -> 'Jan 16, 2026'
+- 'HH:mm' -> '14:30' (Military)
+- 'h:mm a' -> '2:30 PM'
+- 'EEEE, d MMMM' -> 'Friday, 16 January'
 • formatNumber(value, decimals?, grouping?)
   - Description: Formats a number with the specified grouping and decimal precision.
+  - value: The number to format.
+  - decimals: Optional. The number of decimal places to show. Defaults to 0 or 2 depending on locale.
+  - grouping: Optional. If true, uses locale-specific grouping separators (e.g. '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true.
 • formatString(value)
   - Description: Performs string interpolation of data model values and other functions in the catalog functions list and returns the resulting string. The value string can contain interpolated expressions in the `${expression}` format. Supported expression types include: JSON Pointer paths to the data model (e.g., `${/absolute/path}` or `${relative/path}`), and renderer-side function calls (e.g., `${now()}`). Function arguments must be named (e.g., `${formatDate(value:${/currentDate}, format:'MM-dd')}`). To include a literal `${` sequence, escape it as `\${`.
 • length(value, min?, max?)
   - Description: Checks string length constraints.
+  - min: The minimum allowed length.
+  - max: The maximum allowed length.
 • not(value)
   - Description: Performs a logical NOT operation on a boolean value.
+  - value: The boolean value to negate.
 • numeric(value, min?, max?)
   - Description: Checks numeric range constraints.
+  - min: The minimum allowed value.
+  - max: The maximum allowed value.
 • openUrl(url)
   - Description: Opens the specified URL in a browser or handler (requires user activation). This function has no return value.
+  - url: The URL to open.
 • or(values)
   - Description: Performs a logical OR operation on a list of boolean values.
+  - values: The list of boolean values to evaluate.
 • pluralize(value, zero?, one?, two?, few?, many?, other)
   - Description: Returns a localized string based on the Common Locale Data Repository (CLDR) plural category of the count (zero, one, two, few, many, other). Requires an 'other' fallback. For English, just use 'one' and 'other'.
+  - value: The numeric value used to determine the plural category.
+  - zero: String for the 'zero' category (e.g., 0 items).
+  - one: String for the 'one' category (e.g., 1 item).
+  - two: String for the 'two' category (used in Arabic, Welsh, etc.).
+  - few: String for the 'few' category (e.g., small groups in Slavic languages).
+  - many: String for the 'many' category (e.g., large groups in various languages).
+  - other: The default/fallback string (used for general plural cases).
 • regex(value, pattern)
   - Description: Checks that the value matches a regular expression string.
+  - pattern: The regex pattern to match against.
 • required(value)
   - Description: Checks that the value is not null, undefined, or empty.
+  - value: The value to check.
 
 ## Catalog Instructions
 

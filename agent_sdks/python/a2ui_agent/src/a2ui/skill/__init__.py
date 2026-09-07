@@ -14,6 +14,7 @@
 
 """Skill generation module for A2UI."""
 
+from .generator import SkillGenerator
 from .skill import Skill, SkillSet
 
-__all__ = ["Skill", "SkillSet"]
+__all__ = ["Skill", "SkillSet", "SkillGenerator"]
