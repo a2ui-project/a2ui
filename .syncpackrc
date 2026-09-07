@@ -12,6 +12,12 @@
       "packages": ["**"],
       "dependencies": ["zod"],
       "pinVersion": "^3.25.76"
+    },
+    {
+      "label": "Unified @a2ui/markdown-it version",
+      "packages": ["**"],
+      "dependencies": ["@a2ui/markdown-it"],
+      "pinVersion": "workspace:*"
     }
   ]
 }
