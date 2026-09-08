@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
+import {A2uiRecursionError, A2uiValidationError} from '../errors.js';
 import {Catalog, type ComponentApi} from '../catalog/types.js';
 import {ProtocolVersion} from '../processing/adapters/base.js';
 
@@ -131,30 +131,22 @@ export function* getComponentReferences(
   }
 }
 
-/** Configuration options for component integrity validation. */
-export interface IntegrityOptions {
-  /** Expected identifier for the root component in the hierarchy. Defaults to 'root'. */
-  rootId?: string;
-  /** Whether to permit references to non-existent component identifiers. */
-  allowDanglingReferences?: boolean;
-  /** Whether to allow a component tree that does not contain a root component. */
-  allowMissingRoot?: boolean;
-}
-
 /** Configuration options for component topology and hierarchy analysis. */
 export interface TopologyOptions {
   /** Expected root component identifier. Defaults to 'root'. */
   rootId?: string;
+  /** Whether to permit references to non-existent component identifiers. */
+  allowDanglingReferences?: boolean;
   /** Whether to allow components that are not reachable from the root node. */
   allowOrphanComponents?: boolean;
-  /** Whether to perform analysis when the root component is absent. */
+  /** Whether to allow a component tree that does not contain a root component. */
   allowMissingRoot?: boolean;
   /** Maximum permitted global graph traversal depth. Defaults to 50. */
   maxDepth?: number;
 }
 
-/** Combined configuration specifying integrity, topology, version, and catalog validation rules. */
-export interface ValidationConfig extends IntegrityOptions, TopologyOptions {
+/** Combined configuration specifying topology, version, and catalog validation rules. */
+export interface ValidationConfig extends TopologyOptions {
   /** Target protocol version expected for incoming messages (e.g. 'v0.8', 'v0.9', 'v1.0'). */
   targetVersion?: ProtocolVersion | string;
   /** Whether to allow component types that do not exist in the surface catalog. Defaults to false. */
@@ -178,110 +170,6 @@ export const RELAXED_VALIDATION: ValidationConfig = Object.freeze({
   allowMissingRoot: true,
   allowUnknownElements: true,
 });
-
-/** Catalog, reference map, or collection of catalogs providing child reference definitions. */
-export type CatalogOrRefMapInput =
-  | Catalog<ComponentApi>
-  | ComponentRefMap
-  | Array<Catalog<ComponentApi>>
-  | Map<string, Catalog<ComponentApi>>;
-
-function resolveRefMapForComponent(
-  comp: Record<string, unknown>,
-  catalogInput: CatalogOrRefMapInput,
-): ComponentRefMap {
-  if (catalogInput instanceof Catalog) {
-    return getOrCreateRefMap(catalogInput);
-  }
-  if (Array.isArray(catalogInput)) {
-    const rawCatalogId = comp.catalogId ?? comp.catalogID;
-    if (typeof rawCatalogId === 'string' && rawCatalogId) {
-      const found = catalogInput.find(c => c.id === rawCatalogId);
-      if (found) return getOrCreateRefMap(found);
-      return {};
-    }
-    if (catalogInput.length > 0 && catalogInput[0] instanceof Catalog) {
-      return getOrCreateRefMap(catalogInput[0]);
-    }
-    return {};
-  }
-  if (catalogInput instanceof Map) {
-    const rawCatalogId = comp.catalogId ?? comp.catalogID;
-    if (typeof rawCatalogId === 'string' && rawCatalogId) {
-      const cat = catalogInput.get(rawCatalogId);
-      if (cat) return getOrCreateRefMap(cat);
-      return {};
-    }
-    const first = catalogInput.values().next().value;
-    if (first instanceof Catalog) {
-      return getOrCreateRefMap(first);
-    }
-    return {};
-  }
-  return catalogInput as ComponentRefMap;
-}
-
-/**
- * Validates the structural integrity of a list of component definitions.
- *
- * @param components Array of component definition objects to audit.
- * @param catalogOrRefMap Component reference field mapping definitions, Catalog instance, or list/map of Catalogs.
- * @param options Integrity configuration options.
- * @throws {A2uiIntegrityError} If duplicate IDs, missing root, or dangling references are found.
- *
- * @example
- * ```ts
- * validateComponentIntegrity(components, catalog, { rootId: 'root' });
- * ```
- */
-export function validateComponentIntegrity(
-  components: Array<Record<string, unknown>>,
-  catalogOrRefMap: CatalogOrRefMapInput,
-  options: IntegrityOptions = {},
-): void {
-  const rootId = options.rootId ?? 'root';
-  const allowDanglingReferences = options.allowDanglingReferences ?? false;
-  const allowMissingRoot = options.allowMissingRoot ?? false;
-
-  const ids = new Set<string>();
-
-  // 1. Collect IDs and check for duplicates
-  for (const comp of components) {
-    if (!comp || typeof comp !== 'object') continue;
-    const compId = comp.id;
-    if (compId === undefined || compId === null || compId === '') {
-      throw new A2uiIntegrityError('Component is missing a valid id.');
-    }
-    const compIdStr = String(compId);
-    if (ids.has(compIdStr)) {
-      throw new A2uiIntegrityError(`Duplicate component ID: ${compIdStr}`);
-    }
-    ids.add(compIdStr);
-  }
-
-  // 2. Check for root component
-  if (!allowMissingRoot && !ids.has(rootId)) {
-    throw new A2uiIntegrityError(`Missing root component: No component has id='${rootId}'`);
-  }
-
-  if (allowDanglingReferences) {
-    return;
-  }
-
-  // 3. Check for dangling references
-  for (const comp of components) {
-    if (!comp || typeof comp !== 'object') continue;
-    const compId = comp.id !== undefined && comp.id !== null ? String(comp.id) : 'Unknown';
-    const refFieldsMap = resolveRefMapForComponent(comp, catalogOrRefMap);
-    for (const [refId, fieldName] of getComponentReferences(comp, refFieldsMap)) {
-      if (!ids.has(refId)) {
-        throw new A2uiIntegrityError(
-          `Component '${compId}' references non-existent component '${refId}' in field '${fieldName}'`,
-        );
-      }
-    }
-  }
-}
 
 function traverseRecursionAndPaths(item: unknown, globalDepth: number, funcDepth: number): void {
   if (globalDepth > MAX_GLOBAL_DEPTH) {

@@ -20,16 +20,9 @@
 
 import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  getComponentReferences,
-  validateComponentIntegrity,
-  validateRecursionAndPaths,
-} from './integrity-checker.js';
+import {getComponentReferences, validateRecursionAndPaths} from './integrity-checker.js';
 import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
-import {Catalog} from '../catalog/types.js';
 import {ComponentRefMap} from '../catalog/reference-map.js';
-import {BASIC_COMPONENTS} from '../v1_0/basic_catalog/components/basic_components.js';
-import {z} from 'zod';
 
 describe('Integrity Verification', () => {
   describe('getComponentReferences', () => {
@@ -62,133 +55,6 @@ describe('Integrity Verification', () => {
       assert.ok(refIds.includes('child4'));
       assert.ok(refIds.includes('tab1'));
       assert.ok(refIds.includes('tab2'));
-    });
-  });
-
-  describe('validateComponentIntegrity', () => {
-    it('passes for valid component tree', () => {
-      const refMap: ComponentRefMap = {
-        Box: {singleRefs: new Set(['child']), listRefs: new Set<string>()},
-      };
-      const components = [
-        {id: 'root', component: {Box: {child: 'c1'}}},
-        {id: 'c1', component: {Box: {}}},
-      ];
-      assert.doesNotThrow(() => validateComponentIntegrity(components, refMap));
-    });
-
-    it('throws on duplicate component ID', () => {
-      const components = [
-        {id: 'c1', component: 'Box'},
-        {id: 'c1', component: 'Text'},
-      ];
-      assert.throws(
-        () => validateComponentIntegrity(components, {}),
-        (err: unknown) =>
-          err instanceof A2uiIntegrityError && err.message.includes('Duplicate component ID: c1'),
-      );
-    });
-
-    it('throws on component missing an id or having an empty id', () => {
-      assert.throws(
-        () =>
-          validateComponentIntegrity(
-            [{component: 'Text', text: 'No id'} as Record<string, unknown>],
-            {},
-          ),
-        (err: unknown) =>
-          err instanceof A2uiIntegrityError &&
-          err.message.includes('Component is missing a valid id'),
-      );
-
-      assert.throws(
-        () => validateComponentIntegrity([{id: '', component: 'Text', text: 'Empty id'}], {}),
-        (err: unknown) =>
-          err instanceof A2uiIntegrityError &&
-          err.message.includes('Component is missing a valid id'),
-      );
-    });
-
-    it('throws on missing root component', () => {
-      const components = [{id: 'c1', component: 'Box'}];
-      assert.throws(
-        () => validateComponentIntegrity(components, {}),
-        (err: unknown) =>
-          err instanceof A2uiIntegrityError && err.message.includes("No component has id='root'"),
-      );
-    });
-
-    it('throws on dangling component reference', () => {
-      const refMap: ComponentRefMap = {
-        Box: {singleRefs: new Set(['child']), listRefs: new Set<string>()},
-      };
-      const components = [{id: 'root', component: {Box: {child: 'nonexistent'}}}];
-      assert.throws(
-        () => validateComponentIntegrity(components, refMap),
-        (err: unknown) =>
-          err instanceof A2uiIntegrityError &&
-          err.message.includes("references non-existent component 'nonexistent'"),
-      );
-    });
-
-    it('enforces missing root even when allowDanglingReferences is true', () => {
-      const basicCatalog = new Catalog('basic', BASIC_COMPONENTS);
-      const components = [{id: 'c1', component: 'Text', text: 'No root'}];
-      assert.throws(
-        () =>
-          validateComponentIntegrity(components, basicCatalog, {
-            allowDanglingReferences: true,
-            allowMissingRoot: false,
-          }),
-        (err: unknown) =>
-          err instanceof A2uiIntegrityError && err.message.includes("No component has id='root'"),
-      );
-    });
-
-    it('builds dynamic ref map from custom Catalog schemas', () => {
-      const customDrawerApi = {
-        name: 'CustomDrawer',
-        schema: z.object({
-          header: z.string().describe('ChildComponentId'),
-          bodyItems: z.array(z.string()).describe('ChildList'),
-        }),
-      };
-      const customCat = new Catalog('custom-cat', [customDrawerApi]);
-      const components = [
-        {id: 'root', component: 'CustomDrawer', header: 'c1', bodyItems: ['c2', 'c3']},
-        {id: 'c1', component: 'Text', text: 'Header'},
-        {id: 'c2', component: 'Text', text: 'Item 1'},
-        {id: 'c3', component: 'Text', text: 'Item 2'},
-      ];
-
-      assert.doesNotThrow(() => validateComponentIntegrity(components, customCat));
-    });
-
-    it('validates components across multiple catalogs', () => {
-      const catalogA = new Catalog('cat-a', [
-        {
-          name: 'BoxA',
-          schema: z.object({childSlot: z.string().describe('ChildComponentId')}),
-        },
-      ]);
-      const catalogB = new Catalog('cat-b', [
-        {
-          name: 'BoxB',
-          schema: z.object({contentSlot: z.string().describe('ChildComponentId')}),
-        },
-        {
-          name: 'LeafB',
-          schema: z.object({text: z.string()}),
-        },
-      ]);
-
-      const components = [
-        {id: 'root', component: 'BoxA', catalogId: 'cat-a', childSlot: 'node-b'},
-        {id: 'node-b', component: 'BoxB', catalogId: 'cat-b', contentSlot: 'leaf-b'},
-        {id: 'leaf-b', component: 'LeafB', catalogId: 'cat-b', text: 'Hello'},
-      ];
-
-      assert.doesNotThrow(() => validateComponentIntegrity(components, [catalogA, catalogB]));
     });
   });
 
