@@ -30,10 +30,10 @@ export const CallMcpToolApi = {
   returnType: 'any' as const,
   schema: z.object({
     name: DynamicStringSchema.describe(
-      'REF:common_types.json#/$defs/DynamicString|The name of the MCP tool to execute.',
+      'The name of the MCP tool to execute.',
     ),
     server: DynamicStringSchema.optional().describe(
-      'REF:common_types.json#/$defs/DynamicString|The optional name of the MCP server to execute the tool on.',
+      'The optional name of the MCP server to execute the tool on.',
     ),
     arguments: z
       .record(DynamicValueSchema)
