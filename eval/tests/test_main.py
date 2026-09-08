@@ -133,3 +133,33 @@ def test_gemma_e4b_flag_configuration():
         call_kwargs = mock_eval_set.call_args.kwargs
         assert call_kwargs["model"] == "ollama/gemma4:e4b"
         assert mock_v1_eval.call_args.kwargs["strategy"] == "express"
+
+
+def test_resolve_model_name_whitespace_stripping():
+    """Verify that resolve_model_name strips leading and trailing whitespace."""
+    assert resolve_model_name("  gemma  ") == "google/gemma-4-26b-a4b-it"
+    assert resolve_model_name("  gemma-custom  ") == "google/gemma-custom"
+    assert resolve_model_name("  ollama:custom  ") == "ollama/custom"
+    assert resolve_model_name("  openai/gpt-4o  ") == "openai/gpt-4o"
+
+
+def test_gemma_model_flag_defaults_to_express():
+    """Verify that specifying a Gemma model via --model defaults strategy to express."""
+    test_args = [
+        "main.py",
+        "--model",
+        "gemma-4-26b",
+        "--dataset",
+        "core_v1_0",
+        "--limit",
+        "1",
+    ]
+    with patch.object(sys, "argv", test_args), patch(
+        "main.eval_set", return_value=(True, [])
+    ) as mock_eval_set, patch("main.a2ui_v1_0_eval") as mock_v1_eval:
+        main()
+
+        assert mock_eval_set.called
+        call_kwargs = mock_eval_set.call_args.kwargs
+        assert call_kwargs["model"] == "google/gemma-4-26b-a4b-it"
+        assert mock_v1_eval.call_args.kwargs["strategy"] == "express"

@@ -60,14 +60,15 @@ MODEL_ALIASES: dict[str, str] = {
 
 def resolve_model_name(model_name: str) -> str:
     """Resolves convenience aliases and short names to fully qualified model IDs."""
-    lower_name = model_name.lower().strip()
+    stripped_name = model_name.strip()
+    lower_name = stripped_name.lower()
     if lower_name in MODEL_ALIASES:
         return MODEL_ALIASES[lower_name]
     if lower_name.startswith("ollama:"):
-        return f"ollama/{model_name[7:]}"
+        return f"ollama/{stripped_name[7:]}"
     if lower_name.startswith(("gemma-", "gemini-")):
-        return f"google/{model_name}"
-    return model_name
+        return f"google/{stripped_name}"
+    return stripped_name
 
 
 def main() -> None:
@@ -213,7 +214,7 @@ def main() -> None:
     selected_strategies = []
     if args.strategies:
         raw_strategies = args.strategies
-    elif args.gemma:
+    elif args.gemma or "gemma" in model.lower():
         raw_strategies = ["express"]
     else:
         raw_strategies = ["direct", "subagent_tool"]
