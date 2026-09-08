@@ -1,0 +1,174 @@
+{
+  "name": "Legal Document Diff Viewer",
+  "description": "Compares two versions of an enterprise licensing agreement and highlights clause modifications and word-level diffs using Markdown diff blocks.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-legal-document-diff",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-legal-document-diff",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main_column"
+          },
+          {
+            "id": "main_column",
+            "component": "Column",
+            "children": [
+              "title_text",
+              "subtitle_text",
+              "divider_top",
+              "summary_card",
+              "section_1_header",
+              "section_1_diff",
+              "section_2_header",
+              "section_2_diff",
+              "section_3_header",
+              "section_3_diff",
+              "divider_bottom",
+              "action_row"
+            ],
+            "align": "stretch"
+          },
+          {
+            "id": "title_text",
+            "component": "Text",
+            "text": "Enterprise License Agreement — Version Comparison",
+            "variant": "h3"
+          },
+          {
+            "id": "subtitle_text",
+            "component": "Text",
+            "text": "Comparing **v1.2** *(Effective March 15, 2023)* with **v2.0** *(Effective September 1, 2024)*.",
+            "variant": "body"
+          },
+          {
+            "id": "divider_top",
+            "component": "Divider"
+          },
+          {
+            "id": "summary_card",
+            "component": "Card",
+            "child": "summary_column"
+          },
+          {
+            "id": "summary_column",
+            "component": "Column",
+            "children": [
+              "summary_title",
+              "summary_stats"
+            ],
+            "align": "stretch"
+          },
+          {
+            "id": "summary_title",
+            "component": "Text",
+            "text": "Diff Summary",
+            "variant": "h4"
+          },
+          {
+            "id": "summary_stats",
+            "component": "Text",
+            "text": "- **3 Sections Modified**: Section 1.1 (License Grant), Section 2.1 (Telemetry & Data), Section 3.1 (Liability)\n- **Net Word Change**: `++ 48 additions` | `-- 26 deletions`\n- **Key Policy Shifts**: Multi-cloud deployment authorization, AI telemetry opt-in guardrail, 12-month liability cap expansion.",
+            "variant": "body"
+          },
+          {
+            "id": "section_1_header",
+            "component": "Text",
+            "text": "1. Section 1.1: Grant of License",
+            "variant": "h4"
+          },
+          {
+            "id": "section_1_diff",
+            "component": "Text",
+            "text": "```diff\n@@ Section 1.1: Grant of License @@\n Licensor grants Licensee a non-exclusive, non-transferable license to deploy and execute the Software\n- on up to ten (10) designated on-premise servers solely for internal business operations.\n+ on up to fifty (50) designated cloud or hybrid instances solely for internal business operations\n+ and authorized affiliate workloads.\n```\n\n**Exact Word Changes:**\n- Removed: `--ten (10) designated on-premise servers--`\n- Added: `++fifty (50) designated cloud or hybrid instances++`, `++and authorized affiliate workloads++`",
+            "variant": "body"
+          },
+          {
+            "id": "section_2_header",
+            "component": "Text",
+            "text": "2. Section 2.1: Telemetry and Customer Data",
+            "variant": "h4"
+          },
+          {
+            "id": "section_2_diff",
+            "component": "Text",
+            "text": "```diff\n@@ Section 2.1: Telemetry and Customer Data @@\n Licensee data stored within the Software remains strictly confidential.\n- Licensor shall not collect, aggregate, or analyze Customer Data except for operational diagnostic error logs.\n+ Licensor may collect and analyze anonymized telemetry and usage patterns solely to optimize machine learning\n+ performance, provided Customer Data is never used for training foundation models without explicit consent.\n```\n\n**Exact Word Changes:**\n- Removed: `--shall not collect, aggregate, or analyze Customer Data except for operational diagnostic error logs--`\n- Added: `++may collect and analyze anonymized telemetry and usage patterns solely to optimize machine learning performance, provided Customer Data is never used for training foundation models without explicit consent++`",
+            "variant": "body"
+          },
+          {
+            "id": "section_3_header",
+            "component": "Text",
+            "text": "3. Section 3.1: Limitation of Liability",
+            "variant": "h4"
+          },
+          {
+            "id": "section_3_diff",
+            "component": "Text",
+            "text": "```diff\n@@ Section 3.1: Limitation of Liability @@\n In no event shall either party's cumulative liability under this Agreement exceed the total subscription fees paid by Licensee\n- during the preceding six (6) month period.\n+ during the preceding twelve (12) month period.\n```\n\n**Exact Word Changes:**\n- Removed: `--six (6)--`\n- Added: `++twelve (12)++`",
+            "variant": "body"
+          },
+          {
+            "id": "divider_bottom",
+            "component": "Divider"
+          },
+          {
+            "id": "action_row",
+            "component": "Row",
+            "children": [
+              "accept_button",
+              "export_button"
+            ],
+            "justify": "start"
+          },
+          {
+            "id": "accept_button",
+            "component": "Button",
+            "child": "accept_button_text",
+            "variant": "primary",
+            "action": {
+              "event": {
+                "name": "acknowledge_diff",
+                "context": {
+                  "sourceVersion": "v1.2",
+                  "targetVersion": "v2.0"
+                }
+              }
+            }
+          },
+          {
+            "id": "accept_button_text",
+            "component": "Text",
+            "text": "Acknowledge Changes"
+          },
+          {
+            "id": "export_button",
+            "component": "Button",
+            "child": "export_button_text",
+            "variant": "default",
+            "action": {
+              "event": {
+                "name": "export_diff_patch",
+                "context": {}
+              }
+            }
+          },
+          {
+            "id": "export_button_text",
+            "component": "Text",
+            "text": "Export Patch (.patch)"
+          }
+        ]
+      }
+    }
+  ]
+}
