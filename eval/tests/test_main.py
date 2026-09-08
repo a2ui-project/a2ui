@@ -21,27 +21,15 @@ from main import resolve_model_name, main
 
 
 def test_resolve_model_name_aliases():
-    """Verify standard Gemma and Gemini convenience aliases resolve properly."""
-    assert resolve_model_name("gemma") == "google/gemma-4-26b-a4b-it"
-    assert resolve_model_name("gemma-mobile") == "google/gemma-4-26b-a4b-it"
+    """Verify explicit versioned Gemma and Gemini model aliases resolve properly."""
     assert resolve_model_name("gemma-4-26b") == "google/gemma-4-26b-a4b-it"
-    assert resolve_model_name("gemma-4-26b-a4b-it") == "google/gemma-4-26b-a4b-it"
-
-    assert resolve_model_name("gemma-large") == "google/gemma-4-31b-it"
     assert resolve_model_name("gemma-4-31b") == "google/gemma-4-31b-it"
-    assert resolve_model_name("gemma-4-31b-it") == "google/gemma-4-31b-it"
-
-    assert resolve_model_name("gemma-e2b") == "ollama/gemma4:e2b"
     assert resolve_model_name("gemma-4-e2b") == "ollama/gemma4:e2b"
-    assert resolve_model_name("gemma4:e2b") == "ollama/gemma4:e2b"
-    assert resolve_model_name("gemma-e4b") == "ollama/gemma4:e4b"
     assert resolve_model_name("gemma-4-e4b") == "ollama/gemma4:e4b"
-    assert resolve_model_name("gemma-2b") == "ollama/gemma2:2b"
+    assert resolve_model_name("gemma-2-2b") == "ollama/gemma2:2b"
 
-    assert resolve_model_name("flash") == "google/gemini-3.5-flash"
-    assert resolve_model_name("gemini-flash") == "google/gemini-3.5-flash"
-    assert resolve_model_name("flash-lite") == "google/gemini-3.1-flash-lite"
-    assert resolve_model_name("gemini-flash-lite") == "google/gemini-3.1-flash-lite"
+    assert resolve_model_name("gemini-3.5-flash") == "google/gemini-3.5-flash"
+    assert resolve_model_name("gemini-3.1-flash-lite") == "google/gemini-3.1-flash-lite"
 
 
 def test_resolve_model_name_prefixes():
@@ -59,7 +47,7 @@ def test_resolve_model_name_prefixes():
 
 def test_grading_model_rejects_gemma():
     """Verify that using a Gemma model as LLM-as-a-judge raises ValueError."""
-    test_args = ["main.py", "--grading-model", "gemma"]
+    test_args = ["main.py", "--grading-model", "gemma-4-26b"]
     with patch.object(sys, "argv", test_args):
         with pytest.raises(
             ValueError, match="Gemma models must not be used as LLM-as-a-judge"
@@ -67,17 +55,9 @@ def test_grading_model_rejects_gemma():
             main()
 
 
-def test_gemma_model_resolution_and_grading_check():
-    """Verify that gemma model aliases resolve correctly via --model."""
-    assert resolve_model_name("gemma-4-26b") == "google/gemma-4-26b-a4b-it"
-    assert resolve_model_name("gemma-large") == "google/gemma-4-31b-it"
-    assert resolve_model_name("gemma-e2b") == "ollama/gemma4:e2b"
-    assert resolve_model_name("gemma-e4b") == "ollama/gemma4:e4b"
-
-
 def test_resolve_model_name_whitespace_stripping():
     """Verify that resolve_model_name strips leading and trailing whitespace."""
-    assert resolve_model_name("  gemma  ") == "google/gemma-4-26b-a4b-it"
+    assert resolve_model_name("  gemma-4-26b  ") == "google/gemma-4-26b-a4b-it"
     assert resolve_model_name("  gemma-custom  ") == "google/gemma-custom"
     assert resolve_model_name("  ollama:custom  ") == "ollama/custom"
     assert resolve_model_name("  openai/gpt-4o  ") == "openai/gpt-4o"
