@@ -66,7 +66,7 @@ Name each envelope by what it is a request/response for:
 
 Problem: this naming still requires to remember four combinations and guess which component is the second participant.
 
-### Assumptions
+### Note about concrete details
 
 Concrete details in this proposal assume https://github.com/a2ui-project/a2ui/pull/2538 to be merged.
 The details will be adjusted to the actual state of the code at main at the time of execution.
