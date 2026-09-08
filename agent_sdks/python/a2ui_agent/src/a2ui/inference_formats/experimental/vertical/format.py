@@ -38,8 +38,7 @@ class VerticalFormat(InferenceFormat):
     The Vertical format targets simple, direct UI generation where an agent
     emits a single component or a non-nested vertical list of components.
     Components requiring children are excluded from the prompt catalog rules,
-    and multiple root components are automatically nested into a vertical container
-    (e.g., Column or List) by the compiler.
+    and multiple components are emitted as separate surfaces by the compiler.
     """
 
     def __init__(
@@ -62,6 +61,7 @@ class VerticalFormat(InferenceFormat):
         self.examples_path = examples_path
         self.version = version
         self._prompt_generator: Optional[VerticalPromptGenerator] = None
+        self._parser: Optional[VerticalParser] = None
 
     def _ensure_catalog(self) -> None:
         """Ensures a valid catalog is set, raising ValueError otherwise."""
@@ -82,7 +82,11 @@ class VerticalFormat(InferenceFormat):
     def parser(self) -> Parser:
         """The parser instance configured for this Vertical format."""
         self._ensure_catalog()
-        return VerticalParser(self.catalog, self.surface_id, version=self.version)
+        if self._parser is None:
+            self._parser = VerticalParser(
+                self.catalog, self.surface_id, version=self.version
+            )
+        return self._parser
 
     def generate_system_prompt(self, *args, **kwargs) -> str:
         """Convenience method delegating to prompt_generator.generate."""

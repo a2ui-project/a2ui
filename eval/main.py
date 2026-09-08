@@ -150,6 +150,13 @@ def main() -> None:
         default=None,
         help="Number of epochs/repetitions to run for each evaluation sample",
     )
+    parser.add_argument(
+        "--version",
+        type=str,
+        default=None,
+        choices=["0.9.1", "1.0"],
+        help="A2UI specification version to evaluate (0.9.1 or 1.0)",
+    )
     args = parser.parse_args()
     if args.sanity:
         model = "google/gemini-3.1-flash-lite"
@@ -192,11 +199,20 @@ def main() -> None:
                 f"Unknown evaluation strategy: {strat}. Valid choices:"
                 f" {', '.join(STRATEGIES.keys())}"
             )
-        task_func = (
-            a2ui_v1_0_eval
-            if strat in ["express", "elemental", "atom", "direct", "vertical"]
-            else a2ui_v0_9_1_eval
-        )
+        if args.version == "0.9.1":
+            task_func = a2ui_v0_9_1_eval
+        elif args.version == "1.0":
+            task_func = a2ui_v1_0_eval
+        elif selected_dataset and "v0_9_1" in selected_dataset:
+            task_func = a2ui_v0_9_1_eval
+        elif selected_dataset and "v1_0" in selected_dataset:
+            task_func = a2ui_v1_0_eval
+        else:
+            task_func = (
+                a2ui_v1_0_eval
+                if strat in ["express", "elemental", "atom", "direct", "vertical"]
+                else a2ui_v0_9_1_eval
+            )
         task_obj = task_func(
             strategy=strat,
             grading_model=grading_model,

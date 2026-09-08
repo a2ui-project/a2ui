@@ -55,6 +55,29 @@ class VerticalParser(Parser):
         self.catalog = catalog
         self.surface_id = surface_id
         self.version = version
+        self._stream_parser = None
+
+    @property
+    def supports_streaming(self) -> bool:
+        """Whether the parser supports streaming token chunk compilation."""
+        return True
+
+    def process_chunk(self, chunk: str) -> List[ResponsePart]:
+        """Processes streamed token chunks incrementally, emitting a Surface per component.
+
+        Args:
+            chunk: The next token text chunk.
+
+        Returns:
+            A list of parsed or completed ResponsePart objects.
+        """
+        if self._stream_parser is None:
+            from .streaming import VerticalStreamParser
+
+            self._stream_parser = VerticalStreamParser(
+                self.catalog, surface_id=self.surface_id, version=self.version
+            )
+        return self._stream_parser.process_chunk(chunk)
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
         """Checks whether the given content string contains A2UI sentinel tags."""

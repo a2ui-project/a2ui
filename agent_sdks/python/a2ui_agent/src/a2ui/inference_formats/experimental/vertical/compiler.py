@@ -681,55 +681,34 @@ class VerticalCompiler:
         if not parsed_components:
             return []
 
-        # Construct component tree
-        if len(parsed_components) == 1:
-            root_comp = {"id": "root", **parsed_components[0]}
-            all_components = [root_comp]
-        else:
-            container = self._find_vertical_container()
-            if container:
-                container_name, child_prop = container
-                child_ids = [f"comp_{i}" for i in range(len(parsed_components))]
-                root_comp = {
-                    "id": "root",
-                    "component": container_name,
-                    child_prop: child_ids,
-                }
-                child_comps = [
-                    {"id": f"comp_{i}", **comp}
-                    for i, comp in enumerate(parsed_components)
-                ]
-                all_components = [root_comp] + child_comps
-            else:
-                all_components = [
-                    {"id": f"root_{i}", **comp}
-                    for i, comp in enumerate(parsed_components)
-                ]
-
-        # Format message envelopes according to protocol version
-        if target_version in ("v0.9", "v0.9.1", "0.9", "0.9.1"):
-            return [
-                {
+        # Construct component messages: Surface per component
+        messages: List[Dict[str, Any]] = []
+        for i, comp in enumerate(parsed_components):
+            surf_id = resolved_surface_id if i == 0 else f"{resolved_surface_id}_{i}"
+            root_comp = {"id": "root", **comp}
+            if target_version in ("v0.9", "v0.9.1", "0.9", "0.9.1"):
+                messages.append({
                     "version": target_version,
                     "createSurface": {
-                        "surfaceId": resolved_surface_id,
+                        "surfaceId": surf_id,
                         "catalogId": resolved_catalog_id,
                     },
-                },
-                {
+                })
+                messages.append({
                     "version": target_version,
                     "updateComponents": {
-                        "surfaceId": resolved_surface_id,
-                        "components": all_components,
+                        "surfaceId": surf_id,
+                        "components": [root_comp],
                     },
-                },
-            ]
-        else:
-            return [{
-                "version": target_version,
-                "createSurface": {
-                    "surfaceId": resolved_surface_id,
-                    "catalogId": resolved_catalog_id,
-                    "components": all_components,
-                },
-            }]
+                })
+            else:
+                messages.append({
+                    "version": target_version,
+                    "createSurface": {
+                        "surfaceId": surf_id,
+                        "catalogId": resolved_catalog_id,
+                        "components": [root_comp],
+                    },
+                })
+
+        return messages

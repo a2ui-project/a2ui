@@ -160,10 +160,10 @@ def test_supports_streaming_property(test_catalog):
     assert elemental_fmt.supports_streaming is False
     assert elemental_fmt.parser.supports_streaming is False
 
-    # 4. VerticalFormat parser does not support streaming
+    # 4. VerticalFormat parser supports streaming
     vertical_fmt = VerticalFormat(catalog=test_catalog)
-    assert vertical_fmt.supports_streaming is False
-    assert vertical_fmt.parser.supports_streaming is False
+    assert vertical_fmt.supports_streaming is True
+    assert vertical_fmt.parser.supports_streaming is True
 
 
 def test_process_chunk_raises_not_implemented(test_catalog):
@@ -176,11 +176,6 @@ def test_process_chunk_raises_not_implemented(test_catalog):
     with pytest.raises(NotImplementedError) as exc_info:
         elemental_parser.process_chunk("chunk")
     assert "Streaming is not supported by ElementalParser" in str(exc_info.value)
-
-    vertical_parser = VerticalParser(test_catalog)
-    with pytest.raises(NotImplementedError) as exc_info:
-        vertical_parser.process_chunk("chunk")
-    assert "Streaming is not supported by VerticalParser" in str(exc_info.value)
 
 
 def test_decompiler_delegation(test_catalog):

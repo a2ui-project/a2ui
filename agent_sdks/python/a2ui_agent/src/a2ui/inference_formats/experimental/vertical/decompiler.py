@@ -98,56 +98,56 @@ class VerticalDecompiler:
             Decompiled plain-text Vertical component definitions.
         """
         messages: List[Dict[str, Any]] = val if isinstance(val, list) else [val]
-        components_map: Dict[str, Dict[str, Any]] = {}
-        root_id: Optional[str] = None
-        component_order: List[str] = []
+        lines: List[str] = []
+        surfaces_seen: List[str] = []
+        surface_components: Dict[str, List[Dict[str, Any]]] = {}
 
         for msg in messages:
             if not isinstance(msg, dict):
                 continue
-            # Check v1.0 createSurface or v0.9 updateComponents
+            surf_id = None
             comps = []
             if "createSurface" in msg and isinstance(msg["createSurface"], dict):
+                surf_id = msg["createSurface"].get("surfaceId")
                 comps = msg["createSurface"].get("components", [])
             elif "updateComponents" in msg and isinstance(
                 msg["updateComponents"], dict
             ):
+                surf_id = msg["updateComponents"].get("surfaceId")
                 comps = msg["updateComponents"].get("components", [])
 
-            for c in comps:
-                if isinstance(c, dict) and "id" in c:
-                    cid = c["id"]
-                    components_map[cid] = c
-                    if cid not in component_order:
-                        component_order.append(cid)
-                    if root_id is None and (
-                        cid == "root"
-                        or not component_order
-                        or component_order[0] == cid
-                    ):
-                        root_id = cid
+            if surf_id:
+                if surf_id not in surface_components:
+                    surface_components[surf_id] = []
+                    surfaces_seen.append(surf_id)
+                surface_components[surf_id].extend(comps)
+            elif comps:
+                default_key = "_default"
+                if default_key not in surface_components:
+                    surface_components[default_key] = []
+                    surfaces_seen.append(default_key)
+                surface_components[default_key].extend(comps)
 
-        if not components_map:
-            return ""
+        for s_id in surfaces_seen:
+            comps = surface_components[s_id]
+            if not comps:
+                continue
+            comp_map = {c["id"]: c for c in comps if isinstance(c, dict) and "id" in c}
+            root_comp = comp_map.get("root") or (comps[0] if comps else None)
+            if not root_comp:
+                continue
 
-        if root_id is None:
-            root_id = component_order[0]
+            root_type = root_comp.get("component", "")
+            # Backward compat: if old single-surface container with children
+            if root_type in ("Column", "List") and "children" in root_comp:
+                for child_id in root_comp.get("children", []):
+                    child_comp = comp_map.get(child_id)
+                    if child_comp:
+                        lines.append(self._format_component(child_comp))
+            else:
+                lines.append(self._format_component(root_comp))
 
-        root_comp = components_map.get(root_id, {})
-        root_type = root_comp.get("component", "")
-
-        # Check if root is a vertical container (Column or List)
-        if root_type in ("Column", "List") and "children" in root_comp:
-            children_ids = root_comp.get("children", [])
-            lines = []
-            for child_id in children_ids:
-                child_comp = components_map.get(child_id)
-                if child_comp:
-                    lines.append(self._format_component(child_comp))
-            return "\n".join(lines)
-
-        # Single component root
-        return self._format_component(root_comp)
+        return "\n".join(lines)
 
     def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
         """Wraps decompiled code blocks inside sentinel tags."""

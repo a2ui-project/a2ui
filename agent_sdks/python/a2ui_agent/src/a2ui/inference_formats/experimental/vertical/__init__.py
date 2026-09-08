@@ -19,6 +19,7 @@ from .parser import VerticalParser
 from .compiler import VerticalCompiler
 from .decompiler import VerticalDecompiler
 from .prompt_generator import VerticalPromptGenerator
+from .streaming import VerticalStreamParser
 
 __all__ = [
     "VerticalFormat",
@@ -26,4 +27,5 @@ __all__ = [
     "VerticalCompiler",
     "VerticalDecompiler",
     "VerticalPromptGenerator",
+    "VerticalStreamParser",
 ]

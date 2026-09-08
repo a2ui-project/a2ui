@@ -231,35 +231,38 @@ class A2uiValidatorWrapperV10:
             validate_recursion_and_paths,
         )
 
-        all_components: list[dict[str, Any]] = []
+        components_by_surface: Dict[str, List[Dict[str, Any]]] = {}
         for message in messages:
             if not isinstance(message, dict):
                 continue
+            surface_id = None
+            comps = None
             if "createSurface" in message and isinstance(
                 message["createSurface"], dict
             ):
+                surface_id = message["createSurface"].get("surfaceId", "default")
                 comps = message["createSurface"].get("components")
-                if isinstance(comps, list):
-                    all_components.extend(comps)
             elif "updateComponents" in message and isinstance(
                 message["updateComponents"], dict
             ):
+                surface_id = message["updateComponents"].get("surfaceId", "default")
                 comps = message["updateComponents"].get("components")
-                if isinstance(comps, list):
-                    all_components.extend(comps)
+            if surface_id and comps and isinstance(comps, list):
+                components_by_surface.setdefault(surface_id, []).extend(comps)
 
-        if all_components:
+        if components_by_surface:
             ref_fields = CatalogSchemaValidator(
                 self._catalog.core_catalog,
                 self._catalog.common_types_schema,
             ).extract_ref_fields()
 
-            validate_component_integrity(
-                all_components,
-                ref_fields,
-                allow_dangling_references=config.allow_dangling_references,
-                allow_missing_root=config.allow_missing_root,
-            )
+            for s_comps in components_by_surface.values():
+                validate_component_integrity(
+                    s_comps,
+                    ref_fields,
+                    allow_dangling_references=config.allow_dangling_references,
+                    allow_missing_root=config.allow_missing_root,
+                )
 
             validate_recursion_and_paths(messages)
 

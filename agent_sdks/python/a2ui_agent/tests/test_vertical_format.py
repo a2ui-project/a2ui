@@ -153,32 +153,45 @@ def test_compile_single_component_v1_0(mock_catalog):
     assert comps[0]["text"] == "V1 Component"
 
 
-def test_compile_multi_component_automatic_column_wrapping(vertical_compiler):
+def test_compile_multi_component_surface_per_component(vertical_compiler):
     text = """
     Text("Header", variant="h1")
     Divider()
     Text("Subtext", variant="body")
     """
     messages = vertical_compiler.compile(text)
-    comps = messages[1]["updateComponents"]["components"]
-    # Root Column wrapping 3 children
-    assert len(comps) == 4
-    root = comps[0]
-    assert root["id"] == "root"
-    assert root["component"] == "Column"
-    assert root["children"] == ["comp_0", "comp_1", "comp_2"]
+    # 3 components -> 3 surfaces (6 messages in v0.9.1)
+    assert len(messages) == 6
+    assert messages[0]["createSurface"]["surfaceId"] == "main"
+    assert messages[1]["updateComponents"]["surfaceId"] == "main"
+    assert messages[1]["updateComponents"]["components"][0]["component"] == "Text"
+    assert messages[1]["updateComponents"]["components"][0]["id"] == "root"
 
-    assert comps[1]["id"] == "comp_0"
-    assert comps[1]["component"] == "Text"
-    assert comps[1]["text"] == "Header"
-    assert comps[1]["variant"] == "h1"
+    assert messages[2]["createSurface"]["surfaceId"] == "main_1"
+    assert messages[3]["updateComponents"]["surfaceId"] == "main_1"
+    assert messages[3]["updateComponents"]["components"][0]["component"] == "Divider"
+    assert messages[3]["updateComponents"]["components"][0]["id"] == "root"
 
-    assert comps[2]["id"] == "comp_1"
-    assert comps[2]["component"] == "Divider"
+    assert messages[4]["createSurface"]["surfaceId"] == "main_2"
+    assert messages[5]["updateComponents"]["surfaceId"] == "main_2"
+    assert messages[5]["updateComponents"]["components"][0]["component"] == "Text"
+    assert messages[5]["updateComponents"]["components"][0]["id"] == "root"
 
-    assert comps[3]["id"] == "comp_2"
-    assert comps[3]["component"] == "Text"
-    assert comps[3]["text"] == "Subtext"
+
+def test_compile_multi_component_v1_0(mock_catalog):
+    compiler = VerticalCompiler(mock_catalog, surface_id="main", version="v1.0")
+    text = """
+    Text("Header")
+    Button("Click")
+    """
+    messages = compiler.compile(text)
+    assert len(messages) == 2
+    assert messages[0]["createSurface"]["surfaceId"] == "main"
+    assert messages[0]["createSurface"]["components"][0]["component"] == "Text"
+    assert messages[0]["createSurface"]["components"][0]["id"] == "root"
+    assert messages[1]["createSurface"]["surfaceId"] == "main_1"
+    assert messages[1]["createSurface"]["components"][0]["component"] == "Button"
+    assert messages[1]["createSurface"]["components"][0]["id"] == "root"
 
 
 def test_compile_positional_arguments(vertical_compiler):
@@ -415,11 +428,39 @@ def test_prompt_generator_with_real_catalog():
 
 
 def test_format_properties_and_streaming(vertical_format):
-    assert vertical_format.supports_streaming is False
-    assert vertical_format.parser.supports_streaming is False
+    assert vertical_format.supports_streaming is True
+    assert vertical_format.parser.supports_streaming is True
 
-    with pytest.raises(NotImplementedError):
-        vertical_format.parser.process_chunk("chunk")
+
+def test_vertical_streaming(vertical_format):
+    chunks = [
+        "Here is the UI:\n<a2ui>\nText(",
+        '"First")\nButton(',
+        '"Second")\n</a2ui>\nDone!',
+    ]
+    all_parts = []
+    for ch in chunks:
+        parts = vertical_format.parser.process_chunk(ch)
+        all_parts.extend(parts)
+
+    text_parts = [p.text for p in all_parts if p.text]
+    assert any("Here is the UI:" in t for t in text_parts)
+    assert any("Done!" in t for t in text_parts)
+
+    a2ui_parts = [p for p in all_parts if p.a2ui_json]
+    assert len(a2ui_parts) == 2
+    # First surface
+    assert a2ui_parts[0].a2ui_json[0]["createSurface"]["surfaceId"] == "main"
+    assert (
+        a2ui_parts[0].a2ui_json[1]["updateComponents"]["components"][0]["text"]
+        == "First"
+    )
+    # Second surface
+    assert a2ui_parts[1].a2ui_json[0]["createSurface"]["surfaceId"] == "main_1"
+    assert (
+        a2ui_parts[1].a2ui_json[1]["updateComponents"]["components"][0]["text"]
+        == "Second"
+    )
 
 
 def test_format_requires_catalog():
