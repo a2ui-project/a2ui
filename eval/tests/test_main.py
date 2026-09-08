@@ -31,6 +31,13 @@ def test_resolve_model_name_aliases():
     assert resolve_model_name("gemma-4-31b") == "google/gemma-4-31b-it"
     assert resolve_model_name("gemma-4-31b-it") == "google/gemma-4-31b-it"
 
+    assert resolve_model_name("gemma-e2b") == "ollama/gemma4:e2b"
+    assert resolve_model_name("gemma-4-e2b") == "ollama/gemma4:e2b"
+    assert resolve_model_name("gemma4:e2b") == "ollama/gemma4:e2b"
+    assert resolve_model_name("gemma-e4b") == "ollama/gemma4:e4b"
+    assert resolve_model_name("gemma-4-e4b") == "ollama/gemma4:e4b"
+    assert resolve_model_name("gemma-2b") == "ollama/gemma2:2b"
+
     assert resolve_model_name("flash") == "google/gemini-3.5-flash"
     assert resolve_model_name("gemini-flash") == "google/gemini-3.5-flash"
     assert resolve_model_name("flash-lite") == "google/gemini-3.1-flash-lite"
@@ -38,13 +45,15 @@ def test_resolve_model_name_aliases():
 
 
 def test_resolve_model_name_prefixes():
-    """Verify models with gemma- or gemini- prefix without google/ are prefixed."""
+    """Verify models with gemma-, gemini-, or ollama: prefixes resolve properly."""
     assert resolve_model_name("gemma-custom-model") == "google/gemma-custom-model"
     assert resolve_model_name("gemini-custom-model") == "google/gemini-custom-model"
+    assert resolve_model_name("ollama:custom-model") == "ollama/custom-model"
     # Fully qualified remains unchanged
     assert (
         resolve_model_name("google/gemma-4-26b-a4b-it") == "google/gemma-4-26b-a4b-it"
     )
+    assert resolve_model_name("ollama/gemma4:e2b") == "ollama/gemma4:e2b"
     assert resolve_model_name("openai/gpt-4o") == "openai/gpt-4o"
 
 
@@ -95,4 +104,32 @@ def test_gemma_large_flag_configuration():
         assert mock_eval_set.called
         call_kwargs = mock_eval_set.call_args.kwargs
         assert call_kwargs["model"] == "google/gemma-4-31b-it"
+        assert mock_v1_eval.call_args.kwargs["strategy"] == "express"
+
+
+def test_gemma_e2b_flag_configuration():
+    """Verify that --gemma e2b configures the Ollama edge model."""
+    test_args = ["main.py", "--gemma", "e2b", "--dataset", "core_v1_0", "--limit", "1"]
+    with patch.object(sys, "argv", test_args), patch(
+        "main.eval_set", return_value=(True, [])
+    ) as mock_eval_set, patch("main.a2ui_v1_0_eval") as mock_v1_eval:
+        main()
+
+        assert mock_eval_set.called
+        call_kwargs = mock_eval_set.call_args.kwargs
+        assert call_kwargs["model"] == "ollama/gemma4:e2b"
+        assert mock_v1_eval.call_args.kwargs["strategy"] == "express"
+
+
+def test_gemma_e4b_flag_configuration():
+    """Verify that --gemma e4b configures the Ollama edge model."""
+    test_args = ["main.py", "--gemma", "e4b", "--dataset", "core_v1_0", "--limit", "1"]
+    with patch.object(sys, "argv", test_args), patch(
+        "main.eval_set", return_value=(True, [])
+    ) as mock_eval_set, patch("main.a2ui_v1_0_eval") as mock_v1_eval:
+        main()
+
+        assert mock_eval_set.called
+        call_kwargs = mock_eval_set.call_args.kwargs
+        assert call_kwargs["model"] == "ollama/gemma4:e4b"
         assert mock_v1_eval.call_args.kwargs["strategy"] == "express"
