@@ -34,6 +34,16 @@ export type McpClientGetter = (
 ) => Client | Promise<Client> | undefined | Promise<Client | undefined>;
 
 /**
+ * Callback hook invoked when an MCP tool executes successfully.
+ */
+export type McpToolResultHandler = (
+  result: CallToolResult,
+  client: Client,
+  name: string,
+  server?: string,
+) => Promise<void> | void;
+
+/**
  * Creates a `callMcpTool` FunctionImplementation bound to an MCP client getter.
  *
  * @param clientGetter A getter function returning a Client for an optional server name.
@@ -41,10 +51,9 @@ export type McpClientGetter = (
  */
 export function createCallMcpToolImplementation(
   clientGetter: McpClientGetter,
-  onResult?: (result: CallToolResult, client: Client) => Promise<void> | void,
+  onResult?: McpToolResultHandler,
 ): FunctionImplementation {
   return createFunctionImplementation(CallMcpToolApi, async (args, _context, abortSignal) => {
-    console.log('Calling MCP tool with args:', args);
     try {
       const server = args.server;
       const client = await clientGetter(server);
@@ -76,7 +85,7 @@ export function createCallMcpToolImplementation(
       );
 
       if (onResult) {
-        await onResult(result, client);
+        await onResult(result, client, args.name, args.server);
       }
 
       return result;

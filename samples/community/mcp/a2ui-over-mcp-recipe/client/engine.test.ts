@@ -23,7 +23,6 @@ import {
   DEFAULT_MCP_CLIENT_NAME,
   DEFAULT_MCP_CLIENT_VERSION,
   A2UI_MIME_TYPE,
-  MCP_CALL_TOOL_ACTION,
   createBasicWithMcpCatalog,
 } from './engine';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
@@ -35,6 +34,7 @@ let mockClient: {
   listTools: ReturnType<typeof vi.fn>;
   callTool: ReturnType<typeof vi.fn>;
   readResource: ReturnType<typeof vi.fn>;
+  request?: ReturnType<typeof vi.fn>;
 };
 
 vi.mock('@modelcontextprotocol/sdk/client/index.js', () => {
@@ -140,10 +140,6 @@ describe('A2uiMcpEngine', () => {
       expect(onAction).toHaveBeenCalledWith(dummyAction);
     });
 
-    it('defines MCP_CALL_TOOL_ACTION as callMcpTool', () => {
-      expect(MCP_CALL_TOOL_ACTION).toBe('callMcpTool');
-    });
-
     it('registers composite Basic+MCP catalog and executes callMcpTool function via surface', async () => {
       const engine = new A2uiMcpEngine();
       const mockMcpClient = {
@@ -194,6 +190,8 @@ describe('A2uiMcpEngine', () => {
         expect.anything(),
       );
       expect(result).toBeDefined();
+      // Verifies handleToolResult was wired up and processed data updates
+      expect(surface!.dataModel.get('/recipeName')).toBe('Pasta');
     });
   });
 
@@ -385,76 +383,120 @@ describe('A2uiMcpEngine', () => {
     });
   });
 
-  describe('handleMcpCallTool', () => {
+  describe('callMcpTool and handleToolResult integration', () => {
     let engine: A2uiMcpEngine;
+    let onSurfaceChange: any;
 
     beforeEach(async () => {
-      engine = new A2uiMcpEngine();
+      onSurfaceChange = vi.fn();
+      engine = new A2uiMcpEngine({onSurfaceChange});
       await engine.connectServer('http://127.0.0.1:8000/sse');
     });
 
-    it('defensively handles null context without throwing TypeError', async () => {
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-      await expect(engine.handleMcpCallTool(null as any)).resolves.not.toThrow();
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        `'${MCP_CALL_TOOL_ACTION}' action missing required 'server' in context:`,
-        {},
-      );
-      consoleErrorSpy.mockRestore();
-    });
-
-    it('defensively handles undefined context without throwing TypeError', async () => {
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-      await expect(engine.handleMcpCallTool(undefined as any)).resolves.not.toThrow();
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        `'${MCP_CALL_TOOL_ACTION}' action missing required 'server' in context:`,
-        {},
-      );
-      consoleErrorSpy.mockRestore();
-    });
-
-    it('logs error if server is missing from context', async () => {
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-      await engine.handleMcpCallTool({tool: 'get_sample_data'});
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        `'${MCP_CALL_TOOL_ACTION}' action missing required 'server' in context:`,
-        {tool: 'get_sample_data'},
-      );
-      consoleErrorSpy.mockRestore();
-    });
-
-    it('logs error if tool is missing from context', async () => {
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-      await engine.handleMcpCallTool({server: 'test-server'});
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        `'${MCP_CALL_TOOL_ACTION}' action missing required 'tool' in context:`,
-        {server: 'test-server'},
-      );
-      consoleErrorSpy.mockRestore();
-    });
-
-    it('filters routing metadata keys (server, tool) from tool arguments', async () => {
-      const executeToolSpy = vi.spyOn(engine, 'executeTool').mockResolvedValue(undefined);
-
-      await engine.handleMcpCallTool({
-        server: 'test-server',
-        tool: 'get_sample_data',
-        category: 'italian',
-        difficulty: 'easy',
+    it('fetches UI template and processes data updates when callMcpTool is invoked', async () => {
+      mockClient.callTool.mockResolvedValue({
+        _meta: {
+          ui: {
+            resourceUri: 'a2ui://sample-template',
+          },
+        },
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify([
+              {
+                updateDataModel: {
+                  surfaceId: 'test-surface',
+                  value: {title: 'Special Recipe'},
+                },
+              },
+            ]),
+          },
+        ],
       });
 
-      expect(executeToolSpy).toHaveBeenCalledWith('test-server', 'get_sample_data', {
-        category: 'italian',
-        difficulty: 'easy',
+      // Prepare request mock since callMcpTool uses client.request
+      mockClient.request = vi.fn().mockImplementation(async (req: any) => {
+        if (req.method === 'tools/call') {
+          return await (mockClient.callTool as any)(req.params);
+        }
+        return {};
       });
+
+      engine.processor.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {
+            surfaceId: 'caller-surface',
+            catalogId: BASIC_WITH_MCP_CATALOG_ID,
+          },
+        },
+      ]);
+
+      const surface = engine.getSurface('caller-surface');
+      expect(surface).toBeDefined();
+
+      await surface!.catalog.invoker(
+        'callMcpTool',
+        {name: 'get_sample_data', arguments: {category: 'italian'}},
+        {} as any,
+      );
+
+      // Verify that handleToolResult fetched the template and updated the model
+      const createdSurface = engine.getSurface('test-surface');
+      expect(createdSurface).toBeDefined();
+      expect(mockClient.readResource).toHaveBeenCalledWith({uri: 'a2ui://sample-template'});
+      expect(onSurfaceChange).toHaveBeenCalled();
+    });
+
+    it('resolves UI template from discovered toolUiResources when _meta is missing in result', async () => {
+      mockClient.callTool.mockResolvedValue({
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify([
+              {
+                updateDataModel: {
+                  surfaceId: 'test-surface',
+                  value: {title: 'Template via toolUiResources'},
+                },
+              },
+            ]),
+          },
+        ],
+      });
+
+      mockClient.request = vi.fn().mockImplementation(async (req: any) => {
+        if (req.method === 'tools/call') {
+          return await (mockClient.callTool as any)(req.params);
+        }
+        return {};
+      });
+
+      engine.processor.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {
+            surfaceId: 'caller-surface-2',
+            catalogId: BASIC_WITH_MCP_CATALOG_ID,
+          },
+        },
+      ]);
+
+      const surface = engine.getSurface('caller-surface-2');
+      expect(surface).toBeDefined();
+
+      // Tool name matches 'get_sample_data' which has 'a2ui://sample-template' in toolUiResources
+      await surface!.catalog.invoker(
+        'callMcpTool',
+        {name: 'get_sample_data', server: 'test-server', arguments: {}},
+        {} as any,
+      );
+
+      const createdSurface = engine.getSurface('test-surface');
+      expect(createdSurface).toBeDefined();
+      expect(mockClient.readResource).toHaveBeenCalledWith({uri: 'a2ui://sample-template'});
+      expect(onSurfaceChange).toHaveBeenCalled();
     });
   });
 

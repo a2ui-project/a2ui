@@ -339,6 +339,68 @@ describe('callMcpTool', () => {
         content: [{type: 'text', text: 'Direct: ping'}],
       });
     });
+
+    it('invokes onResult callback with result, client, name, and server upon successful execution', async () => {
+      const transport = createMockTransport((name, args) => [
+        {type: 'text', text: `Result for ${name}`},
+      ]);
+      const client = new Client({name: 'onresult-client', version: '1.0.0'});
+      await client.connect(transport);
+
+      let capturedResult: any;
+      let capturedClient: any;
+      let capturedName: any;
+      let capturedServer: any;
+
+      const impl = createCallMcpToolImplementation(
+        () => client,
+        (result, cl, name, server) => {
+          capturedResult = result;
+          capturedClient = cl;
+          capturedName = name;
+          capturedServer = server;
+        },
+      );
+
+      const customCatalog = new Catalog('test-onresult', [], [impl]);
+      const dataModel = new DataModel({});
+      const context = createTestDataContext(dataModel, customCatalog);
+
+      await customCatalog.invoker(
+        'callMcpTool',
+        {name: 'my_tool', server: 'my_server', arguments: {a: 1}},
+        context,
+      );
+
+      assert.deepStrictEqual(capturedResult, {
+        content: [{type: 'text', text: 'Result for my_tool'}],
+      });
+      assert.strictEqual(capturedClient, client);
+      assert.strictEqual(capturedName, 'my_tool');
+      assert.strictEqual(capturedServer, 'my_server');
+    });
+
+    it('passes onResult callback through createMcpCatalog', async () => {
+      const transport = createMockTransport(name => [{type: 'text', text: `Result of ${name}`}]);
+      const client = new Client({name: 'catalog-onresult-client', version: '1.0.0'});
+      await client.connect(transport);
+
+      let onResultFired = false;
+      const catalog = createMcpCatalog(
+        () => client,
+        (result, cl, name, server) => {
+          onResultFired = true;
+          assert.strictEqual(name, 'tool_via_catalog');
+          assert.strictEqual(server, undefined);
+        },
+      );
+
+      const dataModel = new DataModel({});
+      const context = createTestDataContext(dataModel, catalog);
+
+      await catalog.invoker('callMcpTool', {name: 'tool_via_catalog'}, context);
+      assert.strictEqual(onResultFired, true);
+    });
   });
 
   describe('mcp_catalog.json Schema Verification', () => {

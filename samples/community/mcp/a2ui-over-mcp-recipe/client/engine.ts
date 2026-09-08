@@ -16,23 +16,21 @@
 
 import {Catalog, MessageProcessor} from '@a2ui/web_core/v0_9';
 import {basicCatalog} from '@a2ui/lit/v0_9';
-import type {WebComponentImplementation} from '@a2ui/web_core/v0_9';
 import {
   createMcpCatalog,
   MCP_CATALOG_ID,
   type McpClientGetter,
+  type McpToolResultHandler,
 } from '../../../../../catalogs/mcp/v0_9/src/catalog.js';
 import {createCallMcpToolImplementation} from '../../../../../catalogs/mcp/v0_9/src/functions/callMcpTool.js';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 
-export {MCP_CATALOG_ID, createMcpCatalog, type McpClientGetter};
+export {MCP_CATALOG_ID, createMcpCatalog, type McpClientGetter, type McpToolResultHandler};
 export const BASIC_CATALOG_ID = 'https://a2ui.org/specification/v0_9/basic_catalog.json';
 export const BASIC_WITH_MCP_CATALOG_ID =
   'https://a2ui.org/specification/v0_9/catalogs/basic_with_mcp/catalog.json';
 export const A2UI_MIME_TYPE = 'application/a2ui+json';
-
-export const MCP_CALL_TOOL_ACTION = 'callMcpTool';
 
 /**
  * Default client name sent in `clientInfo` during the MCP initialization handshake.
@@ -61,16 +59,12 @@ export interface A2uiMcpEngineEvents {
  */
 export function createBasicWithMcpCatalog(
   clientGetter: McpClientGetter,
-  onResult?: (result: any, client: Client) => Promise<void> | void,
-): Catalog<WebComponentImplementation> {
-  const mcpFn = createCallMcpToolImplementation(clientGetter, onResult);
+  onResult?: McpToolResultHandler,
+): Catalog<any> {
+  const mcpFn = createCallMcpToolImplementation(clientGetter as any, onResult as any);
   const allComponents = Array.from(basicCatalog.components.values());
-  const allFunctions = [...Array.from(basicCatalog.functions.values()), mcpFn];
-  return new Catalog<WebComponentImplementation>(
-    BASIC_WITH_MCP_CATALOG_ID,
-    allComponents,
-    allFunctions,
-  );
+  const allFunctions = [...Array.from(basicCatalog.functions.values()), mcpFn as any];
+  return new Catalog<any>(BASIC_WITH_MCP_CATALOG_ID, allComponents, allFunctions);
 }
 
 /**
@@ -125,11 +119,13 @@ export class A2uiMcpEngine {
 
     this.events = resolvedEvents || {};
 
-    const clientGetter: McpClientGetter = (server?: string) => this.getMcpClient(server);
-    const basicWithMcpCatalog = createBasicWithMcpCatalog(clientGetter, (result, client) =>
-      this.handleToolResult(result, client),
-    );
-    const mcpCatalog = createMcpCatalog(clientGetter);
+    const clientGetter: McpClientGetter = ((server?: string) => this.getMcpClient(server)) as any;
+    const onResult: McpToolResultHandler = (result, client, name, server) => {
+      const toolKey = server ? `${server}:${name}` : name;
+      return this.handleToolResult(result, client as any, toolKey);
+    };
+    const basicWithMcpCatalog = createBasicWithMcpCatalog(clientGetter, onResult);
+    const mcpCatalog = createMcpCatalog(clientGetter, onResult as any);
 
     const catalogs = customCatalogs || [basicWithMcpCatalog, basicCatalog, mcpCatalog as any];
 
@@ -219,36 +215,6 @@ export class A2uiMcpEngine {
   }
 
   /**
-   * Handles MCP tool invocation from an A2UI action context.
-   * Extracts server/tool routing metadata and dispatches execution.
-   */
-  async handleMcpCallTool(context: Record<string, any> = {}) {
-    const ctx = context || {};
-    const targetServer: string | undefined = ctx.server;
-    const targetTool: string | undefined = ctx.tool;
-
-    if (!targetServer) {
-      console.error(`'${MCP_CALL_TOOL_ACTION}' action missing required 'server' in context:`, ctx);
-      return;
-    }
-
-    if (!targetTool) {
-      console.error(`'${MCP_CALL_TOOL_ACTION}' action missing required 'tool' in context:`, ctx);
-      return;
-    }
-
-    // Filter out routing metadata keys from tool arguments
-    const toolArgs: Record<string, any> = {};
-    for (const [key, value] of Object.entries(ctx)) {
-      if (key !== 'server' && key !== 'tool') {
-        toolArgs[key] = value;
-      }
-    }
-
-    await this.executeTool(targetServer, targetTool, toolArgs);
-  }
-
-  /**
    * Generic executor for any MCP tool returning A2UI presentation templates or data updates.
    * Routes strictly to the specified targetServer.
    */
@@ -285,8 +251,12 @@ export class A2uiMcpEngine {
    * and applying data model updates.
    */
   async handleToolResult(result: any, client: Client, toolKey?: string): Promise<void> {
-    const resourceUri =
-      result?._meta?.ui?.resourceUri || (toolKey ? this.toolUiResources.get(toolKey) : undefined);
+    let resourceUri = result?._meta?.ui?.resourceUri;
+    if (!resourceUri && toolKey) {
+      resourceUri =
+        this.toolUiResources.get(toolKey) ||
+        (toolKey.includes(':') ? this.toolUiResources.get(toolKey.split(':')[1]) : undefined);
+    }
 
     if (resourceUri) {
       const template = await this.getOrFetchTemplate(client, resourceUri);

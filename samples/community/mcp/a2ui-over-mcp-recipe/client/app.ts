@@ -20,7 +20,7 @@ import {basicCatalog, Context} from '@a2ui/lit/v0_9';
 import '@a2ui/lit/v0_9'; // Registers <a2ui-surface>
 import {provide} from '@lit/context';
 import {renderMarkdown} from '@a2ui/markdown-it';
-import {A2uiMcpEngine, ConnectionStatus, MCP_CALL_TOOL_ACTION} from './engine.js';
+import {A2uiMcpEngine, ConnectionStatus} from './engine.js';
 
 // Recipe Studio Surface IDs
 const RECIPE_FORM_SURFACE_ID = 'recipe-form';
@@ -274,19 +274,10 @@ export class A2uiRecipeApp extends LitElement {
 
   /**
    * Top-level A2UI action router for the recipe application.
-   * Delegates MCP tool calls to the engine and logs errors for unsupported actions.
+   * MCP tools are evaluated directly as catalog functions (callMcpTool).
    */
   private async handleAction(action: any) {
     console.log('A2UI Action received in recipe app:', action);
-
-    if (action.name === MCP_CALL_TOOL_ACTION) {
-      await this.mcpEngine.handleMcpCallTool(action.context);
-    } else {
-      console.error(
-        `Unsupported action '${action.name}': only '${MCP_CALL_TOOL_ACTION}' actions are supported in this application.`,
-        action,
-      );
-    }
   }
 
   render() {
