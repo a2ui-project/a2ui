@@ -84,4 +84,12 @@ describe('ComponentModel', () => {
     assert.strictEqual(customComp.catalog, testCatalog);
     assert.strictEqual(customComp.catalog.id, 'custom-cat');
   });
+
+  it('allows instantiation without catalog for backwards compatibility', () => {
+    const legacyComp = new ComponentModel('c3', 'Text', {text: 'Legacy'});
+    assert.strictEqual(legacyComp.id, 'c3');
+    assert.strictEqual(legacyComp.type, 'Text');
+    assert.deepStrictEqual(legacyComp.properties, {text: 'Legacy'});
+    assert.strictEqual(legacyComp.catalog, undefined);
+  });
 });
