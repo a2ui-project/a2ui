@@ -29,6 +29,7 @@ import {
   AccessibilityAttributesSchema,
 } from '../types/common-types.js';
 import {Catalog, type ComponentApi, type FunctionApi} from './types.js';
+import {isAtLeastVersion} from '../common/semver.js';
 
 const COMMON_TYPE_SCHEMAS: Record<string, z.ZodTypeAny> = {
   DynamicString: DynamicStringSchema,
@@ -471,6 +472,57 @@ function extractPermittedNames(oneOf: unknown, prefix: string): Set<string> | un
  * @returns Fully-typed Catalog instance configured with components, functions, and metadata.
  * @throws {Error} If the catalog ID is missing or not a string.
  */
+function parseCatalogComponents(
+  componentsMap: Record<string, unknown>,
+  catalogSchema: Record<string, unknown>,
+  isAtLeastV10: boolean,
+  permittedNames?: Set<string>,
+): ComponentApi[] {
+  const components: ComponentApi[] = [];
+  const uax31Regex = /^@?[\p{ID_Start}_][\p{ID_Continue}]*$/u;
+
+  for (const [name, rawCompSchema] of Object.entries(componentsMap)) {
+    if (isAtLeastV10 && !uax31Regex.test(name)) {
+      throw new Error(`Invalid UAX #31 component identifier: '${name}'`);
+    }
+    if (permittedNames && !permittedNames.has(name)) {
+      continue;
+    }
+    const rawComp = (rawCompSchema as Record<string, unknown>) || {};
+    const zodSchema = convertComponentJsonSchemaToZod(rawComp, catalogSchema);
+    components.push({
+      name,
+      schema: zodSchema,
+      allowedParents: Array.isArray(rawComp.allowedParents)
+        ? rawComp.allowedParents.filter((p: unknown): p is string => typeof p === 'string')
+        : undefined,
+      allowedChildren: Array.isArray(rawComp.allowedChildren)
+        ? rawComp.allowedChildren.filter((c: unknown): c is string => typeof c === 'string')
+        : undefined,
+    });
+  }
+  return components;
+}
+
+function parseThemeSchema(
+  catalogSchema: Record<string, unknown>,
+  defs?: Record<string, unknown>,
+): z.ZodObject<z.ZodRawShape> | undefined {
+  const rawTheme =
+    catalogSchema.theme ??
+    catalogSchema.themeSchema ??
+    catalogSchema.styles ??
+    (defs?.theme as Record<string, unknown> | undefined);
+  if (rawTheme && typeof rawTheme === 'object') {
+    return convertComponentJsonSchemaToZod(
+      rawTheme as Record<string, unknown>,
+      catalogSchema,
+      false,
+    );
+  }
+  return undefined;
+}
+
 export function loadCatalogFromSchema(
   catalogSchema: Record<string, unknown>,
 ): Catalog<ComponentApi, FunctionApi> {
@@ -485,32 +537,15 @@ export function loadCatalogFromSchema(
   const permittedNames = extractPermittedNames(anyComp?.oneOf, '#/components/');
 
   const protocolVersion = catalogSchema.protocolVersion as string | undefined;
-  const isV10 = protocolVersion === 'v1.0' || protocolVersion === '1.0';
+  const isAtLeastV10 = isAtLeastVersion(protocolVersion, '1.0');
 
-  const components: ComponentApi[] = [];
   const componentsMap = (catalogSchema.components as Record<string, unknown>) ?? {};
-  for (const [name, rawCompSchema] of Object.entries(componentsMap)) {
-    if (isV10) {
-      const uax31Regex = /^@?[\p{ID_Start}_][\p{ID_Continue}]*$/u;
-      if (!uax31Regex.test(name)) {
-        throw new Error(`Invalid UAX #31 component identifier: '${name}'`);
-      }
-    }
-    if (!permittedNames || permittedNames.has(name)) {
-      const rawComp = (rawCompSchema as Record<string, unknown>) || {};
-      const zodSchema = convertComponentJsonSchemaToZod(rawComp, catalogSchema);
-      components.push({
-        name,
-        schema: zodSchema,
-        allowedParents: Array.isArray(rawComp.allowedParents)
-          ? rawComp.allowedParents.filter((p: unknown): p is string => typeof p === 'string')
-          : undefined,
-        allowedChildren: Array.isArray(rawComp.allowedChildren)
-          ? rawComp.allowedChildren.filter((c: unknown): c is string => typeof c === 'string')
-          : undefined,
-      });
-    }
-  }
+  const components = parseCatalogComponents(
+    componentsMap,
+    catalogSchema,
+    isAtLeastV10,
+    permittedNames,
+  );
 
   // Filter permitted functions via anyFunction.oneOf if declared
   const anyFunc = defs?.anyFunction as Record<string, unknown> | undefined;
@@ -522,15 +557,7 @@ export function loadCatalogFromSchema(
     permittedFunctionNames,
   );
 
-  const rawTheme =
-    catalogSchema.theme ??
-    catalogSchema.themeSchema ??
-    catalogSchema.styles ??
-    (defs?.theme as Record<string, unknown> | undefined);
-  const themeSchema =
-    rawTheme && typeof rawTheme === 'object'
-      ? convertComponentJsonSchemaToZod(rawTheme as Record<string, unknown>, catalogSchema, false)
-      : undefined;
+  const themeSchema = parseThemeSchema(catalogSchema, defs);
   const instructions =
     typeof catalogSchema.instructions === 'string' ? catalogSchema.instructions : undefined;
 

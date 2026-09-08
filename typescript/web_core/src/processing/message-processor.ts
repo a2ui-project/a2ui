@@ -521,9 +521,10 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         (op.catalogId
           ? Array.from(this.model.surfacesMap.values()).find(s => s.catalog?.id === op.catalogId)
           : undefined) ?? this.model.surfacesMap.values().next().value;
+      const fallbackSurfaceId = `_rpc_fallback_${op.functionCallId || 'default'}`;
       const dataContext = surface
         ? new DataContext(surface, '/')
-        : new DataContext(new SurfaceModel('_rpc_fallback', targetCatalog), '/');
+        : new DataContext(new SurfaceModel(fallbackSurfaceId, targetCatalog), '/');
       const isUserActivated = context?.isUserActivated ?? op.isUserActivated ?? false;
       const callMsg: CallRendererFunctionMessage = {
         version: (op.version ?? this.version ?? 'v1.0') as 'v1.0',

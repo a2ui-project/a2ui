@@ -52,7 +52,7 @@
   description: >-
     A model created without data starts as an empty object.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   steps:
     - op: "get"
@@ -63,7 +63,7 @@
   description: >-
     The root path returns the whole data model.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -75,7 +75,7 @@
   description: >-
     Nested object paths resolve segment by segment.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -90,7 +90,7 @@
   description: >-
     List elements resolve by numeric segment.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -105,7 +105,7 @@
   description: >-
     Paths that do not exist resolve to no value.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -120,7 +120,7 @@
   description: >-
     Traversing through a segment that holds no value yields no value.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -137,7 +137,7 @@
   description: >-
     Setting an existing path replaces its value.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -152,7 +152,7 @@
   description: >-
     Setting a new key on an existing object adds it.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -167,7 +167,7 @@
   description: >-
     Missing intermediate objects are created on write.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -185,7 +185,7 @@
   description: >-
     Deleting a path removes the key from its parent object.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -202,7 +202,7 @@
   description: >-
     Writing a numeric segment into a missing path creates a list.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -220,7 +220,7 @@
   description: >-
     Writing successive indices appends to a list.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -238,7 +238,7 @@
   description: >-
     Writing an existing index replaces that element.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -253,7 +253,7 @@
   description: >-
     Auto-vivification picks a list or an object based on the next segment.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -289,7 +289,7 @@
   description: >-
     Out of range and non numeric list indices resolve to no value on read.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -307,7 +307,7 @@
   description: >-
     A trailing slash is not a distinct path.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   watch: ["/foo"]
@@ -327,7 +327,7 @@
   description: >-
     Setting the root path replaces the whole model.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   watch: ["/", "/unrelated"]
@@ -345,7 +345,7 @@
   description: >-
     A ~1 escape addresses a key containing a slash (RFC 6901).
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -363,7 +363,7 @@
   description: >-
     A ~0 escape addresses a key containing a tilde (RFC 6901).
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -381,7 +381,7 @@
   description: >-
     Both escapes may appear in one segment.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -399,7 +399,7 @@
   description: >-
     A ~01 sequence decodes to ~1, not to a slash.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -417,7 +417,7 @@
   description: >-
     Writing through a primitive intermediate segment is an error.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -433,7 +433,7 @@
   description: >-
     Writing through a primitive list element is an error.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -446,7 +446,7 @@
   description: >-
     A non numeric segment cannot address a list element on write.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -459,7 +459,7 @@
   description: >-
     A non numeric intermediate segment cannot address a list element.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   steps:
@@ -472,7 +472,7 @@
   description: >-
     An observer fires when its own path is written.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   watch: ["/user/name"]
@@ -487,7 +487,7 @@
   description: >-
     An observer on a container fires when a descendant is written.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   watch: ["/user"]
@@ -502,7 +502,7 @@
   description: >-
     An observer on a leaf fires when an ancestor is replaced.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   watch: ["/user/settings/theme"]
@@ -517,7 +517,7 @@
   description: >-
     A root observer fires on any write.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   watch: ["/"]
@@ -531,7 +531,7 @@
   description: >-
     A container observer sees the updated container value.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   watch: ["/parent"]
@@ -548,7 +548,7 @@
   description: >-
     An observer does not fire for an unrelated path.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"a": 1, "b": 2}
   watch: ["/b"]
@@ -562,7 +562,7 @@
   description: >-
     A sibling whose name merely shares a prefix is not a descendant.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"foo": 1, "foobar": 2}
   watch: ["/foo", "/foobar"]
@@ -576,7 +576,7 @@
   description: >-
     Every observer on a path is notified.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   watch: ["/user/name", "/user/name"]
@@ -592,7 +592,7 @@
     Observing a path that does not exist yet starts empty and fires on
     creation.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   watch: ["/non/existent"]
@@ -610,7 +610,7 @@
   description: >-
     Disposing the model detaches every observer.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
   watch: ["/"]
@@ -626,7 +626,7 @@
     An observer on a descendant path does not fire when an ancestor is
     rewritten but the observer's own value is still absent.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   watch: ["/a/b"]
   steps:
@@ -639,7 +639,7 @@
   description: >-
     Writing a path the value it already holds does not fire its observers.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"k": "v"}
   watch: ["/k"]
@@ -657,7 +657,7 @@
   description: >-
     Deleting a child property notifies both the child path and ancestor containers.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"name": "Alice", "settings": {"theme": "dark"}}}
   watch: ["/user", "/user/name"]
@@ -675,7 +675,7 @@
   description: >-
     Updating an array element notifies both the element observer and the array observer.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"items": ["a", "b", "c"]}
   watch: ["/items", "/items/1"]
@@ -692,7 +692,7 @@
   description: >-
     Deleting a parent container notifies observers on nested descendant paths whose values become absent.
   catalog:
-    version: "0.9"
+    protocolVersion: "v0.9"
   action: data_model
   initial: {"user": {"settings": {"theme": "dark"}}}
   watch: ["/user", "/user/settings", "/user/settings/theme"]

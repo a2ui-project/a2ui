@@ -3229,10 +3229,3 @@
                     text: "Streaming v1.0"
                 dataModel:
                   count: 10
-            - version: "v0.9"
-              updateComponents:
-                surfaceId: "main"
-                components:
-                  - id: "root"
-                    component: "Text"
-                    text: "Streaming v1.0"

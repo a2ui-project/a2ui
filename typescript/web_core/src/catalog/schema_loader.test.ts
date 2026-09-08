@@ -710,5 +710,17 @@ describe('Catalog.fromSchema & schema_loader', () => {
       () => Catalog.fromSchema(invalidHyphenCatalog),
       /Invalid UAX #31 component identifier/,
     );
+
+    const futureV11Catalog = {
+      catalogId: 'test_uax31_v11',
+      protocolVersion: 'v1.1',
+      components: {
+        'invalid-in-v11': {properties: {}},
+      },
+    };
+    assert.throws(
+      () => Catalog.fromSchema(futureV11Catalog),
+      /Invalid UAX #31 component identifier/,
+    );
   });
 });
