@@ -171,7 +171,7 @@ function isDynamicOption(option: z.ZodTypeAny): boolean {
   const hasComponentId = Object.values(shape).some(
     prop => getRefDefName(prop as z.ZodTypeAny) === 'ComponentId',
   );
-  return !hasComponentId;
+  return Boolean(shape.path) && !hasComponentId;
 }
 
 function isChildListOption(option: z.ZodTypeAny): boolean {

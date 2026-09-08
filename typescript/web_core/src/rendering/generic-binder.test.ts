@@ -701,4 +701,25 @@ describe('GenericBinder Checkable Trait', () => {
     const unionWithChild = z.union([z.array(z.string()), templateChildOption]);
     assert.deepStrictEqual(scrapeSchemaBehavior(unionWithChild), {type: 'STRUCTURAL'});
   });
+
+  it('should identify dynamic union options only when shape has path property', () => {
+    // Union with object containing path -> DYNAMIC
+    const unionWithDynamicPath = z.union([
+      z.string(),
+      z.object({
+        path: z.string(),
+      }),
+    ]);
+    assert.deepStrictEqual(scrapeSchemaBehavior(unionWithDynamicPath), {type: 'DYNAMIC'});
+
+    // Union with plain object without path or ComponentId -> STATIC
+    const unionWithPlainObject = z.union([
+      z.string(),
+      z.object({
+        label: z.string(),
+        value: z.number(),
+      }),
+    ]);
+    assert.deepStrictEqual(scrapeSchemaBehavior(unionWithPlainObject), {type: 'STATIC'});
+  });
 });
