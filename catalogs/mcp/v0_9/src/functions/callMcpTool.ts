@@ -19,7 +19,7 @@ import {
   type FunctionImplementation,
   A2uiExpressionError,
 } from '@a2ui/web_core/v0_9';
-import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import type {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {CallToolResultSchema} from '@modelcontextprotocol/sdk/types.js';
 import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
 import {CallMcpToolApi} from './callMcpToolApi.js';
@@ -27,22 +27,34 @@ import {CallMcpToolApi} from './callMcpToolApi.js';
 export {CallMcpToolApi};
 
 /**
- * Creates a `callMcpTool` FunctionImplementation bound to an MCP Client or client getter.
+ * Getter function returning an MCP Client for an optional server name.
+ */
+export type McpClientGetter = (
+  server?: string,
+) => Client | Promise<Client> | undefined | Promise<Client | undefined>;
+
+/**
+ * Creates a `callMcpTool` FunctionImplementation bound to an MCP client getter.
  *
- * @param clientOrGetter An MCP Client instance or a getter function returning a Client.
+ * @param clientGetter A getter function returning a Client for an optional server name.
  * @param onResult Optional hook called with the tool result and active client upon successful execution.
  */
 export function createCallMcpToolImplementation(
-  clientOrGetter: Client | (() => Client),
+  clientGetter: McpClientGetter,
   onResult?: (result: CallToolResult, client: Client) => Promise<void> | void,
 ): FunctionImplementation {
   return createFunctionImplementation(CallMcpToolApi, async (args, _context, abortSignal) => {
     console.log('Calling MCP tool with args:', args);
     try {
-      const client = typeof clientOrGetter === 'function' ? clientOrGetter() : clientOrGetter;
+      const server = args.server;
+      const client = await clientGetter(server);
 
       if (!client) {
-        throw new Error('MCP Client is not available.');
+        throw new Error(
+          server
+            ? `MCP Client is not available for server '${server}'.`
+            : 'MCP Client is not available.',
+        );
       }
 
       const params = {

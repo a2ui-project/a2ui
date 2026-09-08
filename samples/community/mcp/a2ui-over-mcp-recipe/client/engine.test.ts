@@ -197,6 +197,105 @@ describe('A2uiMcpEngine', () => {
     });
   });
 
+  describe('getMcpClient', () => {
+    it('throws error when no MCP clients are connected', () => {
+      const engine = new A2uiMcpEngine();
+      expect(() => engine.getMcpClient()).toThrow('No MCP client connected');
+      expect(() => engine.getMcpClient('any-server')).toThrow(
+        "No MCP client connected for server 'any-server'",
+      );
+    });
+
+    it('returns the first client in the list when server is not provided', () => {
+      const engine = new A2uiMcpEngine();
+      const client1 = {name: 'client1'} as any;
+      const client2 = {name: 'client2'} as any;
+
+      engine.mcpClients.set('server1', client1);
+      engine.mcpClients.set('server2', client2);
+
+      expect(engine.getMcpClient()).toBe(client1);
+      expect(engine.getMcpClient(undefined)).toBe(client1);
+    });
+
+    it('returns the matching client when server is provided', () => {
+      const engine = new A2uiMcpEngine();
+      const client1 = {name: 'client1'} as any;
+      const client2 = {name: 'client2'} as any;
+
+      engine.mcpClients.set('server1', client1);
+      engine.mcpClients.set('server2', client2);
+
+      expect(engine.getMcpClient('server2')).toBe(client2);
+      expect(engine.getMcpClient('server1')).toBe(client1);
+    });
+
+    it('throws error when requested server is not found', () => {
+      const engine = new A2uiMcpEngine();
+      const client1 = {name: 'client1'} as any;
+      engine.mcpClients.set('server1', client1);
+
+      expect(() => engine.getMcpClient('missing-server')).toThrow(
+        "No MCP client connected for server 'missing-server'",
+      );
+    });
+
+    it('routes callMcpTool on surface to target server specified in function args', async () => {
+      const engine = new A2uiMcpEngine();
+      const clientA = {
+        request: vi.fn().mockResolvedValue({
+          content: [{type: 'text', text: 'Server A result'}],
+        }),
+      };
+      const clientB = {
+        request: vi.fn().mockResolvedValue({
+          content: [{type: 'text', text: 'Server B result'}],
+        }),
+      };
+
+      engine.mcpClients.set('server-a', clientA as any);
+      engine.mcpClients.set('server-b', clientB as any);
+
+      engine.processor.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {
+            surfaceId: 'routing-surface',
+            catalogId: BASIC_WITH_MCP_CATALOG_ID,
+          },
+        },
+      ]);
+
+      const surface = engine.getSurface('routing-surface');
+      expect(surface).toBeDefined();
+
+      // Tool call targeted to server-b
+      await surface!.catalog.invoker(
+        'callMcpTool',
+        {name: 'tool_on_b', server: 'server-b', arguments: {param: 1}},
+        {} as any,
+      );
+      expect(clientB.request).toHaveBeenCalledWith(
+        {method: 'tools/call', params: {name: 'tool_on_b', arguments: {param: 1}}},
+        expect.anything(),
+        expect.anything(),
+      );
+      expect(clientA.request).not.toHaveBeenCalled();
+
+      // Tool call without server falls back to first (server-a)
+      await surface!.catalog.invoker(
+        'callMcpTool',
+        {name: 'tool_on_default', arguments: {}},
+        {} as any,
+      );
+      expect(clientA.request).toHaveBeenCalledWith(
+        {method: 'tools/call', params: {name: 'tool_on_default', arguments: {}}},
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+  });
+
   describe('connectServer', () => {
     it('connects to server, discovers tool UI resources, and registers client', async () => {
       const onConnectionChange = vi.fn();

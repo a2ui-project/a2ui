@@ -29,6 +29,7 @@ The catalog provides the `callMcpTool` function:
 | Parameter   | Type     | Required           | Description                                           |
 | :---------- | :------- | :----------------- | :---------------------------------------------------- |
 | `name`      | `string` | **Yes**            | The name of the MCP tool to execute on the server.    |
+| `server`    | `string` | No                 | Optional target MCP server name.                      |
 | `arguments` | `object` | No (default: `{}`) | Key-value dictionary of arguments passed to the tool. |
 
 **Return Value**: Returns the raw MCP `CallToolResult` object (containing `content: Array<{type, text, ...}>`, `isError`, etc.).
@@ -49,7 +50,7 @@ yarn add @modelcontextprotocol/sdk @a2ui/web_core
 
 ### Step 1: Initialize MCP Client & Create MCP Catalog
 
-Initialize your MCP client and transport (e.g. SSE, WebSocket, Stdio), connect to the server, and create the MCP catalog:
+Initialize your MCP client and transport (e.g. SSE, WebSocket, Stdio), connect to the server, and create the MCP catalog with a client getter:
 
 ```typescript
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
@@ -65,14 +66,16 @@ const client = new Client({
 
 await client.connect(transport);
 
-// 2. Create the MCP catalog bound to the client
-const mcpCatalog = createMcpCatalog(client);
+// 2. Create the MCP catalog bound to a client getter
+const mcpCatalog = createMcpCatalog((server?: string) => client);
 ```
 
-You can also pass a getter function `() => Client`:
+For multi-server setups, route based on `server`:
 
 ```typescript
-const mcpCatalog = createMcpCatalog(() => getActiveMcpClient());
+const mcpCatalog = createMcpCatalog((server?: string) => {
+  return server ? mcpClients.get(server) : defaultClient;
+});
 ```
 
 ---

@@ -28,6 +28,10 @@ export const CallMcpToolApi = {
   returnType: 'any' as const,
   schema: z.object({
     name: z.string().describe('The name of the MCP tool to execute.'),
+    server: z
+      .string()
+      .optional()
+      .describe('The optional name of the MCP server to execute the tool on.'),
     arguments: z
       .record(z.any())
       .optional()

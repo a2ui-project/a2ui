@@ -15,17 +15,18 @@
  */
 
 import {Catalog, type ComponentApi} from '@a2ui/web_core/v0_9';
-import type {Client} from '@modelcontextprotocol/sdk/client/index.js';
-import {createCallMcpToolImplementation} from './functions/callMcpTool.js';
+import {createCallMcpToolImplementation, type McpClientGetter} from './functions/callMcpTool.js';
 
 export const MCP_CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/mcp/mcp_catalog.json';
 
+export type {McpClientGetter};
+
 /**
- * Creates an A2UI Catalog instance containing MCP catalog functions bound to an MCP Client.
+ * Creates an A2UI Catalog instance containing MCP catalog functions bound to an MCP Client getter.
  *
- * @param clientOrGetter An MCP Client instance or a getter function returning a Client.
+ * @param clientGetter A getter function returning an MCP Client for an optional server name.
  */
-export function createMcpCatalog(clientOrGetter: Client | (() => Client)): Catalog<ComponentApi> {
-  const functions = [createCallMcpToolImplementation(clientOrGetter)];
+export function createMcpCatalog(clientGetter: McpClientGetter): Catalog<ComponentApi> {
+  const functions = [createCallMcpToolImplementation(clientGetter)];
   return new Catalog<ComponentApi>(MCP_CATALOG_ID, [], functions);
 }

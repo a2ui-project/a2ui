@@ -120,6 +120,18 @@ describe('callMcpTool', () => {
       });
     });
 
+    it('parses arguments with optional server', () => {
+      const withServer = CallMcpToolApi.schema.parse({
+        name: 'fetch_weather',
+        server: 'weather-service',
+      });
+      assert.deepStrictEqual(withServer, {
+        name: 'fetch_weather',
+        server: 'weather-service',
+        arguments: {},
+      });
+    });
+
     it('throws validation error when name is missing', () => {
       assert.throws(() => {
         CallMcpToolApi.schema.parse({});
@@ -127,15 +139,15 @@ describe('callMcpTool', () => {
     });
   });
 
-  describe('createCallMcpToolImplementation & createMcpCatalog with Client', () => {
-    it('executes tool call on connected Client instance', async () => {
+  describe('createCallMcpToolImplementation & createMcpCatalog with Client Getter', () => {
+    it('executes tool call on connected Client instance via getter', async () => {
       const transport = createMockTransport((name, args) => {
         return [{type: 'text', text: `Tool ${name} executed with count=${args.count}`}];
       });
       const client = new Client({name: 'test-client', version: '1.0.0'});
       await client.connect(transport);
 
-      const catalog = createMcpCatalog(client);
+      const catalog = createMcpCatalog(() => client);
       assert.strictEqual(catalog.id, MCP_CATALOG_ID);
 
       const dataModel = new DataModel({});
@@ -153,6 +165,76 @@ describe('callMcpTool', () => {
       assert.strictEqual(transport.lastRequest.method, 'tools/call');
       assert.strictEqual(transport.lastRequest.params.name, 'counter');
       assert.deepStrictEqual(transport.lastRequest.params.arguments, {count: 5});
+    });
+
+    it('routes tool call to target server via client getter when server is provided', async () => {
+      const transportA = createMockTransport((name, args) => [
+        {type: 'text', text: `ServerA: ${name} -> ${args.query}`},
+      ]);
+      const clientA = new Client({name: 'server-a', version: '1.0.0'});
+      await clientA.connect(transportA);
+
+      const transportB = createMockTransport((name, args) => [
+        {type: 'text', text: `ServerB: ${name} -> ${args.query}`},
+      ]);
+      const clientB = new Client({name: 'server-b', version: '1.0.0'});
+      await clientB.connect(transportB);
+
+      const requestedServers: (string | undefined)[] = [];
+      const getter = (server?: string) => {
+        requestedServers.push(server);
+        if (server === 'server-b') return clientB;
+        return clientA;
+      };
+
+      const catalog = createMcpCatalog(getter);
+      const dataModel = new DataModel({});
+      const context = createTestDataContext(dataModel, catalog);
+
+      // Tool call targeting server-b
+      const resultB = await catalog.invoker(
+        'callMcpTool',
+        {name: 'query', server: 'server-b', arguments: {query: 'hello'}},
+        context,
+      );
+      assert.deepStrictEqual(resultB, {
+        content: [{type: 'text', text: 'ServerB: query -> hello'}],
+      });
+
+      // Tool call without server (falls back to default/first)
+      const resultDefault = await catalog.invoker(
+        'callMcpTool',
+        {name: 'query', arguments: {query: 'world'}},
+        context,
+      );
+      assert.deepStrictEqual(resultDefault, {
+        content: [{type: 'text', text: 'ServerA: query -> world'}],
+      });
+
+      assert.deepStrictEqual(requestedServers, ['server-b', undefined]);
+    });
+
+    it('throws A2uiExpressionError when targeted server is not found in getter', async () => {
+      const catalog = createMcpCatalog((server?: string) => {
+        if (server === 'known-server') return {} as Client;
+        return undefined;
+      });
+      const dataModel = new DataModel({});
+      const context = createTestDataContext(dataModel, catalog);
+
+      await assert.rejects(
+        async () => {
+          await catalog.invoker('callMcpTool', {name: 'tool', server: 'unknown-server'}, context);
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiExpressionError);
+          assert.strictEqual(err.expression, 'callMcpTool');
+          assert.ok(
+            err.message.includes("MCP Client is not available for server 'unknown-server'"),
+          );
+          return true;
+        },
+      );
     });
 
     it('executes tool call using client getter returning Client', async () => {
@@ -190,7 +272,7 @@ describe('callMcpTool', () => {
         (err: any) => {
           assert.ok(err instanceof A2uiExpressionError);
           assert.strictEqual(err.expression, 'callMcpTool');
-          assert.ok(err.message.includes('MCP Client is not available'));
+          assert.ok(err.message.includes('MCP Client is not available.'));
           return true;
         },
       );
@@ -203,7 +285,7 @@ describe('callMcpTool', () => {
       const client = new Client({name: 'failing-client', version: '1.0.0'});
       await client.connect(transport);
 
-      const catalog = createMcpCatalog(client);
+      const catalog = createMcpCatalog(() => client);
       const dataModel = new DataModel({});
       const context = createTestDataContext(dataModel, catalog);
 
@@ -222,7 +304,7 @@ describe('callMcpTool', () => {
 
     it('throws A2uiExpressionError on invalid function arguments', async () => {
       const client = new Client({name: 'test-client', version: '1.0.0'});
-      const catalog = createMcpCatalog(client);
+      const catalog = createMcpCatalog(() => client);
       const dataModel = new DataModel({});
       const context = createTestDataContext(dataModel, catalog);
 
@@ -244,7 +326,7 @@ describe('callMcpTool', () => {
       const client = new Client({name: 'direct-client', version: '1.0.0'});
       await client.connect(transport);
 
-      const impl = createCallMcpToolImplementation(client);
+      const impl = createCallMcpToolImplementation(() => client);
       assert.strictEqual(impl.name, 'callMcpTool');
       assert.strictEqual(impl.returnType, 'any');
 
@@ -271,9 +353,14 @@ describe('callMcpTool', () => {
       assert.strictEqual(fnApi.returnType, 'any');
 
       // Test validation with schema-loaded Zod shape
-      const valid = fnApi.schema.parse({name: 'read_resource', arguments: {uri: 'a2ui://form'}});
+      const valid = fnApi.schema.parse({
+        name: 'read_resource',
+        server: 'mcp-server',
+        arguments: {uri: 'a2ui://form'},
+      });
       assert.deepStrictEqual(valid, {
         name: 'read_resource',
+        server: 'mcp-server',
         arguments: {uri: 'a2ui://form'},
       });
     });
@@ -287,7 +374,7 @@ describe('callMcpTool', () => {
       const client = new Client({name: 'processor-client', version: '1.0.0'});
       await client.connect(transport);
 
-      const mcpCatalog = createMcpCatalog(client);
+      const mcpCatalog = createMcpCatalog(() => client);
       const testBasicCatalog = new Catalog(
         'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
         [],

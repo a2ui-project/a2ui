@@ -17,12 +17,16 @@
 import {Catalog, MessageProcessor} from '@a2ui/web_core/v0_9';
 import {basicCatalog} from '@a2ui/lit/v0_9';
 import type {WebComponentImplementation} from '@a2ui/web_core/v0_9';
-import {createMcpCatalog, MCP_CATALOG_ID} from '../../../../../catalogs/mcp/v0_9/src/catalog.js';
+import {
+  createMcpCatalog,
+  MCP_CATALOG_ID,
+  type McpClientGetter,
+} from '../../../../../catalogs/mcp/v0_9/src/catalog.js';
 import {createCallMcpToolImplementation} from '../../../../../catalogs/mcp/v0_9/src/functions/callMcpTool.js';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 
-export {MCP_CATALOG_ID, createMcpCatalog};
+export {MCP_CATALOG_ID, createMcpCatalog, type McpClientGetter};
 export const BASIC_CATALOG_ID = 'https://a2ui.org/specification/v0_9/basic_catalog.json';
 export const BASIC_WITH_MCP_CATALOG_ID =
   'https://a2ui.org/specification/v0_9/catalogs/basic_with_mcp/catalog.json';
@@ -52,14 +56,14 @@ export interface A2uiMcpEngineEvents {
  * Creates an A2UI Catalog combining the standard Basic Catalog components and functions
  * with MCP tool execution (`callMcpTool`).
  *
- * @param clientOrGetter An MCP Client instance or a getter function returning a Client.
+ * @param clientGetter A getter function returning a Client for an optional server name.
  * @param onResult Optional hook called with the tool result and active client upon successful execution.
  */
 export function createBasicWithMcpCatalog(
-  clientOrGetter: Client | (() => Client),
+  clientGetter: McpClientGetter,
   onResult?: (result: any, client: Client) => Promise<void> | void,
 ): Catalog<WebComponentImplementation> {
-  const mcpFn = createCallMcpToolImplementation(clientOrGetter, onResult);
+  const mcpFn = createCallMcpToolImplementation(clientGetter, onResult);
   const allComponents = Array.from(basicCatalog.components.values());
   const allFunctions = [...Array.from(basicCatalog.functions.values()), mcpFn];
   return new Catalog<WebComponentImplementation>(
@@ -89,7 +93,14 @@ export class A2uiMcpEngine {
 
   private readonly events: A2uiMcpEngineEvents;
 
-  getMcpClient(): Client {
+  getMcpClient(server?: string): Client {
+    if (server) {
+      const client = this.mcpClients.get(server);
+      if (client) {
+        return client;
+      }
+      throw new Error(`No MCP client connected for server '${server}'`);
+    }
     for (const client of this.mcpClients.values()) {
       return client;
     }
@@ -114,11 +125,11 @@ export class A2uiMcpEngine {
 
     this.events = resolvedEvents || {};
 
-    const clientGetter = () => this.getMcpClient();
-    const basicWithMcpCatalog = createBasicWithMcpCatalog(clientGetter as any, (result, client) =>
+    const clientGetter: McpClientGetter = (server?: string) => this.getMcpClient(server);
+    const basicWithMcpCatalog = createBasicWithMcpCatalog(clientGetter, (result, client) =>
       this.handleToolResult(result, client),
     );
-    const mcpCatalog = createMcpCatalog(clientGetter as any);
+    const mcpCatalog = createMcpCatalog(clientGetter);
 
     const catalogs = customCatalogs || [basicWithMcpCatalog, basicCatalog, mcpCatalog as any];
 
