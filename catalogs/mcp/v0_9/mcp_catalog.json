@@ -28,7 +28,7 @@
               "type": "object",
               "description": "The arguments to pass to the MCP tool.",
               "additionalProperties": {
-                "$ref": "#/$defs/DynamicValue"
+                "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue"
               }
             }
           },
