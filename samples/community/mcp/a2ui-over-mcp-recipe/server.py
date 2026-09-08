@@ -161,21 +161,21 @@ def main(port: int, transport: str, bypass_verification: bool) -> int:
     async def handle_call_tool(
         name: str, arguments: dict[str, Any]
     ) -> types.CallToolResult:
-        if name == "get_recipe_form_a2ui":
-            if not verify_a2ui_capability():
-                return types.CallToolResult(
-                    isError=True,
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=(
-                                "Error: Client does not support A2UI Basic Catalog"
-                                " (v0.9) capability."
-                            ),
-                        )
-                    ],
-                )
+        if not verify_a2ui_capability():
+            return types.CallToolResult(
+                isError=True,
+                content=[
+                    types.TextContent(
+                        type="text",
+                        text=(
+                            "Error: Client does not support A2UI Basic Catalog"
+                            " (v0.9) capability."
+                        ),
+                    )
+                ],
+            )
 
+        if name == "get_recipe_form_a2ui":
             form_update_data_model = [{
                 "version": "v0.9",
                 "updateDataModel": {
@@ -212,20 +212,6 @@ def main(port: int, transport: str, bypass_verification: bool) -> int:
             )
 
         if name == "get_recipe_a2ui":
-            if not verify_a2ui_capability():
-                return types.CallToolResult(
-                    isError=True,
-                    content=[
-                        types.TextContent(
-                            type="text",
-                            text=(
-                                "Error: Client does not support A2UI Basic Catalog"
-                                " (v0.9) capability."
-                            ),
-                        )
-                    ],
-                )
-
             # Resolve dynamic selections from the client form context
             style_list = arguments.get("cookingStyle", [])
             protein_list = arguments.get("protein", [])

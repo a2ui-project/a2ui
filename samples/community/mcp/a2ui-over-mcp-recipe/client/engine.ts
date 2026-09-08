@@ -26,7 +26,6 @@ import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
 
 export {type McpClientGetter, type McpToolResultHandler, type CallToolResult};
-export const BASIC_CATALOG_ID = 'https://a2ui.org/specification/v0_9/basic_catalog.json';
 export const BASIC_WITH_MCP_CATALOG_ID =
   'https://a2ui.org/specification/v0_9/catalogs/basic_with_mcp/catalog.json';
 export const A2UI_MIME_TYPE = 'application/a2ui+json';
@@ -53,7 +52,7 @@ export function createBasicWithMcpCatalog(
   clientGetter: McpClientGetter,
   onResult?: McpToolResultHandler,
 ): Catalog<any> {
-  const mcpFn = createCallMcpToolImplementation(clientGetter as any, onResult as any);
+  const mcpFn = createCallMcpToolImplementation(clientGetter, onResult);
   const allComponents = Array.from(basicCatalog.components.values());
   const allFunctions = [...Array.from(basicCatalog.functions.values()), mcpFn as any];
   return new Catalog<any>(BASIC_WITH_MCP_CATALOG_ID, allComponents, allFunctions);
@@ -99,9 +98,9 @@ export class A2uiMcpEngine {
       onSurfaceChange?: () => void;
     } = {},
   ) {
-    const clientGetter: McpClientGetter = ((server?: string) => this.getMcpClient(server)) as any;
+    const clientGetter: McpClientGetter = (server?: string) => this.getMcpClient(server);
     const onResult: McpToolResultHandler = (result, client, name, server) =>
-      this.handleToolResult(result, client as any, name, server);
+      this.handleToolResult(result, client, name, server);
     const basicWithMcpCatalog = createBasicWithMcpCatalog(clientGetter, onResult);
 
     this.processor = new MessageProcessor<any>([basicWithMcpCatalog], action =>
@@ -201,17 +200,11 @@ export class A2uiMcpEngine {
     name: string,
     server?: string,
   ): Promise<void> {
-    let resourceUri = (result._meta as any)?.ui?.resourceUri;
-    if (!resourceUri) {
-      if (server) {
-        resourceUri = this.toolUiResources.get(`${server}:${name}`);
-      }
-      if (!resourceUri) {
-        resourceUri =
-          this.toolUiResources.get(name) ||
-          (name.includes(':') ? this.toolUiResources.get(name.split(':')[1]) : undefined);
-      }
-    }
+    const resourceUri =
+      (result._meta as any)?.ui?.resourceUri ||
+      (server ? this.toolUiResources.get(`${server}:${name}`) : undefined) ||
+      this.toolUiResources.get(name) ||
+      (name.includes(':') ? this.toolUiResources.get(name.split(':')[1]) : undefined);
 
     if (resourceUri) {
       const template = await this.getOrFetchTemplate(client, resourceUri);
