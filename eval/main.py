@@ -84,9 +84,7 @@ def main() -> None:
         "--model",
         type=str,
         default="google/gemini-3.5-flash",
-        help=(
-            "Model used to evaluate tasks (or alias like 'gemma', 'gemma-4-26b')"
-        ),
+        help="Model used to evaluate tasks (or alias like 'gemma', 'gemma-4-26b')",
     )
     parser.add_argument(
         "--grading-model",

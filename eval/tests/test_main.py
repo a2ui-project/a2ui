@@ -85,9 +85,9 @@ def test_gemma_model_flag_defaults_to_json():
         call_kwargs = mock_eval_set.call_args.kwargs
         assert call_kwargs["model"] == "google/gemma-4-26b-a4b-it"
         # Strategy defaults to standard JSON strategies
-        strategies = [call.kwargs["strategy"] for call in mock_v1_eval.call_args_list] + [
-            call.kwargs["strategy"] for call in mock_v09_eval.call_args_list
-        ]
+        strategies = [
+            call.kwargs["strategy"] for call in mock_v1_eval.call_args_list
+        ] + [call.kwargs["strategy"] for call in mock_v09_eval.call_args_list]
         assert "direct" in strategies
         assert "subagent_tool" in strategies
 
