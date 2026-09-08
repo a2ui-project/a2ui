@@ -16,6 +16,18 @@
 
 const path = require('path');
 
+const isReact18 = process.env.REACT_VERSION === '18';
+const react18Aliases = isReact18
+  ? {
+      'react/jsx-dev-runtime': require.resolve('react-18/jsx-dev-runtime'),
+      'react/jsx-runtime': require.resolve('react-18/jsx-runtime'),
+      'react-dom/client': require.resolve('react-dom-18/client'),
+      'react-dom/server': require.resolve('react-dom-18/server'),
+      'react-dom': require.resolve('react-dom-18'),
+      react: require.resolve('react-18'),
+    }
+  : {};
+
 module.exports = function (config) {
   config.set({
     basePath: '',
@@ -37,6 +49,7 @@ module.exports = function (config) {
       format: 'iife',
       sourcemap: true,
       alias: {
+        ...react18Aliases,
         '@a2ui/react/v0_9': path.resolve(__dirname, '../src/v0_9/index.ts'),
         '@a2ui/react/v0_8': path.resolve(__dirname, '../src/v0_8/index.ts'),
         '@a2ui/react/styles': path.resolve(__dirname, '../src/styles/index.ts'),
@@ -48,7 +61,13 @@ module.exports = function (config) {
     colors: true,
     logLevel: config.LOG_INFO,
     autoWatch: false,
-    browsers: ['ChromeHeadless'],
+    customLaunchers: {
+      ChromeHeadlessNoSandbox: {
+        base: 'ChromeHeadless',
+        flags: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--no-zygote'],
+      },
+    },
+    browsers: ['ChromeHeadlessNoSandbox'],
     singleRun: true,
     concurrency: Infinity,
     hostname: '127.0.0.1',
