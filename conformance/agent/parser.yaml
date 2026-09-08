@@ -195,7 +195,13 @@
     </a2ui-json>
     Let me know if you need more assistance.
   expect:
-    - text: "Here is some Python sample code:\n```python\ndef calculate():\n    return 42\n```\nExplanation of code above."
+    - text: |-
+        Here is some Python sample code:
+        ```python
+        def calculate():
+            return 42
+        ```
+        Explanation of code above.
       a2ui:
         - id: "root"
           component: "Text"

@@ -3130,7 +3130,9 @@
                 components:
                   - id: "root"
                     component: "Text"
-                    text: "Line 1\nLine 2 \"quoted\""
+                    text: |-
+                      Line 1
+                      Line 2 "quoted"
 
 - name: test_cut_number_literals_v09
   description: Tests that negative, decimal, and floating-point number literals cut across streaming chunks are buffered until complete.

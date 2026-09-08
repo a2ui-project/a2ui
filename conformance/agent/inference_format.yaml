@@ -332,7 +332,26 @@
   disableValidation: true
   action: process_chunk
   steps:
-    - input: "Here is the requested user interface:\n<a2ui-json>\n[\n  {\n    \"version\": \"v1.0\",\n    \"createSurface\": {\n      \"surfaceId\": \"main\",\n      \"catalogId\": \"basic\",\n      \"components\": [\n        {\n          \"id\": \"root\",\n          \"component\": \"Text\",\n          \"text\": \"Welcome to A2UI v1.0\"\n        }\n      ]\n    }\n  }\n]\n</a2ui-json>"
+    - input: |-
+        Here is the requested user interface:
+        <a2ui-json>
+        [
+          {
+            "version": "v1.0",
+            "createSurface": {
+              "surfaceId": "main",
+              "catalogId": "basic",
+              "components": [
+                {
+                  "id": "root",
+                  "component": "Text",
+                  "text": "Welcome to A2UI v1.0"
+                }
+              ]
+            }
+          }
+        ]
+        </a2ui-json>
       expect:
         - text: "Here is the requested user interface:\n"
           a2ui:
