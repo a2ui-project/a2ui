@@ -20,7 +20,7 @@ import {basicCatalog, Context} from '@a2ui/lit/v0_9';
 import '@a2ui/lit/v0_9'; // Registers <a2ui-surface>
 import {provide} from '@lit/context';
 import {renderMarkdown} from '@a2ui/markdown-it';
-import {A2uiMcpEngine, ConnectionStatus} from './engine.js';
+import {A2uiMcpEngine, ConnectionStatus, type CallToolResult} from './engine.js';
 
 // Recipe Studio Surface IDs
 const RECIPE_FORM_SURFACE_ID = 'recipe-form';
@@ -271,7 +271,12 @@ export class A2uiRecipeApp extends LitElement {
         name: 'get_recipe_form_a2ui',
         arguments: {},
       });
-      await this.mcpEngine.handleToolResult(result, client, `${serverName}:get_recipe_form_a2ui`);
+      await this.mcpEngine.handleToolResult(
+        result as CallToolResult,
+        client,
+        'get_recipe_form_a2ui',
+        serverName,
+      );
     } catch (error) {
       console.error('Failed to initialize recipe app:', error);
     }

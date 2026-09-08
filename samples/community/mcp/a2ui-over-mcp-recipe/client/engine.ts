@@ -25,7 +25,7 @@ import {
 import {createCallMcpToolImplementation} from '../../../../../catalogs/mcp/v0_9/src/functions/callMcpTool.js';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
-import type {CallToolResult, CompatibilityCallToolResult} from '@modelcontextprotocol/sdk/types.js';
+import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
 
 export {
   MCP_CATALOG_ID,
@@ -33,12 +33,7 @@ export {
   type McpClientGetter,
   type McpToolResultHandler,
   type CallToolResult,
-  type CompatibilityCallToolResult,
 };
-export type McpToolCallResult =
-  | CallToolResult
-  | CompatibilityCallToolResult
-  | {result: CallToolResult | CompatibilityCallToolResult};
 export const BASIC_CATALOG_ID = 'https://a2ui.org/specification/v0_9/basic_catalog.json';
 export const BASIC_WITH_MCP_CATALOG_ID =
   'https://a2ui.org/specification/v0_9/catalogs/basic_with_mcp/catalog.json';
@@ -132,10 +127,8 @@ export class A2uiMcpEngine {
     this.events = resolvedEvents || {};
 
     const clientGetter: McpClientGetter = ((server?: string) => this.getMcpClient(server)) as any;
-    const onResult: McpToolResultHandler = (result, client, name, server) => {
-      const toolKey = server ? `${server}:${name}` : name;
-      return this.handleToolResult((result as any)?.result ?? result, client as any, toolKey);
-    };
+    const onResult: McpToolResultHandler = (result, client, name, server) =>
+      this.handleToolResult(result, client as any, name, server);
     const basicWithMcpCatalog = createBasicWithMcpCatalog(clientGetter, onResult);
     const mcpCatalog = createMcpCatalog(clientGetter, onResult as any);
 
@@ -231,19 +224,21 @@ export class A2uiMcpEngine {
    * and applying data model updates.
    */
   async handleToolResult(
-    result: McpToolCallResult,
+    result: CallToolResult,
     client: Client,
-    toolKey?: string,
+    name: string,
+    server?: string,
   ): Promise<void> {
-    const payload: CallToolResult =
-      'result' in result && result.result
-        ? (result.result as CallToolResult)
-        : (result as CallToolResult);
-    let resourceUri = (payload._meta as any)?.ui?.resourceUri;
-    if (!resourceUri && toolKey) {
-      resourceUri =
-        this.toolUiResources.get(toolKey) ||
-        (toolKey.includes(':') ? this.toolUiResources.get(toolKey.split(':')[1]) : undefined);
+    let resourceUri = (result._meta as any)?.ui?.resourceUri;
+    if (!resourceUri) {
+      if (server) {
+        resourceUri = this.toolUiResources.get(`${server}:${name}`);
+      }
+      if (!resourceUri) {
+        resourceUri =
+          this.toolUiResources.get(name) ||
+          (name.includes(':') ? this.toolUiResources.get(name.split(':')[1]) : undefined);
+      }
     }
 
     if (resourceUri) {
@@ -254,7 +249,7 @@ export class A2uiMcpEngine {
       }
     }
 
-    const dataMessages = this.extractA2uiMessages(payload.content);
+    const dataMessages = this.extractA2uiMessages(result.content);
     if (dataMessages) {
       this.processor.processMessages(dataMessages);
     }

@@ -194,47 +194,6 @@ describe('A2uiMcpEngine', () => {
       // Verifies handleToolResult was wired up and processed data updates
       expect(surface!.dataModel.get('/recipeName')).toBe('Pasta');
     });
-
-    it('processes data updates when callMcpTool returns a nested result.result payload', async () => {
-      const engine = new A2uiMcpEngine();
-      const mockMcpClient = {
-        request: vi.fn().mockResolvedValue({
-          result: {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify([
-                  {
-                    updateDataModel: {
-                      surfaceId: 'nested-surface',
-                      path: '/',
-                      value: {recipeName: 'Pizza'},
-                    },
-                  },
-                ]),
-              },
-            ],
-          },
-        }),
-      };
-      engine.mcpClients.set('test-server', mockMcpClient as any);
-
-      engine.processor.processMessages([
-        {
-          version: 'v0.9',
-          createSurface: {
-            surfaceId: 'nested-surface',
-            catalogId: BASIC_WITH_MCP_CATALOG_ID,
-          },
-        },
-      ]);
-
-      const surface = engine.getSurface('nested-surface');
-      expect(surface).toBeDefined();
-
-      await surface!.catalog.invoker('callMcpTool', {name: 'test_tool', arguments: {}}, {} as any);
-      expect(surface!.dataModel.get('/recipeName')).toBe('Pizza');
-    });
   });
 
   describe('getMcpClient', () => {
@@ -576,44 +535,12 @@ describe('A2uiMcpEngine', () => {
         ],
       };
 
-      await engine.handleToolResult(result, mockClient as any, 'test-server:get_sample_data');
+      await engine.handleToolResult(result, mockClient as any, 'get_sample_data', 'test-server');
 
       // Surface created and updated
       const surface = engine.getSurface('test-surface');
       expect(surface).toBeDefined();
       expect(mockClient.readResource).toHaveBeenCalledWith({uri: 'a2ui://sample-template'});
-      expect(onSurfaceChange).toHaveBeenCalled();
-    });
-
-    it('supports nested result.result structure from JSON-RPC responses', async () => {
-      const rawRpcResult: {result: CallToolResult} = {
-        result: {
-          _meta: {
-            ui: {
-              resourceUri: 'a2ui://sample-template',
-            },
-          },
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify([
-                {
-                  updateDataModel: {
-                    surfaceId: 'test-surface',
-                    value: {title: 'Nested Recipe'},
-                  },
-                },
-              ]),
-            },
-          ],
-        },
-      };
-
-      await engine.handleToolResult(rawRpcResult, mockClient as any, 'test-server:get_sample_data');
-
-      const surface = engine.getSurface('test-surface');
-      expect(surface).toBeDefined();
-      expect(surface!.dataModel.get('/title')).toBe('Nested Recipe');
       expect(onSurfaceChange).toHaveBeenCalled();
     });
 
@@ -628,11 +555,11 @@ describe('A2uiMcpEngine', () => {
       };
 
       // First call fetches template
-      await engine.handleToolResult(result, mockClient as any, 'test-server:get_sample_data');
+      await engine.handleToolResult(result, mockClient as any, 'get_sample_data', 'test-server');
       expect(mockClient.readResource).toHaveBeenCalledTimes(1);
 
       // Second call uses cached template
-      await engine.handleToolResult(result, mockClient as any, 'test-server:get_sample_data');
+      await engine.handleToolResult(result, mockClient as any, 'get_sample_data', 'test-server');
       expect(mockClient.readResource).toHaveBeenCalledTimes(1);
     });
 
@@ -648,13 +575,13 @@ describe('A2uiMcpEngine', () => {
       };
 
       // First call processes template (2 messages)
-      await engine.handleToolResult(result, mockClient as any, 'test-server:get_sample_data');
+      await engine.handleToolResult(result, mockClient as any, 'get_sample_data', 'test-server');
       expect(processMessagesSpy).toHaveBeenCalledWith(sampleTemplate);
 
       processMessagesSpy.mockClear();
 
       // Second call has existing surface so template should NOT be passed to processMessages
-      await engine.handleToolResult(result, mockClient as any, 'test-server:get_sample_data');
+      await engine.handleToolResult(result, mockClient as any, 'get_sample_data', 'test-server');
       expect(processMessagesSpy).not.toHaveBeenCalledWith(sampleTemplate);
     });
 
@@ -678,7 +605,7 @@ describe('A2uiMcpEngine', () => {
         ],
       };
 
-      await engine.handleToolResult(result, mockClient as any, 'test-server:get_sample_data');
+      await engine.handleToolResult(result, mockClient as any, 'get_sample_data', 'test-server');
       expect(onSurfaceChange).toHaveBeenCalled();
     });
 
@@ -697,7 +624,7 @@ describe('A2uiMcpEngine', () => {
         ],
       };
 
-      await engine.handleToolResult(result, mockClient as any, 'test-server:get_sample_data');
+      await engine.handleToolResult(result, mockClient as any, 'get_sample_data', 'test-server');
       expect(onSurfaceChange).toHaveBeenCalled();
     });
 
@@ -724,7 +651,7 @@ describe('A2uiMcpEngine', () => {
       };
 
       await expect(
-        engine.handleToolResult(result, mockClient as any, 'test-server:get_sample_data'),
+        engine.handleToolResult(result, mockClient as any, 'get_sample_data', 'test-server'),
       ).rejects.toThrow(
         'Resource a2ui://sample-template does not contain valid A2UI JSON template data.',
       );
