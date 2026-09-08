@@ -2,7 +2,7 @@
 
 ## **TL;DR**
 
-The A2UI SDK API uses `payload`, `message` and `request` in ways that do not clearly distinguish the four directions of interaction:
+The A2UI SDK API uses the words `payload`, `message` and `request` in ways that do not clearly distinguish the four directions of interaction:
 
 - renderer to agent
 - agent to model
