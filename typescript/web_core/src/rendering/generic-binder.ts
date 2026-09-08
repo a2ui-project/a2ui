@@ -65,7 +65,7 @@ export function scrapeSchemaBehavior(schema: z.ZodTypeAny): BehaviorNode {
 
 /**
  * Unwraps Zod wrapper schemas (ZodOptional, ZodNullable, ZodDefault,
- * ZodReadonly, ZodEffects) to retrieve the underlying inner schema type.
+ * ZodReadonly, ZodEffects, ZodBranded, ZodLazy) to retrieve the underlying inner schema type.
  *
  * @param type Zod schema to unwrap.
  * @returns The inner Zod schema.
@@ -83,6 +83,10 @@ function unwrapZodSchema(type: z.ZodTypeAny): z.ZodTypeAny {
       current = current._def.innerType;
     } else if (typeName === 'ZodEffects') {
       current = current._def.schema;
+    } else if (typeName === 'ZodBranded') {
+      current = current._def.type;
+    } else if (typeName === 'ZodLazy') {
+      current = current._def.getter();
     } else {
       break;
     }
@@ -92,13 +96,35 @@ function unwrapZodSchema(type: z.ZodTypeAny): z.ZodTypeAny {
 
 /**
  * Extracts the definition name from a schema's REF: description, if present.
+ * Walks the schema wrapper chain to locate the first non-empty description.
  *
  * @param type Zod schema to inspect.
  * @returns Target definition name, or an empty string.
  */
 function getRefDefName(type: z.ZodTypeAny): string {
-  const current: any = unwrapZodSchema(type);
-  const desc: string = current?.description ?? current?._def?.description ?? '';
+  let current: any = type;
+  let desc = '';
+  while (current) {
+    desc = current.description ?? current._def?.description ?? '';
+    if (desc) break;
+    const typeName = current._def?.typeName;
+    if (
+      typeName === 'ZodOptional' ||
+      typeName === 'ZodNullable' ||
+      typeName === 'ZodDefault' ||
+      typeName === 'ZodReadonly'
+    ) {
+      current = current._def.innerType;
+    } else if (typeName === 'ZodEffects') {
+      current = current._def.schema;
+    } else if (typeName === 'ZodBranded') {
+      current = current._def.type;
+    } else if (typeName === 'ZodLazy') {
+      current = current._def.getter();
+    } else {
+      break;
+    }
+  }
   if (!desc || !desc.startsWith('REF:')) return '';
   const cleanDesc = desc.slice(4);
   return extractRefDefName(cleanDesc.split('|')[0]);
@@ -111,15 +137,14 @@ function getRefDefName(type: z.ZodTypeAny): string {
  * @returns Whether the schema represents a checkable field.
  */
 function isCheckableField(type: z.ZodTypeAny): boolean {
-  const current: any = unwrapZodSchema(type);
-
-  const defName = getRefDefName(current);
+  const defName = getRefDefName(type);
   if (defName === 'Checkable' || defName === 'CheckRule') {
     return true;
   }
 
+  const current: any = unwrapZodSchema(type);
   if (current?._def?.typeName === 'ZodArray') {
-    const elem = unwrapZodSchema(current._def.type);
+    const elem = current._def.type;
     const elemDefName = getRefDefName(elem);
     if (elemDefName === 'CheckRule') {
       return true;
@@ -131,27 +156,33 @@ function isCheckableField(type: z.ZodTypeAny): boolean {
 
 function isActionOption(option: z.ZodTypeAny): boolean {
   if (getRefDefName(option) === 'Action') return true;
-  const def = (option as any)._def;
+  const current = unwrapZodSchema(option);
+  const def = (current as any)._def;
   return def?.typeName === 'ZodObject' && Boolean(def.shape?.().event);
 }
 
 function isDynamicOption(option: z.ZodTypeAny): boolean {
   const refDef = getRefDefName(option);
   if (refDef === 'DataBinding' || refDef.startsWith('Dynamic')) return true;
-  const def = (option as any)._def;
+  const current = unwrapZodSchema(option);
+  const def = (current as any)._def;
   if (def?.typeName !== 'ZodObject') return false;
-  const shape = def.shape?.();
-  return Boolean(shape?.path && !shape?.componentId);
+  const shape = def.shape?.() || {};
+  const hasComponentId = Object.values(shape).some(
+    prop => getRefDefName(prop as z.ZodTypeAny) === 'ComponentId',
+  );
+  return !hasComponentId;
 }
 
 function isChildListOption(option: z.ZodTypeAny): boolean {
   if (childRefKindOf(option) === 'child-list' || getRefDefName(option) === 'ChildList') {
     return true;
   }
-  const def = (option as any)._def;
+  const current = unwrapZodSchema(option);
+  const def = (current as any)._def;
   if (def?.typeName !== 'ZodObject') return false;
-  const shape = def.shape?.();
-  return Boolean(shape?.componentId && shape?.path);
+  const shape = def.shape?.() || {};
+  return Object.values(shape).some(prop => getRefDefName(prop as z.ZodTypeAny) === 'ComponentId');
 }
 
 function isDynamicDef(defName: string, typeName?: string): boolean {
@@ -184,16 +215,17 @@ function scrapeObjectShape(objShape: Record<string, z.ZodTypeAny>): Record<strin
  * @returns Behavior node representing runtime handling for the schema.
  */
 function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
-  const current: any = unwrapZodSchema(type);
+  const defName = getRefDefName(type);
 
-  if (isCheckableField(current)) {
+  if (isCheckableField(type)) {
     return {type: 'CHECKABLE'};
   }
 
-  const defName = getRefDefName(current);
   if (defName === 'Action') {
     return {type: 'ACTION'};
   }
+
+  const current: any = unwrapZodSchema(type);
 
   if (childRefKindOf(current) === 'child-list' || defName === 'ChildList') {
     return {type: 'STRUCTURAL'};

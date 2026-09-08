@@ -672,4 +672,33 @@ describe('GenericBinder Checkable Trait', () => {
     assert.strictEqual(binder.snapshot.isValid, undefined);
     assert.strictEqual(binder.snapshot.validationErrors, undefined);
   });
+
+  it('should unwrap ZodBranded and ZodLazy schemas and preserve outer wrapper descriptions', () => {
+    // Outer description on optional wrapper
+    const optionalAction = z.unknown().describe('REF:common_types.json#/$defs/Action').optional();
+    assert.deepStrictEqual(scrapeSchemaBehavior(optionalAction), {type: 'ACTION'});
+
+    // ZodBranded
+    const brandedDynamic = z.string().describe('REF:#/$defs/DynamicString').brand<'CustomBrand'>();
+    assert.deepStrictEqual(scrapeSchemaBehavior(brandedDynamic), {type: 'DYNAMIC'});
+
+    // ZodLazy
+    const lazyAction = z.lazy(() => z.unknown().describe('REF:#/$defs/Action'));
+    assert.deepStrictEqual(scrapeSchemaBehavior(lazyAction), {type: 'ACTION'});
+
+    // Checkable wrapped in optional
+    const optionalCheckable = CommonSchemas.Checkable.shape.checks.optional();
+    assert.deepStrictEqual(scrapeSchemaBehavior(optionalCheckable), {type: 'CHECKABLE'});
+
+    // Union option with wrapped object shape containing ComponentId
+    const componentIdSchema = z.string().describe('REF:common_types.json#/$defs/ComponentId');
+    const templateChildOption = z
+      .object({
+        target: componentIdSchema,
+        data: z.string().describe('REF:common_types.json#/$defs/DataBinding'),
+      })
+      .optional();
+    const unionWithChild = z.union([z.array(z.string()), templateChildOption]);
+    assert.deepStrictEqual(scrapeSchemaBehavior(unionWithChild), {type: 'STRUCTURAL'});
+  });
 });
