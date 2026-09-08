@@ -389,7 +389,7 @@ class TestAtomFormat(unittest.TestCase):
         cat = direct_json_format.get_selected_catalog()
 
         fmt = AtomFormat(catalog=cat)
-        func_sigs = fmt.prompt_generator.generate_function_signatures()
+        func_sigs = fmt.prompt_generator._generate_function_signatures()
         self.assertIsInstance(func_sigs, str)
 
         # Test _get_schema_enum helper
@@ -818,7 +818,7 @@ class TestAtomFormat(unittest.TestCase):
 
         fmt = AtomFormat(catalog=cat)
         prompt_gen = fmt.prompt_generator
-        func_sigs = prompt_gen.generate_function_signatures()
+        func_sigs = prompt_gen._generate_function_signatures()
         self.assertIsInstance(func_sigs, str)
         prompt_full = prompt_gen.generate(include_schema=True, include_examples=True)
         self.assertIn("Instructions", prompt_full)
@@ -877,11 +877,11 @@ class TestAtomFormat(unittest.TestCase):
         pg = AtomPromptGenerator(mock_fmt)
         pg.schema_helper = mock_helper
 
-        comp_sigs = pg.generate_component_signatures()
+        comp_sigs = pg._generate_component_signatures()
         self.assertIn("- (CompA :prop1)", comp_sigs)
         self.assertIn("Must be one of: 'val1', 'val2'", comp_sigs)
 
-        func_sigs = pg.generate_function_signatures()
+        func_sigs = pg._generate_function_signatures()
         self.assertIn("- (FuncA :arg1?)", func_sigs)
         self.assertIn("Must be one of: 'val1', 'val2'", func_sigs)
 
