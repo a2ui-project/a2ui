@@ -154,7 +154,8 @@ describe('VersionAdapterFactory', () => {
 
     const ops = resolved.extractOperations({});
     assert.strictEqual(ops.length, 1);
-    assert.strictEqual(ops[0].surfaceId, 's_custom');
+    assert.strictEqual(ops[0].type, 'createSurface');
+    assert.strictEqual((ops[0] as InternalCreateSurfaceOp).surfaceId, 's_custom');
   });
 
   it('throws an A2uiValidationError for unrecognized or missing version strings', () => {

@@ -54,6 +54,10 @@
       "types": "./dist/src/processing/adapters/index.d.ts",
       "default": "./dist/src/processing/adapters/index.js"
     },
+    "./rpc": {
+      "types": "./dist/src/rpc/index.d.ts",
+      "default": "./dist/src/rpc/index.js"
+    },
     "./validating": {
       "types": "./dist/src/validating/integrity-checker.d.ts",
       "default": "./dist/src/validating/integrity-checker.js"
