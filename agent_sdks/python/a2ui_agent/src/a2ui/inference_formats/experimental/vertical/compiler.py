@@ -43,6 +43,16 @@ def _strip_markdown_and_tags(text: str) -> str:
     return text.strip()
 
 
+def _is_legacy_version(target_version: str) -> bool:
+    """Returns True if the protocol version is legacy (< v1.0)."""
+    try:
+        clean = target_version.lstrip("v")
+        major = int(clean.split(".", 1)[0])
+        return major < 1
+    except (ValueError, AttributeError):
+        return False
+
+
 def _split_statements(text: str) -> List[str]:
     """Splits input text into discrete component statements.
 
@@ -73,6 +83,9 @@ def _split_statements(text: str) -> List[str]:
             current.append(ch)
             i += 1
             continue
+
+        if ch == "\n":
+            in_quote = None
 
         if in_quote:
             if ch == in_quote:
@@ -152,6 +165,28 @@ def _split_statements(text: str) -> List[str]:
                 current = []
                 i += 1
                 continue
+        elif ch == "\n":
+            # Permissive healing: If an unclosed statement is followed by a new
+            # component statement on the next line, split and reset depth.
+            rest = text[i + 1 :].lstrip(" \t\r\n")
+            if (
+                re.match(r"^[A-Z][A-Za-z0-9_]*\s*\(", rest)
+                or re.match(r"^<[A-Za-z0-9_]+", rest)
+                or re.match(
+                    r"^(?:(?:var|val|let|\$[A-Za-z0-9_]+|[A-Za-z0-9_]+)\s*[:=]\s*)?[A-Z][A-Za-z0-9_]*\s*\(",
+                    rest,
+                )
+            ):
+                stmt = "".join(current).strip()
+                if stmt:
+                    statements.append(stmt)
+                current = []
+                paren_depth = 0
+                bracket_depth = 0
+                brace_depth = 0
+                in_quote = None
+                i += 1
+                continue
 
         current.append(ch)
         i += 1
@@ -189,6 +224,9 @@ def _split_args(args_str: str) -> List[str]:
             current.append(ch)
             i += 1
             continue
+
+        if ch == "\n":
+            in_quote = None
 
         if in_quote:
             if ch == in_quote:
@@ -403,7 +441,7 @@ def _parse_arg_chunk(chunk: str) -> Tuple[Optional[str], Any]:
             continue
 
         if paren_depth == 0 and bracket_depth == 0 and brace_depth == 0:
-            if ch in ("=", ":"):
+            if i > 0 and ch in ("=", ":"):
                 separator_idx = i
                 break
 
@@ -581,11 +619,14 @@ class VerticalCompiler:
 
         comp_dict: Dict[str, Any] = {"component": matched_name}
 
-        ordered_props = [
-            p
-            for p in self.helper.get_component_properties(matched_name)
-            if p not in ("component", "id", "child", "children")
-        ]
+        if matched_name in self.helper.components:
+            ordered_props = [
+                p
+                for p in self.helper.get_component_properties(matched_name) or []
+                if p not in ("component", "id", "child", "children")
+            ]
+        else:
+            ordered_props = []
 
         for idx, arg_val in enumerate(pos_args):
             if idx < len(ordered_props):
@@ -599,13 +640,21 @@ class VerticalCompiler:
                     prop_target = p
                     break
 
-            p_type = self.helper.get_property_type(matched_name, prop_target)
+            p_type = (
+                self.helper.get_property_type(matched_name, prop_target)
+                if matched_name in self.helper.components
+                else None
+            )
             if (
                 p_type == "Action" or prop_target in ("action", "onClick", "onPress")
             ) and isinstance(v, str):
                 v = {"event": {"name": v}}
 
-            p_schema = self.helper.get_property_schema(matched_name, prop_target)
+            p_schema = (
+                self.helper.get_property_schema(matched_name, prop_target)
+                if matched_name in self.helper.components
+                else None
+            )
             if isinstance(p_schema, dict):
                 expected_type = p_schema.get("type")
                 if expected_type == "integer" and isinstance(v, (str, float)):
@@ -686,7 +735,7 @@ class VerticalCompiler:
         for i, comp in enumerate(parsed_components):
             surf_id = resolved_surface_id if i == 0 else f"{resolved_surface_id}_{i}"
             root_comp = {"id": "root", **comp}
-            if target_version in ("v0.9", "v0.9.1", "0.9", "0.9.1"):
+            if _is_legacy_version(target_version):
                 messages.append({
                     "version": target_version,
                     "createSurface": {

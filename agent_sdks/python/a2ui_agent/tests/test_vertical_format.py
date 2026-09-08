@@ -505,3 +505,103 @@ def test_parser_parse_response(vertical_format):
         "Parsed successfully"
     )
     assert "Let me know if you need anything else!" in parsed[1].text
+
+
+def test_parse_arg_chunk_leading_colon(vertical_compiler):
+    msgs = vertical_compiler.compile('TextInput(:label "Your Name")')
+    assert len(msgs) == 2
+    comp = msgs[1]["updateComponents"]["components"][0]
+    assert comp["component"] == "TextInput"
+    assert comp["label"] == "Your Name"
+
+    msgs2 = vertical_compiler.compile('TextInput(:label: "Your Name")')
+    assert len(msgs2) == 2
+    comp2 = msgs2[1]["updateComponents"]["components"][0]
+    assert comp2["label"] == "Your Name"
+
+
+def test_unclosed_quotes_healing_across_lines(vertical_compiler):
+    text = '<a2ui>\nText("Hello\nButton("Click")\n</a2ui>'
+    msgs = vertical_compiler.compile(text)
+    assert len(msgs) == 4
+    assert msgs[1]["updateComponents"]["components"][0]["component"] == "Text"
+    assert msgs[3]["updateComponents"]["components"][0]["component"] == "Button"
+
+
+def test_unknown_component_handling(vertical_compiler):
+    text = '<a2ui>\nUnknownWidget(title="Demo", count=5)\n</a2ui>'
+    msgs = vertical_compiler.compile(text)
+    assert len(msgs) == 2
+    comp = msgs[1]["updateComponents"]["components"][0]
+    assert comp["component"] == "UnknownWidget"
+    assert comp["title"] == "Demo"
+    assert comp["count"] == 5
+
+
+def test_forward_compatible_protocol_versions(mock_catalog):
+    c_legacy = VerticalCompiler(mock_catalog, surface_id="main", version="v0.9.2")
+    msgs_legacy = c_legacy.compile('Text("Legacy")')
+    assert len(msgs_legacy) == 2
+    assert "createSurface" in msgs_legacy[0]
+    assert "updateComponents" in msgs_legacy[1]
+
+    c_future = VerticalCompiler(mock_catalog, surface_id="main", version="v1.1")
+    msgs_future = c_future.compile('Text("Future")')
+    assert len(msgs_future) == 1
+    assert "createSurface" in msgs_future[0]
+    assert "components" in msgs_future[0]["createSurface"]
+
+    parser_legacy = VerticalFormat(
+        catalog=mock_catalog, surface_id="main", version="v0.9.2"
+    ).parser
+    parts_legacy = parser_legacy.process_chunk(
+        '<a2ui>\nText("Streaming Legacy")\n</a2ui>'
+    )
+    a2ui_legacy = [p for p in parts_legacy if p.a2ui_json]
+    assert len(a2ui_legacy) == 1
+    assert len(a2ui_legacy[0].a2ui_json) == 2
+    assert "createSurface" in a2ui_legacy[0].a2ui_json[0]
+    assert "updateComponents" in a2ui_legacy[0].a2ui_json[1]
+
+    parser_future = VerticalFormat(
+        catalog=mock_catalog, surface_id="main", version="v1.1"
+    ).parser
+    parts_future = parser_future.process_chunk(
+        '<a2ui>\nText("Streaming Future")\n</a2ui>'
+    )
+    a2ui_future = [p for p in parts_future if p.a2ui_json]
+    assert len(a2ui_future) == 1
+    assert len(a2ui_future[0].a2ui_json) == 1
+    assert "createSurface" in a2ui_future[0].a2ui_json[0]
+    assert "components" in a2ui_future[0].a2ui_json[0]["createSurface"]
+
+
+def test_sparse_catalog_safety():
+    class SparseCatalog:
+
+        def __init__(self):
+            self.id = "https://a2ui.org/sparse"
+            self.catalog_id = "https://a2ui.org/sparse"
+
+        def get_components(self):
+            return {
+                "SparseWidget": {},
+            }
+
+        def get_functions(self):
+            return {
+                "sparseFunc": {},
+            }
+
+    fmt = VerticalFormat(catalog=SparseCatalog(), surface_id="main")
+    prompt = fmt.prompt_generator.generate_system_prompt()
+    assert "SparseWidget" in prompt
+    assert fmt.prompt_generator.component_requires_children("SparseWidget") is False
+
+
+def test_prompt_generator_modular_methods(vertical_format):
+    pg = vertical_format.prompt_generator
+    rules = pg.generate_base_rules()
+    assert "# A2UI Vertical Output Contract" in rules
+    instructions = pg.generate_catalog_instructions()
+    assert "## Component Signatures" in instructions

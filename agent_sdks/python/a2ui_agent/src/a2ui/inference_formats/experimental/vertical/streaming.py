@@ -26,7 +26,7 @@ from typing import Any, List, Optional, Union
 from a2ui.core.catalog import Catalog
 from a2ui.parser.response_part import ResponsePart
 from a2ui.schema.catalog import A2uiCatalog
-from .compiler import VerticalCompiler, _split_statements
+from .compiler import VerticalCompiler, _is_legacy_version, _split_statements
 
 
 class VerticalStreamParser:
@@ -180,7 +180,7 @@ class VerticalStreamParser:
             or "https://a2ui.org/catalogs/basic.json"
         )
 
-        if target_version in ("v0.9", "v0.9.1", "0.9", "0.9.1"):
+        if _is_legacy_version(target_version):
             messages = [
                 {
                     "version": target_version,

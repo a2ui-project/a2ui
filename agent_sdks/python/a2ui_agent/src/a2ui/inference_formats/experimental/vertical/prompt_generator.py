@@ -138,8 +138,8 @@ class VerticalPromptGenerator(PromptGenerator):
         In the Vertical format, components that require children cannot be specified
         and must be ignored.
         """
-        reqs = self.helper.get_component_required(comp_name)
-        props = self.helper.get_component_properties(comp_name)
+        reqs = self.helper.get_component_required(comp_name) or []
+        props = self.helper.get_component_properties(comp_name) or []
 
         for p in props:
             if p in reqs:
@@ -171,8 +171,8 @@ class VerticalPromptGenerator(PromptGenerator):
             if allowed_components is not None and name not in allowed_components:
                 continue
 
-            props = self.helper.get_component_properties(name)
-            reqs = self.helper.get_component_required(name)
+            props = self.helper.get_component_properties(name) or []
+            reqs = self.helper.get_component_required(name) or []
             comp_desc = self.helper.get_component_description(name)
 
             ordered_args: List[str] = []
@@ -224,8 +224,8 @@ class VerticalPromptGenerator(PromptGenerator):
         """Compiles catalog function definitions into clean signatures."""
         signatures: List[str] = []
         for name in sorted(self.helper.function_properties.keys()):
-            props = self.helper.get_function_properties(name)
-            reqs = self.helper.get_function_required(name)
+            props = self.helper.get_function_properties(name) or []
+            reqs = self.helper.get_function_required(name) or []
             f_desc = self.helper.get_function_description(name)
 
             ordered_args = []
@@ -300,6 +300,18 @@ class VerticalPromptGenerator(PromptGenerator):
             parts.append(catalog_instructions_block)
 
         return "\n\n".join(parts)
+
+    def generate_base_rules(self) -> str:
+        """Returns the core syntax contract and grammar rules for the Vertical format."""
+        return VERTICAL_RULES.strip()
+
+    def generate_catalog_instructions(
+        self,
+        include_schema: bool = True,
+        catalog: Optional[Any] = None,
+    ) -> str:
+        """Returns component and function signatures for the catalog."""
+        return self.catalog_description(include_schema=include_schema)
 
     def generate(
         self,
