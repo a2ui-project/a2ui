@@ -70,12 +70,10 @@ class ExpressFormatTest {
     assertTrue(format.parser.hasFormatContent(responseText, complete = true))
 
     val responseParts = format.parser.parseResponse(responseText)
-    assertEquals(2, responseParts.size)
+    assertEquals(1, responseParts.size)
 
-    val textPart = responseParts.first { it.a2uiRaw == null }
-    assertTrue(textPart.text.contains("Here is the requested interface:"))
-
-    val expressPart = responseParts.first { it.a2uiRaw != null }
+    val expressPart = responseParts[0]
+    assertTrue(expressPart.text.contains("Here is the requested interface:"))
     assertNotNull(expressPart.a2uiJson)
     assertEquals(1, expressPart.a2uiJson!!.size)
 

@@ -28,8 +28,8 @@ private val logger = Logger.getLogger("com.google.a2ui.parser.Parser")
 
 internal val A2UI_BLOCK_REGEX =
   Regex(
-    "${A2uiConstants.A2UI_OPEN_TAG}(.*?)${A2uiConstants.A2UI_CLOSE_TAG}",
-    RegexOption.DOT_MATCHES_ALL,
+    "<a2ui-json(?:\\s+[^>]*)?>(.*?)</a2ui-json>",
+    setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE),
   )
 
 /** Represents a part of the LLM response. */
@@ -100,49 +100,46 @@ interface Parser {
 }
 
 /** Checks if the given text contains A2UI delimiter tags. */
-fun hasA2uiParts(text: String): Boolean =
-  text.contains(A2uiConstants.A2UI_OPEN_TAG) && text.contains(A2uiConstants.A2UI_CLOSE_TAG)
+fun hasA2uiParts(text: String): Boolean {
+  val openRegex = Regex("<a2ui-json\\b[^>]*>", RegexOption.IGNORE_CASE)
+  val closeRegex = Regex("</a2ui-json\\s*>", RegexOption.IGNORE_CASE)
+  return openRegex.containsMatchIn(text) && closeRegex.containsMatchIn(text)
+}
 
 /** Parses the response text into a list of ResponsePart objects (legacy helper). */
 fun parseResponseToParts(text: String, validator: A2uiValidator? = null): List<ResponsePart> {
-  val matches = A2UI_BLOCK_REGEX.findAll(text).toList()
+  val lexer =
+    BlockLexer(openTag = A2uiConstants.A2UI_OPEN_TAG, closeTag = A2uiConstants.A2UI_CLOSE_TAG)
+  val parts = lexer.tokenize(text)
 
-  if (matches.isEmpty()) {
+  val hasA2ui = parts.any { it.a2uiRaw != null }
+  if (!hasA2ui) {
     throw A2uiParseException(
       "A2UI tags '${A2uiConstants.A2UI_OPEN_TAG}' and '${A2uiConstants.A2UI_CLOSE_TAG}' not found in response."
     )
   }
 
   val responseParts = mutableListOf<ResponsePart>()
-  var lastEnd = 0
-
-  for (match in matches) {
-    val start = match.range.first
-    val end = match.range.last + 1
-    val textPart = text.substring(lastEnd, start).trim()
-
-    val jsonString = match.groupValues[1]
-    val jsonStringCleaned = sanitizeJsonString(jsonString)
-
-    if (jsonStringCleaned.isEmpty()) {
-      throw A2uiParseException("A2UI JSON part is empty.")
+  for (part in parts) {
+    if (part.a2uiRaw != null) {
+      if (part.a2uiRaw.isEmpty()) {
+        throw A2uiParseException("A2UI JSON part is empty.")
+      }
+      val elements = PayloadFixer.parseAndFix(part.a2uiRaw)
+      elements.forEach { validator?.validate(it) }
+      responseParts.add(part.copy(a2uiJson = elements))
+    } else {
+      responseParts.add(part)
     }
-
-    val elements = PayloadFixer.parseAndFix(jsonStringCleaned)
-    elements.forEach { validator?.validate(it) }
-
-    responseParts.add(ResponsePart(text = textPart, a2uiRaw = jsonString, a2uiJson = elements))
-    lastEnd = end
-  }
-
-  val trailingText = text.substring(lastEnd).trim()
-  if (trailingText.isNotEmpty()) {
-    responseParts.add(ResponsePart(text = trailingText, a2uiRaw = null, a2uiJson = null))
   }
 
   return responseParts
 }
 
 /** Sanitize LLM output by removing markdown code blocks if present. */
-fun sanitizeJsonString(jsonString: String): String =
-  jsonString.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+fun sanitizeJsonString(jsonString: String): String {
+  var s = jsonString.trim()
+  s = s.replace(Regex("^```[a-zA-Z-]*\\s*", RegexOption.IGNORE_CASE), "")
+  s = s.replace(Regex("\\s*```[a-zA-Z-]*$", RegexOption.IGNORE_CASE), "")
+  return s.trim()
+}
