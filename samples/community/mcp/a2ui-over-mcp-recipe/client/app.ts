@@ -266,7 +266,12 @@ export class A2uiRecipeApp extends LitElement {
     try {
       const serverName = await this.mcpEngine.connectServer(sseUrl);
       // Initialize app-specific entrypoint form tool via generic engine
-      await this.mcpEngine.executeTool(serverName, 'get_recipe_form_a2ui');
+      const client = this.mcpEngine.getMcpClient(serverName);
+      const result = await client.callTool({
+        name: 'get_recipe_form_a2ui',
+        arguments: {},
+      });
+      await this.mcpEngine.handleToolResult(result, client, `${serverName}:get_recipe_form_a2ui`);
     } catch (error) {
       console.error('Failed to initialize recipe app:', error);
     }

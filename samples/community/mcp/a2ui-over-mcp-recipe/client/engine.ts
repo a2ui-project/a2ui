@@ -25,8 +25,20 @@ import {
 import {createCallMcpToolImplementation} from '../../../../../catalogs/mcp/v0_9/src/functions/callMcpTool.js';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
+import type {CallToolResult, CompatibilityCallToolResult} from '@modelcontextprotocol/sdk/types.js';
 
-export {MCP_CATALOG_ID, createMcpCatalog, type McpClientGetter, type McpToolResultHandler};
+export {
+  MCP_CATALOG_ID,
+  createMcpCatalog,
+  type McpClientGetter,
+  type McpToolResultHandler,
+  type CallToolResult,
+  type CompatibilityCallToolResult,
+};
+export type McpToolCallResult =
+  | CallToolResult
+  | CompatibilityCallToolResult
+  | {result: CallToolResult | CompatibilityCallToolResult};
 export const BASIC_CATALOG_ID = 'https://a2ui.org/specification/v0_9/basic_catalog.json';
 export const BASIC_WITH_MCP_CATALOG_ID =
   'https://a2ui.org/specification/v0_9/catalogs/basic_with_mcp/catalog.json';
@@ -122,7 +134,7 @@ export class A2uiMcpEngine {
     const clientGetter: McpClientGetter = ((server?: string) => this.getMcpClient(server)) as any;
     const onResult: McpToolResultHandler = (result, client, name, server) => {
       const toolKey = server ? `${server}:${name}` : name;
-      return this.handleToolResult(result, client as any, toolKey);
+      return this.handleToolResult((result as any)?.result ?? result, client as any, toolKey);
     };
     const basicWithMcpCatalog = createBasicWithMcpCatalog(clientGetter, onResult);
     const mcpCatalog = createMcpCatalog(clientGetter, onResult as any);
@@ -215,43 +227,19 @@ export class A2uiMcpEngine {
   }
 
   /**
-   * Generic executor for any MCP tool returning A2UI presentation templates or data updates.
-   * Routes strictly to the specified targetServer.
-   */
-  async executeTool(targetServer: string, toolName: string, args: Record<string, any> = {}) {
-    const toolArgs = args || {};
-    const client = this.mcpClients.get(targetServer);
-
-    if (!client) {
-      console.error(`No MCP client available for server '${targetServer}' (tool '${toolName}')`);
-      this.events.onStatusChange?.(`Failed: No connected server '${targetServer}' for ${toolName}`);
-      return;
-    }
-
-    this.events.onStatusChange?.(`Executing ${toolName} on [${targetServer}]...`);
-
-    try {
-      // 1. Call MCP Tool on targeted client
-      const result = await client.callTool({
-        name: toolName,
-        arguments: toolArgs,
-      });
-
-      // 2. Discover UI template, apply messages, and notify listeners
-      await this.handleToolResult(result, client, `${targetServer}:${toolName}`);
-      this.events.onStatusChange?.(`${toolName} on [${targetServer}] completed successfully!`);
-    } catch (error: any) {
-      console.error(`Error executing ${toolName} on [${targetServer}]:`, error);
-      this.events.onStatusChange?.(`Execution failed: ${error.message || error}`);
-    }
-  }
-
-  /**
    * Processes a CallToolResult by discovering and fetching associated UI templates
    * and applying data model updates.
    */
-  async handleToolResult(result: any, client: Client, toolKey?: string): Promise<void> {
-    let resourceUri = result?._meta?.ui?.resourceUri;
+  async handleToolResult(
+    result: McpToolCallResult,
+    client: Client,
+    toolKey?: string,
+  ): Promise<void> {
+    const payload: CallToolResult =
+      'result' in result && result.result
+        ? (result.result as CallToolResult)
+        : (result as CallToolResult);
+    let resourceUri = (payload._meta as any)?.ui?.resourceUri;
     if (!resourceUri && toolKey) {
       resourceUri =
         this.toolUiResources.get(toolKey) ||
@@ -266,7 +254,7 @@ export class A2uiMcpEngine {
       }
     }
 
-    const dataMessages = this.extractA2uiMessages(result?.content as any[]);
+    const dataMessages = this.extractA2uiMessages(payload.content);
     if (dataMessages) {
       this.processor.processMessages(dataMessages);
     }
