@@ -36,9 +36,12 @@ export default defineConfig({
     alias: {
       ...(isReact18
         ? {
-            'react': 'react-18',
-            'react-dom': 'react-dom-18',
+            'react/jsx-dev-runtime': 'react-18/jsx-dev-runtime',
+            'react/jsx-runtime': 'react-18/jsx-runtime',
             'react-dom/client': 'react-dom-18/client',
+            'react-dom/server': 'react-dom-18/server',
+            'react-dom': 'react-dom-18',
+            'react': 'react-18',
             '@testing-library/react': '@testing-library/react-18',
           }
         : {}),
