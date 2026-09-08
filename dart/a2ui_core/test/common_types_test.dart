@@ -63,16 +63,16 @@ void main() {
 
     test('is what a validator resolves against by default', () {
       expect(
-        A2uiValidator<ComponentApi, FunctionApi>().commonTypesSchema,
+        A2uiValidator<ComponentApi, FunctionApi>(
+          catalog: MinimalCatalog(),
+        ).commonTypesSchema,
         A2uiValidator.commonTypesFor(A2uiProtocolVersion.v0_9),
       );
     });
 
     test('is what a processor resolves against by default', () {
       expect(
-        MessageProcessor(
-          catalogs: [MinimalCatalog()],
-        ).validator.commonTypesSchema,
+        MessageProcessor(catalogs: [MinimalCatalog()]).commonTypesSchema,
         A2uiValidator.commonTypesFor(A2uiProtocolVersion.v0_9),
       );
     });
@@ -80,6 +80,7 @@ void main() {
     test('an empty document leaves the shared types unchecked', () {
       expect(
         A2uiValidator<ComponentApi, FunctionApi>(
+          catalog: MinimalCatalog(),
           commonTypesSchema: const {},
         ).commonTypesSchema,
         isEmpty,

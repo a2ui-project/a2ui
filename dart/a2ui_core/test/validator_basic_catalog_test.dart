@@ -43,7 +43,7 @@ Map<String, Object?> basicCatalogDocument() =>
 /// `common_types.json` the package publishes — the same document a caller
 /// installing from pub.dev gets.
 A2uiValidator<ComponentApi, FunctionApi> basicValidator() =>
-    A2uiValidator(catalogs: [Catalog.fromJson(basicCatalogDocument())]);
+    A2uiValidator(catalog: Catalog.fromJson(basicCatalogDocument()));
 
 /// A payload declaring one surface against the basic catalog.
 List<Map<String, Object?>> render(List<Map<String, Object?>> components) => [
