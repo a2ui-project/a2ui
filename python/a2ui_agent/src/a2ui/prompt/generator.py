@@ -23,7 +23,46 @@ from a2ui.core.schema.v0_9.client_capabilities import V09Capabilities
 class PromptGenerator(ABC):
     """Abstract base class for inference format prompt generators."""
 
-    @abstractmethod
+    def generate_base_rules(self) -> str:
+        """Returns the core syntax contract and grammar rules for the inference format.
+
+        Returns:
+            The core syntax rules string.
+        """
+        return ""
+
+    def generate_catalog_instructions(
+        self,
+        include_schema: bool = True,
+        catalog: Any | None = None,
+    ) -> str:
+        """Returns component and function signatures or JSON schemas for a catalog.
+
+        Args:
+            include_schema: Whether to include schema details.
+            catalog: Optional target catalog instance.
+
+        Returns:
+            The catalog instructions string.
+        """
+        return ""
+
+    def generate_examples(
+        self,
+        catalog: Any | None = None,
+        validate: bool = False,
+    ) -> str:
+        """Returns formatted few-shot examples for a catalog.
+
+        Args:
+            catalog: Optional target catalog instance.
+            validate: Whether to validate examples.
+
+        Returns:
+            The formatted few-shot examples string.
+        """
+        return ""
+
     def generate(
         self,
         role_description: str,
@@ -32,11 +71,11 @@ class PromptGenerator(ABC):
         client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
         allowed_components: Sequence[str] | None = None,
         allowed_messages: Sequence[str] | None = None,
-        include_schema: bool = False,
+        include_schema: bool = True,
         include_examples: bool = False,
         validate_examples: bool = False,
     ) -> str:
-        """Assembles prompt instructions contract for standard JSON.
+        """Template Method: Assembles prompt instructions using sub-methods.
 
         Args:
             role_description: Description of the agent's role.
@@ -52,4 +91,30 @@ class PromptGenerator(ABC):
         Returns:
             The complete generated prompt system instruction.
         """
-        pass
+        parts = []
+
+        if role_description:
+            parts.append(role_description)
+
+        rules = self.generate_base_rules()
+        if workflow_description:
+            rules = (
+                f"{rules}\n\n{workflow_description}" if rules else workflow_description
+            )
+        if rules:
+            parts.append(f"## Workflow Description:\n{rules}")
+
+        if ui_description:
+            parts.append(f"## UI Description:\n{ui_description}")
+
+        if include_schema:
+            catalog_inst = self.generate_catalog_instructions(include_schema=True)
+            if catalog_inst:
+                parts.append(catalog_inst)
+
+        if include_examples:
+            examples = self.generate_examples(validate=validate_examples)
+            if examples:
+                parts.append(f"### Examples:\n{examples}")
+
+        return "\n\n".join(parts)

@@ -15,11 +15,7 @@
  */
 
 import {createContext} from '@lit/context';
-
-export type MarkdownRenderer = (
-  text: string,
-  options?: {tagClassMap?: Record<string, string[]>},
-) => Promise<string> | string;
+import type {MarkdownRenderer} from '@a2ui/web_core/v0_9';
 
 /**
  * The markdown renderer context.

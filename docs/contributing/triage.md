@@ -33,7 +33,7 @@ The relevant issue should be linked in the the PR description.
 ## GitHub labels used in triage
 
 1. Priority labels: [P0][p0], [P1][p1], [P2][p2], [P3][p3], [P4][p4]
-2. [status: in-discussion][in-discussion]
+2. [status: needs-team-input][needs-team-input]
 3. [status: needs-triage][needs-triage-label]
 4. [status: first-line-handled][first-line-handled]
 5. [size: small][size-small]
@@ -47,7 +47,7 @@ See [all github labels](https://github.com/a2ui-project/a2ui/labels).
 [p2]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3AP2
 [p3]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3AP3
 [p4]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3AP4
-[in-discussion]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20in-discussion%22
+[needs-team-input]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20needs-team-input%22
 [needs-triage-label]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20needs-triage%22
 [first-line-handled]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20first-line-handled%22
 [size-small]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22size%3A%20small%22
@@ -60,7 +60,9 @@ Two of these labels are automated: `status: needs-triage` is managed entirely by
 
 The [triage.mjs](../../scripts/triage.mjs) script runs via the [`Flag/Unflag issues and PRs`](https://github.com/a2ui-project/a2ui/blob/main/.github/workflows/triage.yml) GitHub Actions workflow. It reconciles `status: needs-triage` across all open items according to the following rules:
 
-1. **Items waiting on author**: If an item has `status: waiting-for-author-response`, it is skipped. The automation removes this label once the author posts a comment or review submitted after the label was added.
+1. **Skipped items**: The automation skips the following items:
+    - **Items waiting on author**: If an item has `status: waiting-for-author-response`, it is skipped. The automation removes this label once an external contributor posts a comment, review or review comment after the label was added.
+    - **Assigned issues**: When an issue is assigned, it is assumed that a team member is looking into it.
 2. **Issues**: Flagged with `status: needs-triage` if any of the following apply:
     - **No priority**: The issue lacks a priority label (`P0`–`P4`).
     - **Unassigned high priority**: Labeled `P0` or `P1` without an assignee.
@@ -69,8 +71,9 @@ The [triage.mjs](../../scripts/triage.mjs) script runs via the [`Flag/Unflag iss
         - `P1`: stale for > 30 days
         - `P2`: stale for > 90 days
         - (`P3` and `P4` issues are never flagged for staleness)
-    - **Unanswered external comment**: The latest human comment is from an external contributor and has been unanswered by a maintainer for > 1 day.
-3. **Pull Requests**: Flagged with `status: needs-triage` if opened by an external contributor and no maintainer has responded to the author's latest contribution for > 1 day. (Maintainer-authored PRs are not flagged).
+    - **Unanswered external comment**: The latest human comment is from an external contributor.
+3. **Pull Requests**: Flagged with `status: needs-triage` if opened by an external contributor and no maintainer has responded to the author's latest contribution. (Maintainer-authored PRs are not flagged).
+4. **Transparency**: The automation prints to the console what items are flagged or unflagged and why. This can be used to track triage progress.
 
 Staleness is calculated from the last human contribution (comment, review, or issue/PR creation) rather than `updated_at` to avoid bot edits resetting the timer.
 
@@ -98,19 +101,19 @@ You can remove the `needs-triage` label manually to speed up the process, but if
 
 For items where you need input from the team, follow this process (passing any remaining follow-up to the next gardener if still in progress):
 
-1. add the `status: in-discussion` label
+1. add the `status: needs-team-input` label
 2. post a message to the team chat, suggesting options and/or asking for input
 3. drive the discussion to resolution
-4. remove the label `status: in-discussion`
+4. remove the label `status: needs-team-input`
 
 Use [standard replies](triage-templates.md) that are provided for standard cases.
 
-Lastly, check for [issues which are still unlabeled/unprioritized][unlabeled] (without P0-P4 label and _haven't_ had `status: needs-triage`, `status: in-discussion` or `status: waiting-for-author-response` added to them). If you find such issues, follow the `status: needs-triage` workflow above (This is just to check for issues which somehow fall through the cracks).
+Lastly, check for [issues which are still unlabeled/unprioritized][unlabeled] (without P0-P4 label and _haven't_ had `status: needs-triage`, `status: needs-team-input` or `status: waiting-for-author-response` added to them). If you find such issues, follow the `status: needs-triage` workflow above (This is just to check for issues which somehow fall through the cracks).
 
 When weekly triage is complete, the [`needs-triage`][needs-triage] list should ideally be empty.
 
-[needs-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20sort%3Aupdated-asc%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20needs-triage%22%20-label%3A%22status%3A%20in-discussion%22%20-label%3A%22status%3A%20waiting-for-author-response%22
-[unlabeled]: https://github.com/a2ui-project/a2ui/issues?q=sort%3Aupdated-desc%20is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3AP4%20-label%3A%22status%3A%20in-discussion%22%20-label%3A%22status%3A%20needs-triage%22%20-label%3A%22status%3A%20waiting-for-author-response%22
+[needs-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20sort%3Aupdated-asc%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20needs-triage%22%20-label%3A%22status%3A%20needs-team-input%22%20-label%3A%22status%3A%20waiting-for-author-response%22
+[unlabeled]: https://github.com/a2ui-project/a2ui/issues?q=sort%3Aupdated-desc%20is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3AP4%20-label%3A%22status%3A%20needs-team-input%22%20-label%3A%22status%3A%20needs-triage%22%20-label%3A%22status%3A%20waiting-for-author-response%22
 
 ## AI assistance
 
