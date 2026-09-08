@@ -70,6 +70,12 @@ def _get_strategy(
         from a2ui.inference_formats.experimental.atom.format import AtomFormat
 
         return AtomFormat(catalog=catalog, surface_id=surface_id)
+    elif format_name == "vertical":
+        from a2ui.inference_formats.experimental.vertical.format import VerticalFormat
+
+        return VerticalFormat(
+            catalog=catalog, surface_id=surface_id, version=formatted_version
+        )
     else:
         raise ValueError(f"Unknown format strategy: {format_name}")
 

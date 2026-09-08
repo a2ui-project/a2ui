@@ -134,7 +134,8 @@ def main() -> None:
         action="append",
         help=(
             "Evaluation strategies to run (choices: direct, subagent_tool, express,"
-            " elemental, atom). Can be comma-separated or specified multiple times."
+            " elemental, atom, vertical). Can be comma-separated or specified multiple"
+            " times."
         ),
     )
     parser.add_argument(
@@ -193,7 +194,7 @@ def main() -> None:
             )
         task_func = (
             a2ui_v1_0_eval
-            if strat in ["express", "elemental", "atom", "direct"]
+            if strat in ["express", "elemental", "atom", "direct", "vertical"]
             else a2ui_v0_9_1_eval
         )
         task_obj = task_func(
