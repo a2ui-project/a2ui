@@ -2,6 +2,17 @@
 
 ## **TL;DR**
 
+The A2UI SDK API uses `payload`, `message` and `request` in ways that do not clearly distinguish the four directions of interaction:
+
+- renderer to agent
+- agent to model
+- model to agent
+- agent to renderer
+
+This proposal names every envelope by its direction: `RendererToAgentRequest`, `AgentToModelRequest`, `ModelToAgentResponse` and `AgentToRendererResponse`. `A2uiMessage` becomes `AgentToRendererResponse`, `MessageProcessor` becomes `AgentToRendererProcessor`, and `A2uiValidator` becomes `AgentToRendererValidator`.
+
+The published v0.9 and v0.9.1 schemas are out of scope, because renaming them would break every published renderer and agent. The SDK code that reads them is in scope, and so is `specification/v1_0/`.
+
 ## **Background**
 
 1. A2UI protocol enables interaction between **agent** and **renderer**.  
