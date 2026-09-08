@@ -20,6 +20,7 @@ import {generateCatalogSchema} from '../catalog/schema_generator.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
 import {ComponentModel} from '../state/component-model.js';
 import {SurfaceComponentsModel} from '../state/surface-components-model.js';
+import {DataModel} from '../state/data-model.js';
 import {Subscription} from '../common/events.js';
 import {z} from 'zod';
 
@@ -82,7 +83,13 @@ export type ProcessableMessagePayload =
   | V09A2uiMessageListWrapper
   | {readonly messages: readonly ProcessableMessage[]};
 
-export type {RendererCapabilities, ValidationConfig, OutboundMessageListener, CallOptions};
+export type {
+  RendererCapabilities,
+  RendererCapabilities as ClientCapabilities,
+  ValidationConfig,
+  OutboundMessageListener,
+  CallOptions,
+};
 export {STRICT_VALIDATION, RELAXED_VALIDATION, RpcError, RpcErrorCode};
 
 /**
@@ -280,6 +287,17 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   }
 
   /**
+   * Generates the client/renderer capabilities object for the current processor.
+   *
+   * @deprecated Use `getRendererCapabilities` instead.
+   * @param options Configuration for capability generation.
+   * @returns The capabilities object.
+   */
+  getClientCapabilities(options?: CapabilitiesOptions): RendererCapabilities {
+    return this.getRendererCapabilities(options);
+  }
+
+  /**
    * Generates a backwards-compatible inline catalog representation for v0.8/v0.9/v0.9.1.
    *
    * @param catalog The catalog instance to serialize.
@@ -345,6 +363,29 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       version,
       surfaces,
     };
+  }
+
+  /**
+   * Aggregates active client/renderer data models.
+   *
+   * @deprecated Use `getRendererDataModel` instead.
+   * @param version Protocol version to format data models for.
+   * @returns Serialized data model payload, or undefined if no surfaces stream data models.
+   */
+  getClientDataModel(version: ProtocolVersion = this.version): Record<string, unknown> | undefined {
+    return this.getRendererDataModel(version);
+  }
+
+  /**
+   * Resolves a relative path against a context path.
+   *
+   * @deprecated Use `DataModel.resolvePath` instead.
+   * @param path The path to resolve.
+   * @param contextPath The base path (optional).
+   * @returns The resolved absolute path.
+   */
+  resolvePath(path: string, contextPath?: string): string {
+    return DataModel.resolvePath(path, contextPath);
   }
 
   /**
