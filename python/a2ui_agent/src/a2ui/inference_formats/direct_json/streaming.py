@@ -233,7 +233,7 @@ class DirectJsonStreamParser:
         """Returns True if message should be yielded, False if skipped."""
         return True
 
-    def _get_s2c_validator(self):
+    def _get_s2c_validator(self) -> Any:
         if not hasattr(self, "_s2c_validator_cached"):
             if not self._catalog.s2c_schema:
                 self._s2c_validator_cached = None
@@ -907,27 +907,25 @@ class DirectJsonStreamParser:
                 return any(_has_empty_dict(v) for v in obj)
             return False
 
-        component_def = comp.get("component")
-        if isinstance(component_def, str):
-            # v0.9 flat style: check the whole component object for empty dicts
+        comp_type = comp.get("component")
+        if isinstance(comp_type, str):
+            # v0.9/v1.0 flat style: check the whole component object for empty dicts
             if _has_empty_dict(comp):
                 return
-            comp_type = component_def
             required_fields = self._schema_helper.get_component_required(comp_type)
             for req in required_fields:
                 if req not in comp:
                     return
-        elif _has_empty_dict(component_def):
+        elif isinstance(comp_type, dict):
             # v0.8 nested style: check properties inside component
-            return
-
-        if isinstance(component_def, dict):
-            comp_type = next(iter(component_def.keys())) if component_def else None
-            if comp_type:
-                props = component_def.get(comp_type, {})
+            if _has_empty_dict(comp_type):
+                return
+            type_name = next(iter(comp_type.keys())) if comp_type else None
+            if type_name:
+                props = comp_type.get(type_name, {})
                 if isinstance(props, dict):
                     required_fields = self._schema_helper.get_component_required(
-                        comp_type
+                        type_name
                     )
                     for req in required_fields:
                         if req not in props:

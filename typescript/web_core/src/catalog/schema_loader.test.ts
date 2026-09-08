@@ -671,4 +671,44 @@ describe('Catalog.fromSchema & schema_loader', () => {
     assert.strictEqual(schemaFn.schema.safeParse({target: 'B', extra: 123}).success, true);
     assert.strictEqual(strictFn.schema.safeParse({target: 'C', extra: 'rejected'}).success, false);
   });
+
+  it('validates UAX #31 component identifiers in v1.0 catalogs supporting Unicode', () => {
+    const validCatalog = {
+      catalogId: 'test_uax31',
+      protocolVersion: 'v1.0',
+      components: {
+        Button: {properties: {}},
+        _privateComponent: {properties: {}},
+        '@index': {properties: {}},
+        ComposantÉlément: {properties: {}},
+        ボタン: {properties: {}},
+      },
+    };
+
+    const catalog = Catalog.fromSchema(validCatalog);
+    assert.strictEqual(catalog.components.size, 5);
+    assert.ok(catalog.components.has('ComposantÉlément'));
+    assert.ok(catalog.components.has('ボタン'));
+
+    const invalidCatalog = {
+      catalogId: 'test_uax31_invalid',
+      protocolVersion: 'v1.0',
+      components: {
+        '123BadStart': {properties: {}},
+      },
+    };
+    assert.throws(() => Catalog.fromSchema(invalidCatalog), /Invalid UAX #31 component identifier/);
+
+    const invalidHyphenCatalog = {
+      catalogId: 'test_uax31_hyphen',
+      protocolVersion: 'v1.0',
+      components: {
+        'bad-name': {properties: {}},
+      },
+    };
+    assert.throws(
+      () => Catalog.fromSchema(invalidHyphenCatalog),
+      /Invalid UAX #31 component identifier/,
+    );
+  });
 });

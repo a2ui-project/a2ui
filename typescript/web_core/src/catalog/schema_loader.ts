@@ -491,7 +491,7 @@ export function loadCatalogFromSchema(
   const componentsMap = (catalogSchema.components as Record<string, unknown>) ?? {};
   for (const [name, rawCompSchema] of Object.entries(componentsMap)) {
     if (isV10) {
-      const uax31Regex = /^@?[a-zA-Z_][a-zA-Z0-9_]*$/;
+      const uax31Regex = /^@?[\p{ID_Start}_][\p{ID_Continue}]*$/u;
       if (!uax31Regex.test(name)) {
         throw new Error(`Invalid UAX #31 component identifier: '${name}'`);
       }

@@ -443,7 +443,7 @@ export class GenericBinder<T> {
           },
         };
       }
-      if ('call' in obj && 'args' in obj) {
+      if ('call' in obj) {
         return {
           ...obj,
           args: obj.args
@@ -451,7 +451,7 @@ export class GenericBinder<T> {
             : undefined,
         };
       }
-      if ('name' in obj && 'context' in obj) {
+      if ('name' in obj) {
         return {
           ...obj,
           context: obj.context
