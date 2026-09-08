@@ -6,7 +6,7 @@
 
 1. A2UI protocol enables interaction between **agent** and **renderer**.  
      
-2. A2UI SDK consists of the packages, implemented in multiple languages: a2ui_core, a2ui_agent, a2ui_renderer.
+2. A2UI SDK consists of the following packages: a2ui_core, a2ui_agent, a2ui_renderer. These packages are implemented in multiple languages.
 
 3. The packages are specified by language-agnostic [blueprints](https://github.com/a2ui-project/a2ui/tree/main/blueprints/modules).
 
@@ -42,6 +42,19 @@ Specifically:
 
 Where sometimes postfix 'request'/'response' can be used instead of 'message' and 'payload', and sometimes dropped.
 
+This proposal does not invent a new vocabulary. It just suggests update for API.
+
+### Alternative considered
+
+Name each envelope by what it is a request/response for:
+
+1. requestToAgent  
+2. requestToModel  
+3. responseToAgent  
+4. responseToRenderer
+
+Problem: this naming still requires to remember four combinations and guess what each envelope is for.
+
 ### Naming rule
 
 Every name says its direction.
@@ -66,9 +79,6 @@ v0.9 and v0.9.1 are published, so their schemas cannot change. [`specification/v
 
 SDK code that implements v0.9 is still in scope. A schema file is a published contract. A type name is our own choice. [`A2uiMessage`](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/schema/server-to-client.ts#L130) in [`server-to-client.ts`](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/schema/server-to-client.ts) is a name we picked, not one the protocol requires.
 
-v1.0 has already made this rename. Its files are [`agent_to_renderer.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v1_0/json/agent_to_renderer.json), [`renderer_to_agent.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v1_0/json/renderer_to_agent.json), [`agent_capabilities.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v1_0/json/agent_capabilities.json), [`renderer_capabilities.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v1_0/json/renderer_capabilities.json) and [`renderer_data_model.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v1_0/json/renderer_data_model.json). v0.9 has [`server_to_client.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v0_9/json/server_to_client.json), [`client_to_server.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v0_9/json/client_to_server.json) and the rest.
-
-So this proposal does not invent a vocabulary. It brings the SDKs to the one v1.0 already uses.
 
 ### 1. Agent to renderer response
 
