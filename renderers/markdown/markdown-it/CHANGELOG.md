@@ -1,5 +1,9 @@
 ## Unreleased
 
+## 0.2.0
+
+- Expand the `@a2ui/web_core` peer range to `^0.10.6 || ^0.11.0`, preserving its existing `^0.10.6` support while adding support for core 0.11.x.
+
 ## 0.1.1
 
 - Enable `inlineSources` in `tsconfig.json` to populate `sourcesContent` in sourcemaps.

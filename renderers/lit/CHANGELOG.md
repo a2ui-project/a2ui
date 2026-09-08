@@ -2,19 +2,26 @@
 
 ## 0.11.0
 
+- **BREAKING CHANGE**: Require `@a2ui/web_core` `^0.11.0`, which now provides the shared basic catalog component implementations. Upgrade any direct core dependency and other A2UI renderer packages used by the application together.
 - (v0_9) Export `BasicCatalogA2uiLitElement` from `@a2ui/lit/v0_9`. [#2190](https://github.com/a2ui-project/a2ui/pull/2190)
 - **BREAKING CHANGE**: (v0_9) `A2uiLitElement.controller` is a read-only getter. Subclasses override `createController()` instead of assigning it. [#2484](https://github.com/a2ui-project/a2ui/pull/2484)
 - **BREAKING CHANGE**: (v0_9) Align Basic Catalog component DOM structures, behaviors, and styling contracts with the Angular reference implementation: [#2205](https://github.com/a2ui-project/a2ui/pull/2205)
   - `DateTimeInput`: Migrate from a single dynamic HTML5 input (`datetime-local`) to dual side-by-side date and time inputs (`.a2ui-date-time-inputs`), support overridable `--a2ui-datetimeinput-width`, and ensure time-only mode preserves time-only strings without invalid date concatenation.
   - `Modal`: Migrate from native `<dialog>` element to an overlay container (`.a2ui-modal-overlay`, `.a2ui-modal-content`) managed with explicit `@state() isOpen` lifecycle tracking, backdrop theming (`--a2ui-modal-backdrop-bg`), and accessible ARIA dialog roles.
   - `Image`: Remove default `width: 100%` constraint on `img` elements to preserve intrinsic aspect ratios and align `fit` default with container layouts.
-  - `Button`: Replace hardcoded disabled button hex colors with `opacity: 0.5; cursor: not-allowed;` so disabled buttons react dynamically to theme backgrounds.
+  - `Button`: Replace hardcoded disabled button hex colors with `opacity: 0.5; cursor: not-allowed;` so disabled buttons react dynamically to theme backgrounds. Set `type="button"` so buttons do not submit an enclosing form.
   - `TextField`: Render all validation error messages in `validationErrors` instead of only the first error, simplify input change handling, and support full-width container styling (`width: var(--a2ui-textfield-width, 100%)`, `box-sizing: border-box`).
   - `Column`: Add consistent flex layout distribution and strict alignment mappings.
   - `Row`, `Column`, `List`: Use Lit `repeat` directive with key extractors to ensure child elements are tracked by key and DOM nodes are preserved across reordering operations.
   - `Tabs`: Reset `activeIndex` to 0 in `willUpdate` when the `tabs` array changes dynamically and index is out of bounds.
   - `Text`: Directly render semantic HTML tags for non-markdown variants (`h1`-`h5`, `caption` wrapped in `<em>`) and add flex weight styling.
   - `Video`: Wrap video in `.a2ui-video-container` with fallback message for unsupported browsers.
+  - `AudioPlayer`: Add `.a2ui-audio-player`, `.a2ui-audio-description`, and `.a2ui-audio` wrappers and styling hooks.
+  - `Card`: Wrap its child in a `.a2ui-card` div.
+  - `CheckBox`: Wrap label text in `.a2ui-check-box-text` and render every validation error with `.a2ui-error-message`.
+  - `Divider`: Render vertical dividers with `<hr>` instead of `<div>`.
+  - `Icon`: Change font icons from `<span class="material-symbol">` to `<i class="material-icons a2ui-icon">` and add `.a2ui-icon` to SVG icons.
+  - `Slider`: Add `.a2ui-slider-container`, `.a2ui-slider-header`, `.a2ui-slider-label`, `.a2ui-slider-value`, and `.a2ui-slider` styling hooks.
   - `ChoicePicker`: Align DOM structures and CSS classes with the Angular reference implementation (`.a2ui-choice-picker`, `.a2ui-option-label`, `.a2ui-option-text`, `.a2ui-chip`, `type="button"`), scope radio input `name` attributes to surface and data context path to prevent cross-surface radio collisions in Light DOM, and omit `name` attributes on checkbox inputs.
 
 ## 0.10.4

@@ -1,8 +1,10 @@
 ## Unreleased
 
-## 0.10.8
+## 0.11.0
 
-- (v0_9) Add `@a2ui/web_core/v0_9/basic_catalog` entrypoint exporting universal Web Component basic catalog implementations (`A2uiText`, `A2uiButton`, `A2uiTextField`, `A2uiRow`, `A2uiColumn`, `A2uiList`, `A2uiImage`, `A2uiIcon`, `A2uiVideo`, `A2uiAudioPlayer`, `A2uiCard`, `A2uiDivider`, `A2uiCheckBox`, `A2uiSlider`, `A2uiDateTimeInput`, `A2uiChoicePicker`, `A2uiTabs`, `A2uiModal`, `basicCatalog`). [#2190](https://github.com/a2ui-project/a2ui/pull/2190)
+- **BREAKING CHANGE**: (v0_9) Expand the existing `@a2ui/web_core/v0_9/basic_catalog` entrypoint with the universal Web Component implementations of the basic catalog components (`A2uiText`, `A2uiButton`, and so on) and `basicCatalog`. Importing this entrypoint now loads Lit and registers the components' custom element tags, including when importing only a schema or style helper. Use `@a2ui/lit` 0.11.0 or later in the 0.11 release line; Lit 0.10.x registers its own copies of these tags and can fail with duplicate-registration errors. [#2190](https://github.com/a2ui-project/a2ui/pull/2190)
+- **BREAKING CHANGE**: (v0_9) `injectBasicCatalogStyles`, `computeColorVariant`, `ColorVariantLightDarkOptions`, and `ColorVariantHoverOptions` are no longer exported from `@a2ui/web_core/v0_9`. Import them from `@a2ui/web_core/v0_9/basic_catalog` instead, noting its new registration side effects. [#2190](https://github.com/a2ui-project/a2ui/pull/2190)
+- **BREAKING CHANGE**: (v0_9) `@a2ui/web_core/v0_9` now exports Lit-based rendering helpers and loads Lit at runtime. Upgrade the packages your application uses together: `@a2ui/web_core` 0.11.0, `@a2ui/lit` 0.11.0, `@a2ui/angular` 0.11.0, `@a2ui/react` 0.12.0, and `@a2ui/markdown-it` 0.2.0. [#2190](https://github.com/a2ui-project/a2ui/pull/2190)
 - (v0_9) Export Web Component base class `A2uiLitElement` from `@a2ui/web_core/v0_9`. [#2190](https://github.com/a2ui-project/a2ui/pull/2190)
 - (v0_9) `DataModel.set` throws `A2uiDataError` when writing a path into a primitive root and leaves the root unchanged. Previously a truthy primitive root produced a raw `TypeError`, and a falsy one (`false`, `0`, `''`) was silently replaced with an empty object. [#2499](https://github.com/a2ui-project/a2ui/pull/2499)
 

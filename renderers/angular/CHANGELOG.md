@@ -1,7 +1,8 @@
 ## Unreleased
 
-## 0.10.7
+## 0.11.0
 
+- **BREAKING CHANGE**: Require `@a2ui/web_core` `^0.11.0`. Upgrade any direct core dependency alongside this package. Applications also using Lit must upgrade to `@a2ui/lit` `^0.11.0` to avoid duplicate custom element registrations.
 - (v0_9) Fix `ChoicePicker` radio groups colliding across surfaces: the radio group `name` now combines the surface id, component id, and data context path instead of using the surface-scoped component id alone, and checkboxes no longer receive a `name`. [#2447](https://github.com/a2ui-project/a2ui/issues/2447)
 
 ## 0.10.6
