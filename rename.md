@@ -66,6 +66,10 @@ Name each envelope by what it is a request/response for:
 
 Problem: this naming still requires to remember four combinations and guess which component is the second participant.
 
+### Assumptions
+
+This proposal assumes https://github.com/a2ui-project/a2ui/pull/2538 merged.
+
 ### Naming rule
 
 Every name says its direction.
