@@ -80,6 +80,10 @@ class RpcErrorCode(str, enum.Enum):
     UNKNOWN_FUNCTION = "UNKNOWN_FUNCTION"
     UNKNOWN_ERROR = "UNKNOWN_ERROR"
     CANCELLED = "CANCELLED"
+    TIMEOUT = "TIMEOUT"
+    DISPOSED = "DISPOSED"
+    NO_LISTENER = "NO_LISTENER"
+    DUPLICATE = "DUPLICATE"
 
 
 class A2uiCompileError(A2uiError):
@@ -94,10 +98,10 @@ class A2uiRpcError(A2uiError):
     def __init__(
         self,
         message: str,
-        function_call_id: str,
+        function_call_id: str | None = None,
         code: str = RpcErrorCode.UNKNOWN_ERROR.value,
         details: list[A2uiErrorDetail] | None = None,
     ) -> None:
         super().__init__(message, details=details)
         self.code: str = code.value if isinstance(code, RpcErrorCode) else str(code)
-        self.function_call_id: str = function_call_id
+        self.function_call_id: str | None = function_call_id

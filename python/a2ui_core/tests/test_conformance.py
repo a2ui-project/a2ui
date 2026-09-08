@@ -24,7 +24,7 @@ from a2ui.core.catalog import Catalog
 from a2ui.core.basic_catalog import v0_8, v0_9, v1_0
 from a2ui.core.schema import ProtocolVersion
 from a2ui.core.processing import MessageProcessor, MessageProcessorOptions
-from a2ui.core.validation import STRICT_VALIDATION
+from a2ui.core.validation import STRICT_VALIDATION, ValidationConfig
 from a2ui.core.exceptions import (
     A2uiError,
     A2uiParseError,
@@ -861,7 +861,10 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
         components=[],
         functions=funcs,
     )
-    processor = MessageProcessor(catalogs=[cat])
+    processor = MessageProcessor(
+        catalogs=[cat],
+        options=MessageProcessorOptions(outbound_listener=lambda msg: None),
+    )
 
     if message:
         expect_dict = case.get("expect", {})
@@ -876,10 +879,14 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
         elif "response" in expect_dict:
             from a2ui.core.processing import ExecutionContext
 
+            import asyncio
+
             expect_resp = expect_dict["response"]
-            responses = processor.process_messages(
-                message,
-                context=ExecutionContext(is_user_activated=user_activation),
+            responses = asyncio.run(
+                processor.process_messages_async(
+                    message,
+                    context=ExecutionContext(is_user_activated=user_activation),
+                )
             )
             if expect_resp is None:
                 assert len(responses) == 0
@@ -893,28 +900,25 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
             inbound_response["agentFunctionResponse"]["functionCallId"] == correlated_id
         )
 
-        outbound_msg = processor.create_call_agent_function_message(
+        from a2ui.core.rpc import CallOptions
+        from a2ui.core.schema.v1_0.common_types import FunctionCall
+
+        fut = processor.call_agent_function(
             surface_id=outbound_call["surfaceId"],
-            function_call_id=outbound_call["functionCallId"],
-            call=outbound_call["callFunction"]["call"],
-            version="v1.0",
-            catalog_id=outbound_call["callFunction"].get("catalogId")
-            or "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-            args=outbound_call["callFunction"].get("args"),
+            call=FunctionCall(
+                call=outbound_call["callFunction"]["call"],
+                catalogId=outbound_call["callFunction"].get("catalogId")
+                or "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+                args=outbound_call["callFunction"].get("args"),
+            ),
+            options=CallOptions(
+                function_call_id=outbound_call["functionCallId"],
+                version="v1.0",
+            ),
         )
-        assert outbound_msg["callAgentFunction"]["functionCallId"] == correlated_id
-
-        import asyncio
-
-        loop = asyncio.new_event_loop()
-        try:
-            fut = loop.create_future()
-            processor.register_pending_future(outbound_call["functionCallId"], fut)
-            processor.process_messages(inbound_response)
-            assert fut.done()
-            assert fut.result() == case.get("expect", {}).get("result")
-        finally:
-            loop.close()
+        processor.process_messages(inbound_response)
+        assert fut.done()
+        assert fut.result() == case.get("expect", {}).get("result")
 
 
 def validate_select_catalog_case(case: dict[str, Any]) -> None:

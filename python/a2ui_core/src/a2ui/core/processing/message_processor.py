@@ -45,11 +45,17 @@ from ..exceptions import (
     RpcErrorCode,
 )
 
-from ..schema import AgentToRendererMessage, ProtocolVersion
+from ..schema import (
+    AgentToRendererMessage,
+    AgentToRendererMessagePayload,
+    ProtocolVersion,
+)
 from ..schema.v1_0 import (
     AgentFunctionResponseMessage,
     CallAgentFunction,
     CallAgentFunctionMessage,
+    CallRendererFunction,
+    CallRendererFunctionMessage,
     FunctionResponse,
     FunctionResponseError,
     RendererFunctionResponseMessage,
@@ -67,7 +73,15 @@ from .operations import (
     InternalUpdateDataModelOp,
 )
 
+from dataclasses import dataclass
+
+from ..rpc import CallOptions, OutboundListener, RpcHandler
+
 PendingAgentCallCallback = Callable[[Any, Optional[dict[str, Any]]], None]
+
+
+from .execution_context import ExecutionContext
+from ..resolution.data_context import DataContext
 
 
 @dataclass
@@ -76,10 +90,12 @@ class MessageProcessorOptions:
 
     Attributes:
         validation_config: Validation configuration to enforce on messages, or None.
+        outbound_listener: Listener callback for outbound messages dispatched by RPC.
         default_timeout_ms: Default timeout in milliseconds for async RPC calls.
     """
 
     validation_config: ValidationConfig | None = None
+    outbound_listener: OutboundListener | None = None
     default_timeout_ms: float = 30000.0
 
 
@@ -108,158 +124,92 @@ class MessageProcessor:
         self.model = SurfaceGroupModel()
         opts = options or MessageProcessorOptions()
         self.validation_config = opts.validation_config
-        self.on_agent_function_response = EventSource()
-        self._pending_agent_calls: dict[str, PendingAgentCallCallback] = {}
+        self.rpc = RpcHandler(
+            catalogs=catalogs,
+            outbound_listener=opts.outbound_listener,
+            default_timeout_ms=opts.default_timeout_ms,
+        )
         if action_handler:
             self.model.on_action.subscribe(action_handler)
 
-    def register_pending_agent_call(
-        self,
-        function_call_id: str,
-        callback: PendingAgentCallCallback,
-    ) -> None:
-        """Registers a pending callback for an outbound callAgentFunction invocation."""
-        self._pending_agent_calls[function_call_id] = callback
-
-    def register_pending_future(
-        self,
-        function_call_id: str,
-        future: asyncio.Future[T] | concurrent.futures.Future[T],
-    ) -> None:
-        """Helper method to adapt an asyncio or concurrent Future as a pending agent call callback."""
-
-        def _future_cb(val: Any, err: dict[str, Any] | None) -> None:
-            if not (hasattr(future, "done") and future.done()):
-                try:
-                    if err:
-                        err_code = err.get("code", RpcErrorCode.UNKNOWN_ERROR.value)
-                        err_msg = err.get("message", "Agent function execution failed")
-                        future.set_exception(
-                            A2uiRpcError(
-                                f"Agent function error [{err_code}]: {err_msg}",
-                                function_call_id=function_call_id,
-                                code=err_code,
-                            )
-                        )
-                    else:
-                        future.set_result(val)
-                except (
-                    asyncio.InvalidStateError,
-                    concurrent.futures.InvalidStateError,
-                ) as exc:
-                    logger.debug(
-                        "Ignored agentFunctionResponse for call %s: pending future"
-                        " already done or cancelled (%s)",
-                        function_call_id,
-                        exc,
-                    )
-
-        self.register_pending_agent_call(function_call_id, _future_cb)
-
-    def cleanup_pending_agent_call(self, function_call_id: str) -> None:
-        """Removes a pending agent function call by ID."""
-        self._pending_agent_calls.pop(function_call_id, None)
-
-    def cleanup_all_pending_agent_calls(self, reason: str) -> None:
-        """Cancels/fails all pending agent calls and clears the pending registry."""
-        for call_id, callback in list(self._pending_agent_calls.items()):
-            self._invoke_pending_callback(
-                call_id,
-                callback,
-                None,
-                {
-                    "code": RpcErrorCode.CANCELLED.value,
-                    "message": f"Pending agent call cancelled: {reason}",
-                },
-            )
-        self._pending_agent_calls.clear()
-
-    def _invoke_pending_callback(
-        self,
-        call_id: str,
-        callback: Callable[..., Any],
-        value: Any,
-        error: dict[str, Any] | None,
-    ) -> None:
-        """Safely invokes a registered callback, supporting 1- or 2-parameter signatures and catching exceptions."""
-        try:
-            try:
-                sig = inspect.signature(callback)
-                params = list(sig.parameters.values())
-                if len(params) == 1 and params[0].kind in (
-                    inspect.Parameter.POSITIONAL_ONLY,
-                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                ):
-                    callback(value)
-                else:
-                    callback(value, error)
-            except (ValueError, TypeError):
-                try:
-                    callback(value, error)
-                except TypeError:
-                    callback(value)
-        except Exception as exc:
-            logger.error(
-                "Unhandled error in pending callback for call %s: %s",
-                call_id,
-                exc,
-                exc_info=True,
-            )
+    def _extract_operations(
+        self, messages: AgentToRendererMessagePayload
+    ) -> list[InternalOperation]:
+        """Resolves adapter and extracts operations from payload or raw operation."""
+        if isinstance(messages, InternalOperation):
+            return [messages]
+        adapter = VersionAdapterFactory.resolve_from_payload(messages)
+        return adapter.extract_operations(messages)
 
     def process_messages(
         self,
-        messages: (
-            AgentToRendererMessage
-            | Sequence[AgentToRendererMessage]
-            | Mapping[str, Any]
-            | Sequence[Mapping[str, Any]]
-        ),
+        messages: AgentToRendererMessagePayload,
+        context: ExecutionContext | None = None,
+    ) -> None:
+        """Accepts a list of parsed JSON messages and executes state operations in order synchronously."""
+        for op in self._extract_operations(messages):
+            self.process_operation(op, context)
+
+    async def process_messages_async(
+        self,
+        messages: AgentToRendererMessagePayload,
         context: ExecutionContext | None = None,
     ) -> list[dict[str, Any]]:
-        """Accepts a list of parsed JSON messages and executes them in order."""
-        adapter = VersionAdapterFactory.resolve_from_payload(messages)
-        operations = adapter.extract_operations(messages, context=context)
+        """Asynchronously processes messages, executing RPC calls and returning all produced responses."""
         responses: list[dict[str, Any]] = []
-        for op in operations:
-            resp = self._process_operation(op)
-            if resp:
+        for op in self._extract_operations(messages):
+            resp = await self.process_operation_async(op, context)
+            if resp is not None:
                 responses.append(resp)
         return responses
 
-    def create_call_agent_function_message(
+    async def process_operation_async(
+        self,
+        op: InternalOperation,
+        context: ExecutionContext | None = None,
+    ) -> dict[str, Any] | None:
+        """Executes a single internal operation asynchronously, returning a response dict if RPC call, else None."""
+        if isinstance(op, InternalCallRendererFunctionOp):
+            is_user_activated = (
+                getattr(context, "is_user_activated", False) if context else False
+            )
+            surface = next(iter(self.model.surfaces.values()), None)
+            data_context = DataContext(surface=surface, path="/") if surface else None
+            call_msg = CallRendererFunctionMessage(
+                version=cast(Any, op.version),
+                call_renderer_function=CallRendererFunction(  # type: ignore[call-arg]
+                    functionCallId=op.function_call_id,
+                    callFunction=FunctionCall(
+                        call=op.call,
+                        catalogId=op.catalog_id,
+                        args=op.args,
+                    ),
+                ),
+            )
+            return await self.rpc.handle_call_renderer_function_async(
+                call_msg,
+                context=data_context,
+                is_user_activated=is_user_activated or op.is_user_activated,
+            )
+        self.process_operation(op)
+        return None
+
+    def call_agent_function(
         self,
         surface_id: str,
-        function_call_id: str,
-        call: str,
-        version: str,
-        catalog_id: str | None = None,
-        args: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Helper method to format an outbound callAgentFunction message for the agent."""
-        msg = CallAgentFunctionMessage(
-            version=cast(Any, version),
-            call_agent_function=CallAgentFunction(  # type: ignore[call-arg]
-                surfaceId=surface_id,
-                functionCallId=function_call_id,
-                callFunction=FunctionCall(
-                    call=call,
-                    catalogId=catalog_id,
-                    args=args or {},
-                ),
-            ),
+        call: FunctionCall,
+        options: CallOptions | None = None,
+    ) -> asyncio.Future[Any]:
+        """Invokes a remote function on the server agent using RpcHandler."""
+        return self.rpc.call_agent_function(
+            surface_id=surface_id,
+            call=call,
+            options=options,
         )
-        return msg.model_dump(by_alias=True, exclude_none=True, exclude_unset=True)
 
     def _resolve_catalog(self, catalog_id: str | None = None) -> Any | None:
         """Resolves catalog by catalog_id or defaults to primary catalog."""
-        if catalog_id is not None:
-            for cat in self.catalogs:
-                if getattr(cat, "catalog_id", None) == catalog_id:
-                    return cat
-            return None
-        elif self.catalogs:
-            return self.catalogs[0]
-        return None
+        return self.rpc.resolve_catalog(catalog_id)
 
     def get_renderer_capabilities(
         self,
@@ -303,8 +253,12 @@ class MessageProcessor:
         )
         return {"version": ver_str, "surfaces": surfaces}
 
-    def _process_operation(self, op: InternalOperation) -> dict[str, Any] | None:
-        """Dispatches canonical internal operations."""
+    def process_operation(
+        self,
+        op: InternalOperation,
+        context: ExecutionContext | None = None,
+    ) -> None:
+        """Executes a single canonical internal state operation."""
         if isinstance(op, InternalCreateSurfaceOp):
             self._process_create_surface_op(op)
         elif isinstance(op, InternalDeleteSurfaceOp):
@@ -314,141 +268,57 @@ class MessageProcessor:
         elif isinstance(op, InternalUpdateDataModelOp):
             self._process_update_data_model_op(op)
         elif isinstance(op, InternalCallRendererFunctionOp):
-            return self._process_call_renderer_function_op(op)
+            self._process_call_renderer_function_op(op, context)
         elif isinstance(op, InternalAgentFunctionResponseOp):
             self._process_agent_function_response_op(op)
         return None
+
+    def _process_call_renderer_function_op(
+        self,
+        op: InternalCallRendererFunctionOp,
+        context: ExecutionContext | None = None,
+    ) -> None:
+        """Processes an inbound callRendererFunction operation synchronously."""
+        is_user_activated = (
+            getattr(context, "is_user_activated", False) if context else False
+        )
+        surface = next(iter(self.model.surfaces.values()), None)
+        data_context = DataContext(surface=surface, path="/") if surface else None
+        call_msg = CallRendererFunctionMessage(
+            version=cast(Any, op.version),
+            call_renderer_function=CallRendererFunction(  # type: ignore[call-arg]
+                functionCallId=op.function_call_id,
+                callFunction=FunctionCall(
+                    call=op.call,
+                    catalogId=op.catalog_id,
+                    args=op.args,
+                ),
+            ),
+        )
+        try:
+            self.rpc.handle_call_renderer_function(
+                call_msg,
+                context=data_context,
+                is_user_activated=is_user_activated or op.is_user_activated,
+            )
+        except Exception as err:
+            logger.error(
+                "Unhandled error in callRendererFunction (%s): %s", op.call, err
+            )
 
     def _process_agent_function_response_op(
         self, op: InternalAgentFunctionResponseOp
     ) -> None:
         """Processes an inbound agentFunctionResponse from the agent."""
-        if op.error:
-            resp_error = FunctionResponseError.model_validate(op.error)
-            response_obj = FunctionResponse(  # type: ignore[call-arg]
-                functionCallId=op.function_call_id,
-                error=resp_error,
-            )
-        else:
-            response_obj = FunctionResponse(  # type: ignore[call-arg]
-                functionCallId=op.function_call_id,
-                value=op.value,
-            )
-
-        pending_cb = self._pending_agent_calls.pop(op.function_call_id, None)
-        if pending_cb is not None:
-            self._invoke_pending_callback(
-                op.function_call_id, pending_cb, op.value, op.error
-            )
-
-        self.on_agent_function_response.emit(
-            response_obj.model_dump(
-                by_alias=True, exclude_none=True, exclude_unset=True
-            )
-        )
-
-    def _process_call_renderer_function_op(
-        self, op: InternalCallRendererFunctionOp
-    ) -> dict[str, Any]:
-        """Executes an agent-initiated function call on the renderer."""
-        call_id = op.function_call_id
-        version = op.version
-        matched_catalog = None
-
-        def make_error(code: RpcErrorCode, msg: str) -> dict[str, Any]:
-            resp = RendererFunctionResponseMessage(
-                version=cast(Any, version),
-                rendererFunctionResponse=FunctionResponse(  # type: ignore[call-arg]
-                    functionCallId=call_id,
-                    error=FunctionResponseError(code=code.value, message=msg),
-                ),
-            )
-            return resp.model_dump(by_alias=True, exclude_unset=True)
-
-        matched_catalog = self._resolve_catalog(op.catalog_id)
-        if not matched_catalog:
-            return make_error(
-                RpcErrorCode.INVALID_FUNCTION_CALL,
-                f"Catalog not found: {op.catalog_id}",
-            )
-
-        cat_ver = getattr(matched_catalog, "protocol_version", None)
-        if cat_ver and version and not is_catalog_version_compatible(cat_ver, version):
-            cat_name = op.catalog_id or getattr(
-                matched_catalog, "catalog_id", "unknown"
-            )
-            return make_error(
-                RpcErrorCode.INVALID_FUNCTION_CALL,
-                f"Catalog '{cat_name}' specification version ({cat_ver}) does not"
-                f" match message protocol version ({version}).",
-            )
-
-        fn = (
-            matched_catalog.get_function(op.call)
-            if hasattr(matched_catalog, "get_function")
-            else getattr(matched_catalog, "functions", {}).get(op.call)
-        )
-        if not fn:
-            return make_error(
-                RpcErrorCode.INVALID_FUNCTION_CALL,
-                f"Function not found: {op.call}",
-            )
-
-        allowed_callers = getattr(fn, "allowed_callers", None) or "rendererOnly"
-        if allowed_callers not in ("agentOnly", "rendererOrAgent"):
-            return make_error(
-                RpcErrorCode.INVALID_FUNCTION_CALL,
-                f"Function '{op.call}' cannot be called by agent"
-                f" (allowedCallers is {allowed_callers}).",
-            )
-
-        requires_user_activation = getattr(fn, "requires_user_activation", False)
-        if requires_user_activation and not op.is_user_activated:
-            return make_error(
-                RpcErrorCode.INVALID_FUNCTION_CALL,
-                f"Function '{op.call}' requires user activation context to execute.",
-            )
-
-        try:
-            PayloadValidator(catalog=matched_catalog).validate_function(
-                op.call, op.args
-            )
-        except Exception as e:
-            return make_error(
-                RpcErrorCode.INVALID_FUNCTION_CALL,
-                f"Invalid arguments for function '{op.call}': {e}",
-            )
-
-        try:
-            val = None
-            if hasattr(fn, "execute"):
-                res = fn.execute(op.args)
-                if inspect.isawaitable(res):
-                    try:
-                        loop = asyncio.get_running_loop()
-                        val = loop.run_until_complete(res)
-                    except RuntimeError:
-
-                        async def _run_coro() -> Any:
-                            return await res
-
-                        val = asyncio.run(_run_coro())
-                else:
-                    val = res
-
-            resp = RendererFunctionResponseMessage(
-                version=cast(Any, version),
-                rendererFunctionResponse=FunctionResponse(  # type: ignore[call-arg]
-                    functionCallId=call_id,
-                    value=val,
-                ),
-            )
-            return resp.model_dump(by_alias=True, exclude_unset=True)
-        except Exception as e:
-            return make_error(
-                RpcErrorCode.EXECUTION_ERROR,
-                str(e),
-            )
+        msg_dict = {
+            "version": op.version,
+            "agentFunctionResponse": {
+                "functionCallId": op.function_call_id,
+                "value": op.value,
+                "error": op.error,
+            },
+        }
+        self.rpc.handle_agent_function_response(msg_dict)
 
     def _process_create_surface_op(self, op: InternalCreateSurfaceOp) -> None:
         """Processes a createSurface operation, validating catalog and theme compatibility."""
@@ -457,7 +327,11 @@ class MessageProcessor:
         theme = op.theme or {}
         send_data_model = op.send_data_model
 
-        surface_catalog = self._resolve_catalog(catalog_id)
+        if catalog_id is None and self.catalogs:
+            # v0.8 fallback to the first catalog
+            surface_catalog = self.catalogs[0]
+        else:
+            surface_catalog = cast(Any, self._resolve_catalog(catalog_id))
         if not surface_catalog:
             if catalog_id is not None:
                 raise A2uiCatalogError(f"Catalog not found: {catalog_id}")
