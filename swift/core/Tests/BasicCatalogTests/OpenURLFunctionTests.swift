@@ -18,7 +18,8 @@ import Testing
 
 @testable import BasicCatalog
 
-private final class MockFunctionHandler: FunctionHandler, @unchecked Sendable {
+@MainActor
+private final class MockFunctionHandler: FunctionHandler {
   func function(named: String, catalogID: String?) -> (any FunctionImplementation)? {
     return nil
   }
@@ -32,6 +33,7 @@ private final class MockOpenURLHandler: OpenURLHandler, @unchecked Sendable {
   }
 }
 
+@MainActor
 struct OpenURLFunctionTests {
 
   let context = DataContext(

@@ -36,6 +36,7 @@ struct ConcatFunction: FunctionImplementation {
     )
   )
 
+  @MainActor
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     let first = arguments["a"]?.stringValue ?? ""
     let second = arguments["b"]?.stringValue ?? ""
@@ -61,6 +62,7 @@ struct IsEmptyFunction: FunctionImplementation {
     )
   )
 
+  @MainActor
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     let value = arguments["value"]?.stringValue ?? ""
     return .boolean(value.isEmpty)
