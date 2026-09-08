@@ -45,20 +45,6 @@ MODEL_ALIASES: dict[str, str] = {
     "gemma-2b": "ollama/gemma2:2b",
 }
 
-GEMMA_TIER_ALIASES: dict[str, str] = {
-    "mobile": "gemma",
-    "26b": "gemma",
-    "large": "gemma-large",
-    "31b": "gemma-large",
-    "e2b": "gemma-e2b",
-    "e4b": "gemma-e4b",
-    "2b": "gemma-2b",
-}
-
-MODEL_DEFAULT_STRATEGIES: dict[str, list[str]] = {
-    "gemma": ["express"],
-}
-
 RESTRICTED_GRADING_MODEL_FAMILIES = ("gemma",)
 
 
@@ -88,16 +74,6 @@ def main() -> None:
         help="Run a quick sanity check (2 samples, gemini-3.1-flash-lite, 0 retry)",
     )
     parser.add_argument(
-        "--gemma",
-        nargs="?",
-        const="mobile",
-        default=None,
-        help=(
-            "Evaluate using Gemma models (defaults to mobile; accepts tier e.g."
-            " 'large', 'e2b', 'e4b'). Sets default strategy to 'express'."
-        ),
-    )
-    parser.add_argument(
         "--dataset",
         type=str,
         default=None,
@@ -116,7 +92,7 @@ def main() -> None:
         type=str,
         default="google/gemini-3.5-flash",
         help=(
-            "Model used to evaluate tasks (or alias like 'gemma-mobile', 'gemma-4-26b')"
+            "Model used to evaluate tasks (or alias like 'gemma', 'gemma-4-26b')"
         ),
     )
     parser.add_argument(
@@ -183,11 +159,8 @@ def main() -> None:
         help="Number of epochs/repetitions to run for each evaluation sample",
     )
     args = parser.parse_args()
-
     if args.sanity:
         model = "google/gemini-3.1-flash-lite"
-    elif args.gemma:
-        model = resolve_model_name(GEMMA_TIER_ALIASES.get(args.gemma, args.gemma))
     else:
         model = resolve_model_name(args.model)
 
@@ -213,20 +186,7 @@ def main() -> None:
 
     # Parse and validate strategies
     selected_strategies = []
-    if args.strategies:
-        raw_strategies = args.strategies
-    else:
-        matched_strats = next(
-            (
-                strats
-                for family, strats in MODEL_DEFAULT_STRATEGIES.items()
-                if family in model.lower()
-            ),
-            None,
-        )
-        raw_strategies = (
-            matched_strats if matched_strats else ["direct", "subagent_tool"]
-        )
+    raw_strategies = args.strategies if args.strategies else ["direct", "subagent_tool"]
     for item in raw_strategies:
         for s in item.split(","):
             s_clean = s.strip()

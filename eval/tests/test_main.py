@@ -67,72 +67,12 @@ def test_grading_model_rejects_gemma():
             main()
 
 
-def test_gemma_flag_configuration():
-    """Verify that --gemma configures mobile model and defaults to express strategy."""
-    test_args = ["main.py", "--gemma", "--dataset", "core_v1_0", "--limit", "1"]
-    with patch.object(sys, "argv", test_args), patch(
-        "main.eval_set", return_value=(True, [])
-    ) as mock_eval_set, patch("main.a2ui_v1_0_eval") as mock_v1_eval:
-        main()
-
-        assert mock_eval_set.called
-        call_kwargs = mock_eval_set.call_args.kwargs
-        assert call_kwargs["model"] == "google/gemma-4-26b-a4b-it"
-        # Verify express was passed as strategy to task
-        assert mock_v1_eval.call_args.kwargs["strategy"] == "express"
-        assert (
-            mock_v1_eval.call_args.kwargs["grading_model"] == "google/gemini-3.5-flash"
-        )
-
-
-def test_gemma_large_flag_configuration():
-    """Verify that --gemma large configures the 31B dense model."""
-    test_args = [
-        "main.py",
-        "--gemma",
-        "large",
-        "--dataset",
-        "core_v1_0",
-        "--limit",
-        "1",
-    ]
-    with patch.object(sys, "argv", test_args), patch(
-        "main.eval_set", return_value=(True, [])
-    ) as mock_eval_set, patch("main.a2ui_v1_0_eval") as mock_v1_eval:
-        main()
-
-        assert mock_eval_set.called
-        call_kwargs = mock_eval_set.call_args.kwargs
-        assert call_kwargs["model"] == "google/gemma-4-31b-it"
-        assert mock_v1_eval.call_args.kwargs["strategy"] == "express"
-
-
-def test_gemma_e2b_flag_configuration():
-    """Verify that --gemma e2b configures the Ollama edge model."""
-    test_args = ["main.py", "--gemma", "e2b", "--dataset", "core_v1_0", "--limit", "1"]
-    with patch.object(sys, "argv", test_args), patch(
-        "main.eval_set", return_value=(True, [])
-    ) as mock_eval_set, patch("main.a2ui_v1_0_eval") as mock_v1_eval:
-        main()
-
-        assert mock_eval_set.called
-        call_kwargs = mock_eval_set.call_args.kwargs
-        assert call_kwargs["model"] == "ollama/gemma4:e2b"
-        assert mock_v1_eval.call_args.kwargs["strategy"] == "express"
-
-
-def test_gemma_e4b_flag_configuration():
-    """Verify that --gemma e4b configures the Ollama edge model."""
-    test_args = ["main.py", "--gemma", "e4b", "--dataset", "core_v1_0", "--limit", "1"]
-    with patch.object(sys, "argv", test_args), patch(
-        "main.eval_set", return_value=(True, [])
-    ) as mock_eval_set, patch("main.a2ui_v1_0_eval") as mock_v1_eval:
-        main()
-
-        assert mock_eval_set.called
-        call_kwargs = mock_eval_set.call_args.kwargs
-        assert call_kwargs["model"] == "ollama/gemma4:e4b"
-        assert mock_v1_eval.call_args.kwargs["strategy"] == "express"
+def test_gemma_model_resolution_and_grading_check():
+    """Verify that gemma model aliases resolve correctly via --model."""
+    assert resolve_model_name("gemma-4-26b") == "google/gemma-4-26b-a4b-it"
+    assert resolve_model_name("gemma-large") == "google/gemma-4-31b-it"
+    assert resolve_model_name("gemma-e2b") == "ollama/gemma4:e2b"
+    assert resolve_model_name("gemma-e4b") == "ollama/gemma4:e4b"
 
 
 def test_resolve_model_name_whitespace_stripping():
@@ -143,12 +83,43 @@ def test_resolve_model_name_whitespace_stripping():
     assert resolve_model_name("  openai/gpt-4o  ") == "openai/gpt-4o"
 
 
-def test_gemma_model_flag_defaults_to_express():
-    """Verify that specifying a Gemma model via --model defaults strategy to express."""
+def test_gemma_model_flag_defaults_to_json():
+    """Verify that specifying a model via --model defaults strategy to direct and subagent_tool."""
     test_args = [
         "main.py",
         "--model",
         "gemma-4-26b",
+        "--dataset",
+        "core_v1_0",
+        "--limit",
+        "1",
+    ]
+    with patch.object(sys, "argv", test_args), patch(
+        "main.eval_set", return_value=(True, [])
+    ) as mock_eval_set, patch("main.a2ui_v1_0_eval") as mock_v1_eval, patch(
+        "main.a2ui_v0_9_1_eval"
+    ) as mock_v09_eval:
+        main()
+
+        assert mock_eval_set.called
+        call_kwargs = mock_eval_set.call_args.kwargs
+        assert call_kwargs["model"] == "google/gemma-4-26b-a4b-it"
+        # Strategy defaults to standard JSON strategies
+        strategies = [call.kwargs["strategy"] for call in mock_v1_eval.call_args_list] + [
+            call.kwargs["strategy"] for call in mock_v09_eval.call_args_list
+        ]
+        assert "direct" in strategies
+        assert "subagent_tool" in strategies
+
+
+def test_gemma_model_flag_with_express_strategy():
+    """Verify that specifying --model gemma-4-26b --strategies express configures express strategy."""
+    test_args = [
+        "main.py",
+        "--model",
+        "gemma-4-26b",
+        "--strategies",
+        "express",
         "--dataset",
         "core_v1_0",
         "--limit",
