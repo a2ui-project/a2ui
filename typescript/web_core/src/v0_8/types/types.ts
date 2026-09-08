@@ -554,29 +554,8 @@ export declare interface Surface {
 }
 
 // Markdown rendering
-/**
- * Renders markdown strings into sanitized HTML.
- *
- * Implementations must sanitize resulting HTML to prevent XSS vulnerabilities.
- *
- * @param markdown Markdown string to render.
- * @param options Markdown rendering options.
- * @returns A promise resolving to rendered HTML string.
- */
-export declare type MarkdownRenderer = (
-  markdown: string,
-  options?: MarkdownRendererOptions,
-) => Promise<string>;
-
-/**
- * Mapping of HTML tag names to class lists applied during markdown rendering.
- */
-export declare type MarkdownRendererTagClassMap = Record<string, string[]>;
-
-/**
- * Configuration options for markdown rendering and styling.
- */
-export declare type MarkdownRendererOptions = {
-  /** Map of tag names to style classes applied to rendered tags. */
-  tagClassMap?: MarkdownRendererTagClassMap;
-};
+export type {
+  MarkdownRenderer,
+  MarkdownRendererOptions,
+  MarkdownRendererTagClassMap,
+} from '../../rendering/markdown.js';

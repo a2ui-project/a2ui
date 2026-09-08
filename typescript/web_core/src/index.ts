@@ -14,9 +14,19 @@
  * limitations under the License.
  */
 
-import {createContext, useContext} from 'react';
-import type {MarkdownRenderer} from '@a2ui/web_core';
+/**
+ * A2UI Web Core Library.
+ *
+ * Provides core catalog-agnostic state management, data binding, expression evaluation,
+ * message processing, and validation infrastructure for A2UI renderers and clients.
+ */
 
-export const MarkdownContext = createContext<MarkdownRenderer | undefined>(undefined);
-
-export const useMarkdownRenderer = () => useContext(MarkdownContext);
+export * from './catalog/index.js';
+export * from './state/index.js';
+export * from './processing/index.js';
+export * from './rendering/index.js';
+export * from './validating/integrity-checker.js';
+export * from './reactivity/index.js';
+export * from './expressions/index.js';
+export * from './errors.js';
+export * from './common/events.js';
