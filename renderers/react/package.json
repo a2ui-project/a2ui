@@ -82,6 +82,7 @@
     "test:unit": "wireit",
     "test:unit:react18": "wireit",
     "test:integration": "wireit",
+    "test:integration:react18": "wireit",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
@@ -159,7 +160,8 @@
       "dependencies": [
         "test:unit",
         "test:unit:react18",
-        "test:integration"
+        "test:integration",
+        "test:integration:react18"
       ]
     },
     "test:unit": {
@@ -184,6 +186,9 @@
     },
     "test:integration": {
       "command": "yarn workspace @a2ui/react-explorer test:ci"
+    },
+    "test:integration:react18": {
+      "command": "REACT_VERSION=18 yarn workspace @a2ui/react-explorer test:ci"
     },
     "clean": {
       "command": "rm -rf dist .tsbuildinfo .wireit"
