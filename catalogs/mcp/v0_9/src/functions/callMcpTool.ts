@@ -93,7 +93,7 @@ export function createCallMcpToolImplementation(
         );
       }
 
-      console.log(
+      console.debug(
         `Executing MCP tool '${name}' on server '${server || 'default'}' with arguments:`,
         JSON.stringify(resolvedArguments),
       );
@@ -117,7 +117,7 @@ export function createCallMcpToolImplementation(
       );
 
       if (result.isError) {
-        throw new Error(`MCP tool '${name}' execution failed: ${JSON.stringify(result.content)}`);
+        throw new Error(`MCP tool '${name}' execution failed: ${JSON.stringify(result)}`);
       }
 
       if (onResult) {
