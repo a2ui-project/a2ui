@@ -17,6 +17,8 @@
 import {defineConfig} from 'vitest/config';
 import path from 'path';
 
+const isReact18 = process.env.REACT_VERSION === '18';
+
 export default defineConfig({
   test: {
     globals: true,
@@ -32,6 +34,14 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      ...(isReact18
+        ? {
+            'react': 'react-18',
+            'react-dom': 'react-dom-18',
+            'react-dom/client': 'react-dom-18/client',
+            '@testing-library/react': '@testing-library/react-18',
+          }
+        : {}),
       '@': path.resolve(process.cwd(), 'src/v0_8'),
       '@a2ui/react/v0_9': path.resolve(process.cwd(), 'src/v0_9/index.ts'),
       '@a2ui/react/v0_8': path.resolve(process.cwd(), 'src/v0_8/index.ts'),
