@@ -12,7 +12,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added an optional `catalogId` property to `ComponentCommon` and `FunctionCall` to allow individual components and function calls to explicitly declare their source catalog.
 - Retained `catalogId` on `createSurface` as an optional parameter that defines the default catalog for that surface.
 - Added extensibility metadata support via `$defs/Extensions` in `common_types.json`, allowing `ComponentCommon`, `createSurface`, and `ComponentDefinition` to convey arbitrary extension key-value pairs (with Unicode UAX #31 keys and reserved `a2ui_` namespace).
-- Defined explicit component and function call resolution logic: the renderer checks the component-level (or function call-level) `catalogId` first, then falls back to the surface default `catalogId`. If neither is defined, the renderer errors out and does not render the component (or rejects the function call). There is no fallback to catalogs declared in capabilities. Available catalogs for a surface include both `supportedCatalogIds` and any negotiated `inlineCatalogs`, and all mixed catalogs must use the same A2UI specification version.
+- Defined explicit component and function call resolution logic: the renderer checks the component-level (or function call-level) `catalogId` first, then falls back to the surface default `catalogId`. If neither is defined, the renderer errors out and does not render the component (or rejects the function call). There is no fallback to catalogs declared in capabilities. Available catalogs for a surface include both `supportedCatalogIds` and any negotiated `inlineCatalogs`. Renderers MAY support processing update messages (`updateComponents`, `updateDataModel`) carrying a different protocol version than the protocol version used when the surface was created.
 - The `theme` property in the catalog and surface creation message is removed, along with `primaryColor`, to separate layout from branding.
 - Components and initial data model states can be defined directly within the `createSurface` parameters. This allows for the creation of entire UIs in a single message, rather than a create followed by separate updates.
 - The `functions` field in catalog meta-schemas (`catalog_definition.json`) is now formalized as a JSON object map of function name to its definition, matching the map structure used in catalog files.
@@ -92,7 +92,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Defined strict component and function catalog resolution logic:
   1. Check the component's (or function call's) explicit `catalogId`.
   2. If not present, check the surface's default `catalogId` provided in `createSurface`.
-  3. If neither exists, report an error and do not render the component (or fail the function call). There is no fallback to catalogs advertised in capabilities. Available catalogs include `supportedCatalogIds` and negotiated `inlineCatalogs`, and all mixed catalogs must use the same A2UI specification version.
+  3. If neither exists, report an error and do not render the component (or fail the function call). There is no fallback to catalogs advertised in capabilities. Available catalogs include `supportedCatalogIds` and negotiated `inlineCatalogs`. Renderers MAY accept update messages for an existing surface using a different protocol version than the protocol version used at surface creation.
 - Explicitly specified that `surfaceId` must be globally unique per renderer session. Creating a surface with an ID that already exists (without first deleting it) is an error.
 - Enforced runtime lookup of function execution boundaries and return types. If a renderer receives a remote call to a function configured as `rendererOnly` or if the function is unregistered, it rejects the call and returns an error with the code `INVALID_FUNCTION_CALL`.
 - Enforced catalog entity naming compliance with Unicode Standard Annex #31 (UAX #31).
@@ -134,7 +134,7 @@ This section outlines the steps required to migrate existing applications and co
 
 ### For renderers
 
-- Implement multi-catalog mixing by supporting components and function calls from any catalog in `supportedCatalogIds` or negotiated `inlineCatalogs`. All catalogs mixed within a surface must use the same A2UI specification version.
+- Implement multi-catalog mixing by supporting components and function calls from any catalog in `supportedCatalogIds` or negotiated `inlineCatalogs`. Renderers MAY support processing update messages (`updateComponents`, `updateDataModel`) for an existing surface using a protocol version different from the protocol version specified when the surface was created.
 - Implement component and function resolution order: (1) explicit component/call `catalogId`, (2) surface default `catalogId`, (3) error if neither exists (no fallback to capabilities).
 - Implement function execution by adding support for parsing `callRendererFunction` messages from the agent, checking authorized callers in the catalog (`allowedCallers`), rejecting invalid calls with `INVALID_FUNCTION_CALL`, and returning `rendererFunctionResponse` messages.
 - Implement renderer-initiated function calls by sending `callAgentFunction` messages to the agent and handling incoming `agentFunctionResponse` messages.

@@ -173,7 +173,7 @@ The envelope defines several message types, and every message streamed by the ag
 
 ### `createSurface`
 
-This message signals the renderer to create a new surface and begin rendering it. A surface must be created before any `updateComponents` or `updateDataModel` messages can be sent to it. While typically achieved by the agent sending a `createSurface` message, an agent may skip this if it knows of a preexisting surface that it has permission to modify. Once a surface is created, its `surfaceId` and default `catalogId` (if provided) are fixed; to reconfigure them, the surface must be deleted and recreated.
+This message signals the renderer to create a new surface and begin rendering it. A surface must be created before any `updateComponents` or `updateDataModel` messages can be sent to it. While typically achieved by the agent sending a `createSurface` message, an agent may skip this if it knows of a preexisting surface that it has permission to modify. Once a surface is created, its `surfaceId` and default `catalogId` (if provided) are fixed; to reconfigure them, the surface must be deleted and recreated. Surfaces support cross-version updates: a surface created under one protocol version (e.g. `v0.9` or `v0.9.1`) MAY receive subsequent update messages (`updateComponents`, `updateDataModel`, `callRendererFunction`) carrying a different protocol version (e.g. `v1.0`), provided the renderer supports processing both protocol versions.
 
 It is an error to try to create a surface with a `surfaceId` that already exists without first deleting it; `surfaceId` must be globally unique for the renderer's lifetime. Orchestrators with subagents are empowered to manage surface IDs as needed to prevent conflicts (e.g., prefixing the subagent's name to the `surfaceId` or requiring subagents to use UUIDs).
 
@@ -492,7 +492,7 @@ This structure is designed to be both flexible and strictly validated.
 
 #### Mixable catalogs and component resolution logic
 
-Renderers can support components and functions from multiple catalogs simultaneously within a single surface (mixable catalogs). When a renderer advertises `supportedCatalogIds` in its capabilities, components from any of those catalogs can be combined in the same UI tree. The set of available catalogs for a surface includes both `supportedCatalogIds` and the `catalogId` of any inline catalog declared in `inlineCatalogs` (when supported by the agent). All catalog IDs specified at the component and function-call levels and at the surface-level must refer to catalogs which use the same A2UI specification version.
+Renderers can support components and functions from multiple catalogs simultaneously within a single surface (mixable catalogs). When a renderer advertises `supportedCatalogIds` in its capabilities, components from any of those catalogs can be combined in the same UI tree. The set of available catalogs for a surface includes both `supportedCatalogIds` and the `catalogId` of any inline catalog declared in `inlineCatalogs` (when supported by the agent). Catalogs specified within a single update payload should refer to compatible specification versions; however, renderers MAY accept updates to a surface across different protocol versions over the surface's lifetime.
 
 When resolving a component (or function call), the renderer evaluates catalog identity using the following strict resolution order:
 
