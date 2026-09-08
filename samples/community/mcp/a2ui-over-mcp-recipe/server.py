@@ -55,7 +55,9 @@ def main(port: int, transport: str, bypass_verification: bool) -> int:
     basic_with_mcp_catalog_path = (
         pathlib.Path(__file__).resolve().parent / "basic_with_mcp_catalog.json"
     )
-    basic_with_mcp_catalog_json = json.loads(basic_with_mcp_catalog_path.read_text())
+    basic_with_mcp_catalog_json = json.loads(
+        basic_with_mcp_catalog_path.read_text(encoding="utf-8")
+    )
 
     catalog_config = CatalogConfig.from_path(
         name="basic_with_mcp",
