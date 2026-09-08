@@ -59,6 +59,8 @@ exclude = [
   # (/llm-evaluation/ redirects to itself), so the checker exhausts its redirect
   # budget and reports a failure that no URL rewrite here can resolve.
   "arize\\.com/llm-evaluation",
+  # Flaky: the host intermittently stops responding or returns 502 to automated requests.
+  "news\\.ycombinator\\.com",
 ]
 
 # Don't descend into dependency or build-output directories.
