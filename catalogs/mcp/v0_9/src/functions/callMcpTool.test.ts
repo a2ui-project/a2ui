@@ -132,6 +132,25 @@ describe('callMcpTool', () => {
       });
     });
 
+    it('parses dynamic data bindings in name, server, and arguments', () => {
+      const parsed = CallMcpToolApi.schema.parse({
+        name: {path: '/selectedTool'},
+        server: {path: '/selectedServer'},
+        arguments: {
+          city: {path: '/user/city'},
+          count: 10,
+        },
+      });
+      assert.deepStrictEqual(parsed, {
+        name: {path: '/selectedTool'},
+        server: {path: '/selectedServer'},
+        arguments: {
+          city: {path: '/user/city'},
+          count: 10,
+        },
+      });
+    });
+
     it('throws validation error when name is missing', () => {
       assert.throws(() => {
         CallMcpToolApi.schema.parse({});
@@ -400,6 +419,58 @@ describe('callMcpTool', () => {
 
       await catalog.invoker('callMcpTool', {name: 'tool_via_catalog'}, context);
       assert.strictEqual(onResultFired, true);
+    });
+
+    it('resolves dynamic data bindings for name, server, and arguments via DataContext', async () => {
+      const transport = createMockTransport((name, args) => [
+        {type: 'text', text: `Resolved: ${name} -> ${JSON.stringify(args)}`},
+      ]);
+      const client = new Client({name: 'dynamic-client', version: '1.0.0'});
+      await client.connect(transport);
+
+      const catalog = createMcpCatalog(server => {
+        assert.strictEqual(server, 'weather-server');
+        return client;
+      });
+
+      const dataModel = new DataModel({
+        toolName: 'get_forecast',
+        serverName: 'weather-server',
+        location: 'Paris',
+        options: {
+          days: 3,
+        },
+      });
+      const context = createTestDataContext(dataModel, catalog);
+
+      const result = await catalog.invoker(
+        'callMcpTool',
+        {
+          name: {path: '/toolName'},
+          server: {path: '/serverName'},
+          arguments: {
+            city: {path: '/location'},
+            days: {path: '/options/days'},
+            unit: 'metric',
+          },
+        },
+        context,
+      );
+
+      assert.deepStrictEqual(result, {
+        content: [
+          {
+            type: 'text',
+            text: 'Resolved: get_forecast -> {"city":"Paris","days":3,"unit":"metric"}',
+          },
+        ],
+      });
+      assert.strictEqual(transport.lastRequest.params.name, 'get_forecast');
+      assert.deepStrictEqual(transport.lastRequest.params.arguments, {
+        city: 'Paris',
+        days: 3,
+        unit: 'metric',
+      });
     });
   });
 

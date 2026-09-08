@@ -229,6 +229,8 @@ export class A2uiMcpEngine {
     name: string,
     server?: string,
   ): Promise<void> {
+    console.log(`MCP Tool Result received for '${name}' (server: ${server || 'default'})`, JSON.stringify(result));
+
     let resourceUri = (result._meta as any)?.ui?.resourceUri;
     if (!resourceUri) {
       if (server) {
@@ -241,16 +243,25 @@ export class A2uiMcpEngine {
       }
     }
 
+    console.log(`Discovered UI template resource URI for tool '${name}':`, resourceUri);
+
     if (resourceUri) {
+      console.log(`Fetching UI template for tool '${name}' from URI:`, resourceUri);
       const template = await this.getOrFetchTemplate(client, resourceUri);
+      console.log(`Fetched UI template for tool '${name}':`, JSON.stringify(template));
+
       const surfaceId = template.find((m: any) => m.createSurface)?.createSurface?.surfaceId;
       if (!surfaceId || !this.processor.model.getSurface(surfaceId)) {
+        console.log(`Processing UI template for tool '${name}':`, JSON.stringify(template));
         this.processor.processMessages(template);
       }
+      console.log(`UI template processed for tool '${name}'`);
     }
 
+    console.log(`Extracting A2UI messages from tool result for '${name}'`);
     const dataMessages = this.extractA2uiMessages(result.content);
     if (dataMessages) {
+      console.log(`Processed A2UI messages for tool '${name}':`, dataMessages);
       this.processor.processMessages(dataMessages);
     }
 

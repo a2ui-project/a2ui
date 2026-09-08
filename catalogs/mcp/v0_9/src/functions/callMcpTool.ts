@@ -17,6 +17,7 @@
 import {
   createFunctionImplementation,
   type FunctionImplementation,
+  type DataContext,
   A2uiExpressionError,
 } from '@a2ui/web_core/v0_9';
 import type {Client} from '@modelcontextprotocol/sdk/client/index.js';
@@ -44,6 +45,26 @@ export type McpToolResultHandler = (
 ) => Promise<void> | void;
 
 /**
+ * Recursively resolves dynamic values (data bindings and function calls) against a DataContext.
+ */
+function resolveDynamicValue<T>(value: unknown, context?: DataContext): T {
+  if (value === null || typeof value !== 'object' || !context) {
+    return value as T;
+  }
+  if ('path' in value || 'call' in value) {
+    return context.resolveDynamicValue(value as any);
+  }
+  if (Array.isArray(value)) {
+    return value.map(item => resolveDynamicValue(item, context)) as unknown as T;
+  }
+  const result: Record<string, any> = {};
+  for (const [k, v] of Object.entries(value)) {
+    result[k] = resolveDynamicValue(v, context);
+  }
+  return result as T;
+}
+
+/**
  * Creates a `callMcpTool` FunctionImplementation bound to an MCP client getter.
  *
  * @param clientGetter A getter function returning a Client for an optional server name.
@@ -53,9 +74,15 @@ export function createCallMcpToolImplementation(
   clientGetter: McpClientGetter,
   onResult?: McpToolResultHandler,
 ): FunctionImplementation {
-  return createFunctionImplementation(CallMcpToolApi, async (args, _context, abortSignal) => {
+  return createFunctionImplementation(CallMcpToolApi, async (args, context, abortSignal) => {
+    const server = resolveDynamicValue<string | undefined>(args.server, context);
+    const name = resolveDynamicValue<string>(args.name, context);
+    const resolvedArguments = resolveDynamicValue<Record<string, any>>(
+      args.arguments ?? {},
+      context,
+    );
+
     try {
-      const server = args.server;
       const client = await clientGetter(server);
 
       if (!client) {
@@ -66,9 +93,14 @@ export function createCallMcpToolImplementation(
         );
       }
 
+      console.log(
+        `Executing MCP tool '${name}' on server '${server || 'default'}' with arguments:`,
+        JSON.stringify(resolvedArguments),
+      );
+
       const params = {
-        name: args.name,
-        arguments: args.arguments ?? {},
+        name,
+        arguments: resolvedArguments,
       };
 
       const result: CallToolResult = await client.request(
@@ -84,8 +116,12 @@ export function createCallMcpToolImplementation(
         },
       );
 
+      if (result.isError) {
+        throw new Error(`MCP tool '${name}' execution failed: ${JSON.stringify(result.content)}`);
+      }
+
       if (onResult) {
-        await onResult(result, client, args.name, args.server);
+        await onResult(result, client, name, server);
       }
 
       return result;
@@ -95,7 +131,7 @@ export function createCallMcpToolImplementation(
       }
       const message = error instanceof Error ? error.message : String(error);
       throw new A2uiExpressionError(
-        `Failed to execute MCP tool '${args.name}': ${message}`,
+        `Failed to execute MCP tool '${name}': ${message}`,
         'callMcpTool',
         error,
       );
