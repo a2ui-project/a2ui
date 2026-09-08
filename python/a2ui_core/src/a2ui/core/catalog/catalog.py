@@ -24,6 +24,8 @@ else:
     from typing_extensions import TypeVar
 from pydantic import BaseModel, TypeAdapter
 
+from ..common.semver import is_at_least_version, parse_semver
+
 
 def _generate_dynamic_type_def(type_cls: Any) -> dict[str, Any]:
     raw_schema = TypeAdapter(type_cls).json_schema()
@@ -96,20 +98,33 @@ def is_valid_uax31_identifier(name: str) -> bool:
     return test_name.isidentifier()
 
 
-def _is_version_at_least_1_0(protocol_version: str | Any) -> bool:
-    """Returns True if the protocol version is 1.0 or higher (e.g. v1.0, v1.1, v2.0)."""
-    ver_str = str(protocol_version).strip().lstrip("vV").replace("_", ".")
-    parts = ver_str.split(".")
+def _extract_module_type_refs(modname: str, excluded: set[str]) -> set[str]:
+    """Extracts non-private exported attribute names from a module.
+
+    Args:
+        modname: The fully qualified module name to import.
+        excluded: Set of attribute names to exclude from extraction.
+
+    Returns:
+        A set of public attribute names extracted from the module, or an empty
+        set if the module could not be imported.
+    """
+    import importlib
+
+    type_refs: set[str] = set()
     try:
-        major = int(parts[0])
-        return major >= 1
-    except (ValueError, IndexError):
-        return False
+        mod = importlib.import_module(modname)
+    except ImportError:
+        return type_refs
+
+    for attr in dir(mod):
+        if not attr.startswith("_") and attr not in excluded:
+            type_refs.add(attr)
+    return type_refs
 
 
 def load_preserved_type_refs() -> set[str]:
     """Dynamically loads all common type names defined in schema/common_types.py and versioned submodules."""
-    import importlib
     import a2ui.core.schema as schema_pkg
 
     excluded = {
@@ -145,21 +160,16 @@ def load_preserved_type_refs() -> set[str]:
     )
     if protocol_version_enum:
         for ver_enum in protocol_version_enum:
-            raw_ver = str(ver_enum.value).lstrip("vV")
-            major_minor = "_".join(raw_ver.split(".")[:2])
-            mod_name = f"{schema_pkg.__name__}.v{major_minor}.common_types"
-            if mod_name not in modules_to_check:
-                modules_to_check.append(mod_name)
+            parsed = parse_semver(ver_enum.value)
+            if parsed:
+                major_minor = f"{parsed.major}_{parsed.minor}"
+                mod_name = f"{schema_pkg.__name__}.v{major_minor}.common_types"
+                if mod_name not in modules_to_check:
+                    modules_to_check.append(mod_name)
 
     type_refs: set[str] = set()
     for modname in modules_to_check:
-        try:
-            mod = importlib.import_module(modname)
-            for attr in dir(mod):
-                if not attr.startswith("_") and attr not in excluded:
-                    type_refs.add(attr)
-        except ImportError:
-            pass
+        type_refs.update(_extract_module_type_refs(modname, excluded))
 
     return type_refs
 
@@ -393,7 +403,7 @@ class Catalog(Generic[TComponent, TFunction]):
         self.protocol_version = protocol_version
         self.instructions = instructions
 
-        validate_identifiers = _is_version_at_least_1_0(protocol_version)
+        validate_identifiers = is_at_least_version(protocol_version, "1.0")
 
         self.components: dict[str, TComponent] = {}
         for c in components or []:

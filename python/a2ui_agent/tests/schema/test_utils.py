@@ -21,6 +21,7 @@ from a2ui.schema.catalog_provider import A2uiCatalogProvider, FileSystemCatalogP
 from a2ui.schema.common_modifiers import remove_strict_validation
 from a2ui.schema.utils import (
     find_repo_root,
+    get_spec_dir,
     load_from_bundled_resource,
     wrap_as_json_array,
     deep_update,
@@ -178,6 +179,24 @@ class TestSchemaUtils(unittest.TestCase):
         # Unsupported type should raise TypeError
         with self.assertRaises(TypeError):
             CatalogSchemaHelper("invalid_catalog_type")
+
+    def test_get_spec_dir_standard_versions(self):
+        """Verifies get_spec_dir maps standard version formats to their spec directories."""
+        self.assertTrue(get_spec_dir("v1_0").endswith("specification/v1_0"))
+        self.assertTrue(get_spec_dir("1.0").endswith("specification/v1_0"))
+        self.assertTrue(get_spec_dir("v0_9_1").endswith("specification/v0_9_1"))
+        self.assertTrue(get_spec_dir("0.9.1").endswith("specification/v0_9_1"))
+        self.assertTrue(get_spec_dir("v1_0_0-alpha.1").endswith("specification/v1_0"))
+
+    def test_get_spec_dir_prerelease_versions(self):
+        """Verifies get_spec_dir consistently maps pre-release versions to their base spec directory."""
+        self.assertTrue(
+            get_spec_dir("1.0.0-dev_release").endswith("specification/v1_0")
+        )
+        self.assertTrue(
+            get_spec_dir("v1_0_0-dev_release").endswith("specification/v1_0")
+        )
+        self.assertTrue(get_spec_dir("1.0.0-alpha.1").endswith("specification/v1_0"))
 
 
 if __name__ == "__main__":

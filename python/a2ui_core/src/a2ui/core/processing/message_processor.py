@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 from ..common.events import EventSource
+from ..common.semver import is_catalog_version_compatible
 from ..state import SurfaceGroupModel, SurfaceModel, ComponentModel
 from ..validation import (
     PayloadValidator,
@@ -416,6 +417,7 @@ class MessageProcessor:
             )
 
     def _process_create_surface_op(self, op: InternalCreateSurfaceOp) -> None:
+        """Processes a createSurface operation, validating catalog and theme compatibility."""
         surface_id = op.surface_id
         catalog_id = op.catalog_id
         theme = op.theme or {}
@@ -441,11 +443,14 @@ class MessageProcessor:
                     f"Validation failed for theme on surface '{surface_id}': {e}"
                 ) from e
 
+        surface_proto_ver = getattr(surface_catalog, "protocol_version", None)
         matching_available_catalogs = {
             getattr(cat, "catalog_id", f"cat_{i}"): cat
             for i, cat in enumerate(self.catalogs)
-            if getattr(cat, "protocol_version", None)
-            == getattr(surface_catalog, "protocol_version", None)
+            if is_catalog_version_compatible(
+                getattr(cat, "protocol_version", None),
+                surface_proto_ver,
+            )
         }
         new_surface = SurfaceModel(
             surface_id=surface_id,
@@ -473,6 +478,7 @@ class MessageProcessor:
             )
 
     def _process_update_components_op(self, op: InternalUpdateComponentsOp) -> None:
+        """Processes an updateComponents operation, validating catalog and component consistency."""
         surface_id = op.surface_id
         surface = self.model.get_surface(surface_id)
         if not surface:
@@ -516,7 +522,11 @@ class MessageProcessor:
                     raise A2uiCatalogError(f"Catalog not found: {comp_cat_id}")
                 comp_ver = getattr(comp_catalog, "protocol_version", None)
                 surface_ver = getattr(surface.default_catalog, "protocol_version", None)
-                if comp_ver and surface_ver and comp_ver != surface_ver:
+                if (
+                    comp_ver
+                    and surface_ver
+                    and not is_catalog_version_compatible(comp_ver, surface_ver)
+                ):
                     raise A2uiCatalogError(
                         f"Component {c_id} catalog '{comp_cat_id}' has different"
                         f" protocol version {comp_ver} than default catalog"

@@ -11,12 +11,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Common utilities for A2UI core, including event handling and SemVer parsing."""
 
 from .events import Subscription, EventSource, Signal, AbortSignal
+from .semver import (
+    SemVer,
+    compare_semver,
+    is_at_least_version,
+    is_catalog_version_compatible,
+    normalize_version_string,
+    parse_semver,
+)
 
 __all__ = [
     "Subscription",
     "EventSource",
     "Signal",
     "AbortSignal",
+    "SemVer",
+    "normalize_version_string",
+    "parse_semver",
+    "compare_semver",
+    "is_at_least_version",
+    "is_catalog_version_compatible",
 ]

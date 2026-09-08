@@ -461,10 +461,10 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                 fn_schema = funcs_schema[name]
                 base_schema = cat_schema
         if fn_def is None and name.startswith("@"):
-            from ..catalog.catalog import _is_version_at_least_1_0
+            from ..common.semver import is_at_least_version
 
             ver = getattr(self.catalog, "protocol_version", None)
-            if name == "@index" and ver and _is_version_at_least_1_0(ver):
+            if name == "@index" and ver and is_at_least_version(ver, "1.0"):
                 from ..basic_catalog.v1_0.function_impls import IndexImplementation
 
                 fn_def = IndexImplementation

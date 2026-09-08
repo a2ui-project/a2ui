@@ -15,6 +15,7 @@
  */
 
 import {A2uiValidationError} from '../../errors.js';
+import {parseSemVer} from '../../common/semver.js';
 import {ProtocolVersion, VersionAdapter, VersionAdapterResolver} from './base.js';
 import {V0Point8Adapter} from './v0_8.js';
 import {V0Point9Adapter} from './v0_9.js';
@@ -48,7 +49,17 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
    * @throws A2uiValidationError if the version string is unsupported.
    */
   getAdapter(version: ProtocolVersion | string): VersionAdapter {
-    const adapter = this.adapters.get(version);
+    let adapter = this.adapters.get(version);
+    if (!adapter) {
+      const parsed = parseSemVer(version);
+      if (parsed) {
+        if (parsed.major === 0 && parsed.minor === 9 && parsed.patch === 1) {
+          adapter = this.adapters.get('v0.9.1');
+        } else {
+          adapter = this.adapters.get(`v${parsed.major}.${parsed.minor}`);
+        }
+      }
+    }
     if (!adapter) {
       const supported = Array.from(this.adapters.keys()).join(', ');
       throw new A2uiValidationError(

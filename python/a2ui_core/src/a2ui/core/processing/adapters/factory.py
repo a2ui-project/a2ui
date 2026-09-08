@@ -140,10 +140,33 @@ class VersionAdapterFactory:
 
     @classmethod
     def _parse_version(cls, version_str: str) -> ProtocolVersion | None:
-        """Parses a version string into an ProtocolVersion enum."""
-        if not version_str.startswith("v"):
-            version_str = f"v{version_str}"
+        """Parses a version string into a ProtocolVersion enum.
+
+        Args:
+            version_str: The version string to parse.
+
+        Returns:
+            The matched ProtocolVersion enum member, or None if unrecognized.
+        """
+        from ...common.semver import parse_semver
+
+        clean = (
+            f"v{version_str[1:]}"
+            if version_str.startswith(("v", "V"))
+            else f"v{version_str}"
+        )
         try:
-            return ProtocolVersion(version_str)
+            return ProtocolVersion(clean)
         except ValueError:
-            return None
+            pass
+
+        parsed = parse_semver(version_str)
+        if parsed:
+            if parsed.major == 0 and parsed.minor == 9 and parsed.patch == 1:
+                return ProtocolVersion.V0_9_1
+            canonical = f"v{parsed.major}.{parsed.minor}"
+            try:
+                return ProtocolVersion(canonical)
+            except ValueError:
+                return None
+        return None
