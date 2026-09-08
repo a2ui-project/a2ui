@@ -64,7 +64,7 @@ Name each envelope by what it is a request/response for:
 3. responseToAgent  
 4. responseToRenderer
 
-Problem: this naming still requires to remember four combinations and guess what each envelope is for.
+Problem: this naming still requires to remember four combinations and guess which component is the second participant.
 
 ### Naming rule
 
@@ -81,15 +81,6 @@ Variants keep their names. [`CreateSurfaceMessage`](https://github.com/a2ui-proj
 Methods and parameters do not repeat the direction. The class or the parameter type already gives it. So [`MessageProcessor.processPayload`](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/processing/processor.dart#L115) becomes `AgentToRendererProcessor.processJson`, not `processAgentToRendererResponseJson`.
 
 When the method name itself contains `Messages`, the postfix replaces that word too. [`MessageProcessor.processMessages`](https://github.com/a2ui-project/a2ui/blob/main/dart/a2ui_core/lib/src/processing/processor.dart#L125) becomes `processResponses`.
-
-Each row below links every declaration of the element. Methods appear as `Class.method`. The proposed column uses the new class name, so it shows the full name after both renames.
-
-Some elements exist in one language only. That is a gap in the other SDKs, not an omission here. The note under each table says which.
-
-v0.9 and v0.9.1 are published, so their schemas cannot change. [`specification/v0_9/`](https://github.com/a2ui-project/a2ui/blob/main/specification/v0_9/json) and [`specification/v0_9_1/`](https://github.com/a2ui-project/a2ui/blob/main/specification/v0_9_1/json) are out of scope, and so are the copies each SDK keeps of those files. Only [`specification/v1_0/`](https://github.com/a2ui-project/a2ui/blob/main/specification/v1_0/json) is in scope.
-
-SDK code that implements v0.9 is still in scope. A schema file is a published contract. A type name is our own choice. [`A2uiMessage`](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/schema/server-to-client.ts#L130) in [`server-to-client.ts`](https://github.com/a2ui-project/a2ui/blob/main/renderers/web_core/src/v0_9/schema/server-to-client.ts) is a name we picked, not one the protocol requires.
-
 
 ### 1. Agent to renderer response
 
