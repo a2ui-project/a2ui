@@ -1295,4 +1295,36 @@ describe('NodeResolver constructor checks and disposal', () => {
     surface.dataModel.set('/items', [{name: 'X'}]);
     assert.strictEqual(resolver.activeNodeCount, 0);
   });
+
+  it('resolves component models instantiated without a catalog or with empty catalog', () => {
+    const {surface, resolver} = setup();
+    // 1. Component without catalog (3-argument ComponentModel)
+    surface.componentsModel.addComponent(
+      new ComponentModel('root', 'Column', {children: ['child1', 'child2']}),
+    );
+    // 2. Component with empty catalog
+    const emptyCat = new Catalog('empty', []);
+    surface.componentsModel.addComponent(
+      new ComponentModel('child1', 'Text', {text: 'Without Catalog'}),
+    );
+    surface.componentsModel.addComponent(
+      new ComponentModel('child2', 'Text', {text: 'Empty Catalog'}, emptyCat),
+    );
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.strictEqual(root.type, 'Column');
+
+    const c1 = child(root, 'children', 0);
+    assert.ok(c1);
+    assert.strictEqual(c1.type, 'Text');
+    assert.strictEqual(bound(c1, 'text'), 'Without Catalog');
+
+    const c2 = child(root, 'children', 1);
+    assert.ok(c2);
+    assert.strictEqual(c2.type, 'Text');
+    assert.strictEqual(bound(c2, 'text'), 'Empty Catalog');
+
+    resolver.dispose();
+  });
 });

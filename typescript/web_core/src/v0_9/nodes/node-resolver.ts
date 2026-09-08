@@ -305,7 +305,10 @@ export class NodeResolver<
       return record.node;
     }
 
-    const compCatalog = (model.catalog as Catalog<C, F>) ?? this.catalog;
+    const compCatalog =
+      (model.catalog && model.catalog.components && model.catalog.components.size > 0
+        ? (model.catalog as Catalog<C, F>)
+        : undefined) ?? this.catalog;
     const api = compCatalog.components.get(model.type);
     if (!api) {
       this.dispatchOnce(
@@ -447,7 +450,10 @@ export class NodeResolver<
     }
     if (existing && !existing.disposed) {
       const model = this.surface.componentsModel.get(componentId);
-      const compCatalog = (model?.catalog as Catalog<C, F>) ?? this.catalog;
+      const compCatalog =
+        (model?.catalog && model.catalog.components && model.catalog.components.size > 0
+          ? (model.catalog as Catalog<C, F>)
+          : undefined) ?? this.catalog;
       const api = model ? compCatalog.components.get(model.type) : undefined;
       // A placeholder stays up to date only while its own state's
       // preconditions hold, so a pending node whose definition arrives with

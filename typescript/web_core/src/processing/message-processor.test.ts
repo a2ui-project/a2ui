@@ -1635,4 +1635,47 @@ describe('MessageProcessor', () => {
       assert.strictEqual(surface.componentsModel.size, 2);
     });
   });
+
+  describe('Backwards Compatibility Shims', () => {
+    it('provides getClientCapabilities alias', () => {
+      const cat = new Catalog('test-cat', []);
+      const proc = new MessageProcessor([cat]);
+      const caps = proc.getClientCapabilities();
+      assert.deepStrictEqual(caps, proc.getRendererCapabilities());
+      assert.deepStrictEqual(caps.supportedCatalogIds, ['test-cat']);
+    });
+
+    it('provides getClientDataModel alias', () => {
+      const cat = new Catalog('test-cat', []);
+      const proc = new MessageProcessor([cat]);
+      proc.processMessages({
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: 'test-cat',
+          sendDataModel: true,
+        },
+      });
+      proc.processMessages({
+        version: 'v0.9',
+        updateDataModel: {
+          surfaceId: 's1',
+          path: '/user/name',
+          value: 'Alice',
+        },
+      });
+      const dataModel = proc.getClientDataModel('v0.9');
+      assert.deepStrictEqual(dataModel, proc.getRendererDataModel('v0.9'));
+      assert.deepStrictEqual((dataModel?.surfaces as any)?.s1, {user: {name: 'Alice'}});
+    });
+
+    it('provides resolvePath method on MessageProcessor', () => {
+      const cat = new Catalog('test-cat', []);
+      const proc = new MessageProcessor([cat]);
+      assert.strictEqual(proc.resolvePath('/absolute/path'), '/absolute/path');
+      assert.strictEqual(proc.resolvePath('relative', '/base'), '/base/relative');
+      assert.strictEqual(proc.resolvePath('relative', '/base/'), '/base/relative');
+      assert.strictEqual(proc.resolvePath('standalone'), '/standalone');
+    });
+  });
 });
