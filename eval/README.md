@@ -110,31 +110,35 @@ You can obtain an API key from [Google AI Studio](https://aistudio.google.com/).
 
 #### Option A: Cloud Execution (Google AI Studio / Gemini API)
 
-- **Mobile / On-Device Tier (`--gemma` or `--gemma mobile` or `--model gemma-4-26b`)**:
+- **Mobile / On-Device Tier (`--model gemma` or `--gemma`)**:
   `google/gemma-4-26b-a4b-it` — A Mixture-of-Experts model with 26B total parameters and **4B active parameters** (`a4b`), representative of the class of lightweight models feasible for execution on modern mobile hardware.
-- **Large / Workstation Tier (`--gemma large` or `--model gemma-4-31b`)**:
+- **Large / Workstation Tier (`--model gemma-large` or `--gemma large`)**:
   `google/gemma-4-31b-it` — A 31B dense parameter model offering higher reasoning capacity.
 
 ```bash
-# Run Gemma 4 mobile tier on Express format (default strategy for --gemma is express)
-uv run main.py --gemma
+# Run Gemma 4 mobile tier on Express format (Gemma models automatically default to express)
+uv run main.py --model gemma
 
 # Run Gemma 4 large tier (31B) on Express format
-uv run main.py --gemma large
+uv run main.py --model gemma-large
 
 # Run on a specific dataset or limit sample count for quick checks
-uv run main.py --gemma --dataset core_v1_0 --limit 3
+uv run main.py --model gemma --dataset core_v1_0 --limit 3
+
+# Or use the convenient shorthand:
+uv run main.py --gemma
+uv run main.py --gemma large
 ```
 
 #### Option B: Local / Edge Execution via Ollama (GPU-Accelerated)
 
 For smaller edge-optimized models that can run fully offline on standard or flagship smartphones (requiring 6–8 GB RAM):
 
-- **Gemma 4 E2B (`--gemma e2b` or `--model gemma-e2b`)**:
+- **Gemma 4 E2B (`--model gemma4:e2b` or `--gemma e2b`)**:
   `ollama/gemma4:e2b` — Edge model designed for standard smartphones (~6 GB RAM offline).
-- **Gemma 4 E4B (`--gemma e4b` or `--model gemma-e4b`)**:
+- **Gemma 4 E4B (`--model gemma4:e4b` or `--gemma e4b`)**:
   `ollama/gemma4:e4b` — Edge model designed for recent flagship smartphones (~8 GB RAM offline).
-- **Gemma 2 2B (`--gemma 2b` or `--model gemma-2b`)**:
+- **Gemma 2 2B (`--model gemma2:2b` or `--gemma 2b`)**:
   `ollama/gemma2:2b` — Lightweight 2B parameter open model.
 
 **Prerequisites**:
@@ -152,10 +156,13 @@ For smaller edge-optimized models that can run fully offline on standard or flag
 
    ```bash
    # Run Gemma 4 E2B via Ollama
-   uv run main.py --gemma e2b --dataset core_v1_0 --limit 3
+   uv run main.py --model gemma4:e2b --dataset core_v1_0 --limit 3
 
    # Run Gemma 4 E4B via Ollama
-   uv run main.py --gemma e4b --dataset core_v1_0 --limit 3
+   uv run main.py --model gemma4:e4b --dataset core_v1_0 --limit 3
+
+   # Or using the shorthand:
+   uv run main.py --gemma e2b --dataset core_v1_0 --limit 3
    ```
 
 > [!IMPORTANT]

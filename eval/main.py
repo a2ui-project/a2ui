@@ -27,48 +27,57 @@ os.environ["INSPECT_MODEL_MAX_BACKOFF"] = "300"
 from inspect_ai.dataset import MemoryDataset
 
 MODEL_ALIASES: dict[str, str] = {
-    # Gemma models (cloud hosted via Google AI Studio / Gemini API)
+    # Cloud models
     "gemma": "google/gemma-4-26b-a4b-it",
     "gemma-mobile": "google/gemma-4-26b-a4b-it",
     "gemma-4-26b": "google/gemma-4-26b-a4b-it",
-    "gemma-4-26b-a4b": "google/gemma-4-26b-a4b-it",
-    "gemma-4-26b-a4b-it": "google/gemma-4-26b-a4b-it",
     "gemma-large": "google/gemma-4-31b-it",
     "gemma-4-31b": "google/gemma-4-31b-it",
-    "gemma-4-31b-it": "google/gemma-4-31b-it",
-    # Gemma edge / local models (via Ollama)
-    "gemma-e2b": "ollama/gemma4:e2b",
-    "gemma-4-e2b": "ollama/gemma4:e2b",
-    "gemma4:e2b": "ollama/gemma4:e2b",
-    "gemma-e4b": "ollama/gemma4:e4b",
-    "gemma-4-e4b": "ollama/gemma4:e4b",
-    "gemma4:e4b": "ollama/gemma4:e4b",
-    "gemma-2b": "ollama/gemma2:2b",
-    "gemma-2-2b": "ollama/gemma2:2b",
-    "gemma2:2b": "ollama/gemma2:2b",
-    # Gemini models
     "flash": "google/gemini-3.5-flash",
     "gemini-flash": "google/gemini-3.5-flash",
-    "gemini-3-flash": "google/gemini-3.5-flash",
-    "gemini-3.5-flash": "google/gemini-3.5-flash",
     "flash-lite": "google/gemini-3.1-flash-lite",
     "gemini-flash-lite": "google/gemini-3.1-flash-lite",
-    "gemini-3-flash-lite": "google/gemini-3.1-flash-lite",
-    "gemini-3.1-flash-lite": "google/gemini-3.1-flash-lite",
+    # Ollama edge convenience aliases (without colon)
+    "gemma-e2b": "ollama/gemma4:e2b",
+    "gemma-4-e2b": "ollama/gemma4:e2b",
+    "gemma-e4b": "ollama/gemma4:e4b",
+    "gemma-4-e4b": "ollama/gemma4:e4b",
+    "gemma-2b": "ollama/gemma2:2b",
 }
+
+GEMMA_TIER_ALIASES: dict[str, str] = {
+    "mobile": "gemma",
+    "26b": "gemma",
+    "large": "gemma-large",
+    "31b": "gemma-large",
+    "e2b": "gemma-e2b",
+    "e4b": "gemma-e4b",
+    "2b": "gemma-2b",
+}
+
+MODEL_DEFAULT_STRATEGIES: dict[str, list[str]] = {
+    "gemma": ["express"],
+}
+
+RESTRICTED_GRADING_MODEL_FAMILIES = ("gemma",)
 
 
 def resolve_model_name(model_name: str) -> str:
-    """Resolves convenience aliases and short names to fully qualified model IDs."""
-    stripped_name = model_name.strip()
-    lower_name = stripped_name.lower()
-    if lower_name in MODEL_ALIASES:
-        return MODEL_ALIASES[lower_name]
-    if lower_name.startswith("ollama:"):
-        return f"ollama/{stripped_name[7:]}"
-    if lower_name.startswith(("gemma-", "gemini-")):
-        return f"google/{stripped_name}"
-    return stripped_name
+    """Resolves convenience aliases and provider conventions to fully qualified model IDs."""
+    stripped = model_name.strip()
+    lower = stripped.lower()
+    if lower in MODEL_ALIASES:
+        return MODEL_ALIASES[lower]
+    if "/" in stripped:
+        return stripped
+    if lower.startswith("ollama:"):
+        return f"ollama/{stripped[7:]}"
+    if ":" in stripped:
+        # Standard Ollama model tag convention (e.g. 'gemma4:e2b', 'llama3:8b')
+        return f"ollama/{stripped}"
+    if lower.startswith(("gemma-", "gemini-")):
+        return f"google/{stripped}"
+    return stripped
 
 
 def main() -> None:
@@ -82,11 +91,10 @@ def main() -> None:
         "--gemma",
         nargs="?",
         const="mobile",
-        choices=["mobile", "26b", "large", "31b", "e2b", "e4b", "2b"],
+        default=None,
         help=(
-            "Evaluate using Gemma models (cloud: mobile/26b, large/31b; local/Ollama:"
-            " e2b, e4b, 2b). Defaults to mobile (26b-a4b-it, 4B active params via cloud"
-            " API). Sets default strategy to 'express'."
+            "Evaluate using Gemma models (defaults to mobile; accepts tier e.g."
+            " 'large', 'e2b', 'e4b'). Sets default strategy to 'express'."
         ),
     )
     parser.add_argument(
@@ -179,21 +187,14 @@ def main() -> None:
     if args.sanity:
         model = "google/gemini-3.1-flash-lite"
     elif args.gemma:
-        if args.gemma in ["large", "31b"]:
-            model = "google/gemma-4-31b-it"
-        elif args.gemma == "e2b":
-            model = "ollama/gemma4:e2b"
-        elif args.gemma == "e4b":
-            model = "ollama/gemma4:e4b"
-        elif args.gemma == "2b":
-            model = "ollama/gemma2:2b"
-        else:
-            model = "google/gemma-4-26b-a4b-it"
+        model = resolve_model_name(GEMMA_TIER_ALIASES.get(args.gemma, args.gemma))
     else:
         model = resolve_model_name(args.model)
 
     grading_model = resolve_model_name(args.grading_model)
-    if "gemma" in grading_model.lower():
+    if any(
+        family in grading_model.lower() for family in RESTRICTED_GRADING_MODEL_FAMILIES
+    ):
         raise ValueError(
             f"Invalid grading model '{grading_model}'. Gemma models must not be used"
             " as LLM-as-a-judge; please use a Gemini Flash model (e.g."
@@ -214,10 +215,18 @@ def main() -> None:
     selected_strategies = []
     if args.strategies:
         raw_strategies = args.strategies
-    elif args.gemma or "gemma" in model.lower():
-        raw_strategies = ["express"]
     else:
-        raw_strategies = ["direct", "subagent_tool"]
+        matched_strats = next(
+            (
+                strats
+                for family, strats in MODEL_DEFAULT_STRATEGIES.items()
+                if family in model.lower()
+            ),
+            None,
+        )
+        raw_strategies = (
+            matched_strats if matched_strats else ["direct", "subagent_tool"]
+        )
     for item in raw_strategies:
         for s in item.split(","):
             s_clean = s.strip()
