@@ -17,9 +17,7 @@
 import {describe, it, expect, vi, beforeEach} from 'vitest';
 import {
   A2uiMcpEngine,
-  BASIC_CATALOG_ID,
   BASIC_WITH_MCP_CATALOG_ID,
-  MCP_CATALOG_ID,
   DEFAULT_MCP_CLIENT_NAME,
   DEFAULT_MCP_CLIENT_VERSION,
   A2UI_MIME_TYPE,
@@ -125,7 +123,7 @@ describe('A2uiMcpEngine', () => {
 
   describe('initialization', () => {
     it('initializes with default basic catalog and handles undefined events', () => {
-      const engine = new A2uiMcpEngine(undefined, undefined);
+      const engine = new A2uiMcpEngine();
       expect(engine.processor).toBeDefined();
       expect(engine.mcpClients.size).toBe(0);
       expect(engine.getSurface('non-existent')).toBeUndefined();
@@ -319,11 +317,7 @@ describe('A2uiMcpEngine', () => {
             a2ui: {
               clientCapabilities: {
                 'v0.9': {
-                  supportedCatalogIds: [
-                    BASIC_WITH_MCP_CATALOG_ID,
-                    BASIC_CATALOG_ID,
-                    MCP_CATALOG_ID,
-                  ],
+                  supportedCatalogIds: [BASIC_WITH_MCP_CATALOG_ID],
                 },
               },
             },

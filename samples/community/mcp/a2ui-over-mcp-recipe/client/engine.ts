@@ -17,8 +17,6 @@
 import {Catalog, MessageProcessor} from '@a2ui/web_core/v0_9';
 import {basicCatalog} from '@a2ui/lit/v0_9';
 import {
-  createMcpCatalog,
-  MCP_CATALOG_ID,
   type McpClientGetter,
   type McpToolResultHandler,
 } from '../../../../../catalogs/mcp/v0_9/src/catalog.js';
@@ -27,13 +25,7 @@ import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
 
-export {
-  MCP_CATALOG_ID,
-  createMcpCatalog,
-  type McpClientGetter,
-  type McpToolResultHandler,
-  type CallToolResult,
-};
+export {type McpClientGetter, type McpToolResultHandler, type CallToolResult};
 export const BASIC_CATALOG_ID = 'https://a2ui.org/specification/v0_9/basic_catalog.json';
 export const BASIC_WITH_MCP_CATALOG_ID =
   'https://a2ui.org/specification/v0_9/catalogs/basic_with_mcp/catalog.json';
@@ -49,13 +41,6 @@ export const DEFAULT_MCP_CLIENT_NAME = 'a2ui-mcp-engine';
 export const DEFAULT_MCP_CLIENT_VERSION = '1.0.0';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
-
-export interface A2uiMcpEngineEvents {
-  onAction?: (action: any) => Promise<void> | void;
-  onStatusChange?: (message: string) => void;
-  onConnectionChange?: (status: ConnectionStatus) => void;
-  onSurfaceChange?: () => void;
-}
 
 /**
  * Creates an A2UI Catalog combining the standard Basic Catalog components and functions
@@ -92,8 +77,6 @@ export class A2uiMcpEngine {
   // Mapping of tool names (server:tool or tool) to declared UI template resource URIs
   private readonly toolUiResources = new Map<string, string>();
 
-  private readonly events: A2uiMcpEngineEvents;
-
   getMcpClient(server?: string): Client {
     if (server) {
       const client = this.mcpClients.get(server);
@@ -109,32 +92,21 @@ export class A2uiMcpEngine {
   }
 
   constructor(
-    catalogsOrEvents?: Catalog<any>[] | A2uiMcpEngineEvents,
-    events?: A2uiMcpEngineEvents,
+    private readonly events: {
+      onAction?: (action: any) => Promise<void> | void;
+      onStatusChange?: (message: string) => void;
+      onConnectionChange?: (status: ConnectionStatus) => void;
+      onSurfaceChange?: () => void;
+    } = {},
   ) {
-    let customCatalogs: Catalog<any>[] | undefined;
-    let resolvedEvents: A2uiMcpEngineEvents | undefined;
-
-    if (Array.isArray(catalogsOrEvents)) {
-      customCatalogs = catalogsOrEvents;
-      resolvedEvents = events;
-    } else if (catalogsOrEvents && typeof catalogsOrEvents === 'object') {
-      resolvedEvents = catalogsOrEvents as A2uiMcpEngineEvents;
-    } else {
-      resolvedEvents = events;
-    }
-
-    this.events = resolvedEvents || {};
-
     const clientGetter: McpClientGetter = ((server?: string) => this.getMcpClient(server)) as any;
     const onResult: McpToolResultHandler = (result, client, name, server) =>
       this.handleToolResult(result, client as any, name, server);
     const basicWithMcpCatalog = createBasicWithMcpCatalog(clientGetter, onResult);
-    const mcpCatalog = createMcpCatalog(clientGetter, onResult as any);
 
-    const catalogs = customCatalogs || [basicWithMcpCatalog, basicCatalog, mcpCatalog as any];
-
-    this.processor = new MessageProcessor<any>(catalogs, action => this.events.onAction?.(action));
+    this.processor = new MessageProcessor<any>([basicWithMcpCatalog], action =>
+      this.events.onAction?.(action),
+    );
 
     // Forward surface errors to console and event listeners so errors are never silently swallowed
     this.processor.onSurfaceCreated(surface => {
