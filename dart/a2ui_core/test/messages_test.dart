@@ -144,6 +144,66 @@ void main() {
       );
     });
 
+    test('throws when a required body field is missing', () {
+      // Reported as a validation error rather than left to fail as a cast: a
+      // malformed envelope is a payload defect, not a programming error.
+      expect(
+        () => A2uiMessage.fromJson({
+          'version': 'v0.9',
+          'createSurface': {'surfaceId': 's1'},
+        }),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(
+        () => A2uiMessage.fromJson({
+          'version': 'v0.9',
+          'updateComponents': {'surfaceId': 's1'},
+        }),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('throws when a body field has the wrong type', () {
+      expect(
+        () => A2uiMessage.fromJson({
+          'version': 'v0.9',
+          'createSurface': {'surfaceId': 123, 'catalogId': 'c1'},
+        }),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(
+        () => A2uiMessage.fromJson({
+          'version': 'v0.9',
+          'updateComponents': {'surfaceId': 's1', 'components': 'nope'},
+        }),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(
+        () => A2uiMessage.fromJson({
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': 's1',
+            'components': ['nope'],
+          },
+        }),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(
+        () => A2uiMessage.fromJson({
+          'version': 'v0.9',
+          'updateDataModel': {'surfaceId': 's1', 'path': 7},
+        }),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('throws when the message body is not an object', () {
+      expect(
+        () => A2uiMessage.fromJson({'version': 'v0.9', 'deleteSurface': 's1'}),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
     test('throws when more than one message type is present', () {
       expect(
         () => A2uiMessage.fromJson({

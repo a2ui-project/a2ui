@@ -1,4 +1,4 @@
-# Generated from /usr/local/google/home/gspencer/code/a2ui/kotlin_express/specification/inference_formats/express/Express.g4 by ANTLR 4.13.2
+# Generated from Express.g4 by ANTLR 4.13.2
 # encoding: utf-8
 from antlr4 import *
 from io import StringIO

@@ -473,6 +473,7 @@ __metadata:
     rxjs: "npm:^7.8.2"
     typescript: "npm:5.9.3"
     wireit: "npm:^0.15.0-pre.2"
+    yaml: "npm:^2.8.1"
     zod: "npm:^3.25.76"
     zod-to-json-schema: "npm:^3.25.2"
   languageName: unknown

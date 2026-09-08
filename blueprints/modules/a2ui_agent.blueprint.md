@@ -338,6 +338,12 @@ Validation is handled directly by `a2ui.core.validating.A2uiValidator` from the 
 - Deep structural checks (component uniqueness, root reachability, cyclic reference prevention, recursion depth caps).
 - Data binding JSON Pointer syntax validation.
 
+#### Surface state during validation
+
+`A2uiValidator` checks one outbound payload at a time, the agent-to-renderer messages the agent is about to send, with nothing else to compare it against. When that payload updates a surface it did not itself create, it carries no component tree, so a reference to a component the agent sent in an earlier payload cannot be checked and is accepted.
+
+An agent that runs `a2ui.core.processing.MessageProcessor` over its own outbound messages holds that tree. References then resolve against the components the surface already has, and cycles are found across the whole surface instead of one payload at a time. The renderer runs these same checks when the payload arrives, so an agent that runs them first catches a bad payload before sending it rather than after.
+
 ---
 
 ### E. Inference Format Facades (`a2ui.inference_format`)

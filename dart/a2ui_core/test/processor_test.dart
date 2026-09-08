@@ -32,6 +32,227 @@ void main() {
       processor = MessageProcessor(catalogs: [catalog]);
     });
 
+    group('component graph checks', () {
+      List<Map<String, Object?>> update(
+        List<Map<String, Object?>> components,
+      ) => [
+        {
+          'version': 'v0.9',
+          'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
+        },
+        {
+          'version': 'v0.9',
+          'updateComponents': {'surfaceId': 's1', 'components': components},
+        },
+      ];
+
+      test('rejects a reference to a component that does not exist', () {
+        expect(
+          () => processor.processPayload(
+            update([
+              {
+                'id': 'root',
+                'component': 'Column',
+                'children': ['missing'],
+              },
+            ]),
+          ),
+          throwsA(isA<A2uiIntegrityError>()),
+        );
+      });
+
+      test('rejects duplicate ids within one batch', () {
+        expect(
+          () => processor.processPayload(
+            update([
+              {'id': 'a', 'component': 'Text', 'text': 'one'},
+              {'id': 'a', 'component': 'Text', 'text': 'two'},
+            ]),
+          ),
+          throwsA(isA<A2uiIntegrityError>()),
+        );
+      });
+
+      test('accepts a reference to a component the surface already holds', () {
+        // The payload-scoped validator cannot make this call: it waves the
+        // second batch through because it cannot see the first.
+        processor.processPayload(
+          update([
+            {'id': 'a', 'component': 'Text', 'text': 'held'},
+          ]),
+        );
+
+        expect(
+          () => processor.processMessages([
+            UpdateComponentsMessage(
+              surfaceId: 's1',
+              components: [
+                {
+                  'id': 'root',
+                  'component': 'Column',
+                  'children': ['a'],
+                },
+              ],
+            ),
+          ]),
+          returnsNormally,
+        );
+      });
+
+      test('rejects a cycle closed through an existing component', () {
+        processor.processPayload(
+          update([
+            {
+              'id': 'a',
+              'component': 'Column',
+              'children': ['b'],
+            },
+            {'id': 'b', 'component': 'Text', 'text': 'leaf'},
+          ]),
+        );
+
+        // Retyping `b` as a Column pointing back at `a` closes the loop only
+        // when the existing components are taken into account.
+        expect(
+          () => processor.processMessages([
+            UpdateComponentsMessage(
+              surfaceId: 's1',
+              components: [
+                {
+                  'id': 'b',
+                  'component': 'Column',
+                  'children': ['a'],
+                },
+              ],
+            ),
+          ]),
+          throwsA(isA<A2uiRecursionError>()),
+        );
+      });
+
+      test('leaves the surface unchanged when the graph check fails', () {
+        processor.processPayload(
+          update([
+            {'id': 'a', 'component': 'Text', 'text': 'held'},
+          ]),
+        );
+
+        expect(
+          () => processor.processMessages([
+            UpdateComponentsMessage(
+              surfaceId: 's1',
+              components: [
+                {'id': 'b', 'component': 'Text', 'text': 'new'},
+                {
+                  'id': 'c',
+                  'component': 'Column',
+                  'children': ['nowhere'],
+                },
+              ],
+            ),
+          ]),
+          throwsA(isA<A2uiIntegrityError>()),
+        );
+        final SurfaceModel surface = processor.groupModel.getSurface('s1')!;
+        expect(surface.componentsModel.get('b'), isNull);
+        expect(surface.componentsModel.get('a'), isNotNull);
+      });
+    });
+
+    test('processPayload rejects a malformed envelope before processing', () {
+      expect(
+        () => processor.processPayload([
+          {
+            'version': 'v1.0',
+            'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
+          },
+        ]),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(processor.groupModel.getSurface('s1'), isNull);
+    });
+
+    test('processPayload parses and processes a valid payload', () {
+      final List<A2uiMessage> messages = processor.processPayload([
+        {
+          'version': 'v0.9',
+          'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
+        },
+      ]);
+
+      expect(messages, hasLength(1));
+      expect(processor.groupModel.getSurface('s1'), isNotNull);
+    });
+
+    test('rejects a component the catalog does not declare', () {
+      processor.processMessages([
+        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+      ]);
+
+      expect(
+        () => processor.processMessages([
+          UpdateComponentsMessage(
+            surfaceId: 's1',
+            components: [
+              {'id': 'a', 'component': 'NoSuchComponent'},
+            ],
+          ),
+        ]),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      // The rejected batch left the surface untouched.
+      expect(
+        processor.groupModel.getSurface('s1')?.componentsModel.get('a'),
+        isNull,
+      );
+    });
+
+    test('rejects a component that does not match its schema', () {
+      processor.processMessages([
+        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+      ]);
+
+      expect(
+        () => processor.processMessages([
+          // `Text` requires `text`.
+          UpdateComponentsMessage(
+            surfaceId: 's1',
+            components: [
+              {'id': 'a', 'component': 'Text'},
+            ],
+          ),
+        ]),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('rejects a theme that does not match the catalog theme schema', () {
+      expect(
+        () => processor.processMessages([
+          // `primaryColor` must match `^#[0-9a-fA-F]{6}$`.
+          CreateSurfaceMessage(
+            surfaceId: 's1',
+            catalogId: catalog.id,
+            theme: {'primaryColor': 'blue'},
+          ),
+        ]),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(processor.groupModel.getSurface('s1'), isNull);
+    });
+
+    test('accepts a theme that matches the catalog theme schema', () {
+      processor.processMessages([
+        CreateSurfaceMessage(
+          surfaceId: 's1',
+          catalogId: catalog.id,
+          theme: {'primaryColor': '#00ff00'},
+        ),
+      ]);
+
+      expect(processor.groupModel.getSurface('s1'), isNotNull);
+    });
+
     test('creates surface', () {
       processor.processMessages([
         CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
