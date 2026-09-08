@@ -359,7 +359,7 @@ def test_action_binding_closures():
 
 
 def test_unresolved_data_binding_warning_and_value():
-    from a2ui.core.rendering.data_context import MissingDataBindingWarning
+    from a2ui.core.resolution.data_context import MissingDataBindingWarning
 
     catalog = BasicCatalog()
     surface = SurfaceModel("surf-1", catalog)

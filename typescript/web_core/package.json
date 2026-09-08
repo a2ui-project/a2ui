@@ -58,6 +58,10 @@
       "types": "./dist/src/processing/adapters/index.d.ts",
       "default": "./dist/src/processing/adapters/index.js"
     },
+    "./rpc": {
+      "types": "./dist/src/rpc/index.d.ts",
+      "default": "./dist/src/rpc/index.js"
+    },
     "./errors": {
       "types": "./dist/src/errors.d.ts",
       "default": "./dist/src/errors.js"

@@ -18,7 +18,7 @@ import {fileURLToPath} from 'node:url';
 import assert from 'node:assert';
 import yaml from 'js-yaml';
 import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
-import {Catalog} from '../../dist/src/catalog/types.js';
+import {Catalog, createFunctionImplementation} from '../../dist/src/catalog/types.js';
 import {
   BASIC_COMPONENTS as V0_8_BASIC_COMPONENTS,
   ThemeSchema as V0_8_ThemeSchema,
@@ -28,8 +28,8 @@ import {
   BASIC_COMPONENTS as V0_9_BASIC_COMPONENTS,
   BASIC_FUNCTION_APIS as V0_9_BASIC_FUNCTIONS,
   ThemeSchema as V0_9_ThemeSchema,
-  V09_CHILD_REF_OPTIONS,
-} from '../../dist/src/v0_9/index.js';
+} from '../../dist/src/v0_9/basic_catalog/index.js';
+import {V09_CHILD_REF_OPTIONS} from '../../dist/src/v0_9/index.js';
 import {
   BASIC_COMPONENTS as V1_0_BASIC_COMPONENTS,
   BASIC_FUNCTION_APIS as V1_0_BASIC_FUNCTIONS,
@@ -123,7 +123,7 @@ function loadYamlFile(filePath) {
   return yaml.load(content);
 }
 
-function runConformanceHarness() {
+async function runConformanceHarness() {
   console.log('=====================================================');
   console.log('A2UI Web Core TypeScript Conformance Test Harness');
   console.log('=====================================================');
@@ -195,7 +195,7 @@ function runConformanceHarness() {
         // Action-specific test execution dispatch
         switch (action) {
           case 'handle_rpc':
-            validateRpcTestCase(testCase);
+            await validateRpcTestCase(testCase);
             break;
           case 'select_catalog':
             validateSelectCatalogTestCase(testCase);
@@ -261,10 +261,154 @@ function runConformanceHarness() {
   }
 }
 
-function validateRpcTestCase(testCase) {
+async function validateRpcTestCase(testCase) {
   const {args, expect} = testCase;
   if (!args) throw new Error('handle_rpc test requires "args" object.');
   if (!expect) throw new Error('handle_rpc test requires "expect" object.');
+
+  const message = args.message;
+  const outboundCall = args.outboundCall;
+  const inboundResponse = args.inboundResponse;
+  const fnMetadata = args.functionMetadata || {};
+  const userActivation = Boolean(args.userActivationPresent);
+
+  const funcs = [];
+  for (const [fnName, meta] of Object.entries(fnMetadata)) {
+    const allowed = meta.allowedCallers || 'rendererOrAgent';
+    const requiresActivation = Boolean(meta.requiresUserActivation);
+
+    const execute = () => {
+      if (fnName === 'playMedia') {
+        return {playing: true, timestamp: 0};
+      } else if (fnName === 'openExternalUrl') {
+        return {opened: true};
+      } else if (fnName === 'syncState') {
+        return null;
+      } else if (fnName === 'failingFunction') {
+        throw new Error('An error occurred during function execution.');
+      }
+      return null;
+    };
+
+    funcs.push(
+      createFunctionImplementation(
+        {
+          name: fnName,
+          returnType: 'any',
+          schema: z.record(z.string(), z.any()).optional().default({}),
+          allowedCallers: allowed,
+          requiresUserActivation: requiresActivation,
+        },
+        execute,
+      ),
+    );
+  }
+
+  let catId = args.catalogId;
+  if (!catId && message && message.callRendererFunction) {
+    const msgCatId = message.callRendererFunction.callFunction?.catalogId;
+    const expectErrMsg = expect.response?.rendererFunctionResponse?.error?.message || '';
+    if (!expectErrMsg.includes('Catalog not found')) {
+      catId = msgCatId;
+    }
+  }
+  if (!catId && outboundCall) {
+    catId = outboundCall.callFunction?.catalogId;
+  }
+  if (!catId) {
+    catId = 'basic';
+  }
+
+  const cat = new Catalog(catId, [], funcs, undefined, undefined, V10_CHILD_REF_OPTIONS);
+  let sentOutboundMsg;
+  const processor = new MessageProcessor([cat], undefined, {
+    version: 'v1.0',
+    outboundListener: msg => {
+      sentOutboundMsg = msg;
+    },
+  });
+
+  if (message) {
+    if (expect.error) {
+      assert.throws(
+        () => {
+          processor.processMessages(message);
+        },
+        err => {
+          if (expect.error.message) {
+            return err.message.includes(expect.error.message);
+          }
+          return true;
+        },
+      );
+    } else if ('response' in expect) {
+      const expectResp = expect.response;
+      const responses = await processor.processMessagesAsync(message, {
+        isUserActivated: userActivation,
+      });
+      if (expectResp === null) {
+        assert.strictEqual(responses.length, 0);
+      } else {
+        assert.strictEqual(responses.length, 1);
+        const actual = responses[0];
+        assert.strictEqual(actual.version, expectResp.version);
+        if (expectResp.rendererFunctionResponse.value !== undefined) {
+          assert.deepStrictEqual(
+            actual.rendererFunctionResponse.value,
+            expectResp.rendererFunctionResponse.value,
+          );
+          assert.strictEqual(
+            actual.rendererFunctionResponse.functionCallId,
+            expectResp.rendererFunctionResponse.functionCallId,
+          );
+        }
+        if (expectResp.rendererFunctionResponse.error) {
+          assert.strictEqual(
+            actual.rendererFunctionResponse.functionCallId,
+            expectResp.rendererFunctionResponse.functionCallId,
+          );
+          assert.strictEqual(
+            actual.rendererFunctionResponse.error?.code,
+            expectResp.rendererFunctionResponse.error.code,
+          );
+          if (expectResp.rendererFunctionResponse.error.message) {
+            assert.strictEqual(
+              actual.rendererFunctionResponse.error?.message,
+              expectResp.rendererFunctionResponse.error.message,
+            );
+          }
+        }
+      }
+    }
+  }
+
+  if (outboundCall && inboundResponse) {
+    const correlatedId = expect.correlatedCallId;
+    assert.strictEqual(inboundResponse.agentFunctionResponse.functionCallId, correlatedId);
+
+    const outboundPromise = processor.callAgentFunction(
+      outboundCall.surfaceId,
+      {
+        call: outboundCall.callFunction.call,
+        catalogId: outboundCall.callFunction.catalogId,
+        args: outboundCall.callFunction.args,
+      },
+      {
+        functionCallId: outboundCall.functionCallId,
+      },
+    );
+
+    assert.ok(sentOutboundMsg, 'Expected outbound message to be dispatched to outbound listener');
+    assert.strictEqual(sentOutboundMsg.callAgentFunction.functionCallId, correlatedId);
+    assert.strictEqual(
+      sentOutboundMsg.callAgentFunction.callFunction.call,
+      outboundCall.callFunction.call,
+    );
+
+    processor.processMessages(inboundResponse);
+    const result = await outboundPromise;
+    assert.deepStrictEqual(result, expect.result);
+  }
 }
 
 function validateSelectCatalogTestCase(testCase) {
@@ -758,4 +902,4 @@ function validateGenericTestCase(testCase) {
   }
 }
 
-runConformanceHarness();
+await runConformanceHarness();

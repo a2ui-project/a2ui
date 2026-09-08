@@ -26,9 +26,10 @@
             dataModel:
               email: "invalid-email-address"
             components:
-              - id: input
+              - id: root
                 component: TextField
-                text:
+                label: "Email"
+                value:
                   path: "/email"
                 checks:
                   - condition:
@@ -40,7 +41,7 @@
     surfaces:
       form_surface:
         validationResult:
-          input:
+          root:
             valid: false
             code: "INVALID_EMAIL"
             message: "Please enter a valid email address (e.g. user@example.com)."
@@ -60,9 +61,10 @@
             dataModel:
               age: 15
             components:
-              - id: input
+              - id: root
                 component: TextField
-                text:
+                label: "Age"
+                value:
                   path: "/age"
                 checks:
                   - condition:
@@ -76,7 +78,7 @@
     surfaces:
       form_surface:
         validationResult:
-          input:
+          root:
             valid: false
             message: "Must be 18 or older."
             severity: "error"

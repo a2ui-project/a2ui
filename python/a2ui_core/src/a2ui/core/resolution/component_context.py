@@ -14,7 +14,9 @@
 
 from typing import Any, Callable
 from ..catalog.catalog import TComponent, TFunction
-from ..state import ComponentModel, SurfaceComponentsModel, SurfaceModel
+from ..state.component_model import ComponentModel
+from ..state.surface_components_model import SurfaceComponentsModel
+from ..state.surface_model import SurfaceModel
 from .data_context import DataContext
 
 

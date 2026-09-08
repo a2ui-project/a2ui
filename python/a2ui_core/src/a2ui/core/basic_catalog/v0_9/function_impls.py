@@ -16,7 +16,7 @@ import datetime
 import math
 import re
 from typing import Any
-from ...rendering.data_context import DataContext
+from ...resolution.data_context import DataContext
 from ...common.events import AbortSignal
 from ...catalog.functions import (
     FunctionImplementation,

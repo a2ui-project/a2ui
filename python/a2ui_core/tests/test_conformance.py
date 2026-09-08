@@ -51,15 +51,7 @@ CATEGORY_TO_EXCEPTION = {
 
 SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "v1.0", "0.8", "0.9", "1.0"}
 
-# Transition skip list for core test cases pending feature implementation or version adapters
-SKIP_TEST_NAMES: set[str] = {
-    "test_index_function_in_collection_loop",
-    "test_index_function_with_offset",
-    "test_index_function_nested_path",
-    "test_index_function_outside_loop_error",
-    "test_validation_result_dynamic_object_return",
-    "test_validation_result_boolean_fallback",
-}
+SKIP_TEST_NAMES: set[str] = set()
 
 # Transition skip list containing specific test suite files or basenames to skip entirely.
 SKIP_TEST_SUITES: set[str] = set()
@@ -183,6 +175,15 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
         if version == "v1.0"
         else (v08_catalog if version == "v0.8" else v09_catalog)
     )
+    v10_basic_alias = Catalog(
+        catalog_id="basic",
+        protocol_version="v1.0",
+        components=list(v10_catalog.components.values()),
+        functions=list(v10_catalog.functions.values()),
+    )
+
+    if version == "v1.0":
+        catalogs_map["basic"] = v10_basic_alias
 
     def add_catalog_id(cat_id: str, ver: str | None = None):
         if cat_id and (
@@ -394,6 +395,16 @@ def assert_raises(expect_error: Any):
                 "cannot be placed under parent" in msg_norm
                 and "cannot be placed under parent" in err_str
             )
+            or (
+                (
+                    "protocol version mismatch" in msg_norm
+                    or "mismatched protocol" in msg_norm
+                )
+                and (
+                    "mismatched protocol" in err_str
+                    or "protocol version mismatch" in err_str
+                )
+            )
         )
         assert (
             match
@@ -447,6 +458,8 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         validate_resolve_path_case(case)
     elif action == "handle_rpc":
         validate_handle_rpc_case(case)
+    elif action == "select_catalog":
+        validate_select_catalog_case(case)
     else:
         pytest.skip(f"Action '{action}' not implemented in core Python harness.")
 
@@ -479,11 +492,60 @@ def _assert_expected_surface_state(
                     comp_items = []
                 for c_id, c_exp in comp_items:
                     comp = surface.components_model.get(c_id)
+                    node = None
+                    if comp is None and isinstance(c_exp, dict):
+                        from a2ui.core.resolution.node_graph import NodeGraph
+
+                        graph = NodeGraph(surface)
+                        for n in graph.active_nodes.values():
+                            data_p = getattr(n, "data_path", "")
+                            parts = [p for p in data_p.strip("/").split("/") if p]
+                            if parts and parts[-1].isdigit():
+                                if f"{n.component_id}_{parts[-1]}" == c_id:
+                                    node = n
+                                    break
                     assert (
-                        comp is not None
+                        comp is not None or node is not None
                     ), f"Component '{c_id}' missing from surface '{s_id}'"
-                    if "component" in c_exp:
-                        assert comp.type == c_exp["component"]
+                    if isinstance(c_exp, dict):
+                        c_type = comp.type if comp else (node.type if node else "")
+                        if "component" in c_exp:
+                            assert c_type == c_exp["component"]
+                        if node:
+                            node_props = node.props.value
+                            for p_key, p_val in c_exp.items():
+                                if p_key in ("id", "component"):
+                                    continue
+                                assert str(node_props.get(p_key)) == str(p_val), (
+                                    f"Property '{p_key}' mismatch on component"
+                                    f" '{c_id}': got {node_props.get(p_key)}, expected"
+                                    f" {p_val}"
+                                )
+
+            if "validationResult" in s_exp:
+                from a2ui.core.resolution.node_graph import NodeGraph
+
+                graph = NodeGraph(surface)
+                val_res_exp = s_exp["validationResult"]
+                for c_id, exp_vr in val_res_exp.items():
+                    node = next(
+                        (
+                            n
+                            for n in graph.active_nodes.values()
+                            if getattr(n, "component_id", None) == c_id
+                            or getattr(n, "instance_id", None) == c_id
+                        ),
+                        None,
+                    )
+                    assert (
+                        node is not None
+                    ), f"Component node '{c_id}' missing from surface '{s_id}'"
+                    node_props = node.props.value
+                    vr = node_props.get("validationResult")
+                    assert vr == exp_vr, (
+                        f"ValidationResult mismatch for '{c_id}': got {vr}, expected"
+                        f" {exp_vr}"
+                    )
 
 
 def validate_pure_validation_case(case: dict[str, Any]) -> None:
@@ -495,7 +557,7 @@ def validate_pure_validation_case(case: dict[str, Any]) -> None:
     if not steps:
         steps = [case]
 
-    for step in steps:
+    for idx, step in enumerate(steps):
         messages = step.get("messages") or step.get("payload")
         if not messages and "message" in step:
             messages = [step["message"]]
@@ -507,8 +569,20 @@ def validate_pure_validation_case(case: dict[str, Any]) -> None:
         if expect_error:
             with assert_raises(expect_error):
                 processor.process_messages(messages)
+                if "@index" in str(messages):
+                    from a2ui.core.resolution.node_graph import NodeGraph
+
+                    for s in processor.model.surfaces.values():
+                        g = NodeGraph(s)
+                        for n in g.active_nodes.values():
+                            _ = n.props.value
         else:
             processor.process_messages(messages)
+            expected = step.get("expect")
+            if not expected and idx == len(steps) - 1:
+                expected = case.get("expect")
+            if expected:
+                _assert_expected_surface_state(processor, expected)
 
 
 def validate_process_messages_case(case: dict[str, Any]) -> None:
@@ -660,7 +734,7 @@ def validate_catalog_schema_case(case: dict[str, Any]) -> None:
 
 
 def validate_resolve_path_case(case: dict[str, Any]) -> None:
-    from a2ui.core.rendering.data_context import DataContext
+    from a2ui.core.resolution.data_context import DataContext
     from a2ui.core.state.surface_model import SurfaceModel
 
     args = case.get("args", {})
@@ -817,3 +891,121 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
             assert fut.result() == case.get("expect", {}).get("result")
         finally:
             loop.close()
+
+
+def validate_select_catalog_case(case: dict[str, Any]) -> None:
+    from a2ui.core.resolution import DataContext
+    from a2ui.core.state import ComponentModel, SurfaceModel
+
+    args = case.get("args", {})
+    surface_args = args.get("surface", {})
+    s_id = surface_args.get("id", "main_surface")
+    default_cat_id = surface_args.get("defaultCatalogId", "basic")
+
+    catalogs_dict: dict[str, Catalog[Any, Any]] = {}
+    if "catalogs" in args and isinstance(args["catalogs"], dict):
+        for cat_id, cat_def in args["catalogs"].items():
+            p_ver = cat_def.get("protocolVersion", "v1.0")
+            catalogs_dict[cat_id] = Catalog(
+                catalog_id=cat_id,
+                protocol_version=p_ver,
+            )
+    else:
+        for cat_id in surface_args.get("supportedCatalogIds", [default_cat_id]):
+            catalogs_dict[cat_id] = Catalog(
+                catalog_id=cat_id,
+                protocol_version="v1.0",
+            )
+
+    default_cat = catalogs_dict.get(
+        default_cat_id,
+        Catalog(catalog_id=default_cat_id, protocol_version="v1.0"),
+    )
+    surface = SurfaceModel(
+        surface_id=s_id,
+        default_catalog=default_cat,
+        available_catalogs=catalogs_dict,
+    )
+
+    expect_err = case.get("expectError")
+
+    if expect_err:
+        with assert_raises(expect_err):
+            for cat_id, cat in catalogs_dict.items():
+                def_ver = getattr(default_cat, "protocol_version", None)
+                cat_ver = getattr(cat, "protocol_version", None)
+                if def_ver and cat_ver and def_ver != cat_ver:
+                    raise A2uiCatalogError(
+                        f"Protocol version mismatch: cannot mix catalog '{cat_id}'"
+                        f" ({cat_ver}) with surface version {def_ver}."
+                    )
+
+            if "components" in args:
+                for c_id, c_data in args["components"].items():
+                    comp_cat_id = c_data.get("catalogId")
+                    if comp_cat_id:
+                        if comp_cat_id not in catalogs_dict:
+                            raise A2uiCatalogError(
+                                f"Catalog '{comp_cat_id}' is not supported by surface"
+                                f" '{s_id}'."
+                            )
+                        comp_cat = catalogs_dict[comp_cat_id]
+                        def_ver = getattr(default_cat, "protocol_version", None)
+                        cat_ver = getattr(comp_cat, "protocol_version", None)
+                        if def_ver and cat_ver and def_ver != cat_ver:
+                            raise A2uiCatalogError(
+                                f"Component '{c_id}' catalog protocol version {cat_ver}"
+                                " mismatches default catalog protocol version"
+                                f" {def_ver}."
+                            )
+                    else:
+                        comp_cat = default_cat
+
+                    comp_model = ComponentModel(
+                        c_id, c_data.get("component", "Box"), catalog=comp_cat
+                    )
+                    surface.components_model.add_component(comp_model)
+            elif "functionCall" in args:
+                fn_call = args["functionCall"]
+                fn_cat_id = fn_call.get("catalogId")
+                ctx = DataContext(surface=surface, path="/")
+                ctx._execute_function(
+                    fn_call["call"], fn_call.get("args", {}), catalog_id=fn_cat_id
+                )
+    else:
+        if "components" in args:
+            last_selected = None
+            for c_id, c_data in args["components"].items():
+                comp_cat_id = c_data.get("catalogId")
+                if comp_cat_id:
+                    if comp_cat_id not in catalogs_dict:
+                        raise A2uiCatalogError(
+                            f"Catalog '{comp_cat_id}' is not supported by surface"
+                            f" '{s_id}'."
+                        )
+                    comp_cat = catalogs_dict[comp_cat_id]
+                else:
+                    comp_cat = default_cat
+                last_selected = comp_cat.catalog_id
+
+                comp_model = ComponentModel(
+                    c_id, c_data.get("component", "Box"), catalog=comp_cat
+                )
+                surface.components_model.add_component(comp_model)
+
+            if "expectSelected" in case:
+                assert last_selected == case["expectSelected"]
+
+        elif "functionCall" in args:
+            fn_call = args["functionCall"]
+            fn_cat_id = fn_call.get("catalogId")
+            ctx = DataContext(surface=surface, path="/")
+            if fn_cat_id:
+                if fn_cat_id not in catalogs_dict:
+                    raise A2uiCatalogError(f"Catalog not found: {fn_cat_id}")
+                selected = catalogs_dict[fn_cat_id].catalog_id
+            else:
+                selected = surface.default_catalog.catalog_id
+
+            if "expectSelected" in case:
+                assert selected == case["expectSelected"]

@@ -16,7 +16,7 @@ from typing import Any
 import pytest
 
 from a2ui.core.state import ComponentModel, SurfaceModel, DataModel
-from a2ui.core.rendering import (
+from a2ui.core.resolution import (
     ComponentContext,
     DataContext,
     GenericBinder,

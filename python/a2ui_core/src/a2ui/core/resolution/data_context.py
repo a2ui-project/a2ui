@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import copy
 import inspect
 import re
 import warnings
 from typing import Any, Callable, Generic
-from ..catalog.catalog import TComponent, TFunction
+from ..catalog.catalog import Catalog, TComponent, TFunction
 from ..state import DataModel
 from ..state.surface_model import SurfaceModel
 from ..validation.payload_validator import PayloadValidator
@@ -39,22 +41,43 @@ class DataContext(Generic[TComponent, TFunction]):
         self,
         surface: SurfaceModel[TComponent, TFunction],
         path: str = "/",
+        index: int | None = None,
+        parent: DataContext[TComponent, TFunction] | None = None,
     ):
         self.surface = surface
         self.path = path if path.endswith("/") else f"{path}/"
         self.data_model = surface.data_model
+        self._index = index
+        self.parent = parent
 
     @property
     def locale(self) -> str | None:
         """Gets the locale for this context, inherited from the surface."""
         return getattr(self.surface, "locale", None)
 
-    def nested(self, relative_path: str) -> "DataContext[TComponent, TFunction]":
+    @property
+    def index(self) -> int | None:
+        """Returns active iteration index if inside a collection template scope, or None."""
+        ctx: DataContext | None = self
+        while ctx is not None:
+            if ctx._index is not None:
+                return ctx._index
+            parts = [p for p in ctx.path.strip("/").split("/") if p]
+            if parts and parts[-1].isdigit():
+                return int(parts[-1])
+            ctx = ctx.parent
+        return None
+
+    def nested(
+        self, relative_path: str, index: int | None = None
+    ) -> DataContext[TComponent, TFunction]:
         """Creates a nested child context scope (e.g. for template item bindings)."""
         norm_rel = relative_path[1:] if relative_path.startswith("/") else relative_path
         return DataContext(
             surface=self.surface,
             path=f"{self.path}{norm_rel}",
+            index=index,
+            parent=self,
         )
 
     def resolve_path(self, absolute_or_relative: str) -> str:
@@ -106,7 +129,7 @@ class DataContext(Generic[TComponent, TFunction]):
 
             return self.data_model.get(resolved_path)
 
-        # 2. Handle Function Call binding dictionaries: {"call": "formatString", "args": {...}}
+        # 2. Handle Function Call binding dictionaries: {"call": "formatString", "args": {...}, "catalogId": "..."}
         if (
             isinstance(value, dict)
             and "call" in value
@@ -114,13 +137,14 @@ class DataContext(Generic[TComponent, TFunction]):
         ):
             func_name = value["call"]
             raw_args = value.get("args", {})
+            cat_id = value.get("catalogId") or value.get("catalog_id")
 
             # Recursively resolve function arguments first
             resolved_args = self.resolve_dynamic_value(
                 raw_args, peek=True, abort_signal=abort_signal
             )
             res = self._execute_function(
-                func_name, resolved_args, abort_signal=abort_signal
+                func_name, resolved_args, catalog_id=cat_id, abort_signal=abort_signal
             )
             return self._peek_value(res) if peek else res
 
@@ -262,68 +286,64 @@ class DataContext(Generic[TComponent, TFunction]):
         self,
         name: str,
         resolved_args: dict[str, Any],
+        catalog_id: str | None = None,
         abort_signal: AbortSignal | None = None,
     ) -> Any:
-        catalogs_dict = {
-            "_default": self.surface.default_catalog,
-            **self.surface.catalogs,
-        }
-        active_catalogs = set(dict.fromkeys(catalogs_dict.values()))
-        if active_catalogs:
-            try:
-                validated = False
-                last_err = None
-                for cat in active_catalogs:
-                    try:
-                        PayloadValidator(catalog=cat).validate_function(
-                            name, resolved_args
-                        )
-                        validated = True
-                        break
-                    except Exception as err:
-                        last_err = err
-                if not validated and last_err:
-                    raise last_err
-            except Exception as e:
-                if self.surface and hasattr(self.surface, "dispatch_error"):
-                    self.surface.dispatch_error({
-                        "code": "EXPRESSION_ERROR",
-                        "message": str(e),
-                        "expression": name,
-                    })
-                    return None
-                else:
-                    raise
+        from ..exceptions import A2uiCatalogError, A2uiValidationError
 
-            fn = None
-            for cat in active_catalogs:
-                if hasattr(cat, "get_function"):
-                    f = cat.get_function(name)
-                    if f is not None:
-                        fn = f
-                        break
+        target_catalog: Catalog[TComponent, TFunction] | None = None
+        if catalog_id is not None:
+            target_catalog = self.surface.available_catalogs.get(catalog_id)
+            if not target_catalog:
+                raise A2uiCatalogError(f"Catalog not found: {catalog_id}")
+        else:
+            target_catalog = self.surface.default_catalog
 
-            if fn is not None:
-                try:
-                    if hasattr(fn, "execute") and callable(fn.execute):
-                        res = fn.execute(resolved_args, self, abort_signal)
-                    elif hasattr(fn, "execute_func") and callable(fn.execute_func):
-                        res = fn.execute_func(resolved_args, self, abort_signal)
-                    elif callable(fn):
-                        res = fn(resolved_args, self, abort_signal)
-                    else:
-                        res = None
+        try:
+            PayloadValidator(catalog=target_catalog).validate_function(
+                name, resolved_args
+            )
+        except Exception as e:
+            if self.surface and hasattr(self.surface, "dispatch_error"):
+                self.surface.dispatch_error({
+                    "code": "EXPRESSION_ERROR",
+                    "message": str(e),
+                    "expression": name,
+                })
+                return None
+            else:
+                raise
 
-                    if res is not None:
-                        return res
-                except Exception as e:
-                    if self.surface and hasattr(self.surface, "dispatch_error"):
-                        self.surface.dispatch_error({
-                            "code": "EXPRESSION_ERROR",
-                            "message": str(e),
-                            "expression": name,
-                        })
-                    else:
-                        raise
+        fn = (
+            target_catalog.get_function(name)
+            if hasattr(target_catalog, "get_function")
+            else None
+        )
+        if fn is None:
+            raise A2uiCatalogError(
+                f"Function '{name}' not found in catalog '{target_catalog.catalog_id}'."
+            )
 
-        return None
+        try:
+            if hasattr(fn, "execute") and callable(fn.execute):
+                res = fn.execute(resolved_args, self, abort_signal)
+            elif hasattr(fn, "execute_func") and callable(fn.execute_func):
+                res = fn.execute_func(resolved_args, self, abort_signal)
+            elif callable(fn):
+                res = fn(resolved_args, self, abort_signal)
+            else:
+                res = None
+
+            return res
+        except Exception as e:
+            if isinstance(e, (A2uiCatalogError, A2uiValidationError)):
+                raise
+            if self.surface and hasattr(self.surface, "dispatch_error"):
+                self.surface.dispatch_error({
+                    "code": "EXPRESSION_ERROR",
+                    "message": str(e),
+                    "expression": name,
+                })
+                return None
+            else:
+                raise

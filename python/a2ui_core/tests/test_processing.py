@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 
 from a2ui.core.processing import MessageProcessor
 from a2ui.core.validation import STRICT_VALIDATION, ValidationConfig
-from a2ui.core.rendering import (
+from a2ui.core.resolution import (
     DataContext,
     ComponentContext,
     GenericBinder,
@@ -33,6 +33,7 @@ from a2ui.core.catalog import (
     FunctionImplementation,
     ModelComponentApi,
 )
+from a2ui.core.exceptions import A2uiCatalogError
 from a2ui.core.schema.v0_9.constants import PROTOCOL_VERSION
 
 
@@ -41,6 +42,7 @@ def mock_catalog():
     class MockCatalog:
 
         def __init__(self):
+            self.protocol_version = PROTOCOL_VERSION
             self.version = PROTOCOL_VERSION
             self.catalog_id = "https://a2ui.org/mock.json"
             self.catalog_schema = {"components": {}}
@@ -81,6 +83,101 @@ def test_message_processor_surface_lifecycle(mock_catalog):
     assert surface.id == "surface_1"
     assert surface.theme == {"primaryColor": "red"}
     assert surface.send_data_model is True
+
+
+def test_message_processor_multi_catalog_surface_propagation():
+    cat1 = Catalog(catalog_id="cat1", protocol_version="v1.0", components=[])
+    cat2 = Catalog(catalog_id="cat2", protocol_version="v1.0", components=[])
+    processor = MessageProcessor(catalogs=[cat1, cat2])
+
+    create_msg = {
+        "version": "v1.0",
+        "createSurface": {
+            "surfaceId": "surface_multi",
+            "catalogId": "cat1",
+        },
+    }
+    processor.process_messages([create_msg])
+
+    surface = processor.model.get_surface("surface_multi")
+    assert surface is not None
+    assert surface.available_catalogs == {"cat1": cat1, "cat2": cat2}
+
+
+def test_message_processor_mismatched_catalog_versions_on_component_add():
+    cat_v10 = Catalog(catalog_id="cat_v10", protocol_version="v1.0", components=[])
+    cat_v09 = Catalog(catalog_id="cat_v09", protocol_version="v0.9", components=[])
+    processor = MessageProcessor(catalogs=[cat_v10, cat_v09])
+
+    create_msg = {
+        "version": "v1.0",
+        "createSurface": {
+            "surfaceId": "surface_mismatch",
+            "catalogId": "cat_v10",
+        },
+    }
+    processor.process_messages([create_msg])
+
+    update_msg = {
+        "version": "v1.0",
+        "updateComponents": {
+            "surfaceId": "surface_mismatch",
+            "components": [{
+                "id": "root",
+                "component": "Card",
+                "catalogId": "cat_v09",
+            }],
+        },
+    }
+    with pytest.raises(A2uiCatalogError) as exc_info:
+        processor.process_messages([update_msg])
+    assert "different protocol version" in str(exc_info.value)
+
+
+def test_component_update_resets_catalog_to_default_when_omitted():
+    cat_default = Catalog(
+        catalog_id="cat_default", protocol_version="v1.0", components=[]
+    )
+    cat_custom = Catalog(
+        catalog_id="cat_custom", protocol_version="v1.0", components=[]
+    )
+    processor = MessageProcessor(catalogs=[cat_default, cat_custom])
+
+    create_msg = {
+        "version": "v1.0",
+        "createSurface": {
+            "surfaceId": "s_catalog_reset",
+            "catalogId": "cat_default",
+            "components": [{
+                "id": "btn",
+                "component": "Button",
+                "catalogId": "cat_custom",
+            }],
+        },
+    }
+    processor.process_messages([create_msg])
+
+    surface = processor.model.get_surface("s_catalog_reset")
+    assert surface is not None
+    comp = surface.components_model.get("btn")
+    assert comp is not None
+    assert comp.catalog == cat_custom
+
+    update_msg = {
+        "version": "v1.0",
+        "updateComponents": {
+            "surfaceId": "s_catalog_reset",
+            "components": [{
+                "id": "btn",
+                "label": "Click me",
+            }],
+        },
+    }
+    processor.process_messages([update_msg])
+
+    comp_updated = surface.components_model.get("btn")
+    assert comp_updated is not None
+    assert comp_updated.catalog == cat_default
 
     # 2. Delete surface
     delete_msg = {
