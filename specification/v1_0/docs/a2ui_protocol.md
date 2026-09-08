@@ -564,7 +564,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
    - All helper properties (such as common properties factored out of catalog items) MUST be inlined directly inside the properties block of each supporting component schema rather than referenced from a shared helper.
 3. **Restricted `$ref` Targets:**
    - Local `$ref` targets are restricted to referencing the catalog's top-level components or functions (e.g., `#/components/Text`, `#/functions/required`).
-   - External `$ref` targets MUST reference the standard types inside `common_types.json` using the version-agnostic relative target format (`common_types.json#/$defs/...`). Catalog definitions MUST NOT constrain themselves to a specific protocol version (omit `protocolVersion`). Allowed `$ref` targets are limited to the following schemas:
+   - External `$ref` targets MUST reference the standard types inside `common_types.json` using the relative target format (`common_types.json#/$defs/...`). Allowed `$ref` targets are limited to the following schemas:
      - `ComponentId`
      - `ChildList`
      - `DynamicString`
@@ -576,6 +576,11 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `CheckRule`
      - `Checkable`
      - `Action`
+
+   > [!NOTE]
+   > **Catalog Evolution and Protocol Compatibility**
+   > While there are breaking changes to the catalog API between v0.9 and v1.0, v1.0 catalog definitions reference standard types using relative paths (`common_types.json#/$defs/<TypeName>`). This design allows v1.0 catalogs to work with future protocol versions (such as v1.1) without rewriting the catalog.
+
 4. **Component Discriminator Rule:**
    - Every component schema defined inside the `components` map must have a required property named `component` whose value is a constant (`const`) matching the key under which it is defined.
    - Example: The component defined at `components.Text` must declare:

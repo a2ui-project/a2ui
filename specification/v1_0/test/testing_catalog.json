@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://a2ui.org/specification/v1_0/testing_catalog.json",
+  "protocolVersion": "1.0",
   "title": "A2UI Testing Catalog",
   "description": "Catalog for testing purposes.",
   "catalogId": "https://a2ui.org/specification/v1_0/testing_catalog.json",

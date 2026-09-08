@@ -50,6 +50,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Refactored component definitions in `catalogs/basic/catalog.json` from `allOf: [ComponentCommon, ...]` and `unevaluatedProperties: false` to direct explicit property definitions (including explicit `component` const and `weight` props) or `$defs/Checkable`.
 - Added an optional `instructions` field to the `Catalog` schema (`catalogs/basic/catalog.json`) to embed Markdown guidelines/rules directly, replacing the external `rules.txt` file.
 - Updated return types on standard validation check functions (`required`, `regex`, `length`, `numeric`, `email`) in `catalogs/basic/catalog.json` from `"boolean"` to `"validationResult"`.
+- Updated external references to standard types in `catalogs/basic/catalog.json` to use relative paths (`common_types.json#/$defs/...`) instead of version-qualified URLs.
 - Removed `$defs/theme` from the basic catalog.
 
 ### 2.3. Agent-to-renderer messages
@@ -144,3 +145,10 @@ This section outlines the steps required to migrate existing applications and co
 - Support built-in `@index` evaluation during list template rendering (Collection Scope) to provide the 0-based iteration index, adjusted by any `offset` parameter.
 - Support dynamic `ValidationResult` objects (`valid`, `code`, `message`, `severity`) returned by component validation check conditions, falling back to static `CheckRule.message` if present.
 - Rename all references, constants, and endpoints mapping to `client_to_server.json` or `client_capabilities.json` to use `renderer_to_agent.json` and `renderer_capabilities.json`.
+
+### For catalog authors
+
+- **Set catalog protocol version**: Catalogs targeting v1.0 must specify `"protocolVersion": "1.0"` in the catalog root.
+- **Use relative standard type references**: Replace version-qualified schema URLs (`https://a2ui.org/specification/v1_0/common_types.json#/$defs/...`) with unversioned relative targets (`common_types.json#/$defs/...`).
+- **Breaking changes from v0.9 to v1.0**: Catalogs authored for v0.9 cannot be used directly with v1.0 protocol runtimes due to breaking structural changes (such as composing `ComponentCommon` at the envelope level, returning `ValidationResult` objects from check functions, and declaring caller and composition constraints).
+- **Future forward compatibility**: Using unversioned relative references in v1.0 catalogs allows them to work with future protocol versions (such as v1.1) without requiring catalog authors to rewrite `$ref` URLs.
