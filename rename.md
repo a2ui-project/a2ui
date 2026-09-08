@@ -9,7 +9,18 @@ The A2UI SDK API uses the words `payload`, `message` and `request` in ways that 
 - model to agent
 - agent to renderer
 
-This proposal names every envelope by its direction: `RendererToAgentRequest`, `AgentToModelRequest`, `ModelToAgentResponse` and `AgentToRendererResponse`. `A2uiMessage` becomes `AgentToRendererResponse`, `MessageProcessor` becomes `AgentToRendererProcessor`, and `A2uiValidator` becomes `AgentToRendererValidator`.
+This proposal names every envelope by its direction: 
+
+- `RendererToAgentRequest`
+- `AgentToModelRequest`
+- `ModelToAgentResponse`
+- `AgentToRendererResponse`
+
+As a result:
+
+- `A2uiMessage` becomes `AgentToRendererResponse`
+- `MessageProcessor` becomes `AgentToRendererProcessor`
+- `A2uiValidator` becomes `AgentToRendererValidator`
 
 The published v0.9 and v0.9.1 schemas are out of scope, because renaming them would break every published renderer and agent. The SDK code that reads them is in scope, and so is `specification/v1_0/`.
 
