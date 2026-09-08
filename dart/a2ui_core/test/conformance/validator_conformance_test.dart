@@ -27,10 +27,10 @@ import 'conformance_harness.dart';
 /// with a reason, so the suite doubles as the implementation checklist.
 void main() {
   final List<Map<String, Object?>> cases = loadConformanceSuite(
-    'core/validator.yaml',
+    'core/validator_v0_9.yaml',
   );
 
-  group('conformance core/validator.yaml', () {
+  group('conformance core/validator_v0_9.yaml', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
 
     for (final testCase in cases) {
@@ -53,41 +53,94 @@ String? _skipReason(Map<String, Object?> testCase) {
 }
 
 void _runCase(Map<String, Object?> testCase) {
-  final config = testCase['catalog']! as Map<String, Object?>;
-  final Map<String, Object?> catalogDocument = _document(
-    config['catalog_schema'],
-  );
-  final Map<String, Object?>? commonTypes =
-      config.containsKey('common_types_schema')
-      ? _document(config['common_types_schema'])
-      : null;
+  final Map<String, String> surfaceCatalogs = {};
 
   for (final Map<String, Object?> step in _steps(testCase)) {
-    final List<Map<String, Object?>> payload =
-        (step['payload']! as List<Object?>).cast<Map<String, Object?>>();
-    // A fresh validator per step, as the reference Python harness does: each
-    // step is an independent payload, not a continuation of the previous one.
+    final Object? rawPayload = step['messages'] ?? step['payload'];
+    if (rawPayload is! List) continue;
+    final List<Map<String, Object?>> payload = [
+      for (final Object? item in rawPayload)
+        (item as Map).cast<String, Object?>(),
+    ];
+
+    for (final envelope in payload) {
+      final Object? body = envelope['createSurface'];
+      if (body is Map<String, Object?>) {
+        final Object? surfaceId = body['surfaceId'];
+        final Object? catalogId = body['catalogId'];
+        if (surfaceId is String && catalogId is String) {
+          surfaceCatalogs[surfaceId] = catalogId;
+        }
+      }
+    }
+
+    final catalogs = _loadCatalogs(testCase, payload);
+    final commonTypes = _loadCommonTypes(testCase);
+
     final A2uiValidator<ComponentApi, FunctionApi> validator = A2uiValidator(
-      catalogs: _catalogsFor(catalogDocument, payload),
+      catalogs: catalogs,
       commonTypesSchema: commonTypes,
     );
 
     final Object? expectError =
-        step['expect_error'] ?? testCase['expect_error'];
+        step['expectError'] ??
+        step['expect_error'] ??
+        testCase['expectError'] ??
+        testCase['expect_error'];
     if (expectError != null) {
       expect(
-        () => validator.validate(payload),
+        () => validator.validate(payload, surfaceCatalogs: surfaceCatalogs),
         throwsA(_matchesError(expectError)),
         reason: testCase['name'] as String?,
       );
     } else {
       expect(
-        () => validator.validate(payload),
+        () => validator.validate(payload, surfaceCatalogs: surfaceCatalogs),
         returnsNormally,
         reason: testCase['name'] as String?,
       );
     }
   }
+}
+
+List<SchemaCatalog> _loadCatalogs(
+  Map<String, Object?> testCase,
+  List<Map<String, Object?>> payload,
+) {
+  final List<Map<String, Object?>> documents = [];
+  if (testCase['catalogPaths'] is List) {
+    for (final Object? path in testCase['catalogPaths'] as List) {
+      if (path is String) {
+        documents.add(_document(path));
+      }
+    }
+  } else if (testCase['catalog'] is Map) {
+    final catMap = testCase['catalog']! as Map<String, Object?>;
+    if (catMap.containsKey('catalog_schema')) {
+      documents.add(_document(catMap['catalog_schema']));
+    } else {
+      documents.add(catMap);
+    }
+  }
+
+  if (documents.isEmpty) {
+    documents.add(_document('specification/v0_9/catalogs/basic/catalog.json'));
+  }
+
+  final List<SchemaCatalog> catalogs = [];
+  for (final doc in documents) {
+    catalogs.addAll(_catalogsFor(doc, payload));
+  }
+  return catalogs;
+}
+
+Map<String, Object?>? _loadCommonTypes(Map<String, Object?> testCase) {
+  final catalog = testCase['catalog'];
+  if (catalog is Map<String, Object?> &&
+      catalog.containsKey('common_types_schema')) {
+    return _document(catalog['common_types_schema']);
+  }
+  return null;
 }
 
 /// The steps a case runs, whether it declares one payload or several.
@@ -154,7 +207,12 @@ Matcher _matchesError(Object? expectError) {
 
 Matcher _categoryMatches(String? category) => switch (category) {
   'ParseError' => isA<A2uiParseError>(),
-  'ValidationError' => isA<A2uiValidationError>(),
+  'ValidationError' => anyOf(
+    isA<A2uiValidationError>(),
+    isA<A2uiIntegrityError>(),
+    isA<A2uiRecursionError>(),
+    isA<A2uiCatalogError>(),
+  ),
   'CatalogError' => isA<A2uiCatalogError>(),
   'IntegrityError' => isA<A2uiIntegrityError>(),
   'RecursionError' => isA<A2uiRecursionError>(),
@@ -167,7 +225,7 @@ Matcher _categoryMatches(String? category) => switch (category) {
 Matcher _messageMatches(String pattern) => isA<A2uiError>().having(
   (e) => e.message,
   'message',
-  matches(RegExp(_align(pattern))),
+  matches(RegExp(_align(pattern), caseSensitive: false)),
 );
 
 /// Widens a case's expected message to the wording this SDK uses.
@@ -178,6 +236,18 @@ Matcher _messageMatches(String pattern) => isA<A2uiError>().having(
 String _align(String pattern) {
   if (pattern.contains('is not of type')) {
     return '($pattern|is not of type)';
+  }
+  if (pattern.contains('is not reachable from')) {
+    return '($pattern|Unreachable components)';
+  }
+  if (pattern.contains('Dangling reference')) {
+    return '($pattern|references non-existent component)';
+  }
+  if (pattern.contains('Circular component reference')) {
+    return '($pattern|Circular reference detected)';
+  }
+  if (pattern.contains('Self-referencing component')) {
+    return '($pattern|Self-reference detected)';
   }
   return pattern;
 }

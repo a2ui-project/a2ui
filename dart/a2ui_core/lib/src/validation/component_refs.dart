@@ -109,7 +109,8 @@ void _collectFrom(
       final name = property.key! as String;
       if (_selfDescribingProperties.contains(name)) continue;
       final Object? resolved = _resolve(property.value, node, document);
-      if (_marks(resolved, _componentIdPointer, node, document)) {
+      if (_marks(resolved, _componentIdPointer, node, document) ||
+          (name == 'child' && resolved is Map && resolved['type'] == 'string')) {
         single.add(name);
         continue;
       }
@@ -152,7 +153,8 @@ void _collectArrayProperty(
 
   final Object? items = _resolve(node['items'], owner, document);
   if (_marks(items, _componentIdPointer, owner, document) ||
-      _marks(items, _childListPointer, owner, document)) {
+      _marks(items, _childListPointer, owner, document) ||
+      (name == 'children' && items is Map && items['type'] == 'string')) {
     list.add(name);
     return;
   }

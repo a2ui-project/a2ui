@@ -51,6 +51,10 @@ String? _skipReason(Map<String, Object?> testCase) {
   if (version != null && version != '0.9') {
     return 'Targets protocol v$version; this SDK implements v0.9 only.';
   }
+  final Object? catalog = testCase['catalog'];
+  if (catalog is! Map<String, Object?> || !catalog.containsKey('catalog_schema')) {
+    return 'Case does not declare a catalog_schema document.';
+  }
   return null;
 }
 
