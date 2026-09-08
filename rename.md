@@ -68,7 +68,8 @@ Problem: this naming still requires to remember four combinations and guess whic
 
 ### Assumptions
 
-This proposal assumes https://github.com/a2ui-project/a2ui/pull/2538 to be merged.
+Concrete details in this proposal assume https://github.com/a2ui-project/a2ui/pull/2538 to be merged.
+The details will be adjusted to the actual state of the code at main at the time of execution.
 
 ### Naming rule
 
