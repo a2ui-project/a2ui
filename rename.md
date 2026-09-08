@@ -2,27 +2,27 @@
 
 ## **TL;DR**
 
-The A2UI SDK API uses the words `payload`, `message` and `request` in ways that do not clearly distinguish the four directions of interaction:
+The A2UI SDK API uses the words **payload/message/request** that requires significant mental effort to understand which type of interaction is under the question:
 
-- renderer to agent
-- agent to model
-- model to agent
+- renderer to agent  
+- agent to model  
+- model to agent  
 - agent to renderer
 
-This proposal names every envelope by its direction: 
+This proposal names every envelope by its direction:
 
-- `RendererToAgentRequest`
-- `AgentToModelRequest`
-- `ModelToAgentResponse`
-- `AgentToRendererResponse`
+- RendererToAgent(Request)  
+- AgentToModel(Request)  
+- ModelToAgent(Response)  
+- AgentToRenderer(Response)
 
 As a result:
 
-- `A2uiMessage` becomes `AgentToRendererResponse`
-- `MessageProcessor` becomes `AgentToRendererProcessor`
-- `A2uiValidator` becomes `AgentToRendererValidator`
+- A2uiMessage becomes AgentToRendererResponse  
+- MessageProcessor becomes AgentToRendererProcessor  
+- A2uiValidator becomes AgentToRendererValidator
 
-The published v0.9 and v0.9.1 schemas are out of scope, because renaming them would break every published renderer and agent. The SDK code that reads them is in scope, and so is `specification/v1_0/`.
+The published v0.9 and v0.9.1 schemas are out of scope, because renaming them would break every published renderer and agent. The SDK code that reads them is in scope, and so is specification/v1\_0/.
 
 ## **Background**
 
@@ -64,7 +64,7 @@ Specifically:
 
 Where sometimes postfix 'request'/'response' can be used instead of 'message' and 'payload', and sometimes dropped.
 
-This proposal does not invent a new vocabulary. It just suggests update for API.
+This proposal does not invent a new vocabulary. It just suggests an update for the API.
 
 ### Alternative considered
 
