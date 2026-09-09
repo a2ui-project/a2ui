@@ -398,7 +398,7 @@ struct AgentToRendererMessageTests {
   }
 
   @Test func protocolVersionDecoding() throws {
-    for version in ["v0.9", "v0.9.1", "v1.0", "0.9", "0.9.1", "1.0"] {
+    for version in ["v0.9", "v0.9.1", "v1.0"] {
       let json = """
         {
           "version": "\(version)",
@@ -413,7 +413,7 @@ struct AgentToRendererMessageTests {
       }
     }
 
-    for invalid in ["v0.8", "v2.0", "0.8", "invalid"] {
+    for invalid in ["v0.8", "v2.0", "0.9", "0.9.1", "1.0", "0.8", "invalid"] {
       let json = """
         {
           "version": "\(invalid)",
