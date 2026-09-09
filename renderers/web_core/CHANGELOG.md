@@ -1,5 +1,6 @@
 ## Unreleased
 
+- (v0_9) Restore exports of basic catalog style helpers and options (`injectBasicCatalogStyles`, `computeColorVariant`, `ColorVariantLightDarkOptions`, `ColorVariantHoverOptions`) from `@a2ui/web_core/v0_9`. [#2585](https://github.com/a2ui-project/a2ui/pull/2585)
 - (v0_9) Enforce the expression parser's nesting limit. The depth guard was unreachable, so deeply nested interpolations or function-call arguments recursed until the stack overflowed instead of raising `A2uiExpressionError`. ([#2492](https://github.com/a2ui-project/a2ui/pull/2492))
 - (v0_9) Add unit test coverage for all basic catalog Web Component implementations. [#2357](https://github.com/a2ui-project/a2ui/pull/2357)
 - (v0_9) Replace `A2uiLitElement.controller` property with a read-only getter to disallow external reassignment, simplify style root target resolution, and replace basic catalog barrel wildcard exports with explicit exports.
