@@ -136,9 +136,7 @@ class TestSkillGenerator(unittest.TestCase):
 
     def test_generate_with_explicit_catalogs_override(self):
         """Verifies methods accept explicit catalog arguments overriding format defaults."""
-        testing_catalog_path = os.path.join(
-            SPEC_DIR, "test", "testing_catalog.json"
-        )
+        testing_catalog_path = os.path.join(SPEC_DIR, "test", "testing_catalog.json")
         testing_catalog = A2uiCatalog.from_config(
             CatalogConfig.from_path("testing", testing_catalog_path)
         )
