@@ -49,7 +49,7 @@ graph TD
    - **Parsers**: Response extraction engines performing tag unwrapping (`unwrap`), streaming chunk processing (`parse_chunk`), syntax compilation (`compile`) and decompilation (`decompile`).
    - **Validation Layer**: Leverages core `A2uiValidator` capabilities directly from `a2ui_core`, natively supporting protocol version branching (`v0_8`, `v0_9`, `v0_9_1`, `v1_0`).
 2. **Encapsulated Application Processor**:
-   - `CatalogConfig`: Configuration dataclass encapsulating catalog providers (`BundledCatalogProvider`, `FileSystemCatalogProvider`, `InMemoryCatalogProvider`), custom transformers, and examples.
+   - `CatalogConfig`: Configuration dataclass encapsulating catalog providers (`FileSystemCatalogProvider`, `InMemoryCatalogProvider`), custom transformers, and examples.
    - `A2uiGenerator`: Agent-level lifecycle manager holding supported `CatalogConfig`s, generating pre-negotiated `A2uiRequestProcessor` instances per renderer capability signature.
    - `A2uiRequestProcessor`: Central processor facade object unifying multi-catalog capability resolution (`resolve_catalogs`), system prompt snippet rendering, turn-scoped parser creation, and response validation.
 
@@ -338,6 +338,12 @@ Validation is handled directly by `a2ui.core.validating.A2uiValidator` from the 
 - Deep structural checks (component uniqueness, root reachability, cyclic reference prevention, recursion depth caps).
 - Data binding JSON Pointer syntax validation.
 
+#### Surface state during validation
+
+`A2uiValidator` checks one outbound payload at a time, the agent-to-renderer messages the agent is about to send, with nothing else to compare it against. When that payload updates a surface it did not itself create, it carries no component tree, so a reference to a component the agent sent in an earlier payload cannot be checked and is accepted.
+
+An agent that runs `a2ui.core.processing.MessageProcessor` over its own outbound messages holds that tree. References then resolve against the components the surface already has, and cycles are found across the whole surface instead of one payload at a time. The renderer runs these same checks when the payload arrives, so an agent that runs them first catches a bad payload before sending it rather than after.
+
 ---
 
 ### E. Inference Format Facades (`a2ui.inference_format`)
@@ -393,21 +399,6 @@ class CatalogProvider(ABC):
     @abstractmethod
     def load(self) -> Catalog[TComponent, TFunction]:
         """Loads and returns a Catalog definition instance."""
-        pass
-
-class BundledCatalogProvider(CatalogProvider):
-    """Loads catalog schemas from bundled package resources for a specified protocol version."""
-
-    def __init__(self, protocol_version: ProtocolVersion):
-        """Initializes the bundled provider.
-
-        Args:
-            protocol_version: Protocol specification version string (e.g. 'v0.9.1', 'v1.0').
-        """
-        self.protocol_version = protocol_version
-
-    def load(self) -> Catalog[TComponent, TFunction]:
-        """Loads the bundled package catalog schema for protocol_version."""
         pass
 
 class FileSystemCatalogProvider(CatalogProvider):

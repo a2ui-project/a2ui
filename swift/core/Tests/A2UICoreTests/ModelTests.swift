@@ -294,6 +294,7 @@ final class Box<T>: @unchecked Sendable {
   init(_ value: T) { self.value = value }
 }
 
+@MainActor
 struct DataBindingTests {
 
   // MARK: - Path-based Binding

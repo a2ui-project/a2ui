@@ -106,6 +106,7 @@
       "files": [
         "src/**/*.ts",
         "src/**/*.json",
+        "tests/**/*.ts",
         "tsconfig.json"
       ],
       "output": [
@@ -128,6 +129,7 @@
       "files": [
         "src/**/*.ts",
         "src/**/*.json",
+        "tests/**/*.ts",
         "scripts/**/*.js",
         "package.json",
         "tsconfig.json"
@@ -138,6 +140,7 @@
       "files": [
         "src/**/*.ts",
         "src/**/*.json",
+        "tests/**/*.ts",
         "scripts/**/*.js",
         "package.json",
         "tsconfig.json"
@@ -157,7 +160,8 @@
     "jsdom": "^29.1.1",
     "rxjs": "^7.8.2",
     "typescript": "5.9.3",
-    "wireit": "^0.15.0-pre.2"
+    "wireit": "^0.15.0-pre.2",
+    "yaml": "^2.8.1"
   },
   "dependencies": {
     "@lit/context": "^1.1.6",

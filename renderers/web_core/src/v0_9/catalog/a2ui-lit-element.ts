@@ -56,16 +56,21 @@ export abstract class A2uiLitElement<Api extends ComponentApi = ComponentApi> ex
    */
   protected readonly api?: Api;
 
+  private _controller?: A2uiController<Api>;
+
   /**
    * The reactive controller instance managing property bindings and state subscriptions.
    */
-  public controller!: A2uiController<Api>;
+  public get controller(): A2uiController<Api> {
+    return this._controller!;
+  }
 
   /**
-   * Adopts and scopes component CSS rules into the containing document or shadow root.
+   * Adopts and scopes component CSS rules into the containing document or host shadow root.
    *
-   * When rendering in Light DOM, this method dynamically scopes `:host` selectors to the
-   * element's custom tag name and prefixes descendant rules to prevent stylesheet leakage.
+   * In Light DOM (the default for A2uiLitElement), the element has no shadow root of its own,
+   * so this method locates the nearest enclosing Document or ShadowRoot and adopts the
+   * stylesheet once per root, scoping `:host` and descendant selectors to the element's tagName.
    */
   protected adoptLightDomStyles() {
     if (typeof document === 'undefined') return;
@@ -147,11 +152,7 @@ export abstract class A2uiLitElement<Api extends ComponentApi = ComponentApi> ex
     }
 
     const target =
-      typeof ShadowRoot !== 'undefined' && root instanceof ShadowRoot
-        ? root
-        : typeof document !== 'undefined'
-          ? document
-          : undefined;
+      typeof ShadowRoot !== 'undefined' && root instanceof ShadowRoot ? root : document;
 
     if (target) {
       if (!constructor._adoptedRoots) {
@@ -249,16 +250,16 @@ export abstract class A2uiLitElement<Api extends ComponentApi = ComponentApi> ex
   override willUpdate(changedProperties: PropertyValues) {
     super.willUpdate(changedProperties);
     if (changedProperties.has('context') && this.context) {
-      if (this.controller) {
-        this.removeController(this.controller);
-        this.controller.dispose();
+      if (this._controller) {
+        this.removeController(this._controller);
+        this._controller.dispose();
       }
-      this.controller = this.createController();
+      this._controller = this.createController();
     }
   }
 
   protected override update(changedProperties: PropertyValues) {
-    if (!this.controller) {
+    if (!this._controller) {
       return;
     }
     super.update(changedProperties);

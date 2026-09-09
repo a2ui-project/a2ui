@@ -30,5 +30,6 @@ public protocol FunctionImplementation: Sendable {
   /// - Parameter context: The data context.
   /// - Returns: The result of the function evaluation.
   /// - Throws: ``FunctionError`` if evaluation fails.
+  @MainActor
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue
 }
