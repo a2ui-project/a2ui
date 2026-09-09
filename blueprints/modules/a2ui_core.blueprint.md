@@ -227,6 +227,7 @@ export const CardComponent: ComponentApi = {
   }),
 };
 ```
+
 #### `ComponentApi`
 
 The framework-agnostic definition of a component. It defines the name and the exact JSON schema footprint of the component, without any rendering logic. It acts as the single source of truth for the component's contract.
