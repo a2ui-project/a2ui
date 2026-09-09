@@ -20,12 +20,13 @@ import {ComponentApi, FunctionApi, CatalogInterface} from './types.js';
 import {V08_STANDARD_DEFS} from '../v0_8/standard_defs.js';
 import {V09_STANDARD_DEFS} from '../v0_9/standard_defs.js';
 import {V10_STANDARD_DEFS} from '../v1_0/standard_defs.js';
+import {normalizeVersionString, toCanonicalVersion} from '../common/semver.js';
 
 const STANDARD_DEFS_BY_VERSION: Readonly<Record<string, Record<string, unknown>>> = {
-  'v0.8': V08_STANDARD_DEFS,
-  'v0.9': V09_STANDARD_DEFS,
-  'v0.9.1': V09_STANDARD_DEFS,
-  'v1.0': V10_STANDARD_DEFS,
+  '0.8': V08_STANDARD_DEFS,
+  '0.9': V09_STANDARD_DEFS,
+  '0.9.1': V09_STANDARD_DEFS,
+  '1.0': V10_STANDARD_DEFS,
 };
 
 /**
@@ -38,8 +39,13 @@ function getStandardDefsForCatalog(
   if (options?.standardDefs) {
     return options.standardDefs;
   }
-  if (options?.protocolVersion && options.protocolVersion in STANDARD_DEFS_BY_VERSION) {
-    return STANDARD_DEFS_BY_VERSION[options.protocolVersion];
+  if (options?.protocolVersion) {
+    const key =
+      toCanonicalVersion(options.protocolVersion) ??
+      normalizeVersionString(options.protocolVersion);
+    if (key in STANDARD_DEFS_BY_VERSION) {
+      return STANDARD_DEFS_BY_VERSION[key];
+    }
   }
   return V09_STANDARD_DEFS;
 }

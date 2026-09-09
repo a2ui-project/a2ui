@@ -19,6 +19,8 @@ import assert from 'node:assert';
 import yaml from 'js-yaml';
 import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
 import {Catalog, createFunctionImplementation} from '../../dist/src/catalog/types.js';
+import {SUPPORTED_PROTOCOL_VERSIONS} from '../../dist/src/processing/adapters/base.js';
+import {toCanonicalVersion} from '../../dist/src/common/semver.js';
 import {
   BASIC_COMPONENTS as V0_8_BASIC_COMPONENTS,
   ThemeSchema as V0_8_ThemeSchema,
@@ -83,12 +85,6 @@ const CONFORMANCE_ROOT =
   process.env.CONFORMANCE_ROOT || path.resolve(__dirname, '../../../../conformance');
 const CORE_DIR = path.join(CONFORMANCE_ROOT, 'core');
 const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
-
-/**
- * Set of A2UI protocol versions supported by this TypeScript conformance harness.
- * Test cases specifying protocol versions outside this set are skipped.
- */
-const SUPPORTED_PROTOCOL_VERSIONS = new Set(['v0.8', 'v0.9', 'v1.0']);
 
 /**
  * Transition skip list containing specific test case names to skip.
@@ -168,13 +164,13 @@ async function runConformanceHarness() {
 
     for (const testCase of testCases) {
       const {name, action, catalog, args} = testCase;
-      let version = catalog?.protocolVersion || args?.version || 'v0.8';
-      if (!version.startsWith('v')) version = `v${version}`;
+      const rawVersion = catalog?.protocolVersion || args?.version || '0.8';
+      const version = toCanonicalVersion(rawVersion) || rawVersion;
 
       if (!SUPPORTED_PROTOCOL_VERSIONS.has(version)) {
         totalSkipped++;
         console.log(
-          `  ⁃ [SKIPPED] ${name} (version ${version} not in SUPPORTED_PROTOCOL_VERSIONS)`,
+          `  ⁃ [SKIPPED] ${name} (version ${rawVersion} not in SUPPORTED_PROTOCOL_VERSIONS)`,
         );
         continue;
       }
@@ -475,7 +471,8 @@ function validateGetRendererCapabilitiesTestCase(testCase) {
 }
 
 function getBasicCatalog(version) {
-  if (version === 'v1.0') {
+  const norm = toCanonicalVersion(version) || version;
+  if (norm === '1.0') {
     return new Catalog(
       'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
       v1_0Components,
@@ -485,7 +482,7 @@ function getBasicCatalog(version) {
       V10_CHILD_REF_OPTIONS,
     );
   }
-  if (version === 'v0.9') {
+  if (norm === '0.9' || norm === '0.9.1') {
     return new Catalog(
       'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
       v0_9Components,
@@ -495,7 +492,7 @@ function getBasicCatalog(version) {
       V09_CHILD_REF_OPTIONS,
     );
   }
-  if (version === 'v0.8') {
+  if (norm === '0.8') {
     return new Catalog(
       'https://a2ui.org/specification/v0_8/catalogs/basic/catalog.json',
       v0_8Components,
@@ -704,10 +701,11 @@ function jsonSchemaToZod(schemaDef) {
 }
 
 function getCatalogsForTestCase(testCase) {
+  const normProto = toCanonicalVersion(testCase.protocolVersion) || testCase.protocolVersion;
   const refOptions =
-    testCase.protocolVersion === 'v0.8'
+    normProto === '0.8'
       ? V08_CHILD_REF_OPTIONS
-      : testCase.protocolVersion === 'v0.9'
+      : normProto === '0.9' || normProto === '0.9.1'
         ? V09_CHILD_REF_OPTIONS
         : V10_CHILD_REF_OPTIONS;
   const catalogsMap = new Map(allCatalogs.map(c => [c.id, c]));

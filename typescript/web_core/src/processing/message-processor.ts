@@ -25,6 +25,7 @@ import {Subscription} from '../common/events.js';
 
 import {A2uiStateError, A2uiValidationError} from '../errors.js';
 import {defaultVersionAdapterFactory} from './adapters/factory.js';
+import {toCanonicalVersion} from '../common/semver.js';
 import {
   InternalOperation,
   InternalCreateSurfaceOp,
@@ -223,9 +224,10 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     const inlineCatalogs = options?.includeInlineCatalogs
       ? this.catalogs.map(c => {
-          if (version === 'v1.0') {
+          if (toCanonicalVersion(version) === '1.0') {
             return generateCatalogSchema(c, {
               componentEnvelopeRef: options?.componentEnvelopeRef,
+              protocolVersion: version,
             });
           }
           return this.generateLegacyInlineCatalog(
@@ -454,10 +456,14 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     const checkMsg = (msg: unknown) => {
       if (typeof msg === 'object' && msg !== null && 'version' in msg) {
         const msgVer = (msg as {version?: string}).version;
-        if (msgVer && msgVer !== expected) {
-          throw new A2uiValidationError(
-            `Message version '${msgVer}' does not match expected target version '${expected}'`,
-          );
+        if (msgVer) {
+          const normMsg = toCanonicalVersion(msgVer) ?? msgVer;
+          const normExpected = toCanonicalVersion(expected) ?? expected;
+          if (normMsg !== normExpected) {
+            throw new A2uiValidationError(
+              `Message version '${msgVer}' does not match expected target version '${expected}'`,
+            );
+          }
         }
       }
     };
