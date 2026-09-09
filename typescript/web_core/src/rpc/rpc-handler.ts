@@ -82,6 +82,8 @@ export interface CallOptions {
   functionCallId?: string;
   /** Timeout in milliseconds before rejecting with TIMEOUT. */
   timeoutMs?: number;
+  /** Protocol version for the outbound message. */
+  version?: string;
 }
 
 /**
@@ -99,6 +101,7 @@ interface NormalizedAgentCall {
   functionCallId: string;
   call: FunctionCall;
   effectiveTimeoutMs: number;
+  version?: string;
 }
 
 /**
@@ -154,15 +157,17 @@ export class RpcHandler {
       return validationError;
     }
 
-    const {functionCallId, callFunction} = message.callRendererFunction;
+    const {version, callRendererFunction} = message;
+    const {functionCallId, callFunction} = callRendererFunction;
     const {call, catalogId, args} = callFunction;
 
-    const resolved = this.resolveFunctionImplementation(catalogId, call, context, message.version);
+    const resolved = this.resolveFunctionImplementation(catalogId, call, context, version);
     if ('error' in resolved) {
       const errorResponse = this.createResponseError(
         functionCallId,
         RpcErrorCode.INVALID_FUNCTION_CALL,
         resolved.error,
+        version,
       );
       await this.emitOutboundResponse(errorResponse);
       return errorResponse;
@@ -174,6 +179,7 @@ export class RpcHandler {
         functionCallId,
         RpcErrorCode.INVALID_FUNCTION_CALL,
         accessError,
+        version,
       );
       await this.emitOutboundResponse(errorResponse);
       return errorResponse;
@@ -185,6 +191,7 @@ export class RpcHandler {
         functionCallId,
         RpcErrorCode.INVALID_FUNCTION_CALL,
         parsedArgsResult.error,
+        version,
       );
       await this.emitOutboundResponse(errorResponse);
       return errorResponse;
@@ -195,6 +202,7 @@ export class RpcHandler {
       parsedArgsResult.args,
       context,
       functionCallId,
+      version,
     );
     await this.emitOutboundResponse(response);
     return response;
@@ -268,6 +276,7 @@ export class RpcHandler {
       functionCallId,
       call,
       effectiveTimeoutMs,
+      version: opts.version,
     };
 
     return this.dispatchAgentCall<T>(surfaceId, normalized);
@@ -312,13 +321,16 @@ export class RpcHandler {
         'unknown',
         RpcErrorCode.INVALID_FUNCTION_CALL,
         'Inbound message is null or undefined.',
+        'unknown',
       );
     }
+    const version = message.version;
     if (this.isDisposed) {
       return this.createResponseError(
         message.callRendererFunction?.functionCallId ?? 'unknown',
         RpcErrorCode.DISPOSED,
         'RpcHandler has been disposed.',
+        version,
       );
     }
     if (!message.callRendererFunction?.callFunction) {
@@ -326,6 +338,7 @@ export class RpcHandler {
         message.callRendererFunction?.functionCallId ?? 'unknown',
         RpcErrorCode.INVALID_FUNCTION_CALL,
         'Malformed message: missing callRendererFunction or callFunction.',
+        version,
       );
     }
     return null;
@@ -402,13 +415,15 @@ export class RpcHandler {
     args: Record<string, unknown>,
     context: DataContext,
     functionCallId: string,
+    version: string,
   ): Promise<RendererFunctionResponseMessage> {
+    const respVersion = (version || 'v1.0') as RendererFunctionResponseMessage['version'];
     try {
       const rawResult = await Promise.resolve(funcImpl.execute(args, context));
       const unwrapped = isSignal(rawResult) ? getValue(rawResult) : rawResult;
       const value = unwrapped !== undefined ? unwrapped : null;
       return {
-        version: 'v1.0',
+        version: respVersion,
         rendererFunctionResponse: {
           functionCallId,
           value,
@@ -417,7 +432,7 @@ export class RpcHandler {
     } catch (err: unknown) {
       const errMsg = this.extractErrorMessage(err);
       return {
-        version: 'v1.0',
+        version: respVersion,
         rendererFunctionResponse: {
           functionCallId,
           error: {
@@ -441,7 +456,7 @@ export class RpcHandler {
     surfaceId: string,
     callInfo: NormalizedAgentCall,
   ): Promise<T> {
-    const {functionCallId, call, effectiveTimeoutMs} = callInfo;
+    const {functionCallId, call, effectiveTimeoutMs, version} = callInfo;
 
     return new Promise<T>((resolve, reject) => {
       let timer: ReturnType<typeof setTimeout> | undefined;
@@ -472,7 +487,7 @@ export class RpcHandler {
         },
       });
 
-      this.sendOutboundMessage(surfaceId, functionCallId, call, cleanup, reject);
+      this.sendOutboundMessage(surfaceId, functionCallId, call, version, cleanup, reject);
     });
   }
 
@@ -502,11 +517,12 @@ export class RpcHandler {
     surfaceId: string,
     functionCallId: string,
     call: FunctionCall,
+    version: string | undefined,
     cleanup: () => void,
     reject: (reason?: any) => void,
   ): void {
     const outboundMsg: CallAgentFunctionMessage = {
-      version: 'v1.0',
+      version: (version || 'v1.0') as CallAgentFunctionMessage['version'],
       callAgentFunction: {
         surfaceId,
         functionCallId,
@@ -536,9 +552,10 @@ export class RpcHandler {
     functionCallId: string,
     code: RpcErrorCode | string,
     message: string,
+    version: string,
   ): RendererFunctionResponseMessage {
     return {
-      version: 'v1.0',
+      version: (version || 'v1.0') as RendererFunctionResponseMessage['version'],
       rendererFunctionResponse: {
         functionCallId,
         error: {code, message},
