@@ -229,7 +229,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
         catalogId: 'basic',
         args: {query: 'test'},
       },
-      {functionCallId: 'agent-call-100'},
+      {functionCallId: 'agent-call-100', version: 'v1.0'},
     );
 
     assert.strictEqual(emittedMessage.version, 'v1.0');
