@@ -14,35 +14,6 @@
  * limitations under the License.
  */
 
-import Module from 'module';
-
-if (process.env.REACT_VERSION === '18') {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const originalResolve = (Module as any)._resolveFilename;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (Module as any)._resolveFilename = function (
-    request: string,
-    parent: any,
-    isMain: boolean,
-    options: any,
-  ) {
-    if (request === 'react') return originalResolve.call(this, 'react-18', parent, isMain, options);
-    if (request === 'react/jsx-runtime')
-      return originalResolve.call(this, 'react-18/jsx-runtime', parent, isMain, options);
-    if (request === 'react/jsx-dev-runtime')
-      return originalResolve.call(this, 'react-18/jsx-dev-runtime', parent, isMain, options);
-    if (request === 'react-dom')
-      return originalResolve.call(this, 'react-dom-18', parent, isMain, options);
-    if (request === 'react-dom/client')
-      return originalResolve.call(this, 'react-dom-18/client', parent, isMain, options);
-    if (request === 'react-dom/server')
-      return originalResolve.call(this, 'react-dom-18/server', parent, isMain, options);
-    if (request === '@testing-library/react')
-      return originalResolve.call(this, '@testing-library/react-18', parent, isMain, options);
-    return originalResolve.call(this, request, parent, isMain, options);
-  };
-}
-
 import '@testing-library/jest-dom/vitest';
 import {beforeAll} from 'vitest';
 import {initializeDefaultCatalog} from '../src';
