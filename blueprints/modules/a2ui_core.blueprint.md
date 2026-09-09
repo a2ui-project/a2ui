@@ -31,7 +31,7 @@ Its core responsibilities include:
 7. **Resolution:** Resolves bound context paths and binds state variables to components for local evaluation.
 8. **Multi-Version Protocol Branching:** Supports multiple versions of the protocol.
 
-#### Package Boundary & Non-Goals
+### Package Boundary & Non-Goals
 
 Core implements the responsibilities above and nothing beyond them. Functionality that the [Agent SDK](a2ui_agent.blueprint.md) or [Framework Adapter](a2ui_framework_adapter.blueprint.md) blueprint assigns to its own layer does not belong in core, even where core defines the types that functionality would operate on. Those two blueprints are the reference for what each layer owns.
 
@@ -124,7 +124,7 @@ graph TD
 
 The core modular components are organized within the `a2ui.core` namespace. Public interfaces are exposed cleanly across the package layers:
 
-```
+```text
 a2ui/core/
 ├── exceptions                      # Root exception hierarchy
 ├── basic_catalog/                  # Bundled default components and operators
@@ -748,15 +748,16 @@ class DataModel {
 4.  **Undefined Handling**: Setting an object key to `undefined` removes the key. Setting an array index to `undefined` preserves length but empties the index (sparse array).
 
 **Type Coercion Standards**:
-| Input Type | Target Type | Result |
+
+| Input Type                 | Target Type | Result                                                                  |
 | :------------------------- | :---------- | :---------------------------------------------------------------------- |
-| `String` ("true", "false") | `Boolean` | `true` or `false` (case-insensitive). Any other string maps to `false`. |
-| `Number` (non-zero) | `Boolean` | `true` |
-| `Number` (0) | `Boolean` | `false` |
-| `Any` | `String` | Locale-neutral string representation |
-| `null` / `undefined` | `String` | `""` (empty string) |
-| `null` / `undefined` | `Number` | `0` |
-| `String` (numeric) | `Number` | Parsed numeric value or `0` |
+| `String` ("true", "false") | `Boolean`   | `true` or `false` (case-insensitive). Any other string maps to `false`. |
+| `Number` (non-zero)        | `Boolean`   | `true`                                                                  |
+| `Number` (0)               | `Boolean`   | `false`                                                                 |
+| `Any`                      | `String`    | Locale-neutral string representation                                    |
+| `null` / `undefined`       | `String`    | `""` (empty string)                                                     |
+| `null` / `undefined`       | `Number`    | `0`                                                                     |
+| `String` (numeric)         | `Number`    | Parsed numeric value or `0`                                             |
 
 ---
 
