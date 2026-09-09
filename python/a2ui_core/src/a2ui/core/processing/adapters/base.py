@@ -96,19 +96,6 @@ def _clean_loc_part(x: str) -> str:
     return x
 
 
-ALL_KNOWN_ACTION_KEYS: frozenset[str] = frozenset({
-    "beginRendering",
-    "surfaceUpdate",
-    "dataModelUpdate",
-    "createSurface",
-    "updateComponents",
-    "updateDataModel",
-    "deleteSurface",
-    "callRendererFunction",
-    "agentFunctionResponse",
-})
-
-
 class VersionAdapter(ABC):
     """Abstract base class for protocol version adapters."""
 
@@ -117,6 +104,11 @@ class VersionAdapter(ABC):
     def version(self) -> ProtocolVersion:
         """The protocol version handled by this adapter (e.g. ProtocolVersion.V1_0)."""
         pass
+
+    @property
+    def valid_actions(self) -> set[str]:
+        """Set of action keys supported by this version adapter."""
+        return set()
 
     @property
     def compatible_catalog_versions(self) -> frozenset[str]:
@@ -227,7 +219,7 @@ class BaseVersionAdapter(VersionAdapter, ABC):
             details.append(A2uiErrorDetail(path_str, code, msg))
         return details
 
-    def _extract_single_action(self, message: dict[str, Any]) -> str | None:
+    def _extract_single_action(self, message: dict[str, Any]) -> str:
         """Validates presence of exactly one action key from valid_actions."""
         update_types = [k for k in self.valid_actions if k in message]
         if len(update_types) > 1:
@@ -235,17 +227,21 @@ class BaseVersionAdapter(VersionAdapter, ABC):
                 f"Message contains multiple conflicting update actions: {update_types}"
             )
         if not update_types:
-            if any(
-                k in message
-                for k in ALL_KNOWN_ACTION_KEYS
-                if k not in self.valid_actions
-            ):
-                return None
             ver_str = (
                 self.version.value
                 if hasattr(self.version, "value")
                 else str(self.version)
             )
+            from .factory import VersionAdapterFactory
+
+            all_known = VersionAdapterFactory.all_known_actions()
+            other_actions = [k for k in message if k in all_known]
+            if other_actions:
+                raise A2uiValidationError(
+                    f"Invalid {ver_str} message: action '{other_actions[0]}' is not"
+                    f" supported in protocol version {ver_str}. Allowed actions:"
+                    f" {', '.join(sorted(self.valid_actions))}."
+                )
             raise A2uiValidationError(
                 f"Invalid {ver_str} message: message must contain exactly one update"
                 f" action: {', '.join(sorted(self.valid_actions))}."
@@ -303,8 +299,6 @@ class BaseVersionAdapter(VersionAdapter, ABC):
                 )
 
             action = self._extract_single_action(raw_payload)
-            if not action:
-                return []
 
             if not isinstance(raw_payload[action], dict):
                 raise A2uiValidationError(

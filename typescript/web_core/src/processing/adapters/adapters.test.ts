@@ -523,4 +523,70 @@ describe('MessageProcessor Dependency Injection', () => {
         err instanceof A2uiValidationError && err.message.includes('Unsupported protocol version'),
     );
   });
+
+  it('aggregates all known actions across registered adapters', () => {
+    const factory = new VersionAdapterFactory();
+    const actions = factory.getAllKnownActions();
+    assert.ok(actions instanceof Set);
+    assert.strictEqual(actions.has('beginRendering'), true);
+    assert.strictEqual(actions.has('surfaceUpdate'), true);
+    assert.strictEqual(actions.has('dataModelUpdate'), true);
+    assert.strictEqual(actions.has('createSurface'), true);
+    assert.strictEqual(actions.has('updateComponents'), true);
+    assert.strictEqual(actions.has('updateDataModel'), true);
+    assert.strictEqual(actions.has('deleteSurface'), true);
+
+    const staticActions = VersionAdapterFactory.getAllKnownActions();
+    assert.strictEqual(staticActions.has('createSurface'), true);
+    assert.strictEqual(staticActions.has('beginRendering'), true);
+  });
+
+  it('rejects cross-version actions with A2uiValidationError', () => {
+    const v09 = VersionAdapterFactory.getAdapter('v0.9');
+    assert.throws(
+      () =>
+        v09.extractOperations({
+          version: 'v0.9',
+          beginRendering: {surfaceId: 's1'},
+        }),
+      (err: any) =>
+        err instanceof A2uiValidationError &&
+        /action 'beginRendering' is not supported in protocol version v0.9/.test(err.message),
+    );
+
+    const v10 = VersionAdapterFactory.getAdapter('v1.0');
+    assert.throws(
+      () =>
+        v10.extractOperations({
+          version: 'v1.0',
+          beginRendering: {surfaceId: 's1'},
+        }),
+      (err: any) =>
+        err instanceof A2uiValidationError &&
+        /action 'beginRendering' is not supported in protocol version v1.0/.test(err.message),
+    );
+
+    const v08 = VersionAdapterFactory.getAdapter('v0.8');
+    assert.throws(
+      () =>
+        v08.extractOperations({
+          createSurface: {surfaceId: 's1'},
+        }),
+      (err: any) =>
+        err instanceof A2uiValidationError &&
+        /action 'createSurface' is not supported in protocol version v0.8/.test(err.message),
+    );
+
+    // Completely unknown action
+    assert.throws(
+      () =>
+        v09.extractOperations({
+          version: 'v0.9',
+          completelyUnknownAction: {surfaceId: 's1'},
+        }),
+      (err: any) =>
+        err instanceof A2uiValidationError &&
+        /message must contain exactly one update action/.test(err.message),
+    );
+  });
 });

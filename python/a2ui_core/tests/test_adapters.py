@@ -481,3 +481,60 @@ def test_version_adapter_factory_get_adapter_formatting_variants():
 
     with pytest.raises(A2uiValidationError, match="Unsupported protocol version"):
         VersionAdapterFactory.get_adapter("v1.1")
+
+
+def test_version_adapter_factory_all_known_actions():
+    """Verifies that all_known_actions returns an aggregated set of valid actions across registered adapters."""
+    actions = VersionAdapterFactory.all_known_actions()
+    assert isinstance(actions, frozenset)
+    # v0.8 actions
+    assert "beginRendering" in actions
+    assert "surfaceUpdate" in actions
+    assert "dataModelUpdate" in actions
+    # v0.9 actions
+    assert "createSurface" in actions
+    assert "updateComponents" in actions
+    assert "updateDataModel" in actions
+    assert "deleteSurface" in actions
+
+
+def test_extract_operations_cross_version_action_rejection():
+    """Verifies that sending a cross-version action actively raises A2uiValidationError."""
+    v09_adapter = VersionAdapterFactory.get_adapter("v0.9")
+    with pytest.raises(
+        A2uiValidationError,
+        match=r"action 'beginRendering' is not supported in protocol version v0.9",
+    ):
+        v09_adapter.extract_operations({
+            "version": "v0.9",
+            "beginRendering": {"surfaceId": "s1"},
+        })
+
+    v10_adapter = VersionAdapterFactory.get_adapter("v1.0")
+    with pytest.raises(
+        A2uiValidationError,
+        match=r"action 'beginRendering' is not supported in protocol version v1.0",
+    ):
+        v10_adapter.extract_operations({
+            "version": "v1.0",
+            "beginRendering": {"surfaceId": "s1"},
+        })
+
+    v08_adapter = VersionAdapterFactory.get_adapter("v0.8")
+    with pytest.raises(
+        A2uiValidationError,
+        match=r"action 'createSurface' is not supported in protocol version v0.8",
+    ):
+        v08_adapter.extract_operations({
+            "createSurface": {"surfaceId": "s1"},
+        })
+
+    # Completely unknown action (not in any known adapter)
+    with pytest.raises(
+        A2uiValidationError,
+        match=r"message must contain exactly one update action",
+    ):
+        v09_adapter.extract_operations({
+            "version": "v0.9",
+            "completelyUnknownAction": {"surfaceId": "s1"},
+        })

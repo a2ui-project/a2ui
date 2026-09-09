@@ -102,6 +102,9 @@ export interface VersionAdapter {
   /** Set of canonical catalog protocol versions compatible with this adapter. */
   readonly compatibleCatalogVersions?: ReadonlySet<string>;
 
+  /** Set of action keys supported by this version adapter. */
+  readonly validActions?: ReadonlySet<string>;
+
   /**
    * Checks if a catalog protocol version is compatible with this adapter.
    *
@@ -119,17 +122,19 @@ export interface VersionAdapter {
   extractOperations(payload: unknown): InternalOperation[];
 }
 
-const ALL_KNOWN_ACTION_KEYS = [
-  'beginRendering',
-  'surfaceUpdate',
-  'dataModelUpdate',
-  'createSurface',
-  'updateComponents',
-  'updateDataModel',
-  'deleteSurface',
-  'callRendererFunction',
-  'agentFunctionResponse',
-] as const;
+/** Provider callback returning the set of all known action keys across registered adapters. */
+export type KnownActionsProvider = () => ReadonlySet<string>;
+
+let globalKnownActionsProvider: KnownActionsProvider | undefined;
+
+/**
+ * Registers a provider callback to dynamically supply known action keys across adapters.
+ *
+ * @param provider Callback returning a ReadonlySet of all known action keys.
+ */
+export function registerKnownActionsProvider(provider: KnownActionsProvider): void {
+  globalKnownActionsProvider = provider;
+}
 
 function validateActionSurfaceIds(
   msgObj: Record<string, unknown>,
@@ -163,6 +168,10 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
     return canonical ? new Set([canonical]) : new Set();
   }
 
+  get validActions(): ReadonlySet<string> {
+    return new Set(this.getNativeActionKeys());
+  }
+
   isCatalogCompatible(catalogVersion: string | SemVer | undefined | null): boolean {
     if (!catalogVersion) {
       return false;
@@ -188,13 +197,10 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
       return this.extractOperations(msgObj.messages);
     }
 
-    validateActionSurfaceIds(msgObj, ALL_KNOWN_ACTION_KEYS);
-
     const nativeActionKeys = this.getNativeActionKeys();
+    validateActionSurfaceIds(msgObj, nativeActionKeys);
+
     const presentNativeKeys = nativeActionKeys.filter(k => k in msgObj);
-    const presentOtherKnownKeys = ALL_KNOWN_ACTION_KEYS.filter(
-      k => !nativeActionKeys.includes(k) && k in msgObj,
-    );
 
     if (presentNativeKeys.length > 1) {
       throw new A2uiValidationError(
@@ -202,9 +208,21 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
       );
     }
 
-    // Ignore cross-version messages
-    if (presentNativeKeys.length === 0 && presentOtherKnownKeys.length > 0) {
-      return [];
+    if (presentNativeKeys.length === 0) {
+      const allKnown = globalKnownActionsProvider
+        ? globalKnownActionsProvider()
+        : new Set(nativeActionKeys);
+      const otherAction = Object.keys(msgObj).find(
+        k => allKnown.has(k) && !nativeActionKeys.includes(k),
+      );
+      if (otherAction) {
+        throw new A2uiValidationError(
+          `Invalid ${this.version} message: action '${otherAction}' is not supported in protocol version ${this.version}. Allowed actions: ${nativeActionKeys.join(', ')}.`,
+        );
+      }
+      throw new A2uiValidationError(
+        `Invalid ${this.version} message: message must contain exactly one update action: ${nativeActionKeys.join(', ')}.`,
+      );
     }
 
     const preparedPayload = this.preparePayloadForValidation(msgObj);

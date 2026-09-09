@@ -941,7 +941,7 @@
               type: "string"
 
 - name: test_v09_rejects_v08_begin_rendering_action
-  description: Tests that v0.9 MessageProcessor ignores v0.8 beginRendering action when protocolVersion is v0.9.
+  description: Tests that v0.9 MessageProcessor rejects v0.8 beginRendering action when protocolVersion is v0.9.
   action: process_messages
   protocolVersion: "v0.9"
   messages:
@@ -949,10 +949,8 @@
       beginRendering:
         surfaceId: "s_v09_invalid"
         catalogId: "v09-cat"
-  expect:
-    surfaces:
-      s_v09_invalid:
-        exists: false
+  expectError:
+    category: "ValidationError"
 
 - name: test_v09_non_string_surface_id_error
   description: Tests that a v0.9 action with a non-string surfaceId raises a ValidationError.

@@ -16,7 +16,12 @@
 
 import {A2uiValidationError} from '../../errors.js';
 import {normalizeVersionString, toCanonicalVersion} from '../../common/semver.js';
-import {ProtocolVersion, VersionAdapter, VersionAdapterResolver} from './base.js';
+import {
+  ProtocolVersion,
+  VersionAdapter,
+  VersionAdapterResolver,
+  registerKnownActionsProvider,
+} from './base.js';
 import {V0Point8Adapter} from './v0_8.js';
 import {V0Point9Adapter} from './v0_9.js';
 import {V1Point0Adapter} from './v1_0.js';
@@ -31,6 +36,21 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
     ['0.9.1', new V0Point9Adapter()],
     ['1.0', new V1Point0Adapter()],
   ]);
+
+  /**
+   * Returns the aggregated set of all action keys supported by all registered adapters.
+   */
+  getAllKnownActions(): ReadonlySet<string> {
+    const actions = new Set<string>();
+    for (const adapter of this.adapters.values()) {
+      if (adapter.validActions) {
+        for (const action of adapter.validActions) {
+          actions.add(action);
+        }
+      }
+    }
+    return actions;
+  }
 
   /**
    * Dynamically registers a version adapter on this factory instance.
@@ -119,7 +139,16 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
   static resolveFromPayload(payload: unknown): VersionAdapter {
     return defaultVersionAdapterFactory.resolveFromPayload(payload);
   }
+
+  /**
+   * Returns the aggregated set of all action keys supported by all registered adapters
+   * from the default singleton factory instance.
+   */
+  static getAllKnownActions(): ReadonlySet<string> {
+    return defaultVersionAdapterFactory.getAllKnownActions();
+  }
 }
 
 /** Default singleton version adapter factory instance. */
 export const defaultVersionAdapterFactory = new VersionAdapterFactory();
+registerKnownActionsProvider(() => defaultVersionAdapterFactory.getAllKnownActions());

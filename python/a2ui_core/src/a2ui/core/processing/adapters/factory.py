@@ -40,6 +40,15 @@ class VersionAdapterFactory:
         cls._adapters[adapter.version] = adapter
 
     @classmethod
+    def all_known_actions(cls) -> frozenset[str]:
+        """Returns the aggregated set of all action keys supported by all registered adapters."""
+        actions: set[str] = set()
+        for adapter in cls._adapters.values():
+            if hasattr(adapter, "valid_actions"):
+                actions.update(adapter.valid_actions)
+        return frozenset(actions)
+
+    @classmethod
     def get_adapter(cls, version: ProtocolVersion | str) -> VersionAdapter:
         """Resolves the version adapter for the specified protocol version enum or string."""
         adapter = None

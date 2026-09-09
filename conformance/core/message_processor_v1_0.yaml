@@ -203,7 +203,7 @@
         exists: true
 
 - name: test_v10_rejects_v08_begin_rendering_action
-  description: Tests that v1.0 MessageProcessor ignores v0.8 beginRendering action when protocolVersion is v1.0.
+  description: Tests that v1.0 MessageProcessor rejects v0.8 beginRendering action when protocolVersion is v1.0.
   action: process_messages
   protocolVersion: "v1.0"
   messages:
@@ -211,10 +211,8 @@
       beginRendering:
         surfaceId: "s_v10_invalid"
         catalogId: "test-catalog-v10"
-  expect:
-    surfaces:
-      s_v10_invalid:
-        exists: false
+  expectError:
+    category: "ValidationError"
 
 - name: test_v10_non_string_surface_id_error
   description: Tests that a v1.0 action with a non-string surfaceId raises a ValidationError.

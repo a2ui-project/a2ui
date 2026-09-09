@@ -100,7 +100,7 @@
         - "cat-v08"
 
 - name: test_v08_rejects_v09_create_surface_action
-  description: Tests that v0.8 MessageProcessor ignores v0.9 createSurface action when protocolVersion is v0.8.
+  description: Tests that v0.8 MessageProcessor rejects v0.9 createSurface action when protocolVersion is v0.8.
   action: process_messages
   protocolVersion: "v0.8"
   messages:
@@ -108,10 +108,8 @@
       createSurface:
         surfaceId: "s_v08_invalid"
         catalogId: "v08-cat"
-  expect:
-    surfaces:
-      s_v08_invalid:
-        exists: false
+  expectError:
+    category: "ValidationError"
 
 - name: test_v08_multiple_conflicting_update_types_error
   description: Tests that a single v0.8 message envelope containing multiple conflicting update actions raises a ValidationError.
