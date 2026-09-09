@@ -202,9 +202,30 @@ export interface Catalog<TComponent extends ComponentApi, TFunction extends Func
 
 A `Catalog` is immutable once constructed.
 
-A catalog is **version-agnostic**: it declares no protocol version, and a [`protocolVersion` field](../../specification/v1_0/json/catalog_definition.json) in a catalog document is ignored rather than checked against the version the SDK implements. The version comes from the party using the catalog, never from the catalog itself — a validator is constructed for a version, and capabilities objects are keyed by version — so one catalog can serve several protocol versions.
+A catalog targets a specific protocol version declared via its `protocolVersion` property (e.g. `A2uiProtocolVersion.V1_0`). When parsing a catalog document, the SDK verifies the `protocolVersion` to determine schema compatibility.
 
 Parsing a catalog document is parsing untrusted input: raise `A2uiCatalogError` for a missing or non-object document or a `catalogId` conflict.
+
+#### Common Types & Subschema References
+
+When authoring component or function schemas, developers import primitives (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DataBinding`, `FunctionCall`, `Action`, `ChildList`, etc.) directly from the schema module matching the catalog's targeted `protocolVersion` (e.g. `a2ui.core.schema.v1_0.common_types` or `@a2ui/core/v1_0`).
+
+- **Subschema References & Wire Emission**: In v1.0+, component schemas emit or retain relative pointers (`"$ref": "common_types.json#/$defs/<TypeName>"`).
+- **Forward Compatibility**: While breaking changes between v0.9 and v1.0 prevent v0.9 catalogs from running against v1.0 runtimes, using unversioned relative references in v1.0 catalogs allows them to potentially resolve against future compatible protocol versions without modifying catalog type paths.
+
+```typescript
+import {DynamicString, Action, ChildList} from '@a2ui/core/v1_0';
+import {ComponentApi} from '@a2ui/core';
+
+export const CardComponent: ComponentApi = {
+  name: 'Card',
+  schema: z.object({
+    title: DynamicString.describe('Card title'),
+    onClick: Action.optional(),
+    children: ChildList.optional(),
+  }),
+};
+```
 
 #### `ComponentApi`
 
@@ -483,6 +504,15 @@ export class PayloadValidator {
   validateTheme(surfaceProperties: Record<string, any> | null): void;
 }
 ```
+
+##### Relative Common Types Registration
+
+When `PayloadValidator` initializes its underlying JSON Schema referencing registry (e.g., Ajv in TypeScript, `referencing.Registry` in Python, `JsonSchemaValidator` in Dart, Swift schema validator), it **MUST register the active protocol version's `common_types_schema` under the root relative key `"common_types.json"`**.
+
+This guarantees:
+
+1. **Catalog Portability**: Relative pointers (`"$ref": "common_types.json#/$defs/<TypeName>"`) in catalog definitions resolve cleanly regardless of the catalog's base `$id` URI.
+2. **Future Version Forward-Compatibility**: v1.0 catalogs using relative references can potentially resolve against newer compatible protocol versions without modifying catalog `$ref` targets.
 
 #### Catalog Scope
 
