@@ -17,12 +17,15 @@ import 'package:a2ui_core/a2ui_core.dart';
 /// A rule applied to a catalog before prompting or validation.
 ///
 /// Transformers narrow a catalog; they never widen it.
-abstract class CatalogTransformer<
-  C extends ComponentApi,
-  F extends FunctionApi
-> {
+///
+/// [transform] is generic over the catalog's component and function types
+/// rather than the transformer being generic over them, so one transformer
+/// applies to catalogs of any shape and returns each one unchanged in type.
+abstract class CatalogTransformer {
   const CatalogTransformer();
 
   /// Narrows [catalog], preserving its component and function types.
-  Catalog<C, F> transform(Catalog<C, F> catalog);
+  Catalog<C, F> transform<C extends ComponentApi, F extends FunctionApi>(
+    Catalog<C, F> catalog,
+  );
 }

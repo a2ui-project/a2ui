@@ -17,9 +17,9 @@ import 'package:a2ui_core/a2ui_core.dart';
 /// Builds the format-specific portion of an agent's system instructions.
 ///
 /// The agent owns the surrounding preamble and suffix.
-abstract class PromptGenerator<C extends ComponentApi, F extends FunctionApi> {
+abstract class PromptGenerator {
   /// The catalogs to describe.
-  final List<Catalog<C, F>> catalogs;
+  final List<SchemaCatalog> catalogs;
 
   /// Few-shot turns, keyed by description, valued by the payload the model
   /// is expected to produce.

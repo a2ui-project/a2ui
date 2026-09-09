@@ -19,8 +19,7 @@ import 'base.dart';
 /// Prunes catalog component definitions to an allowlist.
 ///
 /// Keeps only the components named in both the allowlist and catalog.
-class ComponentPruningTransformer<C extends ComponentApi, F extends FunctionApi>
-    extends CatalogTransformer<C, F> {
+class ComponentPruningTransformer extends CatalogTransformer {
   /// The components to keep.
   final Set<String> allowedComponents;
 
@@ -28,7 +27,9 @@ class ComponentPruningTransformer<C extends ComponentApi, F extends FunctionApi>
     : allowedComponents = Set<String>.unmodifiable(allowedComponents);
 
   @override
-  Catalog<C, F> transform(Catalog<C, F> catalog) => catalog.copyWith(
+  Catalog<C, F> transform<C extends ComponentApi, F extends FunctionApi>(
+    Catalog<C, F> catalog,
+  ) => catalog.copyWith(
     components: [
       for (final MapEntry<String, C> entry in catalog.components.entries)
         if (allowedComponents.contains(entry.key)) entry.value,
@@ -39,8 +40,7 @@ class ComponentPruningTransformer<C extends ComponentApi, F extends FunctionApi>
 /// Prunes catalog function definitions to an allowlist.
 ///
 /// Keeps only the functions named in the allowlist and catalog.
-class FunctionPruningTransformer<C extends ComponentApi, F extends FunctionApi>
-    extends CatalogTransformer<C, F> {
+class FunctionPruningTransformer extends CatalogTransformer {
   /// The functions to keep.
   final Set<String> allowedFunctions;
 
@@ -48,7 +48,9 @@ class FunctionPruningTransformer<C extends ComponentApi, F extends FunctionApi>
     : allowedFunctions = Set<String>.unmodifiable(allowedFunctions);
 
   @override
-  Catalog<C, F> transform(Catalog<C, F> catalog) => catalog.copyWith(
+  Catalog<C, F> transform<C extends ComponentApi, F extends FunctionApi>(
+    Catalog<C, F> catalog,
+  ) => catalog.copyWith(
     functions: [
       for (final MapEntry<String, F> entry in catalog.functions.entries)
         if (allowedFunctions.contains(entry.key)) entry.value,

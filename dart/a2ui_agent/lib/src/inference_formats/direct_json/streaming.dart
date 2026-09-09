@@ -15,26 +15,27 @@
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../../parser/response_part.dart';
+import '../../validation/catalog_validators.dart';
 
 /// Incrementally decodes a streamed DIRECT_JSON response.
 ///
 /// Buffers partial tokens, heals [progressiveKeys] strings, and yields
 /// messages only once complete and reachable from a surface root.
-class DirectJsonStreamProcessor<C extends ComponentApi, F extends FunctionApi> {
+class DirectJsonStreamProcessor {
   /// The active catalogs yielded payloads are validated against.
-  final List<Catalog<C, F>> catalogs;
+  final List<SchemaCatalog> catalogs;
 
   /// String keys whose values may be auto-closed when cut mid-token.
   final Set<String> progressiveKeys;
 
-  /// The validator applied to yielded payloads.
-  final A2uiValidator<C, F> validator;
+  /// The validators applied to yielded payloads, one per active catalog.
+  final CatalogValidators validators;
 
   DirectJsonStreamProcessor({
     required this.catalogs,
     required this.progressiveKeys,
-    A2uiValidator<C, F>? validator,
-  }) : validator = validator ?? A2uiValidator<C, F>(catalogs: catalogs);
+    CatalogValidators? validators,
+  }) : validators = validators ?? CatalogValidators(catalogs: catalogs);
 
   /// Feeds the next chunk of the stream and returns the parts it completed.
   List<ResponsePart> process(String chunk, {bool wrapped = true}) {

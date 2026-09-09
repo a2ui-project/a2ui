@@ -15,9 +15,9 @@
 import 'package:a2ui_core/a2ui_core.dart';
 
 /// Converts A2UI messages back into Express DSL notation.
-class ExpressDecompiler<C extends ComponentApi, F extends FunctionApi> {
+class ExpressDecompiler {
   /// The active catalogs used to resolve positional argument order.
-  final List<Catalog<C, F>> catalogs;
+  final List<SchemaCatalog> catalogs;
 
   ExpressDecompiler({required this.catalogs});
 

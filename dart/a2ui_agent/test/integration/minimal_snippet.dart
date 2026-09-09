@@ -20,10 +20,10 @@ import '../test_catalogs.dart';
 /// What one run of [userSnippet] produced, step by step.
 class UserSnippetResult {
   /// Step 1: the long-lived generator created at agent startup.
-  final A2uiGenerator<CatalogComponent, CatalogFunction> generator;
+  final A2uiGenerator generator;
 
   /// Step 2: the processor negotiated for this request.
-  final A2uiRequestProcessor<CatalogComponent, CatalogFunction> processor;
+  final A2uiRequestProcessor processor;
 
   /// Step 3: the snippet the agent prepends its preamble to.
   final String promptSnippet;
@@ -52,20 +52,25 @@ class UserSnippetResult {
 UserSnippetResult userSnippet({
   required A2uiRendererCapabilities rendererCapabilities,
   required String Function(String promptSnippet) callLlm,
+  InferenceFormatFactory inferenceFormatFactory = const ExpressFormatFactory(),
   Map<String, List<A2uiMessage>>? examples,
 }) {
   // 1. Agent startup: initialize the long-lived A2uiGenerator with the
-  //    agent's catalog. Examples passed here are validated against the
-  //    negotiated catalogs by createProcessor.
-  final generator = A2uiGenerator<CatalogComponent, CatalogFunction>(
+  //    agent's catalog. The inference format is chosen explicitly; there is no
+  //    default, because the format decides the token cost of every turn.
+  //    Examples passed here are validated against the negotiated catalogs by
+  //    createProcessor.
+  final generator = A2uiGenerator(
     catalogs: [CatalogConfig(basicCatalog())],
+    inferenceFormatFactory: inferenceFormatFactory,
     examples: examples,
   );
 
   // 2. In the request handler: retrieve the processor pre-negotiated for
   //    the renderer's capabilities.
-  final A2uiRequestProcessor<CatalogComponent, CatalogFunction> processor =
-      generator.createProcessor(rendererCapabilities);
+  final A2uiRequestProcessor processor = generator.createProcessor(
+    rendererCapabilities,
+  );
 
   // 3. Invoke the LLM to generate the output.
   final String promptSnippet = processor.promptSnippet;

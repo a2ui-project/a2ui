@@ -21,9 +21,7 @@ import '../test_catalogs.dart';
 /// Marks behaviour the DIRECT_JSON parser does not implement yet.
 const String pendingParser = 'DirectJsonParser is not implemented yet.';
 
-DirectJsonParser<CatalogComponent, CatalogFunction> parser({
-  Set<String>? progressiveKeys,
-}) => DirectJsonParser<CatalogComponent, CatalogFunction>(
+DirectJsonParser parser({Set<String>? progressiveKeys}) => DirectJsonParser(
   catalogs: [basicCatalog()],
   customProgressiveKeys: progressiveKeys,
 );
@@ -54,14 +52,12 @@ void main() {
       expect(parser().supportsStreaming, isTrue);
     });
 
-    test('builds a validator over the same catalogs by default', () {
-      expect(parser().validator.catalogs.keys, [basicCatalogId]);
+    test('builds validators over the same catalogs by default', () {
+      expect(parser().validators.catalogs.map((c) => c.id), [basicCatalogId]);
     });
 
     test('exposes a stream processor bound to its configuration', () {
-      final DirectJsonParser<CatalogComponent, CatalogFunction> p = parser(
-        progressiveKeys: {'text'},
-      );
+      final DirectJsonParser p = parser(progressiveKeys: {'text'});
       expect(p.streamProcessor.progressiveKeys, {'text'});
       expect(p.streamProcessor.catalogs.single.id, basicCatalogId);
     });

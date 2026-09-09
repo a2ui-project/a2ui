@@ -22,22 +22,20 @@ import '../test_catalogs.dart';
 const String pendingStreaming =
     'DirectJsonStreamProcessor is not implemented yet.';
 
-DirectJsonStreamProcessor<CatalogComponent, CatalogFunction> processor({
-  Set<String>? progressiveKeys,
-}) => DirectJsonStreamProcessor<CatalogComponent, CatalogFunction>(
-  catalogs: [basicCatalog()],
-  progressiveKeys: progressiveKeys ?? defaultProgressiveKeys,
-);
+DirectJsonStreamProcessor processor({Set<String>? progressiveKeys}) =>
+    DirectJsonStreamProcessor(
+      catalogs: [basicCatalog()],
+      progressiveKeys: progressiveKeys ?? defaultProgressiveKeys,
+    );
 
 void main() {
   group('DirectJsonStreamProcessor configuration', () {
     test('is bound to its catalogs and progressive keys', () {
-      final DirectJsonStreamProcessor<CatalogComponent, CatalogFunction> p =
-          processor(progressiveKeys: {'text'});
+      final DirectJsonStreamProcessor p = processor(progressiveKeys: {'text'});
 
       expect(p.catalogs.single.id, basicCatalogId);
       expect(p.progressiveKeys, {'text'});
-      expect(p.validator.catalogs.keys, [basicCatalogId]);
+      expect(p.validators.catalogs.map((c) => c.id), [basicCatalogId]);
     });
   });
 
@@ -49,8 +47,7 @@ void main() {
     }, skip: pendingStreaming);
 
     test('buffers a payload until the message is complete', () {
-      final DirectJsonStreamProcessor<CatalogComponent, CatalogFunction> p =
-          processor();
+      final DirectJsonStreamProcessor p = processor();
 
       expect(p.process('$a2uiJsonOpenTag[{"version": "v0.9",'), isEmpty);
 
@@ -67,13 +64,12 @@ void main() {
     }, skip: pendingStreaming);
 
     test('yields each completed message once', () {
-      final DirectJsonStreamProcessor<CatalogComponent, CatalogFunction> p =
-          processor()
-            ..process('$a2uiJsonOpenTag[')
-            ..process(
-              '{"version": "v0.9", "createSurface": {"surfaceId": "s1", '
-              '"catalogId": "$basicCatalogId"}},',
-            );
+      final DirectJsonStreamProcessor p = processor()
+        ..process('$a2uiJsonOpenTag[')
+        ..process(
+          '{"version": "v0.9", "createSurface": {"surfaceId": "s1", '
+          '"catalogId": "$basicCatalogId"}},',
+        );
 
       final List<ResponsePart> parts = p.process(
         '{"version": "v0.9", "deleteSurface": {"surfaceId": "s1"}}]',
@@ -87,12 +83,12 @@ void main() {
     }, skip: pendingStreaming);
 
     test('heals a string cut mid-token when its key is progressive', () {
-      final DirectJsonStreamProcessor<CatalogComponent, CatalogFunction> p =
-          processor()..process(
-            '$a2uiJsonOpenTag[{"version": "v0.9", "updateComponents": '
-            '{"surfaceId": "s1", "components": [{"id": "t", '
-            '"component": "Text", "text": "Partial te',
-          );
+      final DirectJsonStreamProcessor p = processor()
+        ..process(
+          '$a2uiJsonOpenTag[{"version": "v0.9", "updateComponents": '
+          '{"surfaceId": "s1", "components": [{"id": "t", '
+          '"component": "Text", "text": "Partial te',
+        );
 
       expect(p.progressiveKeys, contains('text'));
     }, skip: pendingStreaming);
@@ -110,15 +106,14 @@ void main() {
 
   group('DirectJsonStreamProcessor.finish', () {
     test('reports an unterminated payload block', () {
-      final DirectJsonStreamProcessor<CatalogComponent, CatalogFunction> p =
-          processor()..process('$a2uiJsonOpenTag[{"version"');
+      final DirectJsonStreamProcessor p = processor()
+        ..process('$a2uiJsonOpenTag[{"version"');
 
       expect(p.finish, throwsA(isA<A2uiParseError>()));
     }, skip: pendingStreaming);
 
     test('flushes trailing conversational text', () {
-      final DirectJsonStreamProcessor<CatalogComponent, CatalogFunction> p =
-          processor()..process('Trailing');
+      final DirectJsonStreamProcessor p = processor()..process('Trailing');
 
       expect(p.finish(), isEmpty);
     }, skip: pendingStreaming);
@@ -126,8 +121,8 @@ void main() {
 
   group('DirectJsonStreamProcessor.reset', () {
     test('discards buffered state so a new turn can start', () {
-      final DirectJsonStreamProcessor<CatalogComponent, CatalogFunction> p =
-          processor()..process('$a2uiJsonOpenTag[{"version"');
+      final DirectJsonStreamProcessor p = processor()
+        ..process('$a2uiJsonOpenTag[{"version"');
 
       p.reset();
 
@@ -137,9 +132,7 @@ void main() {
 
   group('DirectJsonParser.parseChunk', () {
     test('delegates to the stream processor', () {
-      final parser = DirectJsonParser<CatalogComponent, CatalogFunction>(
-        catalogs: [basicCatalog()],
-      );
+      final parser = DirectJsonParser(catalogs: [basicCatalog()]);
 
       expect(parser.parseChunk('Hello'), [const TextPart('Hello')]);
     }, skip: pendingStreaming);

@@ -12,16 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_core/a2ui_core.dart';
-
 import '../../prompt/generator.dart';
 
 /// Renders system instructions for the DIRECT_JSON format.
 ///
 /// Embeds the catalog schemas in `<a2ui_schema>` tags and asks the model for
 /// payloads in `<a2ui-json>` tags.
-class DirectJsonPromptGenerator<C extends ComponentApi, F extends FunctionApi>
-    extends PromptGenerator<C, F> {
+class DirectJsonPromptGenerator extends PromptGenerator {
   /// The envelope names the model may emit; null allows every envelope of
   /// the active protocol version.
   final List<String>? allowedMessages;

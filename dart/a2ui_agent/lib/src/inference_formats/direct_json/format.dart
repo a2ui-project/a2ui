@@ -20,44 +20,42 @@ import 'parser.dart';
 import 'prompt_generator.dart';
 
 /// The standard A2UI JSON payload format, enclosed in `<a2ui-json>` tags.
-class DirectJsonFormat<C extends ComponentApi, F extends FunctionApi>
-    extends InferenceFormat<C, F> {
+class DirectJsonFormat extends InferenceFormat {
   /// The active catalogs bound to this format.
-  final List<Catalog<C, F>> catalogs;
+  final List<SchemaCatalog> catalogs;
 
   /// The payload envelope names the model may emit.
   final List<String>? allowedMessages;
 
   @override
-  final DirectJsonPromptGenerator<C, F> promptGenerator;
+  final DirectJsonPromptGenerator promptGenerator;
 
   DirectJsonFormat(
     this.catalogs, {
     Map<String, List<A2uiMessage>>? examples,
     this.allowedMessages,
-  }) : promptGenerator = DirectJsonPromptGenerator<C, F>(
+  }) : promptGenerator = DirectJsonPromptGenerator(
          catalogs,
          examples: examples,
          allowedMessages: allowedMessages,
        );
 
   @override
-  Parser createParser() => DirectJsonParser<C, F>(catalogs: catalogs);
+  Parser createParser() => DirectJsonParser(catalogs: catalogs);
 }
 
 /// Builds [DirectJsonFormat] strategies bound to a set of active catalogs.
-class DirectJsonFormatFactory<C extends ComponentApi, F extends FunctionApi>
-    extends InferenceFormatFactory<C, F> {
+class DirectJsonFormatFactory extends InferenceFormatFactory {
   /// The payload envelope names the model may emit.
   final List<String>? allowedMessages;
 
   const DirectJsonFormatFactory({this.allowedMessages});
 
   @override
-  DirectJsonFormat<C, F> createFormat(
-    List<Catalog<C, F>> catalogs, {
+  DirectJsonFormat createFormat(
+    List<SchemaCatalog> catalogs, {
     Map<String, List<A2uiMessage>>? examples,
-  }) => DirectJsonFormat<C, F>(
+  }) => DirectJsonFormat(
     catalogs,
     examples: examples,
     allowedMessages: allowedMessages,

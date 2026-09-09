@@ -26,11 +26,11 @@ const String pendingProcessor =
 const String pendingPrompt =
     'DirectJsonPromptGenerator.generate is not implemented yet.';
 
-A2uiRequestProcessor<CatalogComponent, CatalogFunction> processor({
+A2uiRequestProcessor processor({
   List<SchemaCatalog>? catalogs,
   Map<String, List<A2uiMessage>>? examples,
-  InferenceFormatFactory<CatalogComponent, CatalogFunction>? factory,
-}) => A2uiRequestProcessor<CatalogComponent, CatalogFunction>(
+  InferenceFormatFactory factory = const DirectJsonFormatFactory(),
+}) => A2uiRequestProcessor(
   activeCatalogs: catalogs ?? [basicCatalog()],
   examples: examples,
   formatFactory: factory,
@@ -46,23 +46,42 @@ void main() {
       expect(processor().activeCatalogs.single.id, basicCatalogId);
     });
 
-    test('defaults to the DIRECT_JSON format', () {
-      expect(
-        processor().format,
-        isA<DirectJsonFormat<CatalogComponent, CatalogFunction>>(),
-      );
+    test('uses the format the caller chose', () {
+      expect(processor().format, isA<DirectJsonFormat>());
     });
 
     test('accepts a format factory override', () {
       expect(
         processor(factory: const ExpressFormatFactory()).format,
-        isA<ExpressFormat<CatalogComponent, CatalogFunction>>(),
+        isA<ExpressFormat>(),
       );
     });
 
-    test('builds a validator over the negotiated catalogs', () {
-      expect(processor().validator.catalogs.keys, [basicCatalogId]);
-      expect(processor().validator.protocolVersion, A2uiProtocolVersion.v0_9);
+    test('builds a validator per negotiated catalog', () {
+      final A2uiRequestProcessor subject = processor();
+
+      expect(subject.validators.catalogs.map((c) => c.id), [basicCatalogId]);
+      expect(subject.validators.protocolVersion, A2uiProtocolVersion.v0_9);
+      expect(
+        subject.validators.validatorFor(basicCatalogId).catalog.id,
+        basicCatalogId,
+      );
+    });
+
+    test('reuses one validator per catalog', () {
+      final A2uiRequestProcessor subject = processor();
+
+      expect(
+        subject.validators.validatorFor(basicCatalogId),
+        same(subject.validators.validatorFor(basicCatalogId)),
+      );
+    });
+
+    test('rejects a catalog the turn did not negotiate', () {
+      expect(
+        () => processor().validators.validatorFor('https://example.com/x.json'),
+        throwsA(isA<A2uiCatalogError>()),
+      );
     });
 
     test('exposes the example turns', () {
@@ -76,18 +95,15 @@ void main() {
     });
 
     test('creates a fresh parser per turn', () {
-      final A2uiRequestProcessor<CatalogComponent, CatalogFunction> p =
-          processor();
+      final A2uiRequestProcessor p = processor();
       final Parser first = p.createParser();
 
-      expect(first, isA<DirectJsonParser<CatalogComponent, CatalogFunction>>());
+      expect(first, isA<DirectJsonParser>());
       expect(identical(first, p.createParser()), isFalse);
     });
 
     test('binds the parser to the negotiated catalogs', () {
-      final parser =
-          processor().createParser()
-              as DirectJsonParser<CatalogComponent, CatalogFunction>;
+      final parser = processor().createParser() as DirectJsonParser;
 
       expect(parser.catalogs.single.id, basicCatalogId);
     });
@@ -103,10 +119,9 @@ void main() {
     }, skip: pendingPrompt);
 
     test('describes only what a pruned catalog still declares', () {
-      final SchemaCatalog pruned =
-          ComponentPruningTransformer<CatalogComponent, CatalogFunction>([
-            'Text',
-          ]).transform(basicCatalog());
+      final SchemaCatalog pruned = ComponentPruningTransformer([
+        'Text',
+      ]).transform(basicCatalog());
 
       final String snippet = processor(catalogs: [pruned]).promptSnippet;
 
@@ -170,10 +185,9 @@ void main() {
     }, skip: pendingProcessor);
 
     test('rejects a component the negotiated catalog does not declare', () {
-      final SchemaCatalog pruned =
-          ComponentPruningTransformer<CatalogComponent, CatalogFunction>([
-            'Text',
-          ]).transform(basicCatalog());
+      final SchemaCatalog pruned = ComponentPruningTransformer([
+        'Text',
+      ]).transform(basicCatalog());
 
       expect(
         () => processor(catalogs: [pruned]).parseResponse(
@@ -190,47 +204,41 @@ void main() {
 
   group('A2uiRequestProcessor.validateExamples', () {
     test('accepts examples the negotiated catalogs can express', () {
-      final A2uiRequestProcessor<CatalogComponent, CatalogFunction> p =
-          processor(
-            examples: {
-              'a greeting': [
-                CreateSurfaceMessage(
-                  surfaceId: 's1',
-                  catalogId: basicCatalogId,
-                ),
-                UpdateComponentsMessage(
-                  surfaceId: 's1',
-                  components: [
-                    {'id': 'root', 'component': 'Text', 'text': 'Hello'},
-                  ],
-                ),
+      final A2uiRequestProcessor p = processor(
+        examples: {
+          'a greeting': [
+            CreateSurfaceMessage(surfaceId: 's1', catalogId: basicCatalogId),
+            UpdateComponentsMessage(
+              surfaceId: 's1',
+              components: [
+                {'id': 'root', 'component': 'Text', 'text': 'Hello'},
               ],
-            },
-          );
+            ),
+          ],
+        },
+      );
 
       expect(p.validateExamples(), completes);
     }, skip: pendingProcessor);
 
     test('rejects examples using a component the catalog does not declare', () {
-      final SchemaCatalog pruned =
-          ComponentPruningTransformer<CatalogComponent, CatalogFunction>([
-            'Text',
-          ]).transform(basicCatalog());
+      final SchemaCatalog pruned = ComponentPruningTransformer([
+        'Text',
+      ]).transform(basicCatalog());
 
-      final A2uiRequestProcessor<CatalogComponent, CatalogFunction> p =
-          processor(
-            catalogs: [pruned],
-            examples: {
-              'uses a pruned component': [
-                UpdateComponentsMessage(
-                  surfaceId: 's1',
-                  components: [
-                    {'id': 'v', 'component': 'Video', 'url': 'https://x/y.mp4'},
-                  ],
-                ),
+      final A2uiRequestProcessor p = processor(
+        catalogs: [pruned],
+        examples: {
+          'uses a pruned component': [
+            UpdateComponentsMessage(
+              surfaceId: 's1',
+              components: [
+                {'id': 'v', 'component': 'Video', 'url': 'https://x/y.mp4'},
               ],
-            },
-          );
+            ),
+          ],
+        },
+      );
 
       expect(p.validateExamples(), throwsA(isA<A2uiValidationError>()));
     }, skip: pendingProcessor);

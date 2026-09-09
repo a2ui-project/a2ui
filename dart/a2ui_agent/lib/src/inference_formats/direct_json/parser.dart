@@ -16,28 +16,28 @@ import 'package:a2ui_core/a2ui_core.dart';
 
 import '../../parser/parser.dart';
 import '../../parser/response_part.dart';
+import '../../validation/catalog_validators.dart';
 import 'constants.dart';
 import 'streaming.dart';
 
 /// Parses A2UI JSON payload envelopes enclosed in `<a2ui-json>` sentinel tags.
 ///
 /// One instance per turn: [parseChunk] state must not be shared.
-class DirectJsonParser<C extends ComponentApi, F extends FunctionApi>
-    extends Parser {
+class DirectJsonParser extends Parser {
   /// The active catalogs compiled payloads are validated against.
-  final List<Catalog<C, F>> catalogs;
+  final List<SchemaCatalog> catalogs;
 
   /// An override for [progressiveKeys].
   final Set<String>? customProgressiveKeys;
 
-  /// The validator applied to compiled payloads.
-  final A2uiValidator<C, F> validator;
+  /// The validators applied to compiled payloads, one per active catalog.
+  final CatalogValidators validators;
 
   DirectJsonParser({
     required this.catalogs,
     this.customProgressiveKeys,
-    A2uiValidator<C, F>? validator,
-  }) : validator = validator ?? A2uiValidator<C, F>(catalogs: catalogs);
+    CatalogValidators? validators,
+  }) : validators = validators ?? CatalogValidators(catalogs: catalogs);
 
   /// The keys safe to auto-close when a stream cuts them mid-token.
   Set<String> get progressiveKeys =>
@@ -47,11 +47,11 @@ class DirectJsonParser<C extends ComponentApi, F extends FunctionApi>
   bool get supportsStreaming => true;
 
   /// The stream processor backing [parseChunk] for this turn.
-  late final DirectJsonStreamProcessor<C, F> streamProcessor =
-      DirectJsonStreamProcessor<C, F>(
+  late final DirectJsonStreamProcessor streamProcessor =
+      DirectJsonStreamProcessor(
         catalogs: catalogs,
         progressiveKeys: progressiveKeys,
-        validator: validator,
+        validators: validators,
       );
 
   @override

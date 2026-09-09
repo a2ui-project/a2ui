@@ -21,11 +21,7 @@ import 'test_catalogs.dart';
 void main() {
   group('ComponentPruningTransformer', () {
     test('keeps only the allowed components', () {
-      final transformer =
-          ComponentPruningTransformer<CatalogComponent, CatalogFunction>([
-            'Text',
-            'Card',
-          ]);
+      final transformer = ComponentPruningTransformer(['Text', 'Card']);
 
       final SchemaCatalog pruned = transformer.transform(smallCatalog());
 
@@ -34,40 +30,35 @@ void main() {
     });
 
     test('ignores allowlist entries the catalog does not declare', () {
-      final transformer =
-          ComponentPruningTransformer<CatalogComponent, CatalogFunction>([
-            'Text',
-            'NotInCatalog',
-          ]);
+      final transformer = ComponentPruningTransformer(['Text', 'NotInCatalog']);
 
       expect(transformer.transform(smallCatalog()).components.keys, ['Text']);
     });
 
-    test('preserves the catalog id and protocol version', () {
+    test('preserves the catalog identity', () {
       final SchemaCatalog source = smallCatalog();
-      final SchemaCatalog pruned =
-          ComponentPruningTransformer<CatalogComponent, CatalogFunction>([
-            'Text',
-          ]).transform(source);
+      final SchemaCatalog pruned = ComponentPruningTransformer([
+        'Text',
+      ]).transform(source);
 
+      // A transformer narrows what a catalog offers; it does not rename it,
+      // which is why capabilities advertise the pristine id.
       expect(pruned.id, source.id);
-      expect(pruned.protocolVersion, source.protocolVersion);
+      expect(pruned.schemaId, source.schemaId);
+      expect(pruned.title, source.title);
     });
 
     test('does not mutate the source catalog', () {
       final SchemaCatalog source = smallCatalog();
-      ComponentPruningTransformer<CatalogComponent, CatalogFunction>([
-        'Text',
-      ]).transform(source);
+      ComponentPruningTransformer(['Text']).transform(source);
 
       expect(source.components.keys.toSet(), {'Text', 'Card', 'Button'});
     });
 
     test('narrows the anyComponent union in the rendered document', () {
-      final SchemaCatalog pruned =
-          ComponentPruningTransformer<CatalogComponent, CatalogFunction>([
-            'Text',
-          ]).transform(smallCatalog());
+      final SchemaCatalog pruned = ComponentPruningTransformer([
+        'Text',
+      ]).transform(smallCatalog());
 
       final oneOf =
           ((pruned.catalogSchema[r'$defs']! as Map)['anyComponent']!
@@ -77,14 +68,13 @@ void main() {
     });
 
     test('prunes the published basic catalog', () {
-      final SchemaCatalog pruned =
-          ComponentPruningTransformer<CatalogComponent, CatalogFunction>([
-            'Card',
-            'Column',
-            'Text',
-            'TextField',
-            'Button',
-          ]).transform(basicCatalog());
+      final SchemaCatalog pruned = ComponentPruningTransformer([
+        'Card',
+        'Column',
+        'Text',
+        'TextField',
+        'Button',
+      ]).transform(basicCatalog());
 
       expect(pruned.components.keys.toSet(), {
         'Card',
@@ -97,10 +87,7 @@ void main() {
     });
 
     test('exposes the allowlist as an unmodifiable set', () {
-      final transformer =
-          ComponentPruningTransformer<CatalogComponent, CatalogFunction>([
-            'Text',
-          ]);
+      final transformer = ComponentPruningTransformer(['Text']);
 
       expect(transformer.allowedComponents, {'Text'});
       expect(
@@ -112,30 +99,27 @@ void main() {
 
   group('FunctionPruningTransformer', () {
     test('keeps only the allowed functions', () {
-      final SchemaCatalog pruned =
-          FunctionPruningTransformer<CatalogComponent, CatalogFunction>([
-            'required',
-          ]).transform(smallCatalog());
+      final SchemaCatalog pruned = FunctionPruningTransformer([
+        'required',
+      ]).transform(smallCatalog());
 
       expect(pruned.functions.keys, ['required']);
       expect(pruned.components.keys.toSet(), {'Text', 'Card', 'Button'});
     });
 
     test('ignores allowlist entries the catalog does not declare', () {
-      final SchemaCatalog pruned =
-          FunctionPruningTransformer<CatalogComponent, CatalogFunction>([
-            'required',
-            'notAFunction',
-          ]).transform(smallCatalog());
+      final SchemaCatalog pruned = FunctionPruningTransformer([
+        'required',
+        'notAFunction',
+      ]).transform(smallCatalog());
 
       expect(pruned.functions.keys, ['required']);
     });
 
     test('narrows the anyFunction union in the rendered document', () {
-      final SchemaCatalog pruned =
-          FunctionPruningTransformer<CatalogComponent, CatalogFunction>([
-            'email',
-          ]).transform(smallCatalog());
+      final SchemaCatalog pruned = FunctionPruningTransformer([
+        'email',
+      ]).transform(smallCatalog());
 
       final oneOf =
           ((pruned.catalogSchema[r'$defs']! as Map)['anyFunction']!
@@ -145,10 +129,7 @@ void main() {
     });
 
     test('exposes the allowlist as an unmodifiable set', () {
-      final transformer =
-          FunctionPruningTransformer<CatalogComponent, CatalogFunction>([
-            'required',
-          ]);
+      final transformer = FunctionPruningTransformer(['required']);
 
       expect(transformer.allowedFunctions, {'required'});
       expect(
@@ -160,11 +141,10 @@ void main() {
 
   group('CatalogTransformer composition', () {
     test('transformers chain to narrow both components and functions', () {
-      final transformers =
-          <CatalogTransformer<CatalogComponent, CatalogFunction>>[
-            ComponentPruningTransformer(['Text']),
-            FunctionPruningTransformer(['required']),
-          ];
+      final transformers = <CatalogTransformer>[
+        ComponentPruningTransformer(['Text']),
+        FunctionPruningTransformer(['required']),
+      ];
 
       SchemaCatalog current = smallCatalog();
       for (final transformer in transformers) {

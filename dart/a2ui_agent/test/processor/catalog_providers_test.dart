@@ -28,7 +28,6 @@ void main() {
       ).load();
 
       expect(catalog.id, basicCatalogId);
-      expect(catalog.protocolVersion, A2uiProtocolVersion.v0_9);
       expect(catalog.components.keys, contains('Button'));
       expect(catalog.functions.keys, contains('required'));
     });
@@ -53,13 +52,16 @@ void main() {
       );
     });
 
-    test('accepts a matching expected protocol version', () {
+    test('accepts a document that declares no protocol version', () {
+      // A catalog document is version-agnostic, so naming an expected version
+      // constrains only a document that declares one. The published basic
+      // catalog declares none.
       expect(
         FileSystemCatalogProvider(
           basicCatalogFile(),
           protocolVersion: A2uiProtocolVersion.v0_9,
-        ).load().protocolVersion,
-        A2uiProtocolVersion.v0_9,
+        ).load().id,
+        basicCatalogId,
       );
     });
 
@@ -130,6 +132,16 @@ void main() {
           'protocolVersion': 'v1.0',
         }).load,
         throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('accepts a schema declaring the expected protocol version', () {
+      expect(
+        const InMemoryCatalogProvider({
+          'catalogId': 'c',
+          'protocolVersion': 'v0.9',
+        }, protocolVersion: A2uiProtocolVersion.v0_9).load().id,
+        'c',
       );
     });
 

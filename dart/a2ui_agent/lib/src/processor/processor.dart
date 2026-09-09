@@ -15,37 +15,37 @@
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../inference_format.dart';
-import '../inference_formats/direct_json/format.dart';
 import '../parser/parser.dart';
 import '../parser/response_part.dart';
+import '../validation/catalog_validators.dart';
 
 /// The per-request facade: negotiated catalogs, prompt snippet, parsers and
 /// validation for one renderer.
 ///
 /// Usually obtained from `A2uiGenerator.createProcessor`.
-class A2uiRequestProcessor<C extends ComponentApi, F extends FunctionApi> {
+class A2uiRequestProcessor {
   /// The negotiated catalogs active for this request.
-  final List<Catalog<C, F>> activeCatalogs;
+  final List<SchemaCatalog> activeCatalogs;
 
   /// Few-shot example turns to include in the system prompt.
   final Map<String, List<A2uiMessage>>? examples;
 
   /// The inference format strategy used for prompting and parsing.
-  final InferenceFormat<C, F> format;
+  final InferenceFormat format;
 
-  /// The validator applied to parsed payloads.
-  final A2uiValidator<C, F> validator;
+  /// The validators applied to parsed payloads, one per active catalog.
+  final CatalogValidators validators;
 
+  /// [formatFactory] has no default: the format decides the token cost of
+  /// every turn, so the caller chooses it explicitly rather than inheriting
+  /// one that would be breaking to change later.
   A2uiRequestProcessor({
     required this.activeCatalogs,
+    required InferenceFormatFactory formatFactory,
     this.examples,
-    InferenceFormatFactory<C, F>? formatFactory,
-    A2uiValidator<C, F>? validator,
-  }) : format = (formatFactory ?? DirectJsonFormatFactory<C, F>()).createFormat(
-         activeCatalogs,
-         examples: examples,
-       ),
-       validator = validator ?? A2uiValidator<C, F>(catalogs: activeCatalogs);
+    CatalogValidators? validators,
+  }) : format = formatFactory.createFormat(activeCatalogs, examples: examples),
+       validators = validators ?? CatalogValidators(catalogs: activeCatalogs);
 
   /// The format-specific prompt snippet; the agent prepends its own
   /// preamble.

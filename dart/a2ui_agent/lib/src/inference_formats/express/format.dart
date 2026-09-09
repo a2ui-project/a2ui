@@ -20,32 +20,27 @@ import 'parser.dart';
 import 'prompt_generator.dart';
 
 /// The compact Express DSL format, enclosed in `<a2ui-express>` tags.
-class ExpressFormat<C extends ComponentApi, F extends FunctionApi>
-    extends InferenceFormat<C, F> {
+class ExpressFormat extends InferenceFormat {
   /// The active catalogs bound to this format.
-  final List<Catalog<C, F>> catalogs;
+  final List<SchemaCatalog> catalogs;
 
   @override
-  final ExpressPromptGenerator<C, F> promptGenerator;
+  final ExpressPromptGenerator promptGenerator;
 
   ExpressFormat(this.catalogs, {Map<String, List<A2uiMessage>>? examples})
-    : promptGenerator = ExpressPromptGenerator<C, F>(
-        catalogs,
-        examples: examples,
-      );
+    : promptGenerator = ExpressPromptGenerator(catalogs, examples: examples);
 
   @override
-  Parser createParser() => ExpressParser<C, F>(catalogs: catalogs);
+  Parser createParser() => ExpressParser(catalogs: catalogs);
 }
 
 /// Builds [ExpressFormat] strategies bound to a set of active catalogs.
-class ExpressFormatFactory<C extends ComponentApi, F extends FunctionApi>
-    extends InferenceFormatFactory<C, F> {
+class ExpressFormatFactory extends InferenceFormatFactory {
   const ExpressFormatFactory();
 
   @override
-  ExpressFormat<C, F> createFormat(
-    List<Catalog<C, F>> catalogs, {
+  ExpressFormat createFormat(
+    List<SchemaCatalog> catalogs, {
     Map<String, List<A2uiMessage>>? examples,
-  }) => ExpressFormat<C, F>(catalogs, examples: examples);
+  }) => ExpressFormat(catalogs, examples: examples);
 }

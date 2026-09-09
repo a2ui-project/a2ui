@@ -480,9 +480,16 @@ class CatalogConfig:
     Attributes:
         catalog: Base Catalog instance loaded via a CatalogProvider.
         transformers: Optional list of CatalogTransformer rules to apply sequentially.
+        protocol_version: The protocol version this catalog is registered for.
+            A catalog document is version-agnostic -- `a2ui_core` ignores any
+            `protocolVersion` it declares rather than checking it -- so the
+            version belongs to the registration, not to the document. This is
+            what agent_capabilities advertises the catalog under, and it is why
+            one agent can register catalogs for several versions at once.
     """
     catalog: Catalog[TComponent, TFunction]
     transformers: Optional[List[CatalogTransformer]] = None
+    protocol_version: ProtocolVersion = ProtocolVersion.V0_9
 
     @property
     def transformed_catalog(self) -> Catalog[TComponent, TFunction]:
@@ -498,18 +505,26 @@ class CatalogConfig:
         cls,
         catalog_path: str,
         transformers: Optional[List[CatalogTransformer]] = None,
+        protocol_version: ProtocolVersion = ProtocolVersion.V0_9,
     ) -> "CatalogConfig":
         """Factory method loading a Catalog from disk into a CatalogConfig.
 
         Args:
             catalog_path: Path to the catalog JSON file.
             transformers: Optional list of catalog transformers.
+            protocol_version: The protocol version to register the catalog for.
 
         Returns:
             A CatalogConfig instance.
         """
-        catalog = FileSystemCatalogProvider(catalog_path).load()
-        return cls(catalog=catalog, transformers=transformers)
+        catalog = FileSystemCatalogProvider(
+            catalog_path, protocol_version=protocol_version
+        ).load()
+        return cls(
+            catalog=catalog,
+            transformers=transformers,
+            protocol_version=protocol_version,
+        )
 ```
 
 #### `A2uiGenerator`
@@ -520,30 +535,34 @@ class A2uiGenerator:
 
     Attributes:
         catalogs: Master list of CatalogConfig objects supported by the agent.
-            These may span protocol versions -- each Catalog carries its own
-            protocol_version, and the registry is not assumed to be uniform.
+            These may span protocol versions -- each CatalogConfig carries its
+            own protocol_version, and the registry is not assumed to be uniform.
         examples: Optional mapping of few-shot example turns shared across sessions.
         accepts_inline_catalogs: Whether the agent will accept catalogs supplied
             inline by the renderer. Advertised in agent_capabilities and passed
             to resolve_catalogs.
-        factory: Default InferenceFormatFactory used when instantiating processors.
+        inference_format_factory: InferenceFormatFactory used when instantiating
+            processors. Required, never defaulted: the format decides the token
+            cost of every turn, so the agent chooses it explicitly rather than
+            inheriting one that would be breaking to change later.
     """
 
     def __init__(
         self,
         catalogs: List[CatalogConfig],
+        inference_format_factory: InferenceFormatFactory,
         examples: Optional[Dict[str, List[AgentToRendererMessage]]] = None,
         accepts_inline_catalogs: bool = False,
-        inference_format_factory: Optional[InferenceFormatFactory] = None,
     ):
         """Initializes A2uiGenerator with supported catalog configurations and format factory.
 
         Args:
             catalogs: List of supported CatalogConfig configurations, in agent
                 preference order. May mix protocol versions.
+            inference_format_factory: The default InferenceFormatFactory. Has
+                no default value; see the class docstring.
             examples: Optional dictionary of prompt examples.
             accepts_inline_catalogs: Whether renderer-supplied inline catalogs are accepted.
-            inference_format_factory: Optional default InferenceFormatFactory (defaults to DirectJsonFormatFactory).
         """
         pass
 
@@ -559,10 +578,12 @@ class A2uiGenerator:
         entry. A flat object carrying a sibling list of version strings is a
         different, invalid shape.
 
-        Group the registered catalogs by the protocol_version each Catalog
-        declares. Never advertise the whole registry under one version assumed
-        for all of it: catalogs may span versions, and a renderer that reads
-        this object decides what to send from it.
+        Group the registered catalogs by the protocol_version each
+        CatalogConfig declares. Never advertise the whole registry under one
+        version assumed for all of it: catalogs may span versions, and a
+        renderer that reads this object decides what to send from it. The
+        version comes from the registration rather than from the catalog
+        document, which is version-agnostic.
 
         Emit an entry for every version this SDK implements, including a
         version with no registered catalog, because the schema requires the
@@ -600,15 +621,18 @@ class A2uiRequestProcessor:
     def __init__(
         self,
         catalogs: List[Catalog[TComponent, TFunction]],
+        format_factory: InferenceFormatFactory,
         examples: Optional[Dict[str, List[AgentToRendererMessage]]] = None,
-        format_factory: Optional[InferenceFormatFactory] = None,
     ):
         """Initializes A2uiRequestProcessor, resolving active catalogs and instantiating validator and format strategy.
 
         Args:
             catalogs: List of active Catalog instances.
-            examples: Optional dictionary of prompt examples.
             format_factory: Format factory for instantiating format strategies.
+                Required, never defaulted: the format decides the token cost of
+                every turn, so the caller chooses it explicitly rather than
+                inheriting one that would be breaking to change later.
+            examples: Optional dictionary of prompt examples.
         """
         pass
 
@@ -836,7 +860,9 @@ The Express format package under `a2ui/agent/inference_formats/express/` contain
 ```python
 # 1. Agent Startup: Initialize long-lived A2uiGenerator with agent catalogs.
 #    Catalogs are registered in agent preference order and may span protocol
-#    versions -- each one carries its own protocol_version.
+#    versions -- each registration carries its own protocol_version.
+#    The inference format is chosen explicitly; there is no default, because the
+#    format decides the token cost of every turn.
 #    Note: Prompt examples passed here are validated internally during processor creation
 #    (create_processor) against active negotiated catalogs, raising ValueError if any
 #    example uses components or structures not supported by the active catalog.
@@ -845,11 +871,12 @@ generator = A2uiGenerator(
         CatalogConfig.from_path("./catalogs/basic_v0_9.json"),
         CatalogConfig.from_path("./catalogs/custom_catalog.json"),
     ],
+    inference_format_factory=ExpressFormatFactory(),
     examples=load_examples("./prompts/examples/**"),
 )
 
 # 2. Publish what the agent can do. Version-keyed, per server_capabilities.json;
-#    each catalog id sits under the version its own catalog declares:
+#    each catalog id sits under the version it was registered for:
 #      {"v0.9": {"supportedCatalogIds": [...], "acceptsInlineCatalogs": false}}
 agent_card.a2ui_server_capabilities = generator.agent_capabilities
 

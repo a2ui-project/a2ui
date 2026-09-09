@@ -48,3 +48,5 @@ export 'src/processor/processor.dart';
 export 'src/prompt/generator.dart';
 // Capability negotiation helpers.
 export 'src/utils/catalog_resolver.dart';
+// Per-catalog payload validation.
+export 'src/validation/catalog_validators.dart';

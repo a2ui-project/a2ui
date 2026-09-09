@@ -22,7 +22,7 @@ import 'package:a2ui_core/a2ui_core.dart';
 void main() {
   // 1. Agent startup. Register every catalog the agent supports, narrowed to
   //    the components and functions it uses.
-  final generator = A2uiGenerator<CatalogComponent, CatalogFunction>(
+  final generator = A2uiGenerator(
     catalogs: [
       CatalogConfig.fromPath(
         'specification/v0_9_1/catalogs/basic/catalog.json',
@@ -42,6 +42,8 @@ void main() {
         ),
       ],
     },
+    // The format is explicit: it decides the token cost of every turn.
+    inferenceFormatFactory: const DirectJsonFormatFactory(),
   );
 
   // 2. Per request. Negotiate against what the renderer says it can render.
@@ -53,8 +55,9 @@ void main() {
       ],
     },
   });
-  final A2uiRequestProcessor<CatalogComponent, CatalogFunction> processor =
-      generator.createProcessor(capabilities);
+  final A2uiRequestProcessor processor = generator.createProcessor(
+    capabilities,
+  );
 
   // 3. Inference. Prepend your own preamble, then call your model.
   final systemPrompt =

@@ -22,8 +22,7 @@ void main() {
   group('CatalogConfig', () {
     test('returns the pristine catalog when no transformer is configured', () {
       final SchemaCatalog catalog = smallCatalog();
-      final CatalogConfig<CatalogComponent, CatalogFunction> config =
-          CatalogConfig(catalog);
+      final config = CatalogConfig(catalog);
 
       expect(config.transformers, isEmpty);
       expect(config.transformedCatalog.components.keys.toSet(), {
@@ -34,7 +33,7 @@ void main() {
     });
 
     test('applies its transformers in order', () {
-      final SchemaCatalogConfig config = SchemaCatalogConfig(
+      final config = CatalogConfig(
         smallCatalog(),
         transformers: [
           ComponentPruningTransformer(['Text', 'Card']),
@@ -46,7 +45,7 @@ void main() {
     });
 
     test('narrows components and functions independently', () {
-      final SchemaCatalogConfig config = SchemaCatalogConfig(
+      final config = CatalogConfig(
         smallCatalog(),
         transformers: [
           ComponentPruningTransformer(['Text']),
@@ -61,7 +60,7 @@ void main() {
 
     test('leaves the pristine catalog untouched', () {
       final SchemaCatalog catalog = smallCatalog();
-      CatalogConfig<CatalogComponent, CatalogFunction>(
+      CatalogConfig(
         catalog,
         transformers: [
           ComponentPruningTransformer(['Text']),
@@ -72,7 +71,7 @@ void main() {
     });
 
     test('recomputes the transformed catalog on each read', () {
-      final SchemaCatalogConfig config = SchemaCatalogConfig(
+      final config = CatalogConfig(
         smallCatalog(),
         transformers: [
           ComponentPruningTransformer(['Text']),
@@ -86,23 +85,21 @@ void main() {
     });
 
     test('loads a catalog from disk', () {
-      final CatalogConfig<CatalogComponent, CatalogFunction> config =
-          CatalogConfig.fromPath(basicCatalogFile());
+      final CatalogConfig config = CatalogConfig.fromPath(basicCatalogFile());
 
       expect(config.catalog.id, basicCatalogId);
       expect(config.transformers, isEmpty);
     });
 
     test('loads a catalog from disk with transformers attached', () {
-      final CatalogConfig<CatalogComponent, CatalogFunction> config =
-          CatalogConfig.fromPath(
-            basicCatalogFile(),
-            transformers: [
-              ComponentPruningTransformer(['Text', 'Card']),
-            ],
-            catalogId: basicCatalogId,
-            protocolVersion: A2uiProtocolVersion.v0_9,
-          );
+      final CatalogConfig config = CatalogConfig.fromPath(
+        basicCatalogFile(),
+        transformers: [
+          ComponentPruningTransformer(['Text', 'Card']),
+        ],
+        catalogId: basicCatalogId,
+        protocolVersion: A2uiProtocolVersion.v0_9,
+      );
 
       expect(config.transformedCatalog.components.keys.toSet(), {
         'Text',

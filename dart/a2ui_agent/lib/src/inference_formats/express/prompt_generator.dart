@@ -12,16 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_core/a2ui_core.dart';
-
 import '../../prompt/generator.dart';
 
 /// Renders system instructions for the EXPRESS format.
 ///
 /// Describes components and functions as positional signatures, far cheaper
 /// in tokens than DIRECT_JSON's schemas.
-class ExpressPromptGenerator<C extends ComponentApi, F extends FunctionApi>
-    extends PromptGenerator<C, F> {
+class ExpressPromptGenerator extends PromptGenerator {
   ExpressPromptGenerator(super.catalogs, {super.examples});
 
   @override

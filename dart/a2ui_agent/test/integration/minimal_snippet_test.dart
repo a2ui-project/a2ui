@@ -139,8 +139,9 @@ void main() {
     test('the agent registers the catalog the example loads', () {
       // Step 1 stands on its own: the generator advertises its catalog
       // before anything is negotiated.
-      final generator = A2uiGenerator<CatalogComponent, CatalogFunction>(
+      final generator = A2uiGenerator(
         catalogs: [CatalogConfig(basicCatalog())],
+        inferenceFormatFactory: const ExpressFormatFactory(),
       );
       expect(generator.agentCapabilities, <String, Object?>{
         'v0.9': <String, Object?>{
@@ -153,7 +154,9 @@ void main() {
     test('the example runs against the published basic catalog', () {
       final SchemaCatalog catalog = basicCatalog();
       expect(catalog.id, basicCatalogId);
-      expect(catalog.protocolVersion, A2uiProtocolVersion.v0_9);
+      // The document is version-agnostic; the registration names the protocol
+      // version, and defaults to the one this SDK implements.
+      expect(CatalogConfig(catalog).protocolVersion, A2uiProtocolVersion.v0_9);
       expect(
         catalog.components.keys,
         containsAll(<String>['Card', 'Column', 'Text', 'TextField', 'Button']),

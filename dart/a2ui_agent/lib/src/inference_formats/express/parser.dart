@@ -20,23 +20,22 @@ import 'compiler.dart';
 import 'decompiler.dart';
 
 /// Parses Express DSL payloads enclosed in `<a2ui-express>` sentinel tags.
-class ExpressParser<C extends ComponentApi, F extends FunctionApi>
-    extends Parser {
+class ExpressParser extends Parser {
   /// The active catalogs compiled payloads are validated against.
-  final List<Catalog<C, F>> catalogs;
+  final List<SchemaCatalog> catalogs;
 
   /// The compiler backing [compile].
-  final ExpressCompiler<C, F> compiler;
+  final ExpressCompiler compiler;
 
   /// The decompiler backing [decompile].
-  final ExpressDecompiler<C, F> decompiler;
+  final ExpressDecompiler decompiler;
 
   ExpressParser({
     required this.catalogs,
-    ExpressCompiler<C, F>? compiler,
-    ExpressDecompiler<C, F>? decompiler,
-  }) : compiler = compiler ?? ExpressCompiler<C, F>(catalogs: catalogs),
-       decompiler = decompiler ?? ExpressDecompiler<C, F>(catalogs: catalogs);
+    ExpressCompiler? compiler,
+    ExpressDecompiler? decompiler,
+  }) : compiler = compiler ?? ExpressCompiler(catalogs: catalogs),
+       decompiler = decompiler ?? ExpressDecompiler(catalogs: catalogs);
 
   @override
   bool get supportsStreaming => true;

@@ -18,9 +18,9 @@ import 'package:a2ui_core/a2ui_core.dart';
 ///
 /// The Express grammar is defined by
 /// `specification/inference_formats/express/Express.g4`.
-class ExpressCompiler<C extends ComponentApi, F extends FunctionApi> {
+class ExpressCompiler {
   /// The active catalogs used to resolve component and function signatures.
-  final List<Catalog<C, F>> catalogs;
+  final List<SchemaCatalog> catalogs;
 
   ExpressCompiler({required this.catalogs});
 

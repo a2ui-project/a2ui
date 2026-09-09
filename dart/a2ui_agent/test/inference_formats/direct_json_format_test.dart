@@ -25,14 +25,10 @@ const String pendingPromptGenerator =
 void main() {
   group('DirectJsonFormatFactory', () {
     test('builds a format bound to the given catalogs', () {
-      final DirectJsonFormat<CatalogComponent, CatalogFunction> format =
-          const DirectJsonFormatFactory<CatalogComponent, CatalogFunction>()
-              .createFormat([smallCatalog()]);
+      final DirectJsonFormat format = const DirectJsonFormatFactory()
+          .createFormat([smallCatalog()]);
 
-      expect(
-        format,
-        isA<DirectJsonFormat<CatalogComponent, CatalogFunction>>(),
-      );
+      expect(format, isA<DirectJsonFormat>());
       expect(format.catalogs, hasLength(1));
       expect(format.catalogs.single.components.keys, contains('Text'));
     });
@@ -44,18 +40,16 @@ void main() {
         ],
       };
 
-      final DirectJsonFormat<CatalogComponent, CatalogFunction> format =
-          const DirectJsonFormatFactory<CatalogComponent, CatalogFunction>()
-              .createFormat([smallCatalog()], examples: examples);
+      final DirectJsonFormat format = const DirectJsonFormatFactory()
+          .createFormat([smallCatalog()], examples: examples);
 
       expect(format.promptGenerator.examples, same(examples));
     });
 
     test('passes the allowed message list through to the prompt generator', () {
-      final DirectJsonFormat<CatalogComponent, CatalogFunction> format =
-          const DirectJsonFormatFactory<CatalogComponent, CatalogFunction>(
-            allowedMessages: ['createSurface', 'updateComponents'],
-          ).createFormat([smallCatalog()]);
+      final DirectJsonFormat format = const DirectJsonFormatFactory(
+        allowedMessages: ['createSurface', 'updateComponents'],
+      ).createFormat([smallCatalog()]);
 
       expect(format.promptGenerator.allowedMessages, [
         'createSurface',
@@ -66,34 +60,26 @@ void main() {
 
   group('DirectJsonFormat', () {
     test('creates a fresh parser for each turn', () {
-      final format = DirectJsonFormat<CatalogComponent, CatalogFunction>([
-        smallCatalog(),
-      ]);
+      final format = DirectJsonFormat([smallCatalog()]);
 
       final Parser first = format.createParser();
       final Parser second = format.createParser();
 
-      expect(first, isA<DirectJsonParser<CatalogComponent, CatalogFunction>>());
+      expect(first, isA<DirectJsonParser>());
       expect(identical(first, second), isFalse);
     });
 
     test('binds the parser to the format catalogs', () {
       final SchemaCatalog catalog = smallCatalog();
-      final format = DirectJsonFormat<CatalogComponent, CatalogFunction>([
-        catalog,
-      ]);
+      final format = DirectJsonFormat([catalog]);
 
-      final parser =
-          format.createParser()
-              as DirectJsonParser<CatalogComponent, CatalogFunction>;
+      final parser = format.createParser() as DirectJsonParser;
 
       expect(parser.catalogs.single, same(catalog));
     });
 
     test('exposes one prompt generator', () {
-      final format = DirectJsonFormat<CatalogComponent, CatalogFunction>([
-        smallCatalog(),
-      ]);
+      final format = DirectJsonFormat([smallCatalog()]);
 
       expect(identical(format.promptGenerator, format.promptGenerator), isTrue);
     });
@@ -101,10 +87,7 @@ void main() {
 
   group('DirectJsonPromptGenerator', () {
     test('holds the catalogs it will describe', () {
-      final generator =
-          DirectJsonPromptGenerator<CatalogComponent, CatalogFunction>([
-            smallCatalog(),
-          ]);
+      final generator = DirectJsonPromptGenerator([smallCatalog()]);
 
       expect(generator.catalogs, hasLength(1));
       expect(generator.examples, isNull);
@@ -112,10 +95,7 @@ void main() {
     });
 
     test('embeds the catalog schema in an a2ui_schema block', () {
-      final generator =
-          DirectJsonPromptGenerator<CatalogComponent, CatalogFunction>([
-            basicCatalog(),
-          ]);
+      final generator = DirectJsonPromptGenerator([basicCatalog()]);
 
       final String prompt = generator.generate();
 
@@ -127,10 +107,7 @@ void main() {
     }, skip: pendingPromptGenerator);
 
     test('instructs the model to emit payloads inside a2ui-json tags', () {
-      final generator =
-          DirectJsonPromptGenerator<CatalogComponent, CatalogFunction>([
-            smallCatalog(),
-          ]);
+      final generator = DirectJsonPromptGenerator([smallCatalog()]);
 
       final String prompt = generator.generate();
 
@@ -139,33 +116,25 @@ void main() {
     }, skip: pendingPromptGenerator);
 
     test('describes only the components a pruned catalog still declares', () {
-      final SchemaCatalog pruned =
-          ComponentPruningTransformer<CatalogComponent, CatalogFunction>([
-            'Text',
-          ]).transform(smallCatalog());
+      final SchemaCatalog pruned = ComponentPruningTransformer([
+        'Text',
+      ]).transform(smallCatalog());
 
-      final String prompt =
-          DirectJsonPromptGenerator<CatalogComponent, CatalogFunction>([
-            pruned,
-          ]).generate();
+      final String prompt = DirectJsonPromptGenerator([pruned]).generate();
 
       expect(prompt, contains('"Text"'));
       expect(prompt, isNot(contains('"Button"')));
     }, skip: pendingPromptGenerator);
 
     test('renders the example turns it was given', () {
-      final generator =
-          DirectJsonPromptGenerator<CatalogComponent, CatalogFunction>(
-            [smallCatalog()],
-            examples: {
-              'a greeting': [
-                CreateSurfaceMessage(
-                  surfaceId: 's1',
-                  catalogId: basicCatalogId,
-                ),
-              ],
-            },
-          );
+      final generator = DirectJsonPromptGenerator(
+        [smallCatalog()],
+        examples: {
+          'a greeting': [
+            CreateSurfaceMessage(surfaceId: 's1', catalogId: basicCatalogId),
+          ],
+        },
+      );
 
       final String prompt = generator.generate();
 
@@ -174,11 +143,10 @@ void main() {
     }, skip: pendingPromptGenerator);
 
     test('restricts the described envelopes to the allowed messages', () {
-      final generator =
-          DirectJsonPromptGenerator<CatalogComponent, CatalogFunction>(
-            [smallCatalog()],
-            allowedMessages: ['createSurface'],
-          );
+      final generator = DirectJsonPromptGenerator(
+        [smallCatalog()],
+        allowedMessages: ['createSurface'],
+      );
 
       final String prompt = generator.generate();
 
@@ -187,10 +155,9 @@ void main() {
     }, skip: pendingPromptGenerator);
 
     test('describes the protocol version it targets', () {
-      final String prompt =
-          DirectJsonPromptGenerator<CatalogComponent, CatalogFunction>([
-            smallCatalog(),
-          ]).generate();
+      final String prompt = DirectJsonPromptGenerator([
+        smallCatalog(),
+      ]).generate();
 
       expect(prompt, contains('v0.9'));
     }, skip: pendingPromptGenerator);

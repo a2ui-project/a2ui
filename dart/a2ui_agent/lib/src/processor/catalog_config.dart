@@ -17,43 +17,51 @@ import 'package:a2ui_core/a2ui_core.dart';
 import '../catalog_transformers/base.dart';
 import 'catalog_providers.dart';
 
-/// A [CatalogConfig] over schema-only catalogs, the shape agents use: an
-/// agent never evaluates a catalog function.
-typedef SchemaCatalogConfig = CatalogConfig<CatalogComponent, CatalogFunction>;
-
-/// Pairs a catalog with the transformers applied before prompting or
-/// validation.
-class CatalogConfig<C extends ComponentApi, F extends FunctionApi> {
+/// Pairs a catalog with the protocol version it is registered for and the
+/// transformers applied before prompting or validation.
+class CatalogConfig {
   /// The pristine catalog, as loaded from a [CatalogProvider].
-  final Catalog<C, F> catalog;
+  final SchemaCatalog catalog;
 
   /// Transformers applied in order by [transformedCatalog].
-  final List<CatalogTransformer<C, F>> transformers;
+  final List<CatalogTransformer> transformers;
 
-  const CatalogConfig(this.catalog, {this.transformers = const []});
+  /// The protocol version this catalog is registered for.
+  ///
+  /// A catalog document is version-agnostic, so the version belongs to the
+  /// registration rather than to the document. It is what
+  /// `A2uiGenerator.agentCapabilities` advertises the catalog under, which is
+  /// how one agent can register catalogs for several versions at once.
+  final A2uiProtocolVersion protocolVersion;
+
+  const CatalogConfig(
+    this.catalog, {
+    this.transformers = const [],
+    this.protocolVersion = A2uiProtocolVersion.v0_9,
+  });
 
   /// Loads a catalog from a JSON file on disk.
   ///
   /// Throws the errors documented on [FileSystemCatalogProvider.load].
-  static SchemaCatalogConfig fromPath(
+  static CatalogConfig fromPath(
     String catalogPath, {
-    List<CatalogTransformer<CatalogComponent, CatalogFunction>> transformers =
-        const [],
-    A2uiProtocolVersion? protocolVersion,
+    List<CatalogTransformer> transformers = const [],
+    A2uiProtocolVersion protocolVersion = A2uiProtocolVersion.v0_9,
     String? catalogId,
-  }) => CatalogConfig<CatalogComponent, CatalogFunction>(
+  }) => CatalogConfig(
     FileSystemCatalogProvider(
       catalogPath,
       protocolVersion: protocolVersion,
       catalogId: catalogId,
     ).load(),
     transformers: transformers,
+    protocolVersion: protocolVersion,
   );
 
   /// The catalog with every transformer applied, in order.
-  Catalog<C, F> get transformedCatalog {
-    Catalog<C, F> current = catalog;
-    for (final CatalogTransformer<C, F> transformer in transformers) {
+  SchemaCatalog get transformedCatalog {
+    SchemaCatalog current = catalog;
+    for (final CatalogTransformer transformer in transformers) {
       current = transformer.transform(current);
     }
     return current;

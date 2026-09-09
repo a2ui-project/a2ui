@@ -25,9 +25,8 @@ import '../processor/catalog_config.dart';
 /// Throws [A2uiCatalogError] if no registered catalog matches, and
 /// [A2uiValidationError] if [rendererCapabilities] declares nothing for the
 /// protocol version this SDK implements.
-List<Catalog<C, F>>
-resolveCatalogs<C extends ComponentApi, F extends FunctionApi>(
-  List<CatalogConfig<C, F>> catalogs,
+List<SchemaCatalog> resolveCatalogs(
+  List<CatalogConfig> catalogs,
   A2uiRendererCapabilities rendererCapabilities, {
   bool acceptsInlineCatalogs = false,
 }) {

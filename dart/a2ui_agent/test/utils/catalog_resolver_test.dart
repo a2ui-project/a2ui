@@ -23,7 +23,7 @@ const String pendingResolver = 'resolveCatalogs is not implemented yet.';
 
 const String smallCatalogId = 'https://example.com/small.json';
 
-List<SchemaCatalogConfig> registered() => [
+List<CatalogConfig> registered() => [
   CatalogConfig(basicCatalog()),
   CatalogConfig(smallCatalog()),
 ];
@@ -31,24 +31,22 @@ List<SchemaCatalogConfig> registered() => [
 void main() {
   group('resolveCatalogs', () {
     test('selects the catalog the renderer declares', () {
-      final List<Catalog<CatalogComponent, CatalogFunction>> catalogs =
-          resolveCatalogs(
-            registered(),
-            A2uiRendererCapabilities.forCatalogIds([smallCatalogId]),
-          );
+      final List<SchemaCatalog> catalogs = resolveCatalogs(
+        registered(),
+        A2uiRendererCapabilities.forCatalogIds([smallCatalogId]),
+      );
 
       expect(catalogs.map((c) => c.id), [smallCatalogId]);
     }, skip: pendingResolver);
 
     test('selects every catalog the renderer and agent share', () {
-      final List<Catalog<CatalogComponent, CatalogFunction>> catalogs =
-          resolveCatalogs(
-            registered(),
-            A2uiRendererCapabilities.forCatalogIds([
-              smallCatalogId,
-              basicCatalogId,
-            ]),
-          );
+      final List<SchemaCatalog> catalogs = resolveCatalogs(
+        registered(),
+        A2uiRendererCapabilities.forCatalogIds([
+          smallCatalogId,
+          basicCatalogId,
+        ]),
+      );
 
       expect(catalogs.map((c) => c.id).toSet(), {
         basicCatalogId,
@@ -57,14 +55,13 @@ void main() {
     }, skip: pendingResolver);
 
     test('returns catalogs in agent preference order', () {
-      final List<Catalog<CatalogComponent, CatalogFunction>> catalogs =
-          resolveCatalogs(
-            registered(),
-            A2uiRendererCapabilities.forCatalogIds([
-              smallCatalogId,
-              basicCatalogId,
-            ]),
-          );
+      final List<SchemaCatalog> catalogs = resolveCatalogs(
+        registered(),
+        A2uiRendererCapabilities.forCatalogIds([
+          smallCatalogId,
+          basicCatalogId,
+        ]),
+      );
 
       expect(catalogs.map((c) => c.id), [basicCatalogId, smallCatalogId]);
     }, skip: pendingResolver);
@@ -72,11 +69,10 @@ void main() {
     test(
       'falls back to the first registered catalog when none is declared',
       () {
-        final List<Catalog<CatalogComponent, CatalogFunction>> catalogs =
-            resolveCatalogs(
-              registered(),
-              A2uiRendererCapabilities.forCatalogIds(const []),
-            );
+        final List<SchemaCatalog> catalogs = resolveCatalogs(
+          registered(),
+          A2uiRendererCapabilities.forCatalogIds(const []),
+        );
 
         expect(catalogs.map((c) => c.id), [basicCatalogId]);
       },
@@ -101,14 +97,20 @@ void main() {
 
     test('ignores inline catalogs unless the agent accepts them', () {
       final capabilities = A2uiRendererCapabilities(
-        v0_9: A2uiVersionCapabilities(
-          supportedCatalogIds: const [],
-          inlineCatalogs: [smallCatalog(id: 'https://example.com/inline.json')],
-        ),
+        versions: {
+          A2uiProtocolVersion.v0_9: A2uiVersionCapabilities(
+            supportedCatalogIds: const [],
+            inlineCatalogs: [
+              smallCatalog(id: 'https://example.com/inline.json'),
+            ],
+          ),
+        },
       );
 
-      final List<Catalog<CatalogComponent, CatalogFunction>> catalogs =
-          resolveCatalogs(registered(), capabilities);
+      final List<SchemaCatalog> catalogs = resolveCatalogs(
+        registered(),
+        capabilities,
+      );
 
       expect(
         catalogs.map((c) => c.id),
@@ -118,18 +120,21 @@ void main() {
 
     test('includes inline catalogs when the agent accepts them', () {
       final capabilities = A2uiRendererCapabilities(
-        v0_9: A2uiVersionCapabilities(
-          supportedCatalogIds: const [],
-          inlineCatalogs: [smallCatalog(id: 'https://example.com/inline.json')],
-        ),
+        versions: {
+          A2uiProtocolVersion.v0_9: A2uiVersionCapabilities(
+            supportedCatalogIds: const [],
+            inlineCatalogs: [
+              smallCatalog(id: 'https://example.com/inline.json'),
+            ],
+          ),
+        },
       );
 
-      final List<Catalog<CatalogComponent, CatalogFunction>> catalogs =
-          resolveCatalogs(
-            registered(),
-            capabilities,
-            acceptsInlineCatalogs: true,
-          );
+      final List<SchemaCatalog> catalogs = resolveCatalogs(
+        registered(),
+        capabilities,
+        acceptsInlineCatalogs: true,
+      );
 
       expect(
         catalogs.map((c) => c.id),
@@ -152,7 +157,7 @@ void main() {
     test('rejects an agent with no registered catalogs', () {
       expect(
         () => resolveCatalogs(
-          <SchemaCatalogConfig>[],
+          <CatalogConfig>[],
           A2uiRendererCapabilities.forCatalogIds([basicCatalogId]),
         ),
         throwsA(isA<A2uiCatalogError>()),

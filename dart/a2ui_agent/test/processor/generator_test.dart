@@ -22,12 +22,12 @@ import '../test_catalogs.dart';
 const String pendingNegotiation =
     'Capability negotiation is not implemented yet.';
 
-A2uiGenerator<CatalogComponent, CatalogFunction> generator({
-  List<SchemaCatalogConfig>? catalogs,
+A2uiGenerator generator({
+  List<CatalogConfig>? catalogs,
   Map<String, List<A2uiMessage>>? examples,
   bool acceptsInlineCatalogs = false,
-  InferenceFormatFactory<CatalogComponent, CatalogFunction>? factory,
-}) => A2uiGenerator<CatalogComponent, CatalogFunction>(
+  InferenceFormatFactory factory = const DirectJsonFormatFactory(),
+}) => A2uiGenerator(
   catalogs: catalogs ?? [CatalogConfig(basicCatalog())],
   examples: examples,
   acceptsInlineCatalogs: acceptsInlineCatalogs,
@@ -35,14 +35,13 @@ A2uiGenerator<CatalogComponent, CatalogFunction> generator({
 );
 
 /// The `v0.9` entry of what [g] advertises.
-Map<String, Object?> v0_9Of(
-  A2uiGenerator<CatalogComponent, CatalogFunction> g,
-) => g.agentCapabilities['v0.9']! as Map<String, Object?>;
+Map<String, Object?> v0_9Of(A2uiGenerator g) =>
+    g.agentCapabilities['v0.9']! as Map<String, Object?>;
 
 void main() {
   group('A2uiGenerator configuration', () {
     test('holds the catalog configurations it was registered with', () {
-      final A2uiGenerator<CatalogComponent, CatalogFunction> g = generator();
+      final A2uiGenerator g = generator();
 
       expect(g.catalogs, hasLength(1));
       expect(g.catalogs.single.catalog.id, basicCatalogId);
@@ -51,14 +50,14 @@ void main() {
     test('defaults to the DIRECT_JSON inference format', () {
       expect(
         generator().inferenceFormatFactory,
-        isA<DirectJsonFormatFactory<CatalogComponent, CatalogFunction>>(),
+        isA<DirectJsonFormatFactory>(),
       );
     });
 
     test('accepts an inference format override', () {
       expect(
         generator(factory: const ExpressFormatFactory()).inferenceFormatFactory,
-        isA<ExpressFormatFactory<CatalogComponent, CatalogFunction>>(),
+        isA<ExpressFormatFactory>(),
       );
     });
 
@@ -105,7 +104,7 @@ void main() {
     );
 
     test('advertises every registered catalog id', () {
-      final A2uiGenerator<CatalogComponent, CatalogFunction> g = generator(
+      final A2uiGenerator g = generator(
         catalogs: [
           CatalogConfig(basicCatalog()),
           CatalogConfig(smallCatalog()),
@@ -122,16 +121,15 @@ void main() {
     });
 
     test('advertises whether inline catalogs are accepted', () {
-      Object? acceptsInline(
-        A2uiGenerator<CatalogComponent, CatalogFunction> g,
-      ) => v0_9Of(g)['acceptsInlineCatalogs'];
+      Object? acceptsInline(A2uiGenerator g) =>
+          v0_9Of(g)['acceptsInlineCatalogs'];
 
       expect(acceptsInline(generator()), isFalse);
       expect(acceptsInline(generator(acceptsInlineCatalogs: true)), isTrue);
     });
 
     test('advertises the pristine catalog id, not a transformed copy', () {
-      final A2uiGenerator<CatalogComponent, CatalogFunction> g = generator(
+      final A2uiGenerator g = generator(
         catalogs: [
           CatalogConfig(
             basicCatalog(),
@@ -148,15 +146,16 @@ void main() {
 
   group('A2uiGenerator.createProcessor', () {
     test('negotiates the catalog the renderer declares', () {
-      final A2uiRequestProcessor<CatalogComponent, CatalogFunction> processor =
-          generator().createProcessor(basicCatalogCapabilities());
+      final A2uiRequestProcessor processor = generator().createProcessor(
+        basicCatalogCapabilities(),
+      );
 
       expect(processor.activeCatalogs, hasLength(1));
       expect(processor.activeCatalogs.single.id, basicCatalogId);
     }, skip: pendingNegotiation);
 
     test('binds the processor to the transformed catalog', () {
-      final A2uiGenerator<CatalogComponent, CatalogFunction> g = generator(
+      final A2uiGenerator g = generator(
         catalogs: [
           CatalogConfig(
             basicCatalog(),
@@ -167,8 +166,9 @@ void main() {
         ],
       );
 
-      final A2uiRequestProcessor<CatalogComponent, CatalogFunction> processor =
-          g.createProcessor(basicCatalogCapabilities());
+      final A2uiRequestProcessor processor = g.createProcessor(
+        basicCatalogCapabilities(),
+      );
 
       expect(processor.activeCatalogs.single.components.keys.toSet(), {
         'Text',
@@ -183,37 +183,28 @@ void main() {
         ],
       };
 
-      final A2uiRequestProcessor<CatalogComponent, CatalogFunction> processor =
-          generator(
-            examples: examples,
-          ).createProcessor(basicCatalogCapabilities());
+      final A2uiRequestProcessor processor = generator(
+        examples: examples,
+      ).createProcessor(basicCatalogCapabilities());
 
       expect(processor.examples, same(examples));
     }, skip: pendingNegotiation);
 
     test('uses the generator format factory by default', () {
-      final A2uiRequestProcessor<CatalogComponent, CatalogFunction> processor =
-          generator(
-            factory: const ExpressFormatFactory(),
-          ).createProcessor(basicCatalogCapabilities());
+      final A2uiRequestProcessor processor = generator(
+        factory: const ExpressFormatFactory(),
+      ).createProcessor(basicCatalogCapabilities());
 
-      expect(
-        processor.format,
-        isA<ExpressFormat<CatalogComponent, CatalogFunction>>(),
-      );
+      expect(processor.format, isA<ExpressFormat>());
     }, skip: pendingNegotiation);
 
     test('accepts a per-request format override', () {
-      final A2uiRequestProcessor<CatalogComponent, CatalogFunction> processor =
-          generator().createProcessor(
-            basicCatalogCapabilities(),
-            inferenceFormatFactory: const ExpressFormatFactory(),
-          );
-
-      expect(
-        processor.format,
-        isA<ExpressFormat<CatalogComponent, CatalogFunction>>(),
+      final A2uiRequestProcessor processor = generator().createProcessor(
+        basicCatalogCapabilities(),
+        inferenceFormatFactory: const ExpressFormatFactory(),
       );
+
+      expect(processor.format, isA<ExpressFormat>());
     }, skip: pendingNegotiation);
 
     test('rejects a renderer that supports no registered catalog', () {
@@ -239,7 +230,7 @@ void main() {
     });
 
     test('rejects examples that the negotiated catalog cannot express', () {
-      final A2uiGenerator<CatalogComponent, CatalogFunction> g = generator(
+      final A2uiGenerator g = generator(
         catalogs: [
           CatalogConfig(
             basicCatalog(),
@@ -267,7 +258,7 @@ void main() {
     }, skip: pendingNegotiation);
 
     test('creates an independent processor per request', () {
-      final A2uiGenerator<CatalogComponent, CatalogFunction> g = generator();
+      final A2uiGenerator g = generator();
 
       expect(
         identical(

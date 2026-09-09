@@ -18,26 +18,28 @@ import 'parser/parser.dart';
 import 'prompt/generator.dart';
 
 /// Pairs a prompt generator with a parser for one wire format.
-abstract class InferenceFormat<C extends ComponentApi, F extends FunctionApi> {
+///
+/// An agent only reads component and function schemas, so a format works over
+/// [SchemaCatalog] rather than being generic over the catalog's component and
+/// function types. A catalog of any shape is assignable, because `Catalog` is
+/// covariant in both.
+abstract class InferenceFormat {
   const InferenceFormat();
 
   /// The prompt generator for this format.
-  PromptGenerator<C, F> get promptGenerator;
+  PromptGenerator get promptGenerator;
 
   /// Creates a turn-scoped parser bound to this format's catalogs.
   Parser createParser();
 }
 
 /// Constructs [InferenceFormat]s bound to a set of active catalogs.
-abstract class InferenceFormatFactory<
-  C extends ComponentApi,
-  F extends FunctionApi
-> {
+abstract class InferenceFormatFactory {
   const InferenceFormatFactory();
 
   /// Binds a format to [catalogs].
-  InferenceFormat<C, F> createFormat(
-    List<Catalog<C, F>> catalogs, {
+  InferenceFormat createFormat(
+    List<SchemaCatalog> catalogs, {
     Map<String, List<A2uiMessage>>? examples,
   });
 }

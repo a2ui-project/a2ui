@@ -27,11 +27,11 @@ const String expressSource = 'createSurface(s1, "$basicCatalogId")';
 void main() {
   group('ExpressFormatFactory', () {
     test('builds a format bound to the given catalogs', () {
-      final ExpressFormat<CatalogComponent, CatalogFunction> format =
-          const ExpressFormatFactory<CatalogComponent, CatalogFunction>()
-              .createFormat([smallCatalog()]);
+      final ExpressFormat format = const ExpressFormatFactory().createFormat([
+        smallCatalog(),
+      ]);
 
-      expect(format, isA<ExpressFormat<CatalogComponent, CatalogFunction>>());
+      expect(format, isA<ExpressFormat>());
       expect(format.catalogs, hasLength(1));
     });
 
@@ -42,19 +42,18 @@ void main() {
         ],
       };
 
-      final ExpressFormat<CatalogComponent, CatalogFunction> format =
-          const ExpressFormatFactory<CatalogComponent, CatalogFunction>()
-              .createFormat([smallCatalog()], examples: examples);
+      final ExpressFormat format = const ExpressFormatFactory().createFormat([
+        smallCatalog(),
+      ], examples: examples);
 
       expect(format.promptGenerator.examples, same(examples));
     });
 
     test('is interchangeable with the DIRECT_JSON factory', () {
-      final factories =
-          <InferenceFormatFactory<CatalogComponent, CatalogFunction>>[
-            const DirectJsonFormatFactory(),
-            const ExpressFormatFactory(),
-          ];
+      final factories = <InferenceFormatFactory>[
+        const DirectJsonFormatFactory(),
+        const ExpressFormatFactory(),
+      ];
 
       for (final factory in factories) {
         expect(
@@ -67,23 +66,18 @@ void main() {
 
   group('ExpressFormat', () {
     test('creates a fresh parser for each turn', () {
-      final format = ExpressFormat<CatalogComponent, CatalogFunction>([
-        smallCatalog(),
-      ]);
+      final format = ExpressFormat([smallCatalog()]);
 
       final Parser first = format.createParser();
 
-      expect(first, isA<ExpressParser<CatalogComponent, CatalogFunction>>());
+      expect(first, isA<ExpressParser>());
       expect(identical(first, format.createParser()), isFalse);
     });
   });
 
   group('ExpressPromptGenerator', () {
     test('renders compact positional signatures for the catalog', () {
-      final String prompt =
-          ExpressPromptGenerator<CatalogComponent, CatalogFunction>([
-            smallCatalog(),
-          ]).generate();
+      final String prompt = ExpressPromptGenerator([smallCatalog()]).generate();
 
       expect(prompt, contains(a2uiExpressOpenTag));
       expect(prompt, contains('Text'));
@@ -93,17 +87,16 @@ void main() {
 
   group('ExpressCompiler', () {
     test('compiles a DSL expression into A2UI messages', () {
-      final List<A2uiMessage> messages =
-          ExpressCompiler<CatalogComponent, CatalogFunction>(
-            catalogs: [basicCatalog()],
-          ).compile(expressSource);
+      final List<A2uiMessage> messages = ExpressCompiler(
+        catalogs: [basicCatalog()],
+      ).compile(expressSource);
 
       expect(messages.single, isA<CreateSurfaceMessage>());
     }, skip: pendingExpress);
 
     test('rejects a malformed expression', () {
       expect(
-        () => ExpressCompiler<CatalogComponent, CatalogFunction>(
+        () => ExpressCompiler(
           catalogs: [basicCatalog()],
         ).compile('createSurface('),
         throwsA(isA<A2uiCompileError>()),
@@ -112,7 +105,7 @@ void main() {
 
     test('rejects a component the active catalogs do not declare', () {
       expect(
-        () => ExpressCompiler<CatalogComponent, CatalogFunction>(
+        () => ExpressCompiler(
           catalogs: [smallCatalog()],
         ).compile('Video(v1, "https://example.com/clip.mp4")'),
         throwsA(isA<A2uiValidationError>()),
@@ -122,10 +115,8 @@ void main() {
 
   group('ExpressDecompiler', () {
     test('renders A2UI messages back into DSL notation', () {
-      final String rendered =
-          ExpressDecompiler<CatalogComponent, CatalogFunction>(
-            catalogs: [basicCatalog()],
-          ).decompile([
+      final String rendered = ExpressDecompiler(catalogs: [basicCatalog()])
+          .decompile([
             CreateSurfaceMessage(surfaceId: 's1', catalogId: basicCatalogId),
           ]);
 
@@ -136,46 +127,38 @@ void main() {
   group('ExpressParser', () {
     test('declares streaming support', () {
       expect(
-        ExpressParser<CatalogComponent, CatalogFunction>(
-          catalogs: [smallCatalog()],
-        ).supportsStreaming,
+        ExpressParser(catalogs: [smallCatalog()]).supportsStreaming,
         isTrue,
       );
     });
 
     test('builds a compiler and decompiler over the same catalogs', () {
-      final parser = ExpressParser<CatalogComponent, CatalogFunction>(
-        catalogs: [smallCatalog()],
-      );
+      final parser = ExpressParser(catalogs: [smallCatalog()]);
 
       expect(parser.compiler.catalogs, same(parser.catalogs));
       expect(parser.decompiler.catalogs, same(parser.catalogs));
     });
 
     test('unwraps payloads from a2ui-express tags', () {
-      final List<RawResponsePart> parts =
-          ExpressParser<CatalogComponent, CatalogFunction>(
-            catalogs: [basicCatalog()],
-          ).unwrap('Hi\n$a2uiExpressOpenTag$expressSource$a2uiExpressCloseTag');
+      final List<RawResponsePart> parts = ExpressParser(
+        catalogs: [basicCatalog()],
+      ).unwrap('Hi\n$a2uiExpressOpenTag$expressSource$a2uiExpressCloseTag');
 
       expect(parts, hasLength(2));
       expect(parts.first.part, const TextPart('Hi'));
     }, skip: pendingExpress);
 
     test('delegates compilation to the compiler', () {
-      final List<A2uiMessage> messages =
-          ExpressParser<CatalogComponent, CatalogFunction>(
-            catalogs: [basicCatalog()],
-          ).compile(expressSource);
+      final List<A2uiMessage> messages = ExpressParser(
+        catalogs: [basicCatalog()],
+      ).compile(expressSource);
 
       expect(messages.single, isA<CreateSurfaceMessage>());
     }, skip: pendingExpress);
 
     test('delegates decompilation to the decompiler', () {
-      final String rendered =
-          ExpressParser<CatalogComponent, CatalogFunction>(
-            catalogs: [basicCatalog()],
-          ).decompile([
+      final String rendered = ExpressParser(catalogs: [basicCatalog()])
+          .decompile([
             CreateSurfaceMessage(surfaceId: 's1', catalogId: basicCatalogId),
           ]);
 
@@ -183,16 +166,14 @@ void main() {
     }, skip: pendingExpress);
 
     test('processes streamed chunks', () {
-      final parser = ExpressParser<CatalogComponent, CatalogFunction>(
-        catalogs: [basicCatalog()],
-      );
+      final parser = ExpressParser(catalogs: [basicCatalog()]);
 
       expect(parser.parseChunk('Hello'), [const TextPart('Hello')]);
     }, skip: pendingExpress);
 
     test('rejects a message declaring another protocol version', () {
       expect(
-        () => ExpressParser<CatalogComponent, CatalogFunction>(
+        () => ExpressParser(
           catalogs: [basicCatalog()],
         ).compile('createSurface(s1, "$basicCatalogId", version: "v1.0")'),
         throwsA(isA<A2uiValidationError>()),
