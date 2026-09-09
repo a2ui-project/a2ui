@@ -1,0 +1,81 @@
+{
+  "create_surface": [
+    {
+      "createSurface": {
+        "surfaceId": "main_surface",
+        "catalogId": "org.a2ui.basic"
+      }
+    },
+    {
+      "updateComponents": {
+        "surfaceId": "main_surface",
+        "components": [
+          {
+            "component": "Text",
+            "id": "hero_card__hero_txt",
+            "text": "A2UI",
+            "variant": "body"
+          },
+          {
+            "component": "Card",
+            "id": "hero_card",
+            "child": "hero_card__hero_txt"
+          }
+        ]
+      }
+    }
+  ],
+  "update_components": [
+    {
+      "updateComponents": {
+        "surfaceId": "main_surface",
+        "components": [
+          {
+            "component": "Text",
+            "id": "hero_card__hero_txt",
+            "text": "A2UI",
+            "variant": "body"
+          },
+          {
+            "component": "Card",
+            "id": "hero_card",
+            "child": "hero_card__hero_txt"
+          }
+        ]
+      }
+    }
+  ],
+  "full_surface": [
+    {
+      "createSurface": {
+        "surfaceId": "main_surface",
+        "catalogId": "org.a2ui.basic"
+      }
+    },
+    {
+      "updateComponents": {
+        "surfaceId": "main_surface",
+        "components": [
+          {
+            "component": "Text",
+            "id": "hero_card__hero_txt",
+            "text": "A2UI",
+            "variant": "body"
+          },
+          {
+            "component": "Card",
+            "id": "hero_card",
+            "child": "hero_card__hero_txt"
+          }
+        ]
+      }
+    },
+    {
+      "updateDataModel": {
+        "surfaceId": "main_surface",
+        "path": "/session/user",
+        "value": "Alice"
+      }
+    }
+  ]
+}

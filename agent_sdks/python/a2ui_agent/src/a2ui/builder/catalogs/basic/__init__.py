@@ -14,4 +14,4 @@
 
 """A2UI Basic Catalog Builder package."""
 
-from .basic import *  # noqa: F403
+from .basic_catalog import *  # noqa: F403

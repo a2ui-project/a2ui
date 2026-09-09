@@ -16,16 +16,28 @@
 
 import json
 from typing import Any, Mapping, Optional, Sequence, TypeAlias, Union
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_serializer,
+)
 
 
 class ComponentBuilderNode(BaseModel):
     """Base class for all generated A2UI component builders."""
 
     model_config = ConfigDict(
+        # Strict authoring validation: catches typos (e.g. lable="Save") at runtime and edit-time.
+        # Loose parsing will be handled by dedicated deserialization constructors in Phase 2 (#2571).
         extra="forbid",
-        arbitrary_types_allowed=True,
-        populate_by_name=True,
+        # Arbitrary types forbidden to enforce strict typing on builder inputs
+        arbitrary_types_allowed=False,
+        # Modern Pydantic 2.11+ replacement for populate_by_name
+        validate_by_name=True,
+        # Validate whenever the datamodel is changed, not just created
         validate_assignment=True,
     )
 
@@ -73,13 +85,26 @@ ComponentRef = ExternalComponentBuilderNode
 class DataBinding(BaseModel):
     """A two-way binding to a path in the client data model."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        arbitrary_types_allowed=False,
+        validate_by_name=True,
+    )
 
     path: str
 
+    @field_validator("path")
+    @classmethod
+    def _normalize_path(cls, v: str) -> str:
+        return v if v.startswith("/") else f"/{v}"
+
+    @model_serializer
+    def serialize_model(self) -> dict[str, Any]:
+        return {"path": self.path}
+
     def to_dict(self) -> dict[str, Any]:
-        norm_path = self.path if self.path.startswith("/") else f"/{self.path}"
-        return {"path": norm_path}
+        return {"path": self.path}
 
 
 def bind(path: str) -> DataBinding:
@@ -90,7 +115,11 @@ def bind(path: str) -> DataBinding:
 class AccessibilityAttributes(BaseModel):
     """Attributes to enhance accessibility when using assistive technologies."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(
+        extra="forbid",
+        arbitrary_types_allowed=False,
+        validate_by_name=True,
+    )
 
     label: Optional[Union[str, DataBinding]] = None
     description: Optional[Union[str, DataBinding]] = None
@@ -98,113 +127,131 @@ class AccessibilityAttributes(BaseModel):
     hidden: Optional[Union[bool, DataBinding]] = None
 
     def to_dict(self) -> dict[str, Any]:
-        d: dict[str, Any] = {}
-        if self.label is not None:
-            d["label"] = (
-                self.label.to_dict() if hasattr(self.label, "to_dict") else self.label
-            )
-        if self.description is not None:
-            d["description"] = (
-                self.description.to_dict()
-                if hasattr(self.description, "to_dict")
-                else self.description
-            )
-        if self.live is not None:
-            d["live"] = self.live
-        if self.hidden is not None:
-            d["hidden"] = (
-                self.hidden.to_dict()
-                if hasattr(self.hidden, "to_dict")
-                else self.hidden
-            )
-        return d
+        return self.model_dump(exclude_none=True, by_alias=True)
 
 
 class FunctionCall(BaseModel):
     """Invocation of a client-side catalog function."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(
+        extra="forbid",
+        arbitrary_types_allowed=False,
+        populate_by_name=True,
+    )
 
     call: str
     args: dict[str, Any] = Field(default_factory=dict)
-    call_id: Optional[str] = None
+    call_id: Optional[str] = Field(
+        default=None,
+        serialization_alias="callId",
+        validation_alias=AliasChoices("call_id", "callId"),
+    )
 
     def to_dict(self) -> dict[str, Any]:
-        d: dict[str, Any] = {
-            "call": self.call,
-            "args": {
-                k: v.to_dict() if hasattr(v, "to_dict") else v
-                for k, v in self.args.items()
-                if v is not None
-            },
-        }
-        if self.call_id is not None:
-            d["callId"] = self.call_id
-        return d
+        return self.model_dump(exclude_none=True, by_alias=True)
 
 
 class Action(BaseModel):
     """An interaction handler dispatching a server event or client function."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(
+        extra="forbid",
+        arbitrary_types_allowed=False,
+        validate_by_name=True,
+    )
 
     event: Optional[Union[str, dict[str, Any]]] = None
     function: Optional[FunctionCall] = None
     context: Optional[dict[str, Any]] = None
 
-    def to_dict(self) -> dict[str, Any]:
+    @model_serializer
+    def serialize_model(self) -> dict[str, Any]:
         if self.event is not None:
             if isinstance(self.event, str):
                 d: dict[str, Any] = {"name": self.event}
                 if self.context:
-                    d["context"] = self.context
+                    d["context"] = {
+                        k: (
+                            v.model_dump(exclude_none=True, by_alias=True)
+                            if isinstance(v, BaseModel)
+                            else (v.to_dict() if hasattr(v, "to_dict") else v)
+                        )
+                        for k, v in self.context.items()
+                    }
                 return {"event": d}
             elif isinstance(self.event, dict):
                 ev = dict(self.event)
                 if self.context and "context" not in ev:
-                    ev["context"] = self.context
+                    ev["context"] = {
+                        k: (
+                            v.model_dump(exclude_none=True, by_alias=True)
+                            if isinstance(v, BaseModel)
+                            else (v.to_dict() if hasattr(v, "to_dict") else v)
+                        )
+                        for k, v in self.context.items()
+                    }
                 if "name" in ev:
                     return {"event": ev}
                 return {"event": {"name": ev.get("name", "action"), **ev}}
             return {"event": self.event}
         if self.function is not None:
-            return {"function": self.function.to_dict()}
+            return {
+                "function": self.function.model_dump(exclude_none=True, by_alias=True)
+            }
         return {}
+
+    def to_dict(self) -> dict[str, Any]:
+        return self.model_dump(exclude_none=True, by_alias=True)
 
 
 class CheckRule(BaseModel):
     """A client-side validation check (condition + error message)."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(
+        extra="forbid",
+        arbitrary_types_allowed=False,
+        validate_by_name=True,
+    )
 
     condition: FunctionCall
     message: str
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "condition": self.condition.to_dict(),
-            "message": self.message,
-        }
+        return self.model_dump(exclude_none=True, by_alias=True)
 
 
 class DynamicChildList(BaseModel):
     """Generates dynamic children from a collection in the data model."""
 
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+    model_config = ConfigDict(
+        extra="forbid",
+        arbitrary_types_allowed=False,
+        validate_by_name=True,
+    )
 
-    data_model_path: str
+    data_model_path: str = Field(
+        serialization_alias="dataModelPath",
+        validation_alias=AliasChoices("data_model_path", "dataModelPath"),
+    )
     template: ComponentBuilderNode
 
-    def to_dict(self) -> dict[str, Any]:
-        norm_path = (
-            self.data_model_path
-            if self.data_model_path.startswith("/")
-            else f"/{self.data_model_path}"
-        )
+    @field_validator("data_model_path")
+    @classmethod
+    def _normalize_path(cls, v: str) -> str:
+        return v if v.startswith("/") else f"/{v}"
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: Any) -> dict[str, Any]:
+        tmpl = self.template
         return {
-            "dataModelPath": norm_path,
-            "template": self.template.to_dict(),
+            "dataModelPath": self.data_model_path,
+            "template": (
+                tmpl.to_dict() if hasattr(tmpl, "to_dict") else tmpl.model_dump()
+            ),
         }
+
+    def to_dict(self) -> dict[str, Any]:
+        return self.model_dump(exclude_none=True, by_alias=True)
 
 
 class IdAllocator:
@@ -325,7 +372,9 @@ def flatten_component_tree(
             elif isinstance(val, DynamicChildList):
                 if isinstance(val.template, ComponentBuilderNode):
                     serialize_node(val.template)
-                return val.to_dict()
+                return val.model_dump(exclude_none=True, by_alias=True)
+            elif isinstance(val, BaseModel):
+                return val.model_dump(exclude_none=True, by_alias=True)
             elif hasattr(val, "to_dict"):
                 return val.to_dict()
             else:
