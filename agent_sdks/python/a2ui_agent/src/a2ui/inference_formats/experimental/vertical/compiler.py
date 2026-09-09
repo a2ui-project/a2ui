@@ -606,6 +606,88 @@ class VerticalCompiler:
 
         return comp_name, pos_args, kw_args
 
+    def _get_expected_primitive_type(
+        self, schema: Optional[Dict[str, Any]]
+    ) -> Optional[str]:
+        """Resolves the expected primitive type (number, integer, boolean, string) from a schema."""
+        if not isinstance(schema, dict):
+            return None
+
+        t = schema.get("type")
+        if t in ("integer", "number", "boolean", "string"):
+            return t
+
+        ref = schema.get("$ref")
+        if isinstance(ref, str):
+            if "DynamicNumber" in ref or "Number" in ref:
+                return "number"
+            if "DynamicInteger" in ref or "Integer" in ref:
+                return "integer"
+            if "DynamicBoolean" in ref or "Boolean" in ref:
+                return "boolean"
+            if "DynamicString" in ref or "String" in ref:
+                return "string"
+
+        for k in ("anyOf", "oneOf", "allOf"):
+            if k in schema and isinstance(schema[k], list):
+                for sub in schema[k]:
+                    sub_t = self._get_expected_primitive_type(sub)
+                    if sub_t:
+                        return sub_t
+        return None
+
+    def _coerce_property_value(self, comp_name: str, prop_name: str, val: Any) -> Any:
+        """Coerces property value (actions, numbers, booleans) based on catalog schema."""
+        p_type = (
+            self.helper.get_property_type(comp_name, prop_name)
+            if comp_name in self.helper.components
+            else None
+        )
+        if (
+            p_type == "Action" or prop_name in ("action", "onClick", "onPress")
+        ) and isinstance(val, str):
+            return {"event": {"name": val}}
+
+        # Don't coerce data binding expressions
+        if isinstance(val, str) and (val.startswith("$/") or val.startswith("$")):
+            return val
+
+        p_schema = (
+            self.helper.get_property_schema(comp_name, prop_name)
+            if comp_name in self.helper.components
+            else None
+        )
+        expected_type = self._get_expected_primitive_type(p_schema)
+
+        if expected_type in ("number", "integer"):
+            if isinstance(val, str):
+                try:
+                    if expected_type == "integer":
+                        return int(float(val.strip()))
+                    else:
+                        cleaned = val.strip()
+                        if "." in cleaned or "e" in cleaned.lower():
+                            return float(cleaned)
+                        else:
+                            return int(cleaned)
+                except (ValueError, TypeError):
+                    pass
+            elif (
+                isinstance(val, float)
+                and expected_type == "integer"
+                and val.is_integer()
+            ):
+                return int(val)
+        elif expected_type == "boolean":
+            if isinstance(val, str):
+                cleaned = val.strip().lower()
+                if cleaned in ("true", "1"):
+                    return True
+                elif cleaned in ("false", "0"):
+                    return False
+
+        return val
+
     def _resolve_component(
         self, comp_name: str, pos_args: List[Any], kw_args: Dict[str, Any]
     ) -> Dict[str, Any]:
@@ -631,7 +713,9 @@ class VerticalCompiler:
         for idx, arg_val in enumerate(pos_args):
             if idx < len(ordered_props):
                 prop_name = ordered_props[idx]
-                comp_dict[prop_name] = arg_val
+                comp_dict[prop_name] = self._coerce_property_value(
+                    matched_name, prop_name, arg_val
+                )
 
         for k, v in kw_args.items():
             prop_target = k
@@ -640,37 +724,9 @@ class VerticalCompiler:
                     prop_target = p
                     break
 
-            p_type = (
-                self.helper.get_property_type(matched_name, prop_target)
-                if matched_name in self.helper.components
-                else None
+            comp_dict[prop_target] = self._coerce_property_value(
+                matched_name, prop_target, v
             )
-            if (
-                p_type == "Action" or prop_target in ("action", "onClick", "onPress")
-            ) and isinstance(v, str):
-                v = {"event": {"name": v}}
-
-            p_schema = (
-                self.helper.get_property_schema(matched_name, prop_target)
-                if matched_name in self.helper.components
-                else None
-            )
-            if isinstance(p_schema, dict):
-                expected_type = p_schema.get("type")
-                if expected_type == "integer" and isinstance(v, (str, float)):
-                    try:
-                        v = int(v)
-                    except ValueError:
-                        pass
-                elif expected_type == "number" and isinstance(v, str):
-                    try:
-                        v = float(v)
-                    except ValueError:
-                        pass
-                elif expected_type == "boolean" and isinstance(v, str):
-                    v = v.lower() in ("true", "1")
-
-            comp_dict[prop_target] = v
 
         return comp_dict
 

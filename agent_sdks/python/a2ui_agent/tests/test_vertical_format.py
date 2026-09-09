@@ -95,6 +95,21 @@ class MockCatalog:
                 },
                 "required": ["component", "label"],
             },
+            "Slider": {
+                "properties": {
+                    "value": {
+                        "$ref": (
+                            "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber"
+                        ),
+                        "positionalIndex": 0,
+                    },
+                    "min": {"type": "number"},
+                    "max": {"type": "number"},
+                    "step": {"type": "integer"},
+                    "enabled": {"type": "boolean"},
+                },
+                "required": ["component", "value"],
+            },
         }
 
     def get_functions(self) -> Dict[str, Any]:
@@ -605,3 +620,67 @@ def test_prompt_generator_modular_methods(vertical_format):
     assert "# A2UI Vertical Output Contract" in rules
     instructions = pg.generate_catalog_instructions()
     assert "## Component Signatures" in instructions
+
+
+def test_quoted_numbers_and_booleans_coercion(mock_catalog):
+    fmt = VerticalFormat(catalog=mock_catalog, surface_id="main", version="v0.9.1")
+    raw = """<a2ui>
+Slider(value="42.5", min="0", max="100.0", step="5", enabled="true")
+</a2ui>"""
+    msgs = fmt.parser.compile(raw, is_final=True)
+    # In v0.9.1, emits createSurface + updateComponents
+    assert len(msgs) == 2
+    assert "createSurface" in msgs[0]
+    assert "updateComponents" in msgs[1]
+
+    comp = msgs[1]["updateComponents"]["components"][0]
+    assert comp["value"] == 42.5
+    assert isinstance(comp["value"], float)
+    assert comp["min"] == 0
+    assert comp["max"] == 100.0
+    assert comp["step"] == 5
+    assert isinstance(comp["step"], int)
+    assert comp["enabled"] is True
+    assert isinstance(comp["enabled"], bool)
+
+
+def test_coercion_preserves_data_bindings_and_positionals(mock_catalog):
+    fmt = VerticalFormat(catalog=mock_catalog, surface_id="main", version="v0.9.1")
+    raw = """<a2ui>
+Slider("$/state/volume", min="0", max="10", step="1", enabled="false")
+</a2ui>"""
+    msgs = fmt.parser.compile(raw, is_final=True)
+    comp = msgs[1]["updateComponents"]["components"][0]
+    assert comp["value"] == "$/state/volume"
+    assert comp["min"] == 0
+    assert comp["max"] == 10
+    assert comp["step"] == 1
+    assert comp["enabled"] is False
+
+
+def test_coercion_with_standalone_catalog():
+    repo_root = Path(__file__).resolve().parents[4]
+    catalog_path = (
+        repo_root / "eval" / "catalogs" / "standalone_components" / "catalog.json"
+    )
+    if not catalog_path.exists():
+        pytest.skip(f"Standalone catalog not found at {catalog_path}")
+
+    with open(catalog_path, "r", encoding="utf-8") as f:
+        import json
+        from a2ui.schema.catalog import Catalog
+
+        cat_data = json.load(f)
+    catalog = Catalog.from_json(cat_data, spec_version="0.9.1")
+    fmt = VerticalFormat(catalog=catalog, surface_id="main", version="v0.9.1")
+
+    raw = """<a2ui>
+WeatherWidget(city="Seattle", temperature="58", condition="rainy", high="62", low="50", humidity="82", unit="fahrenheit")
+</a2ui>"""
+    msgs = fmt.parser.compile(raw, is_final=True)
+    w_comp = msgs[1]["updateComponents"]["components"][0]
+    assert w_comp["temperature"] == 58
+    assert isinstance(w_comp["temperature"], int)
+    assert w_comp["high"] == 62
+    assert w_comp["low"] == 50
+    assert w_comp["humidity"] == 82
