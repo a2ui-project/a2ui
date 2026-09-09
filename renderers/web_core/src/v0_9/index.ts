@@ -60,7 +60,9 @@ export type {
   MarkdownRendererTagClassMap,
 } from './basic_catalog/context/markdown.js';
 export {markdown} from './basic_catalog/directives/directives.js';
+/** @deprecated Import from `@a2ui/web_core/v0_9/basic_catalog` instead. */
 export {injectBasicCatalogStyles, computeColorVariant} from './basic_catalog/styles/default.js';
+/** @deprecated Import from `@a2ui/web_core/v0_9/basic_catalog` instead. */
 export type {
   ColorVariantLightDarkOptions,
   ColorVariantHoverOptions,
