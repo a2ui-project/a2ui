@@ -14,32 +14,32 @@
  * limitations under the License.
  */
 
-export * from './expressions/expression_parser.js';
-export * from './functions/basic_functions.js';
-export * from './functions/basic_functions_api.js';
-export * from './components/basic_components.js';
+export { ExpressionParser } from './expressions/expression_parser.js';
+export { createFormatNumberImplementation, createFormatCurrencyImplementation, createPluralizeImplementation, createBasicCatalogFunctions, AddImplementation, SubtractImplementation, MultiplyImplementation, DivideImplementation, EqualsImplementation, NotEqualsImplementation, GreaterThanImplementation, LessThanImplementation, AndImplementation, OrImplementation, NotImplementation, ContainsImplementation, StartsWithImplementation, EndsWithImplementation, RequiredImplementation, RegexImplementation, LengthImplementation, NumericImplementation, EmailImplementation, FormatStringImplementation, FormatNumberImplementation, FormatCurrencyImplementation, FormatDateImplementation, PluralizeImplementation, OpenUrlImplementation, BASIC_FUNCTIONS } from './functions/basic_functions.js';
+export { AddApi, SubtractApi, MultiplyApi, DivideApi, EqualsApi, NotEqualsApi, GreaterThanApi, LessThanApi, AndApi, OrApi, NotApi, ContainsApi, StartsWithApi, EndsWithApi, RequiredApi, RegexApi, LengthApi, NumericApi, EmailApi, FormatStringApi, FormatNumberApi, FormatCurrencyApi, FormatDateApi, PluralizeApi, OpenUrlApi, BASIC_FUNCTION_APIS } from './functions/basic_functions_api.js';
+export { TextApi, ImageApi, IconApi, VideoApi, AudioPlayerApi, RowApi, ColumnApi, ListApi, CardApi, TabsApi, ModalApi, DividerApi, ButtonApi, TextFieldApi, CheckBoxApi, ChoicePickerApi, SliderApi, DateTimeInputApi, BASIC_COMPONENTS } from './components/basic_components.js';
 export {injectBasicCatalogStyles, computeColorVariant} from './styles/default.js';
 export type {ColorVariantLightDarkOptions, ColorVariantHoverOptions} from './styles/default.js';
-export * from './basic-catalog-a2ui-lit-element.js';
+export { type ResolvedChildList, type A2uiChildRef, type ResolvedChildRef, BasicCatalogA2uiLitElement } from './basic-catalog-a2ui-lit-element.js';
 
-export * from './components/Text.js';
-export * from './components/Button.js';
-export * from './components/TextField.js';
-export * from './components/Row.js';
-export * from './components/Column.js';
-export * from './components/List.js';
-export * from './components/Image.js';
-export * from './components/Icon.js';
-export * from './components/Video.js';
-export * from './components/AudioPlayer.js';
-export * from './components/Card.js';
-export * from './components/Divider.js';
-export * from './components/CheckBox.js';
-export * from './components/Slider.js';
-export * from './components/DateTimeInput.js';
-export * from './components/ChoicePicker.js';
-export * from './components/Tabs.js';
-export * from './components/Modal.js';
+export { A2uiBasicTextElement, A2uiText } from './components/Text.js';
+export { A2uiBasicButtonElement, A2uiButton } from './components/Button.js';
+export { A2uiBasicTextFieldElement, A2uiTextField } from './components/TextField.js';
+export { A2uiBasicRowElement, A2uiRow } from './components/Row.js';
+export { A2uiBasicColumnElement, A2uiColumn } from './components/Column.js';
+export { A2uiListElement, A2uiList } from './components/List.js';
+export { A2uiImageElement, A2uiImage } from './components/Image.js';
+export { A2uiIconElement, A2uiIcon } from './components/Icon.js';
+export { A2uiVideoElement, A2uiVideo } from './components/Video.js';
+export { A2uiAudioPlayerElement, A2uiAudioPlayer } from './components/AudioPlayer.js';
+export { A2uiCardElement, A2uiCard } from './components/Card.js';
+export { A2uiDividerElement, A2uiDivider } from './components/Divider.js';
+export { A2uiCheckBoxElement, A2uiCheckBox } from './components/CheckBox.js';
+export { A2uiSliderElement, A2uiSlider } from './components/Slider.js';
+export { A2uiDateTimeInputElement, A2uiDateTimeInput } from './components/DateTimeInput.js';
+export { A2uiChoicePickerElement, A2uiChoicePicker } from './components/ChoicePicker.js';
+export { A2uiLitTabs, A2uiTabs } from './components/Tabs.js';
+export { A2uiLitModal, A2uiModal } from './components/Modal.js';
 
 export {basicCatalog} from './catalog.js';
 export {Context} from './context/context.js';

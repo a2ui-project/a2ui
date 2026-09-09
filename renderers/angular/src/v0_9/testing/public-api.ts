@@ -14,7 +14,4 @@
  * limitations under the License.
  */
 
-/**
- * @deprecated Please import from `./index` instead. Will be removed in v1.0.
- */
-export * from './index';
+export { type ComponentToProps, setComponentProps, createBoundProperty } from './index';

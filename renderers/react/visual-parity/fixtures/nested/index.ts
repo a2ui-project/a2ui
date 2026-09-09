@@ -18,5 +18,4 @@
  * Nested layout fixtures aggregation.
  */
 
-export * from './layouts';
-export {nestedFixtures} from './layouts';
+export { nestedCardInList, nestedForm, nestedRowInColumn, nestedColumnInRow, nestedDashboard, nestedProfile, nestedSettings, nestedFixtures } from './layouts';

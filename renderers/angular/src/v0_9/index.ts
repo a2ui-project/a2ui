@@ -24,35 +24,35 @@
  */
 
 // Core Services and Components
-export * from './core/a2ui-renderer.service';
-export * from './core/component-host.component';
-export * from './core/surface.component';
-export * from './core/catalog_component';
-export * from './core/component-binder.service';
-export * from './core/types';
-export * from './core/utils';
-export * from './core/markdown';
+export { provideA2Ui, type RendererConfiguration, A2UI_RENDERER_CONFIG, A2uiRendererService } from './core/a2ui-renderer.service';
+export { ComponentHostComponent } from './core/component-host.component';
+export { SurfaceComponent } from './core/surface.component';
+export { CatalogComponent } from './core/catalog_component';
+export { type Child, ComponentBinder } from './core/component-binder.service';
+export { type ComponentTemplate, type BoundProperty, type ExtendedProps, type ComponentApiToProps } from './core/types';
+export { getNormalizedPath } from './core/utils';
+export { provideMarkdownRenderer, type MarkdownRendererOptions, MarkdownRenderer, DefaultMarkdownRenderer } from './core/markdown';
 
 // Catalog Types and Implementations
-export * from './catalog/types';
-export * from './catalog/basic/basic-catalog';
+export { createComponentImplementation, type AnyDuringSchemaAlignment, type AngularComponentImplementation, AngularCatalog } from './catalog/types';
+export { type BasicCatalogOptions, BASIC_COMPONENTS, BASIC_FUNCTIONS, BasicCatalogBase, BASIC_CATALOG_OPTIONS, BasicCatalog } from './catalog/basic/basic-catalog';
 
 // Basic Catalog Components
-export * from './catalog/basic/text.component';
-export * from './catalog/basic/row.component';
-export * from './catalog/basic/column.component';
-export * from './catalog/basic/button.component';
-export * from './catalog/basic/text-field.component';
-export * from './catalog/basic/image.component';
-export * from './catalog/basic/icon.component';
-export * from './catalog/basic/video.component';
-export * from './catalog/basic/audio-player.component';
-export * from './catalog/basic/list.component';
-export * from './catalog/basic/card.component';
-export * from './catalog/basic/tabs.component';
-export * from './catalog/basic/modal.component';
-export * from './catalog/basic/divider.component';
-export * from './catalog/basic/check-box.component';
-export * from './catalog/basic/choice-picker.component';
-export * from './catalog/basic/slider.component';
-export * from './catalog/basic/date-time-input.component';
+export { TextComponent } from './catalog/basic/text.component';
+export { RowComponent } from './catalog/basic/row.component';
+export { ColumnComponent } from './catalog/basic/column.component';
+export { ButtonComponent } from './catalog/basic/button.component';
+export { TextFieldComponent } from './catalog/basic/text-field.component';
+export { ImageComponent } from './catalog/basic/image.component';
+export { IconComponent } from './catalog/basic/icon.component';
+export { VideoComponent } from './catalog/basic/video.component';
+export { AudioPlayerComponent } from './catalog/basic/audio-player.component';
+export { ListComponent } from './catalog/basic/list.component';
+export { CardComponent } from './catalog/basic/card.component';
+export { TabsComponent } from './catalog/basic/tabs.component';
+export { ModalComponent } from './catalog/basic/modal.component';
+export { DividerComponent } from './catalog/basic/divider.component';
+export { CheckBoxComponent } from './catalog/basic/check-box.component';
+export { ChoicePickerComponent } from './catalog/basic/choice-picker.component';
+export { SliderComponent } from './catalog/basic/slider.component';
+export { DateTimeInputComponent } from './catalog/basic/date-time-input.component';
