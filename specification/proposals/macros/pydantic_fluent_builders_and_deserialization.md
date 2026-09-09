@@ -41,7 +41,9 @@ To deliver value quickly without migration risk, this design is divided into two
 
 ### A. Catalog versioning and evolution (James Wren proposal alignment)
 
-1. **Open enums:** Enums must accept unrecognized string variants (`Literal[...] | str`) so older agent runtimes do not fail validation when upstream catalogs add new options.
+1. **Two-constructor architecture (strict authoring vs. loose deserialization):**
+   - **Authoring constructor (`__init__`):** Enums are strictly typed (`Literal[...]`), unrecognized properties are forbidden (`extra="forbid"`), and arbitrary types are disallowed (`arbitrary_types_allowed=False`). This guarantees compile-time checking in IDEs and runtime `ValidationError`s on typos (e.g. `variant="primmary"`, `lable="Save"`).
+   - **Deserialization constructor (`from_wire` / `deserialize`):** Wire inputs accept unrecognized enum string variants and extra attributes, preserving them losslessly in `__pydantic_extra__` or `UnknownComponent` without weakening authoring safety.
 2. **Unknown component fallback:** Deserializing an unrecognized component name must produce an `UnknownComponent` node rather than raising a fatal error.
 3. **Lossless unknown field round-tripping:** Any property not declared in the local catalog schema must be captured during deserialization and re-emitted during serialization.
 4. **Deprecation lifecycle:** Fields marked with `deprecated: true` and `x-deprecated-reason` in JSON Schema must generate `@deprecated` docstrings. LLM prompt generators can scrub deprecated fields from system instructions to save context tokens.
@@ -167,8 +169,8 @@ from a2ui.builder.base import (
     SlotList,
 )
 
-# Open Enum: provides autocomplete while accepting custom string variants
-ButtonVariant = Literal["primary", "secondary", "text"] | str
+# Strict Enum: provides autocomplete and compile-time/runtime typo checking
+ButtonVariant = Literal["primary", "secondary", "text"]
 
 
 class Text(ComponentBuilderNode):
@@ -649,6 +651,9 @@ If an upstream catalog renames a property (such as `label` to `title`), deserial
 
 ---
 
+6. **Why two-constructor architecture over open enums (`Literal[...] | str`):**
+   In Python's type system, unioning a literal with string (`Literal[...] | str`) mathematically collapses to `str`. Static type checkers (Pyright, mypy) and runtime validators treat any string as valid, completely disabling error detection for misspelled variants (e.g. `variant="primmary"`). Attempting to bypass this with `if TYPE_CHECKING:` stubs fails at runtime because `TYPE_CHECKING` is `False` during execution. By maintaining a strict `__init__` for authoring and providing dedicated deserialization constructors in Phase 2, developers get 100% type safety and typo protection when writing code, while the system retains full forward-compatibility when ingesting wire payloads.
+
 ## 8. Phased implementation roadmap
 
 ### Phase 1: Pydantic foundation, fluent authoring, and serialization (Immediate)
@@ -659,7 +664,7 @@ Phase 1 establishes authoring ergonomics, strict validation, and explicit serial
 
 1. **Pydantic base models (`a2ui.builder.base`):**
    - Convert `ComponentBuilderNode` from `@dataclass` to `pydantic.BaseModel`.
-   - Configure `model_config = ConfigDict(extra="forbid", populate_by_name=True, validate_assignment=True)`.
+   - Configure `model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=False, validate_by_name=True, validate_assignment=True)`.
    - Add `.to_components()` directly to `ComponentBuilderNode`.
    - Convert supporting types (`Action`, `DataBinding`, `AccessibilityAttributes`, `FunctionCall`, `CheckRule`, `DynamicChildList`) to Pydantic models.
    - Define initial slot type aliases: `Slot: TypeAlias = ComponentBuilderNode` and `SlotList: TypeAlias = Sequence[Slot]`.
@@ -668,7 +673,7 @@ Phase 1 establishes authoring ergonomics, strict validation, and explicit serial
    - Implement top-level functional helpers `create_surface(surface_id, root)` and `update_components(surface_id, root)`.
 3. **Code generator migration (`@a2ui/cli`):**
    - Update the Python emitter to generate Pydantic v2 `BaseModel` classes instead of `@dataclass(kw_only=True)`.
-   - Emit open enums (`Literal[...] | str`) for all component enum properties to handle future catalog additions.
+   - Emit strict enums (`Literal[...]`) for all component enum properties to enforce edit-time and run-time validation against typos.
    - Type child slots as `child: Slot` and multi-child slots as `children: SlotList = ()`.
    - Re-generate the basic catalog builders (`a2ui.builder.catalogs.basic`).
 4. **Macro and MCP server alignment:**
