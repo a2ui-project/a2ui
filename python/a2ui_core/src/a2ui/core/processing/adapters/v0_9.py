@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import copy
-from typing import Any, cast
+from typing import Any
 from .base import BaseVersionAdapter
 from ...schema import ProtocolVersion
 from ...schema.v0_9 import (
@@ -43,6 +43,10 @@ class V0Point9Adapter(BaseVersionAdapter):
     @property
     def supported_versions(self) -> set[str]:
         return {"v0.9", "v0.9.1"}
+
+    @property
+    def compatible_catalog_versions(self) -> frozenset[str]:
+        return frozenset({"0.9", "0.9.1"})
 
     def prepare_payload_for_validation(self, message: dict[str, Any]) -> dict[str, Any]:
         payload = copy.deepcopy(message)

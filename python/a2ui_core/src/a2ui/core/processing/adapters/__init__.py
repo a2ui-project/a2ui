@@ -12,17 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base import VersionAdapter
+from .base import (
+    DEFAULT_CATALOG_COMPATIBILITY,
+    SUPPORTED_PROTOCOL_VERSIONS,
+    VersionAdapter,
+    is_catalog_version_compatible,
+)
 from .v0_8 import V0Point8Adapter
 from .v0_9 import V0Point9Adapter
 from .v1_0 import V1Point0Adapter
 from .factory import DEFAULT_PROTOCOL_VERSION, VersionAdapterFactory
 
 __all__ = [
+    "DEFAULT_CATALOG_COMPATIBILITY",
     "DEFAULT_PROTOCOL_VERSION",
+    "SUPPORTED_PROTOCOL_VERSIONS",
     "VersionAdapter",
     "V0Point8Adapter",
     "V0Point9Adapter",
     "V1Point0Adapter",
     "VersionAdapterFactory",
+    "is_catalog_version_compatible",
 ]

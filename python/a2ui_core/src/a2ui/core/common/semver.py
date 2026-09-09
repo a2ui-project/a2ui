@@ -108,11 +108,39 @@ def parse_semver(version_str: Any) -> Optional[SemVer]:
     )
 
 
-def _to_semver(v: Any) -> Optional[SemVer]:
+def _to_semver(v: str | bytes | SemVer | None) -> Optional[SemVer]:
     """Converts a version string or SemVer instance into a SemVer object."""
     if isinstance(v, SemVer):
         return v
-    return parse_semver(v)
+    if v is None:
+        return None
+    return parse_semver(normalize_version_string(v))
+
+
+def to_canonical_version(version: str | bytes | SemVer | None) -> str | None:
+    """Formats a semantic version into a canonical string representation.
+
+    For standard versions with zero patch and no pre-release or build metadata,
+    returns f"{major}.{minor}" (e.g. '0.8', '0.9', '1.0').
+    For versions with non-zero patch, pre-release identifiers, or build metadata,
+    returns the full SemVer string (e.g. '0.9.1', '1.0.0-beta.1').
+
+    Args:
+        version: The version string, bytes, or SemVer object to canonicalize.
+
+    Returns:
+        The canonical version string, or None if the input cannot be parsed.
+    """
+    if not version:
+        return None
+    parsed = _to_semver(version)
+    if not parsed:
+        return None
+    if parsed.patch == 0 and not parsed.prerelease and not parsed.build:
+        return f"{parsed.major}.{parsed.minor}"
+    pre = f"-{'.'.join(parsed.prerelease)}" if parsed.prerelease else ""
+    bld = f"+{'.'.join(parsed.build)}" if parsed.build else ""
+    return f"{parsed.major}.{parsed.minor}.{parsed.patch}{pre}{bld}"
 
 
 def _compare_prerelease_id(id_a: str, id_b: str) -> int:
@@ -149,7 +177,10 @@ def _compare_prerelease_lists(pre_a: Sequence[str], pre_b: Sequence[str]) -> int
     return len(pre_a) - len(pre_b)
 
 
-def compare_semver(a: Any, b: Any) -> int:
+def compare_semver(
+    a: str | bytes | SemVer | None,
+    b: str | bytes | SemVer | None,
+) -> int:
     """Compares two semantic version strings or SemVer objects per SemVer 2.0.0 precedence (Section 11).
 
     Args:
@@ -178,7 +209,10 @@ def compare_semver(a: Any, b: Any) -> int:
     return _compare_prerelease_lists(v_a.prerelease, v_b.prerelease)
 
 
-def is_at_least_version(version: Any, min_version: str) -> bool:
+def is_at_least_version(
+    version: str | bytes | SemVer | None,
+    min_version: str | bytes | SemVer,
+) -> bool:
     """Checks if a given version string is at least the target minimum version.
 
     Args:
@@ -195,32 +229,3 @@ def is_at_least_version(version: Any, min_version: str) -> bool:
     if not parsed or not min_parsed:
         return False
     return compare_semver(parsed, min_parsed) >= 0
-
-
-def is_catalog_version_compatible(cat_ver: Any, msg_ver: Any) -> bool:
-    """Evaluates whether a catalog protocol version is compatible with an incoming message version.
-
-    For protocol versions >= 1.0, forward compatibility is supported (a catalog
-    at version 1.0 can process messages at version 1.1). For pre-1.0 versions,
-    exact version matching is required.
-
-    Args:
-        cat_ver: The catalog's declared protocol version.
-        msg_ver: The incoming message's declared protocol version.
-
-    Returns:
-        True if the catalog version is compatible with the message version, False otherwise.
-    """
-    if not cat_ver or not msg_ver:
-        return False
-    cat_semver = _to_semver(cat_ver)
-    msg_semver = _to_semver(msg_ver)
-    if cat_semver and msg_semver:
-        if compare_semver(cat_semver, "1.0") >= 0:
-            return compare_semver(cat_semver, msg_semver) <= 0
-        return compare_semver(cat_semver, msg_semver) == 0
-    cat_str = str(cat_ver)
-    msg_str = str(msg_ver)
-    norm_cat_ver = cat_str[1:] if cat_str.startswith(("v", "V")) else cat_str
-    norm_msg_ver = msg_str[1:] if msg_str.startswith(("v", "V")) else msg_str
-    return norm_cat_ver == norm_msg_ver

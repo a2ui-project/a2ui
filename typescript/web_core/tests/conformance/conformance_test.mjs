@@ -319,7 +319,8 @@ async function validateRpcTestCase(testCase) {
     catId = 'basic';
   }
 
-  const cat = new Catalog(catId, [], funcs, undefined, undefined, V10_CHILD_REF_OPTIONS);
+  const catProto = testCase.catalog?.protocolVersion || 'v1.0';
+  const cat = new Catalog(catId, [], funcs, undefined, undefined, catProto);
   let sentOutboundMsg;
   const processor = new MessageProcessor([cat], undefined, {
     version: 'v1.0',

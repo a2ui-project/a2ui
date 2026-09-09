@@ -19,15 +19,15 @@
  */
 export interface SemVer {
   /** Major version number indicating breaking API changes. */
-  major: number;
+  readonly major: number;
   /** Minor version number indicating backwards-compatible features. */
-  minor: number;
+  readonly minor: number;
   /** Patch version number indicating backwards-compatible bug fixes. */
-  patch: number;
+  readonly patch: number;
   /** Dot-separated pre-release identifiers. */
-  prerelease: string[];
+  readonly prerelease: readonly string[];
   /** Dot-separated build metadata identifiers. */
-  build: string[];
+  readonly build: readonly string[];
 }
 
 /**
@@ -112,15 +112,45 @@ function toSemVer(v: string | SemVer | undefined | null): SemVer | null {
   }
   if (typeof v === 'object') {
     const obj = v as Partial<SemVer>;
+    if (typeof obj.major !== 'number') {
+      return null;
+    }
     return {
-      major: typeof obj.major === 'number' ? obj.major : 0,
+      major: obj.major,
       minor: typeof obj.minor === 'number' ? obj.minor : 0,
       patch: typeof obj.patch === 'number' ? obj.patch : 0,
       prerelease: Array.isArray(obj.prerelease) ? obj.prerelease : [],
       build: Array.isArray(obj.build) ? obj.build : [],
     };
   }
-  return parseSemVer(v);
+  return parseSemVer(normalizeVersionString(v));
+}
+
+/**
+ * Formats a semantic version into a canonical string representation.
+ *
+ * For standard versions with zero patch and no pre-release or build metadata,
+ * returns `${major}.${minor}` (e.g. '0.8', '0.9', '1.0').
+ * For versions with non-zero patch, pre-release identifiers, or build metadata,
+ * returns the full SemVer string (e.g. '0.9.1', '1.0.0-beta.1').
+ *
+ * @param version The version string or SemVer object to canonicalize.
+ * @returns The canonical version string, or null if the input cannot be parsed.
+ */
+export function toCanonicalVersion(version: string | SemVer | undefined | null): string | null {
+  if (!version) {
+    return null;
+  }
+  const parsed = toSemVer(version);
+  if (!parsed) {
+    return null;
+  }
+  if (parsed.patch === 0 && parsed.prerelease.length === 0 && parsed.build.length === 0) {
+    return `${parsed.major}.${parsed.minor}`;
+  }
+  const pre = parsed.prerelease.length > 0 ? `-${parsed.prerelease.join('.')}` : '';
+  const bld = parsed.build.length > 0 ? `+${parsed.build.join('.')}` : '';
+  return `${parsed.major}.${parsed.minor}.${parsed.patch}${pre}${bld}`;
 }
 
 /**
@@ -167,7 +197,7 @@ function comparePrereleaseId(idA: string, idB: string): number {
  * @param preB Second list of pre-release identifiers.
  * @returns Negative number if preA < preB, 0 if equal, positive number if preA > preB.
  */
-function comparePrereleaseLists(preA: string[], preB: string[]): number {
+function comparePrereleaseLists(preA: readonly string[], preB: readonly string[]): number {
   if (preA.length === 0 && preB.length === 0) {
     return 0;
   }
@@ -250,34 +280,4 @@ export function isAtLeastVersion(
     return false;
   }
   return compareSemVer(parsed, minParsed) >= 0;
-}
-
-/**
- * Evaluates whether a catalog protocol version is compatible with an incoming message version.
- *
- * For versions >= 1.0, forward compatibility is allowed (catalog <= message).
- * For versions < 1.0, versions must match identically.
- *
- * @param catalogVersion The catalog's declared protocol version.
- * @param messageVersion The incoming message's declared protocol version.
- * @returns Whether the catalog version is compatible with the message version.
- */
-export function isCatalogVersionCompatible(
-  catalogVersion: string | SemVer | undefined | null,
-  messageVersion: string | SemVer | undefined | null,
-): boolean {
-  if (!catalogVersion || !messageVersion) {
-    return false;
-  }
-  const catSemVer = toSemVer(catalogVersion);
-  const msgSemVer = toSemVer(messageVersion);
-  if (catSemVer && msgSemVer) {
-    if (isAtLeastVersion(catSemVer, '1.0')) {
-      return compareSemVer(catSemVer, msgSemVer) <= 0;
-    }
-    return compareSemVer(catSemVer, msgSemVer) === 0;
-  }
-  const normCat = String(catalogVersion).replace(/^v/i, '');
-  const normMsg = String(messageVersion).replace(/^v/i, '');
-  return normCat === normMsg;
 }

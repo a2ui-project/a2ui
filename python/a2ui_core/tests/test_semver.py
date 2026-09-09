@@ -18,9 +18,9 @@ from a2ui.core.common.semver import (
     SemVer,
     compare_semver,
     is_at_least_version,
-    is_catalog_version_compatible,
     normalize_version_string,
     parse_semver,
+    to_canonical_version,
 )
 
 
@@ -160,23 +160,26 @@ def test_is_at_least_version():
     assert is_at_least_version("1.0.0", "1.0.0-alpha") is True
 
 
-def test_is_catalog_version_compatible():
-    """Tests catalog version compatibility for equal and forward-compatible versions."""
-    assert is_catalog_version_compatible("v1.0", "v1.0") is True
-    assert is_catalog_version_compatible("V1.0", "v1.0") is True
-    assert is_catalog_version_compatible("v1.0", "V1.0") is True
-    assert is_catalog_version_compatible("v1.0", "v1.1") is True
-    assert is_catalog_version_compatible("v1.0.0", "v1.0.1") is True
-    assert is_catalog_version_compatible("v1.1", "v1.0") is False
-    assert is_catalog_version_compatible("v0.9", "v0.9") is True
-    assert is_catalog_version_compatible("V0.9", "0.9") is True
-    assert is_catalog_version_compatible("0.9", "V0.9") is True
-    assert is_catalog_version_compatible("v0.9", "1.0") is False
-    assert is_catalog_version_compatible("Vcustom", "vcustom") is True
-    assert is_catalog_version_compatible("custom", "Vcustom") is True
-    assert is_catalog_version_compatible(None, "v1.0") is False
-    assert is_catalog_version_compatible("v1.0", None) is False
-    assert is_catalog_version_compatible(None, None) is False
-    assert is_catalog_version_compatible("", "") is False
-    assert is_catalog_version_compatible(None, "None") is False
-    assert is_catalog_version_compatible("None", None) is False
+def test_to_canonical_version():
+    """Tests canonical string formatting for semantic versions."""
+    assert to_canonical_version("v1.0") == "1.0"
+    assert to_canonical_version("1.0") == "1.0"
+    assert to_canonical_version("V1.0") == "1.0"
+    assert to_canonical_version("1.0.0") == "1.0"
+    assert to_canonical_version("v1.0.0") == "1.0"
+    assert to_canonical_version("v1_0") == "1.0"
+    assert to_canonical_version("V1_0") == "1.0"
+    assert to_canonical_version("v0.9.1") == "0.9.1"
+    assert to_canonical_version("0.9.1") == "0.9.1"
+    assert to_canonical_version("v0_9_1") == "0.9.1"
+    assert to_canonical_version("v0.9") == "0.9"
+    assert to_canonical_version("0.9") == "0.9"
+    assert to_canonical_version("v0_9") == "0.9"
+    assert to_canonical_version("v0.8") == "0.8"
+    assert to_canonical_version("0.8.0") == "0.8"
+    assert to_canonical_version("1.0.0-beta.1") == "1.0.0-beta.1"
+    assert to_canonical_version("1.0.0+build.1") == "1.0.0+build.1"
+    assert to_canonical_version(b"v1.0") == "1.0"
+    assert to_canonical_version("invalid") is None
+    assert to_canonical_version("") is None
+    assert to_canonical_version(None) is None

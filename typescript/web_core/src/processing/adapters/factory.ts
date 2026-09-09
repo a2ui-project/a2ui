@@ -15,7 +15,7 @@
  */
 
 import {A2uiValidationError} from '../../errors.js';
-import {parseSemVer} from '../../common/semver.js';
+import {normalizeVersionString, toCanonicalVersion} from '../../common/semver.js';
 import {ProtocolVersion, VersionAdapter, VersionAdapterResolver} from './base.js';
 import {V0Point8Adapter} from './v0_8.js';
 import {V0Point9Adapter} from './v0_9.js';
@@ -26,10 +26,10 @@ import {V1Point0Adapter} from './v1_0.js';
  */
 export class VersionAdapterFactory implements VersionAdapterResolver {
   private readonly adapters = new Map<string, VersionAdapter>([
-    ['v0.8', new V0Point8Adapter()],
-    ['v0.9', new V0Point9Adapter()],
-    ['v0.9.1', new V0Point9Adapter()],
-    ['v1.0', new V1Point0Adapter()],
+    ['0.8', new V0Point8Adapter()],
+    ['0.9', new V0Point9Adapter()],
+    ['0.9.1', new V0Point9Adapter()],
+    ['1.0', new V1Point0Adapter()],
   ]);
 
   /**
@@ -38,7 +38,8 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
    * @param adapter The version adapter instance to register.
    */
   registerAdapter(adapter: VersionAdapter): void {
-    this.adapters.set(adapter.version, adapter);
+    const key = toCanonicalVersion(adapter.version) ?? normalizeVersionString(adapter.version);
+    this.adapters.set(key, adapter);
   }
 
   /**
@@ -49,19 +50,10 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
    * @throws A2uiValidationError if the version string is unsupported.
    */
   getAdapter(version: ProtocolVersion | string): VersionAdapter {
-    let adapter = this.adapters.get(version);
+    const key = toCanonicalVersion(version) ?? normalizeVersionString(version);
+    const adapter = this.adapters.get(key);
     if (!adapter) {
-      const parsed = parseSemVer(version);
-      if (parsed) {
-        if (parsed.major === 0 && parsed.minor === 9 && parsed.patch === 1) {
-          adapter = this.adapters.get('v0.9.1');
-        } else {
-          adapter = this.adapters.get(`v${parsed.major}.${parsed.minor}`);
-        }
-      }
-    }
-    if (!adapter) {
-      const supported = Array.from(this.adapters.keys()).join(', ');
+      const supported = ['v0.8', 'v0.9', 'v0.9.1', 'v1.0'].join(', ');
       throw new A2uiValidationError(
         `[VersionAdapterFactory] Unsupported protocol version '${version}'. Supported versions: ${supported}.`,
       );

@@ -26,7 +26,7 @@ import {
   RendererFunctionResponseMessage,
   CallAgentFunctionMessage,
 } from '../v1_0/schema/renderer-to-agent.js';
-import {isCatalogVersionCompatible} from '../common/semver.js';
+import {isCatalogVersionCompatible} from '../processing/adapters/base.js';
 
 /**
  * Standard error codes for A2UI RPC failures.

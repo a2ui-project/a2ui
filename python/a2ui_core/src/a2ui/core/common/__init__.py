@@ -18,9 +18,9 @@ from .semver import (
     SemVer,
     compare_semver,
     is_at_least_version,
-    is_catalog_version_compatible,
     normalize_version_string,
     parse_semver,
+    to_canonical_version,
 )
 
 __all__ = [
@@ -31,7 +31,7 @@ __all__ = [
     "SemVer",
     "normalize_version_string",
     "parse_semver",
+    "to_canonical_version",
     "compare_semver",
     "is_at_least_version",
-    "is_catalog_version_compatible",
 ]

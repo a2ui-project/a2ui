@@ -42,9 +42,14 @@ class VersionAdapterFactory:
     @classmethod
     def get_adapter(cls, version: ProtocolVersion | str) -> VersionAdapter:
         """Resolves the version adapter for the specified protocol version enum or string."""
+        adapter = None
         if isinstance(version, str):
-            version = cls._parse_version(version) or DEFAULT_PROTOCOL_VERSION
-        adapter = cls._adapters.get(version)
+            parsed_ver = cls._parse_version(version)
+            if parsed_ver:
+                adapter = cls._adapters.get(parsed_ver)
+        elif isinstance(version, ProtocolVersion):
+            adapter = cls._adapters.get(version)
+
         if not adapter:
             supported = ", ".join(v.value for v in cls._adapters.keys())
             raise A2uiValidationError(
@@ -148,7 +153,18 @@ class VersionAdapterFactory:
         Returns:
             The matched ProtocolVersion enum member, or None if unrecognized.
         """
-        from ...common.semver import parse_semver
+        from ...common.semver import to_canonical_version
+
+        canonical = to_canonical_version(version_str)
+        if canonical:
+            canonical_map = {
+                "0.8": ProtocolVersion.V0_8,
+                "0.9": ProtocolVersion.V0_9,
+                "0.9.1": ProtocolVersion.V0_9_1,
+                "1.0": ProtocolVersion.V1_0,
+            }
+            if canonical in canonical_map:
+                return canonical_map[canonical]
 
         clean = (
             f"v{version_str[1:]}"
@@ -158,15 +174,4 @@ class VersionAdapterFactory:
         try:
             return ProtocolVersion(clean)
         except ValueError:
-            pass
-
-        parsed = parse_semver(version_str)
-        if parsed:
-            if parsed.major == 0 and parsed.minor == 9 and parsed.patch == 1:
-                return ProtocolVersion.V0_9_1
-            canonical = f"v{parsed.major}.{parsed.minor}"
-            try:
-                return ProtocolVersion(canonical)
-            except ValueError:
-                return None
-        return None
+            return None

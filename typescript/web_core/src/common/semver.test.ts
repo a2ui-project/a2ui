@@ -20,8 +20,8 @@ import {
   parseSemVer,
   compareSemVer,
   isAtLeastVersion,
-  isCatalogVersionCompatible,
   normalizeVersionString,
+  toCanonicalVersion,
 } from './semver.js';
 
 describe('SemVer Utilities (SemVer 2.0.0 Spec)', () => {
@@ -232,25 +232,28 @@ describe('SemVer Utilities (SemVer 2.0.0 Spec)', () => {
     assert.strictEqual(normalizeVersionString(null), '');
   });
 
-  it('evaluates isCatalogVersionCompatible correctly', () => {
-    assert.strictEqual(isCatalogVersionCompatible('v1.0', 'v1.0'), true);
-    assert.strictEqual(isCatalogVersionCompatible('V1.0', 'v1.0'), true);
-    assert.strictEqual(isCatalogVersionCompatible('v1.0', 'V1.0'), true);
-    assert.strictEqual(isCatalogVersionCompatible('v1.0', 'v1.1'), true);
-    assert.strictEqual(isCatalogVersionCompatible('v1.0.0', 'v1.0.1'), true);
-    assert.strictEqual(isCatalogVersionCompatible('v1.1', 'v1.0'), false);
-    assert.strictEqual(isCatalogVersionCompatible('v0.9', 'v0.9'), true);
-    assert.strictEqual(isCatalogVersionCompatible('V0.9', '0.9'), true);
-    assert.strictEqual(isCatalogVersionCompatible('0.9', 'V0.9'), true);
-    assert.strictEqual(isCatalogVersionCompatible('v0.9', 'v1.0'), false);
-    assert.strictEqual(isCatalogVersionCompatible('Vcustom', 'vcustom'), true);
-    assert.strictEqual(isCatalogVersionCompatible('custom', 'Vcustom'), true);
-    assert.strictEqual(isCatalogVersionCompatible(undefined, 'v1.0'), false);
-    assert.strictEqual(isCatalogVersionCompatible('v1.0', undefined), false);
-    assert.strictEqual(isCatalogVersionCompatible(null, 'v1.0'), false);
-    assert.strictEqual(isCatalogVersionCompatible('v1.0', null), false);
-    assert.strictEqual(isCatalogVersionCompatible(null, null), false);
-    assert.strictEqual(isCatalogVersionCompatible('', ''), false);
+  it('canonicalizes version strings correctly with toCanonicalVersion', () => {
+    assert.strictEqual(toCanonicalVersion('v1.0'), '1.0');
+    assert.strictEqual(toCanonicalVersion('1.0'), '1.0');
+    assert.strictEqual(toCanonicalVersion('V1.0'), '1.0');
+    assert.strictEqual(toCanonicalVersion('1.0.0'), '1.0');
+    assert.strictEqual(toCanonicalVersion('v1.0.0'), '1.0');
+    assert.strictEqual(toCanonicalVersion('v1_0'), '1.0');
+    assert.strictEqual(toCanonicalVersion('V1_0'), '1.0');
+    assert.strictEqual(toCanonicalVersion('v0.9.1'), '0.9.1');
+    assert.strictEqual(toCanonicalVersion('0.9.1'), '0.9.1');
+    assert.strictEqual(toCanonicalVersion('v0_9_1'), '0.9.1');
+    assert.strictEqual(toCanonicalVersion('v0.9'), '0.9');
+    assert.strictEqual(toCanonicalVersion('0.9'), '0.9');
+    assert.strictEqual(toCanonicalVersion('v0_9'), '0.9');
+    assert.strictEqual(toCanonicalVersion('v0.8'), '0.8');
+    assert.strictEqual(toCanonicalVersion('0.8.0'), '0.8');
+    assert.strictEqual(toCanonicalVersion('1.0.0-beta.1'), '1.0.0-beta.1');
+    assert.strictEqual(toCanonicalVersion('1.0.0+build.1'), '1.0.0+build.1');
+    assert.strictEqual(toCanonicalVersion('invalid'), null);
+    assert.strictEqual(toCanonicalVersion(''), null);
+    assert.strictEqual(toCanonicalVersion(null), null);
+    assert.strictEqual(toCanonicalVersion(undefined), null);
   });
 
   it('handles partial objects safely in toSemVer', () => {

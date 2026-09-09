@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 from ..common.events import EventSource
-from ..common.semver import is_catalog_version_compatible
+from .adapters import is_catalog_version_compatible
 from ..state import SurfaceGroupModel, SurfaceModel, ComponentModel
 from ..validation import (
     PayloadValidator,

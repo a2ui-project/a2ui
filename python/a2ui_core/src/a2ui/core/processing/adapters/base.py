@@ -19,16 +19,72 @@ from typing import Any
 from pydantic import ValidationError
 from ..operations import InternalOperation
 from ...exceptions import (
-    A2uiCatalogError,
     A2uiErrorDetail,
-    A2uiIntegrityError,
     A2uiValidationError,
 )
 from ...state.validation_helpers import validate_recursion_and_paths
 from ...schema import AgentToRendererMessage, ProtocolVersion
+from ...common.semver import (
+    SemVer,
+    normalize_version_string,
+    to_canonical_version,
+)
 
 
 from ..execution_context import ExecutionContext
+
+SUPPORTED_PROTOCOL_VERSIONS: frozenset[str] = frozenset({
+    "0.8",
+    "0.9",
+    "0.9.1",
+    "1.0",
+})
+
+DEFAULT_CATALOG_COMPATIBILITY: dict[str, frozenset[str]] = {
+    "0.8": frozenset({"0.8"}),
+    "0.9": frozenset({"0.9", "0.9.1"}),
+    "0.9.1": frozenset({"0.9.1", "0.9"}),
+    "1.0": frozenset({"1.0"}),
+}
+
+
+def is_catalog_version_compatible(
+    catalog_version: str | bytes | SemVer | None,
+    message_version: str | bytes | SemVer | None,
+    compatibility_map: dict[str, frozenset[str]] | None = None,
+) -> bool:
+    """Evaluates whether a catalog protocol version is compatible with an incoming message or surface version.
+
+    Compatibility is verified against explicit supported version sets.
+    Minor formatting differences ('v1.0', '1.0', '1.0.0', 'v1_0') normalize to the same canonical version.
+
+    Args:
+        catalog_version: The catalog's declared protocol version.
+        message_version: The incoming message or surface declared protocol version.
+        compatibility_map: Optional explicit compatibility mapping. Defaults to DEFAULT_CATALOG_COMPATIBILITY.
+
+    Returns:
+        True if the catalog version is compatible with the message version, False otherwise.
+    """
+    if not catalog_version or not message_version:
+        return False
+    cat_canonical = to_canonical_version(catalog_version)
+    msg_canonical = to_canonical_version(message_version)
+    if cat_canonical and msg_canonical:
+        if cat_canonical == msg_canonical:
+            return True
+        mapping = (
+            compatibility_map
+            if compatibility_map is not None
+            else DEFAULT_CATALOG_COMPATIBILITY
+        )
+        compatible = mapping.get(msg_canonical)
+        return bool(compatible and cat_canonical in compatible)
+
+    # Fallback for non-semver custom identifiers (e.g. 'custom' vs 'Vcustom')
+    norm_cat = normalize_version_string(catalog_version)
+    norm_msg = normalize_version_string(message_version)
+    return bool(norm_cat and norm_cat == norm_msg)
 
 
 def _clean_loc_part(x: str) -> str:
@@ -56,6 +112,31 @@ class VersionAdapter(ABC):
             self.version.value if hasattr(self.version, "value") else str(self.version)
         )
         return {ver_str}
+
+    @property
+    def compatible_catalog_versions(self) -> frozenset[str]:
+        """Set of canonical catalog protocol versions compatible with this adapter."""
+        ver_str = (
+            self.version.value if hasattr(self.version, "value") else str(self.version)
+        )
+        canonical = to_canonical_version(ver_str)
+        return frozenset({canonical}) if canonical else frozenset()
+
+    def is_catalog_compatible(
+        self, catalog_version: str | bytes | SemVer | None
+    ) -> bool:
+        """Checks if a catalog protocol version is compatible with this adapter."""
+        if not catalog_version:
+            return False
+        cat_canonical = to_canonical_version(catalog_version)
+        if cat_canonical:
+            return cat_canonical in self.compatible_catalog_versions
+        norm_cat = normalize_version_string(catalog_version)
+        ver_str = (
+            self.version.value if hasattr(self.version, "value") else str(self.version)
+        )
+        norm_self = normalize_version_string(ver_str)
+        return bool(norm_cat and norm_cat == norm_self)
 
     @abstractmethod
     def extract_operations(

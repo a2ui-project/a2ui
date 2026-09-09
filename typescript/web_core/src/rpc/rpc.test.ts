@@ -693,7 +693,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     );
   });
 
-  it('allows callRendererFunction when catalog protocolVersion is compatible with newer message version (e.g. v1.0 on v1.1)', async () => {
+  it('rejects callRendererFunction when message version is outside supported compatibility sets (e.g. v1.1 on v1.0)', async () => {
     const v10Catalog = new Catalog(
       'v10_catalog',
       [],
@@ -710,11 +710,11 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       {
         version: 'v1.1' as any,
         callRendererFunction: {
-          functionCallId: 'call-version-forward-compat',
+          functionCallId: 'call-version-unsupported',
           callFunction: {
             call: 'customRpc',
             catalogId: 'v10_catalog',
-            args: {text: 'forward-compat'},
+            args: {text: 'unsupported'},
           },
         },
       },
@@ -722,7 +722,81 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       true,
     );
 
-    assert.strictEqual(res.rendererFunctionResponse.value, 'Processed: forward-compat');
+    assert.strictEqual(res.rendererFunctionResponse.value, undefined);
+    assert.strictEqual(
+      res.rendererFunctionResponse.error?.code,
+      RpcErrorCode.INVALID_FUNCTION_CALL,
+    );
+    assert.ok(
+      res.rendererFunctionResponse.error.message.includes(
+        'does not match message protocol version',
+      ),
+    );
+  });
+
+  it('allows callRendererFunction when catalog protocolVersion formatting differs but normalizes to same version (e.g. v1_0 on 1.0.0)', async () => {
+    const v10Catalog = new Catalog(
+      'v10_catalog',
+      [],
+      [customRpcImpl],
+      undefined,
+      undefined,
+      'v1_0',
+    );
+    const handler = new RpcHandler([v10Catalog]);
+    const surface = new SurfaceModel('s1', v10Catalog);
+    const context = new DataContext(surface, '/');
+
+    const res = await handler.handleCallRendererFunction(
+      {
+        version: '1.0.0' as any,
+        callRendererFunction: {
+          functionCallId: 'call-version-normalize',
+          callFunction: {
+            call: 'customRpc',
+            catalogId: 'v10_catalog',
+            args: {text: 'format-tolerance'},
+          },
+        },
+      },
+      context,
+      true,
+    );
+
+    assert.strictEqual(res.rendererFunctionResponse.value, 'Processed: format-tolerance');
+    assert.strictEqual(res.rendererFunctionResponse.error, undefined);
+  });
+
+  it('allows callRendererFunction when catalog protocolVersion is compatible via explicit mapping (e.g. v0.9 catalog on v0.9.1 message)', async () => {
+    const v09Catalog = new Catalog(
+      'v09_catalog',
+      [],
+      [customRpcImpl],
+      undefined,
+      undefined,
+      'v0.9',
+    );
+    const handler = new RpcHandler([v09Catalog]);
+    const surface = new SurfaceModel('s1', v09Catalog);
+    const context = new DataContext(surface, '/');
+
+    const res = await handler.handleCallRendererFunction(
+      {
+        version: 'v0.9.1' as any,
+        callRendererFunction: {
+          functionCallId: 'call-version-v09-v091',
+          callFunction: {
+            call: 'customRpc',
+            catalogId: 'v09_catalog',
+            args: {text: 'v09-on-v091'},
+          },
+        },
+      },
+      context,
+      true,
+    );
+
+    assert.strictEqual(res.rendererFunctionResponse.value, 'Processed: v09-on-v091');
     assert.strictEqual(res.rendererFunctionResponse.error, undefined);
   });
 
