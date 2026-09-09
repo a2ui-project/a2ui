@@ -68,8 +68,6 @@ class DirectJsonPromptGenerator(PromptGenerator):
         validate: bool = False,
     ) -> str:
         """Loads and formats few-shot examples for a catalog."""
-        if not self._format:
-            return ""
         target_catalog = catalog or self.selected_catalog
         if not target_catalog:
             target_catalog = (

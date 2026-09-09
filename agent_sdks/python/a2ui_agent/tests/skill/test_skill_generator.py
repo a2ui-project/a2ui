@@ -128,24 +128,6 @@ class TestSkillGenerator(unittest.TestCase):
         # 5. Non-matching string returns None
         self.assertIsNone(skill_set.get("nonexistent"))
 
-    def test_direct_json_prompt_generator_none_format(self):
-        """Verifies DirectJsonPromptGenerator.generate_examples returns empty string when format is None."""
-        from a2ui.inference_formats.direct_json.prompt_generator import (
-            DirectJsonPromptGenerator,
-        )
-
-        gen = DirectJsonPromptGenerator(None)
-        self.assertEqual(gen.generate_examples(), "")
-
-    def test_atom_prompt_generator_none_format(self):
-        """Verifies AtomPromptGenerator.generate_examples returns empty string when format is None."""
-        from a2ui.inference_formats.experimental.atom.prompt_generator import (
-            AtomPromptGenerator,
-        )
-
-        gen = AtomPromptGenerator(None)
-        self.assertEqual(gen.generate_examples(), "")
-
 
 if __name__ == "__main__":
     unittest.main()
