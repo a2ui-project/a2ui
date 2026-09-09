@@ -22,6 +22,8 @@ import '../core/surface_model.dart';
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import '../validation/component_graph.dart';
+import '../validation/component_refs.dart';
+import '../validation/payload_structure.dart';
 import '../validation/validator.dart';
 
 /// The central processor for A2UI messages on renderer side.
@@ -34,25 +36,38 @@ import '../validation/validator.dart';
 /// Not to be confused with the Agent SDK's `A2uiRequestProcessor`, which runs
 /// the other way: it parses model output into the payloads this consumes.
 ///
-/// Checks a batch against the surface it joins, which needs that state. For
-/// checking a payload on its own, before any surface exists, see
-/// [A2uiValidator.validate].
+/// This is the entry point for validation as well as for processing, because
+/// it is what holds every supported [catalogs] entry and can therefore decide
+/// which catalog each item belongs to. [PayloadValidator] checks one component,
+/// function call or theme against one catalog; the processor resolves that
+/// catalog per item and calls [validatorFor] for it. That split is what lets a
+/// surface mix catalogs, which v1.0 allows through the `catalogId` a component
+/// or function call may carry to override the surface-level default.
 ///
-/// Validation is phased rather than a single pass: [processPayload] checks
-/// envelopes as it parses, a surface's theme is checked when the surface is
-/// created, and each batch of components is checked against its surface's
-/// catalog and against the surface's existing component graph as the batch
-/// arrives. The graph checks resolve references against what the surface
-/// already holds, which a payload-scoped validator cannot see, so an
-/// incremental update is checked rather than waved through. Each of those
-/// checks runs on the validator for that surface's catalog, from
-/// [validatorFor].
+/// Two entry points, for the two things a caller can have:
+///
+/// - [processMessages] applies a payload to the surface state, checking each
+///   message against the surface it joins as it goes. Graph checks resolve
+///   references against what the surface already holds, which a payload on its
+///   own cannot see, so an incremental update is checked rather than waved
+///   through.
+/// - [validatePayload] checks a payload on its own, without applying it and
+///   without requiring the surfaces to exist. This is what an agent has before
+///   it sends anything.
+///
+/// Validation is phased rather than a single pass: envelopes are checked as the
+/// payload is parsed, a surface's theme when the surface is created, and each
+/// batch of components against its catalog and against the component graph as
+/// the batch arrives.
 class MessageProcessor<T extends ComponentApi> {
   final SurfaceGroupModel<T> groupModel;
   final List<Catalog<T, FunctionImplementation>> catalogs;
 
   /// The protocol version this processor accepts, on envelopes and in the
   /// validators it builds.
+  ///
+  /// Required rather than defaulted: a default would silently move every
+  /// caller onto the next protocol version the day this SDK implements one.
   final A2uiProtocolVersion protocolVersion;
 
   /// The shared `common_types.json` definitions the validators resolve
@@ -64,15 +79,17 @@ class MessageProcessor<T extends ComponentApi> {
   final Map<String, Object?> commonTypesSchema;
 
   /// One validator per catalog, built on first use.
-  final Map<String, A2uiValidator<T, FunctionImplementation>> _validators = {};
+  final Map<String, PayloadValidator<T, FunctionImplementation>> _validators =
+      {};
 
   MessageProcessor({
     required this.catalogs,
-    this.protocolVersion = A2uiProtocolVersion.v0_9,
+    required this.protocolVersion,
     Map<String, Object?>? commonTypesSchema,
     void Function(A2uiClientAction)? onAction,
   }) : commonTypesSchema =
-           commonTypesSchema ?? A2uiValidator.commonTypesFor(protocolVersion),
+           commonTypesSchema ??
+           PayloadValidator.commonTypesFor(protocolVersion),
        groupModel = SurfaceGroupModel<T>() {
     if (onAction != null) {
       groupModel.onAction.addListener(onAction);
@@ -82,25 +99,40 @@ class MessageProcessor<T extends ComponentApi> {
   /// The validator for [catalog].
   ///
   /// A component belongs to exactly one catalog, so a validator is scoped to
-  /// one rather than handed the whole supported set: a processor that
-  /// supports several catalogs must not accept a component of one surface's
-  /// catalog on a surface created against another. Each surface records the
-  /// catalog it was created with, and every check below goes through the
-  /// validator for that catalog.
+  /// one rather than handed the whole supported set. The processor is what
+  /// routes each item to the right one, which is what keeps a component of one
+  /// catalog from passing on a surface whose default is another, and what lets
+  /// a v1.0 surface mix catalogs.
   ///
   /// Built once per catalog and reused. The validator caches resolved
   /// component schemas, which a fresh instance per batch would rebuild on
   /// every message.
-  A2uiValidator<T, FunctionImplementation> validatorFor(
+  PayloadValidator<T, FunctionImplementation> validatorFor(
     Catalog<T, FunctionImplementation> catalog,
   ) => _validators.putIfAbsent(
     catalog.id,
-    () => A2uiValidator<T, FunctionImplementation>(
+    () => PayloadValidator<T, FunctionImplementation>(
       catalog: catalog,
       commonTypesSchema: commonTypesSchema,
       protocolVersion: protocolVersion,
     ),
   );
+
+  /// The supported catalog with [catalogId].
+  ///
+  /// Throws [A2uiCatalogError] when this processor supports no such catalog,
+  /// which for a renderer means the agent named a catalog outside the
+  /// capabilities it advertised.
+  Catalog<T, FunctionImplementation> catalogFor(String catalogId) {
+    for (final Catalog<T, FunctionImplementation> catalog in catalogs) {
+      if (catalog.id == catalogId) return catalog;
+    }
+    throw A2uiCatalogError(
+      "Catalog '$catalogId' is not supported by this processor. Supported: "
+      '${catalogs.map((c) => c.id).join(', ')}.',
+      catalogId: catalogId,
+    );
+  }
 
   /// Parses a raw payload, then processes it.
   ///
@@ -113,7 +145,7 @@ class MessageProcessor<T extends ComponentApi> {
   /// Throws [A2uiValidationError] for a malformed envelope, including one
   /// mixing update types, before any message reaches the models.
   List<A2uiMessage> processPayload(List<Map<String, Object?>> payload) {
-    final List<A2uiMessage> messages = A2uiValidator.parseMessagesFor(
+    final List<A2uiMessage> messages = PayloadValidator.parseMessages(
       payload,
       protocolVersion: protocolVersion,
     );
@@ -126,6 +158,164 @@ class MessageProcessor<T extends ComponentApi> {
     for (final message in messages) {
       _processMessage(message);
     }
+  }
+
+  /// Checks a payload on its own: envelopes, then structure, then catalogs.
+  ///
+  /// Nothing is applied and no surface has to exist, so this is what an agent
+  /// runs over its own output before sending it, and what checks a payload
+  /// captured on the wire. A renderer holding surface state gets a stricter
+  /// check from [processPayload], which resolves references against the
+  /// components each surface already holds.
+  ///
+  /// Returns the parsed messages, and throws as the individual stages do.
+  List<A2uiMessage> validatePayload(List<Map<String, Object?>> payload) {
+    final List<A2uiMessage> messages = PayloadValidator.parseMessages(
+      payload,
+      protocolVersion: protocolVersion,
+    );
+    validateStructure(messages);
+    validateCatalogs(messages);
+    return messages;
+  }
+
+  /// Checks that a message sequence forms a valid component graph: unique
+  /// ids, reachability, no dangling references, no cycles, depth within cap.
+  ///
+  /// A payload that creates a surface is a full render: it must declare a
+  /// component with id `root`, every reference must name a component the
+  /// payload declares, and every component must be reachable from the root. A
+  /// payload that only updates components is incremental, so it may reference
+  /// components the client already holds; duplicate ids, self-references and
+  /// cycles still fail.
+  ///
+  /// Throws [A2uiIntegrityError] for graph defects, [A2uiRecursionError] for
+  /// cycles and depth overruns, and [A2uiValidationError] for a malformed
+  /// data-model path.
+  void validateStructure(List<A2uiMessage> messages) {
+    for (final message in messages) {
+      checkPathsAndRecursion(message.toJson());
+      // Two components sharing an id in one message contradict each other.
+      // The same id in a later message updates the component instead, so
+      // duplicates are looked for per message, before the merge below.
+      if (message is UpdateComponentsMessage) {
+        checkComponentIntegrity(
+          message.components,
+          const {},
+          requireRoot: false,
+          knownIds: null,
+        );
+      }
+    }
+
+    for (final SurfacePayload surface in groupBySurface(messages).values) {
+      if (surface.components.isEmpty) continue;
+
+      final Map<String, ComponentRefFields> refFields = _refFieldsFor(
+        surface.catalogId,
+        surface.components,
+      );
+      checkComponentIntegrity(
+        surface.components,
+        refFields,
+        requireRoot: surface.created,
+        // A payload that creates the surface must satisfy every reference
+        // itself. One that does not cannot know what the client already
+        // holds, so [processMessages] makes that check instead.
+        knownIds: surface.created ? const <String>{} : null,
+      );
+      checkComponentTopology(
+        surface.components,
+        refFields,
+        requireRoot: surface.created,
+        allowOrphans: !surface.isSingleRender,
+      );
+    }
+  }
+
+  /// Checks each component and theme in [messages] against its own catalog.
+  ///
+  /// A surface names a default catalog on `createSurface`, and from v1.0 a
+  /// component may name one of its own that overrides it, so the catalog is
+  /// resolved per component rather than per payload. A payload that spans
+  /// several catalogs is checked against each of them, not rejected.
+  ///
+  /// Throws [A2uiCatalogError] when a surface or component names a catalog
+  /// this processor does not support, or when a payload gives no catalog for a
+  /// surface and this processor holds more than one so none can be assumed.
+  ///
+  /// Throws [A2uiValidationError] for schema violations.
+  void validateCatalogs(List<A2uiMessage> messages) {
+    // A surface names its catalog whether or not the payload goes on to put
+    // anything on it, and its theme arrives with it, so both are checked as
+    // the message is seen rather than through the grouping below.
+    for (final message in messages) {
+      if (message is! CreateSurfaceMessage) continue;
+      validatorFor(catalogFor(message.catalogId)).validateTheme(message.theme);
+    }
+
+    for (final SurfacePayload surface in groupBySurface(messages).values) {
+      for (final Map<String, Object?> component in surface.components) {
+        final Catalog<T, FunctionImplementation> catalog = _catalogForComponent(
+          component,
+          surface.catalogId,
+        );
+        validatorFor(catalog).validateComponent(component);
+      }
+    }
+  }
+
+  /// The catalog one component is checked against.
+  ///
+  /// Settled in order: the `catalogId` the component names for itself, which
+  /// v1.0 allows so that one surface can mix catalogs; then the surface's
+  /// default, from `createSurface`; then the sole catalog this processor
+  /// supports, which is the agent case, where a catalog is negotiated before
+  /// anything is generated.
+  ///
+  /// Throws [A2uiCatalogError] when none of those settles it. Skipping the
+  /// component instead would report a payload valid that nothing had checked.
+  Catalog<T, FunctionImplementation> _catalogForComponent(
+    Map<String, Object?> component,
+    String? surfaceCatalogId,
+  ) {
+    final Object? declared = component['catalogId'] ?? surfaceCatalogId;
+    if (declared is String) return catalogFor(declared);
+    if (catalogs.length == 1) return catalogs.single;
+    throw A2uiCatalogError(
+      "Component '${component['id']}' names no catalog and the payload does "
+      'not create its surface, so the catalog to check it against is '
+      'ambiguous among: ${catalogs.map((c) => c.id).join(', ')}.',
+    );
+  }
+
+  /// Which properties hold child references, across the catalogs a surface's
+  /// components draw on.
+  ///
+  /// A surface's graph spans every component on it, and from v1.0 those may
+  /// come from several catalogs, so the reference fields are merged over all of
+  /// them. The surface's own default wins a name two catalogs both declare.
+  Map<String, ComponentRefFields> _refFieldsFor(
+    String? surfaceCatalogId,
+    Iterable<Map<String, Object?>> components,
+  ) {
+    final ids = <String>{
+      ?surfaceCatalogId,
+      for (final Map<String, Object?> component in components)
+        if (component['catalogId'] case final String id) id,
+    };
+    final Iterable<Catalog<T, FunctionImplementation>> involved = ids.isEmpty
+        ? catalogs
+        : ids.map(catalogFor);
+
+    final merged = <String, ComponentRefFields>{};
+    for (final catalog in involved) {
+      validatorFor(catalog).componentRefFields.forEach(
+        (String type, ComponentRefFields fields) =>
+            merged.putIfAbsent(type, () => fields),
+      );
+    }
+    return merged;
   }
 
   void _processMessage(A2uiMessage message) {
@@ -141,10 +331,8 @@ class MessageProcessor<T extends ComponentApi> {
   }
 
   void _processCreateSurface(CreateSurfaceMessage message) {
-    final Catalog<T, FunctionImplementation> catalog = catalogs.firstWhere(
-      (c) => c.id == message.catalogId,
-      orElse: () =>
-          throw A2uiStateError('Catalog not found: ${message.catalogId}'),
+    final Catalog<T, FunctionImplementation> catalog = catalogFor(
+      message.catalogId,
     );
 
     if (groupModel.getSurface(message.surfaceId) != null) {
@@ -192,27 +380,35 @@ class MessageProcessor<T extends ComponentApi> {
         );
       }
 
-      // A component that names a type is checked against the surface's
-      // catalog here, while the batch can still be rejected whole. A component
-      // that names none is an update to one this surface already holds, which
-      // the catalog was consulted for when it first arrived.
+      // A component that names a type is checked against its own catalog
+      // here, while the batch can still be rejected whole. That is the
+      // surface's default catalog unless the component names one of its own,
+      // which v1.0 allows. A component that names no type is an update to one
+      // this surface already holds, which the catalog was consulted for when
+      // it first arrived.
       if (type != null) {
-        validatorFor(surface.catalog).validateComponent(compJson);
+        final Catalog<T, FunctionImplementation> catalog = _catalogForComponent(
+          compJson.cast<String, Object?>(),
+          surface.catalog.id,
+        );
+        validatorFor(catalog).validateComponent(compJson);
       }
     }
 
+    final List<Map<String, Object?>> incoming = [
+      for (final Map<String, dynamic> c in message.components)
+        c.cast<String, Object?>(),
+    ];
+    final List<Map<String, Object?>> existing = [
+      for (final ComponentModel c in surface.componentsModel.all) c.toJson(),
+    ];
+
     // The batch as a graph, against the surface it is about to join: duplicate
     // ids, references that name no component here or on the surface, cycles
-    // and over-deep chains. Resolving against the surface is what a
-    // payload-scoped validator cannot do, so an incremental update is checked
-    // here rather than waved through.
-    validatorFor(surface.catalog).validateComponentBatch(
-      [
-        for (final Map<String, dynamic> c in message.components)
-          c.cast<String, Object?>(),
-      ],
-      [for (final ComponentModel c in surface.componentsModel.all) c.toJson()],
-    );
+    // and over-deep chains. Resolving against the surface is what a payload on
+    // its own cannot do, so an incremental update is checked here rather than
+    // waved through.
+    _validateComponentBatch(surface, incoming, existing);
 
     // Data-model paths and nested function calls, which need no surface state.
     checkPathsAndRecursion(message.toJson());
@@ -239,6 +435,50 @@ class MessageProcessor<T extends ComponentApi> {
         surface.componentsModel.addComponent(ComponentModel(id, type!, props));
       }
     }
+  }
+
+  /// Checks one batch of components against the surface that will receive it.
+  ///
+  /// [incoming] is the batch; [existing] is what the surface already holds, as
+  /// `ComponentModel.toJson` renders it. References resolve against both, so a
+  /// batch may point at a component the client already has while a reference
+  /// to nothing at all is still caught — a check [validateStructure] cannot
+  /// make, because a payload does not carry the surface's history.
+  ///
+  /// Cycles and depth are measured over the merged graph rather than the batch
+  /// alone, so a batch that closes a loop through existing components fails
+  /// here too.
+  ///
+  /// Throws [A2uiIntegrityError] for a duplicate id or a reference to no
+  /// component, and [A2uiRecursionError] for a cycle or an over-deep chain.
+  void _validateComponentBatch(
+    SurfaceModel<T> surface,
+    List<Map<String, Object?>> incoming,
+    List<Map<String, Object?>> existing,
+  ) {
+    final Map<String, ComponentRefFields> refFields = _refFieldsFor(
+      surface.catalog.id,
+      [...existing, ...incoming],
+    );
+    checkComponentIntegrity(
+      incoming,
+      refFields,
+      // The root may arrive in a later message, so its absence is not an
+      // error at this point; the surface is not yet claimed to be complete.
+      requireRoot: false,
+      knownIds: {
+        for (final Map<String, Object?> component in existing)
+          if (component['id'] is String) component['id']! as String,
+      },
+    );
+    checkComponentTopology(
+      [...existing, ...incoming],
+      refFields,
+      requireRoot: false,
+      // A component left unreachable by an update is the residue of a
+      // replacement rather than a defect.
+      allowOrphans: true,
+    );
   }
 
   void _processUpdateDataModel(UpdateDataModelMessage message) {

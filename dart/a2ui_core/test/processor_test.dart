@@ -19,6 +19,7 @@ import 'package:a2ui_core/src/core/messages.dart';
 import 'package:a2ui_core/src/core/minimal_catalog.dart';
 import 'package:a2ui_core/src/core/surface_model.dart';
 import 'package:a2ui_core/src/primitives/errors.dart';
+import 'package:a2ui_core/src/primitives/protocol_version.dart';
 import 'package:a2ui_core/src/processing/processor.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
@@ -51,6 +52,7 @@ void main() {
     setUp(() {
       processor = MessageProcessor<ComponentApi>(
         catalogs: [namedCatalog('cat1', 'Alpha'), namedCatalog('cat2', 'Beta')],
+        protocolVersion: A2uiProtocolVersion.v0_9,
       );
       processor.processMessages([
         CreateSurfaceMessage(surfaceId: 's1', catalogId: 'cat1'),
@@ -103,7 +105,10 @@ void main() {
 
     setUp(() {
       catalog = MinimalCatalog();
-      processor = MessageProcessor(catalogs: [catalog]);
+      processor = MessageProcessor(
+        catalogs: [catalog],
+        protocolVersion: A2uiProtocolVersion.v0_9,
+      );
     });
 
     group('component graph checks', () {
