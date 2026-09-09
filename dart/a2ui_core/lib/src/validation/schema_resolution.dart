@@ -14,11 +14,11 @@
 
 /// The file name a catalog refers to for the shared type definitions, however
 /// the reference spells the rest of the URL.
-const String commonTypesDocument = 'common_types.json';
+const String _commonTypesDocument = 'common_types.json';
 
 /// The file name `common_types.json` refers back to for the catalog's own
 /// definitions, however the reference spells the rest of the URL.
-const String catalogDocument = 'catalog.json';
+const String _catalogDocument = 'catalog.json';
 
 /// Rewrites a component schema so it can be validated without any I/O.
 ///
@@ -139,7 +139,7 @@ class _RefResolver {
   /// The document [target] names, as seen from [base].
   _DocumentRef? _documentFor(String target, _DocumentRef base) {
     if (target.isEmpty) return base;
-    if (target.endsWith(commonTypesDocument)) {
+    if (target.endsWith(_commonTypesDocument)) {
       final Map<String, Object?>? commonTypes = _commonTypes;
       return commonTypes == null
           ? null
@@ -147,7 +147,7 @@ class _RefResolver {
     }
     // `common_types.json` points back at `catalog.json` for the catalog's own
     // `anyComponent` and `anyFunction` unions.
-    if (target.endsWith(catalogDocument)) {
+    if (target.endsWith(_catalogDocument)) {
       return _DocumentRef(_document, 'catalog');
     }
     return null;
@@ -171,4 +171,73 @@ class _RefResolver {
       if (!defs.containsKey(candidate)) return candidate;
     }
   }
+}
+
+/// Inlines a catalog document's own `#/...` references in place.
+///
+/// Every local pointer is replaced by what it names in [rootCatalog], so a
+/// component schema stands alone once ingested and needs no document beside it
+/// to be understood. References that leave the document — `common_types.json`
+/// and anything else absolute — are preserved untouched, because the catalog
+/// cannot reach them and dropping them would silently widen the schema. They
+/// are resolved later, against the definitions the validator is given.
+///
+/// A pointer already being expanded is left as a reference rather than
+/// followed again, so a recursive definition terminates instead of growing
+/// without bound.
+Object? inlineLocalRefs(
+  Object? node,
+  Map<String, Object?> rootCatalog, [
+  Set<String>? expanding,
+]) {
+  final Set<String> visited = expanding ?? <String>{};
+
+  if (node is List) {
+    return [
+      for (final Object? item in node)
+        inlineLocalRefs(item, rootCatalog, visited),
+    ];
+  }
+  if (node is! Map) return node;
+
+  final Map<String, Object?> object = node.cast<String, Object?>();
+  final Object? ref = object[r'$ref'];
+
+  if (ref is String && ref.startsWith('#/')) {
+    if (visited.contains(ref)) return object;
+
+    final Object? target = _followLocalPointer(ref, rootCatalog);
+    if (target is! Map) return object;
+
+    final Object? resolved = inlineLocalRefs(
+      target.cast<String, Object?>(),
+      rootCatalog,
+      {...visited, ref},
+    );
+    if (resolved is! Map) return object;
+
+    // Keywords beside the `$ref` still apply, and win over the definition.
+    return <String, Object?>{
+      ...resolved.cast<String, Object?>(),
+      for (final MapEntry<String, Object?> entry in object.entries)
+        if (entry.key != r'$ref')
+          entry.key: inlineLocalRefs(entry.value, rootCatalog, visited),
+    };
+  }
+
+  return <String, Object?>{
+    for (final MapEntry<String, Object?> entry in object.entries)
+      entry.key: inlineLocalRefs(entry.value, rootCatalog, visited),
+  };
+}
+
+/// Follows a `#/a/b` pointer through [document], or null if it names nothing.
+Object? _followLocalPointer(String ref, Map<String, Object?> document) {
+  Object? current = document;
+  for (final String segment in ref.substring(2).split('/')) {
+    final String key = segment.replaceAll('~1', '/').replaceAll('~0', '~');
+    if (current is! Map || !current.containsKey(key)) return null;
+    current = current[key];
+  }
+  return current;
 }

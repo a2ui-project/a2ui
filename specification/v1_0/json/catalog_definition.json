@@ -73,77 +73,39 @@
     "FunctionCallValidationSchema": {
       "type": "object",
       "description": "JSON Schema structure that validates a wire-level FunctionCall object.",
-      "oneOf": [
-        {
+      "properties": {
+        "type": {
+          "const": "object"
+        },
+        "description": {
+          "type": "string"
+        },
+        "properties": {
           "type": "object",
           "properties": {
-            "type": {
-              "const": "object"
-            },
-            "description": {
-              "type": "string"
-            },
-            "properties": {
+            "call": {
               "type": "object",
               "properties": {
-                "call": {
-                  "type": "object",
-                  "properties": {
-                    "const": {"type": "string"}
-                  },
-                  "required": ["const"]
-                },
-                "catalogId": {
-                  "type": "object",
-                  "description": "Optional catalog ID override for this function call."
-                },
-                "args": {
-                  "type": "object",
-                  "description": "A JSON Schema describing the expected arguments (args) for this function.",
-                  "$ref": "https://json-schema.org/draft/2020-12/schema"
-                }
+                "const": {"type": "string"}
               },
-              "required": ["call"],
-              "additionalProperties": false
+              "required": ["const"]
             },
-            "required": {
-              "type": "array",
-              "items": {"type": "string"},
-              "contains": {"const": "call"}
-            },
-            "unevaluatedProperties": {
-              "type": "boolean"
-            },
-            "additionalProperties": {
-              "type": "boolean"
+            "args": {
+              "type": "object",
+              "description": "A JSON Schema describing the expected arguments (args) for this function.",
+              "$ref": "https://json-schema.org/draft/2020-12/schema"
             }
           },
-          "required": ["type", "properties", "required"]
+          "required": ["call"],
+          "additionalProperties": false
         },
-        {
-          "type": "object",
-          "properties": {
-            "type": {
-              "const": "object"
-            },
-            "description": {
-              "type": "string"
-            },
-            "allOf": {
-              "type": "array",
-              "items": {"type": "object"},
-              "minItems": 1
-            },
-            "unevaluatedProperties": {
-              "type": "boolean"
-            },
-            "additionalProperties": {
-              "type": "boolean"
-            }
-          },
-          "required": ["type", "allOf"]
+        "required": {
+          "type": "array",
+          "items": {"type": "string"},
+          "contains": {"const": "call"}
         }
-      ]
+      },
+      "required": ["type", "properties", "required"]
     },
     "FunctionDefinition": {
       "type": "object",

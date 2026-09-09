@@ -40,7 +40,7 @@ void main() {
 
 void _runCase(Map<String, Object?> testCase) {
   final name = testCase['name']! as String;
-  final catalog = _EmptyCatalog(_catalogIdOf(testCase));
+  final catalog = _ConformanceCatalog(_catalogIdOf(testCase));
   final processor = MessageProcessor<ComponentApi>(catalogs: [catalog]);
   final List<Map<String, Object?>> messages = _messagesOf(testCase);
 
@@ -207,7 +207,24 @@ Matcher _matchesError(Map<String, Object?> expectError) {
   return matcher;
 }
 
-/// A catalog with no components, built natively as the suite requires.
-class _EmptyCatalog extends Catalog<ComponentApi, FunctionImplementation> {
-  _EmptyCatalog(String id) : super(id: id, components: const []);
+/// The minimal catalog's components under the id a case names, built natively
+/// as the suite requires.
+///
+/// The suite's cases are written against `Text`, so the catalog has to declare
+/// it: the processor validates each arriving component against its surface's
+/// catalog, and a catalog declaring nothing would reject every case.
+class _ConformanceCatalog
+    extends Catalog<ComponentApi, FunctionImplementation> {
+  _ConformanceCatalog(String id)
+    : super(
+        id: id,
+        components: [
+          MinimalTextApi(),
+          MinimalRowApi(),
+          MinimalColumnApi(),
+          MinimalButtonApi(),
+          MinimalTextFieldApi(),
+        ],
+        functions: [CapitalizeFunction()],
+      );
 }

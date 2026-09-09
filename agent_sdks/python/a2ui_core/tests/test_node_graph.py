@@ -72,7 +72,8 @@ def test_surface_model_node_layer_resolution():
     # 2. Add actual root component
     root_comp = ComponentModel("root", "Column", {"children": ["child_1"]})
     surface.components_model.add_component(root_comp)
-    assert node_graph.rootNode.value is not None
+    assert isinstance(node_graph.rootNode.value, ComponentNode)
+    assert node_graph.rootNode.value.component_id == "root"
     assert node_graph.rootNode.value.type == "Column"
 
     # 3. Add child component
@@ -126,7 +127,6 @@ def test_surface_model_root_node_resolution():
     root_comp = ComponentModel("root", "Column", {"children": []})
     surface.components_model.add_component(root_comp)
 
-    assert node_graph.rootNode.value is not None
     assert isinstance(node_graph.rootNode.value, ComponentNode)
     assert node_graph.rootNode.value.component_id == "root"
     assert node_graph.rootNode.value.type == "Column"
@@ -152,7 +152,9 @@ def test_node_layer_reactive_property_resolution():
     surface.components_model.add_component(comp)
 
     root_node = node_graph.rootNode.value
-    assert root_node is not None
+    assert isinstance(root_node, ComponentNode)
+    assert root_node.component_id == "root"
+    assert root_node.type == "Text"
     assert root_node.props.value["text"] == "Alice"
 
     # Mutate data model
@@ -177,7 +179,9 @@ def test_structural_child_resolution():
     surface.components_model.add_component(child_comp)
 
     root_node = node_graph.rootNode.value
-    assert root_node is not None
+    assert isinstance(root_node, ComponentNode)
+    assert root_node.component_id == "root"
+    assert root_node.type == "Card"
 
     # The "child" property should resolve to the actual ComponentNode instance, not a string ID
     child_node = root_node.props.value["child"]
@@ -218,7 +222,9 @@ def test_template_child_list_spawning():
     surface.components_model.add_component(template_comp)
 
     root_node = node_graph.rootNode.value
-    assert root_node is not None
+    assert isinstance(root_node, ComponentNode)
+    assert root_node.component_id == "root"
+    assert root_node.type == "List"
 
     # Children prop resolves to a Signal of ComponentNode list
     children_signal = root_node.props.value["children"]
@@ -267,7 +273,9 @@ def test_progressive_rendering_and_reconciliation():
     surface.components_model.add_component(parent_comp)
 
     root_node = node_graph.rootNode.value
-    assert root_node is not None
+    assert isinstance(root_node, ComponentNode)
+    assert root_node.component_id == "root"
+    assert root_node.type == "Card"
 
     # The child resolves as a Placeholder ComponentNode
     placeholder_child = root_node.props.value["child"]
@@ -318,7 +326,9 @@ def test_action_binding_closures():
     surface.components_model.add_component(btn_comp)
 
     root_node = node_graph.rootNode.value
-    assert root_node is not None
+    assert isinstance(root_node, ComponentNode)
+    assert root_node.component_id == "root"
+    assert root_node.type == "Button"
 
     action_closure = root_node.props.value["action"]
     assert callable(action_closure)
@@ -357,7 +367,9 @@ def test_unresolved_data_binding_warning_and_value():
         surface.components_model.add_component(comp)
 
     root_node = node_graph.rootNode.value
-    assert root_node is not None
+    assert isinstance(root_node, ComponentNode)
+    assert root_node.component_id == "root"
+    assert root_node.type == "Text"
     # Unresolved path should evaluate to None
     assert root_node.props.value["text"] is None
 
@@ -380,7 +392,9 @@ def test_structural_child_modification():
     surface.components_model.add_component(child_2)
 
     root_node = node_graph.rootNode.value
-    assert root_node is not None
+    assert isinstance(root_node, ComponentNode)
+    assert root_node.component_id == "root"
+    assert root_node.type == "Card"
 
     # Child resolves to child-1 initially
     node_1 = root_node.props.value["child"]
@@ -425,7 +439,9 @@ def test_structural_children_and_template_modification():
     surface.components_model.add_component(c3)
 
     root_node = node_graph.rootNode.value
-    assert root_node is not None
+    assert isinstance(root_node, ComponentNode)
+    assert root_node.component_id == "root"
+    assert root_node.type == "Column"
 
     # Children resolved to c1 and c2 initially
     children = root_node.props.value["children"]
@@ -578,7 +594,9 @@ def test_nested_tab_list_child_resolution():
     surface.components_model.add_component(child_2)
 
     root_node = node_graph.rootNode.value
-    assert root_node is not None
+    assert isinstance(root_node, ComponentNode)
+    assert root_node.component_id == "root"
+    assert root_node.type == "Tabs"
 
     resolved_tabs = root_node.props.value["tabs"]
     assert len(resolved_tabs) == 2
@@ -613,7 +631,9 @@ def test_component_deletion_reconciliation():
     surface.components_model.add_component(child_comp)
 
     root_node = node_graph.rootNode.value
-    assert root_node is not None
+    assert isinstance(root_node, ComponentNode)
+    assert root_node.component_id == "root"
+    assert root_node.type == "Card"
 
     child_node = root_node.props.value["child"]
     assert isinstance(child_node, ComponentNode)
@@ -761,7 +781,10 @@ def test_node_graph_yaml_serialization():
 
     # 2. Serialize to dictionary
     node_dict = node_graph.to_dict()
-    assert node_dict is not None
+    assert isinstance(node_dict, dict)
+    assert node_dict["component_id"] == "root"
+    assert node_dict["type"] == "Column"
+    assert len(node_dict["props"]["children"]) == 2
 
     # 3. Dump to YAML string
     yaml_str = yaml.dump(node_dict, sort_keys=False)

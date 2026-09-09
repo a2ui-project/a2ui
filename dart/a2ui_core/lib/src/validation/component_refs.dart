@@ -15,10 +15,10 @@
 import '../core/catalog.dart';
 
 /// The JSON Pointer suffix marking a property that holds one component id.
-const String componentIdPointer = r'/$defs/ComponentId';
+const String _componentIdPointer = r'/$defs/ComponentId';
 
 /// The JSON Pointer suffix marking a property that holds a `ChildList`.
-const String childListPointer = r'/$defs/ChildList';
+const String _childListPointer = r'/$defs/ChildList';
 
 /// Which properties of one component type reference other components.
 ///
@@ -40,9 +40,6 @@ class ComponentRefFields {
     this.list = const {},
     this.nested = const {},
   });
-
-  /// Whether this component type references other components at all.
-  bool get isEmpty => single.isEmpty && list.isEmpty;
 }
 
 /// Properties that name the component itself rather than another one.
@@ -50,7 +47,7 @@ class ComponentRefFields {
 /// `ComponentCommon` declares `id` as a `ComponentId`, so a catalog that
 /// inlines it would otherwise read every component's own id as a reference to
 /// itself. `component` names the type, never a child.
-const Set<String> selfDescribingProperties = {'id', 'component'};
+const Set<String> _selfDescribingProperties = {'id', 'component'};
 
 /// One reference from a component to another component.
 class ComponentReference {
@@ -110,13 +107,13 @@ void _collectFrom(
   if (properties is Map) {
     for (final MapEntry<Object?, Object?> property in properties.entries) {
       final name = property.key! as String;
-      if (selfDescribingProperties.contains(name)) continue;
+      if (_selfDescribingProperties.contains(name)) continue;
       final Object? resolved = _resolve(property.value, node, document);
-      if (_marks(resolved, componentIdPointer, node, document)) {
+      if (_marks(resolved, _componentIdPointer, node, document)) {
         single.add(name);
         continue;
       }
-      if (_marks(resolved, childListPointer, node, document)) {
+      if (_marks(resolved, _childListPointer, node, document)) {
         list.add(name);
         continue;
       }
@@ -154,8 +151,8 @@ void _collectArrayProperty(
   if (node['type'] != 'array' || !node.containsKey('items')) return;
 
   final Object? items = _resolve(node['items'], owner, document);
-  if (_marks(items, componentIdPointer, owner, document) ||
-      _marks(items, childListPointer, owner, document)) {
+  if (_marks(items, _componentIdPointer, owner, document) ||
+      _marks(items, _childListPointer, owner, document)) {
     list.add(name);
     return;
   }
@@ -166,8 +163,8 @@ void _collectArrayProperty(
   final keys = <String>{};
   for (final MapEntry<Object?, Object?> property in itemProperties.entries) {
     final Object? sub = _resolve(property.value, owner, document);
-    if (_marks(sub, componentIdPointer, owner, document) ||
-        _marks(sub, childListPointer, owner, document)) {
+    if (_marks(sub, _componentIdPointer, owner, document) ||
+        _marks(sub, _childListPointer, owner, document)) {
       keys.add(property.key! as String);
     }
   }
@@ -224,8 +221,8 @@ Object? _resolve(
   final Object? ref = schema[r'$ref'];
   if (ref is! String ||
       !ref.startsWith('#/') ||
-      ref.endsWith(componentIdPointer) ||
-      ref.endsWith(childListPointer)) {
+      ref.endsWith(_componentIdPointer) ||
+      ref.endsWith(_childListPointer)) {
     return schema;
   }
 

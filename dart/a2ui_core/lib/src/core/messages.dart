@@ -22,10 +22,6 @@ abstract class A2uiMessage {
 
   A2uiMessage({this.version = 'v0.9'});
 
-  /// The declared protocol version, parsed.
-  A2uiProtocolVersion get protocolVersion =>
-      A2uiProtocolVersion.fromJson(version);
-
   /// Deserializes a JSON envelope into a typed [A2uiMessage].
   ///
   /// Throws [A2uiValidationError] if `version` is missing or unsupported.
@@ -98,13 +94,13 @@ abstract class A2uiMessage {
 /// Reads a message body, rejecting one that is not an object.
 Map<String, dynamic> _body(Map<String, dynamic> json, String key) {
   final Object? body = json[key];
-  if (body is! Map<String, dynamic>) {
+  if (body is! Map) {
     throw A2uiValidationError(
       "Message body '$key' must be an object.",
       details: json,
     );
   }
-  return body;
+  return body.cast<String, dynamic>();
 }
 
 /// Reads a field a message body must declare.
@@ -164,8 +160,8 @@ List<Map<String, dynamic>> _components(
   }
   return [
     for (final Object? entry in raw)
-      if (entry is Map<String, dynamic>)
-        entry
+      if (entry is Map)
+        entry.cast<String, dynamic>()
       else
         throw A2uiValidationError(
           "Field '$messageType.components' must hold objects, got "

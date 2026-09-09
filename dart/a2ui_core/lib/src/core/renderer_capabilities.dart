@@ -84,64 +84,91 @@ class A2uiVersionCapabilities {
 /// `a2uiClientCapabilities` in `client_capabilities.json` and web_core's
 /// `A2uiClientCapabilities`.
 ///
-/// A capabilities object without a `v0.9` entry is rejected. Other versions
-/// are kept in [unsupportedVersions] but never negotiated against.
+/// The object is a map keyed by protocol version, so a renderer may advertise
+/// several versions at once. [versions] holds every entry this SDK
+/// implements. An entry for a version it does not implement is not an error:
+/// its key is recorded in [unsupportedVersions] and the entry is otherwise
+/// ignored, so [toJson] does not re-emit it. A capabilities object naming no
+/// implemented version is rejected.
 class A2uiRendererCapabilities {
-  /// The capabilities declared for v0.9.
-  final A2uiVersionCapabilities v0_9;
+  /// Capabilities per protocol version, for the versions this SDK implements.
+  ///
+  /// Never empty: [A2uiRendererCapabilities.fromJson] rejects an object that
+  /// declares none.
+  final Map<A2uiProtocolVersion, A2uiVersionCapabilities> versions;
 
   /// Version keys in the source object that this SDK does not implement.
   final List<String> unsupportedVersions;
 
   A2uiRendererCapabilities({
-    required this.v0_9,
+    required this.versions,
     this.unsupportedVersions = const [],
-  });
+  }) : assert(versions.isNotEmpty, 'Declare at least one supported version.');
 
-  /// A renderer that supports catalogs by id only.
+  /// A renderer that supports catalogs by id only, for one protocol version.
   factory A2uiRendererCapabilities.forCatalogIds(
     List<String> supportedCatalogIds, {
     List<SchemaCatalog> inlineCatalogs = const [],
+    A2uiProtocolVersion version = A2uiProtocolVersion.v0_9,
   }) => A2uiRendererCapabilities(
-    v0_9: A2uiVersionCapabilities(
-      supportedCatalogIds: supportedCatalogIds,
-      inlineCatalogs: inlineCatalogs,
-    ),
+    versions: {
+      version: A2uiVersionCapabilities(
+        supportedCatalogIds: supportedCatalogIds,
+        inlineCatalogs: inlineCatalogs,
+      ),
+    },
   );
 
   /// Parses an `a2uiClientCapabilities` object.
   ///
-  /// Throws [A2uiValidationError] if the object carries no `v0.9` entry.
+  /// Throws [A2uiValidationError] if the object carries no entry for any
+  /// version this SDK implements.
   factory A2uiRendererCapabilities.fromJson(Map<String, Object?> json) {
-    final Object? v09 = json[A2uiProtocolVersion.v0_9.jsonValue];
-    if (v09 is! Map) {
+    final versions = <A2uiProtocolVersion, A2uiVersionCapabilities>{};
+    final unsupported = <String>[];
+
+    for (final MapEntry<String, Object?> entry in json.entries) {
+      final A2uiProtocolVersion? version = A2uiProtocolVersion.tryParse(
+        entry.key,
+      );
+      if (version == null) {
+        unsupported.add(entry.key);
+        continue;
+      }
+      final Object? value = entry.value;
+      if (value is! Map) {
+        throw A2uiValidationError(
+          "Renderer capabilities entry '${entry.key}' must be an object.",
+          details: json,
+        );
+      }
+      versions[version] = A2uiVersionCapabilities.fromJson(
+        value.cast<String, Object?>(),
+      );
+    }
+
+    if (versions.isEmpty) {
       throw A2uiValidationError(
-        'Renderer capabilities must declare a '
-        "'${A2uiProtocolVersion.v0_9.jsonValue}' entry; this SDK supports "
-        'only ${A2uiProtocolVersion.supportedVersions}.',
+        'Renderer capabilities must declare an entry for a supported '
+        'version; this SDK supports only '
+        '${A2uiProtocolVersion.supportedVersions}.',
         details: json,
       );
     }
+
     return A2uiRendererCapabilities(
-      v0_9: A2uiVersionCapabilities.fromJson(v09.cast<String, Object?>()),
-      unsupportedVersions: [
-        for (final String key in json.keys)
-          if (key != A2uiProtocolVersion.v0_9.jsonValue) key,
-      ],
+      versions: versions,
+      unsupportedVersions: unsupported,
     );
   }
 
-  /// The capabilities declared for [version].
-  ///
-  /// Throws [A2uiValidationError] for any version this SDK does not implement.
-  A2uiVersionCapabilities forVersion(A2uiProtocolVersion version) {
-    switch (version) {
-      case A2uiProtocolVersion.v0_9:
-        return v0_9;
-    }
-  }
+  /// The capabilities declared for [version], or null if it declares none.
+  A2uiVersionCapabilities? forVersion(A2uiProtocolVersion version) =>
+      versions[version];
 
   Map<String, Object?> toJson() => {
-    A2uiProtocolVersion.v0_9.jsonValue: v0_9.toJson(),
+    for (final MapEntry<A2uiProtocolVersion, A2uiVersionCapabilities> entry
+        in versions.entries)
+      entry.key.jsonValue: entry.value.toJson(),
   };
 }

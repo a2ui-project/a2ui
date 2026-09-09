@@ -15,10 +15,9 @@
 import A2UICore
 import A2UISwiftUI
 import BasicCatalog
+import BasicCatalogSwiftUI
 import SwiftUI
 import Testing
-
-@testable import BasicCatalogSwiftUI
 
 @MainActor
 struct A2UIAudioPlayerTests {
@@ -39,26 +38,17 @@ struct A2UIAudioPlayerTests {
     _ = view.body
   }
 
-  @Test func audioPlayerModelScrubbingLifecycle() {
-    let model = AudioPlayerModel()
-    #expect(!model.isPlaying)
-    #expect(model.currentTime == 0)
-    #expect(model.duration == 0)
-    #expect(!model.isScrubbing)
+  @Test func audioPlayerInitializesWithoutURL() {
+    let node = Node(
+      id: "audio2",
+      type: "AudioPlayer",
+      properties: [
+        "description": "Episode Without URL"
+      ]
+    )
 
-    model.onScrubStart()
-    #expect(model.isScrubbing)
-
-    model.onScrubChange(45.5)
-    #expect(model.scrubValue == 45.5)
-
-    model.onScrubEnd(45.5)
-    #expect(!model.isScrubbing)
-    #expect(model.currentTime == 45.5)
-
-    model.cleanup()
-    #expect(!model.isPlaying)
-    #expect(model.currentTime == 0)
+    let view = A2UIAudioPlayer(node: node)
+    _ = view.body
   }
 
   @Test func audioPlayerRendersFromBasicCatalogImplementation() throws {

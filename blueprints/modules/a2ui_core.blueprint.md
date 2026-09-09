@@ -8,9 +8,11 @@ description: Core SDK specification for catalog representation, reactive state m
 
 This document describes the detailed programmatic specification and architecture of the A2UI Core SDK. The Core SDK serves as the foundational data, state, and processing layer of A2UI.
 
-This layer handles JSON parsing, state models, JSON pointers, catalogs, and schemas. This logic remains completely framework-agnostic, allowing it to be implemented identically across all target environments (including agent-side or headless languages where there is no renderer).
+This layer handles JSON parsing, state models, JSON pointers, catalogs, and schemas. This logic remains completely framework-agnostic, allowing it to be implemented identically across all target environments (including [**agent**](../../docs/public/concepts/glossary.md#a2ui-agent-and-a2ui-renderer)-side or headless languages where there is no [**renderer**](../../docs/public/concepts/glossary.md#a2ui-agent-and-a2ui-renderer)).
 
-For a high-level overview of the entire A2UI ecosystem (including the Inference SDK and Framework Adapter structure), see the [A2UI Unified SDK Architecture](../../specification/v0_9_1/docs/sdks_spec.md). For UI framework integration and rendering details, see the [A2UI Framework Adapter Blueprint](a2ui_framework_adapter.blueprint.md).
+For a high-level overview of the entire A2UI ecosystem (including the Inference SDK and [Framework Adapter](../../docs/public/concepts/glossary.md#fw-adapter) structure), see the [A2UI Unified SDK Architecture](../../specification/v0_9_1/docs/sdks_spec.md). For UI framework integration and rendering details, see the [A2UI Framework Adapter Blueprint](a2ui_framework_adapter.blueprint.md).
+
+Terms in **bold** on first use are defined in the [Glossary](../../docs/public/concepts/glossary.md).
 
 ---
 
@@ -20,25 +22,20 @@ The A2UI Core SDK acts as the central state coordinator. It is designed to repre
 
 Its core responsibilities include:
 
-1. **Catalog Representation:** Define `Catalog` structures and pure technical component metadata/schemas (`ComponentApi`, `FunctionApi`).
+1. **[Catalog](../../docs/public/concepts/glossary.md#catalog) Representation:** Define `Catalog` structures and pure technical [**component**](../../docs/public/concepts/glossary.md#genui-component) metadata/schemas (`ComponentApi`, `FunctionApi`).
 2. **Protocol Definitions:** Model strongly-typed inbound and outbound message structures (e.g., `RendererToAgent`, `AgentToRenderer`, etc.).
-3. **Surface State Containers:** Track mutable, long-lived rendering states via `SurfaceModel`, `ComponentModel`, and `DataModel`.
+3. **[Surface](../../docs/public/concepts/glossary.md#surface) State Containers:** Track mutable, long-lived rendering states via `SurfaceModel`, `ComponentModel`, and `DataModel`.
 4. **Message Processor:** Parse inbound message sequences to mutate local state containers via `MessageProcessor`.
 5. **JSON Pointer Scope:** Standardize relative pointer evaluation and reactivity via scoped context managers.
 6. **Validation:** Performs structural JSON Schema checks, reference checks, loop/recursion analysis, and layout integrity checks.
 7. **Resolution:** Resolves bound context paths and binds state variables to components for local evaluation.
 8. **Multi-Version Protocol Branching:** Supports multiple versions of the protocol.
 
-### Package Boundary & Non-Goals
+#### Package Boundary & Non-Goals
 
-`a2ui_agent` depends on `a2ui_core`; the dependency never runs the other way. A change here made to unblock an agent SDK should be the smallest one that works, and land as its own reviewable unit.
+Core implements the responsibilities above and nothing beyond them. Functionality that the [Agent SDK](a2ui_agent.blueprint.md) or [Framework Adapter](a2ui_framework_adapter.blueprint.md) blueprint assigns to its own layer does not belong in core, even where core defines the types that functionality would operate on. Those two blueprints are the reference for what each layer owns.
 
-Not in core — specified in the [a2ui_agent blueprint](./a2ui_agent.blueprint.md), with conformance data under `conformance/agent/`:
-
-- `CatalogTransformer`, `ComponentPruningTransformer`, `FunctionPruningTransformer`, and the `CatalogConfig` pipeline that applies them
-- Prompt generation
-- Response parsing
-- Capability negotiation
+Protocol version coverage is per implementation rather than a property of this blueprint. The Dart SDK does not implement v0.8 while the Python and TypeScript SDKs retain v0.8 for backward compatibility.
 
 ---
 
@@ -197,18 +194,38 @@ export enum A2uiProtocolVersion {
 
 export interface Catalog<TComponent extends ComponentApi, TFunction extends FunctionApi> {
   readonly id: string;
-  readonly protocolVersion: A2uiProtocolVersion;
   readonly components: ReadonlyMap<string, TComponent>;
   readonly functions?: ReadonlyMap<string, TFunction>;
   readonly themeSchema?: Record<string, any>;
 }
 ```
 
-A `Catalog` is immutable once constructed. A renderer or an agent that needs a narrower contract — an agent prompting against a subset, a renderer serving a use case that calls for a smaller catalog — derives a new catalog from it rather than mutating it in place. Core provides the derivation (`copyWith`, `catalogSchema`); the named transformer rules that drive it are agent SDK surface, see below.
+A `Catalog` is immutable once constructed.
 
-`protocolVersion` is a property of **each catalog, not of the process**. A renderer or an agent may hold catalogs for several protocol versions at once, so anything derived from a set of catalogs, including a capabilities payload, must be grouped by each catalog's own `protocolVersion`. Reaching for a single constant because today's set happens to be uniform produces an object that is wrong the first time it is not.
+A catalog targets a specific protocol version declared via its `protocolVersion` property (e.g. `A2uiProtocolVersion.V1_0`). When parsing a catalog document, the SDK verifies the `protocolVersion` to determine schema compatibility.
 
-Parsing a catalog document is parsing untrusted input: raise `A2uiCatalogError` for a missing or non-object document or a `catalogId` conflict, and `A2uiValidationError` for an unsupported protocol version.
+Parsing a catalog document is parsing untrusted input: raise `A2uiCatalogError` for a missing or non-object document or a `catalogId` conflict.
+
+#### Common Types & Subschema References
+
+When authoring component or function schemas, developers import primitives (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DataBinding`, `FunctionCall`, `Action`, `ChildList`, etc.) directly from the schema module matching the catalog's targeted `protocolVersion` (e.g. `a2ui.core.schema.v1_0.common_types` or `@a2ui/core/v1_0`).
+
+- **Subschema References & Wire Emission**: In v1.0+, component schemas emit or retain relative pointers (`"$ref": "common_types.json#/$defs/<TypeName>"`).
+- **Forward Compatibility**: While breaking changes between v0.9 and v1.0 prevent v0.9 catalogs from running against v1.0 runtimes, using unversioned relative references in v1.0 catalogs allows them to potentially resolve against future compatible protocol versions without modifying catalog type paths.
+
+```typescript
+import {DynamicString, Action, ChildList} from '@a2ui/core/v1_0';
+import {ComponentApi} from '@a2ui/core';
+
+export const CardComponent: ComponentApi = {
+  name: 'Card',
+  schema: z.object({
+    title: DynamicString.describe('Card title'),
+    onClick: Action.optional(),
+    children: ChildList.optional(),
+  }),
+};
+```
 
 #### `ComponentApi`
 
@@ -267,12 +284,12 @@ Functions in A2UI accept statically resolved values as input arguments (not obse
 Functions generally fall into a few common patterns:
 
 1.  **Pure Logic (Synchronous)**: Functions like `add` or `concat`. Their logic is immediate and depends only on their inputs. They typically return a static value.
-2.  **External State (Reactive)**: Functions like `clock()` or `networkStatus()`. These return long-lived streams that push updates to the UI independently of data model changes.
-3.  **Effect Functions**: Side-effect handlers (e.g., `openUrl`, `closeModal`) that return `void`. These are triggered by user actions rather than interpolation.
+2.  **External State (Reactive)**: Functions like `clock()` or `networkStatus()`. These return long-lived streams that push updates to the UI independently of [**data model**](../../docs/public/concepts/glossary.md#data-model) changes.
+3.  **Effect Functions**: Side-effect handlers (e.g., `openUrl`, `closeModal`) that return `void`. These are triggered by user [**actions**](../../docs/public/concepts/glossary.md#action) rather than interpolation.
 
 If a function returns a reactive stream, it MUST use an idiomatic listening mechanism that supports standard unsubscription. To properly support an AI agent, functions SHOULD include a schema to generate accurate renderer capabilities.
 
-#### The Basic Catalog Standard (Core APIs)
+#### The [Basic Catalog](../../docs/public/concepts/glossary.md#basic-catalog) Standard (Core APIs)
 
 The standard A2UI Basic Catalog specifies a set of core components (Button, Text, Row, Column) and functions.
 
@@ -350,7 +367,7 @@ myCustomCatalog = Catalog(
 
 #### `MessageProcessor`
 
-The "Controller" that accepts the raw stream of A2UI messages, parses them, and mutates the Models. It also handles the aggregation of renderer state for synchronization.
+The "Controller" that accepts the raw stream of [**A2UI messages**](../../docs/public/concepts/glossary.md#a2ui-message), parses them, and mutates the Models. It also handles the aggregation of renderer state for synchronization.
 
 ```typescript
 class MessageProcessor<T extends ComponentApi> {
@@ -387,20 +404,11 @@ When a surface is created with `sendDataModel: true`, the renderer is responsibl
 - **Surface Lifecycle**: It is an error to receive a `createSurface` message for a `surfaceId` that is already active; `surfaceId` must be globally unique per client session. The processor MUST throw an error or report a validation failure if this occurs.
 - **Component Lifecycle**: If an `updateComponents` message provides an existing `id` but a _different_ `type`, the processor MUST remove the old component and create a fresh one to ensure framework renderers correctly reset their internal state.
 
-#### Capabilities Objects
+#### [Capabilities Objects](../../docs/public/concepts/glossary.md#capabilities-object)
 
-Both sides of the handshake advertise a capabilities object, and **both have a normative JSON Schema**. Build and parse them from that schema rather than from memory or from a neighbouring implementation:
+Both sides advertise their capabilities to each other.
 
-| Direction        | Object                   | Normative schema (v0.9, v0.9.1)                         | Renamed in v1.0                                      |
-| :--------------- | :----------------------- | :------------------------------------------------------ | :--------------------------------------------------- |
-| Renderer → agent | `a2uiClientCapabilities` | `specification/<version>/json/client_capabilities.json` | `specification/v1_0/json/renderer_capabilities.json` |
-| Agent → renderer | `a2uiServerCapabilities` | `specification/<version>/json/server_capabilities.json` | `specification/v1_0/json/agent_capabilities.json`    |
-
-Resolve the filename for the version you are implementing rather than assuming one — v0.8 uses a third spelling (`a2ui_client_capabilities_schema.json`) and publishes no server-side counterpart.
-
-The top level of each is **keyed by protocol version** — `{"v0.9": { … }}`, `{"v1.0": { … }}` — with `supportedCatalogIds`, `inlineCatalogs` and `acceptsInlineCatalogs` living _inside_ the version entry, and the version key is required. A flat object carrying a sibling list of version strings is a different, invalid shape.
-
-When parsing one: reject an object that declares no entry for any version this SDK implements, and keep the unrecognised version keys rather than failing on them, so a renderer that also speaks a newer protocol can still be served.
+Schemas live in `specification/<version>/json/`. v1.0 names the pair [`renderer_capabilities.json`](../../specification/v1_0/json/renderer_capabilities.json) and [`agent_capabilities.json`](../../specification/v1_0/json/agent_capabilities.json). v0.9 and v0.9.1 name the same pair [`client_capabilities.json`](../../specification/v0_9_1/json/client_capabilities.json) and [`server_capabilities.json`](../../specification/v0_9_1/json/server_capabilities.json), carried as `a2uiClientCapabilities` and `a2uiServerCapabilities`. v0.8 spells it differently again ([`a2ui_client_capabilities_schema.json`](../../specification/v0_8/json/a2ui_client_capabilities_schema.json)) and publishes no server-side counterpart.
 
 #### Generating Renderer Capabilities and Schema Types
 
@@ -494,6 +502,15 @@ export class A2uiValidator {
   protected validatePathSyntax(messages: AgentToRendererMessage[]): void;
 }
 ```
+
+##### Relative Common Types Registration
+
+When `A2uiValidator` initializes its underlying JSON Schema referencing registry (e.g., Ajv in TypeScript, `referencing.Registry` in Python, `JsonSchemaValidator` in Dart, Swift schema validator), it **MUST register the active protocol version's `common_types_schema` under the root relative key `"common_types.json"`**.
+
+This guarantees:
+
+1. **Catalog Portability**: Relative pointers (`"$ref": "common_types.json#/$defs/<TypeName>"`) in catalog definitions resolve cleanly regardless of the catalog's base `$id` URI.
+2. **Future Version Forward-Compatibility**: v1.0 catalogs using relative references can potentially resolve against newer compatible protocol versions without modifying catalog `$ref` targets.
 
 #### Validation Implementation Matrix
 
@@ -810,23 +827,14 @@ export class A2uiExpressionError extends A2uiError {
 }
 ```
 
-**Parsing wire JSON raises from this hierarchy, never from the language.** Every entry point that accepts a payload, a capabilities object or a catalog document from outside the process is handling untrusted input: a member may be absent, null, or the wrong type. Check the shape before casting and raise `A2uiValidationError` with the offending value attached. A raw cast failure — `TypeError`, `ClassCastException`, a null dereference — escapes the hierarchy a caller can catch, and turns a malformed message into a crash.
+**Parsing wire JSON raises from this hierarchy, never from the language.** Check the shape before casting and raise `A2uiValidationError` with the offending value attached. A raw `TypeError` or `ClassCastException` escapes the hierarchy a caller can catch.
 
-**These categories are shared with the conformance suite.** `expect_error.category` in `conformance/conformance_schema.json` names these classes without the `A2ui` prefix, so the two must agree. Adding an error class means adding the matching category alongside the first suite that asserts it — not in advance, and not silently under a category that already exists.
+**`expect_error.category` in `conformance/conformance_schema.json` names these classes** without the `A2ui` prefix. Add a category alongside the first suite that asserts it.
 
 ---
 
 ## 4. Conformance Test Plan
 
-Behavioural parity across implementations is pinned by a language-agnostic conformance suite. For setup, harness requirements and schema definitions, see [Conformance README](../../conformance/README.md).
+See [Conformance README](../../conformance/README.md) for setup and schema definitions.
 
-### Where a case belongs
-
-Suites under `conformance/core/` cover this module: the reactive data model, the message processor's state machine, catalog documents, and the validator. Agent-side behaviour — prompt generation, response parsing, catalog narrowing, capability negotiation — belongs under `conformance/agent/`, **even when the case is about a catalog**. A case filed under `core/` obliges every renderer to implement it, so the directory is a statement about ownership, not about subject matter. Section 6 of the [a2ui_agent blueprint](./a2ui_agent.blueprint.md#6-conformance-test-plan) carries the agent-side map.
-
-### Rules for adding cases
-
-1. **Look for an existing suite before creating one — on every active spec branch, not just the one you are on.** The repository maintains parallel branches per protocol version (`main`, `v1_0`, …). A suite that already exists elsewhere has an established case shape; a second file with the same name and a different shape is a merge conflict rather than extra coverage. Extend the existing one.
-2. **Reuse the established case keys** defined by `conformance/conformance_schema.json`, and extend the schema in the same change as the suite that needs the new shape.
-3. **`expect_error.category` names a class from the exception hierarchy above**, without the `A2ui` prefix.
-4. **Migrating an implementation's own tests into the shared suite will surface real disagreements** between implementations. Each one is a decision, not a formatting problem: fix the implementation that is wrong, or record why the case is excluded. Language-level differences (sparse versus dense arrays, `null` versus absent, prototype pollution) stay out of the shared suite and remain in the implementation's own tests.
+`conformance/core/` covers this module.

@@ -39,7 +39,6 @@ void main() {
       final SchemaCatalog catalog = Catalog.fromJson(loadBasicCatalogJson());
 
       expect(catalog.id, basicCatalogId);
-      expect(catalog.protocolVersion, A2uiProtocolVersion.v0_9);
       expect(
         catalog.components.keys,
         containsAll(<String>['Text', 'Card', 'Column', 'Button', 'TextField']),
@@ -54,7 +53,7 @@ void main() {
     test('reads a function argument schema and return type', () {
       final SchemaCatalog catalog = Catalog.fromJson(loadBasicCatalogJson());
 
-      final CatalogFunction required = catalog.functions['required']!;
+      final FunctionApi required = catalog.functions['required']!;
       expect(required.name, 'required');
       expect(required.returnType, A2uiReturnType.boolean);
       expect(
@@ -87,7 +86,6 @@ void main() {
       expect(catalog.id, 'inline');
       expect(catalog.components.keys, ['Text']);
       expect(catalog.functions['greet']!.returnType, A2uiReturnType.string);
-      expect(catalog.functions['greet']!.description, 'Says hello.');
     });
 
     test('defaults an undeclared function return type to any', () {
@@ -134,18 +132,12 @@ void main() {
       );
     });
 
-    test('rejects a document declaring an unsupported protocol version', () {
+    test('ignores any protocol version the document declares', () {
+      // Catalogs are version-agnostic: the document's `protocolVersion` is
+      // not checked against the version this SDK implements.
       expect(
-        () => Catalog.fromJson({'catalogId': 'c', 'protocolVersion': 'v1.0'}),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-
-    test('treats an undeclared protocol version as v0.9', () {
-      // Catalog documents do not carry a protocol version before v1.0.
-      expect(
-        Catalog.fromJson({'catalogId': 'c'}).protocolVersion,
-        A2uiProtocolVersion.v0_9,
+        Catalog.fromJson({'catalogId': 'c', 'protocolVersion': 'v1.0'}).id,
+        'c',
       );
     });
 
@@ -162,6 +154,22 @@ void main() {
   });
 
   group('Catalog.catalogSchema', () {
+    test('inlines the document\'s own definitions into each schema', () {
+      final SchemaCatalog catalog = Catalog.fromJson(loadBasicCatalogJson());
+      final Object text = catalog.components['Text']!.schema.value;
+
+      // `#/$defs/CatalogComponentCommon` is expanded in place, leaving no
+      // pointer into the document behind ...
+      expect(jsonEncode(text), isNot(contains(r'"$ref":"#/')));
+      expect(jsonEncode(text), contains('weight'));
+      // ... while references the catalog cannot reach are left for the
+      // validator, rather than dropped as unconstrained.
+      expect(
+        jsonEncode(text),
+        contains('common_types.json#/\$defs/DynamicString'),
+      );
+    });
+
     test('round trips the source document', () {
       final Map<String, Object?> source = loadBasicCatalogJson();
       final Map<String, Object?> rendered = Catalog.fromJson(
@@ -238,10 +246,7 @@ void main() {
       final SchemaCatalog agentCatalog = Catalog.fromJson(
         loadBasicCatalogJson(),
       );
-      expect(
-        agentCatalog.functions.values,
-        everyElement(isA<CatalogFunction>()),
-      );
+      expect(agentCatalog.functions.values, everyElement(isA<FunctionApi>()));
       expect(
         agentCatalog.functions.values,
         isNot(anyElement(isA<FunctionImplementation>())),

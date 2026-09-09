@@ -20,7 +20,7 @@
 // tree, read text, and verify that the values of widget properties are correct.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:restaurant_finder_client/restaurant_finder_client.dart';
+import 'package:restaurant_finder_client/main.dart';
 
 void main() {
   testWidgets('Restaurant finder  smoke test', (WidgetTester tester) async {

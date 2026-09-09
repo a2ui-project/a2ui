@@ -14,58 +14,30 @@
  * limitations under the License.
  */
 
-import {Catalog} from '@a2ui/web_core/v0_9';
-import {BASIC_FUNCTIONS} from '@a2ui/web_core/v0_9/basic_catalog';
-import {LitComponentApi} from '../../types.js';
-
-import {A2uiText} from './components/Text.js';
-import {A2uiButton} from './components/Button.js';
-import {A2uiTextField} from './components/TextField.js';
-import {A2uiRow} from './components/Row.js';
-import {A2uiColumn} from './components/Column.js';
-import {A2uiList} from './components/List.js';
-import {A2uiImage} from './components/Image.js';
-import {A2uiIcon} from './components/Icon.js';
-import {A2uiVideo} from './components/Video.js';
-import {A2uiAudioPlayer} from './components/AudioPlayer.js';
-import {A2uiCard} from './components/Card.js';
-import {A2uiDivider} from './components/Divider.js';
-import {A2uiCheckBox} from './components/CheckBox.js';
-import {A2uiSlider} from './components/Slider.js';
-import {A2uiDateTimeInput} from './components/DateTimeInput.js';
-import {A2uiChoicePicker} from './components/ChoicePicker.js';
-import {A2uiTabs} from './components/Tabs.js';
-import {A2uiModal} from './components/Modal.js';
-
 /**
- * The basic catalog for A2UI components in Lit.
- *
- * This catalog includes a wide range of components such as list, image, icon,
- * video, audio player, card, divider, checkbox, slider, date-time input, choice
- * picker, tabs, and modal. It also includes the basic functions from package
- * @a2ui/web_core.
+ * Re-exported for backwards compatibility.
  */
-export const basicCatalog = new Catalog<LitComponentApi>(
-  'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
-  [
-    A2uiText,
-    A2uiButton,
-    A2uiTextField,
-    A2uiRow,
-    A2uiColumn,
-    A2uiList,
-    A2uiImage,
-    A2uiIcon,
-    A2uiVideo,
-    A2uiAudioPlayer,
-    A2uiCard,
-    A2uiDivider,
-    A2uiCheckBox,
-    A2uiSlider,
-    A2uiDateTimeInput,
-    A2uiChoicePicker,
-    A2uiTabs,
-    A2uiModal,
-  ],
-  BASIC_FUNCTIONS,
-);
+export {
+  basicCatalog,
+  BasicCatalogA2uiLitElement,
+  type ResolvedChildRef,
+  type ResolvedChildList,
+  A2uiAudioPlayer,
+  A2uiButton,
+  A2uiCard,
+  A2uiCheckBox,
+  A2uiChoicePicker,
+  A2uiColumn,
+  A2uiDateTimeInput,
+  A2uiDivider,
+  A2uiIcon,
+  A2uiImage,
+  A2uiList,
+  A2uiModal,
+  A2uiRow,
+  A2uiSlider,
+  A2uiTabs,
+  A2uiText,
+  A2uiTextField,
+  A2uiVideo,
+} from '@a2ui/web_core/v0_9/basic_catalog';

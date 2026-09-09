@@ -1,5 +1,7 @@
 # Restaurant finder - Lit UI with Python agent
 
+This is the Lit client for the restaurant finder demo featured in [Quickstart: Run A2UI in 5 Minutes](https://a2ui.org/quickstart). Refer to the guide for end-to-end setup and run instructions.
+
 See the [video](https://github.com/user-attachments/assets/2a406115-3a17-4bea-8000-ac12e0b7b9bd) on how it works.
 
 ## Prerequisites

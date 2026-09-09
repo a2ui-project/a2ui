@@ -44,6 +44,7 @@ members = [
   "samples/community/mcp/a2ui-in-mcpapps/server",
   "samples/community/mcp/a2ui-over-mcp-recipe",
   "samples/community/mcp/mcp-apps-calculator",
+  "catalogs/mcp",
   "tools/build_catalog",
 ]
 
@@ -58,7 +59,7 @@ dev = [
 ]
 release = [
     "hatch>=1.14.0",
-    "twine>=6.0.1",
+    "twine>=7.0.0",
     "keyring>=25.6.0",
     "keyrings.google-artifactregistry-auth>=1.1.2",
 ]

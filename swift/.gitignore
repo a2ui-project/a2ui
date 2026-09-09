@@ -1,5 +1,10 @@
 # Xcode
 xcuserdata/
+DerivedData/
+build/
+
+# Python virtual environment
+.venv/
 
 # Swift Package Manager
 Packages/

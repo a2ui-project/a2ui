@@ -228,7 +228,8 @@ export const appStyles = css`
     }
   }
 
-  button {
+  .agent-controls button,
+  .clear-btn {
     background: #38bdf8;
     color: #0f172a;
     border: none;
@@ -237,10 +238,12 @@ export const appStyles = css`
     font-weight: 600;
     cursor: pointer;
   }
-  button:hover {
+  .agent-controls button:hover,
+  .clear-btn:hover {
     background: #7dd3fc;
   }
-  button:disabled {
+  .agent-controls button:disabled,
+  .clear-btn:disabled {
     background: #475569;
     color: #94a3b8;
     cursor: not-allowed;
