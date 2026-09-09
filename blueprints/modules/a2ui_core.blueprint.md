@@ -380,7 +380,7 @@ When a surface is created with `sendDataModel: true`, the renderer is responsibl
 3.  The **Transport Layer** (e.g., A2A, MCP) calls `getRendererDataModel()` before sending any message to the agent.
 4.  If a non-empty data model map is returned, it is included in the transport's metadata field (e.g., `A2uiRendererDataModel` in A2A metadata).
 
-- **Surface Lifecycle**: It is an error to receive a `createSurface` message for a `surfaceId` that is already active; `surfaceId` must be globally unique per client session. The processor MUST throw an error or report a validation failure if this occurs.
+- **Surface Lifecycle**: It is an error to receive a `createSurface` message for a `surfaceId` that is already active; `surfaceId` must be globally unique per client session. The processor MUST throw an error or report a validation failure if this occurs. Surfaces are long-lived state containers that may receive updates across messages of different protocol versions (e.g., a v1.0 `updateComponents` updating a surface created via v0.9), provided each component resolves to a catalog compatible with the incoming message's protocol version.
 - **Component Lifecycle**: If an `updateComponents` message provides an existing `id` but a _different_ `type`, the processor MUST remove the old component and create a fresh one to ensure framework renderers correctly reset their internal state.
 
 #### [Capabilities Objects](../../docs/public/concepts/glossary.md#capabilities-object)
