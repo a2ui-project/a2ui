@@ -119,14 +119,6 @@ class VersionAdapter(ABC):
         pass
 
     @property
-    def supported_versions(self) -> set[str]:
-        """Set of version string literals accepted by this adapter."""
-        ver_str = (
-            self.version.value if hasattr(self.version, "value") else str(self.version)
-        )
-        return {ver_str}
-
-    @property
     def compatible_catalog_versions(self) -> frozenset[str]:
         """Set of canonical catalog protocol versions compatible with this adapter."""
         ver_str = (
@@ -330,11 +322,23 @@ class BaseVersionAdapter(VersionAdapter, ABC):
                         f"Invalid {self.version} message: messages.0.version: 'version'"
                         " is a required property"
                     )
-                if raw_payload["version"] not in self.supported_versions:
+                raw_ver = raw_payload["version"]
+                canonical_ver = (
+                    to_canonical_version(raw_ver)
+                    if isinstance(raw_ver, (str, bytes, SemVer))
+                    else None
+                )
+                if (
+                    not canonical_ver
+                    or canonical_ver not in self.compatible_catalog_versions
+                ):
                     expected = (
                         f"'{ver_str}'"
-                        if len(self.supported_versions) == 1
-                        else f"one of {sorted(self.supported_versions)}"
+                        if len(self.compatible_catalog_versions) == 1
+                        else (
+                            "one of"
+                            f" {sorted(f'v{v}' for v in self.compatible_catalog_versions)}"
+                        )
                     )
                     raise A2uiValidationError(
                         f"Invalid {self.version} message: messages.0.version: Input"

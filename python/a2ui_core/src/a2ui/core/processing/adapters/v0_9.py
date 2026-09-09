@@ -41,10 +41,6 @@ class V0Point9Adapter(BaseVersionAdapter):
         return ProtocolVersion.V0_9
 
     @property
-    def supported_versions(self) -> set[str]:
-        return {"v0.9", "v0.9.1"}
-
-    @property
     def compatible_catalog_versions(self) -> frozenset[str]:
         return frozenset({"0.9", "0.9.1"})
 

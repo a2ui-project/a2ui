@@ -160,6 +160,28 @@ describe('VersionAdapterFactory', () => {
     );
   });
 
+  it('throws A2uiValidationError in adapters when payload version is invalid', () => {
+    const v09Adapter = VersionAdapterFactory.getAdapter('v0.9');
+    assert.throws(
+      () =>
+        v09Adapter.extractOperations({
+          version: 'v1.0',
+          createSurface: {surfaceId: 's1', catalogId: 'c1'},
+        }),
+      err => err instanceof A2uiValidationError && /Invalid v0.9 message/.test(err.message),
+    );
+
+    const v10Adapter = VersionAdapterFactory.getAdapter('v1.0');
+    assert.throws(
+      () =>
+        v10Adapter.extractOperations({
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1', catalogId: 'c1'},
+        }),
+      err => err instanceof A2uiValidationError && /Invalid v1.0 message/.test(err.message),
+    );
+  });
+
   it('supports dynamic registration of custom version adapters', () => {
     const customAdapter: VersionAdapter = {
       version: 'v2.0',

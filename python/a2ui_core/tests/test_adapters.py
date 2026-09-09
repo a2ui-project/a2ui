@@ -292,6 +292,29 @@ def test_extract_operations_no_update_action_raises_validation_error():
         v09_adapter.extract_operations({})
 
 
+def test_extract_operations_invalid_version_raises_validation_error():
+    """Verifies that extract_operations validates version against compatible_catalog_versions."""
+    v09_adapter = VersionAdapterFactory.get_adapter("v0.9")
+    with pytest.raises(
+        A2uiValidationError,
+        match=r"messages\.0\.version: Input should be one of \['v0\.9', 'v0\.9\.1'\]",
+    ):
+        v09_adapter.extract_operations({
+            "version": "v1.0",
+            "createSurface": {"surfaceId": "s1", "catalogId": "c1"},
+        })
+
+    v10_adapter = VersionAdapterFactory.get_adapter("v1.0")
+    with pytest.raises(
+        A2uiValidationError,
+        match=r"messages\.0\.version: Input should be 'v1\.0'",
+    ):
+        v10_adapter.extract_operations({
+            "version": "v0.9",
+            "createSurface": {"surfaceId": "s1", "catalogId": "c1"},
+        })
+
+
 def test_supports_dynamic_registration():
     """Verifies dynamic registration of custom version adapters."""
 
