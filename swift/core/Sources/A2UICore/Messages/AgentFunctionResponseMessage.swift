@@ -42,10 +42,19 @@ public struct AgentFunctionResponseMessage: Codable, Sendable, Equatable {
   public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     functionCallID = try container.decode(String.self, forKey: .functionCallID)
-    if container.contains(.error) {
+    let hasError = container.contains(.error)
+    let hasValue = container.contains(.value)
+    if hasError && hasValue {
+      let context = DecodingError.Context(
+        codingPath: container.codingPath,
+        debugDescription: "FunctionResponse cannot contain both 'value' and 'error'"
+      )
+      throw DecodingError.dataCorrupted(context)
+    }
+    if hasError {
       error = try container.decode(FunctionErrorPayload.self, forKey: .error)
       value = nil
-    } else if container.contains(.value) {
+    } else if hasValue {
       value = try container.decode(JSONValue.self, forKey: .value)
       error = nil
     } else {

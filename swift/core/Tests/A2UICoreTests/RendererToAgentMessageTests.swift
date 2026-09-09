@@ -218,14 +218,16 @@ struct RendererToAgentMessageTests {
   }
 
   @Test func validationFailedErrorRejectsInvalidCode() throws {
-    let invalidJSON = """
+    let invalidJSON = try #require(
+      """
       {
         "code": "SOME_UNKNOWN_CODE",
         "surfaceId": "surface-1",
         "path": "/components/0",
         "message": "Invalid"
       }
-      """.data(using: .utf8)!
+      """.data(using: .utf8)
+    )
 
     #expect(throws: DecodingError.self) {
       try JSONDecoder().decode(ValidationFailedError.self, from: invalidJSON)
@@ -364,5 +366,125 @@ struct RendererToAgentMessageTests {
     } else {
       Issue.record("Expected .rendererFunctionResponse")
     }
+  }
+
+  @Test func genericErrorEnforcesSurfaceOrFunctionCallID() throws {
+    // Valid with surfaceId
+    let validSurfaceJSON = try #require(
+      """
+      {
+        "code": "CUSTOM_ERROR",
+        "surfaceId": "surf_1",
+        "message": "failed"
+      }
+      """.data(using: .utf8)
+    )
+    let err1 = try JSONDecoder().decode(GenericError.self, from: validSurfaceJSON)
+    #expect(err1.surfaceID == "surf_1")
+    #expect(err1.functionCallID == nil)
+
+    // Valid with functionCallId
+    let validFnJSON = try #require(
+      """
+      {
+        "code": "CUSTOM_ERROR",
+        "functionCallId": "call_1",
+        "message": "failed"
+      }
+      """.data(using: .utf8)
+    )
+    let err2 = try JSONDecoder().decode(GenericError.self, from: validFnJSON)
+    #expect(err2.surfaceID == nil)
+    #expect(err2.functionCallID == "call_1")
+
+    // Invalid: neither surfaceId nor functionCallId
+    let neitherJSON = try #require(
+      """
+      {
+        "code": "CUSTOM_ERROR",
+        "message": "failed"
+      }
+      """.data(using: .utf8)
+    )
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(GenericError.self, from: neitherJSON)
+    }
+
+    // Invalid: both surfaceId and functionCallId
+    let bothJSON = try #require(
+      """
+      {
+        "code": "CUSTOM_ERROR",
+        "surfaceId": "surf_1",
+        "functionCallId": "call_1",
+        "message": "failed"
+      }
+      """.data(using: .utf8)
+    )
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(GenericError.self, from: bothJSON)
+    }
+  }
+
+  @Test func rendererFunctionResponseEnforcesValueXorError() throws {
+    // Both value and error present should fail
+    let bothJSON = try #require(
+      """
+      {
+        "functionCallId": "c1",
+        "value": 123,
+        "error": { "code": "ERR", "message": "fail" }
+      }
+      """.data(using: .utf8)
+    )
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(RendererFunctionResponseMessage.self, from: bothJSON)
+    }
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(AgentFunctionResponseMessage.self, from: bothJSON)
+    }
+
+    // Neither value nor error present should fail
+    let neitherJSON = try #require(
+      """
+      {
+        "functionCallId": "c1"
+      }
+      """.data(using: .utf8)
+    )
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(RendererFunctionResponseMessage.self, from: neitherJSON)
+    }
+  }
+
+  @Test func functionErrorPayloadCodeEnum() {
+    let payload = FunctionErrorPayload(code: .invalidFunctionCall, message: "Invalid")
+    #expect(payload.code == "INVALID_FUNCTION_CALL")
+    #expect(payload.structuredCode == .invalidFunctionCall)
+
+    let custom = FunctionErrorPayload(code: "CUSTOM_CODE", message: "Custom")
+    #expect(custom.code == "CUSTOM_CODE")
+    #expect(custom.structuredCode == nil)
+  }
+
+  @Test func deprecatedTypealiasesCompileAndMatch() {
+    let action: ClientAction = RendererAction(
+      name: "click",
+      surfaceID: "s1",
+      sourceComponentID: "c1",
+      timestamp: "2024-01-01T00:00:00Z",
+      context: [:]
+    )
+    let msg: ClientToServerMessage = .action(action)
+    if case .action(let act) = msg {
+      #expect(act.name == "click")
+    } else {
+      Issue.record("Expected .action")
+    }
+
+    let err: ClientServerError = .generic(
+      GenericError(code: "ERR", surfaceID: "s1", message: "msg")
+    )
+    #expect(err == .generic(GenericError(code: "ERR", surfaceID: "s1", message: "msg")))
   }
 }

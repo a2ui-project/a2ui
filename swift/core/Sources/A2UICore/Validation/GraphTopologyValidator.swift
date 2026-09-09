@@ -22,7 +22,8 @@ public enum GraphTopologyValidator {
   public typealias Reference = (referenceID: String, field: String)
   public typealias AdjacencyMap = [String: [Reference]]
 
-  /// Validates the topology, integrity, and composition constraints of a list of component JSON objects.
+  /// Validates the topology, integrity, and composition constraints of a list of component
+  /// JSON objects.
   ///
   /// - Parameters:
   ///   - components: The component JSON dictionaries to validate.
@@ -118,10 +119,12 @@ public enum GraphTopologyValidator {
             path: "\(rootID)",
             code: "UNALLOWED_PARENT",
             message:
-              "Component '\(rootID)' of type '\(rootInfo.type)' cannot have parent of type 'Surface'"
+              "Component '\(rootID)' of type '\(rootInfo.type)' "
+              + "cannot have parent of type 'Surface'"
           )
           throw A2UIValidationError(
-            "Component '\(rootID)' of type '\(rootInfo.type)' has unallowed parent 'Surface'",
+            "Component '\(rootID)' of type '\(rootInfo.type)' "
+              + "has unallowed parent 'Surface'",
             details: [detail]
           )
         }
@@ -145,10 +148,12 @@ public enum GraphTopologyValidator {
               path: "\(parentID).\(ref.field)",
               code: "UNALLOWED_CHILD",
               message:
-                "Component '\(parentID)' of type '\(parentInfo.type)' cannot have child of type '\(childInfo.type)'"
+                "Component '\(parentID)' of type '\(parentInfo.type)' "
+                + "cannot have child of type '\(childInfo.type)'"
             )
             throw A2UIValidationError(
-              "Component '\(parentID)' of type '\(parentInfo.type)' has unallowed child '\(childInfo.type)'",
+              "Component '\(parentID)' of type '\(parentInfo.type)' "
+                + "has unallowed child '\(childInfo.type)'",
               details: [detail]
             )
           }
@@ -161,10 +166,12 @@ public enum GraphTopologyValidator {
               path: "\(childID)",
               code: "UNALLOWED_PARENT",
               message:
-                "Component '\(childID)' of type '\(childInfo.type)' cannot have parent of type '\(parentInfo.type)'"
+                "Component '\(childID)' of type '\(childInfo.type)' "
+                + "cannot have parent of type '\(parentInfo.type)'"
             )
             throw A2UIValidationError(
-              "Component '\(childID)' of type '\(childInfo.type)' has unallowed parent '\(parentInfo.type)'",
+              "Component '\(childID)' of type '\(childInfo.type)' "
+                + "has unallowed parent '\(parentInfo.type)'",
               details: [detail]
             )
           }
