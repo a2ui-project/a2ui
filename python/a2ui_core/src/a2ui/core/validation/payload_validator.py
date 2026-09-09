@@ -138,12 +138,13 @@ class PayloadValidator(Generic[TComponent, TFunction]):
         comp_type = comp.get("component") or comp.get("type")
 
         if comp_id and isinstance(comp_id, str):
-            from ..catalog.catalog import is_valid_uax31_identifier, _is_version_at_least_1_0
+            from ..catalog.catalog import is_valid_uax31_identifier
+            from ..common.semver import is_at_least_version
 
             ver = getattr(self.catalog, "protocol_version", None)
             if (
                 ver
-                and _is_version_at_least_1_0(ver)
+                and is_at_least_version(ver, "1.0")
                 and not is_valid_uax31_identifier(comp_id)
             ):
                 errors.append(
@@ -372,10 +373,11 @@ class PayloadValidator(Generic[TComponent, TFunction]):
         active_config = self.config
         allow_unknown = active_config.allow_unknown_elements if active_config else False
 
-        from ..catalog.catalog import is_valid_uax31_identifier, _is_version_at_least_1_0
+        from ..catalog.catalog import is_valid_uax31_identifier
+        from ..common.semver import is_at_least_version
 
         ver = getattr(self.catalog, "protocol_version", None)
-        if ver and _is_version_at_least_1_0(ver):
+        if ver and is_at_least_version(ver, "1.0"):
             if not is_valid_uax31_identifier(name):
                 raise A2uiValidationError(
                     f"Function name '{name}' must be a valid UAX #31 identifier",
