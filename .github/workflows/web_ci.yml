@@ -104,7 +104,7 @@ jobs:
       - name: Test Renderers
         run: eval "yarn workspaces foreach -A $RENDERERS_INC -p run test"
       - name: Test React 18 Compatibility
-        run: ./renderers/react/scripts/test-react18.sh
+        run: yarn workspace @a2ui/react run test:react18
       - name: Verify NPM Publish Script
         run: node --test renderers/scripts/publish_npm.test.mjs
 
