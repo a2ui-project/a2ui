@@ -159,9 +159,7 @@ async def summarize_file_tool(
                 name = metadata.get("fileName") or f.get("fileName") or "document"
                 file_names.append(name)
 
-        lite_llm_model = os.getenv(
-            "LITELLM_MODEL", "gemini/gemini-3.8-flash"
-        )
+        lite_llm_model = os.getenv("LITELLM_MODEL", "gemini/gemini-3.8-flash")
         gemini_model = (
             lite_llm_model[len("gemini/") :]
             if lite_llm_model.startswith("gemini/")
