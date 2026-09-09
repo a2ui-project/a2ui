@@ -7,7 +7,7 @@
     "build": "wireit",
     "eval": "dotenv -- tsx src/index.ts",
     "evalAll": "yarn eval --clean-results",
-    "evalGemini": "yarn eval --model=gemini-3-flash --clean-results",
+    "evalGemini": "yarn eval --model=gemini-3.8-flash --clean-results",
     "evalGpt": "yarn eval --model=gpt-5-mini --clean-results",
     "evalClaude": "yarn eval --model=claude-4-sonnet --clean-results",
     "start": "genkit start",

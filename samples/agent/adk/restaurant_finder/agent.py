@@ -155,7 +155,7 @@ class RestaurantAgent:
         model_env = (
             os.getenv("MODEL_NAME")
             or os.getenv("LITELLM_MODEL")
-            or "gemini-3-flash-preview"
+            or "gemini-3.8-flash"
         )
         model_name = model_env.split("/")[-1]
 
