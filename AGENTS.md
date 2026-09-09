@@ -60,8 +60,9 @@ For a detailed explanation of the methodology, lifecycle, and workflows, read th
 - **`specification/`**: Versioned subdirectories (`v0_8/`, `v0_9/`, `v0_9_1/`, `v1_0/`) containing JSON schemas, component/function catalogs, and human-readable guides. The `specification/<version>/docs/a2ui_protocol.md` file is the most important source of truth for each protocol version, and the `specification/<version>/json` directory contains the associated schemas for the protocol.
 - **`agent_sdks/`**: Server integration SDKs for Python (`python/`).
 - **`conformance/`**: Language-agnostic test suites (`core/`, `agent/`, `extensions/`) and test data (`test_data/`) for verifying behavioral parity across all SDK implementations.
+- **`dart/`**: Dart implementations including core state model (`a2ui_core/`), agent SDK (`a2ui_agent/`), and Flutter framework adapter (`a2ui_flutter/`).
 - **`kotlin/`**: Legacy Kotlin agent SDK (`agent_sdk_legacy/`).
-- **`renderers/`**: Shared core state logic (`web_core/`), Lit renderer (`lit/`), Angular renderer (`angular/`), React renderer (`react/`), markdown parser (`markdown/`), and placeholder for Flutter (`flutter/`).
+- **`renderers/`**: Shared core state logic (`web_core/`), Lit renderer (`lit/`), Angular renderer (`angular/`), React renderer (`react/`), and markdown parser (`markdown/`).
 - **`samples/`**: Ready-to-run demo agents utilizing Python ADK (`agent/adk/`), MCP server (`agent/mcp/`), and sample clients (`client/lit/`, `client/angular/`, `client/react/`, `client/flutter/`).
 - **`swift/`**: Native Apple implementation including core state engine (`core/`), SwiftUI adapter (`swiftui/`), and sample iOS client (`sample/`).
 - **`tools/`**: Developer utility suite including visual Editor (`editor/`), visual Composer (`composer/`), payload Inspector (`inspector/`), and catalog builder (`build_catalog/`).
