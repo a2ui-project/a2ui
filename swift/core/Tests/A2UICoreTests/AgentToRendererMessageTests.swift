@@ -397,4 +397,34 @@ struct AgentToRendererMessageTests {
       Issue.record("Expected .agentFunctionResponse")
     }
   }
+
+  @Test func protocolVersionDecoding() throws {
+    for version in ["v0.9", "v0.9.1", "v1.0", "0.9", "0.9.1", "1.0"] {
+      let json = """
+        {
+          "version": "\(version)",
+          "deleteSurface": { "surfaceId": "s1" }
+        }
+        """.data(using: .utf8)!
+      let msg = try JSONDecoder().decode(AgentToRendererMessage.self, from: json)
+      if case .deleteSurface(let del) = msg {
+        #expect(del.surfaceID == "s1")
+      } else {
+        Issue.record("Expected .deleteSurface for version \(version)")
+      }
+    }
+
+    for invalid in ["v0.8", "v2.0", "0.8", "invalid"] {
+      let json = """
+        {
+          "version": "\(invalid)",
+          "deleteSurface": { "surfaceId": "s1" }
+        }
+        """.data(using: .utf8)!
+      #expect(throws: DecodingError.self) {
+        try JSONDecoder().decode(AgentToRendererMessage.self, from: json)
+      }
+    }
+  }
+
 }

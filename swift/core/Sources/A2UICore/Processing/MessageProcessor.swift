@@ -57,7 +57,7 @@ public final class MessageProcessor: ObservableObject {
       if let url = URL(string: cat.id), url.lastPathComponent == "catalog.json" {
         let shorthand = url.deletingLastPathComponent().lastPathComponent
         if !shorthand.isEmpty {
-          if catalogMap[shorthand] == nil || cat.protocolVersion == "v1.0" {
+          if catalogMap[shorthand] == nil || cat.isV10 {
             catalogMap[shorthand] = cat
           }
         }
@@ -117,6 +117,12 @@ public final class MessageProcessor: ObservableObject {
     /// The protocol version to generate capabilities for.
     public var version: String
 
+    /// The protocol version as an `A2UIProtocolVersion` enum.
+    public var protocolVersion: A2UIProtocolVersion {
+      get { A2UIProtocolVersion(loose: version) ?? .v091 }
+      set { version = newValue.rawValue }
+    }
+
     /// Creates a capabilities option instance with an explicit protocol version.
     ///
     /// - Parameters:
@@ -128,6 +134,19 @@ public final class MessageProcessor: ObservableObject {
     ) {
       self.includeInlineCatalogs = includeInlineCatalogs
       self.version = version
+    }
+
+    /// Creates a capabilities option instance with an `A2UIProtocolVersion`.
+    ///
+    /// - Parameters:
+    ///   - includeInlineCatalogs: Whether to include inline catalog definitions.
+    ///   - protocolVersion: The `A2UIProtocolVersion` enum case.
+    public init(
+      includeInlineCatalogs: Bool = false,
+      protocolVersion: A2UIProtocolVersion
+    ) {
+      self.includeInlineCatalogs = includeInlineCatalogs
+      self.version = protocolVersion.rawValue
     }
 
     /// Creates a capabilities option instance defaulting to protocol version "v0.9.1".
