@@ -14,16 +14,18 @@
 
 import JSONSchema
 
-/// A protocol representing a catalog containing component schemas, functions, and an optional theme schema.
+/// A protocol representing a catalog containing component schemas, functions, and an
+/// optional theme schema.
 ///
-/// `CatalogProtocol` exists primarily to support Swift existentials (e.g., `any CatalogProtocol`) in heterogeneous
-/// collections. Because ``Catalog`` is generic over its component type (`Catalog<Component>`), Swift does not
-/// allow heterogeneous arrays like `[Catalog<Component>]` when elements have different generic types
-/// (such as mixing ``Catalog<ComponentImplementation>`` with schema-only ``Catalog<AnyComponentAPI>``).
+/// `CatalogProtocol` exists primarily to support Swift existentials (e.g., `any CatalogProtocol`)
+/// in heterogeneous collections. Because ``Catalog`` is generic over its component type
+/// (`Catalog<Component>`), Swift does not allow heterogeneous arrays like `[Catalog<Component>]`
+/// when elements have different generic types (such as mixing
+/// ``Catalog<ComponentImplementation>`` with schema-only ``Catalog<AnyComponentAPI>``).
 ///
-/// By conforming ``Catalog`` to `CatalogProtocol`, framework APIs like `MessageProcessor` and `SurfaceViewModel`
-/// can accept `[any CatalogProtocol]` and erase them to ``AnyCatalog`` without requiring generic type parameters
-/// or forcing callers into complex type-erasure acrobatics.
+/// By conforming ``Catalog`` to `CatalogProtocol`, framework APIs like `MessageProcessor` and
+/// `SurfaceViewModel` can accept `[any CatalogProtocol]` and erase them to ``AnyCatalog`` without
+/// requiring generic type parameters or forcing callers into complex type-erasure acrobatics.
 public protocol CatalogProtocol: Sendable {
   /// Unique catalog identifier (conventionally a URI string).
   var id: String { get }
@@ -132,9 +134,20 @@ extension CatalogProtocol {
     protocolVersion.flatMap(A2UIProtocolVersion.init(rawValue:))
   }
 
-  /// Whether this catalog conforms to A2UI Protocol v1.0.
+  /// Whether this catalog conforms to A2UI Protocol v1.0 or later.
+  public var isAtLeastV10: Bool {
+    if let a2uiProtocolVersion {
+      return a2uiProtocolVersion >= .v10
+    }
+    guard let protocolVersion else { return false }
+    let cleanVersion =
+      protocolVersion.hasPrefix("v") ? String(protocolVersion.dropFirst()) : protocolVersion
+    return cleanVersion.compare("1.0", options: .numeric) != .orderedAscending
+  }
+
+  /// Whether this catalog conforms to A2UI Protocol v1.0 or later.
   public var isV10: Bool {
-    a2uiProtocolVersion == .v10
+    isAtLeastV10
   }
 }
 
