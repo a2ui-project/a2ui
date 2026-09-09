@@ -19,25 +19,30 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REACT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${REACT_DIR}/../.." && pwd)"
 
+REACT_PKG="${REACT_DIR}/package.json"
+EXPLORER_PKG="${REACT_DIR}/a2ui_explorer/package.json"
+ROOT_LOCK="${REPO_ROOT}/yarn.lock"
+
+TRACKED_FILES=("${REACT_PKG}" "${EXPLORER_PKG}" "${ROOT_LOCK}")
+
 echo "=== Testing @a2ui/react with React 18 ==="
 
-# Save backups so we restore the exact starting state
-cp "${REACT_DIR}/package.json" "${REACT_DIR}/package.json.bak"
-cp "${REACT_DIR}/a2ui_explorer/package.json" "${REACT_DIR}/a2ui_explorer/package.json.bak"
-cp "${REPO_ROOT}/yarn.lock" "${REPO_ROOT}/yarn.lock.bak"
+# Preflight: ensure no uncommitted changes in tracked dependency files
+if ! git -C "${REPO_ROOT}" diff --quiet HEAD -- "${TRACKED_FILES[@]}"; then
+  echo "Error: Uncommitted changes detected in package.json or yarn.lock."
+  echo "Please commit or stash your changes before running the React 18 test matrix."
+  exit 1
+fi
+
+DEPS_SWAPPED=false
 
 cleanup() {
+  trap - EXIT INT TERM
   echo "=== Restoring original React 19 dependencies ==="
-  if [[ -f "${REACT_DIR}/package.json.bak" ]]; then
-    mv -f "${REACT_DIR}/package.json.bak" "${REACT_DIR}/package.json"
+  git -C "${REPO_ROOT}" checkout -- "${TRACKED_FILES[@]}"
+  if [[ "${DEPS_SWAPPED}" == "true" ]]; then
+    yarn --cwd "${REPO_ROOT}" install
   fi
-  if [[ -f "${REACT_DIR}/a2ui_explorer/package.json.bak" ]]; then
-    mv -f "${REACT_DIR}/a2ui_explorer/package.json.bak" "${REACT_DIR}/a2ui_explorer/package.json"
-  fi
-  if [[ -f "${REPO_ROOT}/yarn.lock.bak" ]]; then
-    mv -f "${REPO_ROOT}/yarn.lock.bak" "${REPO_ROOT}/yarn.lock"
-  fi
-  yarn --cwd "${REPO_ROOT}" install
 }
 trap cleanup EXIT INT TERM
 
@@ -45,20 +50,33 @@ trap cleanup EXIT INT TERM
 echo "=== Building @a2ui/react ==="
 yarn --cwd "${REACT_DIR}" build
 
-# Temporarily swap devDependencies to React 18
+# Temporarily swap dependencies to React 18 in a single pass
 echo "=== Swapping to React 18 dependencies ==="
-yarn --cwd "${REACT_DIR}" add -D \
-  "react@^18.3.1" \
-  "react-dom@^18.3.1" \
-  "@types/react@^18.3.1" \
-  "@types/react-dom@^18.3.1" \
-  "@testing-library/react@^14.3.1"
+node -e '
+const fs = require("fs");
+[
+  [process.argv[1], "devDependencies", {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
+    "@testing-library/react": "^14.3.1"
+  }],
+  [process.argv[2], "dependencies", {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1"
+  }]
+].forEach(([file, key, deps]) => {
+  const pkg = JSON.parse(fs.readFileSync(file, "utf8"));
+  pkg[key] = { ...pkg[key], ...deps };
+  fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + "\n");
+});
+' "${REACT_PKG}" "${EXPLORER_PKG}"
 
-yarn --cwd "${REACT_DIR}/a2ui_explorer" add \
-  "react@^18.3.1" \
-  "react-dom@^18.3.1" \
-  "@types/react@^18.3.1" \
-  "@types/react-dom@^18.3.1"
+yarn --cwd "${REPO_ROOT}" install
+DEPS_SWAPPED=true
 
 # Run unit tests under real React 18
 echo "=== Running unit tests under React 18 ==="
