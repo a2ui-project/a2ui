@@ -39,7 +39,7 @@ which both agents and renderers depend on.
 
 ```dart
 // Once, at agent startup.
-final generator = A2uiGenerator<CatalogComponent, CatalogFunction>(
+final generator = A2uiGenerator(
   catalogs: [
     CatalogConfig.fromPath(
       'specification/v0_9_1/catalogs/basic/catalog.json',
@@ -48,6 +48,8 @@ final generator = A2uiGenerator<CatalogComponent, CatalogFunction>(
       ],
     ),
   ],
+  // No default: the format decides the token cost of every turn.
+  inferenceFormatFactory: const ExpressFormatFactory(),
 );
 
 // Per request, against the renderer's declared capabilities.
