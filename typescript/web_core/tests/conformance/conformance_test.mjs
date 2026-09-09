@@ -43,21 +43,14 @@ const v0_8Components = V0_8_BASIC_COMPONENTS;
 const v0_9Components = V0_9_BASIC_COMPONENTS;
 const v1_0Components = V1_0_BASIC_COMPONENTS;
 
-const basicCatalog = new Catalog(
-  'basic',
-  v0_9Components,
-  [],
-  undefined,
-  undefined,
-  V09_CHILD_REF_OPTIONS,
-);
+const basicCatalog = new Catalog('basic', v0_9Components, [], undefined, undefined, 'v0.9');
 const v0_8Catalog = new Catalog(
   'v0.8:basic',
   v0_8Components,
   [],
   V0_8_ThemeSchema,
   undefined,
-  V08_CHILD_REF_OPTIONS,
+  'v0.8',
 );
 const v0_9Catalog = new Catalog(
   'v0.9:basic',
@@ -65,7 +58,7 @@ const v0_9Catalog = new Catalog(
   V0_9_BASIC_FUNCTIONS,
   V0_9_ThemeSchema,
   undefined,
-  V09_CHILD_REF_OPTIONS,
+  'v0.9',
 );
 const v1_0Catalog = new Catalog(
   'v1.0:basic',
@@ -73,7 +66,7 @@ const v1_0Catalog = new Catalog(
   V1_0_BASIC_FUNCTIONS,
   undefined,
   undefined,
-  V10_CHILD_REF_OPTIONS,
+  'v1.0',
 );
 const allCatalogs = [basicCatalog, v0_8Catalog, v0_9Catalog, v1_0Catalog];
 
@@ -702,25 +695,30 @@ function jsonSchemaToZod(schemaDef) {
 
 function getCatalogsForTestCase(testCase) {
   const normProto = toCanonicalVersion(testCase.protocolVersion) || testCase.protocolVersion;
-  const refOptions =
-    normProto === '0.8'
-      ? V08_CHILD_REF_OPTIONS
-      : normProto === '0.9' || normProto === '0.9.1'
-        ? V09_CHILD_REF_OPTIONS
-        : V10_CHILD_REF_OPTIONS;
   const catalogsMap = new Map(allCatalogs.map(c => [c.id, c]));
-  const addCatalogId = id => {
+  if (normProto === '1.0') {
+    catalogsMap.set(
+      'basic',
+      new Catalog('basic', v1_0Components, V1_0_BASIC_FUNCTIONS, undefined, undefined, '1.0'),
+    );
+  } else if (normProto === '0.8') {
+    catalogsMap.set(
+      'basic',
+      new Catalog('basic', v0_8Components, [], V0_8_ThemeSchema, undefined, '0.8'),
+    );
+  }
+  const addCatalogId = (id, version = normProto) => {
     if (id && !catalogsMap.has(id)) {
-      catalogsMap.set(
-        id,
-        new Catalog(id, flexibleComponents, [], undefined, undefined, refOptions),
-      );
+      catalogsMap.set(id, new Catalog(id, flexibleComponents, [], undefined, undefined, version));
     }
   };
 
   if (testCase.catalogs) {
     for (const cat of testCase.catalogs) {
       if (cat.catalogId) {
+        const catProto = cat.protocolVersion
+          ? toCanonicalVersion(cat.protocolVersion) || cat.protocolVersion
+          : normProto;
         if (cat.components || cat.theme) {
           const compApis = cat.components
             ? Object.entries(cat.components).map(([name, def]) => ({
@@ -731,10 +729,10 @@ function getCatalogsForTestCase(testCase) {
           const themeSchema = cat.theme ? jsonSchemaToZod(cat.theme) : undefined;
           catalogsMap.set(
             cat.catalogId,
-            new Catalog(cat.catalogId, compApis, [], themeSchema, undefined, refOptions),
+            new Catalog(cat.catalogId, compApis, [], themeSchema, undefined, catProto),
           );
         } else {
-          addCatalogId(cat.catalogId);
+          addCatalogId(cat.catalogId, catProto);
         }
       }
     }

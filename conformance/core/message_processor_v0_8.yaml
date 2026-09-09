@@ -110,6 +110,22 @@
         catalogId: "v08-cat"
   expectError:
     category: "ValidationError"
+    message: "action 'createSurface' is not supported in protocol version v0.8"
+
+- name: test_v08_catalog_rejects_v09_create_surface_message
+  description: Tests that v0.9 createSurface message is rejected when catalog protocolVersion is v0.8.
+  action: process_messages
+  catalogs:
+    - catalogId: "v08-cat"
+      protocolVersion: "v0.8"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s_v08_invalid"
+        catalogId: "v08-cat"
+  expectError:
+    category: "ValidationError"
+    message: "does not match message protocol version (v0.9)"
 
 - name: test_v08_multiple_conflicting_update_types_error
   description: Tests that a single v0.8 message envelope containing multiple conflicting update actions raises a ValidationError.

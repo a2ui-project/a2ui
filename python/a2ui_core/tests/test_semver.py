@@ -22,10 +22,11 @@ from a2ui.core.common.semver import (
     parse_semver,
     to_canonical_version,
 )
+from a2ui.core.schema import ProtocolVersion
 
 
 def test_parse_semver_basic():
-    """Tests basic SemVer string parsing with and without leading 'v'/'V' and bytes."""
+    """Tests basic SemVer string parsing with and without leading 'v'/'V' and ProtocolVersion."""
     assert parse_semver("v1.0") == SemVer(1, 0, 0, (), ())
     assert parse_semver("V1.0") == SemVer(1, 0, 0, (), ())
     assert parse_semver("1.0") == SemVer(1, 0, 0, (), ())
@@ -33,15 +34,15 @@ def test_parse_semver_basic():
     assert parse_semver("V0.9.1") == SemVer(0, 9, 1, (), ())
     assert parse_semver("v0.10.0") == SemVer(0, 10, 0, (), ())
     assert parse_semver("v1.10.2") == SemVer(1, 10, 2, (), ())
-    assert parse_semver(b"v1.0") == SemVer(1, 0, 0, (), ())
-    assert parse_semver(b"0.9.1") == SemVer(0, 9, 1, (), ())
+    assert parse_semver(ProtocolVersion.V1_0) == SemVer(1, 0, 0, (), ())
+    assert parse_semver(ProtocolVersion.V0_9_1) == SemVer(0, 9, 1, (), ())
     assert parse_semver("invalid") is None
     assert parse_semver(None) is None
     assert parse_semver("") is None
 
 
 def test_normalize_version_string():
-    """Tests version normalization with underscores, leading 'v'/'V', and bytes."""
+    """Tests version normalization with underscores, leading 'v'/'V', and ProtocolVersion."""
     assert normalize_version_string("v1_0") == "1.0"
     assert normalize_version_string("V1_0") == "1.0"
     assert normalize_version_string("v0_9_1") == "0.9.1"
@@ -54,8 +55,8 @@ def test_normalize_version_string():
     assert normalize_version_string("1.0.0-dev_release") == "1.0.0-dev_release"
     assert normalize_version_string("v1_0+build_123") == "1.0+build_123"
     assert normalize_version_string("V1_0+build_123") == "1.0+build_123"
-    assert normalize_version_string(b"v1_0") == "1.0"
-    assert normalize_version_string(b"V0_9_1") == "0.9.1"
+    assert normalize_version_string(ProtocolVersion.V1_0) == "1.0"
+    assert normalize_version_string(ProtocolVersion.V0_9_1) == "0.9.1"
     assert normalize_version_string("") == ""
     assert normalize_version_string(None) == ""
 
@@ -187,7 +188,8 @@ def test_to_canonical_version():
     assert to_canonical_version("0.8.0") == "0.8"
     assert to_canonical_version("1.0.0-beta.1") == "1.0.0-beta.1"
     assert to_canonical_version("1.0.0+build.1") == "1.0.0+build.1"
-    assert to_canonical_version(b"v1.0") == "1.0"
+    assert to_canonical_version(ProtocolVersion.V1_0) == "1.0"
+    assert to_canonical_version(ProtocolVersion.V0_9_1) == "0.9.1"
     assert to_canonical_version("invalid") is None
     assert to_canonical_version("") is None
     assert to_canonical_version(None) is None
@@ -202,6 +204,8 @@ def test_semver_objects():
     assert to_canonical_version(SemVer(0, 9, 1)) == "0.9.1"
     assert is_at_least_version(SemVer(1, 0, 0), "1.0") is True
     assert is_at_least_version(SemVer(0, 9, 0), "1.0") is False
+    assert is_at_least_version(ProtocolVersion.V1_0, "1.0") is True
+    assert is_at_least_version(ProtocolVersion.V0_9, ProtocolVersion.V1_0) is False
 
 
 def test_non_ascii_digits_rejected():

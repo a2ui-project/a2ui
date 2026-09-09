@@ -80,6 +80,12 @@ class V0Point9Adapter(BaseVersionAdapter):
                     send_data_model=bool(cs.get("sendDataModel", False)),
                     components=cs.get("components"),
                     data_model=cs.get("dataModel"),
+                    version=message.get("version")
+                    or (
+                        self.version.value
+                        if hasattr(self.version, "value")
+                        else str(self.version)
+                    ),
                 )
             )
         elif action == MSG_TYPE_UPDATE_COMPONENTS:

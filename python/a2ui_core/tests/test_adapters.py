@@ -102,7 +102,7 @@ def test_is_catalog_version_compatible():
     assert is_catalog_version_compatible("v0.8", "0.8.0") is True
     assert is_catalog_version_compatible("v0.8", "v0.9") is False
 
-    # ProtocolVersion enum, SemVer object, and bytes inputs
+    # ProtocolVersion enum and SemVer object inputs
     assert is_catalog_version_compatible(ProtocolVersion.V1_0, "1.0") is True
     assert (
         is_catalog_version_compatible(ProtocolVersion.V0_9, ProtocolVersion.V0_9_1)
@@ -111,8 +111,6 @@ def test_is_catalog_version_compatible():
     assert is_catalog_version_compatible(SemVer(1, 0, 0), "1.0") is True
     assert is_catalog_version_compatible("1.0", SemVer(1, 0, 0)) is True
     assert is_catalog_version_compatible(SemVer(0, 9, 0), SemVer(0, 9, 1)) is True
-    assert is_catalog_version_compatible(b"v1.0", "v1.0") is True
-    assert is_catalog_version_compatible("v1.0", b"1.0") is True
 
     # Patch version compatibility for SemVer >= 1.0.0
     assert is_catalog_version_compatible("v1.0.1", "v1.0") is True

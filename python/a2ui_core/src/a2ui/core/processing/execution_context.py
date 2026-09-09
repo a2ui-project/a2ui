@@ -26,29 +26,3 @@ class ExecutionContext:
     """
 
     is_user_activated: bool = False
-
-    def __init__(
-        self,
-        is_user_activated: bool = False,
-        user_activation_present: bool | None = None,
-    ) -> None:
-        """Initializes an ExecutionContext.
-
-        Args:
-            is_user_activated: Whether user activation is present in the context.
-            user_activation_present: Optional backward-compatibility alias for
-                is_user_activated.
-        """
-        if user_activation_present is not None:
-            self.is_user_activated = user_activation_present
-        else:
-            self.is_user_activated = is_user_activated
-
-    @property
-    def user_activation_present(self) -> bool:
-        """Whether user activation is present (backward compatibility alias)."""
-        return self.is_user_activated
-
-    @user_activation_present.setter
-    def user_activation_present(self, value: bool) -> None:
-        self.is_user_activated = value

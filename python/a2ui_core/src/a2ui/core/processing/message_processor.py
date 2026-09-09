@@ -478,6 +478,19 @@ class MessageProcessor:
                 ) from e
 
         surface_proto_ver = getattr(surface_catalog, "protocol_version", None)
+        msg_version = op.version or getattr(self, "version", None)
+        if (
+            surface_proto_ver
+            and msg_version
+            and not is_catalog_version_compatible(surface_proto_ver, msg_version)
+        ):
+            cat_name = catalog_id or getattr(surface_catalog, "catalog_id", "unknown")
+            raise A2uiValidationError(
+                f"Surface '{surface_id}' catalog '{cat_name}' specification version"
+                f" ({surface_proto_ver}) does not match message protocol version"
+                f" ({msg_version})."
+            )
+
         matching_available_catalogs = {
             getattr(cat, "catalog_id", f"cat_{i}"): cat
             for i, cat in enumerate(self.catalogs)

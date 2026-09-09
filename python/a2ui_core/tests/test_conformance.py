@@ -272,6 +272,7 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
                             protocol_version=p_ver,
                             components=list(basic_catalog.components.values()),
                         )
+                    catalogs_map[c_id] = cat
                     specified_catalogs.append(cat)
     if "catalogPaths" in case and isinstance(case["catalogPaths"], list):
         for p in case["catalogPaths"]:
@@ -859,7 +860,7 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
             expect_resp = expect_dict["response"]
             responses = processor.process_messages(
                 message,
-                context=ExecutionContext(user_activation_present=user_activation),
+                context=ExecutionContext(is_user_activated=user_activation),
             )
             if expect_resp is None:
                 assert len(responses) == 0

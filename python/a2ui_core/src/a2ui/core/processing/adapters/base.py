@@ -55,8 +55,8 @@ DEFAULT_CATALOG_COMPATIBILITY: dict[str, frozenset[str]] = {
 
 
 def is_catalog_version_compatible(
-    catalog_version: str | bytes | SemVer | None,
-    message_version: str | bytes | SemVer | None,
+    catalog_version: ProtocolVersion | str | SemVer | None,
+    message_version: ProtocolVersion | str | SemVer | None,
     compatibility_map: dict[str, frozenset[str]] | None = None,
 ) -> bool:
     """Evaluates catalog protocol compatibility against a message version.
@@ -90,8 +90,16 @@ def is_catalog_version_compatible(
             return True
 
         # For SemVer >= 1.0.0, releases within the same major version are compatible
-        cat_sv = parse_semver(catalog_version)
-        msg_sv = parse_semver(message_version)
+        cat_sv = (
+            catalog_version
+            if isinstance(catalog_version, SemVer)
+            else parse_semver(catalog_version)
+        )
+        msg_sv = (
+            message_version
+            if isinstance(message_version, SemVer)
+            else parse_semver(message_version)
+        )
         if (
             cat_sv
             and msg_sv
@@ -144,7 +152,7 @@ class VersionAdapter(ABC):
         return frozenset({canonical}) if canonical else frozenset()
 
     def is_catalog_compatible(
-        self, catalog_version: str | bytes | SemVer | None
+        self, catalog_version: ProtocolVersion | str | SemVer | None
     ) -> bool:
         """Checks if a catalog protocol version is compatible with this adapter.
 
@@ -343,7 +351,7 @@ class BaseVersionAdapter(VersionAdapter, ABC):
                 raw_ver = raw_payload["version"]
                 canonical_ver = (
                     to_canonical_version(raw_ver)
-                    if isinstance(raw_ver, (str, bytes, SemVer))
+                    if isinstance(raw_ver, (str, ProtocolVersion, SemVer))
                     else None
                 )
                 if (

@@ -578,6 +578,17 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       throw new A2uiStateError(`Catalog not found: ${catalogId}`);
     }
 
+    const msgVersion = op.version ?? this.version;
+    if (
+      catalog.protocolVersion &&
+      msgVersion &&
+      !isCatalogVersionCompatible(catalog.protocolVersion, msgVersion)
+    ) {
+      throw new A2uiValidationError(
+        `Surface '${surfaceId}' catalog '${catalogId ?? catalog.id}' specification version (${catalog.protocolVersion}) does not match message protocol version (${msgVersion}).`,
+      );
+    }
+
     if (this.model.getSurface(surfaceId)) {
       throw new A2uiStateError(`Surface ${surfaceId} already exists.`);
     }

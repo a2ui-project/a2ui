@@ -34,6 +34,7 @@ class InternalCreateSurfaceOp:
     components: list[dict[str, Any]] | None = None
     data_model: dict[str, Any] | None = None
     root: str | None = None
+    version: str | None = None
     type: str = MSG_TYPE_CREATE_SURFACE
 
 

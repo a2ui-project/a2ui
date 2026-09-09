@@ -14,9 +14,14 @@
 
 """Semantic Versioning 2.0.0 parsing and comparison utilities."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 import re
-from typing import Any, Optional, Sequence
+from typing import TYPE_CHECKING, Optional, Sequence
+
+if TYPE_CHECKING:
+    from ..schema import ProtocolVersion
 
 
 @dataclass(frozen=True)
@@ -48,7 +53,7 @@ _SEMVER_PATTERN = re.compile(
 )
 
 
-def normalize_version_string(version: Any) -> str:
+def normalize_version_string(version: ProtocolVersion | str | None) -> str:
     """Normalizes a version string for semantic version processing.
 
     Strips any leading 'v'/'V' and replaces underscores with dots in the core
@@ -56,7 +61,7 @@ def normalize_version_string(version: Any) -> str:
     suffixes intact.
 
     Args:
-        version: The raw version string or bytes to normalize (e.g. 'v1_0', 'v0_9_1').
+        version: The raw version string or ProtocolVersion enum to normalize (e.g. 'v1_0', 'v0_9_1').
 
     Returns:
         The normalized version string, or an empty string if version is falsy or invalid.
@@ -67,8 +72,6 @@ def normalize_version_string(version: Any) -> str:
         'v0_9_1' -> '0.9.1'
         '1_0_0-dev_release' -> '1.0.0-dev_release'
     """
-    if isinstance(version, bytes):
-        version = version.decode("utf-8", errors="replace")
     if not version or not isinstance(version, str):
         return ""
     text = version.strip()
@@ -80,20 +83,18 @@ def normalize_version_string(version: Any) -> str:
     return f"{core}{text[split_idx:]}"
 
 
-def parse_semver(version_str: Any) -> Optional[SemVer]:
+def parse_semver(version: ProtocolVersion | str | None) -> Optional[SemVer]:
     """Parses a semantic version string according to SemVer 2.0.0.
 
     Args:
-        version_str: The version string to parse.
+        version: The version string or ProtocolVersion enum to parse.
 
     Returns:
-        A SemVer object if valid, or None if the string cannot be parsed.
+        A SemVer object if valid, or None if the version cannot be parsed.
     """
-    if isinstance(version_str, bytes):
-        version_str = version_str.decode("utf-8", errors="replace")
-    if not version_str or not isinstance(version_str, str):
+    if not version or not isinstance(version, str):
         return None
-    text = version_str.strip()
+    text = version.strip()
     match = _SEMVER_PATTERN.match(text)
     if not match:
         return None
@@ -111,7 +112,7 @@ def parse_semver(version_str: Any) -> Optional[SemVer]:
     )
 
 
-def _to_semver(v: str | bytes | SemVer | None) -> Optional[SemVer]:
+def _to_semver(v: ProtocolVersion | str | SemVer | None) -> Optional[SemVer]:
     """Converts a version string or SemVer instance into a SemVer object."""
     if isinstance(v, SemVer):
         return v
@@ -120,7 +121,9 @@ def _to_semver(v: str | bytes | SemVer | None) -> Optional[SemVer]:
     return parse_semver(normalize_version_string(v))
 
 
-def to_canonical_version(version: str | bytes | SemVer | None) -> str | None:
+def to_canonical_version(
+    version: ProtocolVersion | str | SemVer | None,
+) -> str | None:
     """Formats a semantic version into a canonical string representation.
 
     For standard versions with zero patch and no pre-release or build metadata,
@@ -129,7 +132,7 @@ def to_canonical_version(version: str | bytes | SemVer | None) -> str | None:
     returns the full SemVer string (e.g. '0.9.1', '1.0.0-beta.1').
 
     Args:
-        version: The version string, bytes, or SemVer object to canonicalize.
+        version: The version string, ProtocolVersion enum, or SemVer object to canonicalize.
 
     Returns:
         The canonical version string, or None if the input cannot be parsed.
@@ -181,17 +184,17 @@ def _compare_prerelease_lists(pre_a: Sequence[str], pre_b: Sequence[str]) -> int
 
 
 def compare_semver(
-    a: str | bytes | SemVer | None,
-    b: str | bytes | SemVer | None,
+    a: ProtocolVersion | str | SemVer | None,
+    b: ProtocolVersion | str | SemVer | None,
 ) -> int:
     """Compares two semantic versions per SemVer 2.0.0 precedence.
 
-    Evaluates precedence between version strings or SemVer objects per
+    Evaluates precedence between version strings, ProtocolVersion enums, or SemVer objects per
     SemVer 2.0.0 Section 11 rules.
 
     Args:
-        a: First version string or SemVer object.
-        b: Second version string or SemVer object.
+        a: First version string, ProtocolVersion enum, or SemVer object.
+        b: Second version string, ProtocolVersion enum, or SemVer object.
 
     Returns:
         Negative integer if a < b, 0 if a == b, positive integer if a > b.
@@ -216,14 +219,14 @@ def compare_semver(
 
 
 def is_at_least_version(
-    version: str | bytes | SemVer | None,
-    min_version: str | bytes | SemVer,
+    version: ProtocolVersion | str | SemVer | None,
+    min_version: ProtocolVersion | str | SemVer,
 ) -> bool:
     """Determines whether a version string meets a minimum version requirement.
 
     Args:
-        version: The version string to check (e.g. 'v1.0', '1.1.0').
-        min_version: The minimum version requirement (e.g. 'v1.0', '1.0.0').
+        version: The version to check (e.g. 'v1.0', ProtocolVersion.V1_0, '1.1.0').
+        min_version: The minimum version requirement (e.g. 'v1.0', ProtocolVersion.V1_0, '1.0.0').
 
     Returns:
         Whether version is valid and at least min_version.

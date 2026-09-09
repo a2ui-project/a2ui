@@ -78,6 +78,12 @@ class V1Point0Adapter(BaseVersionAdapter):
                     catalog_id=cs.get("catalogId"),
                     theme=cs.get("theme"),
                     send_data_model=bool(cs.get("sendDataModel", False)),
+                    version=message.get("version")
+                    or (
+                        self.version.value
+                        if hasattr(self.version, "value")
+                        else str(self.version)
+                    ),
                 )
             )
             comps = cs.get("components")

@@ -213,6 +213,7 @@
         catalogId: "test-catalog-v10"
   expectError:
     category: "ValidationError"
+    message: "action 'beginRendering' is not supported in protocol version v1.0"
 
 - name: test_v10_non_string_surface_id_error
   description: Tests that a v1.0 action with a non-string surfaceId raises a ValidationError.
