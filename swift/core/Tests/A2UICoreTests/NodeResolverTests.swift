@@ -79,28 +79,20 @@ struct NodeResolverTests {
 
   @Test func resolveTreeReturnsNilWhenRootMissing() throws {
     let catalog = try makeCatalog()
-    let dataModel = DataModel()
     let resolver = NodeResolver(
       surfaceID: "s1",
       catalogs: [catalog.id: catalog],
       defaultCatalogID: catalog.id,
-      dataModel: dataModel
+      componentsModel: SurfaceComponentsModel(),
+      dataModel: DataModel()
     )
 
-    let rootNode = resolver.resolveTree(components: [:], data: .object([:]))
+    let rootNode = resolver.resolveTree()
     #expect(rootNode == nil)
   }
 
   @Test func resolveTreeBuildsHierarchy() throws {
     let catalog = try makeCatalog()
-    let dataModel = DataModel()
-    let resolver = NodeResolver(
-      surfaceID: "s1",
-      catalogs: [catalog.id: catalog],
-      defaultCatalogID: catalog.id,
-      dataModel: dataModel
-    )
-
     let components: [String: ComponentModel] = [
       "root": ComponentModel(
         id: "root",
@@ -114,7 +106,15 @@ struct NodeResolverTests {
       ),
     ]
 
-    let rootNode = try #require(resolver.resolveTree(components: components, data: .object([:])))
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: components),
+      dataModel: DataModel()
+    )
+
+    let rootNode = try #require(resolver.resolveTree())
     #expect(rootNode.id == "root")
     #expect(rootNode.type == "Container")
 
@@ -127,14 +127,6 @@ struct NodeResolverTests {
 
   @Test func childListSkipsUnarrivedComponents() throws {
     let catalog = try makeCatalog()
-    let dataModel = DataModel()
-    let resolver = NodeResolver(
-      surfaceID: "s1",
-      catalogs: [catalog.id: catalog],
-      defaultCatalogID: catalog.id,
-      dataModel: dataModel
-    )
-
     // child1 not in components dictionary yet
     let components: [String: ComponentModel] = [
       "root": ComponentModel(
@@ -149,7 +141,15 @@ struct NodeResolverTests {
       ),
     ]
 
-    let rootNode = try #require(resolver.resolveTree(components: components, data: .object([:])))
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: components),
+      dataModel: DataModel()
+    )
+
+    let rootNode = try #require(resolver.resolveTree())
     let children = rootNode.children(for: "children")
     #expect(children.count == 1)
     #expect(children[0].id == "child2")
@@ -157,14 +157,6 @@ struct NodeResolverTests {
 
   @Test func cyclicReferencesReturnNilWithoutInfiniteLoop() throws {
     let catalog = try makeCatalog()
-    let dataModel = DataModel()
-    let resolver = NodeResolver(
-      surfaceID: "s1",
-      catalogs: [catalog.id: catalog],
-      defaultCatalogID: catalog.id,
-      dataModel: dataModel
-    )
-
     let components: [String: ComponentModel] = [
       "root": ComponentModel(
         id: "root",
@@ -183,7 +175,15 @@ struct NodeResolverTests {
       ),
     ]
 
-    let rootNode = try #require(resolver.resolveTree(components: components, data: .object([:])))
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: components),
+      dataModel: DataModel()
+    )
+
+    let rootNode = try #require(resolver.resolveTree())
     let aNode = try #require(rootNode.children(for: "children").first)
     let bNode = try #require(aNode.children(for: "children").first)
     // b's reference back to a is detected as cyclic and omitted
@@ -192,14 +192,6 @@ struct NodeResolverTests {
 
   @Test func unknownComponentTypeResolvesWithFallbackSchema() throws {
     let catalog = try makeCatalog()
-    let dataModel = DataModel()
-    let resolver = NodeResolver(
-      surfaceID: "s1",
-      catalogs: [catalog.id: catalog],
-      defaultCatalogID: catalog.id,
-      dataModel: dataModel
-    )
-
     let components: [String: ComponentModel] = [
       "root": ComponentModel(
         id: "root",
@@ -213,7 +205,15 @@ struct NodeResolverTests {
       ),
     ]
 
-    let rootNode = try #require(resolver.resolveTree(components: components, data: .object([:])))
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: components),
+      dataModel: DataModel()
+    )
+
+    let rootNode = try #require(resolver.resolveTree())
     let childNode = try #require(rootNode.child(for: "child"))
     #expect(childNode.id == "unknownChild")
     #expect(childNode.type == "NonExistentWidget")
@@ -250,13 +250,6 @@ struct NodeResolverTests {
       ]
     )
 
-    let resolver = NodeResolver(
-      surfaceID: "s1",
-      catalogs: [catalog.id: catalog],
-      defaultCatalogID: catalog.id,
-      dataModel: DataModel()
-    )
-
     let components: [String: ComponentModel] = [
       "root": ComponentModel(
         id: "root",
@@ -267,7 +260,15 @@ struct NodeResolverTests {
       )
     ]
 
-    let rootNode = try #require(resolver.resolveTree(components: components, data: .object([:])))
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: components),
+      dataModel: DataModel()
+    )
+
+    let rootNode = try #require(resolver.resolveTree())
     let tagsArray = try #require(rootNode.properties["tags"] as? ResolvedArray)
     #expect(tagsArray.elements.count == 3)
     #expect(tagsArray.elements[0] as? String == "first")
@@ -277,14 +278,6 @@ struct NodeResolverTests {
 
   @Test func dynamicTemplateResolvesWithData() throws {
     let catalog = try makeCatalog()
-    let dataModel = DataModel()
-    let resolver = NodeResolver(
-      surfaceID: "s1",
-      catalogs: [catalog.id: catalog],
-      defaultCatalogID: catalog.id,
-      dataModel: dataModel
-    )
-
     let components: [String: ComponentModel] = [
       "root": ComponentModel(
         id: "root",
@@ -310,7 +303,15 @@ struct NodeResolverTests {
       ])
     ])
 
-    let rootNode = try #require(resolver.resolveTree(components: components, data: data))
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: components),
+      dataModel: DataModel(initial: data)
+    )
+
+    let rootNode = try #require(resolver.resolveTree())
     let children = rootNode.children(for: "children")
 
     #expect(children.count == 2)
@@ -318,5 +319,27 @@ struct NodeResolverTests {
     #expect(children[0].string(for: "text") == "First Item")
     #expect(children[1].id == "itemTemplate_1")
     #expect(children[1].string(for: "text") == "Second Item")
+  }
+
+  @Test func convenienceInitFromSurfaceViewModel() throws {
+    let catalog = try makeCatalog()
+    let surface = SurfaceViewModel(
+      surfaceID: "testSurface",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id
+    )
+    surface.componentsModel.addComponent(
+      ComponentModel(
+        id: "root",
+        type: "Text",
+        properties: ["text": .string("From Surface")]
+      )
+    )
+
+    let resolver = NodeResolver(surface: surface)
+    let rootNode = try #require(resolver.resolveTree())
+    #expect(rootNode.id == "root")
+    #expect(rootNode.type == "Text")
+    #expect(rootNode.string(for: "text") == "From Surface")
   }
 }

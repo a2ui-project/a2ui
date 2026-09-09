@@ -80,6 +80,7 @@ public final class SurfaceViewModel: ObservableObject {
       surfaceID: surfaceID,
       catalogs: catalogs,
       defaultCatalogID: self.defaultCatalogID,
+      componentsModel: self.componentsModel,
       dataModel: self.dataModel,
       actionHandler: actionHandler
     )
@@ -132,8 +133,8 @@ public final class SurfaceViewModel: ObservableObject {
 
   private func setUpSubscriptions() {
     Publishers.CombineLatest(componentsModel.componentsPublisher, dataModel.dataPublisher)
-      .sink { [weak self] components, data in
-        self?.rebuildTree(components: components, data: data)
+      .sink { [weak self] _, _ in
+        self?.rebuildTree()
       }
       .store(in: &cancellables)
   }
@@ -141,25 +142,9 @@ public final class SurfaceViewModel: ObservableObject {
   // MARK: - Tree Rebuilding
 
   /// Rebuilds the node tree and publishes the new root.
-  private func rebuildTree(components: [String: ComponentModel], data: JSONValue) {
-    let newRoot = nodeResolver.resolveTree(components: components, data: data)
+  private func rebuildTree() {
+    let newRoot = nodeResolver.resolveTree()
     self.rootNode = newRoot
-  }
-
-  /// Resolves a single component definition into a concrete ``Node``.
-  public func resolveNode(
-    definitionID: String,
-    instanceID: String? = nil,
-    basePath: String? = nil
-  ) -> Node? {
-    nodeResolver.resolveNode(
-      definitionID: definitionID,
-      instanceID: instanceID ?? definitionID,
-      basePath: basePath,
-      visited: [],
-      components: componentsModel.components,
-      data: dataModel.data
-    )
   }
 }
 

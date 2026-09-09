@@ -29,6 +29,7 @@ public final class NodeResolver: Sendable {
   public let surfaceID: String
   public let catalogs: [String: AnyCatalog]
   public let defaultCatalogID: String?
+  public let componentsModel: SurfaceComponentsModel
   public let dataModel: DataModel
   public weak var actionHandler: (any ActionHandling)?
 
@@ -46,21 +47,38 @@ public final class NodeResolver: Sendable {
     surfaceID: String,
     catalogs: [String: AnyCatalog],
     defaultCatalogID: String? = nil,
-    dataModel: DataModel,
+    componentsModel: SurfaceComponentsModel = SurfaceComponentsModel(),
+    dataModel: DataModel = DataModel(),
     actionHandler: (any ActionHandling)? = nil
   ) {
     self.surfaceID = surfaceID
     self.catalogs = catalogs
     self.defaultCatalogID = defaultCatalogID ?? catalogs.keys.sorted().first
+    self.componentsModel = componentsModel
     self.dataModel = dataModel
     self.actionHandler = actionHandler
+  }
+
+  public convenience init(
+    surface: SurfaceViewModel,
+    actionHandler: (any ActionHandling)? = nil
+  ) {
+    self.init(
+      surfaceID: surface.surfaceID,
+      catalogs: surface.catalogs,
+      defaultCatalogID: surface.defaultCatalogID,
+      componentsModel: surface.componentsModel,
+      dataModel: surface.dataModel,
+      actionHandler: actionHandler ?? surface.actionHandler
+    )
   }
 
   public convenience init(
     surfaceID: String,
     catalogs: [any CatalogProtocol],
     defaultCatalogID: String? = nil,
-    dataModel: DataModel,
+    componentsModel: SurfaceComponentsModel = SurfaceComponentsModel(),
+    dataModel: DataModel = DataModel(),
     actionHandler: (any ActionHandling)? = nil
   ) {
     let anyCatalogs = catalogs.map { $0.eraseToAnyCatalog() }
@@ -69,6 +87,7 @@ public final class NodeResolver: Sendable {
       surfaceID: surfaceID,
       catalogs: dict,
       defaultCatalogID: defaultCatalogID ?? catalogs.first?.id,
+      componentsModel: componentsModel,
       dataModel: dataModel,
       actionHandler: actionHandler
     )
@@ -90,19 +109,16 @@ public final class NodeResolver: Sendable {
 
   // MARK: - Tree Resolution
 
-  /// Resolves the component tree starting from the specified root ID.
-  public func resolveTree(
-    rootID: String = "root",
-    components: [String: ComponentModel],
-    data: JSONValue
-  ) -> Node? {
+  /// Resolves the component tree starting from the root component ("root")
+  /// using the stored component and data models.
+  public func resolveTree() -> Node? {
     resolveNode(
-      definitionID: rootID,
-      instanceID: rootID,
+      definitionID: "root",
+      instanceID: "root",
       basePath: nil,
       visited: [],
-      components: components,
-      data: data
+      components: componentsModel.components,
+      data: dataModel.data
     )
   }
 
@@ -116,7 +132,7 @@ public final class NodeResolver: Sendable {
   ///   - components: The current map of component models on the surface.
   ///   - data: The current data model JSON snapshot.
   /// - Returns: A resolved node, or `nil` if missing, cyclic, or unregistered.
-  public func resolveNode(
+  private func resolveNode(
     definitionID: String,
     instanceID: String,
     basePath: String? = nil,
@@ -182,7 +198,7 @@ public final class NodeResolver: Sendable {
 
   // MARK: - Property Classification & Extraction
 
-  public enum PropertyType {
+  private enum PropertyType {
     case dynamicBoolean
     case dynamicString
     case dynamicNumber
@@ -197,7 +213,7 @@ public final class NodeResolver: Sendable {
     case standard
   }
 
-  public func classifySchema(_ schemaJSON: JSONValue) -> PropertyType {
+  private func classifySchema(_ schemaJSON: JSONValue) -> PropertyType {
     if let ref = schemaJSON["$ref"]?.stringValue {
       let typeName = ref.split(separator: "/").last.map(String.init)
       switch typeName {
@@ -256,7 +272,7 @@ public final class NodeResolver: Sendable {
     return .standard
   }
 
-  public func extractPropertiesSchema(from schemaJSON: JSONValue) -> [String: JSONValue] {
+  private func extractPropertiesSchema(from schemaJSON: JSONValue) -> [String: JSONValue] {
     var result: [String: JSONValue] = [:]
     if let props = schemaJSON["properties"]?.objectValue {
       for (k, v) in props {
@@ -301,7 +317,7 @@ public final class NodeResolver: Sendable {
 
   // MARK: - Property Resolution
 
-  public func resolveProperty(
+  private func resolveProperty(
     value: JSONValue,
     schema: JSONValue,
     type: PropertyType,
@@ -430,7 +446,7 @@ public final class NodeResolver: Sendable {
 
   // MARK: - Dynamic Value Evaluation
 
-  public func evaluateDynamicValue(
+  private func evaluateDynamicValue(
     _ value: JSONValue,
     basePath: String?
   ) -> JSONValue {
@@ -442,7 +458,7 @@ public final class NodeResolver: Sendable {
     return context.resolveDynamicValue(value)
   }
 
-  public func coerceToString(_ value: JSONValue?) -> String? {
+  private func coerceToString(_ value: JSONValue?) -> String? {
     guard let value, value != .null else { return nil }
     switch value {
     case .string(let s):
@@ -469,7 +485,7 @@ public final class NodeResolver: Sendable {
 
   // MARK: - Dynamic Type-Specific Resolvers
 
-  public func resolveDynamicBoolean(
+  private func resolveDynamicBoolean(
     _ value: JSONValue,
     basePath: String?,
     data: JSONValue
@@ -493,7 +509,7 @@ public final class NodeResolver: Sendable {
     )
   }
 
-  public func resolveDynamicString(
+  private func resolveDynamicString(
     _ value: JSONValue,
     basePath: String?,
     data: JSONValue
@@ -518,7 +534,7 @@ public final class NodeResolver: Sendable {
     )
   }
 
-  public func resolveDynamicNumber(
+  private func resolveDynamicNumber(
     _ value: JSONValue,
     basePath: String?,
     data: JSONValue
@@ -542,7 +558,7 @@ public final class NodeResolver: Sendable {
     )
   }
 
-  public func resolveDynamicValueBinding(
+  private func resolveDynamicValueBinding(
     _ value: JSONValue,
     basePath: String?,
     data: JSONValue
@@ -566,7 +582,7 @@ public final class NodeResolver: Sendable {
     )
   }
 
-  public func resolveDynamicStringList(
+  private func resolveDynamicStringList(
     _ value: JSONValue,
     basePath: String?,
     data: JSONValue
@@ -594,7 +610,7 @@ public final class NodeResolver: Sendable {
 
   // MARK: - Validation Checks Resolution
 
-  public func resolveChecks(
+  private func resolveChecks(
     _ value: JSONValue,
     basePath: String?,
     data: JSONValue
@@ -618,7 +634,7 @@ public final class NodeResolver: Sendable {
 
   // MARK: - Action Resolution
 
-  public func resolveAction(
+  private func resolveAction(
     _ value: JSONValue,
     checks: [ResolvedCheck] = [],
     basePath: String?,
@@ -718,7 +734,7 @@ public final class NodeResolver: Sendable {
 
   // MARK: - Child List Resolution
 
-  public func resolveChildList(
+  private func resolveChildList(
     _ value: JSONValue,
     basePath: String?,
     componentID: String,
