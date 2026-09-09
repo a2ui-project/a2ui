@@ -42,7 +42,16 @@ public final class IndexFunction: FunctionImplementation, Sendable {
         "@index function can only be evaluated inside a collection template iteration scope."
       )
     }
-    let offset = arguments["offset"]?.intValue ?? 0
+    let offset: Int
+    if let intVal = arguments["offset"]?.intValue {
+      offset = intVal
+    } else if let doubleVal = arguments["offset"]?.doubleValue,
+      let intVal = Int(exactly: doubleVal)
+    {
+      offset = intVal
+    } else {
+      offset = 0
+    }
     return .integer(index + offset)
   }
 }
