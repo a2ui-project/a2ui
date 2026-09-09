@@ -71,3 +71,8 @@ public struct RendererAction: Equatable, Codable, Sendable {
     self.metadata = metadata
   }
 }
+
+// MARK: - Deprecated Typealiases
+
+@available(*, deprecated, renamed: "RendererAction")
+public typealias ClientAction = RendererAction

@@ -38,6 +38,15 @@ struct NumericFunctionTests {
     #expect(function.api.returnType == .boolean)
   }
 
+  @Test func initializesWithValidationResultAPI() {
+    let v10Numeric = NumericFunction(returnValidationResult: true)
+    #expect(v10Numeric.api.name == "numeric")
+    #expect(v10Numeric.api.returnType == .validationResult)
+
+    let catalogFn = BasicCatalog.v10Catalog.functions["numeric"]
+    #expect(catalogFn?.api.returnType == FunctionReturnType.validationResult)
+  }
+
   // MARK: - Edge-Case & Boundary Evaluation
 
   @Test func evaluatesToTrueWhenWithinMinAndMax() throws {

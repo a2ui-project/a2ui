@@ -371,8 +371,123 @@ public final class A2UIValidator: Sendable {
         details: &details
       )
 
+    case "callRendererFunction":
+      let version =
+        message["version"]?.stringValue.flatMap { A2UIProtocolVersion(rawValue: $0) }
+        ?? config.protocolVersion
+      if version != .v10 {
+        details.append(
+          A2UIErrorDetail(
+            path: "messages.\(index)",
+            code: "invalid_value",
+            message: "Action 'callRendererFunction' is only supported in protocol version v1.0"
+          )
+        )
+        return
+      }
+      validateRequiredString(
+        in: payload,
+        key: "functionCallId",
+        path: "messages.\(index).callRendererFunction.functionCallId",
+        details: &details
+      )
+      guard let callFunction = payload["callFunction"]?.objectValue else {
+        details.append(
+          A2UIErrorDetail(
+            path: "messages.\(index).callRendererFunction.callFunction",
+            code: payload["callFunction"] == nil ? "missing_field" : "type_mismatch",
+            message: payload["callFunction"] == nil
+              ? "Missing required property 'callFunction'"
+              : "Field 'callFunction' must be an object"
+          )
+        )
+        return
+      }
+      validateRequiredString(
+        in: callFunction,
+        key: "call",
+        path: "messages.\(index).callRendererFunction.callFunction.call",
+        details: &details
+      )
+      validateRequiredString(
+        in: callFunction,
+        key: "catalogId",
+        path: "messages.\(index).callRendererFunction.callFunction.catalogId",
+        details: &details
+      )
+
+    case "agentFunctionResponse":
+      let version =
+        message["version"]?.stringValue.flatMap { A2UIProtocolVersion(rawValue: $0) }
+        ?? config.protocolVersion
+      if version != .v10 {
+        details.append(
+          A2UIErrorDetail(
+            path: "messages.\(index)",
+            code: "invalid_value",
+            message: "Action 'agentFunctionResponse' is only supported in protocol version v1.0"
+          )
+        )
+        return
+      }
+      validateRequiredString(
+        in: payload,
+        key: "functionCallId",
+        path: "messages.\(index).agentFunctionResponse.functionCallId",
+        details: &details
+      )
+      let hasValue = payload["value"] != nil
+      let hasError = payload["error"] != nil
+      if !hasValue && !hasError {
+        details.append(
+          A2UIErrorDetail(
+            path: "messages.\(index).agentFunctionResponse",
+            code: "missing_field",
+            message: "FunctionResponse must contain either 'value' or 'error'"
+          )
+        )
+      } else if hasValue && hasError {
+        details.append(
+          A2UIErrorDetail(
+            path: "messages.\(index).agentFunctionResponse",
+            code: "invalid_value",
+            message: "FunctionResponse cannot contain both 'value' and 'error'"
+          )
+        )
+      }
+      if let errorVal = payload["error"] {
+        guard let errorObj = errorVal.objectValue else {
+          details.append(
+            A2UIErrorDetail(
+              path: "messages.\(index).agentFunctionResponse.error",
+              code: "type_mismatch",
+              message: "Field 'error' must be an object"
+            )
+          )
+          return
+        }
+        validateRequiredString(
+          in: errorObj,
+          key: "code",
+          path: "messages.\(index).agentFunctionResponse.error.code",
+          details: &details
+        )
+        validateRequiredString(
+          in: errorObj,
+          key: "message",
+          path: "messages.\(index).agentFunctionResponse.error.message",
+          details: &details
+        )
+      }
+
     default:
-      break
+      details.append(
+        A2UIErrorDetail(
+          path: "messages.\(index)",
+          code: "invalid_value",
+          message: "Unrecognized message action '\(actionKey)'"
+        )
+      )
     }
   }
 
