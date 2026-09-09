@@ -44,7 +44,7 @@ public final class A2UIValidator: Sendable {
       if let url = URL(string: cat.id), url.lastPathComponent == "catalog.json" {
         let shorthand = url.deletingLastPathComponent().lastPathComponent
         if !shorthand.isEmpty {
-          if catalogMap[shorthand] == nil || cat.protocolVersion == "v1.0" {
+          if catalogMap[shorthand] == nil || cat.isV10 {
             catalogMap[shorthand] = cat
           }
         }
@@ -167,13 +167,7 @@ public final class A2UIValidator: Sendable {
       return
     }
 
-    if versionString != "v0.9"
-      && versionString != "v0.9.1"
-      && versionString != "0.9"
-      && versionString != "0.9.1"
-      && versionString != "v1.0"
-      && versionString != "1.0"
-    {
+    if A2UIProtocolVersion(loose: versionString) == nil {
       details.append(
         A2UIErrorDetail(
           path: "messages.\(index).version",
@@ -258,8 +252,10 @@ public final class A2UIValidator: Sendable {
           )
         }
       } else {
-        let version = message["version"]?.stringValue ?? config.targetVersion
-        if version != "v1.0" && version != "1.0" {
+        let version =
+          message["version"]?.stringValue.flatMap { A2UIProtocolVersion(loose: $0) }
+          ?? config.protocolVersion
+        if version != .v10 {
           details.append(
             A2UIErrorDetail(
               path: "messages.\(index).createSurface.catalogId",
@@ -440,7 +436,7 @@ public final class A2UIValidator: Sendable {
     if let cat = catalogs[catalogID] { return cat }
     if let cat = catalogs.values.first(where: {
       $0.id.hasSuffix("/\(catalogID)/catalog.json")
-        && ($0.protocolVersion == "v1.0" || $0.protocolVersion == "1.0")
+        && $0.isV10
     }) {
       return cat
     }

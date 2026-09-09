@@ -104,7 +104,7 @@ public final class NodeResolver: Sendable {
       }
       if let catalog = catalogs.values.first(where: {
         $0.id.hasSuffix("/\(targetCatalogID)/catalog.json")
-          && ($0.protocolVersion == "v1.0" || $0.protocolVersion == "1.0")
+          && $0.isV10
       }) {
         return catalog
       }

@@ -85,13 +85,13 @@ public enum BasicCatalog: Sendable {
 
   private static func makeCatalog(
     id: String,
-    protocolVersion: String? = nil,
+    protocolVersion: A2UIProtocolVersion? = nil,
     components: [AnyComponentAPI] = BasicCatalogComponents.allComponents,
     functions: [any FunctionImplementation] = BasicFunctions.allFunctions
   ) -> AnyCatalog {
     Catalog(
       id: id,
-      protocolVersion: protocolVersion,
+      protocolVersion: protocolVersion?.rawValue,
       components: components,
       functions: functions,
       themeSchema: BasicCatalog.themeSchema
@@ -100,17 +100,17 @@ public enum BasicCatalog: Sendable {
 
   public static let v09Catalog = makeCatalog(
     id: v09CatalogURI,
-    protocolVersion: "v0.9",
+    protocolVersion: .v09,
     functions: BasicFunctions.v09Functions
   )
   public static let v091Catalog = makeCatalog(
     id: v091CatalogURI,
-    protocolVersion: "v0.9.1",
+    protocolVersion: .v091,
     functions: BasicFunctions.v09Functions
   )
   public static let v10Catalog = makeCatalog(
     id: v10CatalogURI,
-    protocolVersion: "v1.0",
+    protocolVersion: .v10,
     components: v10Components,
     functions: BasicFunctions.v10Functions
   )
