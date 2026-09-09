@@ -19,6 +19,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REACT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${REACT_DIR}/../.." && pwd)"
 
+# Allow Yarn to update the lockfile in CI during temporary dependency swapping
+export YARN_ENABLE_IMMUTABLE_INSTALLS=false
+
 REACT_PKG="${REACT_DIR}/package.json"
 EXPLORER_PKG="${REACT_DIR}/a2ui_explorer/package.json"
 ROOT_LOCK="${REPO_ROOT}/yarn.lock"
