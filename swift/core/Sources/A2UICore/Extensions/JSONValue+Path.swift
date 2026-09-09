@@ -265,6 +265,7 @@ extension JSONValue {
     if path.hasPrefix("/") { return path }
     let base = basePath ?? ""
     let trimmedBase = base.hasSuffix("/") ? String(base.dropLast()) : base
+    if path.isEmpty { return trimmedBase.isEmpty ? "/" : trimmedBase }
     if trimmedBase.isEmpty { return "/\(path)" }
     return "\(trimmedBase)/\(path)"
   }

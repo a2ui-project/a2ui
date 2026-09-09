@@ -25,6 +25,12 @@ public final class MessageProcessor: ObservableObject {
   /// The surface group model owning all active surfaces.
   public let surfaceGroupModel: SurfaceGroupModel
 
+  /// The RPC handler managing function invocations.
+  public let rpcHandler: RPCHandler
+
+  /// Listener for outbound messages destined to the agent.
+  public var outboundListener: (@Sendable (RendererToAgentMessage) -> Void)?
+
   private let catalogs: [String: AnyCatalog]
   private let validator: A2UIValidator
   private weak var actionHandler: (any ActionHandling)?
@@ -43,13 +49,25 @@ public final class MessageProcessor: ObservableObject {
     validationConfig: ValidationConfig = .relaxed
   ) {
     let anyCatalogs = catalogs.map { $0.eraseToAnyCatalog() }
-    self.catalogs = Dictionary(
-      anyCatalogs.map { ($0.id, $0) },
-      uniquingKeysWith: { _, last in last }
-    )
+    var catalogMap: [String: AnyCatalog] = [:]
+    for cat in anyCatalogs {
+      catalogMap[cat.id] = cat
+    }
+    for cat in anyCatalogs {
+      if let url = URL(string: cat.id), url.lastPathComponent == "catalog.json" {
+        let shorthand = url.deletingLastPathComponent().lastPathComponent
+        if !shorthand.isEmpty {
+          if catalogMap[shorthand] == nil || cat.protocolVersion == "v1.0" {
+            catalogMap[shorthand] = cat
+          }
+        }
+      }
+    }
+    self.catalogs = catalogMap
     self.validator = A2UIValidator(catalogs: anyCatalogs, config: validationConfig)
     self.actionHandler = actionHandler
     self.surfaceGroupModel = SurfaceGroupModel()
+    self.rpcHandler = RPCHandler()
   }
 
   /// Creates a new message processor with a single catalog.
@@ -77,6 +95,16 @@ public final class MessageProcessor: ObservableObject {
     }
     guard !result.isEmpty else { return nil }
     return .object(result)
+  }
+
+  /// Returns the data model for a specific surface ID, if it exists.
+  public func getRendererDataModel(surfaceID: String) -> JSONValue? {
+    surfaceGroupModel.surfacesMap[surfaceID]?.dataModel.data
+  }
+
+  /// Returns the `SurfaceViewModel` for the specified surface ID.
+  public func surface(id: String) -> SurfaceViewModel? {
+    surfaceGroupModel.surfacesMap[id]
   }
 
   // MARK: - Capabilities Generation
@@ -268,25 +296,25 @@ public final class MessageProcessor: ObservableObject {
 
   // MARK: - Message Processing
 
-  /// Processes a single server-to-client message.
+  /// Processes a single agent-to-renderer message.
   ///
   /// Any validation or lifecycle errors are mapped via `MessageErrorMapper`
   /// and reported to `ActionHandling`.
-  public func process(message: ServerToClientMessage) {
+  public func process(message: AgentToRendererMessage) {
     do {
       try validateAndProcess(message)
     } catch {
-      let surfaceID = extractSurfaceID(from: error, fallback: message.surfaceID)
+      let surfaceID = extractSurfaceID(from: error, fallback: message.surfaceID ?? "")
       let clientError = errorMapper.map(error, surfaceID: surfaceID)
       actionHandler?.handle(error: clientError, from: surfaceID)
     }
   }
 
-  /// Processes an array of server-to-client messages.
+  /// Processes an array of agent-to-renderer messages.
   ///
   /// Any validation or lifecycle errors are mapped via `MessageErrorMapper`
   /// and reported to `ActionHandling`.
-  public func process(messages: [ServerToClientMessage]) {
+  public func process(messages: [AgentToRendererMessage]) {
     for message in messages {
       process(message: message)
     }
@@ -297,7 +325,7 @@ public final class MessageProcessor: ObservableObject {
       return validationError.surfaceID
     }
     if let genericError = error as? GenericError {
-      return genericError.surfaceID
+      return genericError.surfaceID ?? fallback
     }
     return fallback
   }
@@ -311,7 +339,7 @@ public final class MessageProcessor: ObservableObject {
 
   // MARK: - Private Validation & Processing
 
-  private func validateAndProcess(_ message: ServerToClientMessage) throws {
+  private func validateAndProcess(_ message: AgentToRendererMessage) throws {
     switch message {
     case .createSurface(let msg):
       try processCreateSurface(msg)
@@ -321,6 +349,10 @@ public final class MessageProcessor: ObservableObject {
       try processUpdateDataModel(msg)
     case .deleteSurface(let msg):
       try processDeleteSurface(msg)
+    case .callRendererFunction(let msg):
+      try processCallRendererFunction(msg)
+    case .agentFunctionResponse(let msg):
+      try processAgentFunctionResponse(msg)
     }
   }
 
@@ -337,30 +369,103 @@ public final class MessageProcessor: ObservableObject {
         ]
       )
     }
-    guard let catalog = catalogs[msg.catalogID] else {
-      throw A2UICatalogError(
-        "Catalog not found: \(msg.catalogID)",
-        details: [
-          A2UIErrorDetail(
-            path: "createSurface.catalogId",
-            code: "CATALOG_NOT_FOUND",
-            message: "Catalog not found: \(msg.catalogID)"
-          )
-        ]
-      )
+    var targetCatalog: AnyCatalog?
+    if let catalogID = msg.catalogID {
+      guard let cat = findCatalog(catalogID) else {
+        throw A2UICatalogError(
+          "Catalog not found: \(catalogID)",
+          details: [
+            A2UIErrorDetail(
+              path: "createSurface.catalogId",
+              code: "CATALOG_NOT_FOUND",
+              message: "Catalog not found: \(catalogID)"
+            )
+          ]
+        )
+      }
+      targetCatalog = cat
     }
 
-    try validateSurfaceTheme(msg.theme, against: catalog)
+    if let targetCatalog {
+      try validateSurfaceTheme(msg.theme, against: targetCatalog)
+    }
 
     let vm = SurfaceViewModel(
       surfaceID: msg.surfaceID,
-      catalogs: catalogs.isEmpty ? [catalog.id: catalog] : catalogs,
-      defaultCatalogID: catalog.id,
+      catalogs: catalogs,
+      defaultCatalogID: msg.catalogID,
       theme: msg.theme,
       actionHandler: actionHandler,
       sendDataModel: msg.shouldSendDataModel
     )
     surfaceGroupModel.addSurface(vm)
+
+    if let components = msg.components {
+      try validateComponentsBatch(components, on: vm)
+      applyComponentsBatch(components, to: vm)
+    }
+
+    if let dataModel = msg.dataModel {
+      for (key, value) in dataModel {
+        vm.dataModel.set("/\(key)", value: value)
+      }
+    }
+  }
+
+  private func processCallRendererFunction(_ msg: CallRendererFunctionMessage) throws {
+    Task { @MainActor [weak self] in
+      guard let self else { return }
+      let response = await self.rpcHandler.handleIncomingCall(
+        msg,
+        catalogs: self.catalogs,
+        defaultCatalogID: nil,
+        dataContext: nil
+      )
+      let outbound = RendererToAgentMessage.rendererFunctionResponse(response)
+      self.outboundListener?(outbound)
+    }
+  }
+
+  private func processAgentFunctionResponse(_ msg: AgentFunctionResponseMessage) throws {
+    rpcHandler.handleAgentResponse(msg)
+  }
+
+  /// Initiates a remote function call to the agent and awaits the response.
+  ///
+  /// - Parameters:
+  ///   - surfaceID: The surface ID initiating the function call.
+  ///   - functionName: The name of the function to execute on the agent.
+  ///   - catalogID: Optional catalog identifier.
+  ///   - args: Named argument dictionary.
+  ///   - returnType: Expected return type name.
+  ///   - timeoutSeconds: Maximum duration to wait before timing out (default 30s).
+  /// - Returns: The evaluated JSONValue returned by the agent.
+  @discardableResult
+  public func callAgentFunction(
+    surfaceID: String,
+    functionName: String,
+    catalogID: String? = nil,
+    functionCallID: String? = nil,
+    args: [String: JSONValue]? = nil,
+    returnType: String? = nil,
+    timeoutSeconds: TimeInterval = 30.0
+  ) async throws -> JSONValue {
+    guard let listener = outboundListener else {
+      throw FunctionError.executionFailed(
+        name: functionName,
+        message: "No outbound listener registered on MessageProcessor"
+      )
+    }
+    return try await rpcHandler.callAgentFunction(
+      surfaceID: surfaceID,
+      functionName: functionName,
+      catalogID: catalogID,
+      functionCallID: functionCallID,
+      args: args,
+      returnType: returnType,
+      timeoutSeconds: timeoutSeconds,
+      sendOutbound: listener
+    )
   }
 
   private func validateSurfaceTheme(
@@ -466,7 +571,7 @@ public final class MessageProcessor: ObservableObject {
         )
       }
 
-      guard let id = componentDict["id"]?.stringValue else {
+      guard componentDict["id"]?.stringValue != nil else {
         throw A2UIValidationError(
           "Missing required key 'id'",
           details: [
@@ -481,14 +586,15 @@ public final class MessageProcessor: ObservableObject {
 
       let componentCatalogID =
         componentDict["catalogId"]?.stringValue ?? surface.defaultCatalogID
+      let resolvedCatalogID = componentCatalogID ?? "default"
       guard let targetCatalog = surface.getCatalog(id: componentCatalogID) else {
         throw A2UICatalogError(
-          "Catalog not found: \(componentCatalogID)",
+          "Catalog not found: \(resolvedCatalogID)",
           details: [
             A2UIErrorDetail(
               path: "/catalogId",
               code: "CATALOG_NOT_FOUND",
-              message: "Catalog not found: \(componentCatalogID)"
+              message: "Catalog not found: \(resolvedCatalogID)"
             )
           ]
         )
@@ -529,10 +635,33 @@ public final class MessageProcessor: ObservableObject {
     }
 
     if !components.isEmpty {
+      var allComponentsMap: [String: [String: JSONValue]] = [:]
+      for existing in surface.componentsModel.components.values {
+        var dict: [String: JSONValue] = [
+          "id": .string(existing.id),
+          "component": .string(existing.type),
+        ]
+        if let catID = existing.catalogID {
+          dict["catalogId"] = .string(catID)
+        }
+        for (k, v) in existing.properties {
+          dict[k] = v
+        }
+        allComponentsMap[existing.id] = dict
+      }
+      for comp in components {
+        if let id = comp["id"]?.stringValue {
+          allComponentsMap[id] = comp
+        }
+      }
+      let allComponents = Array(allComponentsMap.values)
+
       try GraphTopologyValidator.validate(
-        components: components,
+        components: allComponents,
         rootID: "root",
-        config: validator.config
+        config: validator.config,
+        catalogs: surface.catalogs,
+        defaultCatalogID: surface.defaultCatalogID
       )
     }
   }
@@ -568,6 +697,20 @@ public final class MessageProcessor: ObservableObject {
           properties: props
         )
       )
+    }
+  }
+
+  private func findCatalog(_ catalogID: String?) -> AnyCatalog? {
+    guard let catalogID else { return catalogs.values.first }
+    if let cat = catalogs[catalogID] { return cat }
+    if let cat = catalogs.values.first(where: {
+      $0.id.hasSuffix("/\(catalogID)/catalog.json")
+        && ($0.protocolVersion == "v1.0" || $0.protocolVersion == "1.0")
+    }) {
+      return cat
+    }
+    return catalogs.values.first {
+      $0.id.hasSuffix("/\(catalogID)/catalog.json")
     }
   }
 }

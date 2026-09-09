@@ -21,6 +21,7 @@ import OrderedJSON
 public final class DataContext {
   public let path: String
   public let dataModel: DataModel
+  public let index: Int?
 
   /// A reference to the function handler to evaluate dynamic function calls.
   public weak var functionHandler: FunctionHandler?
@@ -28,11 +29,13 @@ public final class DataContext {
   public init(
     dataModel: DataModel,
     path: String,
-    functionHandler: FunctionHandler
+    functionHandler: FunctionHandler,
+    index: Int? = nil
   ) {
     self.dataModel = dataModel
     self.path = path
     self.functionHandler = functionHandler
+    self.index = index
   }
 
   /// Sets a value at the given JSON Pointer path.
@@ -42,14 +45,15 @@ public final class DataContext {
     dataModel.set(absPath, value: value)
   }
 
-  public func nested(relativePath: String) -> DataContext? {
+  public func nested(relativePath: String, index: Int? = nil) -> DataContext? {
     guard let handler = functionHandler else { return nil }
     let absPath = JSONValue.absolutePath(for: relativePath, in: self.path)
 
     return DataContext(
       dataModel: dataModel,
       path: absPath,
-      functionHandler: handler
+      functionHandler: handler,
+      index: index ?? self.index
     )
   }
 
@@ -65,6 +69,27 @@ public final class DataContext {
         let absPath = JSONValue.absolutePath(for: pathStr, in: self.path)
         return dataModel.get(absPath) ?? .null
       } else if let callName = dict["call"]?.stringValue {
+        if callName == "@index" {
+          // System function cannot specify a custom catalogId.
+          guard dict["catalogId"] == nil else {
+            return .null
+          }
+          // The @index function is strictly valid within a collection/template iteration scope.
+          guard let currentIndex = self.index else {
+            return .null
+          }
+          var offset = 0
+          if let argsObj = dict["args"]?.dictionaryValue, let offsetVal = argsObj["offset"] {
+            let resolvedOffset = resolveDynamicValue(offsetVal)
+            if let intVal = resolvedOffset.intValue {
+              offset = intVal
+            } else if let doubleVal = resolvedOffset.doubleValue {
+              offset = Int(doubleVal)
+            }
+          }
+          return .integer(currentIndex + offset)
+        }
+
         let catalogID = dict["catalogId"]?.stringValue
         guard let function = functionHandler?.function(named: callName, catalogID: catalogID) else {
           return .null

@@ -15,8 +15,8 @@
 import Foundation
 
 /// Converts internal Swift errors (e.g. `A2UIError`, `DecodingError`) into
-/// spec-compliant `ClientServerError` values suitable for sending
-/// to the server.
+/// spec-compliant `RendererError` values suitable for sending
+/// to the agent.
 ///
 /// This type encapsulates the mapping logic that was previously
 /// inlined in `MessageProcessor.handleError`. It is a value type
@@ -24,18 +24,17 @@ import Foundation
 public struct MessageErrorMapper: Sendable {
   public init() {}
 
-  /// Maps an error to a `ClientServerError` suitable for the
-  /// client-to-server `error` message.
+  /// Maps an error to a `RendererError` suitable for the
+  /// renderer-to-agent `error` message.
   ///
   /// - Parameters:
   ///   - error: The internal error to convert.
   ///   - surfaceID: The surface ID to attribute the error to.
-  /// - Returns: A `ClientServerError` matching the v0.9.1 wire
-  ///   format.
+  /// - Returns: A `RendererError` matching the v1.0 wire format.
   public func map(
     _ error: Error,
     surfaceID: String
-  ) -> ClientServerError {
+  ) -> RendererError {
     if let parseError = error as? MessageParseError {
       return map(
         parseError.underlyingError,
@@ -47,8 +46,14 @@ public struct MessageErrorMapper: Sendable {
       let detail = validationError.details.first
       let path = detail?.path ?? "/"
       let formattedPath = formatErrorPath(path)
+      let rawCode = detail?.code ?? ValidationFailedError.errorCode
+      let code =
+        ValidationFailedError.validErrorCodes.contains(rawCode)
+        ? rawCode
+        : ValidationFailedError.errorCode
       return .validationFailed(
         ValidationFailedError(
+          code: code,
           surfaceID: surfaceID,
           path: formattedPath,
           message: detail?.message ?? validationError.message
@@ -142,7 +147,7 @@ public struct MessageErrorMapper: Sendable {
   private func mapDecodingError(
     _ error: DecodingError,
     surfaceID: String
-  ) -> ClientServerError {
+  ) -> RendererError {
     let codingPath = resolveCodingPath(from: error)
     let description = resolveDecodingErrorDescription(error)
 

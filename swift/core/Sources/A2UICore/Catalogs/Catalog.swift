@@ -28,6 +28,9 @@ public protocol CatalogProtocol: Sendable {
   /// Unique catalog identifier (conventionally a URI string).
   var id: String { get }
 
+  /// Optional protocol version this catalog conforms to (e.g. "v1.0" or "v0.9.1").
+  var protocolVersion: String? { get }
+
   /// Optional theme schema for this catalog.
   var themeSchema: Schema? { get }
 
@@ -46,6 +49,9 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
   /// Unique catalog identifier (conventionally a URI string).
   public var id: String
 
+  /// Optional protocol version this catalog conforms to.
+  public var protocolVersion: String?
+
   /// Map of component name → component implementation conforming to ``ComponentAPI``.
   public var components: [String: Component]
 
@@ -59,16 +65,19 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
   ///
   /// - Parameters:
   ///   - id: Unique catalog identifier.
+  ///   - protocolVersion: Optional protocol version this catalog conforms to.
   ///   - components: Array of component definitions conforming to ``ComponentAPI``.
   ///   - functions: Array of function implementations (defaults to empty).
   ///   - themeSchema: Optional theme schema (defaults to nil).
   public init(
     id: String,
+    protocolVersion: String? = nil,
     components: [Component],
     functions: [any FunctionImplementation] = [],
     themeSchema: Schema? = nil
   ) {
     self.id = id
+    self.protocolVersion = protocolVersion
     self.components = Dictionary(
       components.map { ($0.name, $0) },
       uniquingKeysWith: { _, last in last }
@@ -84,7 +93,16 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
   public func eraseToAnyCatalog() -> Catalog<AnyComponentAPI> {
     Catalog<AnyComponentAPI>(
       id: id,
-      components: components.values.map { AnyComponentAPI(name: $0.name, schema: $0.schema) },
+      protocolVersion: protocolVersion,
+      components: components.values.map {
+        AnyComponentAPI(
+          name: $0.name,
+          schema: $0.schema,
+          allowedParents: $0.allowedParents,
+          allowedChildren: $0.allowedChildren,
+          metadata: $0.metadata
+        )
+      },
       functions: Array(functions.values),
       themeSchema: themeSchema
     )

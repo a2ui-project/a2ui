@@ -12,43 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Represents a generic processing or runtime error.
-public struct GenericError: Error, Equatable, Codable, Sendable {
-  public let code: String
-  public let surfaceID: String?
-  public let functionCallID: String?
-  public let message: String
+import Foundation
+
+/// Signals the agent to execute a function remotely on behalf of the renderer.
+public struct CallAgentFunctionMessage: Codable, Sendable, Equatable {
+  public let surfaceID: String
+  public let functionCallID: String
+  public let callFunction: CallFunctionPayload
 
   private enum CodingKeys: String, CodingKey {
-    case code
     case surfaceID = "surfaceId"
     case functionCallID = "functionCallId"
-    case message
-  }
-
-  public init(code: String, surfaceID: String, message: String) {
-    self.code = code
-    self.surfaceID = surfaceID
-    self.functionCallID = nil
-    self.message = message
-  }
-
-  public init(code: String, functionCallID: String, message: String) {
-    self.code = code
-    self.surfaceID = nil
-    self.functionCallID = functionCallID
-    self.message = message
+    case callFunction
   }
 
   public init(
-    code: String,
-    surfaceID: String? = nil,
-    functionCallID: String? = nil,
-    message: String
+    surfaceID: String,
+    functionCallID: String,
+    callFunction: CallFunctionPayload
   ) {
-    self.code = code
     self.surfaceID = surfaceID
     self.functionCallID = functionCallID
-    self.message = message
+    self.callFunction = callFunction
   }
 }

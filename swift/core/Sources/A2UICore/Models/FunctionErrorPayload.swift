@@ -12,16 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// The set of return types a local function can produce.
-///
-/// Mirrors `A2uiReturnType` in the core blueprint and `web_core`.
-public enum FunctionReturnType: String, Sendable {
-  case string
-  case number
-  case boolean
-  case array
-  case object
-  case validationResult = "validationResult"
-  case any
-  case void
+import Foundation
+
+/// Represents an error returned by a function invocation.
+public struct FunctionErrorPayload: Codable, Sendable, Equatable {
+  public let code: String
+  public let message: String
+
+  public init(code: String, message: String) {
+    self.code = code
+    self.message = message
+  }
 }
