@@ -12,12 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Execution context tracking user activation and message processing state."""
+
 from dataclasses import dataclass
 
 
 @dataclass
 class ExecutionContext:
-    """Execution context passed through message processing and operation extraction."""
+    """Execution context passed through message processing and operation extraction.
+
+    Attributes:
+        is_user_activated: Whether user activation is present in the context.
+    """
 
     is_user_activated: bool = False
 
@@ -26,6 +32,13 @@ class ExecutionContext:
         is_user_activated: bool = False,
         user_activation_present: bool | None = None,
     ) -> None:
+        """Initializes an ExecutionContext.
+
+        Args:
+            is_user_activated: Whether user activation is present in the context.
+            user_activation_present: Optional backward-compatibility alias for
+                is_user_activated.
+        """
         if user_activation_present is not None:
             self.is_user_activated = user_activation_present
         else:
@@ -33,7 +46,7 @@ class ExecutionContext:
 
     @property
     def user_activation_present(self) -> bool:
-        """Backward compatibility alias for is_user_activated."""
+        """Whether user activation is present (backward compatibility alias)."""
         return self.is_user_activated
 
     @user_activation_present.setter

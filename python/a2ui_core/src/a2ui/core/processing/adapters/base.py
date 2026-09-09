@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Base classes, interfaces, and protocol compatibility helpers for version adapters."""
+
 from collections.abc import Mapping, Sequence
 import re
 from abc import ABC, abstractmethod
@@ -34,6 +36,7 @@ from ...common.semver import (
 
 from ..execution_context import ExecutionContext
 
+# Canonical protocol versions supported by the A2UI runtime.
 SUPPORTED_PROTOCOL_VERSIONS: frozenset[str] = frozenset({
     "0.8",
     "0.9",
@@ -41,6 +44,8 @@ SUPPORTED_PROTOCOL_VERSIONS: frozenset[str] = frozenset({
     "1.0",
 })
 
+# Maps an incoming message or surface protocol version to the set of catalog
+# protocol specification versions that it can accommodate.
 DEFAULT_CATALOG_COMPATIBILITY: dict[str, frozenset[str]] = {
     "0.8": frozenset({"0.8"}),
     "0.9": frozenset({"0.9", "0.9.1"}),
@@ -54,10 +59,11 @@ def is_catalog_version_compatible(
     message_version: str | bytes | SemVer | None,
     compatibility_map: dict[str, frozenset[str]] | None = None,
 ) -> bool:
-    """Evaluates whether a catalog protocol version is compatible with an incoming message or surface version.
+    """Evaluates catalog protocol compatibility against a message version.
 
     Compatibility is verified against explicit supported version sets.
-    Minor formatting differences ('v1.0', '1.0', '1.0.0', 'v1_0') normalize to the same canonical version.
+    Minor formatting differences ('v1.0', '1.0', '1.0.0', 'v1_0') normalize
+    to the same canonical version.
 
     Args:
         catalog_version: The catalog's declared protocol version.
@@ -65,7 +71,7 @@ def is_catalog_version_compatible(
         compatibility_map: Optional explicit compatibility mapping. Defaults to DEFAULT_CATALOG_COMPATIBILITY.
 
     Returns:
-        True if the catalog version is compatible with the message version, False otherwise.
+        Whether the catalog version is compatible with the message version.
     """
     if not catalog_version or not message_version:
         return False
@@ -140,7 +146,14 @@ class VersionAdapter(ABC):
     def is_catalog_compatible(
         self, catalog_version: str | bytes | SemVer | None
     ) -> bool:
-        """Checks if a catalog protocol version is compatible with this adapter."""
+        """Checks if a catalog protocol version is compatible with this adapter.
+
+        Args:
+            catalog_version: The catalog's declared protocol version.
+
+        Returns:
+            Whether the catalog version is compatible with this adapter.
+        """
         if not catalog_version:
             return False
         return is_catalog_version_compatible(catalog_version, self.version)

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Version adapters and compatibility helpers for A2UI protocol processing."""
+
 from .base import (
     DEFAULT_CATALOG_COMPATIBILITY,
     SUPPORTED_PROTOCOL_VERSIONS,

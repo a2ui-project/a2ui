@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Factory and resolver for protocol version adapters."""
+
 from collections.abc import Mapping, Sequence
 from typing import Any
 from .base import VersionAdapter
@@ -21,6 +23,7 @@ from .v1_0 import V1Point0Adapter
 from ...exceptions import A2uiErrorDetail, A2uiValidationError
 from ...schema import AgentToRendererMessage, ProtocolVersion
 
+# Default fallback protocol version when no version header is present.
 DEFAULT_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion.V0_9
 
 
@@ -36,7 +39,11 @@ class VersionAdapterFactory:
 
     @classmethod
     def register_adapter(cls, adapter: VersionAdapter) -> None:
-        """Dynamically registers a version adapter."""
+        """Dynamically registers a version adapter.
+
+        Args:
+            adapter: The version adapter instance to register.
+        """
         from ...common.semver import normalize_version_string, to_canonical_version
 
         cls._adapters[adapter.version] = adapter
@@ -56,7 +63,11 @@ class VersionAdapterFactory:
 
     @classmethod
     def all_known_actions(cls) -> frozenset[str]:
-        """Returns the aggregated set of all action keys supported by all registered adapters."""
+        """Returns all action keys supported across registered adapters.
+
+        Returns:
+            A frozenset of action keys supported across all registered adapters.
+        """
         actions: set[str] = set()
         for adapter in cls._adapters.values():
             if hasattr(adapter, "valid_actions"):
@@ -65,7 +76,17 @@ class VersionAdapterFactory:
 
     @classmethod
     def get_adapter(cls, version: ProtocolVersion | str) -> VersionAdapter:
-        """Resolves the version adapter for the specified protocol version enum or string."""
+        """Resolves the version adapter for a protocol version.
+
+        Args:
+            version: Protocol version enum or version string.
+
+        Returns:
+            The resolved version adapter instance.
+
+        Raises:
+            A2uiValidationError: If the protocol version is not supported.
+        """
         from ...common.semver import normalize_version_string, to_canonical_version
 
         adapter = cls._adapters.get(version)
@@ -124,7 +145,17 @@ class VersionAdapterFactory:
             | Sequence[Mapping[str, Any]]
         ),
     ) -> VersionAdapter:
-        """Resolves the version adapter directly from an incoming message payload."""
+        """Resolves the version adapter directly from a message payload.
+
+        Args:
+            payload: Raw message dictionary, message object, or message sequence.
+
+        Returns:
+            The resolved version adapter instance.
+
+        Raises:
+            A2uiValidationError: If payload is invalid or no adapter can be resolved.
+        """
         raw: Any = payload
         if hasattr(raw, "model_dump"):
             raw = raw.model_dump(by_alias=True, exclude_none=True)

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Message processing engine, execution contexts, and internal operation definitions."""
+
 from .execution_context import ExecutionContext
 from .message_processor import MessageProcessor, MessageProcessorOptions
 from .operations import (

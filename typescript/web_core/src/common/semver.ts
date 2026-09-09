@@ -56,7 +56,7 @@ const SEMVER_REGEX =
  *   '1_0_0-dev_release' -> '1.0.0-dev_release'
  *
  * @param version The raw version string to normalize.
- * @returns The normalized version string, or empty string if input is falsy.
+ * @return The normalized version string, or empty string if input is falsy.
  */
 export function normalizeVersionString(version: string | undefined | null): string {
   if (!version || typeof version !== 'string') {
@@ -81,7 +81,7 @@ export function normalizeVersionString(version: string | undefined | null): stri
  * Parses a semantic version string according to SemVer 2.0.0.
  *
  * @param versionStr The version string to parse.
- * @returns A SemVer object if valid, or null if the string cannot be parsed.
+ * @return A SemVer object if valid, or null if the string cannot be parsed.
  */
 export function parseSemVer(versionStr: string | undefined | null): SemVer | null {
   if (!versionStr || typeof versionStr !== 'string') {
@@ -104,7 +104,7 @@ export function parseSemVer(versionStr: string | undefined | null): SemVer | nul
  * Converts a string or partial SemVer object into a normalized SemVer representation.
  *
  * @param v The version string or object to convert.
- * @returns A SemVer object if valid, or null otherwise.
+ * @return A SemVer object if valid, or null otherwise.
  */
 export function toSemVer(v: string | SemVer | undefined | null): SemVer | null {
   if (!v) {
@@ -141,7 +141,7 @@ export function toSemVer(v: string | SemVer | undefined | null): SemVer | null {
  * returns the full SemVer string (e.g. '0.9.1', '1.0.0-beta.1').
  *
  * @param version The version string or SemVer object to canonicalize.
- * @returns The canonical version string, or null if the input cannot be parsed.
+ * @return The canonical version string, or null if the input cannot be parsed.
  */
 export function toCanonicalVersion(version: string | SemVer | undefined | null): string | null {
   if (!version) {
@@ -164,7 +164,7 @@ export function toCanonicalVersion(version: string | SemVer | undefined | null):
  *
  * @param idA First pre-release identifier.
  * @param idB Second pre-release identifier.
- * @returns Negative number if idA < idB, 0 if equal, positive number if idA > idB.
+ * @return Negative number if idA < idB, 0 if equal, positive number if idA > idB.
  */
 function comparePrereleaseId(idA: string, idB: string): number {
   const isNumA = /^\d+$/.test(idA);
@@ -201,7 +201,7 @@ function comparePrereleaseId(idA: string, idB: string): number {
  *
  * @param preA First list of pre-release identifiers.
  * @param preB Second list of pre-release identifiers.
- * @returns Negative number if preA < preB, 0 if equal, positive number if preA > preB.
+ * @return Negative number if preA < preB, 0 if equal, positive number if preA > preB.
  */
 function comparePrereleaseLists(preA: readonly string[], preB: readonly string[]): number {
   if (preA.length === 0 && preB.length === 0) {
@@ -235,7 +235,7 @@ function comparePrereleaseLists(preA: readonly string[], preB: readonly string[]
  *
  * @param a First version string or SemVer object.
  * @param b Second version string or SemVer object.
- * @returns Negative number if a < b, 0 if a == b, positive number if a > b.
+ * @return Negative number if a < b, 0 if a == b, positive number if a > b.
  */
 export function compareSemVer(
   a: string | SemVer | undefined | null,
@@ -271,7 +271,7 @@ export function compareSemVer(
  *
  * @param version The version string to check (e.g. 'v1.0', 'v1.1', 'v2.0').
  * @param minVersion The minimum version requirement (e.g. 'v1.0', '1.0.0').
- * @returns Whether version is at least minVersion.
+ * @return Whether version is at least minVersion.
  */
 export function isAtLeastVersion(
   version: string | SemVer | undefined | null,

@@ -25,7 +25,7 @@ import {z} from 'zod';
  * may be obfuscated or stripped.
  *
  * @param err Zod validation issue to format.
- * @returns Human-readable formatted error message.
+ * @return Human-readable formatted error message.
  */
 export function formatZodIssue(err: z.ZodIssue): string {
   const path = err.path.join('.') || 'root';

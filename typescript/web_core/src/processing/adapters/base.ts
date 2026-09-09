@@ -57,7 +57,7 @@ export const DEFAULT_CATALOG_COMPATIBILITY: Readonly<Record<string, ReadonlySet<
  * @param catalogVersion The catalog's declared protocol version.
  * @param messageVersion The incoming message or surface declared protocol version.
  * @param compatibilityMap Optional explicit compatibility mapping. Defaults to DEFAULT_CATALOG_COMPATIBILITY.
- * @returns Whether the catalog version is compatible with the message version.
+ * @return Whether the catalog version is compatible with the message version.
  */
 export function isCatalogVersionCompatible(
   catalogVersion: string | SemVer | undefined | null,
@@ -128,7 +128,7 @@ export interface VersionAdapter {
    * Checks if a catalog protocol version is compatible with this adapter.
    *
    * @param catalogVersion The catalog's declared protocol version.
-   * @returns Whether the catalog version is compatible.
+   * @return Whether the catalog version is compatible.
    */
   isCatalogCompatible?(catalogVersion: string | SemVer | undefined | null): boolean;
 
@@ -182,15 +182,18 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
   abstract readonly version: ProtocolVersion;
   protected abstract readonly schema: z.ZodTypeAny;
 
+  /** Canonical catalog protocol versions compatible with this adapter. */
   get compatibleCatalogVersions(): ReadonlySet<string> {
     const canonical = toCanonicalVersion(this.version);
     return canonical ? new Set([canonical]) : new Set();
   }
 
+  /** Set of valid message action keys supported by this protocol version. */
   get validActions(): ReadonlySet<string> {
     return new Set(this.getNativeActionKeys());
   }
 
+  /** Checks if a catalog protocol version is compatible with this adapter. */
   isCatalogCompatible(catalogVersion: string | SemVer | undefined | null): boolean {
     if (!catalogVersion) {
       return false;

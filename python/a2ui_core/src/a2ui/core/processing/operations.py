@@ -60,6 +60,8 @@ class InternalDeleteSurfaceOp:
 
 @dataclass
 class InternalCallRendererFunctionOp:
+    """Internal operation representing an agent-to-renderer function call."""
+
     function_call_id: str
     call: str
     version: str
@@ -71,6 +73,8 @@ class InternalCallRendererFunctionOp:
 
 @dataclass
 class InternalAgentFunctionResponseOp:
+    """Internal operation representing a response to a renderer-to-agent function call."""
+
     function_call_id: str
     version: str = "v1.0"
     value: Any | None = None

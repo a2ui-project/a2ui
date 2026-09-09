@@ -72,7 +72,12 @@ PendingAgentCallCallback = Callable[[Any, Optional[dict[str, Any]]], None]
 
 @dataclass
 class MessageProcessorOptions:
-    """Options for configuring a MessageProcessor instance."""
+    """Options for configuring a MessageProcessor instance.
+
+    Attributes:
+        validation_config: Validation configuration to enforce on messages, or None.
+        default_timeout_ms: Default timeout in milliseconds for async RPC calls.
+    """
 
     validation_config: ValidationConfig | None = None
     default_timeout_ms: float = 30000.0
@@ -87,6 +92,16 @@ class MessageProcessor:
         action_handler: Callable[[dict[str, Any]], None] | None = None,
         options: MessageProcessorOptions | None = None,
     ) -> None:
+        """Initializes a MessageProcessor with component catalogs and options.
+
+        Args:
+            catalogs: Sequence of component and function catalogs for resolution.
+            action_handler: Optional callback invoked when UI actions trigger.
+            options: Optional configuration options including validation rules.
+
+        Raises:
+            ValueError: If catalogs is empty or None.
+        """
         if not catalogs:
             raise ValueError("At least one catalog must be provided.")
         self.catalogs = catalogs

@@ -39,6 +39,8 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
 
   /**
    * Returns the aggregated set of all action keys supported by all registered adapters.
+   *
+   * @return A set of all supported action key strings.
    */
   getAllKnownActions(): ReadonlySet<string> {
     const actions = new Set<string>();
@@ -66,7 +68,7 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
    * Resolves the version adapter for the specified version string from this factory instance.
    *
    * @param version The protocol version string (e.g. 'v1.0').
-   * @returns The matching version adapter.
+   * @return The matching version adapter.
    * @throws A2uiValidationError if the version string is unsupported.
    */
   getAdapter(version: ProtocolVersion | string): VersionAdapter {
@@ -134,7 +136,7 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
    * Resolves a version adapter for the specified version from the default singleton factory instance.
    *
    * @param version Protocol version string.
-   * @returns Matching version adapter.
+   * @return Matching version adapter.
    */
   static getAdapter(version: ProtocolVersion | string): VersionAdapter {
     return defaultVersionAdapterFactory.getAdapter(version);
@@ -153,6 +155,8 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
   /**
    * Returns the aggregated set of all action keys supported by all registered adapters
    * from the default singleton factory instance.
+   *
+   * @return A set of all supported action key strings.
    */
   static getAllKnownActions(): ReadonlySet<string> {
     return defaultVersionAdapterFactory.getAllKnownActions();

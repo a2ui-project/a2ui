@@ -49,9 +49,11 @@ _SEMVER_PATTERN = re.compile(
 
 
 def normalize_version_string(version: Any) -> str:
-    """Normalizes a version string by stripping any leading 'v'/'V' and replacing underscores with dots in the core release segment.
+    """Normalizes a version string for semantic version processing.
 
-    Preserves pre-release ('-') and build metadata ('+') suffixes intact.
+    Strips any leading 'v'/'V' and replaces underscores with dots in the core
+    release segment, while preserving pre-release ('-') and build metadata ('+')
+    suffixes intact.
 
     Args:
         version: The raw version string or bytes to normalize (e.g. 'v1_0', 'v0_9_1').
@@ -182,7 +184,10 @@ def compare_semver(
     a: str | bytes | SemVer | None,
     b: str | bytes | SemVer | None,
 ) -> int:
-    """Compares two semantic version strings or SemVer objects per SemVer 2.0.0 precedence (Section 11).
+    """Compares two semantic versions per SemVer 2.0.0 precedence.
+
+    Evaluates precedence between version strings or SemVer objects per
+    SemVer 2.0.0 Section 11 rules.
 
     Args:
         a: First version string or SemVer object.
@@ -214,14 +219,14 @@ def is_at_least_version(
     version: str | bytes | SemVer | None,
     min_version: str | bytes | SemVer,
 ) -> bool:
-    """Checks if a given version string is at least the target minimum version.
+    """Determines whether a version string meets a minimum version requirement.
 
     Args:
         version: The version string to check (e.g. 'v1.0', '1.1.0').
         min_version: The minimum version requirement (e.g. 'v1.0', '1.0.0').
 
     Returns:
-        True if version is valid and >= min_version, False otherwise.
+        Whether version is valid and at least min_version.
     """
     if not version:
         return False

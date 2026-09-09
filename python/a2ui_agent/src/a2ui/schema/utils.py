@@ -262,7 +262,8 @@ def deep_update(base: dict[str, Any], updates: dict[str, Any]) -> dict[str, Any]
 
     Args:
         base: The base dictionary to be updated in-place.
-        updates: The dictionary containing updates to recursively merge into the base dictionary.
+        updates: The dictionary containing updates to recursively merge into
+            the base dictionary.
 
     Returns:
         The updated base dictionary.

@@ -124,7 +124,7 @@ def _extract_module_type_refs(modname: str, excluded: set[str]) -> set[str]:
 
 
 def load_preserved_type_refs() -> set[str]:
-    """Dynamically loads all common type names defined in schema/common_types.py and versioned submodules."""
+    """Dynamically loads common type names from schema modules."""
     import a2ui.core.schema as schema_pkg
 
     excluded = {
