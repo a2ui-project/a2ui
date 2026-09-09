@@ -54,7 +54,7 @@ final class GalleryActionHandler: ActionHandling, @unchecked Sendable {
     }
   }
 
-  func handle(error: ClientServerError, from surfaceID: String) {
+  func handle(error: RendererError, from surfaceID: String) {
     let text: String
     switch error {
     case .validationFailed(let err):

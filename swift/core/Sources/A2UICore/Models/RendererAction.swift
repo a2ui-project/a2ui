@@ -17,8 +17,8 @@ import OrderedJSON
 /// Reports a user-initiated action from a component.
 ///
 /// Matches the `action` property in
-/// `specification/v0_9_1/json/client_to_server.json`.
-public struct ClientAction: Equatable, Codable, Sendable {
+/// `specification/v1_0/json/renderer_to_agent.json`.
+public struct RendererAction: Equatable, Codable, Sendable {
   /// The name of the action, taken from the component's
   /// `action.event.name` property.
   public let name: String
@@ -36,8 +36,11 @@ public struct ClientAction: Equatable, Codable, Sendable {
   /// `action.event.context`, after resolving all data bindings.
   public let context: [String: JSONValue]
 
-  /// An optional user-facing message describing the action.
+  /// An optional human-readable message describing the action performed by the user.
   public let userMessage: String?
+
+  /// Optional client-side metadata to send back to the agent with the action.
+  public let metadata: [String: JSONValue]?
 
   private enum CodingKeys: String, CodingKey {
     case name
@@ -46,16 +49,18 @@ public struct ClientAction: Equatable, Codable, Sendable {
     case timestamp
     case context
     case userMessage
+    case metadata
   }
 
-  /// Creates a new client action.
+  /// Creates a new renderer action.
   public init(
     name: String,
     surfaceID: String,
     sourceComponentID: String,
     timestamp: String,
     context: [String: JSONValue],
-    userMessage: String? = nil
+    userMessage: String? = nil,
+    metadata: [String: JSONValue]? = nil
   ) {
     self.name = name
     self.surfaceID = surfaceID
@@ -63,5 +68,6 @@ public struct ClientAction: Equatable, Codable, Sendable {
     self.timestamp = timestamp
     self.context = context
     self.userMessage = userMessage
+    self.metadata = metadata
   }
 }

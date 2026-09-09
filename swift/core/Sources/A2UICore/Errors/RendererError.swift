@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Encapsulates all client-to-server error types.
-public enum ClientServerError: Equatable, Codable, Sendable {
+/// Encapsulates all renderer-to-agent error types.
+public enum RendererError: Equatable, Codable, Sendable {
   case validationFailed(ValidationFailedError)
   case generic(GenericError)
 
@@ -24,7 +24,7 @@ public enum ClientServerError: Equatable, Codable, Sendable {
   public init(from decoder: Decoder) throws {
     let container = try decoder.singleValueContainer()
     let discriminator = try container.decode(Discriminator.self)
-    if discriminator.code == ValidationFailedError.errorCode {
+    if ValidationFailedError.validErrorCodes.contains(discriminator.code) {
       self = .validationFailed(try container.decode(ValidationFailedError.self))
     } else {
       self = .generic(try container.decode(GenericError.self))

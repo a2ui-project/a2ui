@@ -109,13 +109,13 @@ func makeIntegrationCatalog() throws -> AnyCatalog {
 /// A simple action handler that records actions for integration tests.
 final class IntegrationActionHandler: ActionHandling, @unchecked Sendable {
   var actions: [ResolvedAction] = []
-  var errors: [ClientServerError] = []
+  var errors: [RendererError] = []
 
   func handle(action: ResolvedAction, from surfaceID: String) {
     actions.append(action)
   }
 
-  func handle(error: ClientServerError, from surfaceID: String) {
+  func handle(error: RendererError, from surfaceID: String) {
     errors.append(error)
   }
 }
@@ -127,7 +127,7 @@ struct IntegrationTests {
 
   private let parser = MessageParser()
 
-  private func parse(_ json: String) throws -> ServerToClientMessage {
+  private func parse(_ json: String) throws -> AgentToRendererMessage {
     try parser.parse(jsonString: json)
   }
 

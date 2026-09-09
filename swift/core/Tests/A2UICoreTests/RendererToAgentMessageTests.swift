@@ -17,7 +17,7 @@ import Foundation
 import OrderedJSON
 import Testing
 
-struct ClientToServerMessageTests {
+struct RendererToAgentMessageTests {
 
   // MARK: - Decoding
 
@@ -36,7 +36,7 @@ struct ClientToServerMessageTests {
       }
       """.data(using: .utf8))
     let message = try JSONDecoder().decode(
-      ClientToServerMessage.self, from: json
+      RendererToAgentMessage.self, from: json
     )
     if case .action(let action) = message {
       #expect(action.name == "submit")
@@ -64,7 +64,7 @@ struct ClientToServerMessageTests {
       }
       """.data(using: .utf8))
     let message = try JSONDecoder().decode(
-      ClientToServerMessage.self, from: json
+      RendererToAgentMessage.self, from: json
     )
     if case .action(let action) = message {
       #expect(action.name == "click")
@@ -88,7 +88,7 @@ struct ClientToServerMessageTests {
       }
       """.data(using: .utf8))
     let message = try JSONDecoder().decode(
-      ClientToServerMessage.self, from: json
+      RendererToAgentMessage.self, from: json
     )
     if case .error(let error) = message {
       if case .validationFailed(let validation) = error {
@@ -111,7 +111,7 @@ struct ClientToServerMessageTests {
       """.data(using: .utf8)
     )
     #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(ClientToServerMessage.self, from: json)
+      try JSONDecoder().decode(RendererToAgentMessage.self, from: json)
     }
   }
 
@@ -120,7 +120,7 @@ struct ClientToServerMessageTests {
       "{\"version\": \"v0.9.1\"}".data(using: .utf8)
     )
     #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(ClientToServerMessage.self, from: json)
+      try JSONDecoder().decode(RendererToAgentMessage.self, from: json)
     }
   }
 
@@ -145,7 +145,7 @@ struct ClientToServerMessageTests {
       }
       """.data(using: .utf8))
     #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(ClientToServerMessage.self, from: json)
+      try JSONDecoder().decode(RendererToAgentMessage.self, from: json)
     }
   }
 
@@ -161,7 +161,7 @@ struct ClientToServerMessageTests {
       }
       """.data(using: .utf8))
     #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(ClientToServerMessage.self, from: json)
+      try JSONDecoder().decode(RendererToAgentMessage.self, from: json)
     }
   }
 
@@ -173,7 +173,7 @@ struct ClientToServerMessageTests {
       """.data(using: .utf8)
     )
     let message = try JSONDecoder().decode(
-      ClientToServerMessage.self, from: json
+      RendererToAgentMessage.self, from: json
     )
     if case .action(let action) = message {
       #expect(action.name == "click")
@@ -183,60 +183,60 @@ struct ClientToServerMessageTests {
   // MARK: - Encoding
 
   @Test func encodeActionRoundTrip() throws {
-    let action = ClientAction(
+    let action = RendererAction(
       name: "submit",
       surfaceID: "main",
       sourceComponentID: "btn_submit",
       timestamp: "2023-10-27T10:00:00Z",
       context: ["foo": .string("bar")]
     )
-    let message = ClientToServerMessage.action(action)
+    let message = RendererToAgentMessage.action(action)
     let data = try JSONEncoder().encode(message)
     let decoded = try JSONDecoder().decode(
-      ClientToServerMessage.self, from: data
+      RendererToAgentMessage.self, from: data
     )
     #expect(decoded == message)
   }
 
   @Test func encodeValidationError() throws {
-    let error = ClientServerError.validationFailed(
+    let error = RendererError.validationFailed(
       ValidationFailedError(
         surfaceID: "surface-1",
         path: "/components/0",
         message: "Missing required property"
       )
     )
-    let message = ClientToServerMessage.error(error)
+    let message = RendererToAgentMessage.error(error)
     let data = try JSONEncoder().encode(message)
     let decoded = try JSONDecoder().decode(
-      ClientToServerMessage.self, from: data
+      RendererToAgentMessage.self, from: data
     )
     #expect(decoded == message)
   }
 
-  @Test func encodeAlwaysUsesV091Version() throws {
-    let action = ClientAction(
+  @Test func encodeAlwaysUsesV10Version() throws {
+    let action = RendererAction(
       name: "click",
       surfaceID: "main",
       sourceComponentID: "btn",
       timestamp: "2024-01-01T00:00:00Z",
       context: [:]
     )
-    let message = ClientToServerMessage.action(action)
+    let message = RendererToAgentMessage.action(action)
     let data = try JSONEncoder().encode(message)
     let json = try #require(String(data: data, encoding: .utf8))
-    #expect(json.contains("\"version\":\"v0.9.1\""))
+    #expect(json.contains("\"version\":\"v1.0\""))
   }
 
   @Test func encodeProducesFlatActionPayload() throws {
-    let action = ClientAction(
+    let action = RendererAction(
       name: "submit",
       surfaceID: "main",
       sourceComponentID: "btn_submit",
       timestamp: "2023-10-27T10:00:00Z",
       context: ["foo": .string("bar")]
     )
-    let message = ClientToServerMessage.action(action)
+    let message = RendererToAgentMessage.action(action)
     let data = try JSONEncoder().encode(message)
     let json = try #require(String(data: data, encoding: .utf8))
     // Verify flat keys are present
@@ -251,17 +251,17 @@ struct ClientToServerMessageTests {
     #expect(!json.contains("\"args\""))
   }
 
-  // MARK: - ClientAction Equality
+  // MARK: - RendererAction Equality
 
   @Test func clientActionsEqualByAllFields() {
-    let a = ClientAction(
+    let a = RendererAction(
       name: "click",
       surfaceID: "main",
       sourceComponentID: "btn",
       timestamp: "2024-01-01T00:00:00Z",
       context: ["key": .string("val")]
     )
-    let b = ClientAction(
+    let b = RendererAction(
       name: "click",
       surfaceID: "main",
       sourceComponentID: "btn",
@@ -272,14 +272,14 @@ struct ClientToServerMessageTests {
   }
 
   @Test func clientActionsNotEqualByDifferentName() {
-    let a = ClientAction(
+    let a = RendererAction(
       name: "click",
       surfaceID: "main",
       sourceComponentID: "btn",
       timestamp: "2024-01-01T00:00:00Z",
       context: [:]
     )
-    let b = ClientAction(
+    let b = RendererAction(
       name: "submit",
       surfaceID: "main",
       sourceComponentID: "btn",
@@ -287,5 +287,54 @@ struct ClientToServerMessageTests {
       context: [:]
     )
     #expect(a != b)
+  }
+
+  // MARK: - v1.0 Tests
+
+  @Test func decodeCallAgentFunction() throws {
+    let json = try #require(
+      """
+      {
+        "version": "v1.0",
+        "callAgentFunction": {
+          "surfaceId": "main",
+          "functionCallId": "call_1",
+          "callFunction": {
+            "call": "fetchData",
+            "catalogId": "custom",
+            "args": {"query": "weather"}
+          }
+        }
+      }
+      """.data(using: .utf8))
+    let message = try JSONDecoder().decode(RendererToAgentMessage.self, from: json)
+    if case .callAgentFunction(let call) = message {
+      #expect(call.surfaceID == "main")
+      #expect(call.functionCallID == "call_1")
+      #expect(call.callFunction.call == "fetchData")
+      #expect(call.callFunction.catalogID == "custom")
+    } else {
+      Issue.record("Expected .callAgentFunction")
+    }
+  }
+
+  @Test func decodeRendererFunctionResponse() throws {
+    let json = try #require(
+      """
+      {
+        "version": "v1.0",
+        "rendererFunctionResponse": {
+          "functionCallId": "call_2",
+          "value": "ok"
+        }
+      }
+      """.data(using: .utf8))
+    let message = try JSONDecoder().decode(RendererToAgentMessage.self, from: json)
+    if case .rendererFunctionResponse(let resp) = message {
+      #expect(resp.functionCallID == "call_2")
+      #expect(resp.value == .string("ok"))
+    } else {
+      Issue.record("Expected .rendererFunctionResponse")
+    }
   }
 }

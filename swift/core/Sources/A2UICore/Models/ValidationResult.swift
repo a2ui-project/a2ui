@@ -12,16 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// The set of return types a local function can produce.
-///
-/// Mirrors `A2uiReturnType` in the core blueprint and `web_core`.
-public enum FunctionReturnType: String, Sendable {
-  case string
-  case number
-  case boolean
-  case array
-  case object
-  case validationResult = "validationResult"
-  case any
-  case void
+import Foundation
+
+/// Dynamic validation result returned by a validation function or condition.
+public struct ValidationResult: Sendable, Equatable, Codable {
+  public let valid: Bool
+  public let code: String?
+  public let message: String?
+  public let severity: ValidationSeverity?
+
+  public init(
+    valid: Bool,
+    code: String? = nil,
+    message: String? = nil,
+    severity: ValidationSeverity? = nil
+  ) {
+    self.valid = valid
+    self.code = code
+    self.message = message
+    self.severity = severity
+  }
 }

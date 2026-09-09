@@ -56,7 +56,7 @@ struct MessageProcessorTests {
 
   private let parser = MessageParser()
 
-  private func parse(_ json: String) throws -> ServerToClientMessage {
+  private func parse(_ json: String) throws -> AgentToRendererMessage {
     try parser.parse(jsonString: json)
   }
 

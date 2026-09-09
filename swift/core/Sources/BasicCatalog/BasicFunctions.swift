@@ -15,20 +15,43 @@
 import A2UICore
 
 public enum BasicFunctions: Sendable {
-  public static let allFunctions: [any FunctionImplementation] = [
+  /// Standard function implementations for A2UI Protocol v0.9 and v0.9.1.
+  public static let v09Functions: [any FunctionImplementation] = [
     AndFunction(),
-    EmailFunction(),
+    EmailFunction(returnValidationResult: false),
     FormatCurrencyFunction(),
     FormatDateFunction(),
     FormatNumberFunction(),
     FormatStringFunction(),
-    LengthFunction(),
+    LengthFunction(returnValidationResult: false),
     NotFunction(),
-    NumericFunction(),
+    NumericFunction(returnValidationResult: false),
     OpenURLFunction(),
     OrFunction(),
     PluralizeFunction(),
-    RegexFunction(),
-    RequiredFunction(),
+    RegexFunction(returnValidationResult: false),
+    RequiredFunction(returnValidationResult: false),
   ]
+
+  /// Standard function implementations for A2UI Protocol v1.0.
+  public static let v10Functions: [any FunctionImplementation] = [
+    AndFunction(),
+    EmailFunction(returnValidationResult: true),
+    FormatCurrencyFunction(),
+    FormatDateFunction(),
+    FormatNumberFunction(),
+    FormatStringFunction(),
+    IndexFunction(),
+    LengthFunction(returnValidationResult: true),
+    NotFunction(),
+    NumericFunction(returnValidationResult: false),
+    OpenURLFunction(),
+    OrFunction(),
+    PluralizeFunction(),
+    RegexFunction(returnValidationResult: true),
+    RequiredFunction(returnValidationResult: true),
+  ]
+
+  /// All supported functions for default catalog configuration (v0.9/v0.9.1 backwards compatibility).
+  public static let allFunctions: [any FunctionImplementation] = v09Functions
 }
