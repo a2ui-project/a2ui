@@ -211,7 +211,7 @@ Parsing a catalog document is parsing untrusted input: raise `A2uiCatalogError` 
 When authoring component or function schemas, developers import primitives (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DataBinding`, `FunctionCall`, `Action`, `ChildList`, etc.) directly from the schema module matching the catalog's targeted `protocolVersion` (e.g. `a2ui.core.schema.v1_0.common_types` or `@a2ui/core/v1_0`).
 
 - **Subschema References & Wire Emission**: In v1.0+, component schemas emit or retain relative pointers (`"$ref": "common_types.json#/$defs/<TypeName>"`).
-- **Forward Compatibility**: While breaking changes between v0.9 and v1.0 prevent v0.9 catalogs from running against v1.0 runtimes, using unversioned relative references in v1.0 catalogs allows them to be resolved dynamically against future compatible protocol versions (such as v1.1) without rewriting catalog definitions.
+- **Forward Compatibility**: While breaking changes between v0.9 and v1.0 prevent v0.9 catalogs from running against v1.0 runtimes, using unversioned relative references in v1.0 catalogs allows them to potentially resolve against future compatible protocol versions without modifying catalog type paths.
 
 ```typescript
 import {DynamicString, Action, ChildList} from '@a2ui/core/v1_0';
@@ -510,7 +510,7 @@ When `A2uiValidator` initializes its underlying JSON Schema referencing registry
 This guarantees:
 
 1. **Catalog Portability**: Relative pointers (`"$ref": "common_types.json#/$defs/<TypeName>"`) in catalog definitions resolve cleanly regardless of the catalog's base `$id` URI.
-2. **Future Version Forward-Compatibility**: v1.0 catalogs using relative references can resolve against newer compatible protocol versions without modifying catalog `$ref` targets.
+2. **Future Version Forward-Compatibility**: v1.0 catalogs using relative references can potentially resolve against newer compatible protocol versions without modifying catalog `$ref` targets.
 
 #### Validation Implementation Matrix
 

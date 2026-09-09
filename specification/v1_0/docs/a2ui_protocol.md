@@ -579,7 +579,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
 
    > [!NOTE]
    > **Catalog Evolution and Protocol Compatibility**
-   > While there are breaking changes to the catalog API between v0.9 and v1.0, v1.0 catalog definitions reference standard types using relative paths (`common_types.json#/$defs/<TypeName>`). This design allows v1.0 catalogs to work with future protocol versions (such as v1.1) without rewriting the catalog.
+   > While there are breaking changes to the catalog API between v0.9 and v1.0, v1.0 catalog definitions reference standard types using relative paths (`common_types.json#/$defs/<TypeName>`). This design allows v1.0 catalogs to potentially work against future protocol versions without requiring changes to catalog type paths.
 
 4. **Component Discriminator Rule:**
    - Every component schema defined inside the `components` map must have a required property named `component` whose value is a constant (`const`) matching the key under which it is defined.

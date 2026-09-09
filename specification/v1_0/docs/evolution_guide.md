@@ -152,4 +152,4 @@ This section outlines the steps required to migrate existing applications and co
 - **Set catalog protocol version**: Catalogs targeting v1.0 must specify `"protocolVersion": "1.0"` in the catalog root.
 - **Use relative standard type references**: Replace version-qualified schema URLs (`https://a2ui.org/specification/v1_0/common_types.json#/$defs/...`) with unversioned relative targets (`common_types.json#/$defs/...`).
 - **Breaking changes from v0.9 to v1.0**: Catalogs authored for v0.9 cannot be used directly with v1.0 protocol runtimes due to breaking structural changes (such as composing `ComponentCommon` at the envelope level, returning `ValidationResult` objects from check functions, and declaring caller and composition constraints).
-- **Future forward compatibility**: Using unversioned relative references in v1.0 catalogs allows them to work with future protocol versions (such as v1.1) without requiring catalog authors to rewrite `$ref` URLs.
+- **Future forward compatibility**: Using unversioned relative references allows v1.0 catalogs to potentially work against future protocol versions without requiring catalog authors to rewrite `$ref` URLs.
