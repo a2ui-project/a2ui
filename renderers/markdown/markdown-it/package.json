@@ -61,7 +61,7 @@
     "wireit": "^0.15.0-pre.2"
   },
   "peerDependencies": {
-    "@a2ui/web_core": "^0.10.6 || ^0.11.0"
+    "@a2ui/web_core": "workspace:*"
   },
   "wireit": {
     "build": {
