@@ -73,119 +73,87 @@ class VersionAdapterFactory:
         ),
     ) -> VersionAdapter:
         """Resolves the version adapter directly from an incoming message payload."""
-        if payload is None or isinstance(payload, (int, float, str)):
+        raw: Any = payload
+        if hasattr(raw, "model_dump"):
+            raw = raw.model_dump(by_alias=True, exclude_none=True)
+
+        # 1. Reject non-collection types (None, int, str, etc.)
+        if not isinstance(raw, (list, dict)):
             raise A2uiValidationError(
                 "[VersionAdapterFactory] Message payload is missing a valid 'version'"
-                " string.",
+                f" string: expected object or list, got {type(payload).__name__}.",
                 details=[
                     A2uiErrorDetail(
                         path="messages.0.version",
-                        code="missing_field",
-                        message="Missing required version field",
+                        code="invalid_payload_type",
+                        message=(
+                            f"Expected object or list, got {type(payload).__name__}"
+                        ),
                     )
                 ],
             )
 
-        raw_payload: Any = payload
-        if hasattr(raw_payload, "model_dump"):
-            raw_payload = raw_payload.model_dump(by_alias=True, exclude_none=True)
-
-        if isinstance(raw_payload, list):
-            if not raw_payload:
+        # 2. Extract first item from list or unwrap {'messages': [...]}
+        item: Any
+        idx: int = 0
+        if isinstance(raw, list):
+            if not raw:
                 raise A2uiValidationError(
                     "[VersionAdapterFactory] Message payload is missing a valid"
-                    " 'version' string.",
+                    " 'version' string: message list is empty.",
                     details=[
                         A2uiErrorDetail(
                             path="messages.0.version",
-                            code="missing_field",
-                            message="Missing required version field",
+                            code="empty_payload",
+                            message="Message list is empty",
                         )
                     ],
                 )
-            for idx, item in enumerate(raw_payload):
-                raw_item: Any = item
-                if hasattr(raw_item, "model_dump"):
-                    raw_item = raw_item.model_dump(by_alias=True, exclude_none=True)
-                if isinstance(raw_item, dict):
-                    v = raw_item.get("version")
-                    if not v or not isinstance(v, str):
-                        if not any(
-                            k in raw_item
-                            for k in (
-                                "beginRendering",
-                                "surfaceUpdate",
-                                "dataModelUpdate",
-                                "deleteSurface",
-                            )
-                        ):
-                            raise A2uiValidationError(
-                                "[VersionAdapterFactory] Message payload is missing a"
-                                " valid 'version' string.",
-                                details=[
-                                    A2uiErrorDetail(
-                                        path=f"messages.{idx}.version",
-                                        code="missing_field",
-                                        message="Missing required version field",
-                                    )
-                                ],
-                            )
-                    return cls._resolve_from_single_action(raw_item)
+            item = raw[0]
+        elif "messages" in raw and isinstance(raw["messages"], list):
+            return cls.resolve_from_payload(raw["messages"])
+        else:
+            item = raw
 
-        if isinstance(raw_payload, dict):
-            if "messages" in raw_payload and isinstance(raw_payload["messages"], list):
-                return cls.resolve_from_payload(raw_payload["messages"])
-            v = raw_payload.get("version")
-            if not v or not isinstance(v, str):
-                if not any(
-                    k in raw_payload
-                    for k in (
-                        "beginRendering",
-                        "surfaceUpdate",
-                        "dataModelUpdate",
-                        "deleteSurface",
+        if hasattr(item, "model_dump"):
+            item = item.model_dump(by_alias=True, exclude_none=True)
+
+        # 3. Ensure candidate item is a dictionary
+        if not isinstance(item, dict):
+            raise A2uiValidationError(
+                "[VersionAdapterFactory] Message payload is missing a valid 'version'"
+                f" string: message item at index {idx} is not an object.",
+                details=[
+                    A2uiErrorDetail(
+                        path=f"messages.{idx}.version",
+                        code="invalid_payload_type",
+                        message="Message item is not an object",
                     )
-                ):
-                    raise A2uiValidationError(
-                        "[VersionAdapterFactory] Message payload is missing a valid"
-                        " 'version' string.",
-                        details=[
-                            A2uiErrorDetail(
-                                path="messages.0.version",
-                                code="missing_field",
-                                message="Missing required version field",
-                            )
-                        ],
-                    )
-            return cls._resolve_from_single_action(raw_payload)
+                ],
+            )
 
-        raise A2uiValidationError(
-            "[VersionAdapterFactory] Message payload is missing a valid 'version'"
-            " string.",
-            details=[
-                A2uiErrorDetail(
-                    path="messages.0.version",
-                    code="missing_field",
-                    message="Missing required version field",
-                )
-            ],
-        )
-
-    @classmethod
-    def _resolve_from_single_action(cls, item: dict[str, Any]) -> VersionAdapter:
-        """Resolves version adapter from a single message dictionary if explicit version or action keys match."""
-        if "version" in item and isinstance(item["version"], str):
-            ver_str = item["version"]
-            ver_enum = cls._parse_version(ver_str)
-            if not ver_enum:
-                supported = ", ".join(
-                    v.value for v in cls._adapters.keys() if hasattr(v, "value")
-                )
+        # 4. Check explicit version property
+        if "version" in item:
+            ver = item["version"]
+            if not isinstance(ver, str):
                 raise A2uiValidationError(
-                    f"[VersionAdapterFactory] Unsupported protocol version '{ver_str}'."
-                    f" Supported versions: {supported}."
+                    "[VersionAdapterFactory] Message payload is missing a valid"
+                    " 'version' string: 'version' property must be a string, got"
+                    f" {type(ver).__name__}.",
+                    details=[
+                        A2uiErrorDetail(
+                            path=f"messages.{idx}.version",
+                            code="type_mismatch",
+                            message=(
+                                "Expected string for 'version', got"
+                                f" {type(ver).__name__}"
+                            ),
+                        )
+                    ],
                 )
-            return cls.get_adapter(ver_enum)
+            return cls.get_adapter(ver)
+
+        # 5. Check v0.8 legacy action keys
         if any(
             k in item
             for k in (
@@ -196,12 +164,14 @@ class VersionAdapterFactory:
             )
         ):
             return cls.get_adapter(ProtocolVersion.V0_8)
+
+        # 6. Missing version and no legacy action key
         raise A2uiValidationError(
             "[VersionAdapterFactory] Message payload is missing a valid 'version'"
-            " string.",
+            " string: no version header or legacy v0.8 action found.",
             details=[
                 A2uiErrorDetail(
-                    path="messages.0.version",
+                    path=f"messages.{idx}.version",
                     code="missing_field",
                     message="Missing required version field",
                 )
