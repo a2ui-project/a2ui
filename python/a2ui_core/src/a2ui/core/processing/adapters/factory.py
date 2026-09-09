@@ -27,7 +27,7 @@ DEFAULT_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion.V0_9
 class VersionAdapterFactory:
     """Resolves version adapters for protocol specification versions."""
 
-    _adapters: dict[ProtocolVersion, VersionAdapter] = {
+    _adapters: dict[ProtocolVersion | str, VersionAdapter] = {
         ProtocolVersion.V0_8: V0Point8Adapter(),
         ProtocolVersion.V0_9: V0Point9Adapter(),
         ProtocolVersion.V0_9_1: V0Point9Adapter(),
@@ -47,11 +47,15 @@ class VersionAdapterFactory:
             parsed_ver = cls._parse_version(version)
             if parsed_ver:
                 adapter = cls._adapters.get(parsed_ver)
+            if not adapter:
+                adapter = cls._adapters.get(version)
         elif isinstance(version, ProtocolVersion):
             adapter = cls._adapters.get(version)
 
         if not adapter:
-            supported = ", ".join(v.value for v in cls._adapters.keys())
+            supported = ", ".join(
+                v.value for v in cls._adapters.keys() if hasattr(v, "value")
+            )
             raise A2uiValidationError(
                 f"[VersionAdapterFactory] Unsupported protocol version '{version}'."
                 f" Supported versions: {supported}."
@@ -69,18 +73,43 @@ class VersionAdapterFactory:
         ),
     ) -> VersionAdapter:
         """Resolves the version adapter directly from an incoming message payload."""
+        if payload is None or isinstance(payload, (int, float, str)):
+            raise A2uiValidationError(
+                "[VersionAdapterFactory] Message payload is missing a valid 'version'"
+                " string.",
+                details=[
+                    A2uiErrorDetail(
+                        path="messages.0.version",
+                        code="missing_field",
+                        message="Missing required version field",
+                    )
+                ],
+            )
+
         raw_payload: Any = payload
         if hasattr(raw_payload, "model_dump"):
             raw_payload = raw_payload.model_dump(by_alias=True, exclude_none=True)
 
         if isinstance(raw_payload, list):
+            if not raw_payload:
+                raise A2uiValidationError(
+                    "[VersionAdapterFactory] Message payload is missing a valid"
+                    " 'version' string.",
+                    details=[
+                        A2uiErrorDetail(
+                            path="messages.0.version",
+                            code="missing_field",
+                            message="Missing required version field",
+                        )
+                    ],
+                )
             for idx, item in enumerate(raw_payload):
                 raw_item: Any = item
                 if hasattr(raw_item, "model_dump"):
                     raw_item = raw_item.model_dump(by_alias=True, exclude_none=True)
                 if isinstance(raw_item, dict):
                     v = raw_item.get("version")
-                    if not v:
+                    if not v or not isinstance(v, str):
                         if not any(
                             k in raw_item
                             for k in (
@@ -91,7 +120,8 @@ class VersionAdapterFactory:
                             )
                         ):
                             raise A2uiValidationError(
-                                "Missing required version field",
+                                "[VersionAdapterFactory] Message payload is missing a"
+                                " valid 'version' string.",
                                 details=[
                                     A2uiErrorDetail(
                                         path=f"messages.{idx}.version",
@@ -105,10 +135,33 @@ class VersionAdapterFactory:
         if isinstance(raw_payload, dict):
             if "messages" in raw_payload and isinstance(raw_payload["messages"], list):
                 return cls.resolve_from_payload(raw_payload["messages"])
+            v = raw_payload.get("version")
+            if not v or not isinstance(v, str):
+                if not any(
+                    k in raw_payload
+                    for k in (
+                        "beginRendering",
+                        "surfaceUpdate",
+                        "dataModelUpdate",
+                        "deleteSurface",
+                    )
+                ):
+                    raise A2uiValidationError(
+                        "[VersionAdapterFactory] Message payload is missing a valid"
+                        " 'version' string.",
+                        details=[
+                            A2uiErrorDetail(
+                                path="messages.0.version",
+                                code="missing_field",
+                                message="Missing required version field",
+                            )
+                        ],
+                    )
             return cls._resolve_from_single_action(raw_payload)
 
         raise A2uiValidationError(
-            "Missing required version field",
+            "[VersionAdapterFactory] Message payload is missing a valid 'version'"
+            " string.",
             details=[
                 A2uiErrorDetail(
                     path="messages.0.version",
@@ -125,7 +178,9 @@ class VersionAdapterFactory:
             ver_str = item["version"]
             ver_enum = cls._parse_version(ver_str)
             if not ver_enum:
-                supported = ", ".join(v.value for v in cls._adapters.keys())
+                supported = ", ".join(
+                    v.value for v in cls._adapters.keys() if hasattr(v, "value")
+                )
                 raise A2uiValidationError(
                     f"[VersionAdapterFactory] Unsupported protocol version '{ver_str}'."
                     f" Supported versions: {supported}."
@@ -141,7 +196,17 @@ class VersionAdapterFactory:
             )
         ):
             return cls.get_adapter(ProtocolVersion.V0_8)
-        return cls.get_adapter(DEFAULT_PROTOCOL_VERSION)
+        raise A2uiValidationError(
+            "[VersionAdapterFactory] Message payload is missing a valid 'version'"
+            " string.",
+            details=[
+                A2uiErrorDetail(
+                    path="messages.0.version",
+                    code="missing_field",
+                    message="Missing required version field",
+                )
+            ],
+        )
 
     @classmethod
     def _parse_version(cls, version_str: str) -> ProtocolVersion | None:

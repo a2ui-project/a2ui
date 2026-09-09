@@ -96,6 +96,19 @@ def _clean_loc_part(x: str) -> str:
     return x
 
 
+ALL_KNOWN_ACTION_KEYS: frozenset[str] = frozenset({
+    "beginRendering",
+    "surfaceUpdate",
+    "dataModelUpdate",
+    "createSurface",
+    "updateComponents",
+    "updateDataModel",
+    "deleteSurface",
+    "callRendererFunction",
+    "agentFunctionResponse",
+})
+
+
 class VersionAdapter(ABC):
     """Abstract base class for protocol version adapters."""
 
@@ -161,11 +174,6 @@ class BaseVersionAdapter(VersionAdapter, ABC):
     def valid_actions(self) -> set[str]:
         """The set of valid message action keys supported by this protocol version."""
         pass
-
-    @property
-    def raise_on_empty_actions(self) -> bool:
-        """Whether to raise an error if no valid action keys are found."""
-        return False
 
     @property
     @abstractmethod
@@ -235,12 +243,21 @@ class BaseVersionAdapter(VersionAdapter, ABC):
                 f"Message contains multiple conflicting update actions: {update_types}"
             )
         if not update_types:
-            if self.raise_on_empty_actions:
-                raise A2uiValidationError(
-                    "A2UI Protocol message must contain exactly one update action: "
-                    f"{', '.join(sorted(self.valid_actions))}."
-                )
-            return None
+            if any(
+                k in message
+                for k in ALL_KNOWN_ACTION_KEYS
+                if k not in self.valid_actions
+            ):
+                return None
+            ver_str = (
+                self.version.value
+                if hasattr(self.version, "value")
+                else str(self.version)
+            )
+            raise A2uiValidationError(
+                f"Invalid {ver_str} message: message must contain exactly one update"
+                f" action: {', '.join(sorted(self.valid_actions))}."
+            )
         action = update_types[0]
         if isinstance(message.get(action), dict):
             self._get_surface_id(message[action])
@@ -266,7 +283,9 @@ class BaseVersionAdapter(VersionAdapter, ABC):
         context: ExecutionContext | None = None,
     ) -> list[InternalOperation]:
         """Unwraps payloads and delegates validated action messages to action handlers."""
-        if not payload:
+        if payload is None:
+            return []
+        if isinstance(payload, list) and not payload:
             return []
 
         raw_payload: Any = payload

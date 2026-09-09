@@ -77,7 +77,12 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
       if ('version' in item && typeof (item as {version: unknown}).version === 'string') {
         return this.getAdapter((item as {version: string}).version);
       }
-      if ('beginRendering' in item || 'surfaceUpdate' in item || 'dataModelUpdate' in item) {
+      if (
+        'beginRendering' in item ||
+        'surfaceUpdate' in item ||
+        'dataModelUpdate' in item ||
+        'deleteSurface' in item
+      ) {
         return this.getAdapter('v0.8');
       }
     }

@@ -105,6 +105,22 @@ describe('VersionAdapterFactory', () => {
     assert.deepStrictEqual(op.theme, {primaryColor: '#FF0000'});
   });
 
+  it('resolves unversioned deleteSurface to v0.8 adapter', () => {
+    const payload = {
+      deleteSurface: {
+        surfaceId: 's1',
+      },
+    };
+
+    const adapter = VersionAdapterFactory.resolveFromPayload(payload);
+    assert.strictEqual(adapter.version, 'v0.8');
+
+    const ops = adapter.extractOperations(payload);
+    assert.strictEqual(ops.length, 1);
+    assert.strictEqual(ops[0].type, 'deleteSurface');
+    assert.strictEqual((ops[0] as InternalDeleteSurfaceOp).surfaceId, 's1');
+  });
+
   it('extracts surfaceUpdate and dataModelUpdate operations in v0.8 adapter', () => {
     const adapter = VersionAdapterFactory.getAdapter('v0.8');
 
@@ -412,6 +428,20 @@ describe('MessageProcessor Dependency Injection', () => {
     assert.strictEqual(isCatalogVersionCompatible('custom', 'Vcustom'), true);
     assert.strictEqual(isCatalogVersionCompatible('custom', 'other'), false);
 
+    // v0.8 matches
+    assert.strictEqual(isCatalogVersionCompatible('v0.8', 'v0.8'), true);
+    assert.strictEqual(isCatalogVersionCompatible('0.8', 'v0.8'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v0.8', '0.8.0'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v0.8', 'v0.9'), false);
+
+    // SemVer object inputs
+    const v10Obj = {major: 1, minor: 0, patch: 0, prerelease: [], build: []};
+    const v09Obj = {major: 0, minor: 9, patch: 0, prerelease: [], build: []};
+    const v091Obj = {major: 0, minor: 9, patch: 1, prerelease: [], build: []};
+    assert.strictEqual(isCatalogVersionCompatible(v10Obj, '1.0'), true);
+    assert.strictEqual(isCatalogVersionCompatible('1.0', v10Obj), true);
+    assert.strictEqual(isCatalogVersionCompatible(v09Obj, v091Obj), true);
+
     // Falsy / invalid inputs
     assert.strictEqual(isCatalogVersionCompatible(undefined, 'v1.0'), false);
     assert.strictEqual(isCatalogVersionCompatible('v1.0', undefined), false);
@@ -419,6 +449,10 @@ describe('MessageProcessor Dependency Injection', () => {
     assert.strictEqual(isCatalogVersionCompatible('v1.0', null), false);
     assert.strictEqual(isCatalogVersionCompatible(null, null), false);
     assert.strictEqual(isCatalogVersionCompatible('', ''), false);
+    assert.strictEqual(isCatalogVersionCompatible('', 'v1.0'), false);
+    assert.strictEqual(isCatalogVersionCompatible('v1.0', ''), false);
+    assert.strictEqual(isCatalogVersionCompatible(null, 'None'), false);
+    assert.strictEqual(isCatalogVersionCompatible('None', null), false);
   });
 
   it('evaluates compatibleCatalogVersions and isCatalogCompatible on adapter instances', () => {

@@ -76,6 +76,7 @@ describe('SemVer Utilities (SemVer 2.0.0 Spec)', () => {
       build: [],
     });
     assert.strictEqual(parseSemVer('invalid'), null);
+    assert.strictEqual(parseSemVer(''), null);
     assert.strictEqual(parseSemVer(undefined), null);
     assert.strictEqual(parseSemVer(null), null);
   });
@@ -207,6 +208,8 @@ describe('SemVer Utilities (SemVer 2.0.0 Spec)', () => {
     assert.strictEqual(isAtLeastVersion('v0.9', '1.0'), false);
     assert.strictEqual(isAtLeastVersion('v0.8', '1.0'), false);
     assert.strictEqual(isAtLeastVersion(undefined, '1.0'), false);
+    assert.strictEqual(isAtLeastVersion(null, '1.0'), false);
+    assert.strictEqual(isAtLeastVersion('', '1.0'), false);
     assert.strictEqual(isAtLeastVersion('invalid', '1.0'), false);
 
     // Pre-release version is lower than target release
@@ -260,5 +263,25 @@ describe('SemVer Utilities (SemVer 2.0.0 Spec)', () => {
     // Partial object missing prerelease and build arrays
     assert.strictEqual(compareSemVer({major: 1} as unknown as string, '1.0.0'), 0);
     assert.strictEqual(compareSemVer({major: 1, minor: 1} as unknown as string, '1.0.0'), 1);
+    assert.strictEqual(
+      compareSemVer('1.0.0', {major: 1, minor: 0, patch: 0, prerelease: [], build: []}),
+      0,
+    );
+    assert.strictEqual(
+      toCanonicalVersion({major: 1, minor: 0, patch: 0, prerelease: [], build: []}),
+      '1.0',
+    );
+    assert.strictEqual(
+      toCanonicalVersion({major: 0, minor: 9, patch: 1, prerelease: [], build: []}),
+      '0.9.1',
+    );
+    assert.strictEqual(
+      isAtLeastVersion({major: 1, minor: 0, patch: 0, prerelease: [], build: []}, '1.0'),
+      true,
+    );
+    assert.strictEqual(
+      isAtLeastVersion({major: 0, minor: 9, patch: 0, prerelease: [], build: []}, '1.0'),
+      false,
+    );
   });
 });

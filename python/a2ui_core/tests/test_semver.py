@@ -134,6 +134,13 @@ def test_prerelease_precedence_chain():
     # Numeric pre-release compared numerically (2 < 11, not lexical "11" < "2")
     assert compare_semver("1.0.0-2", "1.0.0-11") < 0
 
+    # Numeric pre-release compared safely with large numbers
+    assert compare_semver("1.0.0-9007199254740991", "1.0.0-9007199254740992") < 0
+    assert compare_semver("1.0.0-9007199254740992", "1.0.0-9007199254740991") > 0
+    assert (
+        compare_semver("1.0.0-100000000000000000000", "1.0.0-9999999999999999999") > 0
+    )
+
 
 def test_ignore_build_metadata():
     """Tests that build metadata is ignored during SemVer comparisons."""
@@ -153,6 +160,7 @@ def test_is_at_least_version():
     assert is_at_least_version("v0.9", "1.0") is False
     assert is_at_least_version("v0.8", "1.0") is False
     assert is_at_least_version(None, "1.0") is False
+    assert is_at_least_version("", "1.0") is False
     assert is_at_least_version("invalid", "1.0") is False
 
     # Pre-release version is lower than target release
@@ -183,3 +191,14 @@ def test_to_canonical_version():
     assert to_canonical_version("invalid") is None
     assert to_canonical_version("") is None
     assert to_canonical_version(None) is None
+
+
+def test_semver_objects():
+    """Tests comparing, evaluating, and canonicalizing SemVer dataclass instances directly."""
+    assert compare_semver(SemVer(1, 0, 0), "1.0.0") == 0
+    assert compare_semver(SemVer(1, 1, 0), "1.0.0") > 0
+    assert compare_semver("1.0.0", SemVer(1, 0, 0)) == 0
+    assert to_canonical_version(SemVer(1, 0, 0)) == "1.0"
+    assert to_canonical_version(SemVer(0, 9, 1)) == "0.9.1"
+    assert is_at_least_version(SemVer(1, 0, 0), "1.0") is True
+    assert is_at_least_version(SemVer(0, 9, 0), "1.0") is False

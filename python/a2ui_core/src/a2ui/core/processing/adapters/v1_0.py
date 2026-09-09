@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from typing import Any
-from ...exceptions import A2uiValidationError
 from .base import BaseVersionAdapter
 from ...schema import ProtocolVersion
 from ...schema.v1_0 import (

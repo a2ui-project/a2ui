@@ -54,10 +54,6 @@ class V0Point8Adapter(BaseVersionAdapter):
             MSG_TYPE_DELETE_SURFACE,
         }
 
-    @property
-    def raise_on_empty_actions(self) -> bool:
-        return False
-
     def _extract_operations_for_action(
         self,
         action: str,
