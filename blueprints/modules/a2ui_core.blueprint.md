@@ -133,7 +133,6 @@ a2ui/core/
 │   └── v1_0/                       # Conforms to spec v1.0
 ├── catalog/                        # Catalog declarations
 │   ├── catalog                     # Catalog base class
-│   ├── common_types                # Canonical public authoring primitives (DynamicString, DataBinding, Action, etc.)
 │   ├── components                  # Component declarations
 │   └── functions                   # Function declarations
 ├── state/                          # Reactive Layout State Models
@@ -207,16 +206,16 @@ A catalog targets a specific protocol version declared via its `protocolVersion`
 
 Parsing a catalog document is parsing untrusted input: raise `A2uiCatalogError` for a missing or non-object document or a `catalogId` conflict.
 
-#### Canonical Common Types Authoring Layer (`a2ui.core.catalog.common_types`)
+#### Common Types & Subschema References
 
-To allow developers to author components and functions using canonical primitives, the Core SDK exposes common types directly from the catalog namespace (`@a2ui/core`, `a2ui.catalog`, `package:a2ui_core`).
+When authoring component or function schemas, developers import primitives (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DataBinding`, `FunctionCall`, `Action`, `ChildList`, etc.) directly from the schema module matching the catalog's targeted `protocolVersion` (e.g. `a2ui.core.schema.v1_0.common_types` or `@a2ui/core/v1_0`).
 
-- **Authoring Surface**: Public building blocks (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DataBinding`, `FunctionCall`, `Action`, `ChildList`, etc.) implemented as re-exported aliases of the latest supported version (`schema/v1_0/common_types`).
-- **Subschema References & Wire Emission**: Across both schema-builder languages (TypeScript Zod, Dart `json_schema_builder`, Swift) and subschema-dict languages (Python), component schemas emit or retain relative pointers (`"$ref": "common_types.json#/$defs/<TypeName>"`).
-- **Forward Compatibility**: While there are breaking changes between v0.9 and v1.0 that prevent v0.9 catalogs from running against v1.0 runtimes, using unversioned relative references in v1.0 catalogs allows them to be resolved dynamically against future compatible protocol versions (such as v1.1) without rewriting catalog definitions.
+- **Subschema References & Wire Emission**: In v1.0+, component schemas emit or retain relative pointers (`"$ref": "common_types.json#/$defs/<TypeName>"`).
+- **Forward Compatibility**: While breaking changes between v0.9 and v1.0 prevent v0.9 catalogs from running against v1.0 runtimes, using unversioned relative references in v1.0 catalogs allows them to be resolved dynamically against future compatible protocol versions (such as v1.1) without rewriting catalog definitions.
 
 ```typescript
-import {DynamicString, Action, ChildList, ComponentApi} from '@a2ui/core';
+import {DynamicString, Action, ChildList} from '@a2ui/core/v1_0';
+import {ComponentApi} from '@a2ui/core';
 
 export const CardComponent: ComponentApi = {
   name: 'Card',
