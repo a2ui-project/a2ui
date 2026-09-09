@@ -60,6 +60,11 @@ export type {
   MarkdownRendererTagClassMap,
 } from './basic_catalog/context/markdown.js';
 export {markdown} from './basic_catalog/directives/directives.js';
+export {injectBasicCatalogStyles, computeColorVariant} from './basic_catalog/styles/default.js';
+export type {
+  ColorVariantLightDarkOptions,
+  ColorVariantHoverOptions,
+} from './basic_catalog/styles/default.js';
 
 export {
   type Signal,
