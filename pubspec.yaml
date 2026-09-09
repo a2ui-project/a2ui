@@ -25,7 +25,6 @@ workspace:
   - samples/client/flutter/restaurant_finder/e2e_test
   - dart/a2ui_agent
   - dart/a2ui_core
-  - dart/a2ui_flutter
 
 flutter:
   uses-material-design: true
