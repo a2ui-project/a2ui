@@ -476,6 +476,13 @@ describe('MessageProcessor Dependency Injection', () => {
     assert.strictEqual(isCatalogVersionCompatible('1.0', v10Obj), true);
     assert.strictEqual(isCatalogVersionCompatible(v09Obj, v091Obj), true);
 
+    // Patch version compatibility for SemVer >= 1.0.0
+    assert.strictEqual(isCatalogVersionCompatible('v1.0.1', 'v1.0'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v1.0', 'v1.0.1'), true);
+    assert.strictEqual(isCatalogVersionCompatible('1.0.2', '1.0.1'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v1.0.1-alpha', 'v1.0'), false);
+    assert.strictEqual(isCatalogVersionCompatible('v1.1.0', 'v1.0.0'), false);
+
     // Falsy / invalid inputs
     assert.strictEqual(isCatalogVersionCompatible(undefined, 'v1.0'), false);
     assert.strictEqual(isCatalogVersionCompatible('v1.0', undefined), false);
@@ -487,6 +494,8 @@ describe('MessageProcessor Dependency Injection', () => {
     assert.strictEqual(isCatalogVersionCompatible('v1.0', ''), false);
     assert.strictEqual(isCatalogVersionCompatible(null, 'None'), false);
     assert.strictEqual(isCatalogVersionCompatible('None', null), false);
+    assert.strictEqual(isCatalogVersionCompatible({} as any, {} as any), false);
+    assert.strictEqual(isCatalogVersionCompatible([] as any, [] as any), false);
   });
 
   it('evaluates compatibleCatalogVersions and isCatalogCompatible on adapter instances', () => {

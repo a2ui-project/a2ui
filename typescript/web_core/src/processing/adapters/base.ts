@@ -18,7 +18,7 @@ import {z} from 'zod';
 import {InternalOperation} from '../operations.js';
 import {A2uiValidationError} from '../../errors.js';
 import {formatZodIssue} from '../format-zod-issue.js';
-import {SemVer, normalizeVersionString, toCanonicalVersion} from '../../common/semver.js';
+import {SemVer, normalizeVersionString, toSemVer, toCanonicalVersion} from '../../common/semver.js';
 
 /**
  * Union of supported A2UI protocol version strings.
@@ -74,11 +74,31 @@ export function isCatalogVersionCompatible(
       return true;
     }
     const compatible = compatibilityMap[msgCanonical];
-    return compatible ? compatible.has(catCanonical) : false;
+    if (compatible && compatible.has(catCanonical)) {
+      return true;
+    }
+    // For SemVer >= 1.0.0, patch releases within the same major.minor are compatible
+    const catSv = toSemVer(catalogVersion);
+    const msgSv = toSemVer(messageVersion);
+    if (
+      catSv &&
+      msgSv &&
+      catSv.major >= 1 &&
+      catSv.major === msgSv.major &&
+      catSv.minor === msgSv.minor &&
+      catSv.prerelease.length === 0 &&
+      msgSv.prerelease.length === 0
+    ) {
+      return true;
+    }
+    return false;
   }
   // Fallback for non-semver custom identifiers (e.g. 'custom' vs 'Vcustom')
-  const normCat = normalizeVersionString(String(catalogVersion));
-  const normMsg = normalizeVersionString(String(messageVersion));
+  if (typeof catalogVersion !== 'string' || typeof messageVersion !== 'string') {
+    return false;
+  }
+  const normCat = normalizeVersionString(catalogVersion);
+  const normMsg = normalizeVersionString(messageVersion);
   return normCat.length > 0 && normCat === normMsg;
 }
 
@@ -200,7 +220,7 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
     const nativeActionKeys = this.getNativeActionKeys();
     validateActionSurfaceIds(msgObj, nativeActionKeys);
 
-    const presentNativeKeys = nativeActionKeys.filter(k => k in msgObj);
+    const presentNativeKeys = nativeActionKeys.filter(k => k in msgObj).sort();
 
     if (presentNativeKeys.length > 1) {
       throw new A2uiValidationError(

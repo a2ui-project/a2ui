@@ -27,6 +27,7 @@ from ...schema import AgentToRendererMessage, ProtocolVersion
 from ...common.semver import (
     SemVer,
     normalize_version_string,
+    parse_semver,
     to_canonical_version,
 )
 
@@ -79,9 +80,27 @@ def is_catalog_version_compatible(
             else DEFAULT_CATALOG_COMPATIBILITY
         )
         compatible = mapping.get(msg_canonical)
-        return bool(compatible and cat_canonical in compatible)
+        if compatible and cat_canonical in compatible:
+            return True
+
+        # For SemVer >= 1.0.0, patch releases within the same major.minor are compatible
+        cat_sv = parse_semver(catalog_version)
+        msg_sv = parse_semver(message_version)
+        if (
+            cat_sv
+            and msg_sv
+            and cat_sv.major >= 1
+            and cat_sv.major == msg_sv.major
+            and cat_sv.minor == msg_sv.minor
+            and not cat_sv.prerelease
+            and not msg_sv.prerelease
+        ):
+            return True
+        return False
 
     # Fallback for non-semver custom identifiers (e.g. 'custom' vs 'Vcustom')
+    if not isinstance(catalog_version, str) or not isinstance(message_version, str):
+        return False
     norm_cat = normalize_version_string(catalog_version)
     norm_msg = normalize_version_string(message_version)
     return bool(norm_cat and norm_cat == norm_msg)
@@ -221,10 +240,11 @@ class BaseVersionAdapter(VersionAdapter, ABC):
 
     def _extract_single_action(self, message: dict[str, Any]) -> str:
         """Validates presence of exactly one action key from valid_actions."""
-        update_types = [k for k in self.valid_actions if k in message]
+        update_types = sorted([k for k in self.valid_actions if k in message])
         if len(update_types) > 1:
             raise A2uiValidationError(
-                f"Message contains multiple conflicting update actions: {update_types}"
+                "Message contains multiple conflicting update actions:"
+                f" {', '.join(update_types)}."
             )
         if not update_types:
             ver_str = (

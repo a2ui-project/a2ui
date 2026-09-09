@@ -85,6 +85,22 @@ class TestSchemaUtils(unittest.TestCase):
             self.assertIsInstance(schema, dict)
             self.assertIn("title", schema)
 
+    @patch(
+        "importlib.resources.files",
+        side_effect=Exception("Simulated package resource failure"),
+    )
+    def test_load_from_bundled_resource_local_assets_fallback(self, _mock_files):
+        """Verifies load_from_bundled_resource resolves schemas from local a2ui/assets when package resources fail."""
+        from a2ui.schema.constants import PROTOCOL_VERSION_MAP, SERVER_TO_CLIENT_SCHEMA_KEY
+
+        schema = load_from_bundled_resource(
+            version="v1.0",
+            resource_key=SERVER_TO_CLIENT_SCHEMA_KEY,
+            spec_map=PROTOCOL_VERSION_MAP,
+        )
+        self.assertIsInstance(schema, dict)
+        self.assertIn("title", schema)
+
     def test_wrap_as_json_array_empty_schema(self):
         """Verifies wrap_as_json_array raises A2uiCatalogError for empty schema."""
         with self.assertRaises(A2uiCatalogError) as ctx:

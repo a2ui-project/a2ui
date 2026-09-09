@@ -349,6 +349,17 @@ class MessageProcessor:
                 f"Catalog not found: {op.catalog_id}",
             )
 
+        cat_ver = getattr(matched_catalog, "protocol_version", None)
+        if cat_ver and version and not is_catalog_version_compatible(cat_ver, version):
+            cat_name = op.catalog_id or getattr(
+                matched_catalog, "catalog_id", "unknown"
+            )
+            return make_error(
+                RpcErrorCode.INVALID_FUNCTION_CALL,
+                f"Catalog '{cat_name}' specification version ({cat_ver}) does not"
+                f" match message protocol version ({version}).",
+            )
+
         fn = (
             matched_catalog.get_function(op.call)
             if hasattr(matched_catalog, "get_function")

@@ -142,6 +142,11 @@ describe('SemVer Utilities (SemVer 2.0.0 Spec)', () => {
     assert.strictEqual(parseSemVer('1.0.0-alpha..1'), null);
   });
 
+  it('rejects non-ASCII Unicode numerals per SemVer 2.0.0', () => {
+    assert.strictEqual(parseSemVer('1.1١.0'), null);
+    assert.strictEqual(parseSemVer('١.0.0'), null);
+  });
+
   it('compares multi-digit minor versions correctly unlike float comparisons', () => {
     assert.ok(compareSemVer('v0.10.0', 'v0.9.1') > 0);
     assert.ok(compareSemVer('v0.9.1', 'v0.10.0') < 0);

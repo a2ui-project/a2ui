@@ -953,6 +953,58 @@ describe('MessageProcessor', () => {
         },
       );
     });
+
+    it('fails when component references a catalog with incompatible specification version', () => {
+      const surfaceCatalog = new Catalog(
+        'cat-v1',
+        [{name: 'RootBox', schema: z.object({})}],
+        [],
+        undefined,
+        undefined,
+        '1.0',
+      );
+      const incompatCatalog = new Catalog(
+        'cat-v08',
+        [{name: 'OldCard', schema: z.object({})}],
+        [],
+        undefined,
+        undefined,
+        '0.8',
+      );
+      const processor = new MessageProcessor([surfaceCatalog, incompatCatalog]);
+
+      processor.processMessages({
+        version: 'v1.0',
+        createSurface: {surfaceId: 'surface-1', catalogId: 'cat-v1'},
+      });
+
+      assert.throws(
+        () => {
+          processor.processMessages({
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 'surface-1',
+              components: [
+                {
+                  id: 'c1',
+                  component: 'OldCard',
+                  catalogId: 'cat-v08',
+                },
+              ],
+            },
+          });
+        },
+        (err: any) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.ok(
+            err.message.includes(
+              "catalog 'cat-v08' specification version (0.8) does not match surface default catalog version (1.0)",
+            ),
+          );
+          return true;
+        },
+      );
+    });
   });
 
   describe('MessageProcessor Full Pipeline & Validation Integration', () => {

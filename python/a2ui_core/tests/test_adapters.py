@@ -39,6 +39,14 @@ from a2ui.core.processing.adapters import (
 )
 
 
+@pytest.fixture(autouse=True)
+def reset_adapter_factory():
+    """Isolates tests by restoring VersionAdapterFactory._adapters after each test."""
+    orig_adapters = dict(VersionAdapterFactory._adapters)
+    yield
+    VersionAdapterFactory._adapters = orig_adapters
+
+
 def test_supported_protocol_versions():
     """Verifies membership of canonical protocol versions in SUPPORTED_PROTOCOL_VERSIONS."""
     assert "1.0" in SUPPORTED_PROTOCOL_VERSIONS
@@ -106,6 +114,13 @@ def test_is_catalog_version_compatible():
     assert is_catalog_version_compatible(b"v1.0", "v1.0") is True
     assert is_catalog_version_compatible("v1.0", b"1.0") is True
 
+    # Patch version compatibility for SemVer >= 1.0.0
+    assert is_catalog_version_compatible("v1.0.1", "v1.0") is True
+    assert is_catalog_version_compatible("v1.0", "v1.0.1") is True
+    assert is_catalog_version_compatible("1.0.2", "1.0.1") is True
+    assert is_catalog_version_compatible("v1.0.1-alpha", "v1.0") is False
+    assert is_catalog_version_compatible("v1.1.0", "v1.0.0") is False
+
     # Falsy / invalid inputs
     assert is_catalog_version_compatible(None, "v1.0") is False
     assert is_catalog_version_compatible("v1.0", None) is False
@@ -115,6 +130,8 @@ def test_is_catalog_version_compatible():
     assert is_catalog_version_compatible("v1.0", "") is False
     assert is_catalog_version_compatible(None, "None") is False
     assert is_catalog_version_compatible("None", None) is False
+    assert is_catalog_version_compatible({}, {}) is False
+    assert is_catalog_version_compatible([], []) is False
 
 
 def test_adapter_catalog_compatibility_methods():
@@ -355,7 +372,10 @@ def test_unrecognized_or_missing_version_strings():
     """Verifies that unrecognized or missing version strings raise A2uiValidationError."""
     with pytest.raises(
         A2uiValidationError,
-        match=r"Unsupported protocol version 'v99\.0'.*Supported versions: .*v2\.0",
+        match=(
+            r"Unsupported protocol version 'v99\.0'\. Supported versions: v0\.8, v0\.9,"
+            r" v0\.9\.1, v1\.0\."
+        ),
     ):
         VersionAdapterFactory.get_adapter("v99.0")
 

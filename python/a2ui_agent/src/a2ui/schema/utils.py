@@ -200,12 +200,11 @@ def load_from_bundled_resource(
     # This handles cases where assets might be present in src but not installed
     try:
         # The assets are located at a2ui/assets/<version_dir>/<filename>
-        # This file is at a2ui/inference/schema/manager.py
-        # So, we need to go up 3 directories to 'a2ui', then down to 'assets'
+        # This file is at a2ui/schema/utils.py
+        # So, we need to go up 1 directory to 'a2ui', then down to 'assets'
         potential_path = os.path.abspath(
             os.path.join(
                 os.path.dirname(__file__),
-                "..",
                 "..",
                 "assets",
                 version_dir,

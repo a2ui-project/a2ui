@@ -35,7 +35,11 @@ import {
   isInternalOperation,
 } from './operations.js';
 
-import {ProtocolVersion, VersionAdapterResolver} from './adapters/base.js';
+import {
+  isCatalogVersionCompatible,
+  ProtocolVersion,
+  VersionAdapterResolver,
+} from './adapters/base.js';
 import {RendererCapabilities} from '../v1_0/schema/index.js';
 import type {ServerToClientMessage as V08ServerToClientMessage} from '../v0_8/types/types.js';
 import type {
@@ -128,13 +132,6 @@ export interface MessageProcessorOptions {
   defaultTimeoutMs?: number;
 }
 
-/**
- * Formats a Zod validation issue into a descriptive, human-readable string.
- *
- * Direct attribute extraction is used so that issue details (such as unrecognized
- * property keys or invalid enum options) are preserved even when running in
- * optimized/minified production builds where Zod's internal error map messages
- */
 import {formatZodIssue} from './format-zod-issue.js';
 export {formatZodIssue};
 
@@ -643,6 +640,15 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         if (!found) {
           throw new A2uiValidationError(
             `Unknown catalog ID '${rawCatalogId}' for component '${id}'. Available catalogs: ${this.catalogs.map(c => c.id).join(', ')}`,
+          );
+        }
+        if (
+          found.protocolVersion &&
+          surface.catalog.protocolVersion &&
+          !isCatalogVersionCompatible(found.protocolVersion, surface.catalog.protocolVersion)
+        ) {
+          throw new A2uiValidationError(
+            `Component '${id}' catalog '${rawCatalogId}' specification version (${found.protocolVersion}) does not match surface default catalog version (${surface.catalog.protocolVersion}).`,
           );
         }
         targetCatalog = found;

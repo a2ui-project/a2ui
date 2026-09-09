@@ -19,7 +19,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from a2ui.core.processing import MessageProcessor
-from a2ui.core.validation import STRICT_VALIDATION, ValidationConfig
+from a2ui.core.validation import STRICT_VALIDATION
 from a2ui.core.resolution import (
     DataContext,
     ComponentContext,
@@ -29,7 +29,6 @@ from a2ui.core.resolution import (
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.catalog import (
     Catalog,
-    ComponentApi,
     FunctionImplementation,
     ModelComponentApi,
 )
@@ -1160,6 +1159,41 @@ def test_message_processor_call_renderer_function_async_coroutine():
     }])
     assert len(resp) == 1
     assert resp[0]["rendererFunctionResponse"]["functionCallId"] == "async_call_1"
+
+
+def test_message_processor_call_renderer_function_incompatible_catalog_version(
+    real_catalog_09,
+):
+    from a2ui.core.catalog.catalog import FunctionImplementation
+
+    def dummy_fn(args):
+        return "ok"
+
+    cat = real_catalog_09
+    cat.protocol_version = "0.8"
+    cat.functions["testFunc"] = FunctionImplementation(
+        name="testFunc",
+        execute=dummy_fn,
+        allowed_callers="rendererOrAgent",
+    )
+
+    processor = MessageProcessor(catalogs=[cat])
+    resp = processor.process_messages([{
+        "version": "v1.0",
+        "callRendererFunction": {
+            "functionCallId": "call_incompat",
+            "callFunction": {"call": "testFunc", "args": {}},
+        },
+    }])
+    assert len(resp) == 1
+    resp_obj = resp[0]["rendererFunctionResponse"]
+    assert resp_obj["functionCallId"] == "call_incompat"
+    assert "error" in resp_obj
+    assert resp_obj["error"]["code"] == "INVALID_FUNCTION_CALL"
+    assert (
+        "specification version (0.8) does not match message protocol version (v1.0)"
+        in resp_obj["error"]["message"]
+    )
 
 
 def test_message_processor_cleanup_pending_agent_calls(mock_catalog):

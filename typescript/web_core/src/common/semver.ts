@@ -106,7 +106,7 @@ export function parseSemVer(versionStr: string | undefined | null): SemVer | nul
  * @param v The version string or object to convert.
  * @returns A SemVer object if valid, or null otherwise.
  */
-function toSemVer(v: string | SemVer | undefined | null): SemVer | null {
+export function toSemVer(v: string | SemVer | undefined | null): SemVer | null {
   if (!v) {
     return null;
   }
