@@ -80,7 +80,9 @@
     "demo": "yarn workspace @a2ui/react-explorer dev",
     "test": "wireit",
     "test:unit": "wireit",
+    "test:unit:react18": "wireit",
     "test:integration": "wireit",
+    "test:integration:react18": "wireit",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
@@ -90,15 +92,15 @@
     "clean": "wireit"
   },
   "dependencies": {
-    "@a2ui/markdown-it": "*",
+    "@a2ui/markdown-it": "workspace:*",
     "@a2ui/web_core": "workspace:*",
     "clsx": "^2.1.1",
     "markdown-it": "^14.2.0",
     "zod": "^3.25.76"
   },
   "peerDependencies": {
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
@@ -106,10 +108,13 @@
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
+    "@testing-library/react-18": "npm:@testing-library/react@^14.3.1",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^25.9.3",
     "@types/react": "^19.2.17",
+    "@types/react-18": "npm:@types/react@^18.3.1",
     "@types/react-dom": "^19.2.3",
+    "@types/react-dom-18": "npm:@types/react-dom@^18.3.1",
     "@vitejs/plugin-react": "^6.0.2",
     "eslint": "^10.4.1",
     "eslint-config-prettier": "^10.1.8",
@@ -122,7 +127,9 @@
     "prettier": "^3.8.4",
     "puppeteer": "^25.1.0",
     "react": "^19.2.7",
+    "react-18": "npm:react@^18.3.1",
     "react-dom": "^19.2.7",
+    "react-dom-18": "npm:react-dom@^18.3.1",
     "tsup": "^8.5.1",
     "tsx": "^4.22.4",
     "typescript": "5.9.3",
@@ -152,7 +159,9 @@
     "test": {
       "dependencies": [
         "test:unit",
-        "test:integration"
+        "test:unit:react18",
+        "test:integration",
+        "test:integration:react18"
       ]
     },
     "test:unit": {
@@ -165,8 +174,21 @@
         "tsconfig.json"
       ]
     },
+    "test:unit:react18": {
+      "command": "REACT_VERSION=18 vitest run",
+      "dependencies": [
+        "build"
+      ],
+      "files": [
+        "src/**/*",
+        "tsconfig.json"
+      ]
+    },
     "test:integration": {
       "command": "yarn workspace @a2ui/react-explorer test:ci"
+    },
+    "test:integration:react18": {
+      "command": "REACT_VERSION=18 yarn workspace @a2ui/react-explorer test:ci"
     },
     "clean": {
       "command": "rm -rf dist .tsbuildinfo .wireit"
