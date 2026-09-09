@@ -12,16 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// The set of return types a local function can produce.
-///
-/// Mirrors `A2uiReturnType` in the core blueprint and `web_core`.
-public enum FunctionReturnType: String, Sendable {
-  case string
-  case number
-  case boolean
-  case array
-  case object
-  case validationResult = "validationResult"
-  case any
-  case void
+import Foundation
+
+/// Specifies which roles are authorized to invoke a catalog function.
+public enum AllowedCallers: String, Sendable, Equatable, Codable {
+  case rendererOnly
+  case agentOnly
+  case rendererOrAgent
 }

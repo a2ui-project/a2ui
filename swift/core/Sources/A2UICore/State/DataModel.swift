@@ -69,8 +69,9 @@ public final class DataModel: ObservableObject {
 
   /// Sets a value at the given JSON Pointer path, throwing `A2UIDataError` on invalid paths or mutations.
   public func setThrowing(_ path: String, value: JSONValue?) throws {
+    let effectiveValue = (value == .null) ? nil : value
     let components = try JSONValue.parsePathThrowing(path)
-    if !components.isEmpty && value == nil
+    if !components.isEmpty && effectiveValue == nil
       && !JSONValue.hasPath(node: dataSubject.value, components: components)
     {
       return
@@ -82,7 +83,7 @@ public final class DataModel: ObservableObject {
 
     var current = dataSubject.value
     if components.isEmpty {
-      current = value ?? .object([:])
+      current = effectiveValue ?? .object([:])
     } else {
       if current != .null && current.objectValue == nil && current.arrayValue == nil {
         throw A2UIDataError(
@@ -92,7 +93,7 @@ public final class DataModel: ObservableObject {
       if let updated = try JSONValue.updateThrowing(
         node: current,
         components: components[...],
-        newValue: value,
+        newValue: effectiveValue,
         fullPath: path
       ) {
         current = updated
