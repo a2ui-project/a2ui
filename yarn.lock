@@ -82,7 +82,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@a2ui/angular@workspace:renderers/angular"
   dependencies:
-    "@a2ui/markdown-it": "npm:*"
+    "@a2ui/markdown-it": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@angular/build": "npm:^21.2.5"
     "@angular/cli": "npm:^21.2.5"
@@ -116,7 +116,7 @@ __metadata:
     wireit: "npm:^0.15.0-pre.2"
     zod: "npm:^3.25.76"
   peerDependencies:
-    "@a2ui/markdown-it": "*"
+    "@a2ui/markdown-it": "workspace:*"
     "@angular/common": ^21.2.5
     "@angular/core": ^21.2.5
     "@angular/platform-browser": ^21.2.5
@@ -170,7 +170,7 @@ __metadata:
   resolution: "@a2ui/lit-explorer@workspace:renderers/lit/a2ui_explorer"
   dependencies:
     "@a2ui/lit": "workspace:*"
-    "@a2ui/markdown-it": "npm:*"
+    "@a2ui/markdown-it": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@lit-labs/signals": "npm:^0.3.0"
     "@lit/context": "npm:^1.1.6"
@@ -199,7 +199,7 @@ __metadata:
   dependencies:
     "@a2a-js/sdk": "npm:^0.3.13"
     "@a2ui/lit": "workspace:*"
-    "@a2ui/markdown-it": "npm:*"
+    "@a2ui/markdown-it": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@google/genai": "npm:^2.8.0"
     "@lit-labs/signals": "npm:^0.3.0"
@@ -230,7 +230,7 @@ __metadata:
     wireit: "npm:^0.15.0-pre.2"
     zod: "npm:^3.25.76"
   peerDependencies:
-    "@a2ui/markdown-it": "*"
+    "@a2ui/markdown-it": "workspace:*"
   peerDependenciesMeta:
     "@a2ui/markdown-it":
       optional: true
@@ -263,7 +263,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@a2ui/react-explorer@workspace:renderers/react/a2ui_explorer"
   dependencies:
-    "@a2ui/markdown-it": "npm:*"
+    "@a2ui/markdown-it": "workspace:*"
     "@a2ui/react": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@types/jasmine": "npm:^6.0.0"
@@ -289,7 +289,7 @@ __metadata:
   resolution: "@a2ui/react-shell@workspace:samples/client/react/shell"
   dependencies:
     "@a2a-js/sdk": "npm:^0.3.13"
-    "@a2ui/markdown-it": "npm:*"
+    "@a2ui/markdown-it": "workspace:*"
     "@a2ui/react": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@types/node": "npm:^25.9.3"
@@ -314,7 +314,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@a2ui/react@workspace:renderers/react"
   dependencies:
-    "@a2ui/markdown-it": "npm:*"
+    "@a2ui/markdown-it": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@eslint/js": "npm:^10.0.1"
     "@testing-library/dom": "npm:^10.4.1"
@@ -348,8 +348,8 @@ __metadata:
     wireit: "npm:^0.15.0-pre.2"
     zod: "npm:^3.25.76"
   peerDependencies:
-    react: ^19.2.7
-    react-dom: ^19.2.7
+    react: ^18.0.0 || ^19.0.0
+    react-dom: ^18.0.0 || ^19.0.0
     zod: ^3.25.76
   languageName: unknown
   linkType: soft
@@ -368,7 +368,7 @@ __metadata:
   resolution: "@a2ui/restaurant@workspace:samples/client/angular/projects/restaurant"
   dependencies:
     "@a2ui/angular": "workspace:*"
-    "@a2ui/markdown-it": "npm:*"
+    "@a2ui/markdown-it": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     wireit: "npm:^0.15.0-pre.2"
   languageName: unknown
@@ -380,7 +380,7 @@ __metadata:
   dependencies:
     "@a2a-js/sdk": "npm:^0.3.13"
     "@a2ui/lit": "workspace:*"
-    "@a2ui/markdown-it": "npm:*"
+    "@a2ui/markdown-it": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@google/genai": "npm:^2.8.0"
     "@lit-labs/signals": "npm:^0.3.0"
@@ -431,7 +431,7 @@ __metadata:
   resolution: "@a2ui/visual-parity@workspace:renderers/react/visual-parity"
   dependencies:
     "@a2ui/lit": "workspace:*"
-    "@a2ui/markdown-it": "npm:*"
+    "@a2ui/markdown-it": "workspace:*"
     "@a2ui/react": "workspace:*"
     "@lit/context": "npm:^1.1.6"
     "@playwright/test": "npm:1.58.1"
@@ -12238,7 +12238,7 @@ __metadata:
   resolution: "angular-a2ui@workspace:samples/client/angular"
   dependencies:
     "@a2a-js/sdk": "npm:^0.3.13"
-    "@a2ui/markdown-it": "npm:*"
+    "@a2ui/markdown-it": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@angular/build": "npm:^21.2.5"
     "@angular/cdk": "npm:^21.2.5"

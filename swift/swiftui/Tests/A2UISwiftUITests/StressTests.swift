@@ -104,7 +104,7 @@ struct StressTests {
 
   // MARK: - Concurrent Updates
 
-  @Test nonisolated func concurrentDataModelUpdates() async throws {
+  @Test func concurrentDataModelUpdates() async throws {
     let dataModel = DataModel()
 
     // 10 tasks × 200 updates each
@@ -117,7 +117,7 @@ struct StressTests {
           for updateIndex in 0..<updatesPerTask {
             let path = "/task\(taskIndex)/val\(updateIndex)"
             let value: JSONValue = .integer(updateIndex)
-            dataModel.set(path, value: value)
+            await dataModel.set(path, value: value)
           }
         }
       }
@@ -136,7 +136,7 @@ struct StressTests {
     }
   }
 
-  @Test nonisolated func concurrentComponentUpdates() async throws {
+  @Test func concurrentComponentUpdates() async throws {
     let componentsModel = SurfaceComponentsModel()
 
     // Multiple tasks updating different components concurrently
@@ -149,7 +149,7 @@ struct StressTests {
               type: "text",
               properties: ["text": .string("Task \(taskIndex) Component \(i)")]
             )
-            componentsModel.addComponent(comp)
+            await componentsModel.addComponent(comp)
           }
         }
       }

@@ -34,7 +34,7 @@ const NUMBER_LITERAL = /^\d+\.?\d*$/;
 
 export class ExpressionParser {
   /** The maximum allowed recursion depth for nested expressions to prevent stack overflows. */
-  private static readonly MAX_DEPTH = 10;
+  public static readonly MAX_DEPTH = 100;
 
   /**
    * Parses an input string into an array of DynamicValues.
@@ -135,6 +135,11 @@ export class ExpressionParser {
   }
 
   private parseExpressionInternal(scanner: Scanner, depth: number): DynamicValue {
+    // Both recursive paths pass through here: interpolations nested inside an interpolation,
+    // and function-call arguments that are themselves expressions. Checking here counts both.
+    if (depth > ExpressionParser.MAX_DEPTH) {
+      throw new A2uiExpressionError('Max recursion depth reached in parse');
+    }
     scanner.skipWhitespace();
     if (scanner.isAtEnd()) return '';
 
@@ -203,7 +208,7 @@ export class ExpressionParser {
       }
       scanner.skipWhitespace();
 
-      args[argName] = this.parseExpressionInternal(scanner, depth);
+      args[argName] = this.parseExpressionInternal(scanner, depth + 1);
 
       scanner.skipWhitespace();
       if (scanner.peek() === ',') {

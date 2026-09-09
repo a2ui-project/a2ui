@@ -91,6 +91,73 @@ For a quick 2-sample validation using `gemini-3.1-flash-lite`:
 uv run main.py --sanity
 ```
 
+### Running Evaluations on Gemma Models (Express Format)
+
+Gemma models can be evaluated either through **Google AI Studio / Gemini API cloud services** (no local GPU required) or **locally via Ollama** on a machine with a dedicated GPU.
+
+> [!NOTE]
+> Gemma evaluations do not run by default or as part of CI workflows. CI evaluations continue to use `google/gemini-3.5-flash`.
+
+#### Required API Keys
+
+Regardless of whether inference runs in the cloud or via Ollama, evaluation grading uses Gemini Flash as the LLM-as-a-judge. Set your Google Gemini API key:
+
+```bash
+export GEMINI_API_KEY="your_api_key_here"
+```
+
+You can obtain an API key from [Google AI Studio](https://aistudio.google.com/).
+
+#### Option A: Cloud Execution (Google AI Studio / Gemini API)
+
+- **Mobile / On-Device Tier (`--model gemma` or `--model gemma-4-26b`)**:
+  `google/gemma-4-26b-a4b-it` — A Mixture-of-Experts model with 26B total parameters and **4B active parameters** (`a4b`), representative of the class of lightweight models feasible for execution on modern mobile hardware.
+- **Large / Workstation Tier (`--model gemma-large` or `--model gemma-4-31b`)**:
+  `google/gemma-4-31b-it` — A 31B dense parameter model offering higher reasoning capacity.
+
+```bash
+# Run Gemma 4 mobile tier on Express format using --strategies express
+uv run main.py --model gemma --strategies express
+
+# Run Gemma 4 large tier (31B) on Express format
+uv run main.py --model gemma-large --strategies express
+
+# Run on a specific dataset or limit sample count for quick checks
+uv run main.py --model gemma --strategies express --dataset core_v1_0 --limit 3
+```
+
+#### Option B: Local / Edge Execution via Ollama (GPU-Accelerated)
+
+For smaller edge-optimized models that can run fully offline on standard or flagship smartphones (requiring 6–8 GB RAM):
+
+- **Gemma 4 E2B (`--model gemma-e2b` or `--model gemma4:e2b`)**:
+  `ollama/gemma4:e2b` — Edge model designed for standard smartphones (~6 GB RAM offline).
+- **Gemma 4 E4B (`--model gemma-e4b` or `--model gemma4:e4b`)**:
+  `ollama/gemma4:e4b` — Edge model designed for recent flagship smartphones (~8 GB RAM offline).
+- **Gemma 2 2B (`--model gemma-2b` or `--model gemma2:2b`)**:
+  `ollama/gemma2:2b` — Lightweight 2B parameter open model.
+
+**Prerequisites**:
+
+1. Install [Ollama](https://ollama.com/) and start the daemon:
+   ```bash
+   ollama serve
+   ```
+2. Pull the target model(s):
+   ```bash
+   ollama pull gemma4:e2b
+   ollama pull gemma4:e4b
+   ```
+3. Run the evaluation against your local Ollama instance:
+
+   ```bash
+   # Run Gemma 4 E2B on Express format via Ollama
+   uv run main.py --model gemma-e2b --strategies express --dataset core_v1_0 --limit 3
+   ```
+
+> [!IMPORTANT]
+> **LLM-as-a-Judge Rule**: Gemma models must **never** be used as the evaluation grader (`--grading-model`). The grading model defaults to and must remain a Gemini Flash model (e.g. `google/gemini-3.5-flash` or `google/gemini-3.1-flash-lite`) to ensure consistent, unbiased grading. Ensure `GEMINI_API_KEY` is set when running Ollama evaluations.
+
 ## Viewing Evaluation Results
 
 Inspect AI provides a web-based log viewer to explore interactive traces and judge rationales:
