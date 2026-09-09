@@ -684,3 +684,28 @@ WeatherWidget(city="Seattle", temperature="58", condition="rainy", high="62", lo
     assert w_comp["high"] == 62
     assert w_comp["low"] == 50
     assert w_comp["humidity"] == 82
+
+
+def test_coercion_percentage_and_signs():
+    repo_root = Path(__file__).resolve().parents[4]
+    catalog_path = (
+        repo_root / "eval" / "catalogs" / "standalone_components" / "catalog.json"
+    )
+    if not catalog_path.exists():
+        pytest.skip(f"Standalone catalog not found at {catalog_path}")
+
+    with open(catalog_path, "r", encoding="utf-8") as f:
+        import json
+        from a2ui.schema.catalog import Catalog
+
+        cat_data = json.load(f)
+    catalog = Catalog.from_json(cat_data, spec_version="0.9.1")
+    fmt = VerticalFormat(catalog=catalog, surface_id="main", version="v0.9.1")
+
+    raw = """<a2ui>
+MetricsTile(label="MRR", value="$1.42M", changePercent="+10.9%", trend="up", period="vs prior month")
+</a2ui>"""
+    msgs = fmt.parser.compile(raw, is_final=True)
+    m_comp = msgs[1]["updateComponents"]["components"][0]
+    assert m_comp["changePercent"] == 10.9
+    assert isinstance(m_comp["changePercent"], float)

@@ -662,10 +662,14 @@ class VerticalCompiler:
         if expected_type in ("number", "integer"):
             if isinstance(val, str):
                 try:
+                    cleaned = val.strip()
+                    if cleaned.endswith("%"):
+                        cleaned = cleaned[:-1].strip()
+                    if cleaned.startswith("+"):
+                        cleaned = cleaned[1:].strip()
                     if expected_type == "integer":
-                        return int(float(val.strip()))
+                        return int(float(cleaned))
                     else:
-                        cleaned = val.strip()
                         if "." in cleaned or "e" in cleaned.lower():
                             return float(cleaned)
                         else:
