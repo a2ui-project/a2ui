@@ -153,13 +153,13 @@ func makeTestCatalog() throws -> AnyCatalog {
 /// A test `ActionHandling` that captures actions for verification.
 final class TestActionHandler: ActionHandling, @unchecked Sendable {
   var capturedActions: [ResolvedAction] = []
-  var capturedErrors: [ClientServerError] = []
+  var capturedErrors: [RendererError] = []
 
   func handle(action: ResolvedAction, from surfaceID: String) {
     capturedActions.append(action)
   }
 
-  func handle(error: ClientServerError, from surfaceID: String) {
+  func handle(error: RendererError, from surfaceID: String) {
     capturedErrors.append(error)
   }
 }

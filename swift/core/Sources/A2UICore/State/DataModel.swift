@@ -70,10 +70,11 @@ public final class DataModel: ObservableObject {
   public func set(_ path: String, value: JSONValue?) {
     objectWillChange.send()
     var current = dataSubject.value
+    let effectiveValue = (value == .null) ? nil : value
     if path.isEmpty || path == "/" {
-      current = value ?? .object([:])
+      current = effectiveValue ?? .object([:])
     } else {
-      current[path] = value
+      current[path] = effectiveValue
     }
     dataSubject.send(current)
   }

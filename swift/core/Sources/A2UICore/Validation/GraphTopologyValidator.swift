@@ -22,17 +22,21 @@ public enum GraphTopologyValidator {
   public typealias Reference = (referenceID: String, field: String)
   public typealias AdjacencyMap = [String: [Reference]]
 
-  /// Validates the topology and integrity of a list of component JSON objects.
+  /// Validates the topology, integrity, and composition constraints of a list of component JSON objects.
   ///
   /// - Parameters:
   ///   - components: The component JSON dictionaries to validate.
   ///   - rootID: The expected root component ID (default "root").
   ///   - config: The validation configuration controlling strictness.
-  /// - Throws: `A2UIIntegrityError` or `A2UIRecursionError` on structural violations.
+  ///   - catalogs: Optional dictionary of registered catalogs to validate composition constraints.
+  ///   - defaultCatalogID: Optional default catalog identifier.
+  /// - Throws: `A2UIIntegrityError`, `A2UIRecursionError`, or `A2UIValidationError` on violations.
   public static func validate(
     components: [[String: JSONValue]],
     rootID: String = "root",
-    config: ValidationConfig = .strict
+    config: ValidationConfig = .strict,
+    catalogs: [String: AnyCatalog]? = nil,
+    defaultCatalogID: String? = nil
   ) throws {
     let (allComponentIDs, adjacencyList) = try buildAdjacencyMap(from: components)
 
@@ -49,6 +53,124 @@ public enum GraphTopologyValidator {
       rootID: rootID,
       config: config
     )
+
+    if let catalogs, !catalogs.isEmpty {
+      try validateCompositionConstraints(
+        components: components,
+        allIDs: allComponentIDs,
+        adjacencyList: adjacencyList,
+        rootID: rootID,
+        catalogs: catalogs,
+        defaultCatalogID: defaultCatalogID
+      )
+    }
+  }
+
+  private static func validateCompositionConstraints(
+    components: [[String: JSONValue]],
+    allIDs: Set<String>,
+    adjacencyList: AdjacencyMap,
+    rootID: String,
+    catalogs: [String: AnyCatalog],
+    defaultCatalogID: String?
+  ) throws {
+    var componentTypes: [String: (type: String, catalogID: String?)] = [:]
+    for component in components {
+      guard let id = component["id"]?.stringValue,
+        let type = component["component"]?.stringValue
+      else { continue }
+      let catalogID = component["catalogId"]?.stringValue ?? defaultCatalogID
+      componentTypes[id] = (type, catalogID)
+    }
+
+    func findCatalog(_ catID: String?) -> AnyCatalog? {
+      guard let catID else { return nil }
+      if let cat = catalogs[catID] { return cat }
+      return catalogs.values.first {
+        $0.id.hasSuffix("/\(catID)/catalog.json")
+      }
+    }
+
+    func getComponentAPI(type: String, catalogID: String?) -> (any ComponentAPI)? {
+      if let catalogID, let catalog = findCatalog(catalogID), let comp = catalog.components[type] {
+        return comp
+      }
+      if let defaultCatalogID, let catalog = findCatalog(defaultCatalogID),
+        let comp = catalog.components[type]
+      {
+        return comp
+      }
+      for catalog in catalogs.values {
+        if let comp = catalog.components[type] {
+          return comp
+        }
+      }
+      return nil
+    }
+
+    // 1. Root component composition constraint: parent is conceptual "Surface"
+    if let rootInfo = componentTypes[rootID] {
+      if let rootCompAPI = getComponentAPI(type: rootInfo.type, catalogID: rootInfo.catalogID),
+        let allowedParents = rootCompAPI.allowedParents
+      {
+        if !allowedParents.contains("Surface") {
+          let detail = A2UIErrorDetail(
+            path: "\(rootID)",
+            code: "UNALLOWED_PARENT",
+            message:
+              "Component '\(rootID)' of type '\(rootInfo.type)' cannot have parent of type 'Surface'"
+          )
+          throw A2UIValidationError(
+            "Component '\(rootID)' of type '\(rootInfo.type)' has unallowed parent 'Surface'",
+            details: [detail]
+          )
+        }
+      }
+    }
+
+    // 2. Validate all parent-child relationships in adjacencyList
+    for (parentID, references) in adjacencyList {
+      guard let parentInfo = componentTypes[parentID] else { continue }
+      let parentCompAPI = getComponentAPI(type: parentInfo.type, catalogID: parentInfo.catalogID)
+
+      for ref in references {
+        let childID = ref.referenceID
+        guard let childInfo = componentTypes[childID] else { continue }
+        let childCompAPI = getComponentAPI(type: childInfo.type, catalogID: childInfo.catalogID)
+
+        // Validate parent's allowedChildren
+        if let allowedChildren = parentCompAPI?.allowedChildren {
+          if !allowedChildren.contains(childInfo.type) {
+            let detail = A2UIErrorDetail(
+              path: "\(parentID).\(ref.field)",
+              code: "UNALLOWED_CHILD",
+              message:
+                "Component '\(parentID)' of type '\(parentInfo.type)' cannot have child of type '\(childInfo.type)'"
+            )
+            throw A2UIValidationError(
+              "Component '\(parentID)' of type '\(parentInfo.type)' has unallowed child '\(childInfo.type)'",
+              details: [detail]
+            )
+          }
+        }
+
+        // Validate child's allowedParents
+        if let allowedParents = childCompAPI?.allowedParents {
+          if !allowedParents.contains(parentInfo.type) {
+            let detail = A2UIErrorDetail(
+              path: "\(childID)",
+              code: "UNALLOWED_PARENT",
+              message:
+                "Component '\(childID)' of type '\(childInfo.type)' cannot have parent of type '\(parentInfo.type)'"
+            )
+            throw A2UIValidationError(
+              "Component '\(childID)' of type '\(childInfo.type)' has unallowed parent '\(parentInfo.type)'",
+              details: [detail]
+            )
+          }
+        }
+      }
+    }
   }
 
   private static func buildAdjacencyMap(

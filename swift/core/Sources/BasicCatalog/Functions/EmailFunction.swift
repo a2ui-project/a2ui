@@ -17,31 +17,59 @@ import Foundation
 import JSONSchema
 
 public final class EmailFunction: FunctionImplementation, Sendable {
-  public let api = FunctionAPI(
-    name: "email",
-    returnType: .boolean,
-    schema: try! Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "value": { "type": "string" }
-          },
-          "required": ["value"]
-        }
-        """
-    )
-  )
+  public let api: FunctionAPI
+  private let returnValidationResult: Bool
 
-  public init() {}
+  public init(returnValidationResult: Bool = false) {
+    self.returnValidationResult = returnValidationResult
+    self.api = FunctionAPI(
+      name: "email",
+      returnType: returnValidationResult ? .validationResult : .boolean,
+      schema: try! Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "value": { "type": "string" }
+            },
+            "required": ["value"]
+          }
+          """
+      )
+    )
+  }
+
+  public convenience init(protocolVersion: String) {
+    self.init(returnValidationResult: protocolVersion == "v1.0" || protocolVersion == "1.0")
+  }
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let value = arguments["value"]?.stringValue else {
+      if returnValidationResult {
+        return .object([
+          "valid": .boolean(false),
+          "code": .string("INVALID_EMAIL"),
+          "message": .string("Please enter a valid email address (e.g. user@example.com)."),
+          "severity": .string("error"),
+        ])
+      }
       return .boolean(false)
     }
 
     let emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     let isMatch = (try? emailRegex.wholeMatch(in: value)) != nil
+    if returnValidationResult {
+      if isMatch {
+        return .object(["valid": .boolean(true)])
+      } else {
+        return .object([
+          "valid": .boolean(false),
+          "code": .string("INVALID_EMAIL"),
+          "message": .string("Please enter a valid email address (e.g. user@example.com)."),
+          "severity": .string("error"),
+        ])
+      }
+    }
     return .boolean(isMatch)
   }
 }

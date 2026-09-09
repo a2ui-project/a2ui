@@ -102,10 +102,25 @@ extension Node {
   public func string(for key: String) -> String? {
     if let stringValue = properties[key] as? String { return stringValue }
     if let binding = properties[key] as? DataBinding<String> { return binding.value }
-    if let jsonValue = properties[key] as? JSONValue { return jsonValue.stringValue }
-    if let jsonBinding = properties[key] as? DataBinding<JSONValue> {
-      return jsonBinding.value?.stringValue
+    if let jsonValue = properties[key] as? JSONValue {
+      if let str = jsonValue.stringValue { return str }
+      if let num = jsonValue.intValue { return String(num) }
+      if let dbl = jsonValue.doubleValue { return String(dbl) }
+      if let b = jsonValue.boolValue { return String(b) }
+      return nil
     }
+    if let jsonBinding = properties[key] as? DataBinding<JSONValue> {
+      if let val = jsonBinding.value {
+        if let str = val.stringValue { return str }
+        if let num = val.intValue { return String(num) }
+        if let dbl = val.doubleValue { return String(dbl) }
+        if let b = val.boolValue { return String(b) }
+      }
+      return nil
+    }
+    if let intValue = properties[key] as? Int { return String(intValue) }
+    if let dblValue = properties[key] as? Double { return String(dblValue) }
+    if let boolValue = properties[key] as? Bool { return String(boolValue) }
     return nil
   }
 

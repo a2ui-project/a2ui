@@ -17,39 +17,53 @@ import Foundation
 import JSONSchema
 
 public final class RegexFunction: FunctionImplementation, Sendable {
-  public let api = FunctionAPI(
-    name: "regex",
-    returnType: .boolean,
-    schema: try! Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "value": { "type": "string" },
-            "pattern": { "type": "string" }
-          },
-          "required": ["value", "pattern"]
-        }
-        """
-    )
-  )
+  public let api: FunctionAPI
+  private let returnValidationResult: Bool
 
-  public init() {}
+  public init(returnValidationResult: Bool = false) {
+    self.returnValidationResult = returnValidationResult
+    self.api = FunctionAPI(
+      name: "regex",
+      returnType: returnValidationResult ? .validationResult : .boolean,
+      schema: try! Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "value": { "type": "string" },
+              "pattern": { "type": "string" }
+            },
+            "required": ["value", "pattern"]
+          }
+          """
+      )
+    )
+  }
+
+  public convenience init(protocolVersion: String) {
+    self.init(returnValidationResult: protocolVersion == "v1.0" || protocolVersion == "1.0")
+  }
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let value = arguments["value"]?.stringValue,
       let pattern = arguments["pattern"]?.stringValue
     else {
-      return .boolean(false)
+      return returnValidationResult ? .object(["valid": .boolean(false)]) : .boolean(false)
     }
 
+    let isMatch: Bool
     do {
       let regex = try Regex(pattern)
       let firstMatch = try regex.firstMatch(in: value)
-      return .boolean(firstMatch != nil)
+      isMatch = firstMatch != nil
     } catch {
       // Invalid regular expression pattern
-      return .boolean(false)
+      isMatch = false
     }
+
+    if returnValidationResult {
+      return .object(["valid": .boolean(isMatch)])
+    }
+    return .boolean(isMatch)
   }
 }
