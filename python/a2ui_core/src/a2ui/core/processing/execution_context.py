@@ -19,4 +19,23 @@ from dataclasses import dataclass
 class ExecutionContext:
     """Execution context passed through message processing and operation extraction."""
 
-    user_activation_present: bool = False
+    is_user_activated: bool = False
+
+    def __init__(
+        self,
+        is_user_activated: bool = False,
+        user_activation_present: bool | None = None,
+    ) -> None:
+        if user_activation_present is not None:
+            self.is_user_activated = user_activation_present
+        else:
+            self.is_user_activated = is_user_activated
+
+    @property
+    def user_activation_present(self) -> bool:
+        """Backward compatibility alias for is_user_activated."""
+        return self.is_user_activated
+
+    @user_activation_present.setter
+    def user_activation_present(self, value: bool) -> None:
+        self.is_user_activated = value

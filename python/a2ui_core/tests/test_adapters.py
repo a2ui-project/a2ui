@@ -77,9 +77,9 @@ def test_is_catalog_version_compatible():
     assert is_catalog_version_compatible("v0.9", "v0.9.1") is True
     assert is_catalog_version_compatible("v0.9.1", "v0.9") is True
 
-    # Unsupported future or cross-major versions are rejected
-    assert is_catalog_version_compatible("v1.0", "v1.1") is False
-    assert is_catalog_version_compatible("v1.1", "v1.0") is False
+    # Major versions match for SemVer >= 1.0.0
+    assert is_catalog_version_compatible("v1.0", "v1.1") is True
+    assert is_catalog_version_compatible("v1.1", "v1.0") is True
     assert is_catalog_version_compatible("v1.0", "v2.0") is False
     assert is_catalog_version_compatible("v0.9", "v1.0") is False
     assert is_catalog_version_compatible("v1.0", "v0.9") is False
@@ -119,7 +119,7 @@ def test_is_catalog_version_compatible():
     assert is_catalog_version_compatible("v1.0", "v1.0.1") is True
     assert is_catalog_version_compatible("1.0.2", "1.0.1") is True
     assert is_catalog_version_compatible("v1.0.1-alpha", "v1.0") is False
-    assert is_catalog_version_compatible("v1.1.0", "v1.0.0") is False
+    assert is_catalog_version_compatible("v1.1.0", "v1.0.0") is True
 
     # Falsy / invalid inputs
     assert is_catalog_version_compatible(None, "v1.0") is False
@@ -156,7 +156,8 @@ def test_adapter_catalog_compatibility_methods():
     assert v10.is_catalog_compatible("1.0.0") is True
     assert v10.is_catalog_compatible("v1_0") is True
     assert v10.is_catalog_compatible("v0.9") is False
-    assert v10.is_catalog_compatible("v1.1") is False
+    assert v10.is_catalog_compatible("v1.1") is True
+    assert v10.is_catalog_compatible("v2.0") is False
     assert v10.is_catalog_compatible(None) is False
 
 

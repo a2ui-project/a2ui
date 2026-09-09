@@ -444,8 +444,8 @@ describe('MessageProcessor Dependency Injection', () => {
     assert.strictEqual(isCatalogVersionCompatible('v0.9.1', 'v0.9'), true);
 
     // Unsupported future or cross-major versions are rejected
-    assert.strictEqual(isCatalogVersionCompatible('v1.0', 'v1.1'), false);
-    assert.strictEqual(isCatalogVersionCompatible('v1.1', 'v1.0'), false);
+    assert.strictEqual(isCatalogVersionCompatible('v1.0', 'v1.1'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v1.1', 'v1.0'), true);
     assert.strictEqual(isCatalogVersionCompatible('v1.0', 'v2.0'), false);
     assert.strictEqual(isCatalogVersionCompatible('v0.9', 'v1.0'), false);
     assert.strictEqual(isCatalogVersionCompatible('v1.0', 'v0.9'), false);
@@ -481,7 +481,7 @@ describe('MessageProcessor Dependency Injection', () => {
     assert.strictEqual(isCatalogVersionCompatible('v1.0', 'v1.0.1'), true);
     assert.strictEqual(isCatalogVersionCompatible('1.0.2', '1.0.1'), true);
     assert.strictEqual(isCatalogVersionCompatible('v1.0.1-alpha', 'v1.0'), false);
-    assert.strictEqual(isCatalogVersionCompatible('v1.1.0', 'v1.0.0'), false);
+    assert.strictEqual(isCatalogVersionCompatible('v1.1.0', 'v1.0.0'), true);
 
     // Falsy / invalid inputs
     assert.strictEqual(isCatalogVersionCompatible(undefined, 'v1.0'), false);
@@ -520,7 +520,8 @@ describe('MessageProcessor Dependency Injection', () => {
     assert.strictEqual(v10.isCatalogCompatible('1.0.0'), true);
     assert.strictEqual(v10.isCatalogCompatible('v1_0'), true);
     assert.strictEqual(v10.isCatalogCompatible('v0.9'), false);
-    assert.strictEqual(v10.isCatalogCompatible('v1.1'), false);
+    assert.strictEqual(v10.isCatalogCompatible('v1.1'), true);
+    assert.strictEqual(v10.isCatalogCompatible('v2.0'), false);
     assert.strictEqual(v10.isCatalogCompatible(undefined), false);
   });
 

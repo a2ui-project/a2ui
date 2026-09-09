@@ -65,13 +65,14 @@ class InternalCallRendererFunctionOp:
     version: str
     catalog_id: str | None = None
     args: dict[str, Any] = field(default_factory=dict)
-    user_activation_present: bool = False
+    is_user_activated: bool = False
     type: str = MSG_TYPE_CALL_RENDERER_FUNCTION
 
 
 @dataclass
 class InternalAgentFunctionResponseOp:
     function_call_id: str
+    version: str = "v1.0"
     value: Any | None = None
     error: dict[str, Any] | None = None
     type: str = MSG_TYPE_AGENT_FUNCTION_RESPONSE

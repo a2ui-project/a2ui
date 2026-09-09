@@ -23,8 +23,8 @@ import yaml
 from a2ui.core.catalog import Catalog
 from a2ui.core.basic_catalog import v0_8, v0_9, v1_0
 from a2ui.core.schema import ProtocolVersion
-from a2ui.core.processing import MessageProcessor
-from a2ui.core.validation import STRICT_VALIDATION, ValidationConfig
+from a2ui.core.processing import MessageProcessor, MessageProcessorOptions
+from a2ui.core.validation import STRICT_VALIDATION
 from a2ui.core.exceptions import (
     A2uiError,
     A2uiParseError,
@@ -551,7 +551,9 @@ def _assert_expected_surface_state(
 def validate_pure_validation_case(case: dict[str, Any]) -> None:
     catalogs = get_catalogs_for_test_case(case)
     val_config = STRICT_VALIDATION
-    processor = MessageProcessor(catalogs, validation_config=val_config)
+    processor = MessageProcessor(
+        catalogs, options=MessageProcessorOptions(validation_config=val_config)
+    )
 
     steps = case.get("steps")
     if not steps:
@@ -593,7 +595,9 @@ def validate_process_messages_case(case: dict[str, Any]) -> None:
         or case.get("options", {}).get("strict_mode")
     )
     val_config = STRICT_VALIDATION if is_strict else None
-    processor = MessageProcessor(catalogs, validation_config=val_config)
+    processor = MessageProcessor(
+        catalogs, options=MessageProcessorOptions(validation_config=val_config)
+    )
 
     messages = case.get("messages") or (
         [case["payload"]] if "payload" in case else None

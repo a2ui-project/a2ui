@@ -693,7 +693,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     );
   });
 
-  it('rejects callRendererFunction when message version is outside supported compatibility sets (e.g. v1.1 on v1.0)', async () => {
+  it('rejects callRendererFunction when message version is outside supported compatibility sets (e.g. v2.0 on v1.0)', async () => {
     const v10Catalog = new Catalog(
       'v10_catalog',
       [],
@@ -708,7 +708,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
 
     const res = await handler.handleCallRendererFunction(
       {
-        version: 'v1.1' as any,
+        version: 'v2.0' as any,
         callRendererFunction: {
           functionCallId: 'call-version-unsupported',
           callFunction: {
@@ -732,6 +732,39 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
         'does not match message protocol version',
       ),
     );
+  });
+
+  it('allows callRendererFunction when message minor version differs within 1.x (e.g. v1.1 on v1.0)', async () => {
+    const v10Catalog = new Catalog(
+      'v10_catalog',
+      [],
+      [customRpcImpl],
+      undefined,
+      undefined,
+      'v1.0',
+    );
+    const handler = new RpcHandler([v10Catalog]);
+    const surface = new SurfaceModel('s1', v10Catalog);
+    const context = new DataContext(surface, '/');
+
+    const res = await handler.handleCallRendererFunction(
+      {
+        version: 'v1.1' as any,
+        callRendererFunction: {
+          functionCallId: 'call-version-v11',
+          callFunction: {
+            call: 'customRpc',
+            catalogId: 'v10_catalog',
+            args: {text: 'supported'},
+          },
+        },
+      },
+      context,
+      true,
+    );
+
+    assert.strictEqual(res.rendererFunctionResponse.value, 'Processed: supported');
+    assert.strictEqual(res.rendererFunctionResponse.error, undefined);
   });
 
   it('allows callRendererFunction when catalog protocolVersion formatting differs but normalizes to same version (e.g. v1_0 on 1.0.0)', async () => {

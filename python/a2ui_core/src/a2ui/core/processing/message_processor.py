@@ -15,6 +15,7 @@
 import asyncio
 import concurrent.futures
 import copy
+from dataclasses import dataclass
 import inspect
 import logging
 from collections.abc import Mapping, Sequence
@@ -55,6 +56,7 @@ from ..schema.v1_0 import (
 )
 from ..schema.v1_0.common_types import FunctionCall
 from .adapters import VersionAdapterFactory
+from .execution_context import ExecutionContext
 from .operations import (
     InternalAgentFunctionResponseOp,
     InternalCallRendererFunctionOp,
@@ -68,7 +70,12 @@ from .operations import (
 PendingAgentCallCallback = Callable[[Any, Optional[dict[str, Any]]], None]
 
 
-from .execution_context import ExecutionContext
+@dataclass
+class MessageProcessorOptions:
+    """Options for configuring a MessageProcessor instance."""
+
+    validation_config: ValidationConfig | None = None
+    default_timeout_ms: float = 30000.0
 
 
 class MessageProcessor:
@@ -77,14 +84,15 @@ class MessageProcessor:
     def __init__(
         self,
         catalogs: Sequence[Catalog[TComponent, TFunction]] | None = None,
-        validation_config: ValidationConfig | None = None,
         action_handler: Callable[[dict[str, Any]], None] | None = None,
+        options: MessageProcessorOptions | None = None,
     ) -> None:
         if not catalogs:
             raise ValueError("At least one catalog must be provided.")
         self.catalogs = catalogs
         self.model = SurfaceGroupModel()
-        self.validation_config = validation_config
+        opts = options or MessageProcessorOptions()
+        self.validation_config = opts.validation_config
         self.on_agent_function_response = EventSource()
         self._pending_agent_calls: dict[str, PendingAgentCallCallback] = {}
         if action_handler:
@@ -380,7 +388,7 @@ class MessageProcessor:
             )
 
         requires_user_activation = getattr(fn, "requires_user_activation", False)
-        if requires_user_activation and not op.user_activation_present:
+        if requires_user_activation and not op.is_user_activated:
             return make_error(
                 RpcErrorCode.INVALID_FUNCTION_CALL,
                 f"Function '{op.call}' requires user activation context to execute.",

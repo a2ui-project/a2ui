@@ -77,7 +77,7 @@ export function isCatalogVersionCompatible(
     if (compatible && compatible.has(catCanonical)) {
       return true;
     }
-    // For SemVer >= 1.0.0, patch releases within the same major.minor are compatible
+    // For SemVer >= 1.0.0, releases within the same major version are compatible
     const catSv = toSemVer(catalogVersion);
     const msgSv = toSemVer(messageVersion);
     if (
@@ -85,7 +85,6 @@ export function isCatalogVersionCompatible(
       msgSv &&
       catSv.major >= 1 &&
       catSv.major === msgSv.major &&
-      catSv.minor === msgSv.minor &&
       catSv.prerelease.length === 0 &&
       msgSv.prerelease.length === 0
     ) {
@@ -196,13 +195,7 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
     if (!catalogVersion) {
       return false;
     }
-    const canonical = toCanonicalVersion(catalogVersion);
-    if (canonical) {
-      return this.compatibleCatalogVersions.has(canonical);
-    }
-    const normCat = normalizeVersionString(String(catalogVersion));
-    const normSelf = normalizeVersionString(String(this.version));
-    return normCat.length > 0 && normCat === normSelf;
+    return isCatalogVersionCompatible(catalogVersion, this.version);
   }
 
   protected abstract getNativeActionKeys(): string[];

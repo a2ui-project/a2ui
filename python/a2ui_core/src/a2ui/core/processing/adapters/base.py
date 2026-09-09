@@ -83,7 +83,7 @@ def is_catalog_version_compatible(
         if compatible and cat_canonical in compatible:
             return True
 
-        # For SemVer >= 1.0.0, patch releases within the same major.minor are compatible
+        # For SemVer >= 1.0.0, releases within the same major version are compatible
         cat_sv = parse_semver(catalog_version)
         msg_sv = parse_semver(message_version)
         if (
@@ -91,7 +91,6 @@ def is_catalog_version_compatible(
             and msg_sv
             and cat_sv.major >= 1
             and cat_sv.major == msg_sv.major
-            and cat_sv.minor == msg_sv.minor
             and not cat_sv.prerelease
             and not msg_sv.prerelease
         ):
@@ -144,15 +143,7 @@ class VersionAdapter(ABC):
         """Checks if a catalog protocol version is compatible with this adapter."""
         if not catalog_version:
             return False
-        cat_canonical = to_canonical_version(catalog_version)
-        if cat_canonical:
-            return cat_canonical in self.compatible_catalog_versions
-        norm_cat = normalize_version_string(catalog_version)
-        ver_str = (
-            self.version.value if hasattr(self.version, "value") else str(self.version)
-        )
-        norm_self = normalize_version_string(ver_str)
-        return bool(norm_cat and norm_cat == norm_self)
+        return is_catalog_version_compatible(catalog_version, self.version)
 
     @abstractmethod
     def extract_operations(

@@ -18,7 +18,7 @@ import pytest
 from typing import Any, Literal
 from pydantic import BaseModel, Field
 
-from a2ui.core.processing import MessageProcessor
+from a2ui.core.processing import MessageProcessor, MessageProcessorOptions
 from a2ui.core.validation import STRICT_VALIDATION
 from a2ui.core.resolution import (
     DataContext,
@@ -412,7 +412,8 @@ def test_message_processor_throws_on_creating_component_without_type(mock_catalo
 
 def test_message_processor_strict_mode_circular_reference(real_catalog_09):
     processor = MessageProcessor(
-        catalogs=[real_catalog_09], validation_config=STRICT_VALIDATION
+        catalogs=[real_catalog_09],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
     )
 
     processor.process_messages([{
@@ -445,7 +446,8 @@ def test_message_processor_strict_mode_circular_reference(real_catalog_09):
 def test_message_processor_strict_mode_orphans(real_catalog_09):
     # Using strict integrity checking via validator
     processor = MessageProcessor(
-        catalogs=[real_catalog_09], validation_config=STRICT_VALIDATION
+        catalogs=[real_catalog_09],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
     )
 
     # Orphan node: comp-C is unreachable from root
@@ -513,7 +515,8 @@ def test_message_processor_strict_mode_component_strict_properties(
 
 def test_message_processor_strict_mode_missing_root(real_catalog_09):
     strict_processor = MessageProcessor(
-        catalogs=[real_catalog_09], validation_config=STRICT_VALIDATION
+        catalogs=[real_catalog_09],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
     )
 
     # Missing root component: components only has comp-A
@@ -540,7 +543,8 @@ def test_message_processor_strict_mode_missing_root(real_catalog_09):
 
 def test_message_processor_strict_mode_invalid_path_pointer(real_catalog_09):
     strict_processor = MessageProcessor(
-        catalogs=[real_catalog_09], validation_config=STRICT_VALIDATION
+        catalogs=[real_catalog_09],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
     )
 
     # Contains unescaped tilde ~ not followed by 0 or 1 in path pointer
@@ -681,7 +685,8 @@ def test_message_processor_custom_catalog_component_validation():
 
     catalog = CustomCatalog()
     processor = MessageProcessor(
-        catalogs=[catalog], validation_config=STRICT_VALIDATION
+        catalogs=[catalog],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
     )
 
     processor.process_messages([{
@@ -755,7 +760,8 @@ def test_message_processor_component_catalog_override():
     })
 
     processor = MessageProcessor(
-        catalogs=[cat_a, cat_b], validation_config=STRICT_VALIDATION
+        catalogs=[cat_a, cat_b],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
     )
 
     processor.process_messages([
@@ -831,7 +837,10 @@ def test_message_processor_atomic_state_rollback_on_error():
         },
     })
 
-    processor = MessageProcessor(catalogs=[cat], validation_config=STRICT_VALIDATION)
+    processor = MessageProcessor(
+        catalogs=[cat],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
+    )
 
     processor.process_messages([
         {
@@ -875,7 +884,8 @@ def test_message_processor_empty_catalogs_throws():
 )
 def test_message_processor_theme_validation(real_catalog_09):
     processor = MessageProcessor(
-        catalogs=[real_catalog_09], validation_config=STRICT_VALIDATION
+        catalogs=[real_catalog_09],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
     )
     with pytest.raises(
         ValueError,
@@ -910,7 +920,8 @@ def test_message_processor_json_catalog_validation():
 
     catalog = Catalog.from_json(catalog_json, protocol_version=PROTOCOL_VERSION)
     processor = MessageProcessor(
-        catalogs=[catalog], validation_config=STRICT_VALIDATION
+        catalogs=[catalog],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
     )
 
     # 2. Process surface creation
@@ -1007,7 +1018,8 @@ def test_message_processor_json_catalog_theme_validation():
 
     catalog = Catalog.from_json(catalog_json, protocol_version=PROTOCOL_VERSION)
     processor = MessageProcessor(
-        catalogs=[catalog], validation_config=STRICT_VALIDATION
+        catalogs=[catalog],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
     )
 
     # Dynamic JSON Theme validation fails on incorrect color hex code pattern
@@ -1026,7 +1038,8 @@ def test_message_processor_json_catalog_theme_validation():
 
 def test_strict_mode_validates_single_message_dict(real_catalog_09):
     processor = MessageProcessor(
-        catalogs=[real_catalog_09], validation_config=STRICT_VALIDATION
+        catalogs=[real_catalog_09],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
     )
 
     # Single message dict without 'messages' key must still be validated in strict_mode
@@ -1090,7 +1103,8 @@ def test_version_adapter_factory_unsupported_version_raises_validation_error():
 
 def test_message_processor_v0_9_1_version_payload(mock_catalog):
     processor = MessageProcessor(
-        catalogs=[mock_catalog], validation_config=STRICT_VALIDATION
+        catalogs=[mock_catalog],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
     )
     messages = [{
         "version": "v0.9.1",
