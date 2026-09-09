@@ -1,0 +1,28 @@
+[
+  {
+    "component": "Text",
+    "id": "feed_container__post_title",
+    "text": {
+      "path": "/title"
+    },
+    "variant": "body"
+  },
+  {
+    "component": "Card",
+    "id": "feed_container__post_card",
+    "child": "feed_container__post_title"
+  },
+  {
+    "component": "Column",
+    "id": "feed_container",
+    "children": {
+      "dataModelPath": "/feed/posts",
+      "template": {
+        "component": "Card",
+        "id": "post_card"
+      }
+    },
+    "justify": "start",
+    "align": "stretch"
+  }
+]

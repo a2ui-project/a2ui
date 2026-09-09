@@ -97,10 +97,9 @@ from a2ui.builder.base import (
     DataBinding,
     FunctionCall,
     Slot,
-    _serialize_prop,
 )
 
-ButtonVariant = Literal["default", "primary", "borderless"] | str
+ButtonVariant = Literal["default", "primary", "borderless"]
 
 class Button(ComponentBuilderNode):
     r"""Button component."""
@@ -111,22 +110,6 @@ class Button(ComponentBuilderNode):
     child: Slot
     variant: Optional[ButtonVariant] = "default"
     action: Action
-
-    def to_dict(self) -> dict[str, Any]:
-        d: dict[str, Any] = {"component": self.component}
-        if self.accessibility is not None:
-            d["accessibility"] = _serialize_prop(self.accessibility)
-        if self.weight is not None:
-            d["weight"] = _serialize_prop(self.weight)
-        if self.child is not None:
-            d["child"] = _serialize_prop(self.child)
-        if self.variant is not None:
-            d["variant"] = _serialize_prop(self.variant)
-        if self.action is not None:
-            d["action"] = _serialize_prop(self.action)
-        if self.id is not None:
-            d["id"] = self.id
-        return d
 ```
 
 Key characteristics:
@@ -134,7 +117,7 @@ Key characteristics:
 - `component`: Literal string constant matching the catalog component identifier.
 - Slots: Parameters accepting children (`child: Slot`, `children: SlotList | DynamicChildList`) accept nested `ComponentBuilderNode` instances or data-bound templates.
 - Properties: Primitive properties accept static values, `DataBinding` instances, or `FunctionCall` objects.
-- `to_dict`: Serializes node properties while preserving unassigned IDs for the allocator.
+- Flattening: Calling `tree.to_components()` automatically traverses attributes, allocates scoped IDs, and replaces slot references.
 
 ### Function builder helpers
 
@@ -195,7 +178,7 @@ You can define custom components that are not in the official catalog schema by 
 
 ```python
 from typing import Any, Literal, Optional
-from a2ui.builder.base import ComponentBuilderNode, Slot, _serialize_prop
+from a2ui.builder.base import ComponentBuilderNode, Slot
 
 class MetricCard(ComponentBuilderNode):
     """Custom metric card component."""
@@ -205,25 +188,11 @@ class MetricCard(ComponentBuilderNode):
     value: str
     trend: Optional[str] = None
     icon: Optional[Slot] = None
-
-    def to_dict(self) -> dict[str, Any]:
-        d: dict[str, Any] = {
-            "component": self.component,
-            "label": self.label,
-            "value": self.value,
-        }
-        if self.trend is not None:
-            d["trend"] = self.trend
-        if self.icon is not None:
-            d["icon"] = _serialize_prop(self.icon)
-        if self.id is not None:
-            d["id"] = self.id
-        return d
 ```
 
 Because `MetricCard` inherits from `ComponentBuilderNode`:
 
-- It participates in tree traversal and deterministic ID allocation automatically.
+- It participates in tree traversal and deterministic ID allocation automatically without requiring a custom `to_dict()`.
 - Any child components placed in `icon` are discovered, assigned IDs, and replaced with ID references.
 - It passes validation when nested inside standard containers (`Card`, `Column`, `Row`).
 
@@ -243,18 +212,18 @@ Because `MetricCard` inherits from `ComponentBuilderNode`:
 
 When writing UI code in Python, misspelled properties or unsupported attributes raise an immediate `ValidationError` during construction. This prevents bad payloads from reaching the network or failing silently on the client renderer.
 
-For wire deserialization, a separate permissive mode (`extra="allow"`) and an `UnknownComponent` fallback will be used to preserve unrecognized fields during round-tripping.
+For wire deserialization, dedicated deserialization constructors and an `UnknownComponent` fallback will be used in Phase 2 (#2571) to preserve unrecognized fields during round-tripping.
 
-### Open enums
+### Strict enums for authoring safety
 
-Enum properties are typed as unions with `str`:
+Enum properties are typed as strict `Literal[...]` sets:
 
 ```python
-TextVariant = Literal["h1", "h2", "h3", "h4", "h5", "caption", "body"] | str
-ButtonVariant = Literal["default", "primary", "borderless"] | str
+TextVariant = Literal["h1", "h2", "h3", "h4", "h5", "caption", "body"]
+ButtonVariant = Literal["default", "primary", "borderless"]
 ```
 
-This prevents runtime validation crashes when an agent or client uses valid variants from newer or alternate catalog versions that are not defined in the local schema snapshot.
+This guarantees compile-time checking in IDEs and runtime `ValidationError` rejections if an author misspells an enum variant (e.g. `variant="primmary"`). Upstream catalog evolutions will be supported during wire deserialization via fallback constructors.
 
 ### Decoupled component trees
 

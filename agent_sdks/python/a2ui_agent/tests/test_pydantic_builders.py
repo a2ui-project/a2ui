@@ -38,6 +38,7 @@ from a2ui.builder.catalogs.basic import (
     Row,
     Text,
     Image,
+    Icon,
 )
 
 
@@ -69,28 +70,82 @@ def test_strict_authoring_validation_rejects_typos():
     assert "lable" in str(exc_info.value)
 
 
-def test_open_enums_allow_catalog_evolution():
-    """Verifies that unrecognized enum string variants are accepted without error."""
-    # Standard catalog variants
+def test_strict_enums_reject_unknown_variants():
+    """Verifies that unrecognized enum string variants raise ValidationError."""
+    # Standard catalog variants succeed
     t_std = Text(text="Standard Heading", variant="h1")
     assert t_std.variant == "h1"
 
-    # Future / custom variants introduced upstream
-    t_future = Text(text="Custom Display", variant="display-super-large")
-    assert t_future.variant == "display-super-large"
-
-    b_future = Button(
+    b_std = Button(
         child=Text(text="Click"),
         action=Action(event="click"),
-        variant="brand-gradient",
+        variant="primary",
     )
-    assert b_future.variant == "brand-gradient"
+    assert b_std.variant == "primary"
 
-    img_future = Image(url="https://example.com/img.png", fit="scaleDown")
-    assert img_future.fit == "scaleDown"
+    # Unrecognized variants fail validation immediately
+    with pytest.raises(ValidationError) as exc_info:
+        Text(text="Custom Display", variant="display-super-large")
+    assert "variant" in str(exc_info.value)
+    assert "literal_error" in str(exc_info.value)
 
-    img_custom = Image(url="https://example.com/img.png", fit="custom-smart-crop")
-    assert img_custom.fit == "custom-smart-crop"
+    with pytest.raises(ValidationError) as exc_info:
+        Button(
+            child=Text(text="Click"),
+            action=Action(event="click"),
+            variant="brand-gradient",
+        )
+    assert "variant" in str(exc_info.value)
+
+    with pytest.raises(ValidationError) as exc_info:
+        Image(url="https://example.com/img.png", fit="custom-smart-crop")
+    assert "fit" in str(exc_info.value)
+
+
+def test_missing_required_parameters_rejected():
+    """Verifies that omitting required parameters raises ValidationError."""
+    with pytest.raises(ValidationError) as exc_info:
+        Text()  # missing required 'text'
+    assert "text" in str(exc_info.value)
+    assert "missing" in str(exc_info.value)
+
+    with pytest.raises(ValidationError) as exc_info:
+        Button(action=Action(event="click"))  # missing required 'child'
+    assert "child" in str(exc_info.value)
+
+    with pytest.raises(ValidationError) as exc_info:
+        Icon()  # missing required 'name'
+    assert "name" in str(exc_info.value)
+
+
+def test_arbitrary_objects_rejected():
+    """Verifies that arbitrary un-serializable objects cannot be assigned to builder models."""
+
+    class CustomArbitraryObject:
+        pass
+
+    with pytest.raises(ValidationError):
+        Text(text=CustomArbitraryObject())  # type: ignore
+
+    with pytest.raises(ValidationError):
+        Button(
+            child=CustomArbitraryObject(),  # type: ignore
+            action=Action(event="click"),
+        )
+
+
+def test_assignment_validation_rejects_invalid_mutations():
+    """Verifies that assigning invalid values to an existing model raises ValidationError."""
+    t = Text(text="Valid Text", variant="h1")
+
+    with pytest.raises(ValidationError):
+        t.variant = "unrecognized_variant"  # type: ignore
+
+    with pytest.raises(ValidationError):
+        t.text = 12345  # type: ignore
+
+    assert t.variant == "h1"
+    assert t.text == "Valid Text"
 
 
 def test_direct_node_serialization():
@@ -211,3 +266,41 @@ def test_action_context_convenience():
             "context": {"server": "db1", "port": 5432},
         }
     }
+
+
+def test_static_typechecker_compiler_rejections():
+    """Verifies that static type checker (mypy) halts with compiler errors on invalid syntax."""
+    try:
+        import mypy.api
+    except ImportError:
+        pytest.skip("mypy is not installed in the environment")
+
+    # 1. Invalid enum variant
+    code_bad_enum = """
+from a2ui.builder.catalogs.basic import Button, Text
+from a2ui.builder import Action
+b = Button(child=Text(text="Hi"), action=Action(event="click"), variant="invalid_variant")
+"""
+    normal_report, _, exit_status = mypy.api.run(["-c", code_bad_enum])
+    assert exit_status != 0
+    assert 'Argument "variant" to "Button" has incompatible type' in normal_report
+
+    # 2. Misspelled argument name
+    code_typo_arg = """
+from a2ui.builder.catalogs.basic import Button, Text
+from a2ui.builder import Action
+b = Button(child=Text(text="Hi"), action=Action(event="click"), lable="Save")
+"""
+    normal_report, _, exit_status = mypy.api.run(["-c", code_typo_arg])
+    assert exit_status != 0
+    assert 'Unexpected keyword argument "lable" for "Button"' in normal_report
+
+    # 3. Invalid child type (raw string instead of component node)
+    code_bad_child = """
+from a2ui.builder.catalogs.basic import Button
+from a2ui.builder import Action
+b = Button(child="not_a_component", action=Action(event="click"))
+"""
+    normal_report, _, exit_status = mypy.api.run(["-c", code_bad_child])
+    assert exit_status != 0
+    assert 'Argument "child" to "Button" has incompatible type' in normal_report
