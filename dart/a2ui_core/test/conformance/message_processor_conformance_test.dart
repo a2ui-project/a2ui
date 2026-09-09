@@ -41,7 +41,10 @@ void main() {
 void _runCase(Map<String, Object?> testCase) {
   final name = testCase['name']! as String;
   final catalog = _ConformanceCatalog(_catalogIdOf(testCase));
-  final processor = MessageProcessor<ComponentApi>(catalogs: [catalog]);
+  final processor = MessageProcessor<ComponentApi>(
+    catalogs: [catalog],
+    protocolVersion: A2uiProtocolVersion.v0_9,
+  );
   final List<Map<String, Object?>> messages = _messagesOf(testCase);
 
   final Object? expectError = testCase['expectError'];
