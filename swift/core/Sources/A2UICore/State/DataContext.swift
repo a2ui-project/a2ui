@@ -83,8 +83,10 @@ public final class DataContext {
             let resolvedOffset = resolveDynamicValue(offsetVal)
             if let intVal = resolvedOffset.intValue {
               offset = intVal
-            } else if let doubleVal = resolvedOffset.doubleValue {
-              offset = Int(doubleVal)
+            } else if let doubleVal = resolvedOffset.doubleValue,
+              let intVal = Int(exactly: doubleVal)
+            {
+              offset = intVal
             }
           }
           return .integer(currentIndex + offset)

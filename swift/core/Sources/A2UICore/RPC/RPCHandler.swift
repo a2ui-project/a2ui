@@ -181,7 +181,7 @@ public final class RPCHandler {
       sendOutbound(outbound)
 
       if timeoutSeconds > 0 {
-        Task { [weak self] in
+        Task { @MainActor [weak self] in
           try? await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
           guard let self else { return }
           if let pending = self.pendingCalls.removeValue(forKey: callID) {

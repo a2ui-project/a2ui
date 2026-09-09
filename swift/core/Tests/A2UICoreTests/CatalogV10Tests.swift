@@ -94,4 +94,30 @@ struct CatalogV10Tests {
     #expect(api.allowedCallers == .rendererOrAgent)
     #expect(api.requiresUserActivation == true)
   }
+
+  @Test func catalogProtocolVersionForwardCompatibility() {
+    let catV10 = AnyCatalog(id: "c1", protocolVersion: "v1.0", components: [])
+    #expect(catV10.isAtLeastV10 == true)
+    #expect(catV10.isV10 == true)
+
+    let cat10 = AnyCatalog(id: "c2", protocolVersion: "1.0", components: [])
+    #expect(cat10.isAtLeastV10 == true)
+    #expect(cat10.isV10 == true)
+
+    let catV11 = AnyCatalog(id: "c3", protocolVersion: "v1.1", components: [])
+    #expect(catV11.isAtLeastV10 == true)
+    #expect(catV11.isV10 == true)
+
+    let catV20 = AnyCatalog(id: "c4", protocolVersion: "v2.0", components: [])
+    #expect(catV20.isAtLeastV10 == true)
+    #expect(catV20.isV10 == true)
+
+    let catV091 = AnyCatalog(id: "c5", protocolVersion: "v0.9.1", components: [])
+    #expect(catV091.isAtLeastV10 == false)
+    #expect(catV091.isV10 == false)
+
+    let catV09 = AnyCatalog(id: "c6", protocolVersion: "v0.9", components: [])
+    #expect(catV09.isAtLeastV10 == false)
+    #expect(catV09.isV10 == false)
+  }
 }

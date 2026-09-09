@@ -46,6 +46,15 @@ struct IndexFunctionTests {
 
     let result = try fn.evaluate(arguments: ["offset": .integer(1)], context: context)
     #expect(result == JSONValue.integer(1))
+
+    // Float offset with exact integer value (e.g., 2.0)
+    let doubleResult = try fn.evaluate(arguments: ["offset": .number(2.0)], context: context)
+    #expect(doubleResult == JSONValue.integer(2))
+
+    // Non-exact double offset should safely fall back to 0
+    let invalidDoubleResult =
+      try fn.evaluate(arguments: ["offset": .number(2.5)], context: context)
+    #expect(invalidDoubleResult == JSONValue.integer(0))
   }
 
   @Test func throwsOutsideCollectionScope() {
