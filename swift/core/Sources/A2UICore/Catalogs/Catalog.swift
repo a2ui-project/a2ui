@@ -129,7 +129,7 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
 extension CatalogProtocol {
   /// The protocol version of this catalog as an `A2UIProtocolVersion` enum, if recognized.
   public var a2uiProtocolVersion: A2UIProtocolVersion? {
-    protocolVersion.flatMap(A2UIProtocolVersion.init(loose:))
+    protocolVersion.flatMap(A2UIProtocolVersion.init(rawValue:))
   }
 
   /// Whether this catalog conforms to A2UI Protocol v1.0.

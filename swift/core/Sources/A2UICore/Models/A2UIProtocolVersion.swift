@@ -21,37 +21,6 @@ public enum A2UIProtocolVersion: String, Codable, Sendable, CaseIterable, Compar
   /// The default active protocol version for outgoing messages.
   public static let `default`: A2UIProtocolVersion = .v10
 
-  /// Initializes from a version string, loosely accepting strings without a leading "v".
-  public init?(loose raw: String) {
-    if let exact = A2UIProtocolVersion(rawValue: raw) {
-      self = exact
-      return
-    }
-    let withV = raw.hasPrefix("v") ? raw : "v\(raw)"
-    if let match = A2UIProtocolVersion(rawValue: withV) {
-      self = match
-      return
-    }
-    return nil
-  }
-
-  public init(from decoder: Decoder) throws {
-    let container = try decoder.singleValueContainer()
-    let raw = try container.decode(String.self)
-    guard let version = A2UIProtocolVersion(loose: raw) else {
-      throw DecodingError.dataCorruptedError(
-        in: container,
-        debugDescription: "Unsupported protocol version: \(raw)"
-      )
-    }
-    self = version
-  }
-
-  public func encode(to encoder: Encoder) throws {
-    var container = encoder.singleValueContainer()
-    try container.encode(rawValue)
-  }
-
   public static func < (lhs: A2UIProtocolVersion, rhs: A2UIProtocolVersion) -> Bool {
     guard let lhsIndex = allCases.firstIndex(of: lhs),
       let rhsIndex = allCases.firstIndex(of: rhs)

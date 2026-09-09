@@ -119,7 +119,7 @@ public final class MessageProcessor: ObservableObject {
 
     /// The protocol version as an `A2UIProtocolVersion` enum.
     public var protocolVersion: A2UIProtocolVersion {
-      get { A2UIProtocolVersion(loose: version) ?? .v091 }
+      get { A2UIProtocolVersion(rawValue: version) ?? .v091 }
       set { version = newValue.rawValue }
     }
 

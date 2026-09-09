@@ -28,7 +28,7 @@ public struct ValidationConfig: Sendable, Equatable {
 
   /// The target protocol version as an `A2UIProtocolVersion` enum.
   public var protocolVersion: A2UIProtocolVersion {
-    get { A2UIProtocolVersion(loose: targetVersion) ?? .v091 }
+    get { A2UIProtocolVersion(rawValue: targetVersion) ?? .v091 }
     set { targetVersion = newValue.rawValue }
   }
 

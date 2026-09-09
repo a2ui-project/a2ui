@@ -167,7 +167,7 @@ public final class A2UIValidator: Sendable {
       return
     }
 
-    if A2UIProtocolVersion(loose: versionString) == nil {
+    if A2UIProtocolVersion(rawValue: versionString) == nil {
       details.append(
         A2UIErrorDetail(
           path: "messages.\(index).version",
@@ -253,7 +253,7 @@ public final class A2UIValidator: Sendable {
         }
       } else {
         let version =
-          message["version"]?.stringValue.flatMap { A2UIProtocolVersion(loose: $0) }
+          message["version"]?.stringValue.flatMap { A2UIProtocolVersion(rawValue: $0) }
           ?? config.protocolVersion
         if version != .v10 {
           details.append(
