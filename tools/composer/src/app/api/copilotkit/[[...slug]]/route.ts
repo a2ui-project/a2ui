@@ -31,7 +31,7 @@ const determineModel = () => {
     if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY && process.env.GEMINI_API_KEY) {
       process.env.GOOGLE_GENERATIVE_AI_API_KEY = process.env.GEMINI_API_KEY;
     }
-    return 'google/gemini-2.5-flash';
+    return 'google/gemini-flash-latest';
   }
   if (process.env.OPENAI_API_KEY?.trim()) {
     console.warn(
@@ -42,7 +42,7 @@ const determineModel = () => {
   console.warn(
     '[CopilotKit] No GEMINI_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY or OPENAI_API_KEY found',
   );
-  return 'google/gemini-2.5-flash';
+  return 'google/gemini-flash-latest';
 };
 
 const model = determineModel();
