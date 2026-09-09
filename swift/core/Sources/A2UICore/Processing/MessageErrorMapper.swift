@@ -46,11 +46,8 @@ public struct MessageErrorMapper: Sendable {
       let detail = validationError.details.first
       let path = detail?.path ?? "/"
       let formattedPath = formatErrorPath(path)
-      let rawCode = detail?.code ?? ValidationFailedError.errorCode
       let code =
-        ValidationFailedError.validErrorCodes.contains(rawCode)
-        ? rawCode
-        : ValidationFailedError.errorCode
+        ValidationFailedError.Code(rawValue: detail?.code ?? "") ?? .validationFailed
       return .validationFailed(
         ValidationFailedError(
           code: code,

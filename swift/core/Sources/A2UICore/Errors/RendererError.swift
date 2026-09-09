@@ -24,7 +24,7 @@ public enum RendererError: Equatable, Codable, Sendable {
   public init(from decoder: Decoder) throws {
     let container = try decoder.singleValueContainer()
     let discriminator = try container.decode(Discriminator.self)
-    if ValidationFailedError.validErrorCodes.contains(discriminator.code) {
+    if ValidationFailedError.Code(rawValue: discriminator.code) != nil {
       self = .validationFailed(try container.decode(ValidationFailedError.self))
     } else {
       self = .generic(try container.decode(GenericError.self))

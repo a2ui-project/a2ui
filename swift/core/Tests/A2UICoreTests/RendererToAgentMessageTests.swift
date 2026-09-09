@@ -199,19 +199,47 @@ struct RendererToAgentMessageTests {
   }
 
   @Test func encodeValidationError() throws {
-    let error = RendererError.validationFailed(
-      ValidationFailedError(
-        surfaceID: "surface-1",
-        path: "/components/0",
-        message: "Missing required property"
+    for code in ValidationFailedError.Code.allCases {
+      let error = RendererError.validationFailed(
+        ValidationFailedError(
+          code: code,
+          surfaceID: "surface-1",
+          path: "/components/0",
+          message: "Validation message for \(code.rawValue)"
+        )
       )
-    )
-    let message = RendererToAgentMessage.error(error)
-    let data = try JSONEncoder().encode(message)
-    let decoded = try JSONDecoder().decode(
-      RendererToAgentMessage.self, from: data
-    )
-    #expect(decoded == message)
+      let message = RendererToAgentMessage.error(error)
+      let data = try JSONEncoder().encode(message)
+      let decoded = try JSONDecoder().decode(
+        RendererToAgentMessage.self, from: data
+      )
+      #expect(decoded == message)
+    }
+  }
+
+  @Test func validationFailedErrorRejectsInvalidCode() throws {
+    let invalidJSON = """
+      {
+        "code": "SOME_UNKNOWN_CODE",
+        "surfaceId": "surface-1",
+        "path": "/components/0",
+        "message": "Invalid"
+      }
+      """.data(using: .utf8)!
+
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(ValidationFailedError.self, from: invalidJSON)
+    }
+
+    // When decoded through RendererError, unknown codes fall back to generic error
+    let rendererError = try JSONDecoder().decode(RendererError.self, from: invalidJSON)
+    if case .generic(let generic) = rendererError {
+      #expect(generic.code == "SOME_UNKNOWN_CODE")
+      #expect(generic.surfaceID == "surface-1")
+      #expect(generic.message == "Invalid")
+    } else {
+      Issue.record("Expected unknown code to decode as .generic")
+    }
   }
 
   @Test func encodeAlwaysUsesV10Version() throws {
