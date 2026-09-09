@@ -14,7 +14,25 @@
  * limitations under the License.
  */
 
-export { A2aChatCanvas } from './lib/a2a-chat-canvas';
-export { type A2aService, A2A_SERVICE } from './lib/interfaces/a2a-service';
-export { CanvasService } from './lib/services/canvas-service';
-export { configureChatCanvasFeatures, usingA2aService, usingMarkdownRenderer, usingDefaultSanitizerMarkdownRenderer, usingPartResolvers, usingArtifactResolvers, usingRenderers, usingA2uiRenderers, type ChatCanvasFeature, type MarkdownFeature, type A2aFeature, type ArtifactResolverFeature, type PartResolverFeature, type RendererFeature, type A2uiFeature, type ChatCanvasFeatures, ChatCanvasFeatureKind } from './lib/config';
+export {A2aChatCanvas} from './lib/a2a-chat-canvas';
+export {type A2aService, A2A_SERVICE} from './lib/interfaces/a2a-service';
+export {CanvasService} from './lib/services/canvas-service';
+export {
+  configureChatCanvasFeatures,
+  usingA2aService,
+  usingMarkdownRenderer,
+  usingDefaultSanitizerMarkdownRenderer,
+  usingPartResolvers,
+  usingArtifactResolvers,
+  usingRenderers,
+  usingA2uiRenderers,
+  type ChatCanvasFeature,
+  type MarkdownFeature,
+  type A2aFeature,
+  type ArtifactResolverFeature,
+  type PartResolverFeature,
+  type RendererFeature,
+  type A2uiFeature,
+  type ChatCanvasFeatures,
+  ChatCanvasFeatureKind,
+} from './lib/config';

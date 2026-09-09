@@ -14,4 +14,4 @@
  * limitations under the License.
  */
 
-export { type ComponentToProps, setComponentProps, createBoundProperty } from './index';
+export {type ComponentToProps, setComponentProps, createBoundProperty} from './index';
