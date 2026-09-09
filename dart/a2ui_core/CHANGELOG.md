@@ -2,6 +2,11 @@
 
 ## 0.2.0
 
+- The expression parser's nesting limit is now enforced. The depth guard sat in
+  `parse()`, which is only entered at depth 0, so neither nested interpolations nor
+  function-call arguments were ever counted: a deeply nested template recursed until
+  the stack overflowed, raising `StackOverflowError` rather than the intended
+  `A2uiExpressionError`. The limit is also raised from 10 to 100, matching web_core.
 - **Breaking:** `MessageProcessor` validates messages as it processes them.
   A message that does not match its catalog now throws instead of being
   applied. Added `processPayload` and an optional `validator` constructor
