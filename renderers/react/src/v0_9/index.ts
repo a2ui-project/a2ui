@@ -14,9 +14,36 @@
  * limitations under the License.
  */
 
-export * from './A2uiSurface';
-export * from './adapter';
+export {A2uiSurface} from './A2uiSurface';
+export {
+  createComponentImplementation,
+  createBinderlessComponentImplementation,
+  type ReactComponentImplementation,
+  type ReactA2uiComponentProps,
+} from './adapter';
 export {useSignalValue, type NodeBuildChild, type NodeViewProps} from './node-view';
 
 // Export basic catalog components directly for 3P developers
-export * from './catalog/basic';
+export {
+  MarkdownContext,
+  useMarkdownRenderer,
+  basicCatalog,
+  Text,
+  Image,
+  Icon,
+  Video,
+  AudioPlayer,
+  Row,
+  Column,
+  List,
+  Card,
+  Tabs,
+  Divider,
+  Modal,
+  Button,
+  TextField,
+  CheckBox,
+  ChoicePicker,
+  Slider,
+  DateTimeInput,
+} from './catalog/basic';

@@ -14,5 +14,5 @@
  * limitations under the License.
  */
 
-export { type AppConfig } from './types';
+export {type AppConfig} from './types';
 export {config as restaurantConfig} from './restaurant';

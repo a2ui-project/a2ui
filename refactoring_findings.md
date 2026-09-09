@@ -2,6 +2,10 @@
 
 This file contains notes and edge cases encountered by the subagents during the barrel export refactoring process.
 
+### `renderers/web_core/src/v0_9/schema/index.ts`
+- File had already been converted from wildcard exports (`export *`) to explicit named and type-only exports (`common-types.js`, `server-to-client.js`, `client-capabilities.js`, `client-to-server.js`).
+- Refactor script verified 0 remaining wildcard exports; no duplicate export collisions or API surface mismatches detected.
+
 ## `renderers/react/visual-parity/fixtures/index.ts`
 - **Refactoring Status**: Successfully refactored `export * from './components'` and `export * from './nested'` into explicit named exports.
 - **Edge Cases & Findings**:
@@ -76,3 +80,19 @@ This file contains notes and edge cases encountered by the subagents during the 
   - **API Surface Verification**: Verified 100% equivalence against `pre_snapshot.json` (`['componentSpecificStyles', 'injectStyles', 'removeStyles', 'structuralStyles']`) using `ts-morph` AST extraction.
   - **No Duplicate Exports**: All 4 exported symbols are unique; no duplicate exports or collisions were encountered.
   - **Typecheck & Lint Verification**: Ran local `yarn typecheck`, Prettier format check, and ESLint in `renderers/react`, all passing with 0 errors.
+
+## `renderers/react/src/v0_9/index.ts`
+- **Refactoring Status**: Successfully refactored all 3 wildcard exports (`./A2uiSurface`, `./adapter`, `./catalog/basic`) into explicit named and type-only exports.
+- **Edge Cases & Findings**:
+  - **Single-File Target Module Resolution**: When `targetFile` was passed to `refactor.cjs`, filtering `filePaths` before `project.addSourceFilesAtPaths(filePaths)` prevented `ts-morph` from resolving local relative modules (`./A2uiSurface`, `./adapter`), causing `getModuleSpecifierSourceFile()` to return `undefined` and leaving wildcard exports untransformed. Updated `refactor.cjs` to load all workspace files into the project before filtering the processing loop by `targetFile`.
+  - **`ENOBUFS` in `refactor.cjs`**: `execSync` running `find` on `process.cwd() + '/..'` traversed all sibling worktrees in `.bare/`, exceeding Node's default 1MB `maxBuffer`. Resolved by setting `repoRoot` to the worktree and adding `{ maxBuffer: 50 * 1024 * 1024 }`.
+  - **No Duplicate Exports**: All 25 exported symbols across `./A2uiSurface`, `./adapter`, and `./catalog/basic` are completely distinct; no collisions or duplicate exports occurred.
+  - **Verification**: Ran Prettier formatting, `yarn workspace @a2ui/react run typecheck`, `yarn workspace @a2ui/react run format:check`, and `yarn workspace @a2ui/react run lint`, all passing cleanly with 0 errors.
+
+## `renderers/react/src/v0_9/catalog/basic/index.ts`
+- **Refactoring Status**: Successfully verified explicit named exports for `MarkdownContext` and `useMarkdownRenderer` re-exported from `./context/MarkdownContext` alongside `basicCatalog` and all 18 component definitions (`Text`, `Image`, `Icon`, etc.). No remaining wildcard (`export *`) exports exist in the file.
+- **Edge Cases & Findings**:
+  - **No Duplicate Exports**: All 21 exported symbols are unique; no duplicate exports or name collisions were encountered.
+  - **API Surface Verification**: Verified 100% equivalence before and after refactoring across all 21 exported symbols (`AudioPlayer`, `Button`, `Card`, `CheckBox`, `ChoicePicker`, `Column`, `DateTimeInput`, `Divider`, `Icon`, `Image`, `List`, `MarkdownContext`, `Modal`, `Row`, `Slider`, `Tabs`, `Text`, `TextField`, `Video`, `basicCatalog`, `useMarkdownRenderer`).
+  - **`ENOBUFS` in `refactor.cjs`**: Encountered `spawnSync /bin/sh ENOBUFS` on initial run when `execSync` ran `find` on `process.cwd() + '/..'` traversing all sibling worktrees in `.bare/` without an expanded `maxBuffer`. Resolved by configuring `{ maxBuffer: 50 * 1024 * 1024 }` in `refactor.cjs`.
+
