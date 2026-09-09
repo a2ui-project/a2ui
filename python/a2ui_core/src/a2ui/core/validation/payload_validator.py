@@ -59,6 +59,14 @@ JSON_SCHEMA_DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
 
 @functools.lru_cache(maxsize=32)
 def _load_spec_file_cached(rel_path: str) -> dict[str, Any] | None:
+    """Loads a JSON specification file from candidate parent directories.
+
+    Args:
+        rel_path: Relative file path to search for within parent directories.
+
+    Returns:
+        Parsed JSON dictionary if found and valid, or None otherwise.
+    """
     cur = Path(__file__).resolve()
     for parent in list(cur.parents):
         cand = parent / rel_path
@@ -624,9 +632,29 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                 pass
 
     def _get_spec_file(self, rel_path: str) -> dict[str, Any] | None:
+        """Retrieves a specification schema file using cached filesystem lookup.
+
+        Args:
+            rel_path: Relative specification file path.
+
+        Returns:
+            Parsed schema dictionary if found, or None otherwise.
+        """
         return _load_spec_file_cached(rel_path)
 
     def _get_registry(self, target_cat: Any = None) -> Any:
+        """Builds a JSON Schema resource registry for cross-schema $ref resolution.
+
+        Populates standard schemas (`common_types.json`, `catalog.json`) across
+        v0.8, v0.9, v0.9.1, and v1.0 specifications so that `$ref` URIs can be
+        resolved offline without network access.
+
+        Args:
+            target_cat: Optional catalog instance to index; defaults to self.catalog.
+
+        Returns:
+            Referencing Registry instance populated with specification resources.
+        """
         cat = target_cat or self.catalog
         if not cat:
             return None

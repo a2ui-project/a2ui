@@ -40,6 +40,15 @@ class BlockLexer(
     closeTagPattern = Regex("</${Regex.escape(closeName)}\\s*>", RegexOption.IGNORE_CASE)
   }
 
+  /**
+   * Tokenizes raw text into interleaved text and A2UI block parts.
+   *
+   * Scans the string for the configured open and close delimiter tags, accounting for string
+   * literals and escape sequences inside blocks.
+   *
+   * @param content Raw string response containing zero or more delimited A2UI blocks.
+   * @return Ordered list of [ResponsePart] items representing normal text and parsed blocks.
+   */
   fun tokenize(content: String): List<ResponsePart> {
     val parts = mutableListOf<ResponsePart>()
     val n = content.length

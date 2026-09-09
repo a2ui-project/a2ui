@@ -52,7 +52,18 @@ class DataModel:
 
     @staticmethod
     def resolve_path(path: str, context_path: str | None = None) -> str:
-        """Resolves a relative path against a base context path."""
+        """Resolves a relative path against a base context path.
+
+        If path already starts with '/', it is treated as an absolute path.
+        Otherwise, it is joined to context_path or made root-relative.
+
+        Args:
+            path: Relative or absolute JSON pointer path.
+            context_path: Optional base context path prefix.
+
+        Returns:
+            Resolved absolute JSON pointer path starting with '/'.
+        """
         if path.startswith("/"):
             return path
         if context_path:
@@ -61,7 +72,17 @@ class DataModel:
         return f"/{path}"
 
     def get(self, path: str) -> Any:
-        """Resolves the JSON Pointer path to its current value."""
+        """Resolves the JSON Pointer path to its current value.
+
+        Args:
+            path: Absolute JSON pointer path to resolve.
+
+        Returns:
+            Current value at the path, or None if the path does not exist.
+
+        Raises:
+            A2uiDataError: If path is None.
+        """
         if path is None:
             raise A2uiDataError("Path cannot be null or undefined.")
         tokens = self._parse_pointer(path)
@@ -83,7 +104,17 @@ class DataModel:
         return current
 
     def has_path(self, path: str) -> bool:
-        """Checks if a JSON Pointer path physically exists in the data model."""
+        """Checks if a JSON Pointer path physically exists in the data model.
+
+        Differentiates between a path containing an explicit None value and a
+        path that does not exist in the object structure.
+
+        Args:
+            path: Absolute JSON pointer path to check.
+
+        Returns:
+            True if the path exists in the object hierarchy, False otherwise.
+        """
         tokens = self._parse_pointer(path)
         if not tokens:
             return True
@@ -103,7 +134,16 @@ class DataModel:
         return True
 
     def set(self, path: str, value: Any) -> None:
-        """Sets a value atomically at a JSON Pointer path with auto-vivification."""
+        """Sets a value atomically at a JSON Pointer path with auto-vivification.
+
+        Args:
+            path: Absolute JSON pointer path to set.
+            value: Value to set, or None to delete a dictionary key.
+
+        Raises:
+            A2uiDataError: If path is None, if a non-numeric segment is used on
+                an array, or if an intermediate segment traverses a primitive.
+        """
         if path is None:
             raise A2uiDataError("Path cannot be null or undefined.")
 
@@ -189,12 +229,27 @@ class DataModel:
         self._trigger_cascade(tokens, old_values)
 
     def delete(self, path: str) -> "DataModel":
-        """Deletes the value at the specified JSON pointer path."""
+        """Deletes the value at the specified JSON pointer path.
+
+        Args:
+            path: Absolute JSON pointer path to delete.
+
+        Returns:
+            Self reference for fluent method chaining.
+        """
         self.set(path, None)
         return self
 
     def subscribe(self, path: str, on_change: Callable[[Any], None]) -> Subscription:
-        """Registers a listener to monitor changes reactive to this path."""
+        """Registers a listener to monitor changes reactive to this path.
+
+        Args:
+            path: Absolute JSON pointer path to observe.
+            on_change: Callback invoked when the value at or affecting the path changes.
+
+        Returns:
+            Subscription handle providing an initial value and unsubscribe cleanup.
+        """
         norm_path = self._build_pointer(self._parse_pointer(path))
         self._listeners.setdefault(norm_path, []).append(on_change)
 
@@ -216,7 +271,16 @@ class DataModel:
                 del self._listeners[norm_path]
 
     def _trigger_cascade(self, tokens: list[str], old_values: dict[str, Any]) -> None:
-        """Notifies listeners cascading both bubble-up (parents) and cascade-down (children)."""
+        """Notifies listeners for both parent and descendant path changes.
+
+        Evaluates registered listeners whose paths match, are ancestors of,
+        or are descendants of the mutated path, invoking callbacks only when
+        the evaluated value has changed.
+
+        Args:
+            tokens: Parsed JSON pointer tokens of the mutated path.
+            old_values: Snapshot of values at watched paths prior to mutation.
+        """
         for registered_path, listener_list in list(self._listeners.items()):
             p_tokens = self._parse_pointer(registered_path)
             is_relevant = (

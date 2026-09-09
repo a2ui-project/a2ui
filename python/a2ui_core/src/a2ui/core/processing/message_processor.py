@@ -69,6 +69,7 @@ from .operations import (
 
 PendingAgentCallCallback = Callable[[Any, Optional[dict[str, Any]]], None]
 
+
 @dataclass
 class MessageProcessorOptions:
     """Options for configuring a MessageProcessor instance.

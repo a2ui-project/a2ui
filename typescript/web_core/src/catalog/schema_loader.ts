@@ -463,14 +463,18 @@ function extractPermittedNames(oneOf: unknown, prefix: string): Set<string> | un
 }
 
 /**
- * Loads a raw A2UI catalog schema into a typed Catalog instance.
+ * Parses raw catalog component schemas into typed ComponentApi definitions.
  *
- * Parses component and function definitions, extracts hierarchy constraints (`allowedParents`,
- * `allowedChildren`), unescapes RFC 6901 JSON pointers, and builds runtime Zod validators.
+ * Validates UAX #31 identifier requirements for v1.0+ specifications, filters
+ * components if permitted names are specified, and transforms JSON schemas into
+ * runtime Zod schemas.
  *
- * @param catalogSchema Raw catalog schema or capabilities definition object.
- * @returns Fully-typed Catalog instance configured with components, functions, and metadata.
- * @throws {Error} If the catalog ID is missing or not a string.
+ * @param componentsMap Mapping of component name to raw component schema definition.
+ * @param catalogSchema Enclosing raw catalog schema for resolving local references.
+ * @param isAtLeastV10 Whether the catalog targets protocol v1.0 or higher.
+ * @param permittedNames Optional set of allowed component names from anyComponent.oneOf.
+ * @returns Array of parsed ComponentApi objects with validation schemas and hierarchy constraints.
+ * @throws {Error} If a component identifier does not satisfy UAX #31 identifier requirements in v1.0+.
  */
 function parseCatalogComponents(
   componentsMap: Record<string, unknown>,
@@ -504,6 +508,15 @@ function parseCatalogComponents(
   return components;
 }
 
+/**
+ * Extracts and compiles the theme schema from a catalog definition if present.
+ *
+ * Checks top-level theme, themeSchema, styles, and $defs.theme definitions.
+ *
+ * @param catalogSchema Raw catalog schema or capabilities definition object.
+ * @param defs Optional $defs mapping from the root schema.
+ * @returns Compiled Zod object schema for theme tokens, or undefined if not declared.
+ */
 function parseThemeSchema(
   catalogSchema: Record<string, unknown>,
   defs?: Record<string, unknown>,
@@ -523,6 +536,16 @@ function parseThemeSchema(
   return undefined;
 }
 
+/**
+ * Loads a raw A2UI catalog schema into a typed Catalog instance.
+ *
+ * Parses component and function definitions, extracts hierarchy constraints (`allowedParents`,
+ * `allowedChildren`), unescapes RFC 6901 JSON pointers, and builds runtime Zod validators.
+ *
+ * @param catalogSchema Raw catalog schema or capabilities definition object.
+ * @returns Fully-typed Catalog instance configured with components, functions, and metadata.
+ * @throws {Error} If the catalog ID is missing or not a string.
+ */
 export function loadCatalogFromSchema(
   catalogSchema: Record<string, unknown>,
 ): Catalog<ComponentApi, FunctionApi> {

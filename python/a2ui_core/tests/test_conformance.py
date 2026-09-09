@@ -384,7 +384,9 @@ def assert_raises(expect_error: Any):
     if message:
         msg_norm = message.lower()
         err_details = getattr(excinfo.value, "details", [])
-        detail_msgs = " ".join([d.message for d in err_details]).lower() if err_details else ""
+        detail_msgs = (
+            " ".join([d.message for d in err_details]).lower() if err_details else ""
+        )
         err_str = f"{str(excinfo.value).lower()} {detail_msgs}"
         match = (
             message in str(excinfo.value)

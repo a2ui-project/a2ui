@@ -51,10 +51,18 @@ def is_v0_8_heuristic_child_prop_key(
     val: Any = None,
     known_ids: set[str] | None = None,
 ) -> bool:
-    """Heuristically checks if a property key represents a child component reference for legacy v0.8 components.
+    """Heuristically checks if a property key represents a child component.
 
-    NOTE: This is ONLY a fallback for legacy v0.8 protocol support, where catalog component schemas
-    do not define formal ComponentId or ChildList $ref types.
+    Used as a fallback for legacy v0.8 protocol support where catalog schemas
+    do not define formal ComponentId or ChildList schema references.
+
+    Args:
+        key: Property key name to evaluate.
+        val: Optional property value to inspect for child ID structures.
+        known_ids: Optional set of known component IDs for verification.
+
+    Returns:
+        True if the property key or value likely represents a child reference.
     """
     if key.lower() in (
         "text",

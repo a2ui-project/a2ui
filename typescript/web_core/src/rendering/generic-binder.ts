@@ -412,6 +412,18 @@ export class GenericBinder<T> {
     return bound.value;
   }
 
+  /**
+   * Synchronously evaluates dynamic expressions within a nested object tree.
+   *
+   * Traverses objects and arrays, resolving JSON pointer paths and function calls
+   * against the current data context without creating persistent reactive subscriptions.
+   *
+   * @param val Raw value, nested object, or dynamic expression to evaluate.
+   * @param isActionRoot When true, preserves action wrappers (`functionCall`, `event`,
+   *   `call`, `name`) while resolving nested arguments/context, ensuring actions are
+   *   evaluated at invocation time rather than immediately flattened.
+   * @returns Evaluated data structure with dynamic expressions resolved.
+   */
   private resolveDeepSync(val: unknown, isActionRoot = true): unknown {
     if (typeof val !== 'object' || val === null) return val;
 

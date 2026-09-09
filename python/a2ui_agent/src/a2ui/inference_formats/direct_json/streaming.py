@@ -142,6 +142,14 @@ class DirectJsonStreamParser:
         return self._components_by_surface.setdefault(sid, {})
 
     def _can_use_placeholders(self) -> bool:
+        """Determines whether the active catalog supports placeholder components.
+
+        Inspects the catalog schema to verify that the configured placeholder
+        component type is declared in the catalog's component definitions.
+
+        Returns:
+            True if the catalog supports the configured placeholder type.
+        """
         cat_schema = getattr(self._catalog, "catalog_schema", {}) or {}
         components = (
             cat_schema.get("components", {}) if isinstance(cat_schema, dict) else {}
@@ -1311,7 +1319,17 @@ class DirectJsonStreamParser:
                 )
 
     def _get_child_fields_for_obj(self, obj: dict[str, Any]) -> set[str]:
-        """Dynamically discovers child reference property names from the catalog schema or object."""
+        """Discovers child reference property names for a component.
+
+        Consults the catalog reference map if available, falling back to
+        inspecting candidate non-scalar object properties.
+
+        Args:
+            obj: Component dictionary to inspect.
+
+        Returns:
+            Set of property names containing child component references or slots.
+        """
         child_fields: set[str] = set()
         comp_type = obj.get("component")
         core_cat = getattr(self._catalog, "core_catalog", self._catalog)
