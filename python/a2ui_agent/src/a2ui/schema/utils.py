@@ -24,8 +24,6 @@ import os
 import importlib.resources
 from typing import Any, cast
 
-from a2ui.core import A2uiCatalogError
-from a2ui.core.common.semver import normalize_version_string, parse_semver
 from .constants import (
     A2UI_ASSET_PACKAGE,
     SPECIFICATION_DIR,
@@ -77,6 +75,8 @@ def get_spec_dir(version: str = "v1_0", start_path: str | None = None) -> str:
         raise FileNotFoundError(
             "Could not find repository root containing 'specification'"
         )
+
+    from a2ui.core.common.semver import normalize_version_string, parse_semver
 
     # The on-disk 'specification/' hierarchy is organized strictly by base protocol
     # versions (e.g. 'v1_0', 'v0_9_1', 'v0_8'). Pre-release tags ('-alpha') and build
@@ -251,6 +251,8 @@ def wrap_as_json_array(a2ui_schema: dict[str, Any]) -> dict[str, Any]:
         A2uiCatalogError: If a2ui_schema is empty.
     """
     if not a2ui_schema:
+        from a2ui.core import A2uiCatalogError
+
         raise A2uiCatalogError("A2UI schema is empty")
     return {"type": "array", "items": a2ui_schema}
 
