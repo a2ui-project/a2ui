@@ -19,9 +19,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REACT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${REACT_DIR}/../.." && pwd)"
 
-# Allow Yarn to update the lockfile in CI during temporary dependency swapping
-export YARN_ENABLE_IMMUTABLE_INSTALLS=false
-
 REACT_PKG="${REACT_DIR}/package.json"
 EXPLORER_PKG="${REACT_DIR}/a2ui_explorer/package.json"
 ROOT_LOCK="${REPO_ROOT}/yarn.lock"
@@ -53,32 +50,21 @@ trap cleanup EXIT INT TERM
 echo "=== Building @a2ui/react ==="
 yarn --cwd "${REACT_DIR}" build
 
-# Temporarily swap dependencies to React 18 in a single pass
+# Temporarily swap devDependencies to React 18
 echo "=== Swapping to React 18 dependencies ==="
-node -e '
-const fs = require("fs");
-[
-  [process.argv[1], "devDependencies", {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "@types/react": "^18.3.1",
-    "@types/react-dom": "^18.3.1",
-    "@testing-library/react": "^14.3.1"
-  }],
-  [process.argv[2], "dependencies", {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "@types/react": "^18.3.1",
-    "@types/react-dom": "^18.3.1"
-  }]
-].forEach(([file, key, deps]) => {
-  const pkg = JSON.parse(fs.readFileSync(file, "utf8"));
-  pkg[key] = { ...pkg[key], ...deps };
-  fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + "\n");
-});
-' "${REACT_PKG}" "${EXPLORER_PKG}"
+yarn --cwd "${REACT_DIR}" add -D \
+  "react@^18.3.1" \
+  "react-dom@^18.3.1" \
+  "@types/react@^18.3.1" \
+  "@types/react-dom@^18.3.1" \
+  "@testing-library/react@^14.3.1"
 
-yarn --cwd "${REPO_ROOT}" install
+yarn --cwd "${REACT_DIR}/a2ui_explorer" add \
+  "react@^18.3.1" \
+  "react-dom@^18.3.1" \
+  "@types/react@^18.3.1" \
+  "@types/react-dom@^18.3.1"
+
 DEPS_SWAPPED=true
 
 # Run unit tests under real React 18
