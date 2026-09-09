@@ -191,7 +191,7 @@ def parse_with_hard_kill_timeout(
     resolved_catalog_path: str,
     surface_id: str,
     completion: str,
-    timeout_sec: float = 5.0,
+    timeout_sec: float = 15.0,
 ) -> dict[str, Any]:
     with multiprocessing.Manager() as manager:
         return_dict = manager.dict()
@@ -258,7 +258,7 @@ def compile_format_payload(format_name: str, version: str) -> Solver:
                 resolved_catalog_path,
                 surface_id,
                 completion,
-                timeout_sec=5.0,
+                timeout_sec=15.0,
             )
 
             compiled_jsons = res_dict.get("compiled_jsons", [])
