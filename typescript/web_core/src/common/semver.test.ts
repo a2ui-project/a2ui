@@ -283,5 +283,9 @@ describe('SemVer Utilities (SemVer 2.0.0 Spec)', () => {
       isAtLeastVersion({major: 0, minor: 9, patch: 0, prerelease: [], build: []}, '1.0'),
       false,
     );
+    assert.strictEqual(toCanonicalVersion({major: NaN} as any), null);
+    assert.strictEqual(toCanonicalVersion({major: -1} as any), null);
+    assert.strictEqual(toCanonicalVersion({major: 1, minor: -2} as any), null);
+    assert.strictEqual(toCanonicalVersion({major: 1, patch: 1.5} as any), null);
   });
 });

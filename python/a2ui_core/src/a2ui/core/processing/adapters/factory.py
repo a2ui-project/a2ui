@@ -37,7 +37,22 @@ class VersionAdapterFactory:
     @classmethod
     def register_adapter(cls, adapter: VersionAdapter) -> None:
         """Dynamically registers a version adapter."""
+        from ...common.semver import normalize_version_string, to_canonical_version
+
         cls._adapters[adapter.version] = adapter
+        ver_str = (
+            adapter.version.value
+            if hasattr(adapter.version, "value")
+            else str(adapter.version)
+        )
+        canonical = to_canonical_version(ver_str)
+        if canonical:
+            cls._adapters[canonical] = adapter
+            cls._adapters[f"v{canonical}"] = adapter
+        normalized = normalize_version_string(ver_str)
+        if normalized:
+            cls._adapters[normalized] = adapter
+            cls._adapters[f"v{normalized}"] = adapter
 
     @classmethod
     def all_known_actions(cls) -> frozenset[str]:
@@ -51,20 +66,48 @@ class VersionAdapterFactory:
     @classmethod
     def get_adapter(cls, version: ProtocolVersion | str) -> VersionAdapter:
         """Resolves the version adapter for the specified protocol version enum or string."""
-        adapter = None
-        if isinstance(version, str):
-            parsed_ver = cls._parse_version(version)
-            if parsed_ver:
-                adapter = cls._adapters.get(parsed_ver)
-            if not adapter:
-                adapter = cls._adapters.get(version)
-        elif isinstance(version, ProtocolVersion):
-            adapter = cls._adapters.get(version)
+        from ...common.semver import normalize_version_string, to_canonical_version
+
+        adapter = cls._adapters.get(version)
+        if not adapter:
+            if isinstance(version, str):
+                parsed_ver = cls._parse_version(version)
+                if parsed_ver:
+                    adapter = cls._adapters.get(parsed_ver)
+                if not adapter:
+                    canonical = to_canonical_version(version)
+                    if canonical:
+                        adapter = cls._adapters.get(canonical) or cls._adapters.get(
+                            f"v{canonical}"
+                        )
+                    if not adapter:
+                        norm = normalize_version_string(version)
+                        if norm:
+                            adapter = cls._adapters.get(norm) or cls._adapters.get(
+                                f"v{norm}"
+                            )
+            elif isinstance(version, ProtocolVersion):
+                canonical = to_canonical_version(version.value)
+                if canonical:
+                    adapter = cls._adapters.get(canonical) or cls._adapters.get(
+                        f"v{canonical}"
+                    )
 
         if not adapter:
-            supported = ", ".join(
-                v.value for v in cls._adapters.keys() if hasattr(v, "value")
-            )
+            seen: set[str] = set()
+            supported_list: list[str] = []
+            for k in cls._adapters.keys():
+                val = k.value if hasattr(k, "value") else str(k)
+                canon = to_canonical_version(val)
+                v_str = (
+                    f"v{canon}"
+                    if canon
+                    else (val if val.startswith("v") else f"v{val}")
+                )
+                if v_str not in seen:
+                    seen.add(v_str)
+                    supported_list.append(v_str)
+            supported = ", ".join(sorted(supported_list))
             raise A2uiValidationError(
                 f"[VersionAdapterFactory] Unsupported protocol version '{version}'."
                 f" Supported versions: {supported}."

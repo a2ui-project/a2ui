@@ -215,13 +215,14 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
       const otherAction = Object.keys(msgObj).find(
         k => allKnown.has(k) && !nativeActionKeys.includes(k),
       );
+      const sortedAllowed = nativeActionKeys.slice().sort().join(', ');
       if (otherAction) {
         throw new A2uiValidationError(
-          `Invalid ${this.version} message: action '${otherAction}' is not supported in protocol version ${this.version}. Allowed actions: ${nativeActionKeys.join(', ')}.`,
+          `Invalid ${this.version} message: action '${otherAction}' is not supported in protocol version ${this.version}. Allowed actions: ${sortedAllowed}.`,
         );
       }
       throw new A2uiValidationError(
-        `Invalid ${this.version} message: message must contain exactly one update action: ${nativeActionKeys.join(', ')}.`,
+        `Invalid ${this.version} message: message must contain exactly one update action: ${sortedAllowed}.`,
       );
     }
 

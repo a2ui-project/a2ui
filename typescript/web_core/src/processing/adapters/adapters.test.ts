@@ -197,6 +197,11 @@ describe('VersionAdapterFactory', () => {
     VersionAdapterFactory.registerAdapter(customAdapter);
     const resolved = VersionAdapterFactory.getAdapter('v2.0');
     assert.strictEqual(resolved.version, 'v2.0');
+    // Verify format-tolerant retrieval of dynamically registered adapters
+    assert.strictEqual(VersionAdapterFactory.getAdapter('2.0').version, 'v2.0');
+    assert.strictEqual(VersionAdapterFactory.getAdapter('2.0.0').version, 'v2.0');
+    assert.strictEqual(VersionAdapterFactory.getAdapter('v2.0.0').version, 'v2.0');
+    assert.strictEqual(VersionAdapterFactory.getAdapter('V2.0').version, 'v2.0');
 
     const ops = resolved.extractOperations({});
     assert.strictEqual(ops.length, 1);
@@ -209,12 +214,19 @@ describe('VersionAdapterFactory', () => {
       () => VersionAdapterFactory.getAdapter('v99.0'),
       err =>
         err instanceof A2uiValidationError &&
-        /Unsupported protocol version 'v99\.0'/.test(err.message),
+        /Unsupported protocol version 'v99\.0'/.test(err.message) &&
+        /Supported versions: .*v2\.0/.test(err.message),
     );
     assert.throws(
       () => VersionAdapterFactory.resolveFromPayload({}),
       err =>
         err instanceof A2uiValidationError && /missing a valid 'version' string/.test(err.message),
+    );
+    assert.throws(
+      () => VersionAdapterFactory.resolveFromPayload({version: 123}),
+      err =>
+        err instanceof A2uiValidationError &&
+        /'version' property must be a string, got number/.test(err.message),
     );
   });
 

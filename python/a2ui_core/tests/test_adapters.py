@@ -339,6 +339,11 @@ def test_supports_dynamic_registration():
     VersionAdapterFactory.register_adapter(CustomAdapter())
     resolved = VersionAdapterFactory.get_adapter("v2.0")
     assert resolved.version == "v2.0"
+    # Verify format-tolerant retrieval of dynamically registered adapters
+    assert VersionAdapterFactory.get_adapter("2.0").version == "v2.0"
+    assert VersionAdapterFactory.get_adapter("2.0.0").version == "v2.0"
+    assert VersionAdapterFactory.get_adapter("v2.0.0").version == "v2.0"
+    assert VersionAdapterFactory.get_adapter("V2.0").version == "v2.0"
 
     ops = resolved.extract_operations({})
     assert len(ops) == 1
@@ -349,7 +354,8 @@ def test_supports_dynamic_registration():
 def test_unrecognized_or_missing_version_strings():
     """Verifies that unrecognized or missing version strings raise A2uiValidationError."""
     with pytest.raises(
-        A2uiValidationError, match=r"Unsupported protocol version 'v99\.0'"
+        A2uiValidationError,
+        match=r"Unsupported protocol version 'v99\.0'.*Supported versions: .*v2\.0",
     ):
         VersionAdapterFactory.get_adapter("v99.0")
 

@@ -98,11 +98,6 @@ def is_valid_uax31_identifier(name: str) -> bool:
     return test_name.isidentifier()
 
 
-def _is_version_at_least_1_0(protocol_version: Any) -> bool:
-    """Returns True if the protocol version is 1.0 or higher."""
-    return is_at_least_version(protocol_version, "1.0")
-
-
 def _extract_module_type_refs(modname: str, excluded: set[str]) -> set[str]:
     """Extracts non-private exported attribute names from a module.
 

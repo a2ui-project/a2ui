@@ -73,7 +73,11 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
     const key = toCanonicalVersion(version) ?? normalizeVersionString(version);
     const adapter = this.adapters.get(key);
     if (!adapter) {
-      const supported = ['v0.8', 'v0.9', 'v0.9.1', 'v1.0'].join(', ');
+      const supported = Array.from(
+        new Set(Array.from(this.adapters.keys()).map(k => (k.startsWith('v') ? k : `v${k}`))),
+      )
+        .sort()
+        .join(', ');
       throw new A2uiValidationError(
         `[VersionAdapterFactory] Unsupported protocol version '${version}'. Supported versions: ${supported}.`,
       );
@@ -94,8 +98,14 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
       if ('messages' in item && Array.isArray((item as any).messages)) {
         return this.resolveFromPayload((item as any).messages);
       }
-      if ('version' in item && typeof (item as {version: unknown}).version === 'string') {
-        return this.getAdapter((item as {version: string}).version);
+      if ('version' in item) {
+        const ver = (item as {version: unknown}).version;
+        if (typeof ver !== 'string') {
+          throw new A2uiValidationError(
+            `[VersionAdapterFactory] Message payload is missing a valid 'version' string: 'version' property must be a string, got ${typeof ver}.`,
+          );
+        }
+        return this.getAdapter(ver);
       }
       if (
         'beginRendering' in item ||

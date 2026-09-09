@@ -112,7 +112,13 @@ function toSemVer(v: string | SemVer | undefined | null): SemVer | null {
   }
   if (typeof v === 'object') {
     const obj = v as Partial<SemVer>;
-    if (typeof obj.major !== 'number') {
+    if (
+      typeof obj.major !== 'number' ||
+      !Number.isInteger(obj.major) ||
+      obj.major < 0 ||
+      (typeof obj.minor === 'number' && (!Number.isInteger(obj.minor) || obj.minor < 0)) ||
+      (typeof obj.patch === 'number' && (!Number.isInteger(obj.patch) || obj.patch < 0))
+    ) {
       return null;
     }
     return {

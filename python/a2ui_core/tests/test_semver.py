@@ -202,3 +202,13 @@ def test_semver_objects():
     assert to_canonical_version(SemVer(0, 9, 1)) == "0.9.1"
     assert is_at_least_version(SemVer(1, 0, 0), "1.0") is True
     assert is_at_least_version(SemVer(0, 9, 0), "1.0") is False
+
+
+def test_non_ascii_digits_rejected():
+    """Verifies that non-ASCII Unicode numerals are rejected per SemVer 2.0.0."""
+    assert parse_semver("1.1١.0") is None
+    assert parse_semver("١.0.0") is None
+    # Verify non-ASCII in pre-release does not crash _compare_prerelease_id
+    v_sup = SemVer(1, 0, 0, prerelease=("²",))
+    v_num = SemVer(1, 0, 0, prerelease=("1",))
+    assert compare_semver(v_sup, v_num) > 0  # '²' treated as non-numeric identifier

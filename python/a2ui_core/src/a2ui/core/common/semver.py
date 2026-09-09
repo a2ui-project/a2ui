@@ -43,7 +43,8 @@ class SemVer:
 _SEMVER_PATTERN = re.compile(
     r"^[vV]?(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?"
     r"(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?"
-    r"(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
+    r"(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$",
+    re.ASCII,
 )
 
 
@@ -145,8 +146,8 @@ def to_canonical_version(version: str | bytes | SemVer | None) -> str | None:
 
 def _compare_prerelease_id(id_a: str, id_b: str) -> int:
     """Compares two dot-separated pre-release identifiers per SemVer 2.0.0 Rule 11.4."""
-    is_num_a = id_a.isdigit()
-    is_num_b = id_b.isdigit()
+    is_num_a = id_a.isascii() and id_a.isdigit()
+    is_num_b = id_b.isascii() and id_b.isdigit()
     if is_num_a and is_num_b:
         return int(id_a) - int(id_b)
     if is_num_a:
