@@ -3486,7 +3486,7 @@ There is <strong>no fallback</strong> to the list of catalogs declared in <code>
 <li>All helper properties (such as common properties factored out of catalog items) MUST be inlined directly inside the properties block of each supporting component schema rather than referenced from a shared helper.</li>
 <li><strong>Restricted <code>$ref</code> Targets:</strong></li>
 <li>Local <code>$ref</code> targets are restricted to referencing the catalog's top-level components or functions (e.g., <code>#/components/Text</code>, <code>#/functions/required</code>).</li>
-<li>External <code>$ref</code> targets MUST reference the standard types inside <code>common_types.json</code> (<code>https://a2ui.org/specification/v1_0/common_types.json#/$defs/...</code>), limited to the following allowed schemas:<ul>
+<li>External <code>$ref</code> targets MUST reference the standard types inside <code>common_types.json</code> using the relative target format (<code>common_types.json#/$defs/...</code>). Allowed <code>$ref</code> targets are limited to the following schemas:<ul>
 <li><code>ComponentId</code></li>
 <li><code>ChildList</code></li>
 <li><code>DynamicString</code></li>
@@ -3500,6 +3500,13 @@ There is <strong>no fallback</strong> to the list of catalogs declared in <code>
 <li><code>Action</code></li>
 </ul>
 </li>
+</ol>
+<blockquote>
+<p>[!NOTE]
+<strong>Catalog Evolution and Protocol Compatibility</strong>
+While there are breaking changes to the catalog API between v0.9 and v1.0, v1.0 catalog definitions reference standard types using relative paths (<code>common_types.json#/$defs/&lt;TypeName&gt;</code>). This design allows v1.0 catalogs to potentially work against future protocol versions without requiring changes to catalog type paths.</p>
+</blockquote>
+<ol>
 <li><strong>Component Discriminator Rule:</strong></li>
 <li>Every component schema defined inside the <code>components</code> map must have a required property named <code>component</code> whose value is a constant (<code>const</code>) matching the key under which it is defined.</li>
 <li>Example: The component defined at <code>components.Text</code> must declare:
@@ -3562,7 +3569,7 @@ There is <strong>no fallback</strong> to the list of catalogs declared in <code>
 </span><span id="__span-12-19"><a href="#__codelineno-12-19" id="__codelineno-12-19" name="__codelineno-12-19"></a>        },
 </span><span id="__span-12-20"><a href="#__codelineno-12-20" id="__codelineno-12-20" name="__codelineno-12-20"></a>        // Leaf properties can be standard JSON primitives or Dynamic wrappers
 </span><span id="__span-12-21"><a href="#__codelineno-12-21" id="__codelineno-12-21" name="__codelineno-12-21"></a>        "text": {
-</span><span id="__span-12-22"><a href="#__codelineno-12-22" id="__codelineno-12-22" name="__codelineno-12-22"></a>          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+</span><span id="__span-12-22"><a href="#__codelineno-12-22" id="__codelineno-12-22" name="__codelineno-12-22"></a>          "$ref": "common_types.json#/$defs/DynamicString",
 </span><span id="__span-12-23"><a href="#__codelineno-12-23" id="__codelineno-12-23" name="__codelineno-12-23"></a>          "description": "Text content to display.",
 </span><span id="__span-12-24"><a href="#__codelineno-12-24" id="__codelineno-12-24" name="__codelineno-12-24"></a>        },
 </span><span id="__span-12-25"><a href="#__codelineno-12-25" id="__codelineno-12-25" name="__codelineno-12-25"></a>      },

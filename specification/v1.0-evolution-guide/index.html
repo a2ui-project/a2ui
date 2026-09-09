@@ -2564,6 +2564,7 @@
 <li>Refactored component definitions in <code>catalogs/basic/catalog.json</code> from <code>allOf: [ComponentCommon, ...]</code> and <code>unevaluatedProperties: false</code> to direct explicit property definitions (including explicit <code>component</code> const and <code>weight</code> props) or <code>$defs/Checkable</code>.</li>
 <li>Added an optional <code>instructions</code> field to the <code>Catalog</code> schema (<code>catalogs/basic/catalog.json</code>) to embed Markdown guidelines/rules directly, replacing the external <code>rules.txt</code> file.</li>
 <li>Updated return types on standard validation check functions (<code>required</code>, <code>regex</code>, <code>length</code>, <code>numeric</code>, <code>email</code>) in <code>catalogs/basic/catalog.json</code> from <code>"boolean"</code> to <code>"validationResult"</code>.</li>
+<li>Updated external references to standard types in <code>catalogs/basic/catalog.json</code> to use relative paths (<code>common_types.json#/$defs/...</code>) instead of version-qualified URLs.</li>
 <li>Removed <code>$defs/theme</code> from the basic catalog.</li>
 </ul>
 <h3 id="23-agent-to-renderer-messages">2.3. Agent-to-renderer messages<a class="headerlink" href="#23-agent-to-renderer-messages" title="Permanent link">&para;</a></h3>
@@ -2656,6 +2657,13 @@
 <li>Support built-in <code>@index</code> evaluation during list template rendering (Collection Scope) to provide the 0-based iteration index, adjusted by any <code>offset</code> parameter.</li>
 <li>Support dynamic <code>ValidationResult</code> objects (<code>valid</code>, <code>code</code>, <code>message</code>, <code>severity</code>) returned by component validation check conditions, falling back to static <code>CheckRule.message</code> if present.</li>
 <li>Rename all references, constants, and endpoints mapping to <code>client_to_server.json</code> or <code>client_capabilities.json</code> to use <code>renderer_to_agent.json</code> and <code>renderer_capabilities.json</code>.</li>
+</ul>
+<h3 id="for-catalog-authors">For catalog authors<a class="headerlink" href="#for-catalog-authors" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Set catalog protocol version</strong>: Catalogs targeting v1.0 must specify <code>"protocolVersion": "1.0"</code> in the catalog root.</li>
+<li><strong>Use relative standard type references</strong>: Replace version-qualified schema URLs (<code>https://a2ui.org/specification/v1_0/common_types.json#/$defs/...</code>) with unversioned relative targets (<code>common_types.json#/$defs/...</code>).</li>
+<li><strong>Breaking changes from v0.9 to v1.0</strong>: Catalogs authored for v0.9 cannot be used directly with v1.0 protocol runtimes due to breaking structural changes (such as composing <code>ComponentCommon</code> at the envelope level, returning <code>ValidationResult</code> objects from check functions, and declaring caller and composition constraints).</li>
+<li><strong>Future forward compatibility</strong>: Using unversioned relative references allows v1.0 catalogs to potentially work against future protocol versions without requiring catalog authors to rewrite <code>$ref</code> URLs.</li>
 </ul>
 
 
