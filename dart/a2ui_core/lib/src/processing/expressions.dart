@@ -14,11 +14,12 @@
 
 import '../primitives/errors.dart';
 
-/// Digits, an optional decimal point, and optional further digits.
+/// An optional sign, digits, an optional decimal point with optional further
+/// digits, and an optional exponent.
 ///
 /// Every client implementation accepts a trailing point (`1.`) today and none
 /// accepts a second point (`1.2.3`), so the grammar is written to keep that.
-final RegExp _numberLiteral = RegExp(r'^\d+\.?\d*$');
+final RegExp _numberLiteral = RegExp(r'^-?\d+\.?\d*([eE][+-]?\d+)?$');
 
 /// A parser for A2UI expressions, supporting string interpolation
 /// and function calls.
@@ -135,7 +136,10 @@ class ExpressionParser {
     if (scanner.peek() == "'" || scanner.peek() == '"') {
       return _parseStringLiteral(scanner);
     }
-    if (_isDigit(scanner.peek())) {
+    // A hyphen only starts a number when a digit follows it; otherwise it is
+    // an ordinary path character, so `-a` and `a-b` stay paths.
+    if (_isDigit(scanner.peek()) ||
+        (scanner.peek() == '-' && _isDigit(scanner.peek(1)))) {
       return _parseNumberLiteral(scanner);
     }
     if (scanner.matchesKeyword('true')) return true;
@@ -237,9 +241,21 @@ class ExpressionParser {
 
   num _parseNumberLiteral(_Scanner scanner) {
     final int start = scanner.pos;
+    if (scanner.peek() == '-') {
+      scanner.advance();
+    }
     while (!scanner.isAtEnd &&
         (_isDigit(scanner.peek()) || scanner.peek() == '.')) {
       scanner.advance();
+    }
+    if (scanner.peek() == 'e' || scanner.peek() == 'E') {
+      scanner.advance();
+      if (scanner.peek() == '+' || scanner.peek() == '-') {
+        scanner.advance();
+      }
+      while (!scanner.isAtEnd && _isDigit(scanner.peek())) {
+        scanner.advance();
+      }
     }
     final String text = scanner.input.substring(start, scanner.pos);
     // The grammar is spelled out here rather than delegated to the platform's
@@ -247,7 +263,13 @@ class ExpressionParser {
     if (!_numberLiteral.hasMatch(text)) {
       throw A2uiExpressionError("Invalid number literal: '$text'");
     }
-    return num.parse(text);
+    final num value = num.parse(text);
+    // An exponent large enough to overflow gives infinity, which JSON cannot
+    // carry and no consumer can render.
+    if (!value.isFinite) {
+      throw A2uiExpressionError("Number literal is out of range: '$text'");
+    }
+    return value;
   }
 
   bool _isAlnum(String c) {

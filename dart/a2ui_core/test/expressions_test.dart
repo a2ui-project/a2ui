@@ -70,6 +70,43 @@ void main() {
       expect(parser.parseExpression('"hello world"'), 'hello world');
     });
 
+    test('parses negative numbers', () {
+      expect(parser.parseExpression('-1'), -1);
+      expect(parser.parseExpression('-1.5'), -1.5);
+    });
+
+    test('parses negative numbers as function arguments', () {
+      expect(parser.parseExpression('round(value: -1.5)'), {
+        'call': 'round',
+        'args': {'value': -1.5},
+        'returnType': 'any',
+      });
+    });
+
+    test('parses exponents', () {
+      expect(parser.parseExpression('1e3'), 1000);
+      expect(parser.parseExpression('1.5e-3'), 0.0015);
+      expect(parser.parseExpression('2E+2'), 200);
+    });
+
+    test('parses hyphens that do not start a number as paths', () {
+      expect(parser.parseExpression('a-b'), {'path': 'a-b'});
+      expect(parser.parseExpression('-a'), {'path': '-a'});
+    });
+
+    test('parses numbers with a trailing point and leading zeros', () {
+      expect(parser.parseExpression('1.'), 1);
+      expect(parser.parseExpression('007'), 7);
+    });
+
+    test('throws on an exponent without digits', () {
+      expect(() => parser.parseExpression('1e'), throwsException);
+    });
+
+    test('throws on a number with two decimal points', () {
+      expect(() => parser.parseExpression('1.2.3'), throwsException);
+    });
+
     test('throws on unclosed interpolation', () {
       expect(() => parser.parse('hello \${world'), throwsException);
     });

@@ -169,10 +169,11 @@ public struct ExpressionParser: Sendable {
       return .string(parseStringLiteral(&scanner))
     }
 
-    // 2. Number literals
+    // 2. Number literals. A leading '-' starts a number only when a digit follows it;
+    // otherwise it belongs to the token, since '-' is a valid path character.
     if let char = scanner.peek() {
       if char.isNumber || (char == "-" && (scanner.peek(offset: 1)?.isNumber ?? false)) {
-        return parseNumberLiteral(&scanner)
+        return try parseNumberLiteral(&scanner)
       }
     }
 
@@ -294,31 +295,55 @@ public struct ExpressionParser: Sendable {
     return result
   }
 
-  private func parseNumberLiteral(_ scanner: inout Scanner) -> JSONValue {
+  /// Parses a number literal of the form
+  /// `'-'? digits ('.' digits?)? (('e'|'E') ('+'|'-')? digits)?`.
+  private func parseNumberLiteral(_ scanner: inout Scanner) throws -> JSONValue {
     let start = scanner.pos
     if scanner.peek() == "-" {
       _ = scanner.advance(by: 1)
     }
     var hasDot = false
+    var hasExponent = false
     while !scanner.isAtEnd, let c = scanner.peek() {
       if c.isNumber {
         _ = scanner.advance(by: 1)
-      } else if c == "." && !hasDot {
+      } else if c == "." {
         hasDot = true
         _ = scanner.advance(by: 1)
+      } else if c == "e" || c == "E" {
+        hasExponent = true
+        _ = scanner.advance(by: 1)
+        if let sign = scanner.peek(), sign == "+" || sign == "-" {
+          _ = scanner.advance(by: 1)
+        }
       } else {
         break
       }
     }
     let numStr = String(scanner.input[start..<scanner.pos])
-    if hasDot, let d = Double(numStr) {
-      return .number(d)
-    } else if let i = Int(numStr) {
-      return .integer(i)
-    } else if let d = Double(numStr) {
-      return .number(d)
+    // The grammar is spelled out here rather than delegated to the platform's
+    // number parser, so that every implementation accepts the same literals.
+    let numberLiteral = /^-?\d+\.?\d*([eE][+-]?\d+)?$/
+    guard (try? numberLiteral.wholeMatch(in: numStr)) != nil,
+      let doubleValue = Double(numStr)
+    else {
+      throw FunctionError.executionFailed(
+        name: "expressionParser",
+        message: "Invalid number literal: '\(numStr)'"
+      )
     }
-    return .string(numStr)
+    // An exponent large enough to overflow gives infinity, which JSON cannot
+    // carry and no consumer can render.
+    guard doubleValue.isFinite else {
+      throw FunctionError.executionFailed(
+        name: "expressionParser",
+        message: "Number literal is out of range: '\(numStr)'"
+      )
+    }
+    if !hasDot, !hasExponent, let intValue = Int(numStr) {
+      return .integer(intValue)
+    }
+    return .number(doubleValue)
   }
 
   // MARK: - Nested Scanner

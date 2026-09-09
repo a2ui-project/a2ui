@@ -162,6 +162,49 @@ describe('ExpressionParser', () => {
     });
   });
 
+  describe('number literals', () => {
+    it('parses a leading minus as a negative number', () => {
+      assert.deepStrictEqual(parser.parseExpression('-1'), -1);
+      assert.deepStrictEqual(parser.parseExpression('-1.5'), -1.5);
+    });
+
+    it('passes a negative function argument as a number, not a path', () => {
+      assert.deepStrictEqual(parser.parseExpression('round(value: -1.5)'), {
+        call: 'round',
+        args: {value: -1.5},
+        returnType: 'any',
+      });
+    });
+
+    it('parses exponential notation', () => {
+      assert.deepStrictEqual(parser.parseExpression('1e3'), 1000);
+      assert.deepStrictEqual(parser.parseExpression('1.5e-3'), 0.0015);
+      assert.deepStrictEqual(parser.parseExpression('2E+2'), 200);
+    });
+
+    it('keeps a hyphen that does not begin a number in the path', () => {
+      assert.deepStrictEqual(parser.parseExpression('a-b'), {path: 'a-b'});
+      assert.deepStrictEqual(parser.parseExpression('-a'), {path: '-a'});
+    });
+
+    it('accepts a trailing point and leading zeros', () => {
+      assert.deepStrictEqual(parser.parseExpression('1.'), 1);
+      assert.deepStrictEqual(parser.parseExpression('007'), 7);
+    });
+
+    it('returns error on an exponent marker without digits', () => {
+      assert.throws(() => {
+        parser.parseExpression('1e');
+      }, /Invalid number literal/);
+    });
+
+    it('returns error on a number with two decimal points', () => {
+      assert.throws(() => {
+        parser.parseExpression('1.2.3');
+      }, /Invalid number literal/);
+    });
+  });
+
   it('returns error on missing colon in function args', () => {
     assert.throws(() => {
       parser.parseExpression('add(a 10, b: 20)');

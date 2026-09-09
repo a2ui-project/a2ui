@@ -106,3 +106,42 @@ def test_handles_parsing_paths_with_special_characters(parser):
 def test_returns_error_on_missing_colon_in_function_args(parser):
     with pytest.raises(ValueError, match="Expected ':'"):
         parser.parse_expression("add(a 10, b: 20)")
+
+
+def test_parses_negative_numbers(parser):
+    assert parser.parse_expression("-1") == -1
+    assert parser.parse_expression("-1.5") == -1.5
+
+
+def test_parses_negative_number_as_function_argument(parser):
+    assert parser.parse_expression("round(value: -1.5)") == {
+        "call": "round",
+        "args": {"value": -1.5},
+        "returnType": "any",
+    }
+
+
+def test_parses_exponential_numbers(parser):
+    assert parser.parse_expression("1e3") == 1000
+    assert parser.parse_expression("1.5e-3") == 0.0015
+    assert parser.parse_expression("2E+2") == 200
+
+
+def test_parses_hyphens_that_do_not_start_a_number_as_paths(parser):
+    assert parser.parse_expression("a-b") == {"path": "a-b"}
+    assert parser.parse_expression("-a") == {"path": "-a"}
+
+
+def test_parses_trailing_point_and_leading_zeros(parser):
+    assert parser.parse_expression("1.") == 1
+    assert parser.parse_expression("007") == 7
+
+
+def test_returns_error_on_exponent_without_digits(parser):
+    with pytest.raises(ValueError, match="Invalid number literal"):
+        parser.parse_expression("1e")
+
+
+def test_returns_error_on_number_with_two_decimal_points(parser):
+    with pytest.raises(ValueError, match="Invalid number literal"):
+        parser.parse_expression("1.2.3")
