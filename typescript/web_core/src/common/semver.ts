@@ -235,29 +235,29 @@ export function compareSemVer(
   a: string | SemVer | undefined | null,
   b: string | SemVer | undefined | null,
 ): number {
-  const vA = toSemVer(a);
-  const vB = toSemVer(b);
-  if (!vA && !vB) {
+  const versionA = toSemVer(a);
+  const versionB = toSemVer(b);
+  if (!versionA && !versionB) {
     return 0;
   }
-  if (!vA) {
+  if (!versionA) {
     return -1;
   }
-  if (!vB) {
+  if (!versionB) {
     return 1;
   }
 
-  if (vA.major !== vB.major) {
-    return vA.major - vB.major;
+  if (versionA.major !== versionB.major) {
+    return versionA.major - versionB.major;
   }
-  if (vA.minor !== vB.minor) {
-    return vA.minor - vB.minor;
+  if (versionA.minor !== versionB.minor) {
+    return versionA.minor - versionB.minor;
   }
-  if (vA.patch !== vB.patch) {
-    return vA.patch - vB.patch;
+  if (versionA.patch !== versionB.patch) {
+    return versionA.patch - versionB.patch;
   }
 
-  return comparePrereleaseLists(vA.prerelease, vB.prerelease);
+  return comparePrereleaseLists(versionA.prerelease, versionB.prerelease);
 }
 
 /**

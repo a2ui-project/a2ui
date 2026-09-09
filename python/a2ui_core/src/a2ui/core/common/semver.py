@@ -190,23 +190,23 @@ def compare_semver(
     Returns:
         Negative integer if a < b, 0 if a == b, positive integer if a > b.
     """
-    v_a = _to_semver(a)
-    v_b = _to_semver(b)
-    if not v_a and not v_b:
+    version_a = _to_semver(a)
+    version_b = _to_semver(b)
+    if not version_a and not version_b:
         return 0
-    if not v_a:
+    if not version_a:
         return -1
-    if not v_b:
+    if not version_b:
         return 1
 
-    if v_a.major != v_b.major:
-        return v_a.major - v_b.major
-    if v_a.minor != v_b.minor:
-        return v_a.minor - v_b.minor
-    if v_a.patch != v_b.patch:
-        return v_a.patch - v_b.patch
+    if version_a.major != version_b.major:
+        return version_a.major - version_b.major
+    if version_a.minor != version_b.minor:
+        return version_a.minor - version_b.minor
+    if version_a.patch != version_b.patch:
+        return version_a.patch - version_b.patch
 
-    return _compare_prerelease_lists(v_a.prerelease, v_b.prerelease)
+    return _compare_prerelease_lists(version_a.prerelease, version_b.prerelease)
 
 
 def is_at_least_version(
