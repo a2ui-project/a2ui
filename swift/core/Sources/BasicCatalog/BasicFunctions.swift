@@ -44,7 +44,7 @@ public enum BasicFunctions: Sendable {
     IndexFunction(),
     LengthFunction(returnValidationResult: true),
     NotFunction(),
-    NumericFunction(returnValidationResult: false),
+    NumericFunction(returnValidationResult: true),
     OpenURLFunction(),
     OrFunction(),
     PluralizeFunction(),
@@ -52,6 +52,7 @@ public enum BasicFunctions: Sendable {
     RequiredFunction(returnValidationResult: true),
   ]
 
-  /// All supported functions for default catalog configuration (v0.9/v0.9.1 backwards compatibility).
+  /// All supported functions for default catalog configuration
+  /// (v0.9/v0.9.1 backwards compatibility).
   public static let allFunctions: [any FunctionImplementation] = v09Functions
 }

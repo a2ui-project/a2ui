@@ -51,4 +51,32 @@ public struct GenericError: Error, Equatable, Codable, Sendable {
     self.functionCallID = functionCallID
     self.message = message
   }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    code = try container.decode(String.self, forKey: .code)
+    surfaceID = try container.decodeIfPresent(String.self, forKey: .surfaceID)
+    functionCallID = try container.decodeIfPresent(String.self, forKey: .functionCallID)
+    message = try container.decode(String.self, forKey: .message)
+
+    let hasSurface = surfaceID != nil
+    let hasFunctionCall = functionCallID != nil
+    if (!hasSurface && !hasFunctionCall) || (hasSurface && hasFunctionCall) {
+      throw DecodingError.dataCorrupted(
+        DecodingError.Context(
+          codingPath: decoder.codingPath,
+          debugDescription:
+            "GenericError must specify either surfaceId or functionCallId, not both or neither."
+        )
+      )
+    }
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(code, forKey: .code)
+    try container.encodeIfPresent(surfaceID, forKey: .surfaceID)
+    try container.encodeIfPresent(functionCallID, forKey: .functionCallID)
+    try container.encode(message, forKey: .message)
+  }
 }

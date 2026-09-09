@@ -112,3 +112,8 @@ public enum AgentToRendererMessage: Codable, Sendable, Equatable {
     }
   }
 }
+
+// MARK: - Deprecated Typealiases
+
+@available(*, deprecated, renamed: "AgentToRendererMessage")
+public typealias ServerToClientMessage = AgentToRendererMessage
