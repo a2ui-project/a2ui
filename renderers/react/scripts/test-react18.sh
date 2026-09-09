@@ -23,12 +23,13 @@ REACT_PKG="${REACT_DIR}/package.json"
 EXPLORER_PKG="${REACT_DIR}/a2ui_explorer/package.json"
 ROOT_LOCK="${REPO_ROOT}/yarn.lock"
 
-TRACKED_FILES=("${REACT_PKG}" "${EXPLORER_PKG}" "${ROOT_LOCK}")
+# Dependency files temporarily modified during React 18 testing
+SWAPPED_FILES=("${REACT_PKG}" "${EXPLORER_PKG}" "${ROOT_LOCK}")
 
 echo "=== Testing @a2ui/react with React 18 ==="
 
-# Preflight: ensure no uncommitted changes in tracked dependency files
-if ! git -C "${REPO_ROOT}" diff --quiet HEAD -- "${TRACKED_FILES[@]}"; then
+# Preflight: ensure no uncommitted changes in dependency files
+if ! git -C "${REPO_ROOT}" diff --quiet HEAD -- "${SWAPPED_FILES[@]}"; then
   echo "Error: Uncommitted changes detected in package.json or yarn.lock."
   echo "Please commit or stash your changes before running the React 18 test matrix."
   exit 1
@@ -39,18 +40,14 @@ DEPS_SWAPPED=false
 cleanup() {
   trap - EXIT INT TERM
   echo "=== Restoring original React 19 dependencies ==="
-  git -C "${REPO_ROOT}" checkout -- "${TRACKED_FILES[@]}"
+  git -C "${REPO_ROOT}" checkout -- "${SWAPPED_FILES[@]}"
   if [[ "${DEPS_SWAPPED}" == "true" ]]; then
     yarn --cwd "${REPO_ROOT}" install
   fi
 }
 trap cleanup EXIT INT TERM
 
-# Ensure dependencies are built first
-echo "=== Building @a2ui/react ==="
-yarn --cwd "${REACT_DIR}" build
-
-# Temporarily swap devDependencies to React 18
+# Temporarily swap devDependencies to React 18 before building
 echo "=== Swapping to React 18 dependencies ==="
 yarn --cwd "${REACT_DIR}" add -D \
   "react@^18.3.1" \
@@ -67,12 +64,8 @@ yarn --cwd "${REACT_DIR}/a2ui_explorer" add \
 
 DEPS_SWAPPED=true
 
-# Run unit tests under real React 18
-echo "=== Running unit tests under React 18 ==="
-yarn --cwd "${REACT_DIR}" test:unit
-
-# Run integration tests under real React 18
-echo "=== Running integration tests under React 18 ==="
-TZ=UTC yarn --cwd "${REACT_DIR}" test:integration
+# Run test suite under real React 18 (wireit handles build, test:unit, and test:integration)
+echo "=== Running tests under React 18 ==="
+TZ=UTC yarn --cwd "${REACT_DIR}" test
 
 echo "=== React 18 test matrix passed successfully! ==="
