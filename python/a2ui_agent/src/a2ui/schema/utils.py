@@ -164,10 +164,10 @@ def load_from_bundled_resource(
             is not found in the specification map for the version.
         IOError: If the schema resource file cannot be located or loaded from any source.
     """
-    stripped = version[1:] if version.startswith(("v", "V")) else version
-    version_spec_map = (
-        spec_map.get(version) or spec_map.get(stripped) or spec_map.get(f"v{stripped}")
-    )
+    from a2ui.core.common.semver import to_canonical_version
+
+    canonical = to_canonical_version(version)
+    version_spec_map = spec_map.get(canonical or version)
     if not version_spec_map:
         from a2ui.core import A2uiCatalogError
 
@@ -185,11 +185,12 @@ def load_from_bundled_resource(
 
     rel_path = version_spec_map[resource_key]
     filename = os.path.basename(rel_path)
+    version_dir = canonical or version
 
     # 1. Try to load from the bundled package resources.
     try:
         traversable = importlib.resources.files(A2UI_ASSET_PACKAGE)
-        traversable = traversable.joinpath(version).joinpath(filename)
+        traversable = traversable.joinpath(version_dir).joinpath(filename)
         with traversable.open("r", encoding=ENCODING) as f:
             return cast(dict[str, Any], json.load(f))
     except Exception as e:
@@ -198,7 +199,7 @@ def load_from_bundled_resource(
     # 2. Fallback to local assets
     # This handles cases where assets might be present in src but not installed
     try:
-        # The assets are located at a2ui/assets/<version>/<filename>
+        # The assets are located at a2ui/assets/<version_dir>/<filename>
         # This file is at a2ui/inference/schema/manager.py
         # So, we need to go up 3 directories to 'a2ui', then down to 'assets'
         potential_path = os.path.abspath(
@@ -207,7 +208,7 @@ def load_from_bundled_resource(
                 "..",
                 "..",
                 "assets",
-                version,
+                version_dir,
                 filename,
             )
         )

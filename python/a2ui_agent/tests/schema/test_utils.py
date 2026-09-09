@@ -48,7 +48,7 @@ class TestSchemaUtils(unittest.TestCase):
 
     def test_load_from_bundled_resource_missing_key(self):
         """Verifies load_from_bundled_resource raises A2uiCatalogError for missing resource key."""
-        spec_map = {"v1.0": {"s2c": "s2c_path.json"}}
+        spec_map = {"1.0": {"s2c": "s2c_path.json"}}
         with self.assertRaises(A2uiCatalogError) as ctx:
             load_from_bundled_resource(
                 version="v1.0", resource_key="missing_key", spec_map=spec_map
@@ -57,11 +57,33 @@ class TestSchemaUtils(unittest.TestCase):
 
     def test_load_from_bundled_resource_common_types_fallback(self):
         """Verifies load_from_bundled_resource fallback for common_types key."""
-        spec_map = {"v1.0": {"s2c": "s2c_path.json"}}
+        spec_map = {"1.0": {"s2c": "s2c_path.json"}}
         res = load_from_bundled_resource(
             version="v1.0", resource_key="common_types", spec_map=spec_map
         )
         self.assertEqual(res, {})
+
+    def test_load_from_bundled_resource_semver_normalization(self):
+        """Verifies load_from_bundled_resource normalizes various version formats to canonical keys."""
+        spec_map = {"1.0": {"s2c": "s2c_path.json"}}
+        for ver in ["v1_0", "1.0.0", "v1.0", "1.0", "V1.0"]:
+            res = load_from_bundled_resource(
+                version=ver, resource_key="common_types", spec_map=spec_map
+            )
+            self.assertEqual(res, {})
+
+    def test_load_from_bundled_resource_real_schema(self):
+        """Verifies load_from_bundled_resource successfully loads a real schema with version normalization."""
+        from a2ui.schema.constants import PROTOCOL_VERSION_MAP, SERVER_TO_CLIENT_SCHEMA_KEY
+
+        for ver in ["v1_0", "1.0.0", "v1.0", "1.0"]:
+            schema = load_from_bundled_resource(
+                version=ver,
+                resource_key=SERVER_TO_CLIENT_SCHEMA_KEY,
+                spec_map=PROTOCOL_VERSION_MAP,
+            )
+            self.assertIsInstance(schema, dict)
+            self.assertIn("title", schema)
 
     def test_wrap_as_json_array_empty_schema(self):
         """Verifies wrap_as_json_array raises A2uiCatalogError for empty schema."""
