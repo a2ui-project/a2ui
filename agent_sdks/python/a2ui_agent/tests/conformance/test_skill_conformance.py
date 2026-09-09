@@ -98,7 +98,24 @@ class TestSkillConformance(unittest.TestCase):
                     catalog = A2uiCatalog.from_config(cat_config)
 
                 fmt_name = args.get("format", "express")
-                fmt = ExpressFormat(catalog=catalog) if catalog else ExpressFormat()
+                if fmt_name == "express":
+                    fmt = ExpressFormat(catalog=catalog) if catalog else ExpressFormat()
+                elif fmt_name == "atom":
+                    from a2ui.inference_formats.experimental.atom import AtomFormat
+
+                    fmt = AtomFormat(catalog=catalog) if catalog else AtomFormat()
+                elif fmt_name == "elemental":
+                    from a2ui.inference_formats.experimental.elemental import (
+                        ElementalFormat,
+                    )
+
+                    fmt = (
+                        ElementalFormat(catalog=catalog)
+                        if catalog
+                        else ElementalFormat()
+                    )
+                else:
+                    raise ValueError(f"Unsupported format: {fmt_name}")
 
                 generator = SkillGenerator(fmt)
 

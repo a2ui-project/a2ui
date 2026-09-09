@@ -116,10 +116,15 @@ class SkillSet:
         """Retrieves a Skill by filename or key."""
         if filename in self._skills:
             return self._skills[filename]
-        # Search by skill name
+        # Search by exact skill name first
         for sk in self._skills.values():
-            if sk.name == filename or filename in sk.filename:
+            if sk.name == filename:
                 return sk
+        # Search by partial filename with minimum length constraint
+        if len(filename) >= 3:
+            for sk in self._skills.values():
+                if filename in sk.filename:
+                    return sk
         return None
 
     def to_dict(self) -> dict[str, str]:

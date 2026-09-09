@@ -159,8 +159,10 @@ class AtomPromptGenerator(PromptGenerator):
         validate: bool = False,
     ) -> str:
         """Loads and formats few-shot Atom examples."""
+        if not self.format:
+            return ""
         target_catalog = catalog or self.format.catalog
-        if not target_catalog or not self.format or not self.format.examples_path:
+        if not target_catalog or not self.format.examples_path:
             return ""
         raw_examples = target_catalog.load_examples(
             self.format.examples_path, validate=validate

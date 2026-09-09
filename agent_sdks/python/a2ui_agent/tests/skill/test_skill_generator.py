@@ -105,6 +105,47 @@ class TestSkillGenerator(unittest.TestCase):
             os.path.exists(os.path.join(self.temp_dir.name, "a2ui-basic", "SKILL.md"))
         )
 
+    def test_skill_set_get_matching_rules(self):
+        """Verifies SkillSet.get matching rules (exact key, exact name, min-3-char substring)."""
+        skill_set = self.generator.generate_skillset()
+
+        # 1. Exact key match
+        self.assertIsNotNone(skill_set.get("a2ui-core/SKILL.md"))
+        self.assertEqual(skill_set.get("a2ui-core/SKILL.md").name, "a2ui-core")
+
+        # 2. Exact name match
+        self.assertIsNotNone(skill_set.get("a2ui-core"))
+        self.assertEqual(skill_set.get("a2ui-core").name, "a2ui-core")
+
+        # 3. Substring match with >= 3 characters
+        self.assertIsNotNone(skill_set.get("basic"))
+        self.assertEqual(skill_set.get("basic").name, "a2ui-basic")
+
+        # 4. Substring match with < 3 characters must NOT match
+        self.assertIsNone(skill_set.get("ba"))
+        self.assertIsNone(skill_set.get("c"))
+
+        # 5. Non-matching string returns None
+        self.assertIsNone(skill_set.get("nonexistent"))
+
+    def test_direct_json_prompt_generator_none_format(self):
+        """Verifies DirectJsonPromptGenerator.generate_examples returns empty string when format is None."""
+        from a2ui.inference_formats.direct_json.prompt_generator import (
+            DirectJsonPromptGenerator,
+        )
+
+        gen = DirectJsonPromptGenerator(None)
+        self.assertEqual(gen.generate_examples(), "")
+
+    def test_atom_prompt_generator_none_format(self):
+        """Verifies AtomPromptGenerator.generate_examples returns empty string when format is None."""
+        from a2ui.inference_formats.experimental.atom.prompt_generator import (
+            AtomPromptGenerator,
+        )
+
+        gen = AtomPromptGenerator(None)
+        self.assertEqual(gen.generate_examples(), "")
+
 
 if __name__ == "__main__":
     unittest.main()
