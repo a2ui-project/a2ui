@@ -16,11 +16,29 @@ import Foundation
 
 /// Represents an error returned by a function invocation.
 public struct FunctionErrorPayload: Codable, Sendable, Equatable {
+  /// Known standard machine-readable error codes for function errors.
+  public enum Code: String, Codable, Sendable, CaseIterable {
+    case invalidFunctionCall = "INVALID_FUNCTION_CALL"
+    case executionError = "EXECUTION_ERROR"
+    case timeout = "TIMEOUT"
+    case unknownFunction = "UNKNOWN_FUNCTION"
+  }
+
   public let code: String
   public let message: String
 
+  /// The strongly typed standard error code, or nil if a custom error code was provided.
+  public var structuredCode: Code? {
+    Code(rawValue: code)
+  }
+
   public init(code: String, message: String) {
     self.code = code
+    self.message = message
+  }
+
+  public init(code: Code, message: String) {
+    self.code = code.rawValue
     self.message = message
   }
 }

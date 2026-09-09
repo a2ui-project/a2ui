@@ -49,7 +49,7 @@ public final class RPCHandler {
     if let explicitCatalogID = message.callFunction.catalogID {
       guard catalogs[explicitCatalogID] != nil else {
         let errorPayload = FunctionErrorPayload(
-          code: "INVALID_FUNCTION_CALL",
+          code: .invalidFunctionCall,
           message: "Catalog not found: \(explicitCatalogID)"
         )
         return RendererFunctionResponseMessage(
@@ -78,7 +78,7 @@ public final class RPCHandler {
 
     guard let function = findFunction() else {
       let errorPayload = FunctionErrorPayload(
-        code: "INVALID_FUNCTION_CALL",
+        code: .invalidFunctionCall,
         message: "Function not found: \(callName)"
       )
       return RendererFunctionResponseMessage(
@@ -90,7 +90,7 @@ public final class RPCHandler {
     // Validate allowedCallers constraint: agent must be permitted to invoke.
     if function.api.allowedCallers == .rendererOnly {
       let errorPayload = FunctionErrorPayload(
-        code: "INVALID_FUNCTION_CALL",
+        code: .invalidFunctionCall,
         message:
           "Function '\(callName)' cannot be called by agent (allowedCallers is rendererOnly)."
       )
@@ -103,7 +103,7 @@ public final class RPCHandler {
     // Validate user activation requirement.
     if function.api.requiresUserActivation && !userActivationPresent {
       let errorPayload = FunctionErrorPayload(
-        code: "INVALID_FUNCTION_CALL",
+        code: .invalidFunctionCall,
         message: "Function '\(callName)' requires user activation context to execute."
       )
       return RendererFunctionResponseMessage(
@@ -129,7 +129,7 @@ public final class RPCHandler {
       )
     } catch {
       let errorPayload = FunctionErrorPayload(
-        code: "EXECUTION_ERROR",
+        code: .executionError,
         message: "An error occurred during function execution."
       )
       return RendererFunctionResponseMessage(

@@ -859,7 +859,7 @@ public final class NodeResolver: Sendable {
       var resolvedNodes: [Node] = []
       for item in arr {
         guard let childID = item.stringValue else { continue }
-        let childInstanceID = (index != nil) ? "\(childID)_\(index!)" : childID
+        let childInstanceID = index.map { "\(childID)_\($0)" } ?? childID
         if let childNode = resolveNode(
           definitionID: childID,
           instanceID: childInstanceID,

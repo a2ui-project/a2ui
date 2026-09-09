@@ -400,12 +400,14 @@ struct AgentToRendererMessageTests {
 
   @Test func protocolVersionDecoding() throws {
     for version in ["v0.9", "v0.9.1", "v1.0"] {
-      let json = """
+      let json = try #require(
+        """
         {
           "version": "\(version)",
           "deleteSurface": { "surfaceId": "s1" }
         }
-        """.data(using: .utf8)!
+        """.data(using: .utf8)
+      )
       let msg = try JSONDecoder().decode(AgentToRendererMessage.self, from: json)
       if case .deleteSurface(let del) = msg {
         #expect(del.surfaceID == "s1")
@@ -415,16 +417,112 @@ struct AgentToRendererMessageTests {
     }
 
     for invalid in ["v0.8", "v2.0", "0.9", "0.9.1", "1.0", "0.8", "invalid"] {
-      let json = """
+      let json = try #require(
+        """
         {
           "version": "\(invalid)",
           "deleteSurface": { "surfaceId": "s1" }
         }
-        """.data(using: .utf8)!
+        """.data(using: .utf8)
+      )
       #expect(throws: DecodingError.self) {
         try JSONDecoder().decode(AgentToRendererMessage.self, from: json)
       }
     }
   }
 
+  @Test func deprecatedServerToClientMessageTypealias() {
+    let msg: ServerToClientMessage = .deleteSurface(DeleteSurfaceMessage(surfaceID: "surf1"))
+    if case .deleteSurface(let del) = msg {
+      #expect(del.surfaceID == "surf1")
+    } else {
+      Issue.record("Expected .deleteSurface")
+    }
+  }
+
+  @Test func validatorRejectsUnrecognizedAction() throws {
+    let validator = A2UIValidator()
+    let payload = JSONValue.object([
+      "version": .string("v1.0"),
+      "unknownAction": .object([:]),
+    ])
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validate(payload: payload)
+    }
+  }
+
+  @Test func validatorValidatesCallRendererFunction() throws {
+    let validator = A2UIValidator()
+
+    // Valid v1.0 callRendererFunction
+    let validPayload = JSONValue.object([
+      "version": .string("v1.0"),
+      "callRendererFunction": .object([
+        "functionCallId": .string("call_1"),
+        "callFunction": .object([
+          "call": .string("myFunc"),
+          "catalogId": .string("cat1"),
+        ]),
+      ]),
+    ])
+    try validator.validate(payload: validPayload)
+
+    // Invalid in v0.9.1
+    let v09Payload = JSONValue.object([
+      "version": .string("v0.9.1"),
+      "callRendererFunction": .object([
+        "functionCallId": .string("call_1"),
+        "callFunction": .object([
+          "call": .string("myFunc"),
+          "catalogId": .string("cat1"),
+        ]),
+      ]),
+    ])
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validate(payload: v09Payload)
+    }
+  }
+
+  @Test func validatorValidatesAgentFunctionResponse() throws {
+    let validator = A2UIValidator()
+
+    // Valid with value
+    let validVal = JSONValue.object([
+      "version": .string("v1.0"),
+      "agentFunctionResponse": .object([
+        "functionCallId": .string("call_1"),
+        "value": .string("res"),
+      ]),
+    ])
+    try validator.validate(payload: validVal)
+
+    // Valid with error
+    let validErr = JSONValue.object([
+      "version": .string("v1.0"),
+      "agentFunctionResponse": .object([
+        "functionCallId": .string("call_1"),
+        "error": .object([
+          "code": .string("ERR"),
+          "message": .string("fail"),
+        ]),
+      ]),
+    ])
+    try validator.validate(payload: validErr)
+
+    // Invalid: both value and error
+    let both = JSONValue.object([
+      "version": .string("v1.0"),
+      "agentFunctionResponse": .object([
+        "functionCallId": .string("call_1"),
+        "value": .string("res"),
+        "error": .object([
+          "code": .string("ERR"),
+          "message": .string("fail"),
+        ]),
+      ]),
+    ])
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validate(payload: both)
+    }
+  }
 }

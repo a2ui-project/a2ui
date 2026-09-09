@@ -41,3 +41,8 @@ public enum RendererError: Equatable, Codable, Sendable {
     }
   }
 }
+
+// MARK: - Deprecated Typealiases
+
+@available(*, deprecated, renamed: "RendererError")
+public typealias ClientServerError = RendererError
