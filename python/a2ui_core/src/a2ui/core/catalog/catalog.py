@@ -615,8 +615,27 @@ class Catalog(Generic[TComponent, TFunction]):
                 if isinstance(ref, str) and ref.startswith("#/components/"):
                     permitted_names.add(ref.split("/")[-1])
 
+        validate_identifiers = _is_version_at_least_1_0(p_ver)
+
         components = []
         for name, schema in components_map.items():
+            if validate_identifiers and not is_valid_uax31_identifier(name):
+                raise A2uiCatalogError(
+                    f"Invalid UAX #31 component identifier: '{name}'"
+                )
+            if (
+                validate_identifiers
+                and isinstance(schema, dict)
+                and "properties" in schema
+                and isinstance(schema["properties"], dict)
+            ):
+                for prop_name in schema["properties"]:
+                    if not is_valid_uax31_identifier(prop_name):
+                        raise A2uiCatalogError(
+                            f"Invalid UAX #31 property identifier: '{prop_name}' in"
+                            f" component '{name}'"
+                        )
+
             if not permitted_names or name in permitted_names:
                 allowed_parents = (
                     schema.get("allowedParents") if isinstance(schema, dict) else None
@@ -649,8 +668,27 @@ class Catalog(Generic[TComponent, TFunction]):
 
         if isinstance(raw_functions, dict):
             for name, spec in raw_functions.items():
+                if validate_identifiers and not is_valid_uax31_identifier(name):
+                    raise A2uiCatalogError(
+                        f"Invalid UAX #31 function identifier: '{name}'"
+                    )
+                spec_dict = spec if isinstance(spec, dict) else {}
+                props = (
+                    spec_dict.get("properties")
+                    if isinstance(spec_dict.get("properties"), dict)
+                    else spec_dict.get("parameters")
+                    if isinstance(spec_dict.get("parameters"), dict)
+                    else None
+                )
+                if validate_identifiers and isinstance(props, dict):
+                    for arg_name in props:
+                        if not is_valid_uax31_identifier(arg_name):
+                            raise A2uiCatalogError(
+                                f"Invalid UAX #31 argument identifier: '{arg_name}' in"
+                                f" function '{name}'"
+                            )
+
                 if not permitted_func_names or name in permitted_func_names:
-                    spec_dict = spec if isinstance(spec, dict) else {}
                     functions.append(
                         FunctionApi(
                             name=name,

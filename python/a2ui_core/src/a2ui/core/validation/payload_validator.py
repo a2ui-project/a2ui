@@ -137,6 +137,23 @@ class PayloadValidator(Generic[TComponent, TFunction]):
         comp_id = comp.get("id")
         comp_type = comp.get("component") or comp.get("type")
 
+        if comp_id and isinstance(comp_id, str):
+            from ..catalog.catalog import is_valid_uax31_identifier, _is_version_at_least_1_0
+
+            ver = getattr(self.catalog, "protocol_version", None)
+            if (
+                ver
+                and _is_version_at_least_1_0(ver)
+                and not is_valid_uax31_identifier(comp_id)
+            ):
+                errors.append(
+                    A2uiErrorDetail(
+                        path=f"components.{comp_id}.id",
+                        code="invalid_identifier",
+                        message=f"Component id '{comp_id}' must be a valid identifier",
+                    )
+                )
+
         target_comp = None
         target_cat = self.catalog
 
@@ -354,6 +371,42 @@ class PayloadValidator(Generic[TComponent, TFunction]):
         """Validates function call parameters against catalog function schema definitions."""
         active_config = self.config
         allow_unknown = active_config.allow_unknown_elements if active_config else False
+
+        from ..catalog.catalog import is_valid_uax31_identifier, _is_version_at_least_1_0
+
+        ver = getattr(self.catalog, "protocol_version", None)
+        if ver and _is_version_at_least_1_0(ver):
+            if not is_valid_uax31_identifier(name):
+                raise A2uiValidationError(
+                    f"Function name '{name}' must be a valid UAX #31 identifier",
+                    details=[
+                        A2uiErrorDetail(
+                            path=f"functions.{name}",
+                            code="invalid_identifier",
+                            message=(
+                                f"Function name '{name}' must be a valid UAX #31"
+                                " identifier"
+                            ),
+                        )
+                    ],
+                )
+            if isinstance(args, dict):
+                for arg_name in args:
+                    if not is_valid_uax31_identifier(arg_name):
+                        raise A2uiValidationError(
+                            f"Function argument '{arg_name}' in function '{name}' must"
+                            " be a valid UAX #31 identifier",
+                            details=[
+                                A2uiErrorDetail(
+                                    path=f"functions.{name}.{arg_name}",
+                                    code="invalid_identifier",
+                                    message=(
+                                        f"Function argument '{arg_name}' in function"
+                                        f" '{name}' must be a valid UAX #31 identifier"
+                                    ),
+                                )
+                            ],
+                        )
 
         fn_def, fn_schema, base_schema = self._find_function_definition(name)
 

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from ..catalog.catalog import is_valid_uax31_identifier
 from .payload_validator import (
     PayloadValidator,
     A2uiValidatorError,
@@ -27,6 +28,7 @@ from ..state.validation_helpers import (
 )
 
 __all__ = [
+    "is_valid_uax31_identifier",
     "A2uiValidatorError",
     "ValidationConfig",
     "STRICT_VALIDATION",
