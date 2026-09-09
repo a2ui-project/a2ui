@@ -31,14 +31,7 @@ public enum RendererToAgentMessage: Equatable, Codable, Sendable {
 
   public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    let version = try container.decode(String.self, forKey: .version)
-    guard version == "v0.9" || version == "v0.9.1" || version == "v1.0" else {
-      throw DecodingError.dataCorruptedError(
-        forKey: .version,
-        in: container,
-        debugDescription: "Unsupported version: \(version)"
-      )
-    }
+    _ = try container.decode(A2UIProtocolVersion.self, forKey: .version)
 
     let payloadKeys = container.allKeys.filter { $0 != .version }
     guard payloadKeys.count == 1, let payloadKey = payloadKeys.first else {
@@ -73,7 +66,7 @@ public enum RendererToAgentMessage: Equatable, Codable, Sendable {
 
   public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encode("v1.0", forKey: .version)
+    try container.encode(A2UIProtocolVersion.default, forKey: .version)
 
     switch self {
     case .action(let action):

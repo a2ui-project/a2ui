@@ -26,6 +26,12 @@ public struct ValidationConfig: Sendable, Equatable {
   /// The target protocol version (e.g. `"v0.9.1"`).
   public var targetVersion: String
 
+  /// The target protocol version as an `A2UIProtocolVersion` enum.
+  public var protocolVersion: A2UIProtocolVersion {
+    get { A2UIProtocolVersion(loose: targetVersion) ?? .v091 }
+    set { targetVersion = newValue.rawValue }
+  }
+
   /// Creates a validation configuration.
   public init(
     allowOrphanComponents: Bool = false,
@@ -37,6 +43,19 @@ public struct ValidationConfig: Sendable, Equatable {
     self.allowDanglingReferences = allowDanglingReferences
     self.allowMissingRoot = allowMissingRoot
     self.targetVersion = targetVersion
+  }
+
+  /// Creates a validation configuration with a typed `A2UIProtocolVersion`.
+  public init(
+    allowOrphanComponents: Bool = false,
+    allowDanglingReferences: Bool = false,
+    allowMissingRoot: Bool = false,
+    protocolVersion: A2UIProtocolVersion
+  ) {
+    self.allowOrphanComponents = allowOrphanComponents
+    self.allowDanglingReferences = allowDanglingReferences
+    self.allowMissingRoot = allowMissingRoot
+    self.targetVersion = protocolVersion.rawValue
   }
 
   /// Default strict validation rules for complete message trees.

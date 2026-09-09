@@ -107,6 +107,35 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
       themeSchema: themeSchema
     )
   }
+
+  /// Creates a catalog with an `A2UIProtocolVersion` enum.
+  public init(
+    id: String,
+    protocolVersion: A2UIProtocolVersion,
+    components: [Component],
+    functions: [any FunctionImplementation] = [],
+    themeSchema: Schema? = nil
+  ) {
+    self.init(
+      id: id,
+      protocolVersion: protocolVersion.rawValue,
+      components: components,
+      functions: functions,
+      themeSchema: themeSchema
+    )
+  }
+}
+
+extension CatalogProtocol {
+  /// The protocol version of this catalog as an `A2UIProtocolVersion` enum, if recognized.
+  public var a2uiProtocolVersion: A2UIProtocolVersion? {
+    protocolVersion.flatMap(A2UIProtocolVersion.init(loose:))
+  }
+
+  /// Whether this catalog conforms to A2UI Protocol v1.0.
+  public var isV10: Bool {
+    a2uiProtocolVersion == .v10
+  }
 }
 
 /// Convenience typealias for a schema-only catalog.
