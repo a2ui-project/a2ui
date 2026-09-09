@@ -2,6 +2,8 @@
 
 This sample uses the Agent Development Kit (ADK) along with the A2A protocol to create a simple "Restaurant finder and table reservation" agent that is hosted as an A2A server.
 
+This sample is featured in [Quickstart: Run A2UI in 5 Minutes](https://a2ui.org/quickstart). Refer to the guide for end-to-end setup and run instructions.
+
 ## Prerequisites
 
 - Python — see `requires-python` in `pyproject.toml`

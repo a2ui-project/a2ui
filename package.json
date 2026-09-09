@@ -3,6 +3,7 @@
   "private": true,
   "packageManager": "yarn@4.13.0",
   "workspaces": [
+    "catalogs/*",
     "renderers/*",
     "renderers/angular/*",
     "renderers/lit/*",

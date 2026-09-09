@@ -144,19 +144,15 @@ class _TrackingCatalog extends MinimalCatalog {
 
 class _TrackingFunction extends FunctionImplementation {
   final void Function() _onExecute;
-  _TrackingFunction(this._onExecute);
 
-  @override
-  String get name => 'trackingFn';
-
-  @override
-  A2uiReturnType get returnType => A2uiReturnType.any;
-
-  @override
-  Schema get argumentSchema => Schema.object(
-    properties: {'value': CommonSchemas.dynamicString},
-    required: ['value'],
-  );
+  _TrackingFunction(this._onExecute)
+    : super(
+        name: 'trackingFn',
+        argumentSchema: Schema.object(
+          properties: {'value': CommonSchemas.dynamicString},
+          required: ['value'],
+        ),
+      );
 
   @override
   Object? execute(

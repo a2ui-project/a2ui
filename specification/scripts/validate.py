@@ -76,17 +76,19 @@ def run_ajv(schema_path, data_paths, refs=None):
 def validate_messages(root_schema, example_files, refs=None, temp_dir="temp_val"):
     """Validates a list of JSON files where each file contains a list of messages."""
     os.makedirs(temp_dir, exist_ok=True)
-    success = True
+    all_data_paths = []
+    file_map = []
 
     for example_file in sorted(example_files):
-        print(f"  Validating {os.path.basename(example_file)}...")
         with open(example_file, "r") as f:
             try:
                 messages = json.load(f)
             except json.JSONDecodeError as e:
-                print(f"    [FAIL] Invalid JSON: {e}")
-                success = False
-                continue
+                print(
+                    f"  Validating {os.path.basename(example_file)}...\n    [FAIL]"
+                    f" Invalid JSON: {e}"
+                )
+                return False
 
         if (
             isinstance(messages, dict)
@@ -97,28 +99,32 @@ def validate_messages(root_schema, example_files, refs=None, temp_dir="temp_val"
         elif not isinstance(messages, list):
             messages = [messages]
 
-        temp_data_paths = []
+        msg_paths = []
         for i, msg in enumerate(messages):
             temp_data_path = os.path.join(
                 temp_dir, f"msg_{os.path.basename(example_file)}_{i}.json"
             )
             with open(temp_data_path, "w") as f:
                 json.dump(msg, f)
-            temp_data_paths.append(temp_data_path)
+            msg_paths.append(temp_data_path)
+            all_data_paths.append(temp_data_path)
 
-        if not temp_data_paths:
-            print("    [SKIP] No messages to validate")
-            continue
+        file_map.append((example_file, msg_paths))
 
-        is_valid, output = run_ajv(root_schema, temp_data_paths, refs)
-        if not is_valid:
-            print(f"    [FAIL] Validation failed for {os.path.basename(example_file)}:")
-            print(output.strip())
-            success = False
-        else:
-            print(f"    [PASS]")
+    if not all_data_paths:
+        return True
 
-    return success
+    # Validate all example messages in a single batched Ajv invocation
+    is_valid, output = run_ajv(root_schema, all_data_paths, refs)
+    if not is_valid:
+        print(f"  [FAIL] Validation failed:")
+        print(output.strip())
+        return False
+
+    for example_file, _ in file_map:
+        print(f"  Validating {os.path.basename(example_file)}... [PASS]")
+
+    return True
 
 
 def compare_schemas(subset_path, standard_path):

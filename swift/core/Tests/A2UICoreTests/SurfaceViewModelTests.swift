@@ -39,6 +39,7 @@ struct TestConcatFunction: FunctionImplementation {
     )
   )
 
+  @MainActor
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     let a = arguments["a"]?.stringValue ?? ""
     let b = arguments["b"]?.stringValue ?? ""
@@ -55,6 +56,7 @@ struct TestRequiredFunction: FunctionImplementation {
     schema: try! Schema(instance: "{\"type\": \"object\"}")
   )
 
+  @MainActor
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let value = arguments["value"] else { return .boolean(false) }
     switch value {
@@ -72,6 +74,7 @@ struct TestEmailFunction: FunctionImplementation {
     schema: try! Schema(instance: "{\"type\": \"object\"}")
   )
 
+  @MainActor
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let s = arguments["value"]?.stringValue else { return .boolean(false) }
     return .boolean(s.contains("@") && s.contains("."))
@@ -212,7 +215,7 @@ struct SurfaceViewModelTests {
     }
   }
 
-  @Test func updateComponentsRejectsMissingIdKey() throws {
+  @Test func updateComponentsRejectsMissingIDKey() throws {
     let (processor, _, handler) = try makeProcessor()
     processor.updateComponents(
       surfaceID: "test-surface",
@@ -999,7 +1002,7 @@ struct SurfaceViewModelTests {
 
 struct ComponentModelTests {
 
-  @Test func componentModelStoresIdTypeAndProperties() {
+  @Test func componentModelStoresIDTypeAndProperties() {
     let model = ComponentModel(
       id: "btn1",
       type: "button",
@@ -1055,6 +1058,7 @@ struct ComponentModelTests {
 
 // MARK: - SurfaceComponentsModel Tests
 
+@MainActor
 struct SurfaceComponentsModelTests {
 
   @Test func startsEmpty() {
@@ -1079,7 +1083,7 @@ struct SurfaceComponentsModelTests {
     #expect(model.components.isEmpty)
   }
 
-  @Test func replaceComponentWithSameId() {
+  @Test func replaceComponentWithSameID() {
     let model = SurfaceComponentsModel()
     model.addComponent(ComponentModel(id: "btn1", type: "button", properties: ["label": "Old"]))
     model.addComponent(ComponentModel(id: "btn1", type: "button", properties: ["label": "New"]))
@@ -1113,6 +1117,7 @@ struct SurfaceComponentsModelTests {
 
 // MARK: - DataModel Tests
 
+@MainActor
 struct DataModelTests {
 
   @Test func startsEmpty() {

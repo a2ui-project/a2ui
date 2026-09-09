@@ -195,7 +195,6 @@ export enum A2uiProtocolVersion {
 
 export interface Catalog<TComponent extends ComponentApi, TFunction extends FunctionApi> {
   readonly id: string;
-  readonly protocolVersion: A2uiProtocolVersion;
   readonly components: ReadonlyMap<string, TComponent>;
   readonly functions?: ReadonlyMap<string, TFunction>;
   readonly themeSchema?: Record<string, any>;
@@ -228,7 +227,6 @@ export const CardComponent: ComponentApi = {
   }),
 };
 ```
-
 #### `ComponentApi`
 
 The framework-agnostic definition of a component. It defines the name and the exact JSON schema footprint of the component, without any rendering logic. It acts as the single source of truth for the component's contract.

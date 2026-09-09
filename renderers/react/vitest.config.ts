@@ -16,8 +16,35 @@
 
 import {defineConfig} from 'vitest/config';
 import path from 'path';
+import react from '@vitejs/plugin-react';
+import {createRequire} from 'module';
+
+const require = createRequire(import.meta.url);
+const isReact18 = process.env.REACT_VERSION === '18';
+
+const getReact18Aliases = () => {
+  if (!isReact18) return [];
+  return [
+    {find: /^react-dom\/client$/, replacement: require.resolve('react-dom-18/client')},
+    {find: /^react-dom\/server$/, replacement: require.resolve('react-dom-18/server')},
+    {find: /^react-dom$/, replacement: require.resolve('react-dom-18')},
+    {find: /^react\/jsx-dev-runtime$/, replacement: require.resolve('react-18/jsx-dev-runtime')},
+    {find: /^react\/jsx-runtime$/, replacement: require.resolve('react-18/jsx-runtime')},
+    {find: /^react$/, replacement: require.resolve('react-18')},
+    {find: /^@testing-library\/react$/, replacement: require.resolve('@testing-library/react-18')},
+  ];
+};
 
 export default defineConfig({
+  plugins: [react(isReact18 ? {jsxImportSource: 'react-18'} : {})],
+  server: {
+    deps: {
+      inline: [true],
+    },
+  },
+  ssr: {
+    alias: getReact18Aliases(),
+  },
   test: {
     globals: true,
     environment: 'jsdom',
@@ -31,12 +58,13 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: {
-      '@': path.resolve(process.cwd(), 'src/v0_8'),
-      '@a2ui/react/v0_9': path.resolve(process.cwd(), 'src/v0_9/index.ts'),
-      '@a2ui/react/v0_8': path.resolve(process.cwd(), 'src/v0_8/index.ts'),
-      '@a2ui/react/styles': path.resolve(process.cwd(), 'src/styles/index.ts'),
-      '@a2ui/react': path.resolve(process.cwd(), 'src/index.ts'),
-    },
+    alias: [
+      ...getReact18Aliases(),
+      {find: '@', replacement: path.resolve(process.cwd(), 'src/v0_8')},
+      {find: '@a2ui/react/v0_9', replacement: path.resolve(process.cwd(), 'src/v0_9/index.ts')},
+      {find: '@a2ui/react/v0_8', replacement: path.resolve(process.cwd(), 'src/v0_8/index.ts')},
+      {find: '@a2ui/react/styles', replacement: path.resolve(process.cwd(), 'src/styles/index.ts')},
+      {find: '@a2ui/react', replacement: path.resolve(process.cwd(), 'src/index.ts')},
+    ],
   },
 });

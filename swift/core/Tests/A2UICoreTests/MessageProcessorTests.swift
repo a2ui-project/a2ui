@@ -60,7 +60,7 @@ struct MessageParserTests {
     }
   }
 
-  @Test func parseInvalidJsonThrows() throws {
+  @Test func parseInvalidJSONThrows() throws {
     let parser = MessageParser()
     #expect(throws: MessageParseError.self) {
       try parser.parse(jsonString: "not valid json")

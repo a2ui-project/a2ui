@@ -99,6 +99,19 @@ export interface ComponentApi<Schema extends z.ZodTypeAny = z.ZodTypeAny> {
 }
 
 /**
+ * An implementation of a UI component using Web Components (Custom Elements).
+ * Extends ComponentApi to include the Custom Element's tag name.
+ *
+ * @template Schema the Zod schema type for the component's properties.
+ */
+export interface WebComponentImplementation<
+  Schema extends z.ZodTypeAny = z.ZodTypeAny,
+> extends ComponentApi<Schema> {
+  /** The HTML tag name of the Custom Element registered for this component. */
+  readonly tagName: string;
+}
+
+/**
  * Infers the schema type from a ComponentApi.
  *
  * This type uses `z.infer` on the `schema` property of a `ComponentApi` object.
