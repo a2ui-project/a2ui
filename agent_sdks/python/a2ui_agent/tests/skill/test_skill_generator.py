@@ -128,6 +128,37 @@ class TestSkillGenerator(unittest.TestCase):
         # 5. Non-matching string returns None
         self.assertIsNone(skill_set.get("nonexistent"))
 
+    def test_generate_catalog_skill_default(self):
+        """Verifies generate_catalog_skill() defaults to the catalog bound to the format."""
+        skill_obj = self.generator.generate_catalog_skill()
+        self.assertEqual(skill_obj.name, "a2ui-basic")
+        self.assertIn("Positional Component Signatures", skill_obj.content)
+
+    def test_generate_with_explicit_catalogs_override(self):
+        """Verifies methods accept explicit catalog arguments overriding format defaults."""
+        testing_catalog_path = os.path.join(
+            SPEC_DIR, "test", "testing_catalog.json"
+        )
+        testing_catalog = A2uiCatalog.from_config(
+            CatalogConfig.from_path("testing", testing_catalog_path)
+        )
+
+        # 1. generate_catalog_skill with explicit catalog generates for that catalog
+        cat_skill = self.generator.generate_catalog_skill(testing_catalog)
+        self.assertEqual(cat_skill.name, "a2ui-specification")
+
+        # 2. generate_skillset with explicit catalogs only includes the specified catalog
+        skill_set = self.generator.generate_skillset(catalogs=[testing_catalog])
+        self.assertEqual(len(skill_set), 2)
+        self.assertIn("a2ui-core/SKILL.md", skill_set)
+        self.assertIn("a2ui-specification/SKILL.md", skill_set)
+        self.assertNotIn("a2ui-basic/SKILL.md", skill_set)
+
+        # 3. generate_skill with explicit catalogs only includes the specified catalog
+        mono_skill = self.generator.generate_skill(catalogs=[testing_catalog])
+        self.assertIn("TestComponent(value)", mono_skill.content)
+        self.assertNotIn("Button(", mono_skill.content)
+
 
 if __name__ == "__main__":
     unittest.main()

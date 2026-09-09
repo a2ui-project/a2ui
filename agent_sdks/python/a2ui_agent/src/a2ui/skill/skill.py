@@ -43,8 +43,8 @@ def _resolve_catalogs_list(
     fmt: InferenceFormat,
 ) -> list[A2uiCatalog]:
     """Resolves catalog instances from list of strings, configs, or format defaults."""
-    resolved: list[A2uiCatalog] = []
-    if catalogs:
+    if catalogs is not None:
+        resolved: list[A2uiCatalog] = []
         for c in catalogs:
             if isinstance(c, str):
                 resolved.append(A2uiCatalog.from_json_file(c))
@@ -52,14 +52,16 @@ def _resolve_catalogs_list(
                 resolved.append(A2uiCatalog.from_config(c))
             elif isinstance(c, A2uiCatalog):
                 resolved.append(c)
+        return resolved
 
-    if not resolved and hasattr(fmt, "_supported_catalogs") and fmt._supported_catalogs:
-        resolved.extend(fmt._supported_catalogs)
+    defaults: list[A2uiCatalog] = []
+    if hasattr(fmt, "_supported_catalogs") and fmt._supported_catalogs:
+        defaults.extend(fmt._supported_catalogs)
     if hasattr(fmt, "catalog") and fmt.catalog:
-        if fmt.catalog not in resolved:
-            resolved.append(fmt.catalog)
+        if fmt.catalog not in defaults:
+            defaults.append(fmt.catalog)
 
-    return resolved
+    return defaults
 
 
 class Skill:

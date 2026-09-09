@@ -33,7 +33,10 @@ class SkillGenerator:
         description: Optional[str] = None,
         catalogs: Optional[list[Union[str, A2uiCatalog]]] = None,
     ) -> Skill:
-        """Compiles an InferenceFormat into a single unified (monolithic) Skill."""
+        """Compiles an InferenceFormat into a single unified (monolithic) Skill.
+
+        If catalogs is not specified, defaults to the catalogs configured on the inference format.
+        """
         resolved_catalogs = _resolve_catalogs_list(catalogs, self.fmt)
         prompt_gen = self.fmt.prompt_generator
 
@@ -72,25 +75,38 @@ class SkillGenerator:
 
     def generate_catalog_skill(
         self,
-        catalog: A2uiCatalog,
+        catalog: Optional[A2uiCatalog] = None,
         name: Optional[str] = None,
         description: Optional[str] = None,
         include_examples: bool = True,
     ) -> Skill:
-        """Compiles a single catalog into a dedicated catalog Skill."""
-        clean_name = _clean_catalog_name(catalog)
+        """Compiles a single catalog into a dedicated catalog Skill.
+
+        If catalog is not specified, defaults to the catalog configured on the inference format.
+        """
+        target_catalog = catalog
+        if target_catalog is None:
+            format_catalogs = _resolve_catalogs_list(None, self.fmt)
+            if format_catalogs:
+                target_catalog = format_catalogs[0]
+            else:
+                raise ValueError(
+                    "No catalog provided or configured on the inference format to"
+                    " compile catalog skill."
+                )
+        clean_name = _clean_catalog_name(target_catalog)
         skill_name = name or f"a2ui-{clean_name}"
         prompt_gen = self.fmt.prompt_generator
 
-        cat_body = prompt_gen.generate_catalog_instructions(catalog=catalog)
+        cat_body = prompt_gen.generate_catalog_instructions(catalog=target_catalog)
         if include_examples:
-            ex = prompt_gen.generate_examples(catalog=catalog)
+            ex = prompt_gen.generate_examples(catalog=target_catalog)
             if ex:
                 cat_body += f"\n\n### Examples:\n\n{ex}"
 
         desc = (
             description
-            or getattr(catalog, "description", None)
+            or getattr(target_catalog, "description", None)
             or f"UI component catalog signatures for {clean_name}. Use when building {clean_name} user interface components."
         )
 
@@ -126,7 +142,10 @@ class SkillGenerator:
         catalogs: Optional[list[Union[str, A2uiCatalog]]] = None,
         core_name: str = "a2ui-core",
     ) -> SkillSet:
-        """Generates standard modular skills (a2ui-core + 1 skill per catalog) for an inference format."""
+        """Generates standard modular skills (a2ui-core + 1 skill per catalog) for an inference format.
+
+        If catalogs is not specified, defaults to the catalogs configured on the inference format.
+        """
         skill_set = SkillSet()
 
         # 1. Core Syntax Skill

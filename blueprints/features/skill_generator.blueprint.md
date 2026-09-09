@@ -48,16 +48,18 @@ For managed agent sandbox environments (such as `.agents/` or `/.agents/`), gene
 
 Every language implementation (`a2ui-python`, `a2ui-swift`, `a2ui-kotlin`, `a2ui-node`, `a2ui-go`) MUST expose an equivalent API:
 
-### **1. Skill & SkillSet Composition Domain Objects**
+### **1. Skill, SkillSet & SkillGenerator Composition Domain Objects**
 
-- **`Skill`**: Format-agnostic skill document container (`name`, `description`, `content`, `metadata`, `filename`). Provides `.to_markdown()` for frontmatter serialization.
-  - `Skill.from_format(fmt, name="a2ui", description=None, catalogs=None)`: Compiles any format into a single monolithic Skill containing base rules + instructions for all specified catalogs.
-  - `Skill.from_catalog(catalog, fmt, name=None, description=None)`: Compiles a catalog into a clean, LLM-optimized catalog Skill (`a2ui-basic`, `a2ui-commerce`).
-  - `Skill.core_syntax(fmt, name="a2ui-core")`: Compiles core grammar rules into a base core Skill.
-- **`SkillSet`**: Collection of `Skill` objects representing a modular package (`a2ui-core`, `a2ui-basic`, `a2ui-commerce`).
-  - `SkillSet.from_format(fmt, catalogs=None, core_name="a2ui-core")`: Generates standard modular skill package for any format.
+- **`Skill`**: Pure format-agnostic skill document container (`name`, `description`, `content`, `metadata`, `filename`). Provides `.to_markdown()` for frontmatter serialization.
+- **`SkillSet`**: Collection container of `Skill` objects representing a modular package (`a2ui-core`, `a2ui-basic`, `a2ui-commerce`).
   - `.export_to_directory(output_dir)`: Writes modular skills to disk.
   - `.to_dict()` / `[key]`: Dictionary serialization and indexing.
+- **`SkillGenerator`**: Format-agnostic compiler class wrapping an `InferenceFormat` strategy:
+  - `SkillGenerator(fmt)`: Instantiates a compiler wrapping the given inference format strategy.
+  - `generate_skill(name="a2ui", description=None, catalogs=None)`: Compiles into a single monolithic Skill (defaults to the format's configured catalogs if omitted).
+  - `generate_catalog_skill(catalog=None, name=None, description=None)`: Compiles a single catalog into a dedicated catalog Skill (defaults to the format's catalog if omitted).
+  - `generate_core_skill(name="a2ui-core", description=None)`: Compiles core grammar rules into a base core Skill.
+  - `generate_skillset(catalogs=None, core_name="a2ui-core")`: Compiles into a modular `SkillSet` (`a2ui-core` + 1 skill per catalog, defaulting to format catalogs if omitted).
 
 ### **2. LLM-Optimized Frontmatter Spec**
 
