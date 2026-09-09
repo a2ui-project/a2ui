@@ -31,3 +31,52 @@
       path: "../specification/v0_9_1/catalogs/basic/catalog.json"
   expect:
     supported_catalog_ids: ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]
+
+# Relocated from `inference_format.yaml`: these exercise
+# `CatalogProvider.load`, not an inference format. See the API-to-suite table
+# in section 6 of `blueprints/modules/a2ui_agent.blueprint.md`.
+
+- name: test_manager_with_modifiers
+  description: Tests that A2uiSchemaManager applies modifiers during loading.
+  catalog_configs:
+    - name: test_strict
+      path: "test_data/load_examples/schema_with_strict/catalog.json"
+  modifiers: ["remove_strict_validation"]
+  action: load_catalog
+  expect:
+    catalog_schema:
+      catalogId: "test_strict"
+      components:
+        Text:
+          type: object
+          properties:
+            text: {type: string}
+
+- name: test_manager_no_modifiers
+  description: Tests that A2uiSchemaManager works fine without modifiers.
+  catalog_configs:
+    - name: test_strict
+      path: "test_data/load_examples/schema_with_strict/catalog.json"
+  action: load_catalog
+  expect:
+    catalog_schema:
+      catalogId: "test_strict"
+      components:
+        Text:
+          type: object
+          properties:
+            text: {type: string}
+          additionalProperties: false
+
+# --- Prompt Generation Tests ---
+
+- name: test_schema_manager_init_custom_catalog
+  description: Tests that A2uiSchemaManager can load a custom catalog from path.
+  action: load_catalog
+  catalog_configs:
+    - name: standard
+      path: "test_data/schema_manager/catalog.json"
+    - name: Custom
+      path: "test_data/schema_manager/custom_catalog.json"
+  expect:
+    supported_catalog_ids: ["basic", "Custom"]

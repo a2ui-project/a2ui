@@ -96,9 +96,6 @@ String? _skipReason(Map<String, Object?> testCase) {
         return 'Catalog schema modifiers are not implemented yet.';
       }
       return null;
-    case 'select_catalog':
-      return 'select_catalog is the legacy single-catalog helper; this SDK '
-          'negotiates with resolveCatalogs.';
     case 'resolve_catalogs':
       return 'resolveCatalogs is not implemented yet.';
     case 'generate_prompt':
