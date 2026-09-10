@@ -129,14 +129,14 @@ def test_run_unit_tests_failed(mock_run: MagicMock) -> None:
 @patch("subprocess.run")
 def test_run_evaluation_success(mock_run: MagicMock) -> None:
     mock_run.return_value = MagicMock(returncode=0)
-    success = run_evaluation("atom", "google/gemini-3.5-flash", None, False, "dir")
+    success = run_evaluation("atom", "google/gemini-3.8-flash", None, False, "dir")
     assert success is True
 
 
 @patch("subprocess.run")
 def test_run_evaluation_failed(mock_run: MagicMock) -> None:
     mock_run.return_value = MagicMock(returncode=1)
-    success = run_evaluation("atom", "google/gemini-3.5-flash", ["p1"], True, "dir")
+    success = run_evaluation("atom", "google/gemini-3.8-flash", ["p1"], True, "dir")
     assert success is False
 
 
@@ -209,7 +209,7 @@ def test_generate_optimization_report() -> None:
         baseline_data=baseline_data,
         git_diff="git diff logic",
         format_name="atom",
-        model="google/gemini-3.5-flash",
+        model="google/gemini-3.8-flash",
     )
 
     assert "# Inference Format Optimization Report" in report
@@ -228,7 +228,7 @@ def test_generate_optimization_report_pytest_failed() -> None:
         baseline_data=None,
         git_diff="",
         format_name="atom",
-        model="google/gemini-3.5-flash",
+        model="google/gemini-3.8-flash",
     )
     assert "❌ Pytest Unit Test Failures" in report
     assert "test fail" in report

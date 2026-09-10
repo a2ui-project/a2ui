@@ -53,6 +53,18 @@ export * from '../errors.js';
 export * from './basic_catalog/index.js';
 export type {ResolvedChildRef} from '../rendering/generic-binder.js';
 export * from '../validating/integrity-checker.js';
+export {
+  /** @deprecated Import from `@a2ui/web_core/v0_9/basic_catalog` instead. */
+  injectBasicCatalogStyles,
+  /** @deprecated Import from `@a2ui/web_core/v0_9/basic_catalog` instead. */
+  computeColorVariant,
+} from './basic_catalog/styles/default.js';
+export type {
+  /** @deprecated Import from `@a2ui/web_core/v0_9/basic_catalog` instead. */
+  ColorVariantLightDarkOptions,
+  /** @deprecated Import from `@a2ui/web_core/v0_9/basic_catalog` instead. */
+  ColorVariantHoverOptions,
+} from './basic_catalog/styles/default.js';
 
 export {
   type Signal,

@@ -57,7 +57,7 @@ Notes for grading:
 @task
 def a2ui_v0_9_1_eval(
     list_models: bool = False,
-    grading_model: str = "google/gemini-3.5-flash",
+    grading_model: str = "google/gemini-3.8-flash",
     strategy: str = "direct",
     dataset: str | list[str] | None = None,
 ) -> Task:
@@ -116,7 +116,7 @@ def a2ui_v0_9_1_eval(
 @task
 def a2ui_v1_0_eval(
     list_models: bool = False,
-    grading_model: str = "google/gemini-3.5-flash",
+    grading_model: str = "google/gemini-3.8-flash",
     strategy: str = "express",
     dataset: str | list[str] | None = None,
 ) -> Task:
