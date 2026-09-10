@@ -94,7 +94,8 @@
           "accessibility_check",
           "data_model",
           "process_messages",
-          "catalog_schema"
+          "catalog_schema",
+          "parse_expression_template"
         ]
       }
     },
@@ -127,7 +128,8 @@
           {"$ref": "#/$defs/AccessibilityCheckTest"},
           {"$ref": "#/$defs/DataModelTest"},
           {"$ref": "#/$defs/ProcessMessagesTest"},
-          {"$ref": "#/$defs/CatalogSchemaTest"}
+          {"$ref": "#/$defs/CatalogSchemaTest"},
+          {"$ref": "#/$defs/ParseExpressionTemplateTest"}
         ]
       }
     ]
@@ -462,6 +464,22 @@
         }
       },
       "required": ["action", "expect"]
+    },
+    "ParseExpressionTemplateTest": {
+      "type": "object",
+      "properties": {
+        "action": {"const": "parse_expression_template"},
+        "input": {
+          "type": "string",
+          "description": "Template string handed to the client-side expression parser."
+        },
+        "expect": {
+          "type": "array",
+          "description": "Expected parsed parts: literal strings, data bindings and function calls, with adjacent literals joined."
+        },
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["action", "input"]
     },
     "AccessibilityCheckTest": {
       "type": "object",
