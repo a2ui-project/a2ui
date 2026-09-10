@@ -20,8 +20,9 @@ import 'package:a2ui_core/src/validation/component_refs.dart';
 import 'package:test/test.dart';
 
 import 'conformance/conformance_harness.dart';
+import 'support/renderer_catalog.dart';
 
-/// Exercises `A2uiValidator` against the published basic catalog and the
+/// Exercises payload validation against the published basic catalog and the
 /// example payloads that ship with it, rather than against a catalog written
 /// for the test. Those examples are the specification's own statement of what
 /// a valid v0.9 payload looks like, so they are the sharpest available check
@@ -37,13 +38,16 @@ Map<String, Object?> _readJson(String relativePath) =>
 Map<String, Object?> basicCatalogDocument() =>
     _readJson('../specification/v0_9_1/catalogs/basic/catalog.json');
 
-/// A validator over the published basic catalog.
+/// A processor over the published basic catalog.
 ///
 /// Supplies no shared types, so these tests run against the
 /// `common_types.json` the package publishes — the same document a caller
 /// installing from pub.dev gets.
-A2uiValidator<ComponentApi, FunctionApi> basicValidator() =>
-    A2uiValidator(catalogs: [Catalog.fromJson(basicCatalogDocument())]);
+MessageProcessor<ComponentApi> basicProcessor() =>
+    MessageProcessor<ComponentApi>(
+      catalogs: [rendererCatalog(basicCatalogDocument())],
+      protocolVersion: A2uiProtocolVersion.v0_9,
+    );
 
 /// A payload declaring one surface against the basic catalog.
 List<Map<String, Object?>> render(List<Map<String, Object?>> components) => [
@@ -110,22 +114,33 @@ void main() {
             (message! as Map).cast<String, Object?>(),
         ];
 
-        expect(() => basicValidator().validate(payload), returnsNormally);
+        expect(
+          () => basicProcessor().processMessages(
+            A2uiMessage.parseAll(
+              payload,
+              protocolVersion: A2uiProtocolVersion.v0_9,
+            ),
+          ),
+          returnsNormally,
+        );
       });
     }
   });
 
   group('validating against the basic catalog rejects', () {
-    late A2uiValidator<ComponentApi, FunctionApi> validator;
+    late MessageProcessor<ComponentApi> processor;
 
-    setUp(() => validator = basicValidator());
+    setUp(() => processor = basicProcessor());
 
     test('a component missing a required property', () {
       expect(
-        () => validator.validate(
-          render([
-            {'id': 'root', 'component': 'Text'},
-          ]),
+        () => processor.processMessages(
+          A2uiMessage.parseAll(
+            render([
+              {'id': 'root', 'component': 'Text'},
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         ),
         throwsA(isA<A2uiValidationError>()),
       );
@@ -133,10 +148,18 @@ void main() {
 
     test('a value outside a property enum', () {
       expect(
-        () => validator.validate(
-          render([
-            {'id': 'root', 'component': 'Text', 'text': 'hi', 'variant': 'h9'},
-          ]),
+        () => processor.processMessages(
+          A2uiMessage.parseAll(
+            render([
+              {
+                'id': 'root',
+                'component': 'Text',
+                'text': 'hi',
+                'variant': 'h9',
+              },
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         ),
         throwsA(isA<A2uiValidationError>()),
       );
@@ -144,15 +167,18 @@ void main() {
 
     test('a property the component does not declare', () {
       expect(
-        () => validator.validate(
-          render([
-            {
-              'id': 'root',
-              'component': 'Text',
-              'text': 'hi',
-              'notAProperty': 1,
-            },
-          ]),
+        () => processor.processMessages(
+          A2uiMessage.parseAll(
+            render([
+              {
+                'id': 'root',
+                'component': 'Text',
+                'text': 'hi',
+                'notAProperty': 1,
+              },
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         ),
         throwsA(isA<A2uiValidationError>()),
       );
@@ -160,10 +186,13 @@ void main() {
 
     test('a component type the catalog does not declare', () {
       expect(
-        () => validator.validate(
-          render([
-            {'id': 'root', 'component': 'Frobnicator'},
-          ]),
+        () => processor.processMessages(
+          A2uiMessage.parseAll(
+            render([
+              {'id': 'root', 'component': 'Frobnicator'},
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         ),
         throwsA(isA<A2uiValidationError>()),
       );
@@ -174,46 +203,59 @@ void main() {
       // back at the catalog document, so resolving it in both directions is
       // what makes this check possible.
       expect(
-        () => validator.validate(
-          render([
-            {
-              'id': 'root',
-              'component': 'Text',
-              'text': {
-                'call': 'noSuchFunction',
-                'args': <String, Object?>{},
-                'returnType': 'string',
+        () => processor.processMessages(
+          A2uiMessage.parseAll(
+            render([
+              {
+                'id': 'root',
+                'component': 'Text',
+                'text': {
+                  'call': 'noSuchFunction',
+                  'args': <String, Object?>{},
+                  'returnType': 'string',
+                },
               },
-            },
-          ]),
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         ),
         throwsA(isA<A2uiValidationError>()),
       );
     });
 
     test('a child reference that names no component', () {
-      expect(
-        () => validator.validate(
+      processor.processMessages(
+        A2uiMessage.parseAll(
           render([
             {'id': 'root', 'component': 'Card', 'child': 'missing'},
           ]),
+          protocolVersion: A2uiProtocolVersion.v0_9,
         ),
+      );
+
+      // A reference resolves against the finished surface, not against the
+      // batch that carried it.
+      expect(
+        () => processor.checkSurfaceComplete('s'),
         throwsA(isA<A2uiIntegrityError>()),
       );
     });
 
     test('a malformed child list', () {
       expect(
-        () => validator.validate(
-          render([
-            {
-              'id': 'root',
-              'component': 'Column',
-              // A template needs `path` as well as `componentId`.
-              'children': {'componentId': 'a'},
-            },
-            {'id': 'a', 'component': 'Text', 'text': 'x'},
-          ]),
+        () => processor.processMessages(
+          A2uiMessage.parseAll(
+            render([
+              {
+                'id': 'root',
+                'component': 'Column',
+                // A template needs `path` as well as `componentId`.
+                'children': {'componentId': 'a'},
+              },
+              {'id': 'a', 'component': 'Text', 'text': 'x'},
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         ),
         throwsA(isA<A2uiValidationError>()),
       );
@@ -221,20 +263,23 @@ void main() {
   });
 
   group('validating against the basic catalog accepts', () {
-    late A2uiValidator<ComponentApi, FunctionApi> validator;
+    late MessageProcessor<ComponentApi> processor;
 
-    setUp(() => validator = basicValidator());
+    setUp(() => processor = basicProcessor());
 
     test('a data binding in place of a literal', () {
       expect(
-        () => validator.validate(
-          render([
-            {
-              'id': 'root',
-              'component': 'Text',
-              'text': {'path': '/greeting'},
-            },
-          ]),
+        () => processor.processMessages(
+          A2uiMessage.parseAll(
+            render([
+              {
+                'id': 'root',
+                'component': 'Text',
+                'text': {'path': '/greeting'},
+              },
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         ),
         returnsNormally,
       );
@@ -242,18 +287,21 @@ void main() {
 
     test('a call to a function the catalog declares', () {
       expect(
-        () => validator.validate(
-          render([
-            {
-              'id': 'root',
-              'component': 'Text',
-              'text': {
-                'call': 'formatString',
-                'args': {'value': 'x'},
-                'returnType': 'string',
+        () => processor.processMessages(
+          A2uiMessage.parseAll(
+            render([
+              {
+                'id': 'root',
+                'component': 'Text',
+                'text': {
+                  'call': 'formatString',
+                  'args': {'value': 'x'},
+                  'returnType': 'string',
+                },
               },
-            },
-          ]),
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         ),
         returnsNormally,
       );

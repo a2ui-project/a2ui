@@ -2,6 +2,24 @@
 
 ## 0.2.0
 
+- **Breaking:** `MessageProcessor.processMessages` validates messages as it
+  processes them, and is the single entry point for validation as well as for
+  processing. A message that does not match its catalog now throws instead of
+  being applied. Added the required `protocolVersion` constructor parameter
+  and `commonTypesSchema`, which configure the validators it builds. It keeps
+  one validator per catalog, reachable through `validatorFor`, resolves the
+  catalog for each item through `catalogFor`, and checks each component
+  against the catalog it resolves to rather than against every catalog the
+  processor supports.
+- **Breaking:** Added `MessageProcessor.checkSurfaceComplete`, which asserts a
+  surface holds a finished render: a `root` component exists and every
+  component is reachable from it. Applying a payload cannot make that check,
+  because a surface is built up over several messages and either condition may
+  be settled by the next one, so completeness is something the caller
+  declares. An agent runs it over the surfaces its turn built before sending.
+- **Breaking:** Envelope parsing moved to `A2uiMessage.parseAll`, from
+  `PayloadValidator.parseMessages`. Parsing needs no catalog, so it belongs to
+  the message model rather than to a validator.
 - An invalid number literal in an expression, such as `${1.2.3}`, now throws
   `A2uiExpressionError` instead of a `FormatException` from `num.parse` — an error
   outside the `A2uiError` hierarchy that `avoid_catching_errors` discourages catching.
@@ -9,16 +27,12 @@
   number parser, so every implementation accepts the same literals.
 - The expression parser now runs the shared conformance suite at
   `conformance/core/expressions.yaml`, alongside the TypeScript client.
-- **Breaking:** `MessageProcessor` validates messages as it processes them.
-  A message that does not match its catalog now throws instead of being
-  applied. Added `processPayload` and an optional `validator` constructor
-  parameter.
 - **Breaking:** `MessageProcessor` checks each batch of components as a graph
-  against the surface it joins, so duplicate ids, references naming no
-  component, cycles and over-deep chains now throw. References resolve against
-  the components the surface already holds, so an incremental update that
-  names a component arriving in a later message is rejected where it was
-  previously applied.
+  against the surface it joins, so duplicate ids, cycles and over-deep chains
+  now throw. Whether a reference resolves is not checked there: a payload may
+  declare a parent before its child, as the basic catalog's `00_incremental`
+  example does, so references are resolved by `checkSurfaceComplete` once a
+  caller declares the surface finished.
 - **Breaking:** `Catalog` now takes two type parameters,
   `Catalog<C extends ComponentApi, F extends FunctionApi>`.
 - **Breaking:** `ComponentApi` and `FunctionApi` are concrete classes with
@@ -39,21 +53,32 @@
 - The shared `conformance/core/catalog.yaml` suite gains a `catalog_schema`
   action, exercised by `test/conformance/catalog_schema_conformance_test.dart`.
 - Added `A2uiRendererCapabilities` and `A2uiVersionCapabilities`.
-- Added `A2uiValidator`, which validates a payload in three synchronous
-  stages, and `A2uiValidator.commonTypesSchema`.
-- `A2uiValidator.validate`, `validateStructure` and `validateAgainstCatalogs`
-  take an optional `surfaceCatalogs` map naming the catalog each surface uses.
-  A payload that only updates a surface carries no catalog id, so without it a
-  validator holding several catalogs now throws `A2uiCatalogError` where it
-  previously skipped those components and reported the payload valid.
+- Added `PayloadValidator`, which checks one component, one function call or
+  one theme against one catalog, through `validateComponent`,
+  `validateFunction` and `validateTheme`. It is scoped to a single `catalog`,
+  since a component belongs to exactly one, and it takes a required
+  `protocolVersion`.
+- Deciding which catalog an item belongs to is `MessageProcessor`'s job, not
+  the validator's. From v1.0 one surface may mix catalogs — a component or
+  function call may carry a `catalogId` overriding the surface-level default —
+  so the catalog is resolved per item, in the order: the item's own
+  `catalogId`, the surface's default, then the sole supported catalog.
+  `A2uiCatalogError` is thrown when none of those settles it, or when the
+  resolved id is not one the processor supports.
+- Added `PayloadValidator.parseMessages`, a static that checks envelopes
+  without a catalog, so a payload can be parsed before each message is matched
+  to a surface.
 - The package now publishes the specification's `common_types.json` as
-  `A2uiValidator.commonTypesFor`, and `commonTypesSchema` defaults to it, so
+  `PayloadValidator.commonTypesFor`, and `commonTypesSchema` defaults to it, so
   the shared types are checked without the caller supplying the document.
 - Added the `A2uiParseError`, `A2uiCompileError`, `A2uiCatalogError`,
   `A2uiIntegrityError` and `A2uiRecursionError` categories.
 - Fixed `DataModel.set` silently dropping a write whose parent path resolves to
   a primitive; it now throws `A2uiDataError`.
-- `A2uiValidator` and `DataModel` are exercised by the shared
+- **Behaviour change:** `MessageProcessor` throws `A2uiCatalogError` rather
+  than `A2uiStateError` for a `createSurface` naming a catalog it does not
+  support, which is what the blueprint's validation matrix calls for.
+- `MessageProcessor` and `DataModel` are exercised by the shared
   `conformance/core/validator.yaml` and `conformance/core/data_model.yaml`
   suites.
 

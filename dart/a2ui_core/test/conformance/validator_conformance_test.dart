@@ -18,10 +18,12 @@ import 'dart:io';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
+import '../support/renderer_catalog.dart';
 import 'conformance_harness.dart';
 
 /// Runs the shared `conformance/core/validator.yaml` suite against
-/// [A2uiValidator].
+/// [MessageProcessor.processMessages], the entry point for checking a payload
+/// on its own.
 ///
 /// Cases targeting a protocol version this SDK does not implement are skipped
 /// with a reason, so the suite doubles as the implementation checklist.
@@ -65,29 +67,90 @@ void _runCase(Map<String, Object?> testCase) {
   for (final Map<String, Object?> step in _steps(testCase)) {
     final List<Map<String, Object?>> payload =
         (step['payload']! as List<Object?>).cast<Map<String, Object?>>();
-    // A fresh validator per step, as the reference Python harness does: each
+    // A fresh processor per step, as the reference Python harness does: each
     // step is an independent payload, not a continuation of the previous one.
-    final A2uiValidator<ComponentApi, FunctionApi> validator = A2uiValidator(
-      catalogs: _catalogsFor(catalogDocument, payload),
+    final processor = MessageProcessor<ComponentApi>(
+      catalogs: [_catalogFor(catalogDocument, payload)],
+      protocolVersion: A2uiProtocolVersion.v0_9,
       commonTypesSchema: commonTypes,
     );
 
+    // An incremental payload presupposes a surface the client already holds.
+    // The case carries only the payload, so that surface is established here
+    // before the payload is applied; without it every incremental case would
+    // fail as "surface not found" rather than on what it means to test.
+    _seedReferencedSurfaces(processor, payload);
+
     final Object? expectError =
         step['expect_error'] ?? testCase['expect_error'];
+    // A case states one payload and expects a verdict on it, so the payload is
+    // treated as a finished render: applied, then checked for completeness on
+    // every surface it creates. Without the second step a missing root or an
+    // unreachable component would go unreported, since neither is settled
+    // while messages are still arriving.
+    void run() {
+      processor.processMessages(
+        A2uiMessage.parseAll(
+          payload,
+          protocolVersion: A2uiProtocolVersion.v0_9,
+        ),
+      );
+      for (final String id in _surfacesCreatedBy(payload)) {
+        processor.checkSurfaceComplete(id);
+      }
+    }
+
     if (expectError != null) {
       expect(
-        () => validator.validate(payload),
+        run,
         throwsA(_matchesError(expectError)),
         reason: testCase['name'] as String?,
       );
     } else {
-      expect(
-        () => validator.validate(payload),
-        returnsNormally,
-        reason: testCase['name'] as String?,
-      );
+      expect(run, returnsNormally, reason: testCase['name'] as String?);
     }
   }
+}
+
+/// The surfaces [payload] creates, which are the ones it renders in full.
+Set<String> _surfacesCreatedBy(List<Map<String, Object?>> payload) => {
+  for (final Map<String, Object?> envelope in payload)
+    if (envelope['createSurface'] case final Map<String, Object?> body)
+      if (body['surfaceId'] case final String id) id,
+};
+
+/// Creates any surface [payload] updates but does not itself create.
+///
+/// A payload that only updates components is incremental: it describes a
+/// change to a surface the client already has. The suite states the payload
+/// alone, so the surface it assumes is created here, empty, and the payload is
+/// then applied to it. References into it still resolve against nothing, which
+/// is what the dangling-reference cases rely on.
+void _seedReferencedSurfaces(
+  MessageProcessor<ComponentApi> processor,
+  List<Map<String, Object?>> payload,
+) {
+  final created = <String>{
+    for (final Map<String, Object?> envelope in payload)
+      if (envelope['createSurface'] case final Map<String, Object?> body)
+        if (body['surfaceId'] case final String id) id,
+  };
+  final referenced = <String>{
+    for (final Map<String, Object?> envelope in payload)
+      for (final String key in const ['updateComponents', 'updateDataModel'])
+        if (envelope[key] case final Map<String, Object?> body)
+          if (body['surfaceId'] case final String id)
+            if (!created.contains(id)) id,
+  };
+  if (referenced.isEmpty) return;
+
+  processor.processMessages([
+    for (final String id in referenced)
+      CreateSurfaceMessage(
+        surfaceId: id,
+        catalogId: processor.catalogs.single.id,
+      ),
+  ]);
 }
 
 /// The steps a case runs, whether it declares one payload or several.
@@ -110,29 +173,29 @@ Map<String, Object?> _document(Object? value) {
   throw StateError('Case declares no catalog schema.');
 }
 
-/// Builds the catalogs a payload needs from the one document a case declares.
+/// Builds the catalog a payload is validated against from the one document a
+/// case declares.
 ///
 /// The suite's fixtures name the catalog `standard` in the document but `std`
-/// in the payloads that use it. A validator that indexes catalogs by id would
-/// reject those payloads outright, which is not what these cases are testing —
-/// they are about the component graph. So the document is registered under
-/// every id the payload actually names, and the unknown-catalog check keeps
-/// its own coverage in `validator_test.dart`.
-List<SchemaCatalog> _catalogsFor(
+/// in the payloads that use it. The processor resolves the catalog a surface
+/// names against the ones it supports, so the mismatch would reject those
+/// payloads outright, which is not what these cases are testing — they are
+/// about the component graph. So the document is registered under the id the
+/// payload names, and catalog resolution keeps its own coverage in
+/// `processor_test.dart`.
+Catalog<ComponentApi, FunctionImplementation> _catalogFor(
   Map<String, Object?> document,
   List<Map<String, Object?>> payload,
 ) {
-  final ids = <String>{document['catalogId'] as String? ?? 'standard'};
+  String id = document['catalogId'] as String? ?? 'standard';
   for (final envelope in payload) {
     final Object? body = envelope['createSurface'];
     if (body is Map<String, Object?> && body['catalogId'] is String) {
-      ids.add(body['catalogId']! as String);
+      id = body['catalogId']! as String;
+      break;
     }
   }
-  return [
-    for (final String id in ids)
-      Catalog.fromJson(<String, Object?>{...document, 'catalogId': id}),
-  ];
+  return rendererCatalog(document, asCatalogId: id);
 }
 
 /// Matches the error a case expects, by category and message.

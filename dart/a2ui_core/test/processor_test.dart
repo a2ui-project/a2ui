@@ -19,17 +19,96 @@ import 'package:a2ui_core/src/core/messages.dart';
 import 'package:a2ui_core/src/core/minimal_catalog.dart';
 import 'package:a2ui_core/src/core/surface_model.dart';
 import 'package:a2ui_core/src/primitives/errors.dart';
+import 'package:a2ui_core/src/primitives/protocol_version.dart';
 import 'package:a2ui_core/src/processing/processor.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('MessageProcessor catalog scope', () {
+    Catalog<ComponentApi, FunctionImplementation> namedCatalog(
+      String id,
+      String component,
+    ) => Catalog<ComponentApi, FunctionImplementation>(
+      id: id,
+      components: [
+        ComponentApi(
+          name: component,
+          schema: Schema.object(
+            properties: {
+              'id': Schema.string(),
+              'component': Schema.string(),
+              'a': Schema.string(),
+            },
+            required: ['component', 'a'],
+            additionalProperties: false,
+          ),
+        ),
+      ],
+    );
+
+    late MessageProcessor<ComponentApi> processor;
+
+    setUp(() {
+      processor = MessageProcessor<ComponentApi>(
+        catalogs: [namedCatalog('cat1', 'Alpha'), namedCatalog('cat2', 'Beta')],
+        protocolVersion: A2uiProtocolVersion.v0_9,
+      );
+      processor.processMessages([
+        CreateSurfaceMessage(surfaceId: 's1', catalogId: 'cat1'),
+        CreateSurfaceMessage(surfaceId: 's2', catalogId: 'cat2'),
+      ]);
+    });
+
+    void update(String surfaceId, String component) =>
+        processor.processMessages([
+          UpdateComponentsMessage(
+            surfaceId: surfaceId,
+            components: [
+              {'id': 'root', 'component': component, 'a': 'x'},
+            ],
+          ),
+        ]);
+
+    test('checks each surface against the catalog it was created with', () {
+      // A processor supports several catalogs at once, but a component belongs
+      // to exactly one. Each surface is checked against its own catalog, not
+      // against the union of everything the processor supports.
+      expect(() => update('s1', 'Alpha'), returnsNormally);
+      expect(() => update('s2', 'Beta'), returnsNormally);
+    });
+
+    test('rejects a component from another surface\'s catalog', () {
+      expect(() => update('s1', 'Beta'), throwsA(isA<A2uiValidationError>()));
+      expect(() => update('s2', 'Alpha'), throwsA(isA<A2uiValidationError>()));
+    });
+
+    test('builds one validator per catalog and reuses it', () {
+      final Catalog<ComponentApi, FunctionImplementation> cat1 =
+          processor.catalogs.first;
+      expect(processor.validatorFor(cat1).catalog.id, 'cat1');
+      expect(
+        processor.validatorFor(cat1),
+        same(processor.validatorFor(cat1)),
+        reason: 'resolved component schemas are cached on the validator',
+      );
+      expect(
+        processor.validatorFor(processor.catalogs.last).catalog.id,
+        'cat2',
+      );
+    });
+  });
+
   group('MessageProcessor', () {
     late MinimalCatalog catalog;
     late MessageProcessor processor;
 
     setUp(() {
       catalog = MinimalCatalog();
-      processor = MessageProcessor(catalogs: [catalog]);
+      processor = MessageProcessor(
+        catalogs: [catalog],
+        protocolVersion: A2uiProtocolVersion.v0_9,
+      );
     });
 
     group('component graph checks', () {
@@ -46,9 +125,11 @@ void main() {
         },
       ];
 
-      test('rejects a reference to a component that does not exist', () {
-        expect(
-          () => processor.processPayload(
+      test('reports a reference to no component once the surface is done', () {
+        // The reference may be satisfied by a later message, so applying the
+        // batch is fine; it is the finished surface that must hold together.
+        processor.processMessages(
+          A2uiMessage.parseAll(
             update([
               {
                 'id': 'root',
@@ -56,18 +137,26 @@ void main() {
                 'children': ['missing'],
               },
             ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
           ),
+        );
+
+        expect(
+          () => processor.checkSurfaceComplete('s1'),
           throwsA(isA<A2uiIntegrityError>()),
         );
       });
 
       test('rejects duplicate ids within one batch', () {
         expect(
-          () => processor.processPayload(
-            update([
-              {'id': 'a', 'component': 'Text', 'text': 'one'},
-              {'id': 'a', 'component': 'Text', 'text': 'two'},
-            ]),
+          () => processor.processMessages(
+            A2uiMessage.parseAll(
+              update([
+                {'id': 'a', 'component': 'Text', 'text': 'one'},
+                {'id': 'a', 'component': 'Text', 'text': 'two'},
+              ]),
+              protocolVersion: A2uiProtocolVersion.v0_9,
+            ),
           ),
           throwsA(isA<A2uiIntegrityError>()),
         );
@@ -75,11 +164,14 @@ void main() {
 
       test('accepts a reference to a component the surface already holds', () {
         // The payload-scoped validator cannot make this call: it waves the
-        // second batch through because it cannot see the first.
-        processor.processPayload(
-          update([
-            {'id': 'a', 'component': 'Text', 'text': 'held'},
-          ]),
+        //second batch through because it cannot see the first.
+        processor.processMessages(
+          A2uiMessage.parseAll(
+            update([
+              {'id': 'a', 'component': 'Text', 'text': 'held'},
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         );
 
         expect(
@@ -100,15 +192,18 @@ void main() {
       });
 
       test('rejects a cycle closed through an existing component', () {
-        processor.processPayload(
-          update([
-            {
-              'id': 'a',
-              'component': 'Column',
-              'children': ['b'],
-            },
-            {'id': 'b', 'component': 'Text', 'text': 'leaf'},
-          ]),
+        processor.processMessages(
+          A2uiMessage.parseAll(
+            update([
+              {
+                'id': 'a',
+                'component': 'Column',
+                'children': ['b'],
+              },
+              {'id': 'b', 'component': 'Text', 'text': 'leaf'},
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         );
 
         // Retyping `b` as a Column pointing back at `a` closes the loop only
@@ -131,23 +226,24 @@ void main() {
       });
 
       test('leaves the surface unchanged when the graph check fails', () {
-        processor.processPayload(
-          update([
-            {'id': 'a', 'component': 'Text', 'text': 'held'},
-          ]),
+        processor.processMessages(
+          A2uiMessage.parseAll(
+            update([
+              {'id': 'a', 'component': 'Text', 'text': 'held'},
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         );
 
+        // A duplicate id is settled by the batch alone, so it is rejected as
+        // the batch arrives and nothing in it is applied.
         expect(
           () => processor.processMessages([
             UpdateComponentsMessage(
               surfaceId: 's1',
               components: [
                 {'id': 'b', 'component': 'Text', 'text': 'new'},
-                {
-                  'id': 'c',
-                  'component': 'Column',
-                  'children': ['nowhere'],
-                },
+                {'id': 'b', 'component': 'Text', 'text': 'again'},
               ],
             ),
           ]),
@@ -159,28 +255,60 @@ void main() {
       });
     });
 
-    test('processPayload rejects a malformed envelope before processing', () {
+    test('processMessages rejects a malformed envelope before processing', () {
       expect(
-        () => processor.processPayload([
-          {
-            'version': 'v1.0',
-            'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
-          },
-        ]),
+        () => processor.processMessages(
+          A2uiMessage.parseAll([
+            {
+              'version': 'v1.0',
+              'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
+            },
+          ], protocolVersion: A2uiProtocolVersion.v0_9),
+        ),
         throwsA(isA<A2uiValidationError>()),
       );
       expect(processor.groupModel.getSurface('s1'), isNull);
     });
 
-    test('processPayload parses and processes a valid payload', () {
-      final List<A2uiMessage> messages = processor.processPayload([
+    test('processMessages rejects an envelope mixing update types', () {
+      // An envelope carries exactly one update type. Two of them name no
+      // single surface, so the message cannot be matched to the catalog its
+      // components must be checked against.
+      expect(
+        () => processor.processMessages(
+          A2uiMessage.parseAll([
+            {
+              'version': 'v0.9',
+              'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
+              'updateComponents': {
+                'surfaceId': 's2',
+                'components': <Object?>[],
+              },
+            },
+          ], protocolVersion: A2uiProtocolVersion.v0_9),
+        ),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('exactly one of'),
+          ),
+        ),
+      );
+      expect(processor.groupModel.getSurface('s1'), isNull);
+    });
+
+    test('processMessages applies a parsed payload', () {
+      final List<A2uiMessage> messages = A2uiMessage.parseAll([
         {
           'version': 'v0.9',
           'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
         },
-      ]);
-
+      ], protocolVersion: A2uiProtocolVersion.v0_9);
       expect(messages, hasLength(1));
+
+      processor.processMessages(messages);
+
       expect(processor.groupModel.getSurface('s1'), isNotNull);
     });
 
