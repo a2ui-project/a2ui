@@ -14,30 +14,55 @@
  * limitations under the License.
  */
 
-/**
- * Re-exported for backwards compatibility.
- */
-export {
-  basicCatalog,
-  BasicCatalogA2uiLitElement,
-  type ResolvedChildRef,
-  type ResolvedChildList,
-  A2uiAudioPlayer,
-  A2uiButton,
-  A2uiCard,
-  A2uiCheckBox,
-  A2uiChoicePicker,
-  A2uiColumn,
-  A2uiDateTimeInput,
-  A2uiDivider,
-  A2uiIcon,
-  A2uiImage,
-  A2uiList,
-  A2uiModal,
-  A2uiRow,
-  A2uiSlider,
-  A2uiTabs,
+import {Catalog} from '@a2ui/web_core/v0_9';
+import {
+  BASIC_FUNCTIONS,
   A2uiText,
+  A2uiButton,
   A2uiTextField,
+  A2uiRow,
+  A2uiColumn,
+  A2uiList,
+  A2uiImage,
+  A2uiIcon,
   A2uiVideo,
+  A2uiAudioPlayer,
+  A2uiCard,
+  A2uiDivider,
+  A2uiCheckBox,
+  A2uiSlider,
+  A2uiDateTimeInput,
+  A2uiChoicePicker,
+  A2uiTabs,
+  A2uiModal,
 } from '@a2ui/web_core/v0_9/basic_catalog';
+import type {LitComponentApi} from '../../types.js';
+
+/**
+ * The single canonical basic catalog of A2UI components implemented via Web Components (Custom Elements)
+ * for the Lit renderer.
+ */
+export const basicCatalog = new Catalog<LitComponentApi>(
+  'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+  [
+    A2uiText,
+    A2uiButton,
+    A2uiTextField,
+    A2uiRow,
+    A2uiColumn,
+    A2uiList,
+    A2uiImage,
+    A2uiIcon,
+    A2uiVideo,
+    A2uiAudioPlayer,
+    A2uiCard,
+    A2uiDivider,
+    A2uiCheckBox,
+    A2uiSlider,
+    A2uiDateTimeInput,
+    A2uiChoicePicker,
+    A2uiTabs,
+    A2uiModal,
+  ],
+  BASIC_FUNCTIONS,
+);
