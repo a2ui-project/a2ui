@@ -161,7 +161,7 @@ class ContactAgent:
         self, inference_format: Optional[DirectJsonFormat] = None
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
-        LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3-flash-preview")
+        LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3.8-flash")
 
         instruction = (
             inference_format.generate_system_prompt(
