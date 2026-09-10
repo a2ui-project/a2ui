@@ -45,13 +45,23 @@ String extractCatalogName(String catalogId) {
   return last.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
 }
 
+String _resolveDefaultBaseImport(String specVersion) {
+  final clean = specVersion.startsWith('v')
+      ? specVersion.substring(1)
+      : specVersion;
+  if (clean.startsWith('1.')) {
+    return 'a2ui.builder.v1_0';
+  }
+  return 'a2ui.builder.v0_9';
+}
+
 class PythonEmitter {
   final AnalysedCatalog catalog;
   final String baseImport;
   final String catalogName;
 
   PythonEmitter(this.catalog, {String? baseImport, String? catalogName})
-    : baseImport = baseImport ?? 'a2ui.builder.base',
+    : baseImport = baseImport ?? _resolveDefaultBaseImport(catalog.specVersion),
       catalogName = catalogName ?? extractCatalogName(catalog.catalogId);
 
   String generate() {

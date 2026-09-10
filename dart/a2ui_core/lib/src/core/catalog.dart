@@ -218,7 +218,31 @@ class Catalog<T extends ComponentApi> {
   ) {
     final catalogId =
         json['catalogId'] as String? ?? json['id'] as String? ?? 'default';
-    final version = 'v0.9.1';
+    String version = 'v0.9.1';
+    final explicitVersion =
+        json['protocolVersion'] as String? ??
+        json['version'] as String? ??
+        json['specVersion'] as String?;
+    if (explicitVersion != null && explicitVersion.isNotEmpty) {
+      var v = explicitVersion.trim();
+      if (!v.startsWith('v')) v = 'v$v';
+      v = v.replaceAll('_', '.');
+      if (v == 'v0.9') v = 'v0.9.1';
+      version = v;
+    } else {
+      final idToCheck =
+          json['catalogId'] as String? ??
+          json[r'$id'] as String? ??
+          json[r'$schema'] as String? ??
+          '';
+      final match = RegExp(r'/(v\d+(_\d+)*)/').firstMatch(idToCheck);
+      if (match != null) {
+        var v = match.group(1)!;
+        v = v.replaceAll('_', '.');
+        if (v == 'v0.9') v = 'v0.9.1';
+        version = v;
+      }
+    }
 
     final permittedNames = <String>{};
     final oneOf = json[r'$defs']?['anyComponent']?['oneOf'];

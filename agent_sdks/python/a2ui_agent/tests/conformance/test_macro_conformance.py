@@ -22,7 +22,7 @@ from pydantic import ConfigDict
 import pytest
 import yaml
 
-from a2ui.builder import (
+from a2ui.builder.v0_9 import (
     ComponentBuilderNode,
     DataBinding,
 )
