@@ -30,7 +30,7 @@ __a2ui_codegen__ = "@a2ui/cli"
 
 from typing import Any, Mapping, Literal, Optional, Sequence, Union
 
-from a2ui.builder.base import (
+from a2ui.builder.v0_9 import (
     Action,
     CheckRule,
     ComponentBuilderNode,

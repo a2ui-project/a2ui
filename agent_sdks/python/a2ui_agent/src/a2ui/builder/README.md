@@ -15,7 +15,7 @@ The builder API allows developers and agents to author interfaces as nested Pyth
 Components are instantiated as Python objects. Containers accept child components through designated slot parameters:
 
 ```python
-from a2ui.builder.catalogs.basic import Card, Column, Text, Button, Action
+from a2ui.builder.v0_9.catalogs.basic import Card, Column, Text, Button, Action
 
 tree = Card(
     child=Column(
@@ -50,7 +50,7 @@ Helper functions package component trees into standard A2UI envelopes:
 - `update_components`: Generates an `updateComponents` envelope for existing surfaces.
 
 ```python
-from a2ui.builder.base import create_surface, update_components
+from a2ui.builder.v0_9 import create_surface, update_components
 
 # Initial surface creation
 messages = create_surface(
@@ -68,7 +68,7 @@ update = update_components("surface_main", root=tree)
 The `bind` helper constructs dynamic references to client data model paths:
 
 ```python
-from a2ui.builder.base import bind
+from a2ui.builder.v0_9 import bind
 
 status_text = Text(text=bind("/user/status"), variant="caption")
 ```
@@ -91,7 +91,7 @@ Component classes inherit from `ComponentBuilderNode` and define the properties 
 
 ```python
 from typing import Any, Literal, Optional
-from a2ui.builder.base import (
+from a2ui.builder.v0_9 import (
     Action,
     ComponentBuilderNode,
     DataBinding,
@@ -125,7 +125,7 @@ Catalogs define client-evaluated functions (such as formatters, validators, and 
 
 ```python
 from typing import Any, Optional
-from a2ui.builder.base import DataBinding, FunctionCall
+from a2ui.builder.v0_9 import DataBinding, FunctionCall
 
 def open_url(
     *,
@@ -156,7 +156,7 @@ You can subclass generated components to create domain-specific building blocks 
 
 ```python
 from typing import Any
-from a2ui.builder.catalogs.basic import Button, Text, Action
+from a2ui.builder.v0_9.catalogs.basic import Button, Text, Action
 
 class PrimaryActionButton(Button):
     """Button configured with primary styling and default event name."""
@@ -178,7 +178,7 @@ You can define custom components that are not in the official catalog schema by 
 
 ```python
 from typing import Any, Literal, Optional
-from a2ui.builder.base import ComponentBuilderNode, Slot
+from a2ui.builder.v0_9 import ComponentBuilderNode, Slot
 
 class MetricCard(ComponentBuilderNode):
     """Custom metric card component."""

@@ -12,6 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI Basic Catalog Builder package."""
-
-from .basic_catalog import *  # noqa: F403
+"""A2UI Protocol v0.9 component catalogs."""

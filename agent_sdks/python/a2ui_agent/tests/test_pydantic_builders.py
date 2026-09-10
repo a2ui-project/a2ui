@@ -17,7 +17,7 @@
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from a2ui.builder import (
+from a2ui.builder.v0_9 import (
     Action,
     AccessibilityAttributes,
     ComponentBuilderNode,
@@ -31,7 +31,7 @@ from a2ui.builder import (
     flatten_component_tree,
     update_components,
 )
-from a2ui.builder.catalogs.basic import (
+from a2ui.builder.v0_9.catalogs.basic import (
     Button,
     Card,
     Column,
@@ -277,8 +277,8 @@ def test_static_typechecker_compiler_rejections():
 
     # 1. Invalid enum variant
     code_bad_enum = """
-from a2ui.builder.catalogs.basic import Button, Text
-from a2ui.builder import Action
+from a2ui.builder.v0_9.catalogs.basic import Button, Text
+from a2ui.builder.v0_9 import Action
 b = Button(child=Text(text="Hi"), action=Action(event="click"), variant="invalid_variant")
 """
     normal_report, _, exit_status = mypy.api.run(["-c", code_bad_enum])
@@ -287,8 +287,8 @@ b = Button(child=Text(text="Hi"), action=Action(event="click"), variant="invalid
 
     # 2. Misspelled argument name
     code_typo_arg = """
-from a2ui.builder.catalogs.basic import Button, Text
-from a2ui.builder import Action
+from a2ui.builder.v0_9.catalogs.basic import Button, Text
+from a2ui.builder.v0_9 import Action
 b = Button(child=Text(text="Hi"), action=Action(event="click"), lable="Save")
 """
     normal_report, _, exit_status = mypy.api.run(["-c", code_typo_arg])
@@ -297,8 +297,8 @@ b = Button(child=Text(text="Hi"), action=Action(event="click"), lable="Save")
 
     # 3. Invalid child type (raw string instead of component node)
     code_bad_child = """
-from a2ui.builder.catalogs.basic import Button
-from a2ui.builder import Action
+from a2ui.builder.v0_9.catalogs.basic import Button
+from a2ui.builder.v0_9 import Action
 b = Button(child="not_a_component", action=Action(event="click"))
 """
     normal_report, _, exit_status = mypy.api.run(["-c", code_bad_child])

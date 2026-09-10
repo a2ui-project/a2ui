@@ -12,4 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI Generated Catalog Builders namespace."""
+"""Core, protocol-agnostic runtime foundation for A2UI fluent builders."""
+
+from .base_node import (
+    ComponentBuilderNode,
+    ComponentRef,
+    ExternalComponentBuilderNode,
+)
+from .flattener import flatten_component_tree
+from .id_allocator import IdAllocator
+from .tree import ComponentTree
+
+__all__ = [
+    "ComponentBuilderNode",
+    "ComponentRef",
+    "ComponentTree",
+    "ExternalComponentBuilderNode",
+    "IdAllocator",
+    "flatten_component_tree",
+]
