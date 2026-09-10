@@ -2554,6 +2554,7 @@
 <li>Added <code>"propertyNames": { "not": { "const": "Surface" } }</code> to the <code>components</code> map in <code>catalog_definition.json</code> to enforce reserving <code>"Surface"</code> at the schema validation level.</li>
 <li>Added the canonical <code>"Surface"</code> container component type in <code>common_types.json</code> to represent the top-level container of a surface for <code>"allowedParents": ["Surface"]</code> rules. The protocol reserves the <code>"Surface"</code> component name. The <code>createSurface</code> message implicitly creates <code>Surface</code> with <code>"child": "root"</code>, and you cannot modify <code>Surface</code> using <code>updateComponents</code>. These schema additions are catalog-level metadata and do not alter the wire format of component instances in <code>createSurface</code> or <code>updateComponents</code>.</li>
 <li>Added static <code>metadata</code> (containing <code>extensions</code>) property to <code>ComponentDefinition</code> inside <code>catalog_definition.json</code>.</li>
+<li>Introduced <code>x-deprecated-reason</code> as a human-readable explanation for a deprecated component, function, or property in addition to the standard JSON Schema <code>deprecated: true</code>.</li>
 </ul>
 <h3 id="22-standard-catalogs-basic">2.2. Standard catalogs (basic)<a class="headerlink" href="#22-standard-catalogs-basic" title="Permanent link">&para;</a></h3>
 <ul>
