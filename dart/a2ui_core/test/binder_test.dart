@@ -16,6 +16,7 @@ import 'package:a2ui_core/src/core/component_model.dart';
 import 'package:a2ui_core/src/core/minimal_catalog.dart';
 import 'package:a2ui_core/src/core/surface_model.dart';
 import 'package:a2ui_core/src/rendering/binder.dart';
+import 'package:a2ui_core/src/rendering/component_context.dart';
 import 'package:test/test.dart';
 
 void main() {

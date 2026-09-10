@@ -16,7 +16,6 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 
 import '../core/catalog.dart';
 import '../core/component_model.dart';
-import '../core/contexts.dart';
 import '../core/messages.dart';
 import '../core/surface_group_model.dart';
 import '../core/surface_model.dart';

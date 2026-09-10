@@ -13,8 +13,12 @@
 // limitations under the License.
 
 import 'package:json_schema_builder/json_schema_builder.dart';
+import '../primitives/cancellation.dart';
 import '../primitives/errors.dart';
+import '../primitives/reactivity.dart';
 import '../primitives/schema_resolution.dart';
+import 'common.dart';
+import 'data_context.dart';
 
 /// A definition of a UI component's API.
 ///
@@ -28,31 +32,11 @@ class ComponentApi {
   const ComponentApi({required this.name, required this.schema});
 }
 
-/// The type of value a function returns.
-enum A2uiReturnType {
-  string,
-  number,
-  boolean,
-  array,
-  object,
-  any,
-  void_;
-
-  /// The JSON value used in the A2UI protocol.
-  String get jsonValue => this == void_ ? 'void' : name;
-
-  /// Parses from the JSON string representation.
-  static A2uiReturnType fromJson(String value) {
-    if (value == 'void') return void_;
-    return values.byName(value);
-  }
-}
-
 /// A definition of a UI function's API.
 ///
 /// Declares a signature only, so it is what [Catalog.fromJson] produces
 /// directly. Renderers that also evaluate the function supply a
-/// `FunctionImplementation` instead.
+/// [FunctionImplementation] instead.
 class FunctionApi {
   final String name;
   final A2uiReturnType returnType;
@@ -65,6 +49,22 @@ class FunctionApi {
   });
 }
 
+/// A function implementation that can be registered with a catalog.
+abstract class FunctionImplementation extends FunctionApi {
+  const FunctionImplementation({
+    required super.name,
+    required super.argumentSchema,
+    super.returnType,
+  });
+
+  /// Executes the function. Can return a static value or a [ReadonlySignal].
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]);
+}
+
 /// A catalog whose components and functions carry schemas only.
 ///
 /// What [Catalog.fromJson] produces, and what agents work with: they prompt
@@ -74,7 +74,7 @@ typedef SchemaCatalog = Catalog<ComponentApi, FunctionApi>;
 /// A collection of available components and functions.
 ///
 /// [C] is the component representation and [F] the function representation.
-/// For renderers, [F] is `FunctionImplementation`, for agents [F] is
+/// For renderers, [F] is [FunctionImplementation], for agents [F] is
 /// [FunctionApi].
 ///
 /// For a catalog that declares no functions, pass `Never`
@@ -339,5 +339,17 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       return [for (final Object? item in value) _deepCopyValue(item)];
     }
     return value;
+  }
+}
+
+extension CatalogInvokerExtension
+    on Catalog<ComponentApi, FunctionImplementation> {
+  /// Invokes a catalog function by name with the given arguments.
+  Object? invoke(String name, Map<String, dynamic> args, DataContext context) {
+    final FunctionImplementation? fn = functions[name];
+    if (fn == null) {
+      throw ArgumentError('Function not found: $name');
+    }
+    return fn.execute(args, context);
   }
 }

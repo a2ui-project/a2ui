@@ -12,27 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import '../primitives/cancellation.dart';
 import '../primitives/reactivity.dart';
-import 'catalog.dart';
 import 'common.dart';
 import 'data_model.dart';
-
-/// A function implementation that can be registered with a catalog.
-abstract class FunctionImplementation extends FunctionApi {
-  const FunctionImplementation({
-    required super.name,
-    required super.argumentSchema,
-    super.returnType,
-  });
-
-  /// Executes the function. Can return a static value or a [ReadonlySignal].
-  Object? execute(
-    Map<String, dynamic> args,
-    DataContext context, [
-    CancellationSignal? cancellationSignal,
-  ]);
-}
 
 /// A function that invokes a catalog function by name.
 typedef FunctionInvoker =
@@ -128,17 +110,5 @@ class DataContext {
 
   void set(String relativePath, Object? value) {
     dataModel.set(resolvePath(relativePath), value);
-  }
-}
-
-extension CatalogInvokerExtension
-    on Catalog<ComponentApi, FunctionImplementation> {
-  /// Invokes a catalog function by name with the given arguments.
-  Object? invoke(String name, Map<String, dynamic> args, DataContext context) {
-    final FunctionImplementation? fn = functions[name];
-    if (fn == null) {
-      throw ArgumentError('Function not found: $name');
-    }
-    return fn.execute(args, context);
   }
 }

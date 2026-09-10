@@ -18,7 +18,7 @@ import '../primitives/event_notifier.dart';
 import 'catalog.dart';
 import 'common.dart';
 import 'component_model.dart';
-import 'contexts.dart';
+import 'data_context.dart';
 import 'data_model.dart';
 import 'messages.dart';
 
@@ -88,37 +88,5 @@ class SurfaceModel<T extends ComponentApi> {
     componentsModel.dispose();
     _onAction.dispose();
     _onError.dispose();
-  }
-}
-
-/// Context provided to components during rendering.
-class ComponentContext {
-  final SurfaceModel surface;
-  final ComponentModel componentModel;
-  final DataContext dataContext;
-
-  ComponentContext(this.surface, this.componentModel, {String? basePath})
-    : dataContext = DataContext(
-        surface.dataModel,
-        surface.catalog.invoke,
-        basePath ?? '/',
-      );
-
-  /// Dispatches an action from the component.
-  Future<void> dispatchAction(Map<String, dynamic> action) {
-    return surface.dispatchAction(action, componentModel.id);
-  }
-
-  /// Returns a context for rendering a child component.
-  ComponentContext childContext(String childId, {String? basePath}) {
-    final ComponentModel? childModel = surface.componentsModel.get(childId);
-    if (childModel == null) {
-      throw ArgumentError('Child component not found: $childId');
-    }
-    return ComponentContext(
-      surface,
-      childModel,
-      basePath: basePath ?? dataContext.path,
-    );
   }
 }

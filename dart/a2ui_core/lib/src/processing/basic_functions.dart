@@ -15,7 +15,8 @@
 import 'package:json_schema_builder/json_schema_builder.dart';
 
 import '../core/catalog.dart';
-import '../core/contexts.dart';
+import '../core/common.dart';
+import '../core/data_context.dart';
 import '../primitives/cancellation.dart';
 import '../primitives/reactivity.dart';
 import 'expressions.dart';
