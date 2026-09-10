@@ -20,7 +20,7 @@ The `@macro` decorator inspects a Python function's type annotations and docstri
 
 ```python
 from a2ui.inference_formats.experimental.macros import macro
-from a2ui.builder.catalogs.basic import Card, Column, Text, Button, Action
+from a2ui.builder.v0_9.catalogs.basic import Card, Column, Text, Button, Action
 
 @macro
 def product_card(

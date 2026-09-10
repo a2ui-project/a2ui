@@ -46,7 +46,7 @@ from a2ui.inference_formats.experimental.macros import (
     macro,
 )
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.builder.catalogs.basic import (
+from a2ui.builder.v0_9.catalogs.basic import (
     Button,
     Card,
     Column,

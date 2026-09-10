@@ -29,7 +29,7 @@ from typing import (
     get_type_hints,
 )
 
-from a2ui.builder import (
+from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
     Action,
     CheckRule,
