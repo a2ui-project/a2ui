@@ -18,7 +18,7 @@ import json
 import os
 from typing import Any
 
-from a2ui.builder import (
+from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
     Action,
     CheckRule,
@@ -31,7 +31,7 @@ from a2ui.builder import (
     flatten_component_tree,
     update_components,
 )
-from a2ui.builder.catalogs.basic import (
+from a2ui.builder.v0_9.catalogs.basic import (
     Button,
     Card,
     Column,

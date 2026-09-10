@@ -12,58 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI Typesafe Fluent Builder package."""
+"""A2UI Typesafe Fluent Builder SDK.
 
-from .base import (
-    AccessibilityAttributes,
-    Action,
-    CheckRule,
-    Child,
-    ChildList,
-    ComponentBuilderNode,
-    ComponentRef,
-    ComponentTree,
-    DataBinding,
-    DynamicBoolean,
-    DynamicChildList,
-    DynamicNumber,
-    DynamicString,
-    DynamicStringList,
-    DynamicValue,
-    ExternalComponentBuilderNode,
-    FunctionCall,
-    IdAllocator,
-    Slot,
-    SlotList,
-    bind,
-    create_surface,
-    flatten_component_tree,
-    update_components,
-)
+To prevent breaking changes across protocol versions, builder models are explicitly versioned.
+Import from the specific protocol version package:
 
-__all__ = [
-    "AccessibilityAttributes",
-    "Action",
-    "CheckRule",
-    "Child",
-    "ChildList",
-    "ComponentBuilderNode",
-    "ComponentRef",
-    "ComponentTree",
-    "DataBinding",
-    "DynamicBoolean",
-    "DynamicChildList",
-    "DynamicNumber",
-    "DynamicString",
-    "DynamicStringList",
-    "DynamicValue",
-    "ExternalComponentBuilderNode",
-    "FunctionCall",
-    "IdAllocator",
-    "Slot",
-    "SlotList",
-    "bind",
-    "create_surface",
-    "flatten_component_tree",
-    "update_components",
-]
+    from a2ui.builder.v0_9 import Action, ComponentRef, create_surface, bind
+    from a2ui.builder.v0_9.catalogs.basic import Button, Card, Column, Row, Text
+"""
