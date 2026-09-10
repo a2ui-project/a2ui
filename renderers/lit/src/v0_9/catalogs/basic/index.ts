@@ -39,8 +39,12 @@ import {
 import type {LitComponentApi} from '../../types.js';
 
 /**
- * The single canonical basic catalog of A2UI components implemented via Web Components (Custom Elements)
- * for the Lit renderer.
+ * The basic catalog for A2UI components in Lit.
+ *
+ * This catalog includes a wide range of components such as text, button,
+ * text field, row, column, list, image, icon, video, audio player, card,
+ * divider, checkbox, slider, date-time input, choice picker, tabs, and modal.
+ * It also includes the basic functions.
  */
 export const basicCatalog = new Catalog<LitComponentApi>(
   'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',

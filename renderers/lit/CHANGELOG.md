@@ -1,7 +1,6 @@
 ## Unreleased
 
-- (v0_9) Clean up redundant basic catalog exports in `@a2ui/lit` by completely removing `BasicCatalogA2uiLitElement` and all individual components (`A2uiButton`, etc.) from the public API. They are no longer exported, as they were migrated to `@a2ui/web_core` and deep imports are blocked by `package.json`.
-- (v0_9) Move universal basic catalog component implementations (`A2uiText`, `A2uiButton`, `A2uiCard`, etc.) to `@a2ui/web_core/v0_9/basic_catalog` and re-export them from `@a2ui/lit/v0_9` and `@a2ui/lit/v0_9/catalogs/basic` for backwards compatibility. [#2190](https://github.com/a2ui-project/a2ui/pull/2190)
+- **BREAKING CHANGE**: (v0_9) Move universal basic catalog component implementations (`A2uiText`, `A2uiButton`, `A2uiCard`, etc.) to `@a2ui/web_core/v0_9/basic_catalog`. To upgrade to this version of `@a2ui/lit`, apps should also update to the latest version of `@a2ui/web_core`. [#2190](https://github.com/a2ui-project/a2ui/pull/2190)
 - **BREAKING CHANGE**: (v0_9) Align Basic Catalog component DOM structures, behaviors, and styling contracts with the Angular reference implementation: [#2205](https://github.com/a2ui-project/a2ui/pull/2205)
   - `DateTimeInput`: Migrate from a single dynamic HTML5 input (`datetime-local`) to dual side-by-side date and time inputs (`.a2ui-date-time-inputs`), support overridable `--a2ui-datetimeinput-width`, and ensure time-only mode preserves time-only strings without invalid date concatenation.
   - `Modal`: Migrate from native `<dialog>` element to an overlay container (`.a2ui-modal-overlay`, `.a2ui-modal-content`) managed with explicit `@state() isOpen` lifecycle tracking, backdrop theming (`--a2ui-modal-backdrop-bg`), and accessible ARIA dialog roles.
