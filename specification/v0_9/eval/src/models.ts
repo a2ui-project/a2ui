@@ -16,7 +16,7 @@
 
 import {googleAI} from '@genkit-ai/google-genai';
 import {openAI} from '@genkit-ai/compat-oai/openai';
-import {claude35Haiku, claude4Sonnet} from 'genkitx-anthropic';
+import {claude45Haiku, claude45Sonnet} from 'genkitx-anthropic';
 
 export interface ModelConfiguration {
   model: any;
@@ -28,71 +28,57 @@ export interface ModelConfiguration {
 
 export const modelsToTest: ModelConfiguration[] = [
   {
-    model: openAI.model('gpt-5.1'),
-    name: 'gpt-5.1',
+    model: openAI.model('gpt-5.4'),
+    name: 'gpt-5.4',
     config: {reasoning_effort: 'minimal'},
     requestsPerMinute: 500,
     tokensPerMinute: 30000,
   },
   {
-    model: openAI.model('gpt-5-mini'),
-    name: 'gpt-5-mini',
+    model: openAI.model('gpt-5.4-mini'),
+    name: 'gpt-5.4-mini',
     config: {reasoning_effort: 'minimal'},
     requestsPerMinute: 500,
     tokensPerMinute: 500000,
   },
   {
-    model: openAI.model('gpt-5-nano'),
-    name: 'gpt-5-nano',
+    model: openAI.model('gpt-5.4-nano'),
+    name: 'gpt-5.4-nano',
     config: {},
     requestsPerMinute: 500,
     tokensPerMinute: 200000,
   },
   {
-    model: googleAI.model('gemini-2.5-pro'),
-    name: 'gemini-2.5-pro',
-    config: {thinkingConfig: {thinkingBudget: 1000}},
-    requestsPerMinute: 150,
-    tokensPerMinute: 2000000,
-  },
-  {
-    model: googleAI.model('gemini-3-flash-preview'),
-    name: 'gemini-3-flash',
-    config: {thinkingConfig: {thinkingBudget: 0}},
-    requestsPerMinute: 1000,
-    tokensPerMinute: 1000000,
-  },
-  {
-    model: googleAI.model('gemini-3.1-pro-preview'),
-    name: 'gemini-3.1-pro',
+    model: googleAI.model('gemini-pro-latest'),
+    name: 'gemini-pro-latest',
     config: {thinkingConfig: {thinkingBudget: 1000}},
     requestsPerMinute: 25,
     tokensPerMinute: 1000000,
   },
   {
-    model: googleAI.model('gemini-2.5-flash'),
-    name: 'gemini-2.5-flash',
+    model: googleAI.model('gemini-3.8-flash'),
+    name: 'gemini-3.8-flash',
     config: {thinkingConfig: {thinkingBudget: 0}},
     requestsPerMinute: 1000,
     tokensPerMinute: 1000000,
   },
   {
-    model: googleAI.model('gemini-2.5-flash-lite'),
-    name: 'gemini-2.5-flash-lite',
+    model: googleAI.model('gemini-flash-lite-latest'),
+    name: 'gemini-flash-lite-latest',
     config: {thinkingConfig: {thinkingBudget: 0}},
     requestsPerMinute: 4000,
     tokensPerMinute: 4000000,
   },
   {
-    model: claude4Sonnet,
-    name: 'claude-4-sonnet',
+    model: claude45Sonnet,
+    name: 'claude-4-5-sonnet',
     config: {},
     requestsPerMinute: 50,
     tokensPerMinute: 30000,
   },
   {
-    model: claude35Haiku,
-    name: 'claude-35-haiku',
+    model: claude45Haiku,
+    name: 'claude-4-5-haiku',
     config: {},
     requestsPerMinute: 50,
     tokensPerMinute: 50000,
