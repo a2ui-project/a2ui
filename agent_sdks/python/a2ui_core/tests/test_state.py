@@ -271,3 +271,73 @@ def test_component_node_lifecycle():
     # Double dispose is idempotent
     node.dispose()
     assert len(cleanup_executed) == 1
+
+
+# ==============================================================================
+# Security Tests: Prototype Pollution Protection
+# ==============================================================================
+
+
+def test_data_model_prevents_prototype_pollution_proto():
+    dm = DataModel()
+
+    with pytest.raises(ValueError, match="Forbidden path segment '__proto__'"):
+        dm.set("/__proto__/polluted", "hacked")
+
+    with pytest.raises(ValueError, match="Forbidden path segment '__proto__'"):
+        dm.get("/__proto__/polluted")
+
+    with pytest.raises(ValueError, match="Forbidden path segment '__proto__'"):
+        dm.has_path("/__proto__/polluted")
+
+    with pytest.raises(ValueError, match="Forbidden path segment '__proto__'"):
+        dm.subscribe("/__proto__/polluted", lambda _: None)
+
+    assert dm.get("/") == {}
+
+
+def test_data_model_prevents_prototype_pollution_constructor():
+    dm = DataModel()
+
+    with pytest.raises(ValueError, match="Forbidden path segment 'constructor'"):
+        dm.set("/constructor/prototype/polluted", "hacked")
+
+    with pytest.raises(ValueError, match="Forbidden path segment 'constructor'"):
+        dm.get("/constructor/prototype/polluted")
+
+    with pytest.raises(ValueError, match="Forbidden path segment 'constructor'"):
+        dm.has_path("/constructor/prototype/polluted")
+
+    with pytest.raises(ValueError, match="Forbidden path segment 'constructor'"):
+        dm.subscribe("/constructor/prototype/polluted", lambda _: None)
+
+    assert dm.get("/") == {}
+
+
+def test_data_model_prevents_prototype_pollution_prototype():
+    dm = DataModel()
+
+    with pytest.raises(ValueError, match="Forbidden path segment 'prototype'"):
+        dm.set("/user/prototype/polluted", "hacked")
+
+    with pytest.raises(ValueError, match="Forbidden path segment 'prototype'"):
+        dm.get("/user/prototype/polluted")
+
+    with pytest.raises(ValueError, match="Forbidden path segment 'prototype'"):
+        dm.has_path("/user/prototype/polluted")
+
+    with pytest.raises(ValueError, match="Forbidden path segment 'prototype'"):
+        dm.subscribe("/user/prototype/polluted", lambda _: None)
+
+    assert dm.get("/") == {}
+
+
+def test_data_model_allows_valid_similar_path_segments():
+    dm = DataModel()
+
+    # Segments containing substrings of forbidden keys should still be allowed
+    dm.set("/user/prototype_name", "test_proto")
+    dm.set("/constructor_args/value", 123)
+
+    assert dm.get("/user/prototype_name") == "test_proto"
+    assert dm.get("/constructor_args/value") == 123

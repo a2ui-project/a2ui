@@ -20,6 +20,9 @@ from ..common.events import Subscription
 # Regex to check if path segment is numeric (representing array index)
 NUMERIC_PATTERN = re.compile(r"^(?:0|[1-9][0-9]*)$")
 
+# Keys forbidden in path resolution to prevent prototype pollution vulnerabilities.
+FORBIDDEN_KEYS = frozenset({"__proto__", "constructor", "prototype"})
+
 
 class DataModel:
     """An atomic RFC 6901 JSON Pointer reactive store."""
@@ -30,15 +33,24 @@ class DataModel:
 
     @staticmethod
     def _parse_pointer(path: str) -> List[str]:
-        """Splits a JSON Pointer path into individual unescaped tokens."""
+        """Splits a JSON Pointer path into individual unescaped tokens.
+
+        Raises:
+            ValueError: If path contains forbidden segments ('__proto__', 'constructor', 'prototype').
+        """
         if not path or path == "/":
             return []
         if not path.startswith("/"):
             # Support relative scope path resolution
-            return [t.replace("~1", "/").replace("~0", "~") for t in path.split("/")]
+            raw_tokens = path.split("/")
+        else:
+            raw_tokens = path[1:].split("/")
 
-        tokens = path[1:].split("/")
-        return [t.replace("~1", "/").replace("~0", "~") for t in tokens]
+        tokens = [t.replace("~1", "/").replace("~0", "~") for t in raw_tokens]
+        for token in tokens:
+            if token in FORBIDDEN_KEYS:
+                raise ValueError(f"Forbidden path segment '{token}' in path '{path}'.")
+        return tokens
 
     @staticmethod
     def _build_pointer(tokens: List[str]) -> str:

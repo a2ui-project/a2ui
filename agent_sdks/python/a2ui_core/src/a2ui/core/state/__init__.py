@@ -15,7 +15,7 @@
 from ..common.events import EventSource, Signal
 from .component_model import ComponentModel
 from .component_node import ComponentNode
-from .data_model import DataModel
+from .data_model import FORBIDDEN_KEYS, DataModel
 from .surface_components_model import SurfaceComponentsModel
 from .surface_group_model import SurfaceGroupModel
 from .surface_model import SurfaceModel
@@ -26,6 +26,7 @@ __all__ = [
     "ComponentNode",
     "DataModel",
     "EventSource",
+    "FORBIDDEN_KEYS",
     "Signal",
     "SurfaceComponentsModel",
     "SurfaceGroupModel",
