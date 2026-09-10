@@ -257,6 +257,7 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "@angular/core": "^21.2.5",
+    "@types/js-yaml": "^4.0.9",
     "@types/jsdom": "^28.0.3",
     "@types/node": "^25.9.3",
     "c8": "^11.0.0",
