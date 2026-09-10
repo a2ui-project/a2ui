@@ -15,7 +15,7 @@
  */
 
 import {TestBed} from '@angular/core/testing';
-import {BasicCatalog, BASIC_CATALOG_OPTIONS} from './basic-catalog';
+import {BasicCatalog, BasicCatalogBase, BASIC_CATALOG_OPTIONS} from './basic-catalog';
 
 describe('BasicCatalog', () => {
   it('should be created with default options when no token is provided', () => {
@@ -44,5 +44,56 @@ describe('BasicCatalog', () => {
     const catalog = TestBed.inject(BasicCatalog);
     expect(catalog).toBeTruthy();
     expect(catalog.id).toBe('https://example.com/custom-catalog.json');
+  });
+
+  describe('legacy catalog id aliases', () => {
+    const LEGACY_ID = 'https://a2ui.org/specification/v0_9/basic_catalog.json';
+
+    it('aliases the legacy basic catalog id when using the default id', () => {
+      TestBed.configureTestingModule({
+        providers: [BasicCatalog],
+      });
+
+      const catalog = TestBed.inject(BasicCatalog);
+      expect(catalog.aliases).toEqual([LEGACY_ID]);
+    });
+
+    it('keeps aliasing the legacy id when only non-id options are customized', () => {
+      TestBed.configureTestingModule({
+        providers: [
+          BasicCatalog,
+          {
+            provide: BASIC_CATALOG_OPTIONS,
+            useValue: {locale: 'fr-FR'},
+          },
+        ],
+      });
+
+      const catalog = TestBed.inject(BasicCatalog);
+      expect(catalog.id).toBe('https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json');
+      expect(catalog.aliases).toEqual([LEGACY_ID]);
+    });
+
+    it('does not attach the legacy alias to a catalog given a custom id', () => {
+      // A custom catalog is not the basic catalog, so claiming the legacy basic
+      // id would let it capture surfaces meant for the real one.
+      TestBed.configureTestingModule({
+        providers: [
+          BasicCatalog,
+          {
+            provide: BASIC_CATALOG_OPTIONS,
+            useValue: {id: 'https://example.com/custom-catalog.json'},
+          },
+        ],
+      });
+
+      const catalog = TestBed.inject(BasicCatalog);
+      expect(catalog.aliases).toBeUndefined();
+    });
+
+    it('applies the same alias rules when constructed directly', () => {
+      expect(new BasicCatalogBase().aliases).toEqual([LEGACY_ID]);
+      expect(new BasicCatalogBase({id: 'https://example.com/custom.json'}).aliases).toBeUndefined();
+    });
   });
 });

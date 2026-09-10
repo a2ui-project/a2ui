@@ -319,8 +319,12 @@ export class MessageProcessor<T extends ComponentApi> {
     const payload = message.createSurface;
     const {surfaceId, catalogId, theme, sendDataModel} = payload;
 
-    // Find catalog
-    const catalog = this.catalogs.find(c => c.id === catalogId || c.aliases?.includes(catalogId));
+    // Find catalog. An exact id match is resolved across every catalog before
+    // any alias is considered, so a catalog that merely aliases an id can never
+    // shadow the catalog that owns it outright.
+    const catalog =
+      this.catalogs.find(c => c.id === catalogId) ??
+      this.catalogs.find(c => c.aliases?.includes(catalogId));
     if (!catalog) {
       throw new A2uiStateError(`Catalog not found: ${catalogId}`);
     }

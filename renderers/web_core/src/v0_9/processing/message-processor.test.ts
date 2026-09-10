@@ -20,7 +20,7 @@ import {MessageProcessor, formatZodIssue} from './message-processor.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {CardApi, RowApi, TabsApi} from '../basic_catalog/components/basic_components.js';
 import {ButtonApi} from '../basic_catalog/index.js';
-import {A2uiValidationError} from '../errors.js';
+import {A2uiStateError, A2uiValidationError} from '../errors.js';
 import {z} from 'zod';
 
 describe('MessageProcessor', () => {
@@ -852,6 +852,173 @@ describe('MessageProcessor', () => {
           return true;
         },
       );
+    });
+  });
+
+  describe('catalog alias resolution', () => {
+    const CANONICAL_ID = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
+    const LEGACY_ID = 'https://a2ui.org/specification/v0_9/basic_catalog.json';
+
+    const TextComp = {
+      name: 'Text',
+      schema: z.object({text: z.string()}),
+    } satisfies ComponentApi;
+
+    let aliasedCatalog: Catalog<ComponentApi>;
+    let aliasedProcessor: MessageProcessor<ComponentApi>;
+
+    beforeEach(() => {
+      aliasedCatalog = new Catalog('canonical-catalog', [TextComp], [], undefined, [
+        'legacy-catalog',
+        'other-legacy-catalog',
+      ]);
+      aliasedProcessor = new MessageProcessor<ComponentApi>([aliasedCatalog]);
+    });
+
+    it('creates a surface when createSurface names an alias', () => {
+      aliasedProcessor.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1', catalogId: 'legacy-catalog'},
+        },
+      ]);
+
+      const surface = aliasedProcessor.model.getSurface('s1');
+      assert.ok(surface, 'surface should be created from the aliased catalog id');
+      // The surface must bind the canonical catalog object, not a synthetic
+      // stand-in keyed by the legacy id.
+      assert.strictEqual(surface.catalog, aliasedCatalog);
+      assert.strictEqual(surface.catalog.id, 'canonical-catalog');
+    });
+
+    it('resolves every alias in the list, not just the first', () => {
+      aliasedProcessor.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1', catalogId: 'other-legacy-catalog'},
+        },
+      ]);
+
+      assert.strictEqual(aliasedProcessor.model.getSurface('s1')?.catalog, aliasedCatalog);
+    });
+
+    it('still resolves the canonical id when aliases are present', () => {
+      aliasedProcessor.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1', catalogId: 'canonical-catalog'},
+        },
+      ]);
+
+      assert.strictEqual(aliasedProcessor.model.getSurface('s1')?.catalog, aliasedCatalog);
+    });
+
+    it('renders components from the canonical catalog on an alias-created surface', () => {
+      // Alias resolution is only useful if the surface then accepts the
+      // canonical catalog's components.
+      aliasedProcessor.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1', catalogId: 'legacy-catalog'},
+        },
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'root', component: 'Text', text: 'hello'}],
+          },
+        },
+      ]);
+
+      const root = aliasedProcessor.model.getSurface('s1')?.componentsModel.get('root');
+      assert.strictEqual(root?.type, 'Text');
+    });
+
+    it('throws when the catalog id matches neither an id nor an alias', () => {
+      assert.throws(
+        () =>
+          aliasedProcessor.processMessages([
+            {
+              version: 'v0.9',
+              createSurface: {surfaceId: 's1', catalogId: 'unknown-catalog'},
+            },
+          ]),
+        (err: unknown) =>
+          err instanceof A2uiStateError && /Catalog not found: unknown-catalog/.test(err.message),
+      );
+      assert.strictEqual(aliasedProcessor.model.getSurface('s1'), undefined);
+    });
+
+    it('throws rather than failing on catalogs that declare no aliases', () => {
+      // `aliases` is optional, so resolution must tolerate `undefined` while
+      // scanning past a catalog that does not declare any.
+      const plainProcessor = new MessageProcessor<ComponentApi>([
+        new Catalog('plain-catalog', [TextComp]),
+        aliasedCatalog,
+      ]);
+
+      assert.throws(
+        () =>
+          plainProcessor.processMessages([
+            {
+              version: 'v0.9',
+              createSurface: {surfaceId: 's1', catalogId: 'unknown-catalog'},
+            },
+          ]),
+        A2uiStateError,
+      );
+
+      plainProcessor.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 's2', catalogId: 'legacy-catalog'},
+        },
+      ]);
+      assert.strictEqual(plainProcessor.model.getSurface('s2')?.catalog, aliasedCatalog);
+    });
+
+    it('prefers an exact id match over another catalog claiming it as an alias', () => {
+      const owner = new Catalog<ComponentApi>('contested-id', [TextComp]);
+      const claimant = new Catalog<ComponentApi>('claimant-id', [TextComp], [], undefined, [
+        'contested-id',
+      ]);
+
+      // The claimant is listed first, so a pure array scan would return it.
+      const proc = new MessageProcessor<ComponentApi>([claimant, owner]);
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1', catalogId: 'contested-id'},
+        },
+      ]);
+
+      assert.strictEqual(
+        proc.model.getSurface('s1')?.catalog,
+        owner,
+        'a catalog that owns the id outright should win over one that aliases it',
+      );
+    });
+
+    it('advertises only canonical ids in client capabilities', () => {
+      // Aliases exist to accept legacy traffic, not to invite it: the client
+      // tells the agent which id it wants surfaces created with.
+      const caps = aliasedProcessor.getClientCapabilities() as any;
+
+      assert.deepStrictEqual(caps['v0.9'].supportedCatalogIds, ['canonical-catalog']);
+    });
+
+    it('accepts the legacy basic catalog id used by existing Flutter clients', () => {
+      // The concrete compatibility case this support was added for.
+      const basic = new Catalog<ComponentApi>(CANONICAL_ID, [TextComp], [], undefined, [LEGACY_ID]);
+      const proc = new MessageProcessor<ComponentApi>([basic]);
+
+      proc.processMessages([
+        {version: 'v0.9', createSurface: {surfaceId: 'legacy', catalogId: LEGACY_ID}},
+        {version: 'v0.9', createSurface: {surfaceId: 'modern', catalogId: CANONICAL_ID}},
+      ]);
+
+      assert.strictEqual(proc.model.getSurface('legacy')?.catalog.id, CANONICAL_ID);
+      assert.strictEqual(proc.model.getSurface('modern')?.catalog.id, CANONICAL_ID);
     });
   });
 });
