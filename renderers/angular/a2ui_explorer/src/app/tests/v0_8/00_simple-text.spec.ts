@@ -20,7 +20,7 @@ describe('Example: Simple Text (v0.8)', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('Simple Text', Version.V0_8);
+    await loadExample({name: 'Simple Text', version: Version.V0_8});
     textContent = getCanvas().textContent;
   });
 
