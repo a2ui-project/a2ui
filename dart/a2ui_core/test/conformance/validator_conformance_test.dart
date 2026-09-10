@@ -18,10 +18,12 @@ import 'dart:io';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
+import '../support/renderer_catalog.dart';
 import 'conformance_harness.dart';
 
 /// Runs the shared `conformance/core/validator.yaml` suite against
-/// [A2uiValidator].
+/// [MessageProcessor.validatePayload], the entry point for checking a payload
+/// on its own.
 ///
 /// Cases targeting a protocol version this SDK does not implement are skipped
 /// with a reason, so the suite doubles as the implementation checklist.
@@ -65,10 +67,11 @@ void _runCase(Map<String, Object?> testCase) {
   for (final Map<String, Object?> step in _steps(testCase)) {
     final List<Map<String, Object?>> payload =
         (step['payload']! as List<Object?>).cast<Map<String, Object?>>();
-    // A fresh validator per step, as the reference Python harness does: each
+    // A fresh processor per step, as the reference Python harness does: each
     // step is an independent payload, not a continuation of the previous one.
-    final A2uiValidator<ComponentApi, FunctionApi> validator = A2uiValidator(
-      catalogs: _catalogsFor(catalogDocument, payload),
+    final processor = MessageProcessor<ComponentApi>(
+      catalogs: [_catalogFor(catalogDocument, payload)],
+      protocolVersion: A2uiProtocolVersion.v0_9,
       commonTypesSchema: commonTypes,
     );
 
@@ -76,13 +79,13 @@ void _runCase(Map<String, Object?> testCase) {
         step['expect_error'] ?? testCase['expect_error'];
     if (expectError != null) {
       expect(
-        () => validator.validate(payload),
+        () => processor.validatePayload(payload),
         throwsA(_matchesError(expectError)),
         reason: testCase['name'] as String?,
       );
     } else {
       expect(
-        () => validator.validate(payload),
+        () => processor.validatePayload(payload),
         returnsNormally,
         reason: testCase['name'] as String?,
       );
@@ -110,29 +113,29 @@ Map<String, Object?> _document(Object? value) {
   throw StateError('Case declares no catalog schema.');
 }
 
-/// Builds the catalogs a payload needs from the one document a case declares.
+/// Builds the catalog a payload is validated against from the one document a
+/// case declares.
 ///
 /// The suite's fixtures name the catalog `standard` in the document but `std`
-/// in the payloads that use it. A validator that indexes catalogs by id would
-/// reject those payloads outright, which is not what these cases are testing —
-/// they are about the component graph. So the document is registered under
-/// every id the payload actually names, and the unknown-catalog check keeps
-/// its own coverage in `validator_test.dart`.
-List<SchemaCatalog> _catalogsFor(
+/// in the payloads that use it. The processor resolves the catalog a surface
+/// names against the ones it supports, so the mismatch would reject those
+/// payloads outright, which is not what these cases are testing — they are
+/// about the component graph. So the document is registered under the id the
+/// payload names, and catalog resolution keeps its own coverage in
+/// `processor_test.dart`.
+Catalog<ComponentApi, FunctionImplementation> _catalogFor(
   Map<String, Object?> document,
   List<Map<String, Object?>> payload,
 ) {
-  final ids = <String>{document['catalogId'] as String? ?? 'standard'};
+  String id = document['catalogId'] as String? ?? 'standard';
   for (final envelope in payload) {
     final Object? body = envelope['createSurface'];
     if (body is Map<String, Object?> && body['catalogId'] is String) {
-      ids.add(body['catalogId']! as String);
+      id = body['catalogId']! as String;
+      break;
     }
   }
-  return [
-    for (final String id in ids)
-      Catalog.fromJson(<String, Object?>{...document, 'catalogId': id}),
-  ];
+  return rendererCatalog(document, asCatalogId: id);
 }
 
 /// Matches the error a case expects, by category and message.

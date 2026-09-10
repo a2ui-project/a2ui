@@ -12,19 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_agent/a2ui_agent.dart';
-import 'package:test/test.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 
-void main() {
-  group('A group of tests', () {
-    final awesome = Awesome();
+/// Builds the format-specific portion of an agent's system instructions.
+///
+/// The agent owns the surrounding preamble and suffix.
+abstract class PromptGenerator {
+  /// The catalogs to describe.
+  final List<SchemaCatalog> catalogs;
 
-    setUp(() {
-      // Additional setup goes here.
-    });
+  /// Few-shot turns, keyed by description, valued by the payload the model
+  /// is expected to produce.
+  final Map<String, List<A2uiMessage>>? examples;
 
-    test('First Test', () {
-      expect(awesome.isAwesome, isTrue);
-    });
-  });
+  PromptGenerator(this.catalogs, {this.examples});
+
+  /// Renders the instructions and catalog schemas.
+  String generate();
 }

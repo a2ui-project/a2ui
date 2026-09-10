@@ -18,7 +18,11 @@ Test suites are organized by functional domain:
 
 - `agent/streaming_parser.yaml`: Contains test cases for streaming parser implementations, verifying chunk buffering, incremental yielding, and edge cases like cut tokens.
 - `agent/parser.yaml`: Contains test cases for non-streaming parsing and payload fixing.
-- `agent/inference_format.yaml`: Contains test cases for inference formats and schema managers (select_catalog, load_catalog, generate_prompt).
+- `agent/inference_format.yaml`: Contains test cases for prompt rendering by the inference formats (generate_prompt).
+- `agent/catalog_provider.yaml`: Contains test cases for loading a catalog document into a catalog, whatever backing store it came from (load_catalog).
+- `agent/catalog_transformer.yaml`: Contains test cases for narrowing a catalog before prompting, including the `$defs` unions that reference the pruned entries.
+- `agent/catalog_resolver.yaml`: Contains test cases for `resolve_catalogs`, which negotiates renderer capabilities against the catalogs an agent registered. It supersedes the legacy single-catalog `select_catalog` helper.
+- `agent/request_processor.yaml`: Contains test cases for a whole agent turn: negotiate catalogs, render the prompt snippet, parse the model response.
 
 ### Extensions (`extensions/`)
 

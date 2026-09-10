@@ -93,6 +93,8 @@
           "verify_cuttable_keys",
           "accessibility_check",
           "data_model",
+          "process_request",
+          "resolve_catalogs",
           "process_messages",
           "catalog_schema"
         ]
@@ -126,6 +128,8 @@
           {"$ref": "#/$defs/VerifyCuttableKeysTest"},
           {"$ref": "#/$defs/AccessibilityCheckTest"},
           {"$ref": "#/$defs/DataModelTest"},
+          {"$ref": "#/$defs/ProcessRequestTest"},
+          {"$ref": "#/$defs/ResolveCatalogsTest"},
           {"$ref": "#/$defs/ProcessMessagesTest"},
           {"$ref": "#/$defs/CatalogSchemaTest"}
         ]
@@ -545,6 +549,113 @@
         }
       },
       "required": ["steps"]
+    },
+    "ProcessRequestTest": {
+      "type": "object",
+      "properties": {
+        "action": {"const": "process_request"},
+        "args": {
+          "type": "object",
+          "description": "Inputs to one agent turn.",
+          "properties": {
+            "client_capabilities": {
+              "type": "object",
+              "description": "The a2uiClientCapabilities object the renderer sent."
+            },
+            "allowed_components": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Component allowlist applied to the registered catalogs."
+            },
+            "allowed_functions": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Function allowlist applied to the registered catalogs."
+            },
+            "accepts_inline_catalogs": {
+              "type": "boolean",
+              "description": "Whether the agent accepts catalogs supplied inline by the renderer."
+            },
+            "llm_response": {
+              "type": "string",
+              "description": "The complete raw model response for the turn."
+            }
+          },
+          "required": ["client_capabilities", "llm_response"]
+        },
+        "expect_active_catalog_ids": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Catalog ids negotiated for the turn."
+        },
+        "expect_prompt_contains": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Substrings the generated system prompt snippet must contain."
+        },
+        "expect": {"type": "array", "description": "Expected response parts, in order."},
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["args"]
+    },
+    "ResolveCatalogsTest": {
+      "type": "object",
+      "properties": {
+        "action": {"const": "resolve_catalogs"},
+        "args": {
+          "type": "object",
+          "description": "Inputs to one capability negotiation.",
+          "properties": {
+            "catalogs": {
+              "type": "array",
+              "description": "The catalog configurations the agent registered, in preference order.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "catalog_schema": {
+                    "description": "An inline catalog document, or a path to one relative to the conformance directory."
+                  },
+                  "allowed_components": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Component allowlist applied to this catalog before it is returned."
+                  },
+                  "allowed_functions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Function allowlist applied to this catalog before it is returned."
+                  }
+                },
+                "required": ["catalog_schema"]
+              }
+            },
+            "renderer_capabilities": {
+              "type": "object",
+              "description": "The a2uiClientCapabilities object the renderer sent."
+            },
+            "accepts_inline_catalogs": {
+              "type": "boolean",
+              "description": "Whether the agent accepts catalogs supplied inline by the renderer."
+            }
+          },
+          "required": ["catalogs", "renderer_capabilities"]
+        },
+        "expect_active_catalog_ids": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Ids of the negotiated catalogs, in order."
+        },
+        "expect_components": {
+          "type": "object",
+          "description": "Component names each negotiated catalog exposes after transformation, keyed by catalog id and sorted.",
+          "additionalProperties": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        },
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["args"]
     },
     "CatalogSchemaTest": {
       "type": "object",

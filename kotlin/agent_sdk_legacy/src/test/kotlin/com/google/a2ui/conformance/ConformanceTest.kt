@@ -379,9 +379,14 @@ class ConformanceTest {
 
   @TestFactory
   fun testSchemaManagerConformance(): List<DynamicTest> {
-    val conformanceFile = ConformanceTestHelper.getConformanceFile(SCHEMA_MANAGER_YAML_FILE)
     val conformanceDir = ConformanceTestHelper.getConformanceDir()
-    val rawList = yamlMapper.readValue(conformanceFile, Any::class.java) as List<*>
+    // `catalog_provider.yaml` holds the `load_catalog` cases that used to sit in
+    // `inference_format.yaml`; both suites drive the same actions.
+    val rawList =
+      listOf(SCHEMA_MANAGER_YAML_FILE, CATALOG_PROVIDER_YAML_FILE).flatMap { file ->
+        yamlMapper.readValue(ConformanceTestHelper.getConformanceFile(file), Any::class.java)
+          as List<*>
+      }
 
     return rawList.mapNotNull { caseObj ->
       val case = caseObj as Map<*, *>
@@ -730,6 +735,7 @@ class ConformanceTest {
     private const val VALIDATOR_YAML_FILE = "core/validator.yaml"
     private const val CATALOG_YAML_FILE = "core/catalog.yaml"
     private const val SCHEMA_MANAGER_YAML_FILE = "agent/inference_format.yaml"
+    private const val CATALOG_PROVIDER_YAML_FILE = "agent/catalog_provider.yaml"
     private const val PARSER_YAML_FILE = "agent/parser.yaml"
 
     private const val KEY_EXPECT_CONTAINS = "expect_contains"
