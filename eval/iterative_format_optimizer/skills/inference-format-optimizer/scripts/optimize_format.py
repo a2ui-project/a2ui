@@ -117,7 +117,7 @@ def regenerate_master_index(target_dir: str) -> None:
                 except Exception as e:
                     print(f"Warning: Failed to parse {meta_path}: {e}", file=sys.stderr)
 
-            model_name = meta_data.get("model", "google/gemini-3.5-flash")
+            model_name = meta_data.get("model", "google/gemini-3.8-flash")
             thinking_budget = meta_data.get("thinking_budget")
             budget_str = (
                 str(thinking_budget) if thinking_budget is not None else "Unbounded"
@@ -220,7 +220,7 @@ def main(argv: Optional[List[str]] = None) -> None:
     parser.add_argument(
         "--model",
         type=str,
-        default="google/gemini-3.5-flash",
+        default="google/gemini-3.8-flash",
         help="Evaluation model name",
     )
     parser.add_argument(
