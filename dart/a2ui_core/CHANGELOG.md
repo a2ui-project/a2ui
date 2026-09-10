@@ -21,11 +21,11 @@
   `PayloadValidator.parseMessages`. Parsing needs no catalog, so it belongs to
   the message model rather than to a validator.
 - **Breaking:** `MessageProcessor` checks each batch of components as a graph
-  against the surface it joins, so duplicate ids, references naming no
-  component, cycles and over-deep chains now throw. References resolve against
-  the components the surface already holds, so an incremental update that
-  names a component arriving in a later message is rejected where it was
-  previously applied.
+  against the surface it joins, so duplicate ids, cycles and over-deep chains
+  now throw. Whether a reference resolves is not checked there: a payload may
+  declare a parent before its child, as the basic catalog's `00_incremental`
+  example does, so references are resolved by `checkSurfaceComplete` once a
+  caller declares the surface finished.
 - **Breaking:** `Catalog` now takes two type parameters,
   `Catalog<C extends ComponentApi, F extends FunctionApi>`.
 - **Breaking:** `ComponentApi` and `FunctionApi` are concrete classes with

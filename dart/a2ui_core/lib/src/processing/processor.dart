@@ -172,6 +172,10 @@ class MessageProcessor<T extends ComponentApi> {
     final List<Map<String, Object?>> components = [
       for (final ComponentModel c in surface.componentsModel.all) c.toJson(),
     ];
+    // A surface may carry only a theme. Nothing was rendered, so there is no
+    // root to require and nothing to be unreachable from it.
+    if (components.isEmpty) return;
+
     final Map<String, ComponentRefFields> refFields = _refFieldsFor(
       surface.catalog.id,
       components,
@@ -244,6 +248,10 @@ class MessageProcessor<T extends ComponentApi> {
   }
 
   void _processMessage(A2uiMessage message) {
+    // Data-model paths and nested function calls, which need no surface state
+    // and so are checked for every message before it is applied.
+    checkPathsAndRecursion(message.toJson());
+
     if (message is CreateSurfaceMessage) {
       _processCreateSurface(message);
     } else if (message is UpdateComponentsMessage) {
@@ -335,8 +343,6 @@ class MessageProcessor<T extends ComponentApi> {
     // waved through.
     _validateComponentBatch(surface, incoming, existing);
 
-    // Data-model paths and nested function calls, which need no surface state.
-    checkPathsAndRecursion(message.toJson());
 
     // Pass 2: mutation. Only reached when the whole batch is valid.
     for (final Map<String, dynamic> compJson in message.components) {
@@ -365,17 +371,19 @@ class MessageProcessor<T extends ComponentApi> {
   /// Checks one batch of components against the surface that will receive it.
   ///
   /// [incoming] is the batch; [existing] is what the surface already holds, as
-  /// `ComponentModel.toJson` renders it. References resolve against both, so a
-  /// batch may point at a component the client already has while a reference
-  /// to nothing at all is still caught — a check a payload cannot make on its
-  /// own, because it does not carry the surface's history.
+  /// `ComponentModel.toJson` renders it.
   ///
-  /// Cycles and depth are measured over the merged graph rather than the batch
-  /// alone, so a batch that closes a loop through existing components fails
-  /// here too.
+  /// Checks what a single batch can settle on its own: that it declares no id
+  /// twice, and that it closes no cycle and no over-deep chain. Cycles and
+  /// depth are measured over the merged graph rather than the batch alone, so
+  /// a batch that closes a loop through existing components fails here too.
   ///
-  /// Throws [A2uiIntegrityError] for a duplicate id or a reference to no
-  /// component, and [A2uiRecursionError] for a cycle or an over-deep chain.
+  /// Whether a reference resolves is not among them, because a payload may
+  /// declare a parent before its child; [checkSurfaceComplete] answers that
+  /// once the surface is finished.
+  ///
+  /// Throws [A2uiIntegrityError] for a duplicate id, and [A2uiRecursionError]
+  /// for a cycle or an over-deep chain.
   void _validateComponentBatch(
     SurfaceModel<T> surface,
     List<Map<String, Object?>> incoming,
@@ -391,10 +399,13 @@ class MessageProcessor<T extends ComponentApi> {
       // The root may arrive in a later message, so its absence is not an
       // error at this point; the surface is not yet claimed to be complete.
       requireRoot: false,
-      knownIds: {
-        for (final Map<String, Object?> component in existing)
-          if (component['id'] is String) component['id']! as String,
-      },
+      // Nor is a reference to a component the surface does not yet hold. A
+      // payload may declare a parent before its child — the basic catalog's
+      // `00_incremental` example does exactly that — so a reference resolves
+      // against what the surface ends up holding, not against what it holds
+      // at the moment the batch arrives. [checkSurfaceComplete] makes that
+      // check, once a caller says the surface is finished.
+      knownIds: null,
     );
     checkComponentTopology(
       [...existing, ...incoming],

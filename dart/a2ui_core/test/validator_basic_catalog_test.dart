@@ -224,15 +224,19 @@ void main() {
     });
 
     test('a child reference that names no component', () {
-      expect(
-        () => processor.processMessages(
-          A2uiMessage.parseAll(
-            render([
-              {'id': 'root', 'component': 'Card', 'child': 'missing'},
-            ]),
-            protocolVersion: A2uiProtocolVersion.v0_9,
-          ),
+      processor.processMessages(
+        A2uiMessage.parseAll(
+          render([
+            {'id': 'root', 'component': 'Card', 'child': 'missing'},
+          ]),
+          protocolVersion: A2uiProtocolVersion.v0_9,
         ),
+      );
+
+      // A reference resolves against the finished surface, not against the
+      // batch that carried it.
+      expect(
+        () => processor.checkSurfaceComplete('s'),
         throwsA(isA<A2uiIntegrityError>()),
       );
     });

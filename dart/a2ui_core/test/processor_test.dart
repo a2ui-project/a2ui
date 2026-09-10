@@ -125,20 +125,24 @@ void main() {
         },
       ];
 
-      test('rejects a reference to a component that does not exist', () {
-        expect(
-          () => processor.processMessages(
-            A2uiMessage.parseAll(
-              update([
-                {
-                  'id': 'root',
-                  'component': 'Column',
-                  'children': ['missing'],
-                },
-              ]),
-              protocolVersion: A2uiProtocolVersion.v0_9,
-            ),
+      test('reports a reference to no component once the surface is done', () {
+        // The reference may be satisfied by a later message, so applying the
+        // batch is fine; it is the finished surface that must hold together.
+        processor.processMessages(
+          A2uiMessage.parseAll(
+            update([
+              {
+                'id': 'root',
+                'component': 'Column',
+                'children': ['missing'],
+              },
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
           ),
+        );
+
+        expect(
+          () => processor.checkSurfaceComplete('s1'),
           throwsA(isA<A2uiIntegrityError>()),
         );
       });
@@ -231,17 +235,15 @@ void main() {
           ),
         );
 
+        // A duplicate id is settled by the batch alone, so it is rejected as
+        // the batch arrives and nothing in it is applied.
         expect(
           () => processor.processMessages([
             UpdateComponentsMessage(
               surfaceId: 's1',
               components: [
                 {'id': 'b', 'component': 'Text', 'text': 'new'},
-                {
-                  'id': 'c',
-                  'component': 'Column',
-                  'children': ['nowhere'],
-                },
+                {'id': 'b', 'component': 'Text', 'text': 'again'},
               ],
             ),
           ]),

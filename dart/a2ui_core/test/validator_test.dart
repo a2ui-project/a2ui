@@ -388,15 +388,18 @@ void main() {
       );
     });
 
-    test('rejects a child reference that names no component', () {
+    test('a child reference that names no component leaves it incomplete', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
       final List<A2uiMessage> messages = parse([
         createSurface(),
         updateComponents([card('root', 'missing')]),
       ]);
 
+      // Applying is fine: `missing` may arrive next.
+      processor.processMessages(messages);
+
       expect(
-        () => processor.processMessages(messages),
+        () => processor.checkSurfaceComplete('s1'),
         throwsA(
           isA<A2uiIntegrityError>().having(
             (e) => e.message,
@@ -550,8 +553,9 @@ void main() {
           text('a'),
         ]),
       ]);
+      second.processMessages(dangling);
       expect(
-        () => second.processMessages(dangling),
+        () => second.checkSurfaceComplete('s1'),
         throwsA(isA<A2uiIntegrityError>()),
       );
     });
@@ -582,8 +586,9 @@ void main() {
           },
         ]),
       ]);
+      second.processMessages(dangling);
       expect(
-        () => second.processMessages(dangling),
+        () => second.checkSurfaceComplete('s1'),
         throwsA(isA<A2uiIntegrityError>()),
       );
     });
@@ -605,8 +610,10 @@ void main() {
         ]),
       ]);
 
+      processor.processMessages(messages);
+
       expect(
-        () => processor.processMessages(messages),
+        () => processor.checkSurfaceComplete('s1'),
         throwsA(
           isA<A2uiIntegrityError>().having(
             (e) => e.message,
@@ -986,6 +993,25 @@ void main() {
           protocolVersion: A2uiProtocolVersion.v0_9,
         );
 
+    /// A processor over [ids] already holding surface `s1`, created against
+    /// [surfaceCatalog]. An incremental payload updates a surface the client
+    /// has, so the surface and its catalog are established first.
+    MessageProcessor<ComponentApi> holding(
+      List<String> ids, {
+      required String surfaceCatalog,
+    }) {
+      final MessageProcessor<ComponentApi> processor = over(ids);
+      processor.processMessages(
+        A2uiMessage.parseAll([
+          {
+            'version': 'v0.9',
+            'createSurface': {'surfaceId': 's1', 'catalogId': surfaceCatalog},
+          },
+        ], protocolVersion: A2uiProtocolVersion.v0_9),
+      );
+      return processor;
+    }
+
     /// An incremental payload: v0.9 declares `catalogId` on `createSurface`
     /// only, so this carries none.
     List<Map<String, Object?>> incremental(Map<String, Object?> component) => [
@@ -1041,7 +1067,7 @@ void main() {
       // agent negotiates one catalog before it generates anything, so the
       // components are checked rather than skipped.
       expect(
-        () => over(['cat1']).processMessages(
+        () => holding(['cat1'], surfaceCatalog: 'cat1').processMessages(
           A2uiMessage.parseAll(
             incremental(alpha()),
             protocolVersion: A2uiProtocolVersion.v0_9,
@@ -1050,7 +1076,7 @@ void main() {
         returnsNormally,
       );
       expect(
-        () => over(['cat1']).processMessages(
+        () => holding(['cat1'], surfaceCatalog: 'cat1').processMessages(
           A2uiMessage.parseAll(
             incremental(bogus),
             protocolVersion: A2uiProtocolVersion.v0_9,
@@ -1062,7 +1088,7 @@ void main() {
 
     test('rejects a component belonging to another catalog', () {
       expect(
-        () => over(['cat2']).processMessages(
+        () => holding(['cat2'], surfaceCatalog: 'cat2').processMessages(
           A2uiMessage.parseAll(
             incremental(alpha()),
             protocolVersion: A2uiProtocolVersion.v0_9,
@@ -1145,21 +1171,6 @@ void main() {
         throwsA(isA<A2uiCatalogError>()),
       );
     });
-
-    test('rejects an incremental payload it cannot attribute', () {
-      // Several catalogs supported, none named: nothing settles which one the
-      // component belongs to, and reporting it valid would mean reporting a
-      // payload nothing had checked.
-      expect(
-        () => over(['cat1', 'cat2']).processMessages(
-          A2uiMessage.parseAll(
-            incremental(alpha()),
-            protocolVersion: A2uiProtocolVersion.v0_9,
-          ),
-        ),
-        throwsA(isA<A2uiCatalogError>()),
-      );
-    });
   });
 
   group('MessageProcessor.processMessages', () {
@@ -1189,21 +1200,22 @@ void main() {
       );
     });
 
-    test('reports a structural failure before a catalog failure', () {
+    test('reports the catalog failure as the batch is applied', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
 
-      // `root` is both a dangling reference and missing its required `text`.
-      // Structure runs first, so the integrity error is what surfaces.
+      // `root` names a component the catalog does not declare and points at
+      // nothing. The catalog check runs as the batch is applied, so it is what
+      // surfaces; the dangling reference waits for `checkSurfaceComplete`.
       expect(
         () => processor.processMessages(
           A2uiMessage.parseAll([
             createSurface(),
             updateComponents([
-              {'id': 'root', 'component': 'Card', 'child': 'missing'},
+              {'id': 'root', 'component': 'Nonexistent', 'child': 'missing'},
             ]),
           ], protocolVersion: A2uiProtocolVersion.v0_9),
         ),
-        throwsA(isA<A2uiIntegrityError>()),
+        throwsA(isA<A2uiValidationError>()),
       );
     });
   });
