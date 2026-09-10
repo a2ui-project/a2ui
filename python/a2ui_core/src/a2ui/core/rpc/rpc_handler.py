@@ -44,7 +44,7 @@ OutboundListener = Callable[[dict[str, Any]], Union[None, Awaitable[None]]]
 
 
 @dataclass
-class PendingAgentCall:
+class _PendingAgentCall:
     """Record of a pending outbound callAgentFunction request matching TS interface."""
 
     resolve: Callable[[Any], None]
@@ -61,13 +61,43 @@ class CallOptions:
 
 
 @dataclass
-class NormalizedAgentCall:
+class _NormalizedAgentCall:
     """Normalized options for an outbound agent call."""
 
     function_call_id: str
     call: FunctionCall
     effective_timeout_ms: float
     version: str | None = None
+
+
+@dataclass
+class _ResolvedFunctionImplementation(Generic[TComponent, TFunction]):
+    """Result of resolving a function implementation from a catalog."""
+
+    fn: Any | None = None
+    catalog: Catalog[TComponent, TFunction] | None = None
+    error: str | None = None
+
+
+@dataclass
+class _TargetFnOrError:
+    """Holds resolved target callable or error response model."""
+
+    target_fn: Callable[..., Any] | None = None
+    error_response: RendererFunctionResponseMessage | None = None
+
+
+@dataclass
+class _PreparedRendererCall:
+    """Result of validating and resolving an inbound CallRendererFunction request."""
+
+    fn: Any | None = None
+    args: dict[str, Any] | None = None
+    call_id: str = "unknown"
+    version: str = "v1.0"
+    call_name: str = ""
+    catalog: Any | None = None
+    early_error_response: dict[str, Any] | None = None
 
 
 class RpcHandler(Generic[TComponent, TFunction]):
@@ -84,7 +114,7 @@ class RpcHandler(Generic[TComponent, TFunction]):
         self.catalogs = catalogs
         self.outbound_listener = outbound_listener
         self.default_timeout_ms = default_timeout_ms
-        self._pending_agent_calls: dict[str, PendingAgentCall] = {}
+        self._pending_agent_calls: dict[str, _PendingAgentCall] = {}
         self._is_disposed = False
 
     @property
@@ -111,15 +141,15 @@ class RpcHandler(Generic[TComponent, TFunction]):
     def resolve_catalog(
         self, catalog_id: str | None = None
     ) -> Catalog[TComponent, TFunction] | None:
-        """Resolves catalog by catalog_id or defaults to primary catalog."""
+        """Resolves a catalog by catalog_id, or returns primary catalog if catalog_id is None."""
         if catalog_id is not None:
             for cat in self.catalogs:
                 if getattr(cat, "catalog_id", None) == catalog_id:
                     return cat
             return None
-        return None
+        return self.catalogs[0] if self.catalogs else None
 
-    def create_response_error(
+    def _create_response_error(
         self,
         call_id: str,
         code: RpcErrorCode,
@@ -135,7 +165,7 @@ class RpcHandler(Generic[TComponent, TFunction]):
             ),
         )
 
-    def validate_inbound_message(
+    def _validate_inbound_message(
         self,
         message: CallRendererFunctionMessage,
     ) -> RendererFunctionResponseMessage | None:
@@ -146,7 +176,7 @@ class RpcHandler(Generic[TComponent, TFunction]):
         """
         version = str(getattr(message, "version", "v1.0"))
         if self._is_disposed:
-            return self.create_response_error(
+            return self._create_response_error(
                 getattr(
                     getattr(message, "call_renderer_function", None),
                     "function_call_id",
@@ -160,7 +190,7 @@ class RpcHandler(Generic[TComponent, TFunction]):
 
         call_req = getattr(message, "call_renderer_function", None)
         if not call_req or not getattr(call_req, "call_function", None):
-            return self.create_response_error(
+            return self._create_response_error(
                 getattr(call_req, "function_call_id", None) or "unknown",
                 RpcErrorCode.INVALID_FUNCTION_CALL,
                 "Malformed message: missing callRendererFunction or callFunction.",
@@ -169,7 +199,7 @@ class RpcHandler(Generic[TComponent, TFunction]):
 
         return None
 
-    def check_execution_permissions(
+    def _check_execution_permissions(
         self,
         fn: Any,
         call_name: str,
@@ -195,17 +225,17 @@ class RpcHandler(Generic[TComponent, TFunction]):
 
         return None
 
-    def resolve_function_implementation(
+    def _resolve_function_implementation(
         self,
         catalog_id: str | None,
         call_name: str,
         context: DataContext | None = None,
         expected_version: str | None = None,
-    ) -> tuple[Any | None, str | None]:
+    ) -> _ResolvedFunctionImplementation[TComponent, TFunction]:
         """Resolves function implementation from catalog with optional version check.
 
         Returns:
-            A tuple of (func_impl, error_message). If error_message is not None, resolution failed.
+            A _ResolvedFunctionImplementation object containing fn, catalog, and error if resolution failed.
         """
         matched_catalog = self.resolve_catalog(catalog_id)
         if (
@@ -217,11 +247,10 @@ class RpcHandler(Generic[TComponent, TFunction]):
             matched_catalog = getattr(context.surface, "catalog", None)
 
         if not matched_catalog:
-            return (
-                None,
-                f"Catalog not found: {catalog_id}"
+            return _ResolvedFunctionImplementation(
+                error=f"Catalog not found: {catalog_id}"
                 if catalog_id
-                else "No catalog available for function resolution.",
+                else "No catalog available for function resolution."
             )
 
         if (
@@ -233,9 +262,9 @@ class RpcHandler(Generic[TComponent, TFunction]):
             )
         ):
             cat_version = getattr(matched_catalog, "protocol_version", None)
-            return (
-                None,
-                (
+            return _ResolvedFunctionImplementation(
+                catalog=matched_catalog,
+                error=(
                     f"Catalog specification version ({cat_version}) does not match"
                     f" message protocol version ({expected_version})."
                 ),
@@ -247,72 +276,83 @@ class RpcHandler(Generic[TComponent, TFunction]):
             else getattr(matched_catalog, "functions", {}).get(call_name)
         )
         if not fn:
-            return None, f"Function not found: {call_name}"
+            return _ResolvedFunctionImplementation(
+                catalog=matched_catalog,
+                error=f"Function not found: {call_name}",
+            )
 
-        return fn, None
+        return _ResolvedFunctionImplementation(fn=fn, catalog=matched_catalog)
 
-    def _execute_function(
+    def _inspect_call_signature(
+        self, target_fn: Callable[..., Any]
+    ) -> tuple[bool, bool]:
+        """Inspects target_fn signature to determine context argument binding style."""
+        try:
+            sig = inspect.signature(target_fn)
+            params = list(sig.parameters.values())
+            has_pos_context = len(params) >= 2 and params[1].kind in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
+            has_kw_context = "context" in sig.parameters
+            return has_pos_context, has_kw_context
+        except (ValueError, TypeError):
+            return True, False
+
+    def _prepare_target_function(
         self,
-        fn: Any,
+        matched_catalog: Any,
+        call_name: str,
         args: dict[str, Any],
-        context: DataContext | None,
+        fn: Any,
         call_id: str,
         version: str,
-        call_name: str = "",
-        matched_catalog: Any = None,
-    ) -> tuple[Any | None, dict[str, Any] | None]:
-        """Validates args and invokes function, returning (result, error_response_dict)."""
-        try:
-            if matched_catalog:
+    ) -> _TargetFnOrError:
+        """Validates payload schema and resolves target callable."""
+        if matched_catalog:
+            try:
                 PayloadValidator(catalog=matched_catalog).validate_function(
                     call_name, args
                 )
-        except Exception as e:
-            err_resp = self.create_response_error(
-                call_id,
-                RpcErrorCode.INVALID_FUNCTION_CALL,
-                f"Invalid arguments for function '{call_name}': {e}",
-                version=version,
-            )
-            return None, self.emit_outbound_response(
-                err_resp.model_dump(
-                    by_alias=True, exclude_none=True, exclude_unset=True
+            except Exception as e:
+                err_resp = self._create_response_error(
+                    call_id,
+                    RpcErrorCode.INVALID_FUNCTION_CALL,
+                    f"Invalid arguments for function '{call_name}': {e}",
+                    version=version,
                 )
-            )
+                self._emit_outbound_response(
+                    err_resp.model_dump(
+                        by_alias=True, exclude_none=True, exclude_unset=True
+                    )
+                )
+                return _TargetFnOrError(error_response=err_resp)
 
-        try:
-            target_fn = (
-                fn.execute
-                if hasattr(fn, "execute") and callable(fn.execute)
-                else (fn if callable(fn) else None)
-            )
-            if target_fn is None:
-                res = None
-            else:
-                sig = inspect.signature(target_fn)
-                res = (
-                    target_fn(args, context)
-                    if len(sig.parameters) >= 2
-                    else target_fn(args)
-                )
-            return res, None
-        except Exception as e:
-            err_resp = self.create_response_error(
+        target_fn = (
+            fn.execute
+            if hasattr(fn, "execute") and callable(fn.execute)
+            else (fn if callable(fn) else None)
+        )
+        if target_fn is None:
+            err_resp = self._create_response_error(
                 call_id,
                 RpcErrorCode.EXECUTION_ERROR,
-                str(e),
+                f"Function '{call_name}' is not callable and has no execute method.",
                 version=version,
             )
-            return None, self.emit_outbound_response(
+            self._emit_outbound_response(
                 err_resp.model_dump(
                     by_alias=True, exclude_none=True, exclude_unset=True
                 )
             )
+            return _TargetFnOrError(error_response=err_resp)
+
+        return _TargetFnOrError(target_fn=target_fn)
 
     def _build_success_response(
         self, val: Any, call_id: str, version: str
-    ) -> dict[str, Any]:
-        """Constructs and emits a successful RendererFunctionResponseMessage dict."""
+    ) -> RendererFunctionResponseMessage:
+        """Constructs and emits a successful RendererFunctionResponseMessage model."""
         resp = RendererFunctionResponseMessage(
             version=cast(Any, version),
             rendererFunctionResponse=FunctionResponse(  # type: ignore[call-arg]
@@ -320,11 +360,10 @@ class RpcHandler(Generic[TComponent, TFunction]):
                 value=val,
             ),
         )
-        return self.emit_outbound_response(
-            resp.model_dump(by_alias=True, exclude_unset=True)
-        )
+        self._emit_outbound_response(resp.model_dump(by_alias=True, exclude_unset=True))
+        return resp
 
-    def execute_function_safely(
+    def _execute_function_safely(
         self,
         fn: Any,
         args: dict[str, Any],
@@ -333,17 +372,61 @@ class RpcHandler(Generic[TComponent, TFunction]):
         version: str,
         call_name: str = "",
         matched_catalog: Any = None,
-    ) -> dict[str, Any]:
-        """Safely executes a function implementation synchronously, returning response dict."""
-        res, err = self._execute_function(
-            fn, args, context, call_id, version, call_name, matched_catalog
+    ) -> RendererFunctionResponseMessage:
+        """Safely executes a function implementation synchronously, returning response model."""
+        prepared = self._prepare_target_function(
+            matched_catalog, call_name, args, fn, call_id, version
         )
-        if err is not None:
-            return err
-        val = asyncio.run(cast(Any, res)) if inspect.isawaitable(res) else res
-        return self._build_success_response(val, call_id, version)
+        if prepared.error_response is not None:
+            return prepared.error_response
 
-    async def execute_function_safely_async(
+        try:
+            target_fn = prepared.target_fn
+            assert target_fn is not None
+            has_pos_context, has_kw_context = self._inspect_call_signature(target_fn)
+            raw_res = (
+                target_fn(args, context)
+                if has_pos_context
+                else (
+                    target_fn(args, context=context)
+                    if has_kw_context
+                    else target_fn(args)
+                )
+            )
+            if inspect.isawaitable(raw_res):
+                try:
+                    loop = asyncio.get_running_loop()
+                    if loop.is_running():
+                        raise RuntimeError(
+                            f"Cannot execute async function '{call_name}'"
+                            " synchronously when an event loop is running. Use"
+                            " handle_call_renderer_function_async instead."
+                        )
+                except RuntimeError as re:
+                    if (
+                        "no running event loop" not in str(re).lower()
+                        and "running" in str(re).lower()
+                    ):
+                        raise re
+                    val = asyncio.run(cast(Any, raw_res))
+            else:
+                val = raw_res
+            return self._build_success_response(val, call_id, version)
+        except Exception as e:
+            err_model = self._create_response_error(
+                call_id,
+                RpcErrorCode.EXECUTION_ERROR,
+                str(e),
+                version=version,
+            )
+            self._emit_outbound_response(
+                err_model.model_dump(
+                    by_alias=True, exclude_none=True, exclude_unset=True
+                )
+            )
+            return err_model
+
+    async def _execute_function_safely_async(
         self,
         fn: Any,
         args: dict[str, Any],
@@ -352,30 +435,57 @@ class RpcHandler(Generic[TComponent, TFunction]):
         version: str,
         call_name: str = "",
         matched_catalog: Any = None,
-    ) -> dict[str, Any]:
-        """Safely executes a function implementation asynchronously, returning response dict."""
-        res, err = self._execute_function(
-            fn, args, context, call_id, version, call_name, matched_catalog
+    ) -> RendererFunctionResponseMessage:
+        """Safely executes a function implementation asynchronously, returning response model."""
+        prepared = self._prepare_target_function(
+            matched_catalog, call_name, args, fn, call_id, version
         )
-        if err is not None:
-            return err
-        val = await cast(Any, res) if inspect.isawaitable(res) else res
-        return self._build_success_response(val, call_id, version)
+        if prepared.error_response is not None:
+            return prepared.error_response
 
-    async def handle_call_renderer_function_async(
+        try:
+            target_fn = prepared.target_fn
+            assert target_fn is not None
+            has_pos_context, has_kw_context = self._inspect_call_signature(target_fn)
+            raw_res = (
+                target_fn(args, context)
+                if has_pos_context
+                else (
+                    target_fn(args, context=context)
+                    if has_kw_context
+                    else target_fn(args)
+                )
+            )
+            val = await cast(Any, raw_res) if inspect.isawaitable(raw_res) else raw_res
+            return self._build_success_response(val, call_id, version)
+        except Exception as e:
+            err_model = self._create_response_error(
+                call_id,
+                RpcErrorCode.EXECUTION_ERROR,
+                str(e),
+                version=version,
+            )
+            self._emit_outbound_response(
+                err_model.model_dump(
+                    by_alias=True, exclude_none=True, exclude_unset=True
+                )
+            )
+            return err_model
+
+    def _prepare_renderer_call(
         self,
         message: CallRendererFunctionMessage,
-        context: DataContext | None = None,
-        is_user_activated: bool = False,
-    ) -> dict[str, Any]:
-        """Asynchronously executes an agent-initiated function call on the renderer."""
-        validation_error = self.validate_inbound_message(message)
+        context: DataContext | None,
+        is_user_activated: bool,
+    ) -> _PreparedRendererCall:
+        """Validates inbound message, resolves implementation, and checks permissions."""
+        validation_error = self._validate_inbound_message(message)
         if validation_error is not None:
             res_dict = validation_error.model_dump(
                 by_alias=True, exclude_none=True, exclude_unset=True
             )
-            self.emit_outbound_response(res_dict)
-            return res_dict
+            self._emit_outbound_response(res_dict)
+            return _PreparedRendererCall(early_error_response=res_dict)
 
         version = str(message.version)
         call_req = message.call_renderer_function
@@ -385,27 +495,27 @@ class RpcHandler(Generic[TComponent, TFunction]):
         catalog_id = call_fn.catalog_id
         args = call_fn.args or {}
 
-        fn, resolve_error = self.resolve_function_implementation(
+        resolved = self._resolve_function_implementation(
             catalog_id, call_name, context, version
         )
-        if resolve_error:
-            error_response = self.create_response_error(
+        if resolved.error:
+            error_response = self._create_response_error(
                 call_id,
                 RpcErrorCode.INVALID_FUNCTION_CALL,
-                resolve_error,
+                resolved.error,
                 version=version,
             )
             res_dict = error_response.model_dump(
                 by_alias=True, exclude_none=True, exclude_unset=True
             )
-            self.emit_outbound_response(res_dict)
-            return res_dict
+            self._emit_outbound_response(res_dict)
+            return _PreparedRendererCall(early_error_response=res_dict)
 
-        access_error = self.check_execution_permissions(
-            fn, call_name, is_user_activated
+        access_error = self._check_execution_permissions(
+            resolved.fn, call_name, is_user_activated
         )
         if access_error:
-            error_response = self.create_response_error(
+            error_response = self._create_response_error(
                 call_id,
                 RpcErrorCode.INVALID_FUNCTION_CALL,
                 access_error,
@@ -414,19 +524,39 @@ class RpcHandler(Generic[TComponent, TFunction]):
             res_dict = error_response.model_dump(
                 by_alias=True, exclude_none=True, exclude_unset=True
             )
-            self.emit_outbound_response(res_dict)
-            return res_dict
+            self._emit_outbound_response(res_dict)
+            return _PreparedRendererCall(early_error_response=res_dict)
 
-        matched_catalog = self.resolve_catalog(catalog_id)
-        return await self.execute_function_safely_async(
-            fn,
-            args,
-            context,
-            call_id,
-            version,
+        return _PreparedRendererCall(
+            fn=resolved.fn,
+            args=args,
+            call_id=call_id,
+            version=version,
             call_name=call_name,
-            matched_catalog=matched_catalog,
+            catalog=resolved.catalog,
         )
+
+    async def handle_call_renderer_function_async(
+        self,
+        message: CallRendererFunctionMessage,
+        context: DataContext | None = None,
+        is_user_activated: bool = False,
+    ) -> dict[str, Any]:
+        """Asynchronously executes an agent-initiated function call on the renderer."""
+        prepared = self._prepare_renderer_call(message, context, is_user_activated)
+        if prepared.early_error_response is not None:
+            return prepared.early_error_response
+
+        resp_model = await self._execute_function_safely_async(
+            prepared.fn,
+            prepared.args or {},
+            context,
+            prepared.call_id,
+            prepared.version,
+            call_name=prepared.call_name,
+            matched_catalog=prepared.catalog,
+        )
+        return resp_model.model_dump(by_alias=True, exclude_unset=True)
 
     def handle_call_renderer_function(
         self,
@@ -435,43 +565,33 @@ class RpcHandler(Generic[TComponent, TFunction]):
         is_user_activated: bool = False,
     ) -> dict[str, Any]:
         """Executes an agent-initiated function call on the renderer synchronously."""
-        try:
-            loop = asyncio.get_running_loop()
-            if loop.is_running():
-                # Avoid nested event loop blocking in async contexts
-                return self.execute_function_safely(
-                    self.resolve_function_implementation(
-                        message.call_renderer_function.call_function.catalog_id,
-                        message.call_renderer_function.call_function.call,
-                        context,
-                        str(message.version),
-                    )[0],
-                    message.call_renderer_function.call_function.args or {},
-                    context,
-                    message.call_renderer_function.function_call_id or "unknown",
-                    str(message.version),
-                    call_name=message.call_renderer_function.call_function.call,
-                    matched_catalog=self.resolve_catalog(
-                        message.call_renderer_function.call_function.catalog_id
-                    ),
-                )
-            return loop.run_until_complete(
-                self.handle_call_renderer_function_async(
-                    message, context, is_user_activated=is_user_activated
-                )
-            )
-        except RuntimeError:
-            return asyncio.run(
-                self.handle_call_renderer_function_async(
-                    message, context, is_user_activated=is_user_activated
-                )
-            )
+        prepared = self._prepare_renderer_call(message, context, is_user_activated)
+        if prepared.early_error_response is not None:
+            return prepared.early_error_response
 
-    def handle_agent_function_response(self, message: dict[str, Any]) -> None:
-        """Resolves a pending outbound callAgentFunction request upon receiving agentFunctionResponse."""
-        resp_obj = (
-            message.get("agentFunctionResponse") if isinstance(message, dict) else None
+        resp_model = self._execute_function_safely(
+            prepared.fn,
+            prepared.args or {},
+            context,
+            prepared.call_id,
+            prepared.version,
+            call_name=prepared.call_name,
+            matched_catalog=prepared.catalog,
         )
+        return resp_model.model_dump(by_alias=True, exclude_unset=True)
+
+    def handle_agent_function_response(self, message: Any) -> None:
+        """Resolves a pending outbound callAgentFunction request upon receiving agentFunctionResponse."""
+        if hasattr(message, "model_dump") and callable(
+            getattr(message, "model_dump", None)
+        ):
+            msg_dict = message.model_dump(by_alias=True, exclude_unset=True)
+        elif isinstance(message, dict):
+            msg_dict = message
+        else:
+            return
+
+        resp_obj = msg_dict.get("agentFunctionResponse")
         if not resp_obj or not isinstance(resp_obj, dict):
             return
 
@@ -530,47 +650,66 @@ class RpcHandler(Generic[TComponent, TFunction]):
                 code=RpcErrorCode.DUPLICATE.value,
             )
 
-        normalized = NormalizedAgentCall(
+        normalized = _NormalizedAgentCall(
             function_call_id=call_id,
             call=call,
             effective_timeout_ms=effective_timeout,
             version=opts.version,
         )
 
-        return self.dispatch_agent_call(surface_id, normalized)
+        return self._dispatch_agent_call(surface_id, normalized)
 
-    def dispatch_agent_call(
-        self,
-        surface_id: str,
-        call_info: NormalizedAgentCall,
-    ) -> asyncio.Future[Any]:
-        """Dispatches a normalized agent function call to the outbound listener."""
-        call_id = call_info.function_call_id
-        call = call_info.call
-        effective_timeout = call_info.effective_timeout_ms
-        version = call_info.version
-
-        outbound_msg = CallAgentFunctionMessage(
-            version=cast(Any, version) if version is not None else cast(Any, "v1.0"),
-            callAgentFunction=CallAgentFunction(
-                surfaceId=surface_id,
-                functionCallId=call_id,
-                callFunction=call,
-            ),
-        ).model_dump(by_alias=True, exclude_none=True, exclude_unset=True)
-
+    def _get_or_create_loop(self) -> asyncio.AbstractEventLoop:
+        """Retrieves or creates an event loop safely."""
         try:
-            loop = asyncio.get_running_loop()
+            return asyncio.get_running_loop()
         except RuntimeError:
             try:
-                loop = asyncio.get_event_loop_policy().get_event_loop()
+                return asyncio.get_event_loop_policy().get_event_loop()
             except RuntimeError:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
+                return loop
 
-        future: asyncio.Future[Any] = loop.create_future()
+    def _create_timeout_timer(
+        self,
+        call_id: str,
+        call_name: str,
+        effective_timeout: float,
+        loop: asyncio.AbstractEventLoop,
+    ) -> asyncio.TimerHandle | None:
+        """Creates a timer handle for outbound agent call timeouts."""
+        if effective_timeout <= 0:
+            return None
 
-        timer_handle: asyncio.TimerHandle | None = None
+        def _on_timeout() -> None:
+            p = self._pending_agent_calls.pop(call_id, None)
+            if p:
+                p.reject(
+                    A2uiRpcError(
+                        f"Agent function call '{call_name}' timed out"
+                        f" after {effective_timeout}ms.",
+                        function_call_id=call_id,
+                        code=RpcErrorCode.TIMEOUT.value,
+                    )
+                )
+
+        return loop.call_later(effective_timeout / 1000.0, _on_timeout)
+
+    def _register_pending_call(
+        self,
+        call_id: str,
+        future: asyncio.Future[Any],
+        timer_handle: asyncio.TimerHandle | None,
+    ) -> _PendingAgentCall:
+        """Creates and registers a _PendingAgentCall with done callback cleanup."""
+
+        def _cleanup_pending(_fut: asyncio.Future[Any]) -> None:
+            if timer_handle:
+                timer_handle.cancel()
+            self._pending_agent_calls.pop(call_id, None)
+
+        future.add_done_callback(_cleanup_pending)
 
         def resolve(val: Any) -> None:
             if timer_handle:
@@ -590,35 +729,19 @@ class RpcHandler(Generic[TComponent, TFunction]):
                 except (asyncio.InvalidStateError, Exception):
                     pass
 
-        if effective_timeout > 0:
-
-            def _on_timeout() -> None:
-                p = self._pending_agent_calls.pop(call_id, None)
-                if p:
-                    p.reject(
-                        A2uiRpcError(
-                            f"Agent function call '{call.call}' timed out"
-                            f" after {effective_timeout}ms.",
-                            function_call_id=call_id,
-                            code=RpcErrorCode.TIMEOUT.value,
-                        )
-                    )
-
-            timer_handle = loop.call_later(effective_timeout / 1000.0, _on_timeout)
-
-        pending = PendingAgentCall(resolve=resolve, reject=reject)
+        pending = _PendingAgentCall(resolve=resolve, reject=reject)
         self._pending_agent_calls[call_id] = pending
+        return pending
 
-        if self.outbound_listener:
-            try:
-                res = self.outbound_listener(outbound_msg)
-                if inspect.isawaitable(res):
-                    loop.create_task(cast(Any, res))
-            except Exception as exc:
-                self._pending_agent_calls.pop(call_id, None)
-                pending.reject(exc)
-                raise exc
-        else:
+    def _send_outbound_message(
+        self,
+        outbound_msg: dict[str, Any],
+        call_id: str,
+        pending: _PendingAgentCall,
+        loop: asyncio.AbstractEventLoop,
+    ) -> None:
+        """Transmits outbound call agent function message to registered listener."""
+        if not self.outbound_listener:
             self._pending_agent_calls.pop(call_id, None)
             err = A2uiRpcError(
                 "No outbound_listener registered on RpcHandler",
@@ -628,9 +751,55 @@ class RpcHandler(Generic[TComponent, TFunction]):
             pending.reject(err)
             raise err
 
+        try:
+            res = self.outbound_listener(outbound_msg)
+            if inspect.isawaitable(res):
+                task = loop.create_task(cast(Any, res))
+
+                def _on_task_done(t: asyncio.Task[Any]) -> None:
+                    if not t.cancelled():
+                        exc = t.exception()
+                        if exc is not None:
+                            p = self._pending_agent_calls.pop(call_id, None)
+                            if p:
+                                p.reject(exc)
+
+                task.add_done_callback(_on_task_done)
+        except Exception as exc:
+            self._pending_agent_calls.pop(call_id, None)
+            pending.reject(exc)
+            raise exc
+
+    def _dispatch_agent_call(
+        self,
+        surface_id: str,
+        call_info: _NormalizedAgentCall,
+    ) -> asyncio.Future[Any]:
+        """Dispatches a normalized agent function call to the outbound listener."""
+        call_id = call_info.function_call_id
+        call = call_info.call
+        effective_timeout = call_info.effective_timeout_ms
+        version = call_info.version
+
+        outbound_msg = CallAgentFunctionMessage(
+            version=cast(Any, version) if version is not None else cast(Any, "v1.0"),
+            callAgentFunction=CallAgentFunction(
+                surfaceId=surface_id,
+                functionCallId=call_id,
+                callFunction=call,
+            ),
+        ).model_dump(by_alias=True, exclude_none=True, exclude_unset=True)
+
+        loop = self._get_or_create_loop()
+        future: asyncio.Future[Any] = loop.create_future()
+        timer_handle = self._create_timeout_timer(
+            call_id, call.call, effective_timeout, loop
+        )
+        pending = self._register_pending_call(call_id, future, timer_handle)
+        self._send_outbound_message(outbound_msg, call_id, pending, loop)
         return future
 
-    def emit_outbound_response(self, response: dict[str, Any]) -> dict[str, Any]:
+    def _emit_outbound_response(self, response: dict[str, Any]) -> dict[str, Any]:
         """Emits an outbound renderer function response message to the listener if registered."""
         if self.outbound_listener:
             try:
@@ -638,13 +807,21 @@ class RpcHandler(Generic[TComponent, TFunction]):
                 if inspect.isawaitable(res):
                     try:
                         loop = asyncio.get_running_loop()
-                        loop.create_task(cast(Any, res))
+                        task = loop.create_task(cast(Any, res))
+
+                        def _on_listener_done(t: asyncio.Task[Any]) -> None:
+                            if not t.cancelled():
+                                exc = t.exception()
+                                if exc is not None:
+                                    logger.error(
+                                        "Unhandled exception in async outbound"
+                                        " listener: %s",
+                                        exc,
+                                    )
+
+                        task.add_done_callback(_on_listener_done)
                     except RuntimeError:
                         asyncio.run(cast(Any, res))
-            except Exception:
-                # Listener errors should not mask execution response
-                pass
+            except Exception as exc:
+                logger.error("Error in outbound listener: %s", exc)
         return response
-
-    def _emit_outbound_response(self, response: dict[str, Any]) -> dict[str, Any]:
-        return self.emit_outbound_response(response)

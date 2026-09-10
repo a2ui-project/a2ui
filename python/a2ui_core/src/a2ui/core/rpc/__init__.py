@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .rpc_handler import CallOptions as CallOptions, OutboundListener, PendingAgentCall, RpcHandler
+from .rpc_handler import (
+    CallOptions as CallOptions,
+    OutboundListener,
+    RpcHandler,
+)
 
 __all__ = [
     "CallOptions",
     "RpcHandler",
-    "PendingAgentCall",
     "OutboundListener",
 ]
