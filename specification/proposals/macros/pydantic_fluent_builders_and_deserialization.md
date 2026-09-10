@@ -89,7 +89,12 @@ An agent receives an unknown container component (`VideoPlayer`) holding known c
 
 ## 4. Architecture and implementation
 
-### A. Base models and slot resolution (`a2ui.builder.base`)
+### A. Base models and slot resolution (`a2ui.builder.core` and `a2ui.builder.v0_9`)
+
+The builder architecture is split into two cleanly separated tiers:
+1. **`a2ui.builder.core`**: Protocol-version-agnostic AST, base node (`ComponentBuilderNode`), tree traversal (`ComponentTree`), and ID allocation (`IdAllocator`, `flatten_component_tree`).
+2. **`a2ui.builder.v0_9`**: Protocol-version-specific models (`Action`, `DataBinding`, `DynamicChildList`, `Slot`), envelopes (`create_surface`, `update_components`), and generated catalogs (`catalogs/basic/`).
+3. **No latest-defaulting facades**: To avoid breaking changes when future protocol versions (e.g. `v1_0`) are added, there is no unversioned `a2ui.builder` facade defaulting to the repository's latest protocol. All imports are explicit.
 
 In **Phase 1**, `ComponentBuilderNode` is established as a Pydantic `BaseModel` with strict attribute validation, and child slots are typed directly:
 
@@ -112,7 +117,7 @@ class ComponentBuilderNode(BaseModel):
     id: str | None = None
 
 
-# Phase 1: Direct type aliases for fluent authoring
+# Phase 1: Direct type aliases for fluent authoring in a2ui.builder.v0_9
 Slot: TypeAlias = ComponentBuilderNode
 SlotList: TypeAlias = Sequence[Slot]
 ```
@@ -152,14 +157,14 @@ SlotList: TypeAlias = Sequence[Slot]
 
 ---
 
-### B. Generated component classes (`a2ui.builder.catalogs.basic`)
+### B. Generated component classes (`a2ui.builder.v0_9.catalogs.basic`)
 
-Code generation emitted by `@a2ui/cli` produces clean Pydantic classes with open enums and typed slots:
+Code generation emitted by `@a2ui/cli` produces clean Pydantic classes with open enums and typed slots, importing directly from the resolved protocol version (`a2ui.builder.v0_9`):
 
 ```python
 from typing import Annotated, Literal, Optional, Union
 from pydantic import ConfigDict, Field
-from a2ui.builder.base import (
+from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
     Action,
     ComponentBuilderNode,
@@ -228,13 +233,13 @@ Component = Annotated[
 
 ---
 
-### C. Component tree and envelope serialization (`a2ui.builder.base`)
+### C. Component tree and envelope serialization (`a2ui.builder.core` and `a2ui.builder.v0_9`)
 
-Rather than binding the in-memory tree to a client-side surface abstraction, the builder provides `ComponentTree` to manage the component hierarchy, alongside explicit protocol envelope helpers:
+Rather than binding the in-memory tree to a client-side surface abstraction, the builder provides `ComponentTree` (in `a2ui.builder.core`) to manage the component hierarchy, alongside explicit protocol envelope helpers `create_surface` and `update_components` (in `a2ui.builder.v0_9`):
 
 ```python
 from typing import Any, Sequence
-from a2ui.builder.base import ComponentBuilderNode, traverse_and_serialize
+from a2ui.builder.core import ComponentBuilderNode, flatten_component_tree
 
 
 class ComponentTree:
@@ -252,54 +257,55 @@ class ComponentTree:
 
     def to_components(self) -> list[dict[str, Any]]:
         """Serializes the primary tree and all unlinked subtrees into flat component dicts."""
-        comps = traverse_and_serialize(self.root)
+        comps = flatten_component_tree(self.root)
         for sub_tree in self.unlinked_roots:
-            comps.extend(traverse_and_serialize(sub_tree))
+            comps.extend(flatten_component_tree(sub_tree))
         return comps
 
     def to_update(self, surface_id: str | None = None) -> dict[str, Any]:
-        """Packages the tree into an updateComponents envelope for incremental updates."""
-        target_id = surface_id or self.surface_id or "main"
+        """Packages components into an updateComponents envelope."""
+        sid = surface_id or self.surface_id
+        if not sid:
+            raise ValueError(
+                "surface_id must be provided either at ComponentTree initialization or to to_update()"
+            )
         return {
             "updateComponents": {
-                "surfaceId": target_id,
+                "surfaceId": sid,
                 "components": self.to_components(),
             }
         }
 
-    def to_surface(
-        self, surface_id: str | None = None, catalog_id: str | None = None
-    ) -> list[dict[str, Any]]:
-        """Packages the tree into createSurface and updateComponents envelopes for a new surface."""
-        target_id = surface_id or self.surface_id or "main"
-        create_env: dict[str, Any] = {"createSurface": {"surfaceId": target_id}}
-        if catalog_id:
-            create_env["createSurface"]["catalogId"] = catalog_id
-        return [create_env, self.to_update(target_id)]
+    def to_surface(self, surface_id: str | None = None) -> list[dict[str, Any]]:
+        """Packages components into createSurface and updateComponents envelopes."""
+        sid = surface_id or self.surface_id
+        if not sid:
+            raise ValueError(
+                "surface_id must be provided either at ComponentTree initialization or to to_surface()"
+            )
+        return [
+            {"createSurface": {"surfaceId": sid}},
+            self.to_update(surface_id=sid),
+        ]
 
-    def prune_unlinked(self) -> None:
-        """Clears all unlinked subtrees from the container."""
-        self.unlinked_roots.clear()
+    def prune_unlinked(self) -> list[ComponentBuilderNode]:
+        """Clears and returns any unlinked subtrees."""
+        pruned = self.unlinked_roots
+        self.unlinked_roots = []
+        return pruned
+```
+
+Top-level functional helpers are also provided for common envelope production:
+
+```python
+def create_surface(surface_id: str, root: ComponentBuilderNode) -> list[dict[str, Any]]:
+    """Creates surface initialization messages containing createSurface and updateComponents."""
+    return ComponentTree(root=root, surface_id=surface_id).to_surface()
 
 
-def create_surface(
-    surface_id: str,
-    root: ComponentBuilderNode,
-    *,
-    catalog_id: str | None = None,
-) -> list[dict[str, Any]]:
-    """Creates messages to establish a new surface (createSurface + updateComponents)."""
-    return ComponentTree(root=root).to_surface(
-        surface_id=surface_id, catalog_id=catalog_id
-    )
-
-
-def update_components(
-    surface_id: str,
-    root: ComponentBuilderNode,
-) -> list[dict[str, Any]]:
-    """Creates an incremental surface update message (updateComponents only)."""
-    return [ComponentTree(root=root).to_update(surface_id=surface_id)]
+def update_components(surface_id: str, root: ComponentBuilderNode) -> list[dict[str, Any]]:
+    """Creates an updateComponents patch message targeting an existing surface."""
+    return [ComponentTree(root=root, surface_id=surface_id).to_update()]
 ```
 
 ---
@@ -311,8 +317,8 @@ In **Phase 2**, the `deserialize` function takes raw wire messages, update envel
 ```python
 from typing import Any, Mapping, Sequence
 from pydantic import TypeAdapter
-from a2ui.builder.base import ComponentBuilderNode, ComponentTree
-from a2ui.builder.catalogs.basic import Component
+from a2ui.builder.v0_9 import ComponentBuilderNode, ComponentTree
+from a2ui.builder.v0_9.catalogs.basic import Component
 
 
 def deserialize(
@@ -419,8 +425,8 @@ def deserialize(
 A macro defines a reusable component subtree. It returns a component node directly, and the macro runtime flattens it without creating a surface envelope:
 
 ```python
-from a2ui.builder import Action
-from a2ui.builder.catalogs.basic import Button, Card, Column, Text
+from a2ui.builder.v0_9 import Action
+from a2ui.builder.v0_9.catalogs.basic import Button, Card, Column, Text
 from a2ui.macros import macro
 
 
@@ -452,8 +458,8 @@ expanded_components = card.to_components(prefix="macro_inst_1")
 An MCP tool creates an interactive view on a new surface:
 
 ```python
-from a2ui.builder import create_surface
-from a2ui.builder.catalogs.basic import Card, Column, Row, Text
+from a2ui.builder.v0_9 import create_surface
+from a2ui.builder.v0_9.catalogs.basic import Card, Column, Row, Text
 
 
 @mcp.tool()
@@ -484,8 +490,8 @@ def view_flight_status(flight_number: str) -> list[dict]:
 An MCP tool responds to a button click by updating a single card on the existing surface without resetting state:
 
 ```python
-from a2ui.builder import update_components
-from a2ui.builder.catalogs.basic import Card, Text
+from a2ui.builder.v0_9 import update_components
+from a2ui.builder.v0_9.catalogs.basic import Card, Text
 
 
 @mcp.tool()
@@ -507,8 +513,8 @@ def refresh_gate(flight_number: str) -> list[dict]:
 A service receives an update containing an unknown container (`VideoPlayer`) that holds known children (`Column`, `Text`):
 
 ```python
-from a2ui.builder import deserialize
-from a2ui.builder.catalogs.basic import Card, Column, Text, UnknownComponent
+from a2ui.builder.v0_9 import deserialize
+from a2ui.builder.v0_9.catalogs.basic import Card, Column, Text, UnknownComponent
 
 raw_payload = {
     "updateComponents": {
@@ -662,20 +668,24 @@ Phase 1 establishes authoring ergonomics, strict validation, and explicit serial
 
 #### Scope of Phase 1
 
-1. **Pydantic base models (`a2ui.builder.base`):**
+1. **Pydantic base models (`a2ui.builder.core` and `a2ui.builder.v0_9`):**
+   - Implement version-agnostic AST and serialization primitives in `a2ui.builder.core` (`ComponentBuilderNode`, `ComponentRef`, `ComponentTree`, `IdAllocator`, `flatten_component_tree`).
+   - Implement version-specific models, slot definitions, and envelope helpers in `a2ui.builder.v0_9` (`Action`, `DataBinding`, `AccessibilityAttributes`, `FunctionCall`, `CheckRule`, `DynamicChildList`, `Slot`, `SlotList`, `create_surface`, `update_components`).
+   - Strict versioned imports: No latest-defaulting facades in root `a2ui.builder`.
    - Convert `ComponentBuilderNode` from `@dataclass` to `pydantic.BaseModel`.
    - Configure `model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=False, validate_by_name=True, validate_assignment=True)`.
    - Add `.to_components()` directly to `ComponentBuilderNode`.
    - Convert supporting types (`Action`, `DataBinding`, `AccessibilityAttributes`, `FunctionCall`, `CheckRule`, `DynamicChildList`) to Pydantic models.
    - Define initial slot type aliases: `Slot: TypeAlias = ComponentBuilderNode` and `SlotList: TypeAlias = Sequence[Slot]`.
-2. **Component tree and envelope helpers (`a2ui.builder.base`):**
-   - Implement `ComponentTree` with `.to_components()`, `.to_update()`, `.to_surface()`, and `.prune_unlinked()`.
-   - Implement top-level functional helpers `create_surface(surface_id, root)` and `update_components(surface_id, root)`.
+2. **Component tree and envelope helpers (`a2ui.builder.core` and `a2ui.builder.v0_9`):**
+   - Implement `ComponentTree` in `a2ui.builder.core` with `.to_components()`, `.to_update()`, `.to_surface()`, and `.prune_unlinked()`.
+   - Implement top-level functional helpers `create_surface(surface_id, root)` and `update_components(surface_id, root)` in `a2ui.builder.v0_9.envelopes`.
 3. **Code generator migration (`@a2ui/cli`):**
-   - Update the Python emitter to generate Pydantic v2 `BaseModel` classes instead of `@dataclass(kw_only=True)`.
+   - Update the Python emitter to dynamically detect catalog protocol versions and resolve default base imports (`a2ui.builder.v0_9` for v0.9 catalogs, `a2ui.builder.v1_0` for v1.0 catalogs).
+   - Generate Pydantic v2 `BaseModel` classes instead of `@dataclass(kw_only=True)`.
    - Emit strict enums (`Literal[...]`) for all component enum properties to enforce edit-time and run-time validation against typos.
    - Type child slots as `child: Slot` and multi-child slots as `children: SlotList = ()`.
-   - Re-generate the basic catalog builders (`a2ui.builder.catalogs.basic`).
+   - Re-generate the basic catalog builders (`a2ui.builder.v0_9.catalogs.basic`).
 4. **Macro and MCP server alignment:**
    - Macros return `ComponentBuilderNode` (e.g. `Card`), serialized via `.to_components()`.
    - MCP tools call `create_surface()` for new views or `update_components()` for incremental patches.
@@ -696,7 +706,7 @@ Phase 2 adds incoming payload parsing, turning flat wire payloads into navigable
 #### Scope of Phase 2
 
 1. **Contextual slot resolution:**
-   - Upgrade `Slot` in `a2ui.builder.base` to use `Annotated[ComponentBuilderNode, WrapValidator(_resolve_slot)]`.
+   - Upgrade `Slot` in `a2ui.builder.v0_9` to use `Annotated[ComponentBuilderNode, WrapValidator(_resolve_slot)]`.
    - Resolve wire string IDs to concrete child instances in a single pass using validation context (`info.context["components"]`).
 2. **Catalog evolution models:**
    - Introduce `UnknownComponent(ComponentBuilderNode)` with `model_config = ConfigDict(extra="allow")`.

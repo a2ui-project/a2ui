@@ -52,6 +52,14 @@ function extractCatalogName(catalogId: string): string {
   return last.replace(/[^a-zA-Z0-9_]/g, '_');
 }
 
+export function resolveDefaultBaseImport(specVersion: string): string {
+  const clean = specVersion.startsWith('v') ? specVersion.slice(1) : specVersion;
+  if (clean.startsWith('1.')) {
+    return 'a2ui.builder.v1_0';
+  }
+  return 'a2ui.builder.v0_9';
+}
+
 export class PythonEmitter {
   readonly catalog: AnalysedCatalog;
   readonly baseImport: string;
@@ -59,7 +67,7 @@ export class PythonEmitter {
 
   constructor(catalog: AnalysedCatalog, options: PythonEmitterOptions = {}) {
     this.catalog = catalog;
-    this.baseImport = options.baseImport || 'a2ui.builder.base';
+    this.baseImport = options.baseImport ?? resolveDefaultBaseImport(catalog.specVersion);
     this.catalogName = options.catalogName || extractCatalogName(catalog.catalogId) || 'catalog';
   }
 

@@ -72,8 +72,8 @@ The CLI outputs a complete Python module with dataclasses for each component, `L
 The developer defines a macro by decorating a standard Python function with `@macro`. Inside the function, the developer uses the generated builder classes to construct the component tree:
 
 ```python
-from a2ui.builder import Action, ComponentRef
-from a2ui.builder.catalogs.basic import (
+from a2ui.builder.v0_9 import Action, ComponentRef
+from a2ui.builder.v0_9.catalogs.basic import (
     Button,
     Card,
     Column,
@@ -203,7 +203,7 @@ The generator consists of two stages:
    - A clear banner comment identifying the file as auto-generated and displaying the catalog ID.
    - An auto-generated docstring note and `__a2ui_codegen__ = "dart/a2ui_cli"` constant.
    - `Literal[...]` type aliases for string enums.
-   - Component builder classes decorated with `@dataclass(kw_only=True)` importing from `a2ui.builder.base`.
+   - Component builder classes decorated with `@dataclass(kw_only=True)` (or Pydantic `BaseModel`) importing from the appropriate versioned builder package (e.g. `a2ui.builder.v0_9` or `a2ui.builder.v1_0`), dynamically resolved by inspecting the catalog's protocol version (`specVersion`, `protocolVersion`, or `catalogId`).
    - Function call factory helpers.
    - An explicit `__all__` symbol export list.
 
@@ -237,20 +237,18 @@ dart run bin/a2ui.dart codegen --catalog <catalog_file> --out <output_path>
 
 The fluent builder library resides in `agent_sdks/python/a2ui_agent/src/a2ui/builder/`:
 
-- **`base.py`:** Defines the foundational classes and canonical protocol types:
+- **`core/` (`a2ui.builder.core`):** Protocol-version-agnostic tree structures, base node, ID allocation, and tree flattening:
   - `ComponentBuilderNode`: Base class for all component builders. Implements serialization, tree traversal, and child node identification.
   - `ExternalComponentBuilderNode` / `ComponentRef`: Represents a component already existing on the surface, referenced by its string ID.
-  - `DataBinding` / `bind()`: Encapsulates two-way client data model paths (`bind("/user/name")`).
-  - `DynamicChildList`: Binds an array path to a template component node for repeating collections.
-  - `Action`: Represents interactive events with name and payload dictionaries.
-  - `CheckRule`: Validation condition and error message definition.
-  - `AccessibilityAttributes`: Screen reader attributes (`label`, `description`, `live`, `hidden`).
-  - `DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`, `DynamicValue`: Type aliases for reactive client values accepting literals, `DataBinding`, or `FunctionCall`.
-  - `Child`, `ChildList`: Type aliases for single and multi-child slots.
-  - `Surface`: Container providing `.to_messages()` to produce `createSurface` and `updateComponents` protocol envelopes.
-- **`catalogs/basic/`:** Houses the generated basic catalog classes:
-  - `basic.py`: The single-file generated dataclasses and enums.
-  - `__init__.py`: Re-exports all components for direct import from `a2ui.builder.catalogs.basic`.
+  - `IdAllocator`: Sequential or custom ID generation for auto-assigned node IDs.
+  - `flatten_component_tree`: Traverses hierarchical builder trees and converts them into flat A2UI component lists.
+  - `ComponentTree`: In-memory component hierarchy management, tracking the primary root and any unlinked subtrees.
+- **`v0_9/` (`a2ui.builder.v0_9`):** Wire models, envelopes, and generated catalogs conforming to A2UI Protocol v0.9:
+  - `models.py`: Foundational protocol types including `DataBinding` / `bind()`, `DynamicChildList`, `Action`, `CheckRule`, `AccessibilityAttributes`, `DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`, `DynamicValue`, and `Slot` / `SlotList`.
+  - `envelopes.py`: Functional helpers `create_surface(surface_id, root)` and `update_components(surface_id, root)`.
+  - `catalogs/basic/`: Houses the generated basic catalog classes (`basic.py` and `__init__.py`) re-exported via `a2ui.builder.v0_9.catalogs.basic`.
+- **`v1_0/` (`a2ui.builder.v1_0`):** Protocol v1.0 builder implementations (planned).
+- **Strict Versioned Imports (No Latest Facade):** The package intentionally avoids an unversioned `a2ui.builder` facade defaulting to the latest version in the repo. Because defaulting aliases would cause silent breaking changes when new protocol versions are added, consumers must explicitly import from the targeted protocol version (e.g. `from a2ui.builder.v0_9 import ...`).
 
 #### Automatic identifier assignment and tree flattening
 
@@ -328,7 +326,7 @@ The macro execution engine resides in `agent_sdks/python/a2ui_agent/src/a2ui/inf
 The sample application in `samples/community/macros/` provides an end-to-end demonstration:
 
 - **`server.py`:** FastMCP server exposing macro definitions.
-- **`macro_definitions.py`:** Defines concrete macros (`EconomicIndicatorCard`, `WeatherCard`, `ServerMetricSummary`) using the generated `a2ui.builder.catalogs.basic` catalog builder classes.
+- **`macro_definitions.py`:** Defines concrete macros (`EconomicIndicatorCard`, `WeatherCard`, `ServerMetricSummary`) using the generated `a2ui.builder.v0_9.catalogs.basic` catalog builder classes.
 - **Web client:** Runs a client application with Lit and React renderers, verifying that macro expansions render correctly in the browser.
 
 #### Rationale

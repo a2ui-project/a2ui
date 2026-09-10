@@ -33,8 +33,7 @@ export function createCodegenCommand(): Command {
     .option('--lang <language>', 'Target language for code generation (python).', 'python')
     .option(
       '--base-import <module>',
-      'Base module from which ComponentBuilderNode, DataBinding, etc. are imported.',
-      'a2ui.builder.base',
+      'Base module from which ComponentBuilderNode, DataBinding, etc. are imported (defaults dynamically by catalog protocol version).',
     )
     .option('--catalog-name <name>', 'Override the inferred catalog module name.')
     .action(async options => {
@@ -61,7 +60,11 @@ export function createCodegenCommand(): Command {
         process.exit(1);
       }
 
-      const analysed = CatalogAnalyzer.analyze(catalog);
+      const catalogVersion =
+        catalogJson.protocolVersion ?? catalogJson.version ?? catalogJson.specVersion;
+      const analysed = CatalogAnalyzer.analyze(catalog, {
+        specVersion: typeof catalogVersion === 'string' ? catalogVersion : undefined,
+      });
       const outPath = path.resolve(process.cwd(), options.out);
 
       if (options.lang === 'python') {

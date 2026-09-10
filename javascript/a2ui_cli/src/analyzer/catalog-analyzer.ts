@@ -30,15 +30,49 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+export function resolveCatalogVersion(options?: {
+  specVersion?: string;
+  catalogId?: string;
+}): string {
+  const explicit = options?.specVersion;
+  if (explicit && typeof explicit === 'string' && explicit.trim().length > 0) {
+    let v = explicit.trim();
+    if (!v.startsWith('v')) v = `v${v}`;
+    v = v.replace(/_/g, '.');
+    if (v === 'v0.9') v = 'v0.9.1';
+    return v;
+  }
+
+  const idToCheck = options?.catalogId ?? '';
+  const match = idToCheck.match(/\/(v\d+(_\d+)*)\//);
+  if (match) {
+    let v = match[1].replace(/_/g, '.');
+    if (v === 'v0.9') v = 'v0.9.1';
+    return v;
+  }
+
+  return 'v0.9.1';
+}
+
+export interface CatalogAnalyzeOptions {
+  specVersion?: string;
+}
+
 export class CatalogAnalyzer {
   private enums = new Map<string, EnumType>();
 
-  static analyze(catalog: Catalog<ComponentApi, FunctionApi>): AnalysedCatalog {
+  static analyze(
+    catalog: Catalog<ComponentApi, FunctionApi>,
+    options?: CatalogAnalyzeOptions,
+  ): AnalysedCatalog {
     const analyzer = new CatalogAnalyzer();
-    return analyzer.analyzeCatalog(catalog);
+    return analyzer.analyzeCatalog(catalog, options);
   }
 
-  analyzeCatalog(catalog: Catalog<ComponentApi, FunctionApi>): AnalysedCatalog {
+  analyzeCatalog(
+    catalog: Catalog<ComponentApi, FunctionApi>,
+    options?: CatalogAnalyzeOptions,
+  ): AnalysedCatalog {
     this.enums.clear();
 
     const components = new Map<string, AnalysedComponentApi>();
@@ -51,7 +85,14 @@ export class CatalogAnalyzer {
       functions.set(name, this.analyzeFunction(fn));
     }
 
-    const specVersion = (catalog as any).specVersion || 'v0.9.1';
+    const specVersion = resolveCatalogVersion({
+      specVersion:
+        options?.specVersion ??
+        (catalog as any).specVersion ??
+        (catalog as any).protocolVersion ??
+        (catalog as any).version,
+      catalogId: catalog.id,
+    });
 
     return {
       catalogId: catalog.id,
