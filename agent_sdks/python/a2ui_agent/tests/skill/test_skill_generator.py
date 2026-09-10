@@ -93,10 +93,29 @@ class TestSkillGenerator(unittest.TestCase):
         self.assertEqual(basic_sk.name, "a2ui-basic")
 
     def test_export_to_directory(self):
-        """Verifies exporting SkillSet to directory."""
+        """Verifies exporting SkillSet to directory, ensuring stale skill files are wiped while sibling skills are preserved."""
+        # 1. Pre-populate directory with a stale file inside a matching skill folder, an unrelated sibling skill, and a root note
+        stale_core_dir = os.path.join(self.temp_dir.name, "a2ui-core")
+        os.makedirs(stale_core_dir, exist_ok=True)
+        stale_file = os.path.join(stale_core_dir, "stale_note.txt")
+        with open(stale_file, "w", encoding="utf-8") as f:
+            f.write("old data")
+
+        unrelated_skill_dir = os.path.join(self.temp_dir.name, "unrelated-custom-skill")
+        os.makedirs(unrelated_skill_dir, exist_ok=True)
+        unrelated_file = os.path.join(unrelated_skill_dir, "SKILL.md")
+        with open(unrelated_file, "w", encoding="utf-8") as f:
+            f.write("custom content")
+
+        root_note = os.path.join(self.temp_dir.name, "root_note.txt")
+        with open(root_note, "w", encoding="utf-8") as f:
+            f.write("keep me")
+
+        # 2. Export skillset
         skill_set = self.generator.generate_skillset()
         exported = skill_set.export_to_directory(self.temp_dir.name)
 
+        # 3. Assert skills were written
         self.assertIn("a2ui-core/SKILL.md", exported)
         self.assertTrue(
             os.path.exists(os.path.join(self.temp_dir.name, "a2ui-core", "SKILL.md"))
@@ -104,6 +123,15 @@ class TestSkillGenerator(unittest.TestCase):
         self.assertTrue(
             os.path.exists(os.path.join(self.temp_dir.name, "a2ui-basic", "SKILL.md"))
         )
+
+        # 4. Assert stale file in matching skill folder was wiped
+        self.assertFalse(os.path.exists(stale_file))
+
+        # 5. Assert unrelated sibling skill and root note were strictly preserved
+        self.assertTrue(os.path.exists(unrelated_file))
+        with open(unrelated_file, "r", encoding="utf-8") as f:
+            self.assertEqual(f.read(), "custom content")
+        self.assertTrue(os.path.exists(root_note))
 
     def test_skill_set_get_matching_rules(self):
         """Verifies SkillSet.get matching rules (exact key, exact name, min-3-char substring)."""

@@ -52,7 +52,7 @@ Every language implementation (`a2ui-python`, `a2ui-swift`, `a2ui-kotlin`, `a2ui
 
 - **`Skill`**: Pure format-agnostic skill document container (`name`, `description`, `content`, `metadata`, `filename`). Provides `.to_markdown()` for frontmatter serialization.
 - **`SkillSet`**: Collection container of `Skill` objects representing a modular package (`a2ui-core`, `a2ui-basic`, `a2ui-commerce`).
-  - `.export_to_directory(output_dir)`: Writes modular skills to disk.
+  - `.export_to_directory(output_dir)`: Writes modular skills to disk (wipes matching skill subdirectories in `output_dir` before writing to prevent stale files, preserving unrelated sibling folders).
   - `.to_dict()` / `[key]`: Dictionary serialization and indexing.
 - **`SkillGenerator`**: Format-agnostic compiler class wrapping an `InferenceFormat` strategy:
   - `SkillGenerator(fmt)`: Instantiates a compiler wrapping the given inference format strategy.
