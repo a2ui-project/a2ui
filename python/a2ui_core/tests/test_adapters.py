@@ -322,7 +322,7 @@ def test_extract_operations_invalid_version_raises_validation_error():
     v09_adapter = VersionAdapterFactory.get_adapter("v0.9")
     with pytest.raises(
         A2uiValidationError,
-        match=r"messages\.0\.version: Input should be one of \['v0\.9', 'v0\.9\.1'\]",
+        match=r"version: Input should be one of \['v0\.9', 'v0\.9\.1'\]",
     ):
         v09_adapter.extract_operations(
             {
@@ -334,7 +334,7 @@ def test_extract_operations_invalid_version_raises_validation_error():
     v10_adapter = VersionAdapterFactory.get_adapter("v1.0")
     with pytest.raises(
         A2uiValidationError,
-        match=r"messages\.0\.version: Input should be 'v1\.0'",
+        match=r"version: Input should be 'v1\.0'",
     ):
         v10_adapter.extract_operations(
             {

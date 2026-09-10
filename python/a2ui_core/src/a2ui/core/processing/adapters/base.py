@@ -15,15 +15,12 @@
 """Base classes, interfaces, and protocol compatibility helpers for version adapters."""
 
 from collections.abc import Mapping, Sequence
-import re
 from abc import ABC, abstractmethod
 from typing import Any
 from pydantic import ValidationError
 from ..operations import InternalOperation
-from ...exceptions import (
-    A2uiErrorDetail,
-    A2uiValidationError,
-)
+from ..format_pydantic_error import format_validation_error_summary
+from ...exceptions import A2uiValidationError
 from ...state.validation_helpers import validate_recursion_and_paths
 from ...schema import AgentToRendererMessage, ProtocolVersion
 from ...common.semver import (
@@ -112,15 +109,6 @@ def is_catalog_version_compatible(
     return bool(normalized_catalog and normalized_catalog == normalized_message)
 
 
-def _clean_loc_part(x: str) -> str:
-    """Extracts base message class names from Pydantic validator wrapper strings."""
-    if x.startswith("function-after[") or x.startswith("function-before["):
-        match = re.search(r"([A-Za-z0-9_]+Message)\]", x)
-        if match:
-            return match.group(1)
-    return x
-
-
 class VersionAdapter(ABC):
     """Abstract base class for protocol version adapters."""
 
@@ -192,56 +180,6 @@ class BaseVersionAdapter(VersionAdapter, ABC):
     def prepare_payload_for_validation(self, msg_obj: dict[str, Any]) -> dict[str, Any]:
         """Normalizes the message object before running schema validation."""
         return msg_obj
-
-    def _format_validation_errors(
-        self, error: ValidationError, messages: list[dict[str, Any]]
-    ) -> list[A2uiErrorDetail]:
-        """Formats Pydantic validation errors while filtering out irrelevant union branches."""
-        details = []
-        branch_to_action = {}
-        action_to_branch = {}
-        for action in self.valid_actions:
-            branch = action[0].upper() + action[1:] + "Message"
-            branch_to_action[branch] = action
-            action_to_branch[action] = branch
-
-        all_branch_names = set(branch_to_action.keys())
-
-        for err in error.errors():
-            loc = err.get("loc", [])
-            loc_parts = [_clean_loc_part(str(x)) for x in loc]
-            if len(loc) >= 3 and loc[0] == "messages" and isinstance(loc[1], int):
-                msg_idx = loc[1]
-                if msg_idx < len(messages) and isinstance(messages[msg_idx], dict):
-                    m = messages[msg_idx]
-                    present_actions = [k for k in self.valid_actions if k in m]
-                    if present_actions:
-                        branch = loc_parts[2]
-                        if branch in all_branch_names:
-                            expected_branches = {
-                                action_to_branch[act] for act in present_actions
-                            }
-                            if branch not in expected_branches:
-                                continue
-
-            clean_loc_parts = [x for x in loc_parts if x not in all_branch_names]
-            path_str = ".".join(clean_loc_parts)
-            msg = err.get("msg", "Validation failed")
-            err_type = err.get("type", "")
-            if err_type == "missing":
-                code = "missing_field"
-            elif err_type == "extra_forbidden":
-                code = "extra_field"
-            elif (
-                err_type.endswith("_type")
-                or err_type.endswith("_parsing")
-                or "type" in err_type
-            ):
-                code = "type_mismatch"
-            else:
-                code = "invalid_value"
-            details.append(A2uiErrorDetail(path_str, code, msg))
-        return details
 
     def _extract_single_action(self, message: dict[str, Any]) -> str:
         """Validates presence of exactly one action key from valid_actions."""
@@ -338,7 +276,7 @@ class BaseVersionAdapter(VersionAdapter, ABC):
             if ver_str != "v0.8":
                 if "version" not in raw_payload:
                     raise A2uiValidationError(
-                        f"Invalid {self.version} message: messages.0.version: 'version'"
+                        f"Invalid {self.version} message: version: 'version'"
                         " is a required property"
                     )
                 raw_ver = raw_payload["version"]
@@ -360,7 +298,7 @@ class BaseVersionAdapter(VersionAdapter, ABC):
                         )
                     )
                     raise A2uiValidationError(
-                        f"Invalid {self.version} message: messages.0.version: Input"
+                        f"Invalid {self.version} message: version: Input"
                         f" should be {expected}"
                     )
 
@@ -368,8 +306,12 @@ class BaseVersionAdapter(VersionAdapter, ABC):
             try:
                 self.schema.model_validate({"messages": [prepared_msg]})
             except ValidationError as e:
-                details = self._format_validation_errors(e, [raw_payload])
-                summary = "; ".join(f"{d.path}: {d.message}" for d in details)
+                summary = format_validation_error_summary(
+                    e,
+                    messages=[raw_payload],
+                    valid_actions=self.valid_actions,
+                    strip_messages_prefix=True,
+                )
                 raise A2uiValidationError(f"Invalid {self.version} message: {summary}")
 
             return self._extract_operations_for_action(

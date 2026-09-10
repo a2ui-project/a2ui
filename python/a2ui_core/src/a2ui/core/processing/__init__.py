@@ -24,6 +24,11 @@ from .operations import (
     InternalUpdateDataModelOp,
 )
 from .adapters import VersionAdapter, VersionAdapterFactory
+from .format_pydantic_error import (
+    format_pydantic_issue,
+    format_validation_error,
+    format_validation_error_summary,
+)
 
 __all__ = [
     "ExecutionContext",
@@ -36,4 +41,7 @@ __all__ = [
     "InternalDeleteSurfaceOp",
     "VersionAdapter",
     "VersionAdapterFactory",
+    "format_pydantic_issue",
+    "format_validation_error",
+    "format_validation_error_summary",
 ]

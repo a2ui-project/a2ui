@@ -12,27 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from typing import (
     Any,
-    Dict,
     Generic,
-    List,
-    Optional,
-    Set,
-    Tuple,
     Type,
-    Union,
-    cast,
-    get_args,
-    get_origin,
-    TYPE_CHECKING,
 )
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 from jsonschema import Draft202012Validator
 from ..exceptions import A2uiValidationError, A2uiErrorDetail, A2uiCatalogError
 from ..catalog.catalog import Catalog, TComponent, TFunction
+from ..processing.format_pydantic_error import format_validation_error
 
 
 class A2uiValidatorError(A2uiValidationError):
@@ -226,41 +216,13 @@ class PayloadValidator(Generic[TComponent, TFunction]):
         try:
             model_cls.model_validate(comp)
         except ValidationError as e:
-            for err in e.errors():
-                loc_parts = [str(x) for x in err.get("loc", [])]
-                path_str = ".".join(loc_parts)
-                err_type = err.get("type", "")
-                if err_type == "missing":
-                    code = "missing_field"
-                    msg = (
-                        f"'{path_str}' is a required property"
-                        if path_str
-                        else "Missing required field"
-                    )
-                    # Match jsonschema error path behavior for missing property
-                    path_str = ""
-                elif err_type == "extra_forbidden":
-                    code = "extra_field"
-                    msg = "Additional properties are not allowed"
-                elif "type" in err_type or "parsing" in err_type:
-                    code = "type_mismatch"
-                    msg = err.get("msg", "Type mismatch")
-                else:
-                    code = "invalid_value"
-                    msg = err.get("msg", "Validation failed")
-
-                if allow_unknown and code == "extra_field":
-                    continue
-
-                errors.append(
-                    A2uiErrorDetail(
-                        path=f"components.{comp_id or 'unknown'}.{path_str}"
-                        if path_str
-                        else f"components.{comp_id or 'unknown'}",
-                        code=code,
-                        message=msg,
-                    )
-                )
+            component_errors = format_validation_error(
+                e,
+                path_prefix=f"components.{comp_id or 'unknown'}",
+                allow_unknown_extra=allow_unknown,
+                match_jsonschema_missing_path=True,
+            )
+            errors.extend(component_errors)
 
     def _validate_dict_component(
         self,
