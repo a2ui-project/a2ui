@@ -135,26 +135,13 @@ class MessageProcessor<T extends ComponentApi> {
     );
   }
 
-  /// Parses a raw payload, then processes it.
+  /// Processes a list of messages, applying each to the surface it names.
   ///
-  /// Envelope validation happens here, as the payload is parsed: every message
-  /// must declare a protocol version this SDK implements and carry exactly one
-  /// update type. Neither check needs a catalog, which is what lets a payload
-  /// be parsed before each message is matched to the surface, and so the
-  /// catalog, it belongs to. Returns the parsed messages.
-  ///
-  /// Throws [A2uiValidationError] for a malformed envelope, including one
-  /// mixing update types, before any message reaches the models.
-  List<A2uiMessage> processPayload(List<Map<String, Object?>> payload) {
-    final List<A2uiMessage> messages = A2uiMessage.parseAll(
-      payload,
-      protocolVersion: protocolVersion,
-    );
-    processMessages(messages);
-    return messages;
-  }
-
-  /// Processes a list of messages.
+  /// A caller holding a raw payload parses it first, with
+  /// `A2uiMessage.parseAll(payload, protocolVersion: ...)`. That is a separate
+  /// step because envelope parsing needs no catalog and no surface: it is what
+  /// lets a payload be read before each message is matched to the surface, and
+  /// so the catalog, it belongs to.
   void processMessages(List<A2uiMessage> messages) {
     for (final message in messages) {
       _processMessage(message);

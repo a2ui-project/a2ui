@@ -114,7 +114,15 @@ void main() {
             (message! as Map).cast<String, Object?>(),
         ];
 
-        expect(() => basicProcessor().processPayload(payload), returnsNormally);
+        expect(
+          () => basicProcessor().processMessages(
+            A2uiMessage.parseAll(
+              payload,
+              protocolVersion: A2uiProtocolVersion.v0_9,
+            ),
+          ),
+          returnsNormally,
+        );
       });
     }
   });
@@ -126,10 +134,13 @@ void main() {
 
     test('a component missing a required property', () {
       expect(
-        () => processor.processPayload(
-          render([
-            {'id': 'root', 'component': 'Text'},
-          ]),
+        () => processor.processMessages(
+          A2uiMessage.parseAll(
+            render([
+              {'id': 'root', 'component': 'Text'},
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         ),
         throwsA(isA<A2uiValidationError>()),
       );
@@ -137,10 +148,18 @@ void main() {
 
     test('a value outside a property enum', () {
       expect(
-        () => processor.processPayload(
-          render([
-            {'id': 'root', 'component': 'Text', 'text': 'hi', 'variant': 'h9'},
-          ]),
+        () => processor.processMessages(
+          A2uiMessage.parseAll(
+            render([
+              {
+                'id': 'root',
+                'component': 'Text',
+                'text': 'hi',
+                'variant': 'h9',
+              },
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         ),
         throwsA(isA<A2uiValidationError>()),
       );
@@ -148,15 +167,18 @@ void main() {
 
     test('a property the component does not declare', () {
       expect(
-        () => processor.processPayload(
-          render([
-            {
-              'id': 'root',
-              'component': 'Text',
-              'text': 'hi',
-              'notAProperty': 1,
-            },
-          ]),
+        () => processor.processMessages(
+          A2uiMessage.parseAll(
+            render([
+              {
+                'id': 'root',
+                'component': 'Text',
+                'text': 'hi',
+                'notAProperty': 1,
+              },
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         ),
         throwsA(isA<A2uiValidationError>()),
       );
@@ -164,10 +186,13 @@ void main() {
 
     test('a component type the catalog does not declare', () {
       expect(
-        () => processor.processPayload(
-          render([
-            {'id': 'root', 'component': 'Frobnicator'},
-          ]),
+        () => processor.processMessages(
+          A2uiMessage.parseAll(
+            render([
+              {'id': 'root', 'component': 'Frobnicator'},
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         ),
         throwsA(isA<A2uiValidationError>()),
       );
@@ -178,18 +203,21 @@ void main() {
       // back at the catalog document, so resolving it in both directions is
       // what makes this check possible.
       expect(
-        () => processor.processPayload(
-          render([
-            {
-              'id': 'root',
-              'component': 'Text',
-              'text': {
-                'call': 'noSuchFunction',
-                'args': <String, Object?>{},
-                'returnType': 'string',
+        () => processor.processMessages(
+          A2uiMessage.parseAll(
+            render([
+              {
+                'id': 'root',
+                'component': 'Text',
+                'text': {
+                  'call': 'noSuchFunction',
+                  'args': <String, Object?>{},
+                  'returnType': 'string',
+                },
               },
-            },
-          ]),
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         ),
         throwsA(isA<A2uiValidationError>()),
       );
@@ -197,10 +225,13 @@ void main() {
 
     test('a child reference that names no component', () {
       expect(
-        () => processor.processPayload(
-          render([
-            {'id': 'root', 'component': 'Card', 'child': 'missing'},
-          ]),
+        () => processor.processMessages(
+          A2uiMessage.parseAll(
+            render([
+              {'id': 'root', 'component': 'Card', 'child': 'missing'},
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         ),
         throwsA(isA<A2uiIntegrityError>()),
       );
@@ -208,16 +239,19 @@ void main() {
 
     test('a malformed child list', () {
       expect(
-        () => processor.processPayload(
-          render([
-            {
-              'id': 'root',
-              'component': 'Column',
-              // A template needs `path` as well as `componentId`.
-              'children': {'componentId': 'a'},
-            },
-            {'id': 'a', 'component': 'Text', 'text': 'x'},
-          ]),
+        () => processor.processMessages(
+          A2uiMessage.parseAll(
+            render([
+              {
+                'id': 'root',
+                'component': 'Column',
+                // A template needs `path` as well as `componentId`.
+                'children': {'componentId': 'a'},
+              },
+              {'id': 'a', 'component': 'Text', 'text': 'x'},
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         ),
         throwsA(isA<A2uiValidationError>()),
       );
@@ -231,14 +265,17 @@ void main() {
 
     test('a data binding in place of a literal', () {
       expect(
-        () => processor.processPayload(
-          render([
-            {
-              'id': 'root',
-              'component': 'Text',
-              'text': {'path': '/greeting'},
-            },
-          ]),
+        () => processor.processMessages(
+          A2uiMessage.parseAll(
+            render([
+              {
+                'id': 'root',
+                'component': 'Text',
+                'text': {'path': '/greeting'},
+              },
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         ),
         returnsNormally,
       );
@@ -246,18 +283,21 @@ void main() {
 
     test('a call to a function the catalog declares', () {
       expect(
-        () => processor.processPayload(
-          render([
-            {
-              'id': 'root',
-              'component': 'Text',
-              'text': {
-                'call': 'formatString',
-                'args': {'value': 'x'},
-                'returnType': 'string',
+        () => processor.processMessages(
+          A2uiMessage.parseAll(
+            render([
+              {
+                'id': 'root',
+                'component': 'Text',
+                'text': {
+                  'call': 'formatString',
+                  'args': {'value': 'x'},
+                  'returnType': 'string',
+                },
               },
-            },
-          ]),
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         ),
         returnsNormally,
       );

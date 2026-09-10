@@ -1041,18 +1041,33 @@ void main() {
       // agent negotiates one catalog before it generates anything, so the
       // components are checked rather than skipped.
       expect(
-        () => over(['cat1']).processPayload(incremental(alpha())),
+        () => over(['cat1']).processMessages(
+          A2uiMessage.parseAll(
+            incremental(alpha()),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
+        ),
         returnsNormally,
       );
       expect(
-        () => over(['cat1']).processPayload(incremental(bogus)),
+        () => over(['cat1']).processMessages(
+          A2uiMessage.parseAll(
+            incremental(bogus),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
+        ),
         throwsA(isA<A2uiValidationError>()),
       );
     });
 
     test('rejects a component belonging to another catalog', () {
       expect(
-        () => over(['cat2']).processPayload(incremental(alpha())),
+        () => over(['cat2']).processMessages(
+          A2uiMessage.parseAll(
+            incremental(alpha()),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
+        ),
         throwsA(isA<A2uiValidationError>()),
       );
     });
@@ -1061,17 +1076,20 @@ void main() {
       // A renderer supports several catalogs at once, and one payload may
       // create surfaces against different ones.
       expect(
-        () => over(['cat1', 'cat2']).processPayload([
-          ...render('s1', 'cat1', alpha()),
-          ...render('s2', 'cat2', beta()),
-        ]),
+        () => over(['cat1', 'cat2']).processMessages(
+          A2uiMessage.parseAll([
+            ...render('s1', 'cat1', alpha()),
+            ...render('s2', 'cat2', beta()),
+          ], protocolVersion: A2uiProtocolVersion.v0_9),
+        ),
         returnsNormally,
       );
       expect(
-        () => over([
-          'cat1',
-          'cat2',
-        ]).processPayload([...render('s1', 'cat1', beta())]),
+        () => over(['cat1', 'cat2']).processMessages(
+          A2uiMessage.parseAll([
+            ...render('s1', 'cat1', beta()),
+          ], protocolVersion: A2uiProtocolVersion.v0_9),
+        ),
         throwsA(isA<A2uiValidationError>()),
       );
     });
@@ -1082,22 +1100,33 @@ void main() {
       // below is not in the surface's catalog, and passes only because it
       // names the catalog it does belong to.
       expect(
-        () => over([
-          'cat1',
-          'cat2',
-        ]).processPayload(render('s1', 'cat1', beta(catalogId: 'cat2'))),
+        () => over(['cat1', 'cat2']).processMessages(
+          A2uiMessage.parseAll(
+            render('s1', 'cat1', beta(catalogId: 'cat2')),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
+        ),
         returnsNormally,
       );
       expect(
-        () =>
-            over(['cat1', 'cat2']).processPayload(render('s1', 'cat1', beta())),
+        () => over(['cat1', 'cat2']).processMessages(
+          A2uiMessage.parseAll(
+            render('s1', 'cat1', beta()),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
+        ),
         throwsA(isA<A2uiValidationError>()),
       );
     });
 
     test('rejects a catalog the processor does not support', () {
       expect(
-        () => over(['cat1']).processPayload(render('s1', 'cat2', alpha())),
+        () => over(['cat1']).processMessages(
+          A2uiMessage.parseAll(
+            render('s1', 'cat2', alpha()),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
+        ),
         throwsA(
           isA<A2uiCatalogError>().having(
             (e) => e.catalogId,
@@ -1107,9 +1136,12 @@ void main() {
         ),
       );
       expect(
-        () => over([
-          'cat1',
-        ]).processPayload(render('s1', 'cat1', alpha(catalogId: 'cat2'))),
+        () => over(['cat1']).processMessages(
+          A2uiMessage.parseAll(
+            render('s1', 'cat1', alpha(catalogId: 'cat2')),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
+        ),
         throwsA(isA<A2uiCatalogError>()),
       );
     });
@@ -1119,30 +1151,40 @@ void main() {
       // component belongs to, and reporting it valid would mean reporting a
       // payload nothing had checked.
       expect(
-        () => over(['cat1', 'cat2']).processPayload(incremental(alpha())),
+        () => over(['cat1', 'cat2']).processMessages(
+          A2uiMessage.parseAll(
+            incremental(alpha()),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
+        ),
         throwsA(isA<A2uiCatalogError>()),
       );
     });
   });
 
-  group('MessageProcessor.processPayload', () {
-    test('returns the parsed messages for a valid payload', () async {
+  group('MessageProcessor.processMessages', () {
+    test('applies a valid payload', () async {
       final MessageProcessor<ComponentApi> processor = newProcessor();
 
-      final List<A2uiMessage> messages = processor.processPayload([
+      final List<A2uiMessage> messages = parse([
         createSurface(),
         updateComponents([card('root', 'label'), text('label', 'Hello')]),
       ]);
-
       expect(messages, hasLength(2));
       expect(messages.first, isA<CreateSurfaceMessage>());
+
+      expect(() => processor.processMessages(messages), returnsNormally);
     });
 
     test('rejects an unsupported version before any deep check runs', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
 
       expect(
-        () => processor.processPayload([createSurface(version: 'v1.0')]),
+        () => processor.processMessages(
+          A2uiMessage.parseAll([
+            createSurface(version: 'v1.0'),
+          ], protocolVersion: A2uiProtocolVersion.v0_9),
+        ),
         throwsA(isA<A2uiValidationError>()),
       );
     });
@@ -1153,12 +1195,14 @@ void main() {
       // `root` is both a dangling reference and missing its required `text`.
       // Structure runs first, so the integrity error is what surfaces.
       expect(
-        () => processor.processPayload([
-          createSurface(),
-          updateComponents([
-            {'id': 'root', 'component': 'Card', 'child': 'missing'},
-          ]),
-        ]),
+        () => processor.processMessages(
+          A2uiMessage.parseAll([
+            createSurface(),
+            updateComponents([
+              {'id': 'root', 'component': 'Card', 'child': 'missing'},
+            ]),
+          ], protocolVersion: A2uiProtocolVersion.v0_9),
+        ),
         throwsA(isA<A2uiIntegrityError>()),
       );
     });

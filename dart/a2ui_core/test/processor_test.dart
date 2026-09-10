@@ -127,14 +127,17 @@ void main() {
 
       test('rejects a reference to a component that does not exist', () {
         expect(
-          () => processor.processPayload(
-            update([
-              {
-                'id': 'root',
-                'component': 'Column',
-                'children': ['missing'],
-              },
-            ]),
+          () => processor.processMessages(
+            A2uiMessage.parseAll(
+              update([
+                {
+                  'id': 'root',
+                  'component': 'Column',
+                  'children': ['missing'],
+                },
+              ]),
+              protocolVersion: A2uiProtocolVersion.v0_9,
+            ),
           ),
           throwsA(isA<A2uiIntegrityError>()),
         );
@@ -142,11 +145,14 @@ void main() {
 
       test('rejects duplicate ids within one batch', () {
         expect(
-          () => processor.processPayload(
-            update([
-              {'id': 'a', 'component': 'Text', 'text': 'one'},
-              {'id': 'a', 'component': 'Text', 'text': 'two'},
-            ]),
+          () => processor.processMessages(
+            A2uiMessage.parseAll(
+              update([
+                {'id': 'a', 'component': 'Text', 'text': 'one'},
+                {'id': 'a', 'component': 'Text', 'text': 'two'},
+              ]),
+              protocolVersion: A2uiProtocolVersion.v0_9,
+            ),
           ),
           throwsA(isA<A2uiIntegrityError>()),
         );
@@ -154,11 +160,14 @@ void main() {
 
       test('accepts a reference to a component the surface already holds', () {
         // The payload-scoped validator cannot make this call: it waves the
-        // second batch through because it cannot see the first.
-        processor.processPayload(
-          update([
-            {'id': 'a', 'component': 'Text', 'text': 'held'},
-          ]),
+        //second batch through because it cannot see the first.
+        processor.processMessages(
+          A2uiMessage.parseAll(
+            update([
+              {'id': 'a', 'component': 'Text', 'text': 'held'},
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         );
 
         expect(
@@ -179,15 +188,18 @@ void main() {
       });
 
       test('rejects a cycle closed through an existing component', () {
-        processor.processPayload(
-          update([
-            {
-              'id': 'a',
-              'component': 'Column',
-              'children': ['b'],
-            },
-            {'id': 'b', 'component': 'Text', 'text': 'leaf'},
-          ]),
+        processor.processMessages(
+          A2uiMessage.parseAll(
+            update([
+              {
+                'id': 'a',
+                'component': 'Column',
+                'children': ['b'],
+              },
+              {'id': 'b', 'component': 'Text', 'text': 'leaf'},
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         );
 
         // Retyping `b` as a Column pointing back at `a` closes the loop only
@@ -210,10 +222,13 @@ void main() {
       });
 
       test('leaves the surface unchanged when the graph check fails', () {
-        processor.processPayload(
-          update([
-            {'id': 'a', 'component': 'Text', 'text': 'held'},
-          ]),
+        processor.processMessages(
+          A2uiMessage.parseAll(
+            update([
+              {'id': 'a', 'component': 'Text', 'text': 'held'},
+            ]),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
         );
 
         expect(
@@ -238,31 +253,38 @@ void main() {
       });
     });
 
-    test('processPayload rejects a malformed envelope before processing', () {
+    test('processMessages rejects a malformed envelope before processing', () {
       expect(
-        () => processor.processPayload([
-          {
-            'version': 'v1.0',
-            'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
-          },
-        ]),
+        () => processor.processMessages(
+          A2uiMessage.parseAll([
+            {
+              'version': 'v1.0',
+              'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
+            },
+          ], protocolVersion: A2uiProtocolVersion.v0_9),
+        ),
         throwsA(isA<A2uiValidationError>()),
       );
       expect(processor.groupModel.getSurface('s1'), isNull);
     });
 
-    test('processPayload rejects an envelope mixing update types', () {
+    test('processMessages rejects an envelope mixing update types', () {
       // An envelope carries exactly one update type. Two of them name no
       // single surface, so the message cannot be matched to the catalog its
       // components must be checked against.
       expect(
-        () => processor.processPayload([
-          {
-            'version': 'v0.9',
-            'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
-            'updateComponents': {'surfaceId': 's2', 'components': <Object?>[]},
-          },
-        ]),
+        () => processor.processMessages(
+          A2uiMessage.parseAll([
+            {
+              'version': 'v0.9',
+              'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
+              'updateComponents': {
+                'surfaceId': 's2',
+                'components': <Object?>[],
+              },
+            },
+          ], protocolVersion: A2uiProtocolVersion.v0_9),
+        ),
         throwsA(
           isA<A2uiValidationError>().having(
             (e) => e.message,
@@ -274,15 +296,17 @@ void main() {
       expect(processor.groupModel.getSurface('s1'), isNull);
     });
 
-    test('processPayload parses and processes a valid payload', () {
-      final List<A2uiMessage> messages = processor.processPayload([
+    test('processMessages applies a parsed payload', () {
+      final List<A2uiMessage> messages = A2uiMessage.parseAll([
         {
           'version': 'v0.9',
           'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
         },
-      ]);
-
+      ], protocolVersion: A2uiProtocolVersion.v0_9);
       expect(messages, hasLength(1));
+
+      processor.processMessages(messages);
+
       expect(processor.groupModel.getSurface('s1'), isNotNull);
     });
 

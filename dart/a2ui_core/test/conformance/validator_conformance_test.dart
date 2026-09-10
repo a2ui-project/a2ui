@@ -22,7 +22,7 @@ import '../support/renderer_catalog.dart';
 import 'conformance_harness.dart';
 
 /// Runs the shared `conformance/core/validator.yaml` suite against
-/// [MessageProcessor.processPayload], the entry point for checking a payload
+/// [MessageProcessor.processMessages], the entry point for checking a payload
 /// on its own.
 ///
 /// Cases targeting a protocol version this SDK does not implement are skipped
@@ -85,13 +85,23 @@ void _runCase(Map<String, Object?> testCase) {
         step['expect_error'] ?? testCase['expect_error'];
     if (expectError != null) {
       expect(
-        () => processor.processPayload(payload),
+        () => processor.processMessages(
+          A2uiMessage.parseAll(
+            payload,
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
+        ),
         throwsA(_matchesError(expectError)),
         reason: testCase['name'] as String?,
       );
     } else {
       expect(
-        () => processor.processPayload(payload),
+        () => processor.processMessages(
+          A2uiMessage.parseAll(
+            payload,
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
+        ),
         returnsNormally,
         reason: testCase['name'] as String?,
       );

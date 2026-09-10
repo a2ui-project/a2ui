@@ -2,17 +2,24 @@
 
 ## 0.2.0
 
-- **Breaking:** `MessageProcessor` validates messages as it processes them,
-  and is the entry point for validation as well as for processing. A message
-  that does not match its catalog now throws instead of being applied. Added
-  `processPayload` and `validatePayload`, the required `protocolVersion`
-  constructor parameter, and `commonTypesSchema`, which configure the
-  validators it builds. It keeps one validator per catalog, reachable through
-  `validatorFor`, resolves the catalog for each item through `catalogFor`, and
-  checks each component against the catalog it resolves to rather than against
-  every catalog the processor supports. Added `validatePayload`,
-  `validateStructure` and `validateCatalogs`, which check a payload on its own
-  without applying it or requiring its surfaces to exist.
+- **Breaking:** `MessageProcessor.processMessages` validates messages as it
+  processes them, and is the single entry point for validation as well as for
+  processing. A message that does not match its catalog now throws instead of
+  being applied. Added the required `protocolVersion` constructor parameter
+  and `commonTypesSchema`, which configure the validators it builds. It keeps
+  one validator per catalog, reachable through `validatorFor`, resolves the
+  catalog for each item through `catalogFor`, and checks each component
+  against the catalog it resolves to rather than against every catalog the
+  processor supports.
+- **Breaking:** Added `MessageProcessor.checkSurfaceComplete`, which asserts a
+  surface holds a finished render: a `root` component exists and every
+  component is reachable from it. Applying a payload cannot make that check,
+  because a surface is built up over several messages and either condition may
+  be settled by the next one, so completeness is something the caller
+  declares. An agent runs it over the surfaces its turn built before sending.
+- **Breaking:** Envelope parsing moved to `A2uiMessage.parseAll`, from
+  `PayloadValidator.parseMessages`. Parsing needs no catalog, so it belongs to
+  the message model rather than to a validator.
 - **Breaking:** `MessageProcessor` checks each batch of components as a graph
   against the surface it joins, so duplicate ids, references naming no
   component, cycles and over-deep chains now throw. References resolve against
