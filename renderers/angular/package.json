@@ -21,8 +21,8 @@
   ],
   "scripts": {
     "build": "wireit",
-    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",
-    "publish:package": "yarn build && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public",
+    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `npm publish dist/`'); process.exit(1); }\"",
+    "publish:package": "yarn build && npm publish dist/ --access public",
     "demo": "yarn workspace @a2ui/angular-explorer dev",
     "test": "wireit",
     "test:unit": "wireit",

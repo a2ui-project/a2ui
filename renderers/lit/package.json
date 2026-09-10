@@ -47,8 +47,8 @@
   },
   "type": "module",
   "scripts": {
-    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",
-    "publish:package": "yarn build && node ../scripts/prepare-publish.mjs && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public",
+    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `npm publish dist/`'); process.exit(1); }\"",
+    "publish:package": "yarn build && node ../scripts/prepare-publish.mjs && npm publish dist/ --access public",
     "build": "wireit",
     "build:tsc": "wireit",
     "dev": "yarn serve --watch",
