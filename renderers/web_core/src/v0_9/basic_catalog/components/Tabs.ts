@@ -18,8 +18,8 @@ import {html, nothing, css} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 import {TabsApi} from './basic_components.js';
+import {createWebComponentImplementation} from '../../universal/create_web_component_implementation.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../universal/index.js';
 
 @customElement('a2ui-tabs')
 export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
@@ -108,7 +108,4 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<typeof TabsApi> {
   }
 }
 
-export const A2uiTabs: WebComponentImplementation = {
-  ...TabsApi,
-  tagName: 'a2ui-tabs',
-};
+export const A2uiTabs = createWebComponentImplementation(TabsApi, A2uiLitTabs);

@@ -29,6 +29,9 @@ export {
   type A2uiChildRef,
   type ResolvedChildRef,
   A2uiController,
+  type A2uiWebComponentElement,
+  createWebComponentImplementation,
+  isWebComponentImplementation,
   renderA2uiNode,
   type WebComponentImplementation,
 } from './universal/index.js';

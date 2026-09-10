@@ -17,8 +17,8 @@
 import {html, nothing, css} from 'lit';
 import {customElement} from 'lit/decorators.js';
 import {SliderApi} from './basic_components.js';
+import {createWebComponentImplementation} from '../../universal/create_web_component_implementation.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../universal/index.js';
 
 @customElement('a2ui-slider')
 export class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderApi> {
@@ -82,7 +82,4 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<typeof SliderA
   }
 }
 
-export const A2uiSlider: WebComponentImplementation = {
-  ...SliderApi,
-  tagName: 'a2ui-slider',
-};
+export const A2uiSlider = createWebComponentImplementation(SliderApi, A2uiSliderElement);

@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-export {
-  A2uiLitElement,
-  type ResolvedChildList,
-  type A2uiChildRef,
-  type ResolvedChildRef,
-} from './a2ui-lit-element.js';
-export {A2uiController} from './a2ui-controller.js';
-export type {A2uiWebComponentElement} from './a2ui_web_component_element.js';
-export {createWebComponentImplementation} from './create_web_component_implementation.js';
-export {isWebComponentImplementation} from './is_web_component_implementation.js';
-export {renderA2uiNode} from './render-a2ui-node.js';
-export type {WebComponentImplementation} from './web_component_implementation.js';
+import type {ComponentContext} from '../rendering/component-context.js';
+
+/**
+ * The DOM contract an A2UI Custom Element fulfills.
+ *
+ * A host renderer creates the element for a `WebComponentImplementation` and
+ * assigns `context`; the element binds itself from there. Renderers use this
+ * type to set the property on an element they have only as an `HTMLElement`.
+ */
+export interface A2uiWebComponentElement extends HTMLElement {
+  context?: ComponentContext;
+}

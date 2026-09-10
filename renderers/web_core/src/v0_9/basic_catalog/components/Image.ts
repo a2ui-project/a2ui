@@ -18,8 +18,8 @@ import {html, nothing, css} from 'lit';
 import {customElement} from 'lit/decorators.js';
 import {styleMap} from 'lit/directives/style-map.js';
 import {ImageApi} from './basic_components.js';
+import {createWebComponentImplementation} from '../../universal/create_web_component_implementation.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../universal/index.js';
 
 @customElement('a2ui-image')
 export class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi> {
@@ -79,7 +79,4 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<typeof ImageApi
   }
 }
 
-export const A2uiImage: WebComponentImplementation = {
-  ...ImageApi,
-  tagName: 'a2ui-image',
-};
+export const A2uiImage = createWebComponentImplementation(ImageApi, A2uiImageElement);

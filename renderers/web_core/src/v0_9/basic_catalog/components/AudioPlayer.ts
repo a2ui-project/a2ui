@@ -17,8 +17,8 @@
 import {html, nothing, css} from 'lit';
 import {customElement} from 'lit/decorators.js';
 import {AudioPlayerApi} from './basic_components.js';
+import {createWebComponentImplementation} from '../../universal/create_web_component_implementation.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
-import type {WebComponentImplementation} from '../../universal/index.js';
 
 @customElement('a2ui-audioplayer')
 export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<typeof AudioPlayerApi> {
@@ -63,7 +63,7 @@ export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<typeof Au
   }
 }
 
-export const A2uiAudioPlayer: WebComponentImplementation = {
-  ...AudioPlayerApi,
-  tagName: 'a2ui-audioplayer',
-};
+export const A2uiAudioPlayer = createWebComponentImplementation(
+  AudioPlayerApi,
+  A2uiAudioPlayerElement,
+);
