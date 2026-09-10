@@ -23,7 +23,7 @@ describe('Example: Simple Login Form', () => {
   let fixture: ComponentFixture<DemoComponent>;
 
   beforeEach(async () => {
-    fixture = await loadExample('Simple Login Form');
+    fixture = await loadExample({name: 'Simple Login Form'});
     textContent = getCanvas().textContent || '';
   });
 

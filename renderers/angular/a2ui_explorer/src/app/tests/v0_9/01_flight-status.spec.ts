@@ -23,7 +23,7 @@ describe('Example: Flight Status', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample('Flight Status');
+    fixture = await loadExample({name: 'Flight Status'});
     textContent = getCanvas().textContent;
   });
 

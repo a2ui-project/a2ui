@@ -24,17 +24,18 @@ import {
   isAngularComponentImplementation,
 } from './types';
 
-const preparedUniversalCatalogs = new WeakSet<object>();
+const preparedUniversalCatalogs = new WeakMap<AngularCatalog, Injector>();
 
 /**
  * Prepares an Angular catalog for universal Web Component rendering by ensuring
- * all registered components have their `tagName` populated.
+ * all registered components have their `tagName` populated and their active
+ * Angular Injector registered.
  *
  * For Angular component declarations (`.component`) that do not already define a
  * Web Component `tagName`, they are bridged into W3C Custom Elements using the
  * provided Angular `Injector`.
  *
- * This operation is cached via a `Set` of catalog IDs and is idempotent.
+ * This operation is cached per injector and is idempotent.
  *
  * @param catalog The catalog to prepare.
  * @param injector The Angular Injector or EnvironmentInjector.
@@ -44,24 +45,32 @@ export function prepareUniversalCatalog(catalog: AngularCatalog, injector: Injec
     return;
   }
 
-  if (preparedUniversalCatalogs.has(catalog)) {
+  if (preparedUniversalCatalogs.get(catalog) === injector) {
     return;
   }
 
   const compMap = catalog.components as Map<string, CatalogComponentImplementation>;
   for (const [key, componentImpl] of catalog.components.entries()) {
-    if (
-      !isWebComponentImplementation(componentImpl) &&
-      isAngularComponentImplementation(componentImpl)
-    ) {
+    if (isAngularComponentImplementation(componentImpl)) {
       const universalTag = getUniversalTagName(componentImpl);
-      const tagName = universalTag ?? toWebComponent(componentImpl, injector).tagName;
-      compMap.set(key, {
-        ...componentImpl,
-        tagName,
-      });
+      if (universalTag) {
+        if (!isWebComponentImplementation(componentImpl)) {
+          compMap.set(key, {
+            ...componentImpl,
+            tagName: universalTag,
+          });
+        }
+      } else {
+        const wcImpl = toWebComponent(componentImpl, injector);
+        if (!isWebComponentImplementation(componentImpl)) {
+          compMap.set(key, {
+            ...componentImpl,
+            tagName: wcImpl.tagName,
+          });
+        }
+      }
     }
   }
 
-  preparedUniversalCatalogs.add(catalog);
+  preparedUniversalCatalogs.set(catalog, injector);
 }

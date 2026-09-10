@@ -23,7 +23,7 @@ describe('Example: Markdown Text Support', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample('Markdown Text Support');
+    fixture = await loadExample({name: 'Markdown Text Support'});
     textContent = getCanvas().textContent;
   });
 

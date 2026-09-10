@@ -23,7 +23,7 @@ describe('Example: Event Detail (basic) (v0.8)', () => {
   let fixture: ComponentFixture<DemoComponent>;
 
   beforeEach(async () => {
-    fixture = await loadExample('Event Detail (basic)', Version.V0_8);
+    fixture = await loadExample({name: 'Event Detail (basic)', version: Version.V0_8});
     textContent = getCanvas().textContent;
   });
 

@@ -20,7 +20,7 @@ describe('Example: Login Form with Validation', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('Login Form with Validation');
+    await loadExample({name: 'Login Form with Validation'});
     textContent = getCanvas().textContent;
   });
 
