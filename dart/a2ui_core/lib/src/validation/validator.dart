@@ -18,7 +18,6 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:meta/meta.dart';
 
 import '../core/catalog.dart';
-import '../core/messages.dart';
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import 'common_types.g.dart';
@@ -29,7 +28,7 @@ import 'schema_resolution.dart';
 ///
 /// Lives in `a2ui_core` because renderers and agents check the same payloads
 /// against the same catalogs. Implements v0.9 only: [checkVersion] and
-/// [parseMessages] reject any other version, or none.
+/// [checkVersion] rejects any other version, or none.
 ///
 /// A validator is scoped to a single [catalog], and validates a single item
 /// against it. It deliberately does not walk a payload: from v1.0 a surface
@@ -41,11 +40,10 @@ import 'schema_resolution.dart';
 /// validator for it, so a payload spanning several catalogs is checked
 /// item by item rather than rejected.
 ///
-/// Both sides, agent and renderer, reach it through `MessageProcessor`:
-/// `MessageProcessor.validatePayload` checks a payload on its own, which is
-/// what an agent has before it sends anything, and
-/// `MessageProcessor.processMessages` checks each message against the surface
-/// state it holds.
+/// Both sides, agent and renderer, reach it through
+/// `MessageProcessor.processMessages`, which checks each message against the
+/// surface state it holds. An agent keeps a processor for the session and
+/// checks its own output the same way a renderer checks what it receives.
 ///
 /// Every entry point is synchronous. Component schemas reach the validator
 /// with their references already inlined by `resolveSchemaRefs`, so schema
@@ -132,41 +130,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       );
     }
     return version;
-  }
-
-  /// Parses payload envelopes into typed messages, without a catalog.
-  ///
-  /// An envelope declares its protocol version and exactly one update type;
-  /// neither depends on a catalog. A caller therefore parses a payload before
-  /// it knows which surface, and so which catalog, each message belongs to,
-  /// which is what lets `MessageProcessor` route messages afterwards.
-  ///
-  /// Static for that reason: parsing needs no catalog, so it needs no
-  /// validator.
-  ///
-  /// Throws [A2uiValidationError] for any envelope that is not a well-formed
-  /// message of [protocolVersion], including one carrying more than a single
-  /// update type.
-  static List<A2uiMessage> parseMessages(
-    List<Map<String, Object?>> payload, {
-    required A2uiProtocolVersion protocolVersion,
-  }) {
-    final messages = <A2uiMessage>[];
-    for (final envelope in payload) {
-      final A2uiProtocolVersion version = A2uiProtocolVersion.fromJson(
-        envelope['version'],
-        details: envelope,
-      );
-      if (version != protocolVersion) {
-        throw A2uiValidationError(
-          "Payload declares version '${version.jsonValue}' but this SDK "
-          "accepts only '${protocolVersion.jsonValue}'.",
-          details: envelope,
-        );
-      }
-      messages.add(A2uiMessage.fromJson(Map<String, dynamic>.from(envelope)));
-    }
-    return messages;
   }
 
   /// Checks one component against [catalog]'s schema for its type.

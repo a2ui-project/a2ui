@@ -139,12 +139,19 @@ MessageProcessor<ComponentApi> newProcessor({bool withCommonTypes = false}) =>
       commonTypesSchema: withCommonTypes ? commonTypes() : const {},
     );
 
+/// A processor that already holds surface `s1`.
+///
+/// An incremental payload updates a surface the client already has, so the
+/// cases below establish that surface before applying one.
+MessageProcessor<ComponentApi> newProcessorWithSurface() {
+  final MessageProcessor<ComponentApi> processor = newProcessor();
+  processor.processMessages(parse([createSurface()]));
+  return processor;
+}
+
 /// Parses a payload's envelopes, which needs no catalog.
 List<A2uiMessage> parse(List<Map<String, Object?>> payload) =>
-    PayloadValidator.parseMessages(
-      payload,
-      protocolVersion: A2uiProtocolVersion.v0_9,
-    );
+    A2uiMessage.parseAll(payload, protocolVersion: A2uiProtocolVersion.v0_9);
 
 Map<String, Object?> text(String id, [String value = 'x']) => {
   'id': id,
@@ -351,7 +358,7 @@ void main() {
     });
   });
 
-  group('MessageProcessor.validateStructure', () {
+  group('MessageProcessor.processMessages', () {
     test('accepts a well formed component graph', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
       final List<A2uiMessage> messages = parse([
@@ -359,7 +366,7 @@ void main() {
         updateComponents([card('root', 'label'), text('label', 'Hello')]),
       ]);
 
-      expect(() => processor.validateStructure(messages), returnsNormally);
+      expect(() => processor.processMessages(messages), returnsNormally);
     });
 
     test('rejects duplicate component ids', () {
@@ -370,7 +377,7 @@ void main() {
       ]);
 
       expect(
-        () => processor.validateStructure(messages),
+        () => processor.processMessages(messages),
         throwsA(
           isA<A2uiIntegrityError>().having(
             (e) => e.message,
@@ -389,7 +396,7 @@ void main() {
       ]);
 
       expect(
-        () => processor.validateStructure(messages),
+        () => processor.processMessages(messages),
         throwsA(
           isA<A2uiIntegrityError>().having(
             (e) => e.message,
@@ -400,15 +407,18 @@ void main() {
       );
     });
 
-    test('rejects a payload that declares no root component', () {
+    test('a surface with no root component is incomplete', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
       final List<A2uiMessage> messages = parse([
         createSurface(),
         updateComponents([text('label', 'Hello')]),
       ]);
 
+      // Applying is fine: the root may still arrive in a later message.
+      processor.processMessages(messages);
+
       expect(
-        () => processor.validateStructure(messages),
+        () => processor.checkSurfaceComplete('s1'),
         throwsA(
           isA<A2uiIntegrityError>().having(
             (e) => e.message,
@@ -419,7 +429,7 @@ void main() {
       );
     });
 
-    test('rejects a component unreachable from the root', () {
+    test('a surface with an unreachable component is incomplete', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
       final List<A2uiMessage> messages = parse([
         createSurface(),
@@ -430,8 +440,12 @@ void main() {
         ]),
       ]);
 
+      // A component nothing points at may still be adopted by a later
+      // message, so it fails the completeness check rather than the apply.
+      processor.processMessages(messages);
+
       expect(
-        () => processor.validateStructure(messages),
+        () => processor.checkSurfaceComplete('s1'),
         throwsA(
           isA<A2uiIntegrityError>().having(
             (e) => e.message,
@@ -450,7 +464,7 @@ void main() {
       ]);
 
       expect(
-        () => processor.validateStructure(messages),
+        () => processor.processMessages(messages),
         throwsA(
           isA<A2uiRecursionError>()
               .having(
@@ -471,7 +485,7 @@ void main() {
       ]);
 
       expect(
-        () => processor.validateStructure(messages),
+        () => processor.processMessages(messages),
         throwsA(
           isA<A2uiRecursionError>().having(
             (e) => e.message,
@@ -497,7 +511,7 @@ void main() {
       ]);
 
       expect(
-        () => processor.validateStructure(messages),
+        () => processor.processMessages(messages),
         throwsA(
           isA<A2uiRecursionError>().having(
             (e) => e.message,
@@ -522,8 +536,9 @@ void main() {
           text('b'),
         ]),
       ]);
-      expect(() => processor.validateStructure(valid), returnsNormally);
+      expect(() => processor.processMessages(valid), returnsNormally);
 
+      final MessageProcessor<ComponentApi> second = newProcessor();
       final List<A2uiMessage> dangling = parse([
         createSurface(),
         updateComponents([
@@ -536,7 +551,7 @@ void main() {
         ]),
       ]);
       expect(
-        () => processor.validateStructure(dangling),
+        () => second.processMessages(dangling),
         throwsA(isA<A2uiIntegrityError>()),
       );
     });
@@ -554,8 +569,9 @@ void main() {
           text('row'),
         ]),
       ]);
-      expect(() => processor.validateStructure(messages), returnsNormally);
+      expect(() => processor.processMessages(messages), returnsNormally);
 
+      final MessageProcessor<ComponentApi> second = newProcessor();
       final List<A2uiMessage> dangling = parse([
         createSurface(),
         updateComponents([
@@ -567,7 +583,7 @@ void main() {
         ]),
       ]);
       expect(
-        () => processor.validateStructure(dangling),
+        () => second.processMessages(dangling),
         throwsA(isA<A2uiIntegrityError>()),
       );
     });
@@ -590,7 +606,7 @@ void main() {
       ]);
 
       expect(
-        () => processor.validateStructure(messages),
+        () => processor.processMessages(messages),
         throwsA(
           isA<A2uiIntegrityError>().having(
             (e) => e.message,
@@ -610,7 +626,7 @@ void main() {
         updateComponents([text('root', 'root')]),
       ]);
 
-      expect(() => processor.validateStructure(messages), returnsNormally);
+      expect(() => processor.processMessages(messages), returnsNormally);
     });
 
     test('does not read a component id as a reference to itself', () {
@@ -656,7 +672,7 @@ void main() {
         protocolVersion: A2uiProtocolVersion.v0_9,
       );
       expect(
-        () => inlinedProcessor.validateStructure(
+        () => inlinedProcessor.processMessages(
           parse([
             createSurface(),
             updateComponents([
@@ -670,7 +686,8 @@ void main() {
     });
 
     test('rejects a malformed data model path', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
+      final MessageProcessor<ComponentApi> processor =
+          newProcessorWithSurface();
       final List<A2uiMessage> messages = parse([
         {
           'version': 'v0.9',
@@ -679,7 +696,7 @@ void main() {
       ]);
 
       expect(
-        () => processor.validateStructure(messages),
+        () => processor.processMessages(messages),
         throwsA(
           isA<A2uiValidationError>().having(
             (e) => e.message,
@@ -691,7 +708,8 @@ void main() {
     });
 
     test('rejects function calls nested past the cap', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor();
+      final MessageProcessor<ComponentApi> processor =
+          newProcessorWithSurface();
       Map<String, Object?> call = {'call': 'f', 'args': <String, Object?>{}};
       for (var i = 0; i < maxFunctionCallDepth + 1; i++) {
         call = {
@@ -706,7 +724,7 @@ void main() {
       ]);
 
       expect(
-        () => processor.validateStructure(messages),
+        () => processor.processMessages(messages),
         throwsA(
           isA<A2uiRecursionError>().having(
             (e) => e.message,
@@ -719,46 +737,50 @@ void main() {
 
     group('incremental updates', () {
       test('allow a missing root and references to existing components', () {
-        final MessageProcessor<ComponentApi> processor = newProcessor();
+        final MessageProcessor<ComponentApi> processor =
+            newProcessorWithSurface();
         final List<A2uiMessage> messages = parse([
           updateComponents([card('panel', 'alreadyOnTheClient')]),
         ]);
 
-        expect(() => processor.validateStructure(messages), returnsNormally);
+        expect(() => processor.processMessages(messages), returnsNormally);
       });
 
       test('still reject duplicate ids', () {
-        final MessageProcessor<ComponentApi> processor = newProcessor();
+        final MessageProcessor<ComponentApi> processor =
+            newProcessorWithSurface();
         final List<A2uiMessage> messages = parse([
           updateComponents([text('a', 'one'), text('a', 'two')]),
         ]);
 
         expect(
-          () => processor.validateStructure(messages),
+          () => processor.processMessages(messages),
           throwsA(isA<A2uiIntegrityError>()),
         );
       });
 
       test('still reject a self reference', () {
-        final MessageProcessor<ComponentApi> processor = newProcessor();
+        final MessageProcessor<ComponentApi> processor =
+            newProcessorWithSurface();
         final List<A2uiMessage> messages = parse([
           updateComponents([card('a', 'a')]),
         ]);
 
         expect(
-          () => processor.validateStructure(messages),
+          () => processor.processMessages(messages),
           throwsA(isA<A2uiRecursionError>()),
         );
       });
 
       test('still reject a cycle', () {
-        final MessageProcessor<ComponentApi> processor = newProcessor();
+        final MessageProcessor<ComponentApi> processor =
+            newProcessorWithSurface();
         final List<A2uiMessage> messages = parse([
           updateComponents([card('a', 'b'), card('b', 'a')]),
         ]);
 
         expect(
-          () => processor.validateStructure(messages),
+          () => processor.processMessages(messages),
           throwsA(isA<A2uiRecursionError>()),
         );
       });
@@ -772,7 +794,7 @@ void main() {
         updateComponents([text('label', 'Hello')]),
       ]);
 
-      expect(() => processor.validateStructure(messages), returnsNormally);
+      expect(() => processor.processMessages(messages), returnsNormally);
     });
 
     test('treats an id repeated in a later message as an update', () {
@@ -789,7 +811,7 @@ void main() {
         updateComponents([card('root', 'b'), text('b')]),
       ]);
 
-      expect(() => processor.validateStructure(messages), returnsNormally);
+      expect(() => processor.processMessages(messages), returnsNormally);
     });
 
     test('drops the components of a surface deleted in the same payload', () {
@@ -803,11 +825,11 @@ void main() {
         },
       ]);
 
-      expect(() => processor.validateStructure(messages), returnsNormally);
+      expect(() => processor.processMessages(messages), returnsNormally);
     });
   });
 
-  group('MessageProcessor.validateCatalogs', () {
+  group('MessageProcessor.processMessages', () {
     test('accepts components that satisfy the catalog schema', () {
       final MessageProcessor<ComponentApi> processor = newProcessor();
       final List<A2uiMessage> messages = parse([
@@ -815,7 +837,7 @@ void main() {
         updateComponents([text('label', 'Hello')]),
       ]);
 
-      expect(() => processor.validateCatalogs(messages), returnsNormally);
+      expect(() => processor.processMessages(messages), returnsNormally);
     });
 
     test('rejects a component missing a required property', () {
@@ -828,7 +850,7 @@ void main() {
       ]);
 
       expect(
-        () => processor.validateCatalogs(messages),
+        () => processor.processMessages(messages),
         throwsA(isA<A2uiValidationError>()),
       );
     });
@@ -843,7 +865,7 @@ void main() {
       ]);
 
       expect(
-        () => processor.validateCatalogs(messages),
+        () => processor.processMessages(messages),
         throwsA(isA<A2uiValidationError>()),
       );
     });
@@ -858,7 +880,7 @@ void main() {
       ]);
 
       expect(
-        () => processor.validateCatalogs(messages),
+        () => processor.processMessages(messages),
         throwsA(
           isA<A2uiValidationError>().having(
             (e) => e.message,
@@ -882,7 +904,7 @@ void main() {
       ]);
 
       expect(
-        () => processor.validateCatalogs(messages),
+        () => processor.processMessages(messages),
         throwsA(isA<A2uiCatalogError>()),
       );
     });
@@ -904,7 +926,7 @@ void main() {
       ]);
 
       expect(
-        () => processor.validateCatalogs(messages),
+        () => processor.processMessages(messages),
         throwsA(isA<A2uiValidationError>()),
       );
     });
@@ -925,7 +947,7 @@ void main() {
         ]),
       ]);
 
-      expect(() => processor.validateCatalogs(messages), returnsNormally);
+      expect(() => processor.processMessages(messages), returnsNormally);
     });
   });
 
@@ -1019,18 +1041,18 @@ void main() {
       // agent negotiates one catalog before it generates anything, so the
       // components are checked rather than skipped.
       expect(
-        () => over(['cat1']).validatePayload(incremental(alpha())),
+        () => over(['cat1']).processPayload(incremental(alpha())),
         returnsNormally,
       );
       expect(
-        () => over(['cat1']).validatePayload(incremental(bogus)),
+        () => over(['cat1']).processPayload(incremental(bogus)),
         throwsA(isA<A2uiValidationError>()),
       );
     });
 
     test('rejects a component belonging to another catalog', () {
       expect(
-        () => over(['cat2']).validatePayload(incremental(alpha())),
+        () => over(['cat2']).processPayload(incremental(alpha())),
         throwsA(isA<A2uiValidationError>()),
       );
     });
@@ -1039,7 +1061,7 @@ void main() {
       // A renderer supports several catalogs at once, and one payload may
       // create surfaces against different ones.
       expect(
-        () => over(['cat1', 'cat2']).validatePayload([
+        () => over(['cat1', 'cat2']).processPayload([
           ...render('s1', 'cat1', alpha()),
           ...render('s2', 'cat2', beta()),
         ]),
@@ -1049,7 +1071,7 @@ void main() {
         () => over([
           'cat1',
           'cat2',
-        ]).validatePayload([...render('s1', 'cat1', beta())]),
+        ]).processPayload([...render('s1', 'cat1', beta())]),
         throwsA(isA<A2uiValidationError>()),
       );
     });
@@ -1063,21 +1085,19 @@ void main() {
         () => over([
           'cat1',
           'cat2',
-        ]).validatePayload(render('s1', 'cat1', beta(catalogId: 'cat2'))),
+        ]).processPayload(render('s1', 'cat1', beta(catalogId: 'cat2'))),
         returnsNormally,
       );
       expect(
-        () => over([
-          'cat1',
-          'cat2',
-        ]).validatePayload(render('s1', 'cat1', beta())),
+        () =>
+            over(['cat1', 'cat2']).processPayload(render('s1', 'cat1', beta())),
         throwsA(isA<A2uiValidationError>()),
       );
     });
 
     test('rejects a catalog the processor does not support', () {
       expect(
-        () => over(['cat1']).validatePayload(render('s1', 'cat2', alpha())),
+        () => over(['cat1']).processPayload(render('s1', 'cat2', alpha())),
         throwsA(
           isA<A2uiCatalogError>().having(
             (e) => e.catalogId,
@@ -1089,7 +1109,7 @@ void main() {
       expect(
         () => over([
           'cat1',
-        ]).validatePayload(render('s1', 'cat1', alpha(catalogId: 'cat2'))),
+        ]).processPayload(render('s1', 'cat1', alpha(catalogId: 'cat2'))),
         throwsA(isA<A2uiCatalogError>()),
       );
     });
@@ -1099,17 +1119,17 @@ void main() {
       // component belongs to, and reporting it valid would mean reporting a
       // payload nothing had checked.
       expect(
-        () => over(['cat1', 'cat2']).validatePayload(incremental(alpha())),
+        () => over(['cat1', 'cat2']).processPayload(incremental(alpha())),
         throwsA(isA<A2uiCatalogError>()),
       );
     });
   });
 
-  group('MessageProcessor.validatePayload', () {
+  group('MessageProcessor.processPayload', () {
     test('returns the parsed messages for a valid payload', () async {
       final MessageProcessor<ComponentApi> processor = newProcessor();
 
-      final List<A2uiMessage> messages = processor.validatePayload([
+      final List<A2uiMessage> messages = processor.processPayload([
         createSurface(),
         updateComponents([card('root', 'label'), text('label', 'Hello')]),
       ]);
@@ -1122,7 +1142,7 @@ void main() {
       final MessageProcessor<ComponentApi> processor = newProcessor();
 
       expect(
-        () => processor.validatePayload([createSurface(version: 'v1.0')]),
+        () => processor.processPayload([createSurface(version: 'v1.0')]),
         throwsA(isA<A2uiValidationError>()),
       );
     });
@@ -1133,7 +1153,7 @@ void main() {
       // `root` is both a dangling reference and missing its required `text`.
       // Structure runs first, so the integrity error is what surfaces.
       expect(
-        () => processor.validatePayload([
+        () => processor.processPayload([
           createSurface(),
           updateComponents([
             {'id': 'root', 'component': 'Card', 'child': 'missing'},

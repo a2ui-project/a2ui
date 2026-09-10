@@ -114,10 +114,7 @@ void main() {
             (message! as Map).cast<String, Object?>(),
         ];
 
-        expect(
-          () => basicProcessor().validatePayload(payload),
-          returnsNormally,
-        );
+        expect(() => basicProcessor().processPayload(payload), returnsNormally);
       });
     }
   });
@@ -129,7 +126,7 @@ void main() {
 
     test('a component missing a required property', () {
       expect(
-        () => processor.validatePayload(
+        () => processor.processPayload(
           render([
             {'id': 'root', 'component': 'Text'},
           ]),
@@ -140,7 +137,7 @@ void main() {
 
     test('a value outside a property enum', () {
       expect(
-        () => processor.validatePayload(
+        () => processor.processPayload(
           render([
             {'id': 'root', 'component': 'Text', 'text': 'hi', 'variant': 'h9'},
           ]),
@@ -151,7 +148,7 @@ void main() {
 
     test('a property the component does not declare', () {
       expect(
-        () => processor.validatePayload(
+        () => processor.processPayload(
           render([
             {
               'id': 'root',
@@ -167,7 +164,7 @@ void main() {
 
     test('a component type the catalog does not declare', () {
       expect(
-        () => processor.validatePayload(
+        () => processor.processPayload(
           render([
             {'id': 'root', 'component': 'Frobnicator'},
           ]),
@@ -181,7 +178,7 @@ void main() {
       // back at the catalog document, so resolving it in both directions is
       // what makes this check possible.
       expect(
-        () => processor.validatePayload(
+        () => processor.processPayload(
           render([
             {
               'id': 'root',
@@ -200,7 +197,7 @@ void main() {
 
     test('a child reference that names no component', () {
       expect(
-        () => processor.validatePayload(
+        () => processor.processPayload(
           render([
             {'id': 'root', 'component': 'Card', 'child': 'missing'},
           ]),
@@ -211,7 +208,7 @@ void main() {
 
     test('a malformed child list', () {
       expect(
-        () => processor.validatePayload(
+        () => processor.processPayload(
           render([
             {
               'id': 'root',
@@ -234,7 +231,7 @@ void main() {
 
     test('a data binding in place of a literal', () {
       expect(
-        () => processor.validatePayload(
+        () => processor.processPayload(
           render([
             {
               'id': 'root',
@@ -249,7 +246,7 @@ void main() {
 
     test('a call to a function the catalog declares', () {
       expect(
-        () => processor.validatePayload(
+        () => processor.processPayload(
           render([
             {
               'id': 'root',

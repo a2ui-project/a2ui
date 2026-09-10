@@ -22,7 +22,7 @@ import '../support/renderer_catalog.dart';
 import 'conformance_harness.dart';
 
 /// Runs the shared `conformance/core/validator.yaml` suite against
-/// [MessageProcessor.validatePayload], the entry point for checking a payload
+/// [MessageProcessor.processPayload], the entry point for checking a payload
 /// on its own.
 ///
 /// Cases targeting a protocol version this SDK does not implement are skipped
@@ -75,22 +75,62 @@ void _runCase(Map<String, Object?> testCase) {
       commonTypesSchema: commonTypes,
     );
 
+    // An incremental payload presupposes a surface the client already holds.
+    // The case carries only the payload, so that surface is established here
+    // before the payload is applied; without it every incremental case would
+    // fail as "surface not found" rather than on what it means to test.
+    _seedReferencedSurfaces(processor, payload);
+
     final Object? expectError =
         step['expect_error'] ?? testCase['expect_error'];
     if (expectError != null) {
       expect(
-        () => processor.validatePayload(payload),
+        () => processor.processPayload(payload),
         throwsA(_matchesError(expectError)),
         reason: testCase['name'] as String?,
       );
     } else {
       expect(
-        () => processor.validatePayload(payload),
+        () => processor.processPayload(payload),
         returnsNormally,
         reason: testCase['name'] as String?,
       );
     }
   }
+}
+
+/// Creates any surface [payload] updates but does not itself create.
+///
+/// A payload that only updates components is incremental: it describes a
+/// change to a surface the client already has. The suite states the payload
+/// alone, so the surface it assumes is created here, empty, and the payload is
+/// then applied to it. References into it still resolve against nothing, which
+/// is what the dangling-reference cases rely on.
+void _seedReferencedSurfaces(
+  MessageProcessor<ComponentApi> processor,
+  List<Map<String, Object?>> payload,
+) {
+  final created = <String>{
+    for (final Map<String, Object?> envelope in payload)
+      if (envelope['createSurface'] case final Map<String, Object?> body)
+        if (body['surfaceId'] case final String id) id,
+  };
+  final referenced = <String>{
+    for (final Map<String, Object?> envelope in payload)
+      for (final String key in const ['updateComponents', 'updateDataModel'])
+        if (envelope[key] case final Map<String, Object?> body)
+          if (body['surfaceId'] case final String id)
+            if (!created.contains(id)) id,
+  };
+  if (referenced.isEmpty) return;
+
+  processor.processMessages([
+    for (final String id in referenced)
+      CreateSurfaceMessage(
+        surfaceId: id,
+        catalogId: processor.catalogs.single.id,
+      ),
+  ]);
 }
 
 /// The steps a case runs, whether it declares one payload or several.

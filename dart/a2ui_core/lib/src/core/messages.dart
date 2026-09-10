@@ -22,6 +22,41 @@ abstract class A2uiMessage {
 
   A2uiMessage({this.version = 'v0.9'});
 
+  /// Parses a whole payload of envelopes into typed messages.
+  ///
+  /// An envelope declares its protocol version and exactly one update type;
+  /// neither depends on a catalog. A payload is therefore parsed before it is
+  /// known which surface, and so which catalog, each message belongs to, which
+  /// is what lets `MessageProcessor` route the messages afterwards.
+  ///
+  /// Every envelope must declare [protocolVersion]; a payload mixing versions
+  /// is rejected rather than partially parsed.
+  ///
+  /// Throws [A2uiValidationError] for any envelope that is not a well-formed
+  /// message of [protocolVersion], including one carrying more than a single
+  /// update type.
+  static List<A2uiMessage> parseAll(
+    List<Map<String, Object?>> payload, {
+    required A2uiProtocolVersion protocolVersion,
+  }) {
+    final messages = <A2uiMessage>[];
+    for (final envelope in payload) {
+      final A2uiProtocolVersion version = A2uiProtocolVersion.fromJson(
+        envelope['version'],
+        details: envelope,
+      );
+      if (version != protocolVersion) {
+        throw A2uiValidationError(
+          "Payload declares version '${version.jsonValue}' but this SDK "
+          "accepts only '${protocolVersion.jsonValue}'.",
+          details: envelope,
+        );
+      }
+      messages.add(A2uiMessage.fromJson(Map<String, dynamic>.from(envelope)));
+    }
+    return messages;
+  }
+
   /// Deserializes a JSON envelope into a typed [A2uiMessage].
   ///
   /// Throws [A2uiValidationError] if `version` is missing or unsupported.

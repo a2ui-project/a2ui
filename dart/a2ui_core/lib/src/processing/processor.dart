@@ -23,7 +23,6 @@ import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import '../validation/component_graph.dart';
 import '../validation/component_refs.dart';
-import '../validation/payload_structure.dart';
 import '../validation/validator.dart';
 
 /// The central processor for A2UI messages on renderer side.
@@ -44,16 +43,18 @@ import '../validation/validator.dart';
 /// surface mix catalogs, which v1.0 allows through the `catalogId` a component
 /// or function call may carry to override the surface-level default.
 ///
-/// Two entry points, for the two things a caller can have:
+/// [processMessages] is the entry point for both sides. It applies a payload
+/// to the surface state, checking each message against the surface it joins as
+/// it goes, so graph checks resolve references against what the surface
+/// already holds. An agent checks its own output the same way, over a
+/// processor it keeps for the session: the state it builds up is what makes an
+/// incremental update checkable rather than waved through.
 ///
-/// - [processMessages] applies a payload to the surface state, checking each
-///   message against the surface it joins as it goes. Graph checks resolve
-///   references against what the surface already holds, which a payload on its
-///   own cannot see, so an incremental update is checked rather than waved
-///   through.
-/// - [validatePayload] checks a payload on its own, without applying it and
-///   without requiring the surfaces to exist. This is what an agent has before
-///   it sends anything.
+/// [checkSurfaceComplete] is the one thing applying a payload cannot settle.
+/// Messages arrive over time, so the process path cannot require a root
+/// component or reject an unreachable one: either may be resolved by a message
+/// still to come. A caller that knows a surface is finished asks for that
+/// check explicitly.
 ///
 /// Validation is phased rather than a single pass: envelopes are checked as the
 /// payload is parsed, a surface's theme when the surface is created, and each
@@ -145,7 +146,7 @@ class MessageProcessor<T extends ComponentApi> {
   /// Throws [A2uiValidationError] for a malformed envelope, including one
   /// mixing update types, before any message reaches the models.
   List<A2uiMessage> processPayload(List<Map<String, Object?>> payload) {
-    final List<A2uiMessage> messages = PayloadValidator.parseMessages(
+    final List<A2uiMessage> messages = A2uiMessage.parseAll(
       payload,
       protocolVersion: protocolVersion,
     );
@@ -160,109 +161,46 @@ class MessageProcessor<T extends ComponentApi> {
     }
   }
 
-  /// Checks a payload on its own: envelopes, then structure, then catalogs.
+  /// Checks that [surfaceId] holds a finished render.
   ///
-  /// Nothing is applied and no surface has to exist, so this is what an agent
-  /// runs over its own output before sending it, and what checks a payload
-  /// captured on the wire. A renderer holding surface state gets a stricter
-  /// check from [processPayload], which resolves references against the
-  /// components each surface already holds.
+  /// The process path cannot make this check as messages arrive: a surface is
+  /// built up over several messages, so a missing root or an unreachable
+  /// component may simply be waiting on the next one. Completeness is
+  /// therefore something the caller declares, and this is where it is checked
+  /// — an agent runs it over the surfaces its turn built before sending the
+  /// payload, and a renderer can run it once a stream ends.
   ///
-  /// Returns the parsed messages, and throws as the individual stages do.
-  List<A2uiMessage> validatePayload(List<Map<String, Object?>> payload) {
-    final List<A2uiMessage> messages = PayloadValidator.parseMessages(
-      payload,
-      protocolVersion: protocolVersion,
+  /// Every reference must resolve within the surface, a component with id
+  /// `root` must exist, and every component must be reachable from it.
+  ///
+  /// Throws [A2uiStateError] if no such surface exists, [A2uiIntegrityError]
+  /// for a missing root or a reference to no component, and
+  /// [A2uiRecursionError] for a cycle or an over-deep chain.
+  void checkSurfaceComplete(String surfaceId) {
+    final SurfaceModel<T>? surface = groupModel.getSurface(surfaceId);
+    if (surface == null) {
+      throw A2uiStateError('Surface not found: $surfaceId');
+    }
+
+    final List<Map<String, Object?>> components = [
+      for (final ComponentModel c in surface.componentsModel.all) c.toJson(),
+    ];
+    final Map<String, ComponentRefFields> refFields = _refFieldsFor(
+      surface.catalog.id,
+      components,
     );
-    validateStructure(messages);
-    validateCatalogs(messages);
-    return messages;
-  }
-
-  /// Checks that a message sequence forms a valid component graph: unique
-  /// ids, reachability, no dangling references, no cycles, depth within cap.
-  ///
-  /// A payload that creates a surface is a full render: it must declare a
-  /// component with id `root`, every reference must name a component the
-  /// payload declares, and every component must be reachable from the root. A
-  /// payload that only updates components is incremental, so it may reference
-  /// components the client already holds; duplicate ids, self-references and
-  /// cycles still fail.
-  ///
-  /// Throws [A2uiIntegrityError] for graph defects, [A2uiRecursionError] for
-  /// cycles and depth overruns, and [A2uiValidationError] for a malformed
-  /// data-model path.
-  void validateStructure(List<A2uiMessage> messages) {
-    for (final message in messages) {
-      checkPathsAndRecursion(message.toJson());
-      // Two components sharing an id in one message contradict each other.
-      // The same id in a later message updates the component instead, so
-      // duplicates are looked for per message, before the merge below.
-      if (message is UpdateComponentsMessage) {
-        checkComponentIntegrity(
-          message.components,
-          const {},
-          requireRoot: false,
-          knownIds: null,
-        );
-      }
-    }
-
-    for (final SurfacePayload surface in groupBySurface(messages).values) {
-      if (surface.components.isEmpty) continue;
-
-      final Map<String, ComponentRefFields> refFields = _refFieldsFor(
-        surface.catalogId,
-        surface.components,
-      );
-      checkComponentIntegrity(
-        surface.components,
-        refFields,
-        requireRoot: surface.created,
-        // A payload that creates the surface must satisfy every reference
-        // itself. One that does not cannot know what the client already
-        // holds, so [processMessages] makes that check instead.
-        knownIds: surface.created ? const <String>{} : null,
-      );
-      checkComponentTopology(
-        surface.components,
-        refFields,
-        requireRoot: surface.created,
-        allowOrphans: !surface.isSingleRender,
-      );
-    }
-  }
-
-  /// Checks each component and theme in [messages] against its own catalog.
-  ///
-  /// A surface names a default catalog on `createSurface`, and from v1.0 a
-  /// component may name one of its own that overrides it, so the catalog is
-  /// resolved per component rather than per payload. A payload that spans
-  /// several catalogs is checked against each of them, not rejected.
-  ///
-  /// Throws [A2uiCatalogError] when a surface or component names a catalog
-  /// this processor does not support, or when a payload gives no catalog for a
-  /// surface and this processor holds more than one so none can be assumed.
-  ///
-  /// Throws [A2uiValidationError] for schema violations.
-  void validateCatalogs(List<A2uiMessage> messages) {
-    // A surface names its catalog whether or not the payload goes on to put
-    // anything on it, and its theme arrives with it, so both are checked as
-    // the message is seen rather than through the grouping below.
-    for (final message in messages) {
-      if (message is! CreateSurfaceMessage) continue;
-      validatorFor(catalogFor(message.catalogId)).validateTheme(message.theme);
-    }
-
-    for (final SurfacePayload surface in groupBySurface(messages).values) {
-      for (final Map<String, Object?> component in surface.components) {
-        final Catalog<T, FunctionImplementation> catalog = _catalogForComponent(
-          component,
-          surface.catalogId,
-        );
-        validatorFor(catalog).validateComponent(component);
-      }
-    }
+    checkComponentIntegrity(
+      components,
+      refFields,
+      requireRoot: true,
+      knownIds: const <String>{},
+    );
+    checkComponentTopology(
+      components,
+      refFields,
+      requireRoot: true,
+      allowOrphans: false,
+    );
   }
 
   /// The catalog one component is checked against.
@@ -442,8 +380,8 @@ class MessageProcessor<T extends ComponentApi> {
   /// [incoming] is the batch; [existing] is what the surface already holds, as
   /// `ComponentModel.toJson` renders it. References resolve against both, so a
   /// batch may point at a component the client already has while a reference
-  /// to nothing at all is still caught — a check [validateStructure] cannot
-  /// make, because a payload does not carry the surface's history.
+  /// to nothing at all is still caught — a check a payload cannot make on its
+  /// own, because it does not carry the surface's history.
   ///
   /// Cycles and depth are measured over the merged graph rather than the batch
   /// alone, so a batch that closes a loop through existing components fails
