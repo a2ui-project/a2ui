@@ -41,7 +41,7 @@ before it modifies your app. It covers AG-UI framework adapters, supported
 and end-to-end verification for AG-UI + A2UI apps.
 
 If your app uses CopilotKit for A2UI rendering, also load the
-[CopilotKit `a2ui-renderer` skill](https://github.com/CopilotKit/CopilotKit/blob/main/skills/a2ui-renderer/SKILL.md)
+[CopilotKit `copilotkit` skill](https://github.com/CopilotKit/CopilotKit/blob/main/skills/copilotkit/SKILL.md)
 for CopilotKit v2 runtime, provider, theme, and catalog conventions.
 
 ## 1. Set up AG-UI
