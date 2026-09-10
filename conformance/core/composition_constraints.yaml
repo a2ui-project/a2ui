@@ -54,7 +54,7 @@
           type: "object"
           properties:
             children:
-              $ref: "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList"
+              $ref: "#/$defs/ChildList"
   action: validate
   steps:
     - payload:
@@ -84,7 +84,7 @@
           allowedChildren: ["Text", "Button"]
           properties:
             children:
-              $ref: "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList"
+              $ref: "#/$defs/ChildList"
         Video:
           type: "object"
   action: validate

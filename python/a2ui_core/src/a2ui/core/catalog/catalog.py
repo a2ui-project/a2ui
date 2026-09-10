@@ -69,6 +69,92 @@ def _get_dynamic_types_defs() -> dict[str, Any]:
             ),
             "type": "string",
         },
+        "CallId": {
+            "description": "The unique identifier for a function call.",
+            "type": "string",
+        },
+        "Child": {
+            "$ref": "#/$defs/ComponentId",
+            "description": "A reference to a single child component ID.",
+        },
+        "TemplateChildList": {
+            "type": "object",
+            "description": (
+                "A template for generating a dynamic list of children from"
+                " a data model list. The `componentId` is the component"
+                " to use as a template."
+            ),
+            "properties": {
+                "componentId": {"$ref": "#/$defs/ComponentId"},
+                "path": {
+                    "type": "string",
+                    "description": (
+                        "The path to the list of component property"
+                        " objects in the data model."
+                    ),
+                },
+            },
+            "required": ["componentId", "path"],
+            "additionalProperties": False,
+        },
+        "ChildList": {
+            "description": (
+                "A list of child component IDs or a template for generating"
+                " a dynamic list."
+            ),
+            "oneOf": [
+                {
+                    "type": "array",
+                    "items": {"$ref": "#/$defs/ComponentId"},
+                    "description": "A static list of child component IDs.",
+                },
+                {
+                    "$ref": "#/$defs/TemplateChildList",
+                },
+            ],
+        },
+        "AccessibilityAttributes": {
+            "type": "object",
+            "description": (
+                "Attributes to enhance accessibility when using assistive"
+                " technologies like screen readers or model understanding."
+            ),
+            "properties": {
+                "label": {
+                    "$ref": "#/$defs/DynamicString",
+                    "description": (
+                        "A short string, typically 1 to 3 words, used by"
+                        " assistive technologies to convey the purpose or"
+                        " intent of an element."
+                    ),
+                },
+                "description": {
+                    "$ref": "#/$defs/DynamicString",
+                    "description": (
+                        "Additional information provided by assistive"
+                        " technologies about an element such as instructions,"
+                        " format requirements, or result of an action."
+                    ),
+                },
+                "live": {
+                    "type": "string",
+                    "enum": ["off", "polite", "assertive"],
+                    "default": "off",
+                    "description": (
+                        "Controls screen reader announcements for dynamic updates"
+                        " (WAI-ARIA aria-live)."
+                    ),
+                },
+                "hidden": {
+                    "$ref": "#/$defs/DynamicBoolean",
+                    "description": (
+                        "Hides the element and its children from assistive"
+                        " technologies when true."
+                    ),
+                },
+            },
+            "additionalProperties": False,
+        },
         "DynamicString": _generate_dynamic_type_def(DynamicString),
         "DynamicNumber": _generate_dynamic_type_def(DynamicNumber),
         "DynamicBoolean": _generate_dynamic_type_def(DynamicBoolean),
@@ -261,6 +347,22 @@ def _is_type(item: Any, target_type: str) -> bool:
     return isinstance(item, dict) and item.get("type") == target_type
 
 
+def _collect_defs_refs(node: Any, refs: set[str]) -> None:
+    """Recursively collects local #/$defs/ reference targets."""
+    if isinstance(node, dict):
+        if (
+            "$ref" in node
+            and isinstance(node["$ref"], str)
+            and node["$ref"].startswith("#/$defs/")
+        ):
+            refs.add(node["$ref"].split("/")[-1])
+        for v in node.values():
+            _collect_defs_refs(v, refs)
+    elif isinstance(node, list):
+        for item in node:
+            _collect_defs_refs(item, refs)
+
+
 def _clean_schema_node(
     node: Any,
     referenced_dynamics: set[str] | None = None,
@@ -396,12 +498,14 @@ class Catalog(Generic[TComponent, TFunction]):
         functions: list[TFunction] | None = None,
         theme_schema: dict[str, Any] | None = None,
         instructions: str | None = None,
+        defs: dict[str, Any] | None = None,
     ):
         if not protocol_version:
             raise ValueError("protocol_version must be provided.")
         self.catalog_id = catalog_id
         self.protocol_version = protocol_version
         self.instructions = instructions
+        self.defs: dict[str, Any] = copy.deepcopy(defs) if defs else {}
 
         validate_identifiers = is_at_least_version(protocol_version, "1.0")
 
@@ -441,6 +545,10 @@ class Catalog(Generic[TComponent, TFunction]):
             schema["instructions"] = self.instructions
 
         defs: dict[str, Any] = {}
+        if self.defs:
+            for def_name, def_schema in self.defs.items():
+                if def_name not in ("anyComponent", "anyFunction"):
+                    defs[def_name] = copy.deepcopy(def_schema)
         if self.theme_schema:
             defs["theme"] = self.theme_schema
 
@@ -550,6 +658,17 @@ class Catalog(Generic[TComponent, TFunction]):
                 referenced_dynamics.add("DataBinding")
                 referenced_dynamics.add("FunctionCall")
             dynamic_defs = _get_dynamic_types_defs()
+            queue = list(referenced_dynamics)
+            while queue:
+                curr = queue.pop(0)
+                if curr in dynamic_defs:
+                    found_refs: set[str] = set()
+                    _collect_defs_refs(dynamic_defs[curr], found_refs)
+                    for target in found_refs:
+                        if target not in referenced_dynamics:
+                            referenced_dynamics.add(target)
+                            queue.append(target)
+
             for dyn in sorted(referenced_dynamics):
                 if dyn in dynamic_defs:
                     if dyn not in cleaned_schema["$defs"]:
@@ -720,5 +839,6 @@ class Catalog(Generic[TComponent, TFunction]):
             or inlined_catalog_schema.get("$defs", {}).get("theme")
             or {},
             instructions=inlined_catalog_schema.get("instructions"),
+            defs=inlined_catalog_schema.get("$defs"),
         )
         return cat
