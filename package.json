@@ -8,6 +8,7 @@
     "renderers/lit/*",
     "renderers/markdown/*",
     "renderers/react/*",
+    "javascript/*",
     "samples/client/angular",
     "samples/client/angular/projects/*",
     "samples/client/lit",
