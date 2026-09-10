@@ -23,6 +23,7 @@ import sys
 # Constants
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 SPEC_DIR = os.path.abspath(os.path.join(TEST_DIR, ".."))
+REPO_ROOT = os.path.abspath(os.path.join(TEST_DIR, "../../.."))
 SCHEMA_DIR = os.path.join(SPEC_DIR, "json")
 CASES_DIR = os.path.join(TEST_DIR, "cases")
 TEMP_FILE = os.path.join(TEST_DIR, "temp_data.json")
@@ -88,7 +89,9 @@ def validate_ajv(schema_path, data_path, all_schemas):
     """Runs ajv validate via subprocess."""
     cmd = [
         "yarn",
-        "run",
+        "workspace",
+        "@a2ui/specification-v1_0-test",
+        "exec",
         "ajv",
         "validate",
         "-s",
@@ -107,7 +110,7 @@ def validate_ajv(schema_path, data_path, all_schemas):
             cmd.extend(["-r", path])
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=TEST_DIR)
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT)
         return result.returncode == 0, result.stdout + result.stderr
     except FileNotFoundError:
         print(

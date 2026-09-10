@@ -115,14 +115,14 @@ def main() -> None:
     parser.add_argument(
         "--model",
         type=str,
-        default="google/gemini-3.5-flash",
-        help="Model used to evaluate tasks. Default is google/gemini-3.5-flash.",
+        default="google/gemini-3.8-flash",
+        help="Model used to evaluate tasks. Default is google/gemini-3.8-flash.",
     )
     parser.add_argument(
         "--grading-model",
         type=str,
-        default="google/gemini-3.5-flash",
-        help="Model used for grading. Default is google/gemini-3.5-flash.",
+        default="google/gemini-3.8-flash",
+        help="Model used for grading. Default is google/gemini-3.8-flash.",
     )
     args = parser.parse_args()
 

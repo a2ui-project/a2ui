@@ -284,7 +284,7 @@ async function main() {
     .option('eval-model', {
       type: 'string',
       description: 'Model to use for evaluation',
-      default: 'gemini-2.5-flash',
+      default: 'gemini-3.8-flash',
       choices: modelsToTest.map(m => m.name),
     })
     .option('clean-results', {
