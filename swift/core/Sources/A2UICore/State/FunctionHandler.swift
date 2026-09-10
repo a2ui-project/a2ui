@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@MainActor
 public protocol FunctionHandler: AnyObject, Sendable {
   func function(named: String, catalogID: String?) -> (any FunctionImplementation)?
 }

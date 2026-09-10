@@ -60,7 +60,7 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
             <label class="a2ui-option-label">
               <input
                 [type]="isMultiple() ? 'checkbox' : 'radio'"
-                [name]="componentId()"
+                [attr.name]="isMultiple() ? null : groupName()"
                 [value]="option.value"
                 [checked]="isSelected(option.value)"
                 (change)="onCheckChange(option.value, $event)"
@@ -127,6 +127,15 @@ import {ChoicePickerApi} from '@a2ui/web_core/v0_9/basic_catalog';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChoicePickerComponent extends BasicCatalogComponent<typeof ChoicePickerApi> {
+  // Radio group names are document-scoped while component ids are only
+  // surface-scoped, so the group name qualifies the component id with the
+  // surface id and the data context path (which disambiguates instances
+  // stamped from a list template within one surface).
+  protected readonly groupName = computed(() => {
+    const sanitizedPath = this.dataContextPath().replace(/[^a-zA-Z0-9-]/g, '_');
+    return `a2ui-choice-${this.surfaceId()}-${this.componentId()}-${sanitizedPath}`;
+  });
+
   readonly displayStyle = computed(() => this.props()['displayStyle']?.value());
   readonly options = computed(() => this.props()['options']?.value() || []);
   readonly variant = computed(() => this.props()['variant']?.value());

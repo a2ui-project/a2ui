@@ -32,12 +32,13 @@ describe('App', () => {
   it('should create the app', () => {
     const fixture = TestBed.createComponent(App);
     const app = fixture.componentInstance;
-    expect(app).toBeTruthy();
+    expect(app).toBeInstanceOf(App);
 
     fixture.detectChanges(); // Trigger ngOnInit
 
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.canvas-frame')).toBeTruthy();
+    const canvasFrame = compiled.querySelector('.canvas-frame');
+    expect(canvasFrame).toBeInstanceOf(HTMLElement);
   });
 
   it('should render title', () => {
@@ -57,7 +58,7 @@ describe('App', () => {
     const collapseBtn = compiled.querySelector('.collapse-left-btn') as HTMLButtonElement;
 
     expect(leftSidebar.classList.contains('collapsed')).toBeFalse();
-    expect(collapseBtn).toBeTruthy();
+    expect(collapseBtn).toBeInstanceOf(HTMLButtonElement);
 
     collapseBtn.click();
     fixture.detectChanges();
@@ -65,7 +66,7 @@ describe('App', () => {
     expect(leftSidebar.classList.contains('collapsed')).toBeTrue();
 
     const expandBtn = compiled.querySelector('.expand-left-btn') as HTMLButtonElement;
-    expect(expandBtn).toBeTruthy();
+    expect(expandBtn).toBeInstanceOf(HTMLButtonElement);
 
     expandBtn.click();
     fixture.detectChanges();
@@ -82,7 +83,7 @@ describe('App', () => {
     const collapseBtn = compiled.querySelector('.collapse-right-btn') as HTMLButtonElement;
 
     expect(inspectArea.classList.contains('collapsed')).toBeFalse();
-    expect(collapseBtn).toBeTruthy();
+    expect(collapseBtn).toBeInstanceOf(HTMLButtonElement);
 
     collapseBtn.click();
     fixture.detectChanges();
@@ -90,7 +91,7 @@ describe('App', () => {
     expect(inspectArea.classList.contains('collapsed')).toBeTrue();
 
     const expandBtn = compiled.querySelector('.expand-right-btn') as HTMLButtonElement;
-    expect(expandBtn).toBeTruthy();
+    expect(expandBtn).toBeInstanceOf(HTMLButtonElement);
 
     expandBtn.click();
     fixture.detectChanges();

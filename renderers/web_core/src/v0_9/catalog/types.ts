@@ -18,6 +18,7 @@ import {z} from 'zod';
 import {DataContext} from '../rendering/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiExpressionError} from '../errors.js';
+import {loadCatalogFromSchema} from './schema_loader.js';
 
 export type A2uiReturnType = 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';
 
@@ -42,6 +43,7 @@ export interface FunctionApi {
   readonly name: string;
   readonly returnType: A2uiReturnType;
   readonly schema: z.ZodTypeAny;
+  readonly description?: string;
 }
 
 /**
@@ -94,6 +96,19 @@ export interface ComponentApi<Schema extends z.ZodTypeAny = z.ZodTypeAny> {
    * - MUST NOT include 'component' or 'id' as those are handled by the framework/envelope.
    */
   readonly schema: Schema;
+}
+
+/**
+ * An implementation of a UI component using Web Components (Custom Elements).
+ * Extends ComponentApi to include the Custom Element's tag name.
+ *
+ * @template Schema the Zod schema type for the component's properties.
+ */
+export interface WebComponentImplementation<
+  Schema extends z.ZodTypeAny = z.ZodTypeAny,
+> extends ComponentApi<Schema> {
+  /** The HTML tag name of the Custom Element registered for this component. */
+  readonly tagName: string;
 }
 
 /**
@@ -204,5 +219,14 @@ export class Catalog<
         throw e;
       }
     };
+  }
+
+  /**
+   * Constructs a fully-typed schema-only Catalog directly from raw A2UI catalog schema.
+   *
+   * @param catalogSchema Raw catalog schema or client capabilities payload object.
+   */
+  static fromSchema(catalogSchema: Record<string, any>): Catalog<ComponentApi, FunctionApi> {
+    return loadCatalogFromSchema(catalogSchema);
   }
 }

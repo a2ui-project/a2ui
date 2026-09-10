@@ -108,6 +108,9 @@ export function setupTestDom() {
   });
 }
 
+// Ensure DOM globals are immediately available when test modules evaluate Lit classes
+setupTestDom();
+
 /**
  * Cleans up the JSDOM instance between tests.
  */

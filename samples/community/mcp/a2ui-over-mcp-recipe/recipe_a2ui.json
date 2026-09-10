@@ -3,7 +3,7 @@
     "version": "v0.9",
     "createSurface": {
       "surfaceId": "recipe-card",
-      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+      "catalogId": "https://a2ui.org/specification/v0_9/basic_catalog.json"
     }
   },
   {
@@ -124,22 +124,6 @@
           "variant": "caption"
         }
       ]
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateDataModel": {
-      "surfaceId": "recipe-card",
-      "path": "/",
-      "value": {
-        "image": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&h=180&fit=crop",
-        "title": "Mediterranean Quinoa Bowl",
-        "rating": 4.9,
-        "reviewCount": "(1,247 reviews)",
-        "prepTime": "15 min prep",
-        "cookTime": "20 min cook",
-        "servings": "Serves 4"
-      }
     }
   }
 ]

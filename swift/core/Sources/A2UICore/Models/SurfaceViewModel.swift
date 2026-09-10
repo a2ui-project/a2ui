@@ -28,7 +28,8 @@ import OrderedJSON
 /// `SurfaceViewModel` also hosts the tree resolution logic (dynamic value
 /// evaluation, action resolution, child list expansion) that will
 /// eventually move to a dedicated Binder/Context layer (Phase 4).
-public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
+@MainActor
+public final class SurfaceViewModel: ObservableObject {
 
   // MARK: - Properties
 
@@ -142,11 +143,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
   /// Rebuilds the node tree and publishes the new root.
   private func rebuildTree(components: [String: ComponentModel], data: JSONValue) {
     let newRoot = resolveNode(id: "root", components: components, data: data)
-
-    // Hopping to Main Thread to update the @Published property safely
-    DispatchQueue.main.async { [weak self] in
-      self?.rootNode = newRoot
-    }
+    self.rootNode = newRoot
   }
 
   // MARK: - Property Classification
@@ -160,7 +157,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
     case checks
     case action
     case childList
-    case componentId
+    case componentID
     case number
     case integer
     case standard
@@ -189,7 +186,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
       case "CheckRule", "Checkable": return .checks
       case "Action": return .action
       case "ChildList": return .childList
-      case "ComponentId": return .componentId
+      case "ComponentId": return .componentID
       default: break
       }
     }
@@ -422,7 +419,7 @@ public final class SurfaceViewModel: @unchecked Sendable, ObservableObject {
         components: components,
         data: data
       )
-    case .componentId:
+    case .componentID:
       guard let childID = value.stringValue else { return nil }
       return resolveNode(
         definitionID: childID,

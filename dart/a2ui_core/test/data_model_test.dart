@@ -155,6 +155,20 @@ void main() {
       expect(model.get('/'), isEmpty);
     });
 
+    test('rejects writes through a primitive value', () {
+      final model = DataModel();
+      model.set('/a/b', 's');
+      expect(() => model.set('/a/b/c', 1), throwsA(isA<A2uiDataError>()));
+      expect(model.get('/a/b'), 's');
+    });
+
+    test('rejects writes when the root itself is a primitive', () {
+      final model = DataModel();
+      model.set('/', 1);
+      expect(() => model.set('/a', 2), throwsA(isA<A2uiDataError>()));
+      expect(model.get('/'), 1);
+    });
+
     test('rejects excessively large list indices to prevent OOM', () {
       final model = DataModel();
       expect(

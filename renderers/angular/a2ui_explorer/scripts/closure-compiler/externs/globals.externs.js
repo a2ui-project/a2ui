@@ -27,3 +27,35 @@ let logHmrWarning;
 let goog;
 let resolveJitResources;
 let Hammer;
+
+/** @type {?} */ Object.prototype.litPropertyMetadata;
+/** @type {?} */ Object.prototype.kind;
+/** @type {?} */ Object.prototype.access;
+/** @type {?} */ Object.prototype.addInitializer;
+
+/**
+ * Externs for Lit (`@lit/reactive-element`, `lit-element`, `lit-html`).
+ * @record
+ * @struct
+ */
+function LitElementExterns() {}
+/** @type {?} */ LitElementExterns.prototype.elementProperties;
+/** @type {?} */ LitElementExterns.prototype.attributeToPropertyMap;
+/** @type {?} */ LitElementExterns.prototype.finalized;
+/** @type {?} */ LitElementExterns.prototype.renderOptions;
+/** @type {?} */ LitElementExterns.prototype.styles;
+/** @type {?} */ LitElementExterns.prototype.properties;
+
+/**
+ * Externs for TC39 2023 Decorators context object (`kind`, `name`, `static`, `private`, `access`, `addInitializer`).
+ * @record
+ * @struct
+ */
+function DecoratorContextExterns() {}
+/** @type {?} */ DecoratorContextExterns.prototype.kind;
+/** @type {?} */ DecoratorContextExterns.prototype.name;
+/** @type {?} */ DecoratorContextExterns.prototype.static;
+/** @type {?} */ DecoratorContextExterns.prototype.private;
+/** @type {?} */ DecoratorContextExterns.prototype.access;
+/** @type {?} */ DecoratorContextExterns.prototype.addInitializer;
+/** @type {?} */ DecoratorContextExterns.prototype.metadata;

@@ -41,7 +41,7 @@ jobs:
       scripts: ${{ steps.filter.outputs.scripts }}
       other: ${{ steps.filter.outputs.other }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
@@ -86,7 +86,7 @@ jobs:
     # instead of running to the default 6h timeout (see issue #1637).
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-node
@@ -103,6 +103,8 @@ jobs:
         run: eval "yarn workspaces foreach -A $RENDERERS_INC -p --topological-dev run build"
       - name: Test Renderers
         run: eval "yarn workspaces foreach -A $RENDERERS_INC -p run test"
+      - name: Test React 18 Compatibility
+        run: yarn workspace @a2ui/react run test:react18
       - name: Verify NPM Publish Script
         run: node --test renderers/scripts/publish_npm.test.mjs
 
@@ -165,6 +167,8 @@ jobs:
       - uses: ./.github/actions/setup-node
       - name: Setup Wireit Cache
         uses: google/wireit@9d7c2e5346f8ef1b1ab6014c4e96c74e234f7ed5 # setup-github-actions-caching/v2.0.4
+      - name: Build @a2ui/web_core
+        run: yarn workspace @a2ui/web_core build
       - name: Build Other Workspaces
         run: |
           EXCLUDE=$(echo "$RENDERERS_INC $TOOLS_INC $SAMPLES_INC" | sed 's/--include/--exclude/g')

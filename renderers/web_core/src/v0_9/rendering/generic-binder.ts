@@ -16,7 +16,13 @@
 
 import {z} from 'zod';
 import {ComponentContext} from './component-context.js';
-import {Action, ChildList, DataBinding, FunctionCall} from '../schema/common-types.js';
+import {
+  Action,
+  ChildList,
+  DataBinding,
+  FunctionCall,
+  childRefKindOf,
+} from '../schema/common-types.js';
 
 // --- Schema Scraping ---
 
@@ -55,8 +61,15 @@ export function scrapeSchemaBehavior(schema: z.ZodTypeAny): BehaviorNode {
   return getFieldBehavior(schema);
 }
 
+// TODO(#2443): Export and reuse these schema reference constants from a central location across web_core.
+const ACTION_REF = 'REF:common_types.json#/$defs/Action';
+const DATA_BINDING_REF = 'REF:common_types.json#/$defs/DataBinding';
+const DYNAMIC_REF_PREFIX = '#/$defs/Dynamic';
+
 function getFieldBehavior(type: z.ZodTypeAny, propertyName?: string): BehaviorNode {
   let current = type;
+
+  let description = current._def?.description || '';
 
   // Unwrap optionals/nullables/defaults
   while (
@@ -64,11 +77,33 @@ function getFieldBehavior(type: z.ZodTypeAny, propertyName?: string): BehaviorNo
     current._def.typeName === 'ZodNullable' ||
     current._def.typeName === 'ZodDefault'
   ) {
+    if (!description && current._def.description) {
+      description = current._def.description;
+    }
     current = current._def.innerType;
+  }
+  if (!description && current._def.description) {
+    description = current._def.description;
   }
 
   if (propertyName === 'checks') {
     return {type: 'CHECKABLE'};
+  }
+
+  if (description.startsWith(ACTION_REF)) {
+    return {type: 'ACTION'};
+  }
+
+  if (childRefKindOf(current) === 'child-list' || description.includes('#/$defs/ChildList')) {
+    return {type: 'STRUCTURAL'};
+  }
+
+  if (
+    (description.startsWith(DATA_BINDING_REF) || description.includes(DYNAMIC_REF_PREFIX)) &&
+    current._def.typeName !== 'ZodObject' &&
+    current._def.typeName !== 'ZodArray'
+  ) {
+    return {type: 'DYNAMIC'};
   }
 
   // Structural matching for A2UI primitives using typeName to avoid dual-module instanceof issues
@@ -122,13 +157,21 @@ type DynamicTypes = DataBinding | FunctionCall;
 type IsDynamic<T> = DataBinding extends NonNullable<T> ? true : false;
 
 /**
+ * A resolved reference to a child component, containing its unique ID and bound data context path.
+ */
+export interface ResolvedChildRef {
+  id: string;
+  basePath: string;
+}
+
+/**
  * Maps raw Zod inferred types to their resolved runtime equivalents.
  * For example, an `Action` object becomes a callable `() => void` function.
  */
 export type ResolveA2uiProp<T> = [NonNullable<T>] extends [Action]
   ? (() => void) | Extract<T, undefined>
   : [NonNullable<T>] extends [ChildList]
-    ? any | Extract<T, undefined>
+    ? (string | ResolvedChildRef)[] | Extract<T, undefined>
     : Exclude<T, DynamicTypes> extends never
       ? any
       : Exclude<T, DynamicTypes>;
@@ -226,76 +269,97 @@ export class GenericBinder<T> {
     this.notify();
   }
 
-  private resolveAndBind(value: any, behavior: BehaviorNode, path: string[], isSync: boolean): any {
-    if (value === undefined || value === null) return value;
+  private bindDynamicValue(value: any, path: string[], isSync: boolean): any {
+    const bound = this.context.dataContext.subscribeDynamicValue(value, newVal => {
+      this.updateDeepValue(path, newVal);
+      this.notify();
+    });
 
-    switch (behavior.type) {
-      case 'DYNAMIC': {
-        const bound = this.context.dataContext.subscribeDynamicValue(value, newVal => {
-          this.updateDeepValue(path, newVal);
-          this.notify();
-        });
+    if (!isSync) {
+      this.dataListeners.push(() => bound.unsubscribe());
+    } else {
+      bound.unsubscribe();
+    }
+    return bound.value;
+  }
+
+  private bindAction(value: any, path: string[]): () => void {
+    const cacheKey = path.join('/');
+    const cached = this.actionClosures.get(cacheKey);
+    if (cached && jsonEquals(cached.raw, value)) {
+      return cached.closure;
+    }
+    const closure = () => {
+      const resolveDeepSync = (val: any): any => {
+        if (typeof val !== 'object' || val === null) return val;
+        if ('path' in val || 'call' in val) {
+          return this.context.dataContext.resolveDynamicValue(val);
+        }
+        if (Array.isArray(val)) return val.map(resolveDeepSync);
+        const res: any = {};
+        for (const [k, v] of Object.entries(val)) res[k] = resolveDeepSync(v);
+        return res;
+      };
+      this.context.dispatchAction(resolveDeepSync(value));
+    };
+    this.actionClosures.set(cacheKey, {raw: value, closure});
+    return closure;
+  }
+
+  private bindStructuralTemplate(
+    value: any,
+    path: string[],
+    isSync: boolean,
+  ): ResolvedChildRef[] | any {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const templatePath = value.path;
+      const templateComponentId = value.componentId;
+      if (templatePath && templateComponentId) {
+        const bound = this.context.dataContext.subscribeDynamicValue(
+          {path: templatePath},
+          newVal => {
+            const arr = Array.isArray(newVal) ? newVal : [];
+            const listContext = this.context.dataContext.nested(templatePath);
+            const resolvedChildren: ResolvedChildRef[] = arr.map((_, i) => ({
+              id: templateComponentId,
+              basePath: listContext.nested(String(i)).path,
+            }));
+            this.updateDeepValue(path, resolvedChildren);
+            this.notify();
+          },
+        );
 
         if (!isSync) {
           this.dataListeners.push(() => bound.unsubscribe());
         } else {
           bound.unsubscribe();
         }
-        return bound.value;
+
+        const currentArr = Array.isArray(bound.value) ? bound.value : [];
+        const listContext = this.context.dataContext.nested(templatePath);
+        return currentArr.map((_, i) => ({
+          id: templateComponentId,
+          basePath: listContext.nested(String(i)).path,
+        }));
+      }
+    }
+    return value;
+  }
+
+  private resolveAndBind(value: any, behavior: BehaviorNode, path: string[], isSync: boolean): any {
+    if (value === undefined || value === null) return value;
+
+    switch (behavior.type) {
+      case 'DYNAMIC': {
+        return this.bindDynamicValue(value, path, isSync);
       }
 
       case 'ACTION': {
-        const cacheKey = path.join('/');
-        const cached = this.actionClosures.get(cacheKey);
-        if (cached && jsonEquals(cached.raw, value)) {
-          return cached.closure;
-        }
-        const closure = () => {
-          const resolveDeepSync = (val: any): any => {
-            if (typeof val !== 'object' || val === null) return val;
-            if ('path' in val || 'call' in val)
-              return this.context.dataContext.resolveDynamicValue(val);
-            if (Array.isArray(val)) return val.map(resolveDeepSync);
-            const res: any = {};
-            for (const [k, v] of Object.entries(val)) res[k] = resolveDeepSync(v);
-            return res;
-          };
-          this.context.dispatchAction(resolveDeepSync(value));
-        };
-        this.actionClosures.set(cacheKey, {raw: value, closure});
-        return closure;
+        return this.bindAction(value, path);
       }
 
       case 'STRUCTURAL': {
-        if (value && typeof value === 'object' && value.path && value.componentId) {
-          const bound = this.context.dataContext.subscribeDynamicValue(
-            {path: value.path},
-            newVal => {
-              const arr = Array.isArray(newVal) ? newVal : [];
-              const listContext = this.context.dataContext.nested(value.path);
-              const resolvedChildren = arr.map((_, i) => ({
-                id: value.componentId,
-                basePath: listContext.nested(String(i)).path,
-              }));
-              this.updateDeepValue(path, resolvedChildren);
-              this.notify();
-            },
-          );
-
-          if (!isSync) {
-            this.dataListeners.push(() => bound.unsubscribe());
-          } else {
-            bound.unsubscribe();
-          }
-
-          const currentArr = Array.isArray(bound.value) ? bound.value : [];
-          const listContext = this.context.dataContext.nested(value.path);
-          return currentArr.map((_, i) => ({
-            id: value.componentId,
-            basePath: listContext.nested(String(i)).path,
-          }));
-        }
-        return value;
+        return this.bindStructuralTemplate(value, path, isSync);
       }
 
       case 'CHECKABLE': {
@@ -339,8 +403,9 @@ export class GenericBinder<T> {
         return value; // The 'checks' property itself remains as the original rules array
       }
 
-      case 'STATIC':
+      case 'STATIC': {
         return value;
+      }
 
       case 'ARRAY': {
         if (!Array.isArray(value)) return value;

@@ -21,7 +21,7 @@ struct NodeTests {
 
   // MARK: - Initialization
 
-  @Test func nodeInitializesWithIdTypeAndProperties() {
+  @Test func nodeInitializesWithIDTypeAndProperties() {
     let node = Node(
       id: "btn1",
       type: "button",
@@ -294,6 +294,7 @@ final class Box<T>: @unchecked Sendable {
   init(_ value: T) { self.value = value }
 }
 
+@MainActor
 struct DataBindingTests {
 
   // MARK: - Path-based Binding
@@ -426,7 +427,7 @@ struct ComponentPropertiesTests {
     #expect(a != b)
   }
 
-  @Test func componentPropertiesInequalityByDifferentJson() throws {
+  @Test func componentPropertiesInequalityByDifferentJSON() throws {
     let schema = try Schema(instance: "{\"type\": \"object\"}")
     let a = ComponentProperties(type: "button", schema: schema, json: ["id": "btn1"])
     let b = ComponentProperties(type: "button", schema: schema, json: ["id": "btn2"])
