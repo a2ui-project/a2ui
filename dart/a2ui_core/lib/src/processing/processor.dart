@@ -343,7 +343,6 @@ class MessageProcessor<T extends ComponentApi> {
     // waved through.
     _validateComponentBatch(surface, incoming, existing);
 
-
     // Pass 2: mutation. Only reached when the whole batch is valid.
     for (final Map<String, dynamic> compJson in message.components) {
       final id = compJson['id'] as String;
