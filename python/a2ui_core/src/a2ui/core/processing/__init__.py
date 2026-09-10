@@ -31,6 +31,7 @@ from .format_pydantic_error import (
 )
 
 __all__ = [
+    "ExecutionContext",
     "MessageProcessor",
     "MessageProcessorOptions",
     "InternalOperation",

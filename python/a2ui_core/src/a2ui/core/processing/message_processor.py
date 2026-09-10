@@ -208,7 +208,7 @@ class MessageProcessor:
         )
 
     def _resolve_catalog(self, catalog_id: str | None = None) -> Any | None:
-        """Resolves catalog by catalog_id or defaults to primary catalog."""
+        """Resolves a catalog by catalog_id, or returns None if catalog_id is None or not found."""
         return self.rpc.resolve_catalog(catalog_id)
 
     def get_renderer_capabilities(
