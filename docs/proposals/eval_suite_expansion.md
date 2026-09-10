@@ -427,7 +427,7 @@ The solver invokes `measured_generate()`, passing the assembled message list to 
     - Parses JSON from `<a2ui-json>` tags.
     - Runs the catalog validator ([A2uiValidator](../../python/a2ui_agent/README.md)) to verify schema adherence, parent-child references, and root component presence.
 2. **LLM judge scoring ([measured_model_graded_qa](../../eval/a2ui_eval/scorers.py))**:
-    - Evaluates the generated UI against the `target` criteria using the grading model (e.g. `google/gemini-3.5-flash`).
+    - Evaluates the generated UI against the `target` criteria using the grading model (e.g. `google/gemini-3.8-flash`).
     - Produces a grade of `C` (Correct), `P` (Partial Credit), or `I` (Incorrect).
 
 ---

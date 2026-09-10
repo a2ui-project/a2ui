@@ -26,6 +26,44 @@ os.environ["INSPECT_MODEL_MAX_BACKOFF"] = "300"
 
 from inspect_ai.dataset import MemoryDataset
 
+MODEL_ALIASES: dict[str, str] = {
+    # Cloud models
+    "gemma": "google/gemma-4-26b-a4b-it",
+    "gemma-4-26b": "google/gemma-4-26b-a4b-it",
+    "gemma-large": "google/gemma-4-31b-it",
+    "gemma-4-31b": "google/gemma-4-31b-it",
+    "gemini-3.8-flash": "google/gemini-3.8-flash",
+    "gemini-3.5-flash": "google/gemini-3.5-flash",
+    "gemini-3.1-flash-lite": "google/gemini-3.1-flash-lite",
+    # Ollama edge convenience aliases
+    "gemma-e2b": "ollama/gemma4:e2b",
+    "gemma-4-e2b": "ollama/gemma4:e2b",
+    "gemma-e4b": "ollama/gemma4:e4b",
+    "gemma-4-e4b": "ollama/gemma4:e4b",
+    "gemma-2b": "ollama/gemma2:2b",
+    "gemma-2-2b": "ollama/gemma2:2b",
+}
+
+RESTRICTED_GRADING_MODEL_FAMILIES = ("gemma",)
+
+
+def resolve_model_name(model_name: str) -> str:
+    """Resolves convenience aliases and provider conventions to fully qualified model IDs."""
+    stripped = model_name.strip()
+    lower = stripped.lower()
+    if lower in MODEL_ALIASES:
+        return MODEL_ALIASES[lower]
+    if "/" in stripped:
+        return stripped
+    if lower.startswith("ollama:"):
+        return f"ollama/{stripped[7:]}"
+    if ":" in stripped:
+        # Standard Ollama model tag convention (e.g. 'gemma4:e2b', 'llama3:8b')
+        return f"ollama/{stripped}"
+    if lower.startswith(("gemma-", "gemini-")):
+        return f"google/{stripped}"
+    return stripped
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run A2UI evaluations")
@@ -51,14 +89,17 @@ def main() -> None:
     parser.add_argument(
         "--model",
         type=str,
-        default="google/gemini-3.5-flash",
-        help="Model used to evaluate tasks",
+        default="google/gemini-3.8-flash",
+        help="Model used to evaluate tasks (or alias like 'gemma', 'gemma-4-26b')",
     )
     parser.add_argument(
         "--grading-model",
         type=str,
-        default="google/gemini-3.5-flash",
-        help="Model used for grading",
+        default="google/gemini-3.8-flash",
+        help=(
+            "Model used for grading (default: google/gemini-3.8-flash). Flash models"
+            " must always be used for judging; Gemma should never be used as judge."
+        ),
     )
     parser.add_argument(
         "--max-retries", type=int, default=0, help="Maximum number of retries"
@@ -115,8 +156,21 @@ def main() -> None:
         help="Number of epochs/repetitions to run for each evaluation sample",
     )
     args = parser.parse_args()
+    if args.sanity:
+        model = "google/gemini-3.1-flash-lite"
+    else:
+        model = resolve_model_name(args.model)
 
-    model = "google/gemini-3.1-flash-lite" if args.sanity else args.model
+    grading_model = resolve_model_name(args.grading_model)
+    if any(
+        family in grading_model.lower() for family in RESTRICTED_GRADING_MODEL_FAMILIES
+    ):
+        raise ValueError(
+            f"Invalid grading model '{grading_model}'. Gemma models must not be used"
+            " as LLM-as-a-judge; please use a Gemini Flash model (e.g."
+            " 'google/gemini-3.8-flash' or 'google/gemini-3.1-flash-lite')."
+        )
+
     limit = 2 if args.sanity else args.limit
     retry_attempts = 0 if args.sanity else args.max_retries
     sample_shuffle = None if args.sanity else args.sample_shuffle
@@ -150,7 +204,7 @@ def main() -> None:
         )
         task_obj = task_func(
             strategy=strat,
-            grading_model=args.grading_model,
+            grading_model=grading_model,
             dataset=selected_dataset,
         )
         if args.prompt:
