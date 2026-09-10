@@ -398,3 +398,23 @@ def test_rpc_handler_handle_agent_function_response_pydantic_model() -> None:
     handler.handle_agent_function_response(model_resp)
     assert fut.done()
     assert fut.result() == {"data": "pydantic_success"}
+
+
+def test_rpc_handler_unknown_function_error_code() -> None:
+    cat = Catalog("basic", protocol_version="v1.0", functions=[])
+    handler = RpcHandler([cat])
+
+    resp = handler.handle_call_renderer_function(
+        CallRendererFunctionMessage(
+            version="v1.0",
+            call_renderer_function=CallRendererFunction(
+                function_call_id="call-missing",
+                call_function=FunctionCall(call="nonExistentFunc", catalog_id="basic"),
+            ),
+        )
+    )
+    assert (
+        resp["rendererFunctionResponse"]["error"]["code"]
+        == RpcErrorCode.INVALID_FUNCTION_CALL.value
+    )
+    assert "Function not found" in resp["rendererFunctionResponse"]["error"]["message"]
