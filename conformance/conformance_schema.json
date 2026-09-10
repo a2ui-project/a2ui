@@ -35,6 +35,7 @@
             "has_parts",
             "is_a2ui_part",
             "load_catalog",
+            "parse_expression_template",
             "parse_full",
             "process_chunk",
             "process_messages",
@@ -137,6 +138,9 @@
           "description": "Expected outcome of the test action (evaluated as a contains / subset match rather than an exact match)."
         },
         "expectError": {
+          "$ref": "#/$defs/ExpectError"
+        },
+        "expect_error": {
           "$ref": "#/$defs/ExpectError"
         },
         "expectContains": {

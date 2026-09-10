@@ -280,18 +280,37 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
             if os.path.exists(full_p):
                 with open(full_p, "r", encoding="utf-8") as f:
                     c_json = json.load(f)
-                    c_id = c_json.get("catalogId") or "test-catalog"
+                    c_id = c_json.get("catalogId") or c_json.get("id") or "test-catalog"
                     p_ver = resolve_protocol_version(case) or "v0.9"
-                    cat = Catalog.from_json(
-                        c_json, catalog_id=c_id, protocol_version=p_ver
-                    )
-                    specified_catalogs.append(cat)
-                    if c_id != "test-catalog":
-                        test_cat = Catalog.from_json(
-                            c_json, catalog_id="test-catalog", protocol_version=p_ver
+                    if (
+                        c_id
+                        in (
+                            v10_catalog.catalog_id,
+                            v09_catalog.catalog_id,
+                            v08_catalog.catalog_id,
                         )
-                        catalogs_map["test-catalog"] = test_cat
-                        specified_catalogs.append(test_cat)
+                        or "basic/catalog.json" in p
+                    ):
+                        matching_basic = (
+                            v10_catalog
+                            if "1.0" in p_ver
+                            else (v08_catalog if "0.8" in p_ver else v09_catalog)
+                        )
+                        specified_catalogs.append(matching_basic)
+                        catalogs_map[c_id] = matching_basic
+                    else:
+                        cat = Catalog.from_json(
+                            c_json, catalog_id=c_id, protocol_version=p_ver
+                        )
+                        specified_catalogs.append(cat)
+                        if c_id != "test-catalog":
+                            test_cat = Catalog.from_json(
+                                c_json,
+                                catalog_id="test-catalog",
+                                protocol_version=p_ver,
+                            )
+                            catalogs_map["test-catalog"] = test_cat
+                            specified_catalogs.append(test_cat)
 
     messages: list[Any] = case.get("messages") or (
         [case["payload"]] if "payload" in case else []

@@ -72,7 +72,7 @@ def archive_run(
     notes: str | None = None,
     log_dir: str | None = None,
     custom_history_dir: str | None = None,
-    model: str = "google/gemini-3.5-flash",
+    model: str = "google/gemini-3.8-flash",
     thinking_budget: int | None = None,
 ) -> str:
     """Atomically archives optimization run artifacts into the history directory.

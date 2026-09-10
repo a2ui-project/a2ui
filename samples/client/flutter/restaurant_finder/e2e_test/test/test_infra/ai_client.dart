@@ -40,7 +40,7 @@ class DartanticAiClient implements AiClient {
     _provider = dartantic.GoogleProvider(apiKey: apiKey);
     _agent = dartantic.Agent.forProvider(
       _provider,
-      chatModelName: modelName ?? 'gemini-3-flash-preview',
+      chatModelName: modelName ?? 'gemini-3.8-flash',
     );
   }
 
