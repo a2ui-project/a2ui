@@ -73,10 +73,64 @@ def run_ajv(schema_path, data_paths, refs=None):
     return result.returncode == 0, result.stdout + result.stderr
 
 
+def extend_catalog_with_custom_components(
+    catalog_alias_path, custom_components, out_path
+):
+    """Writes a copy of the aliased catalog that also accepts the given custom components.
+
+    Some examples showcase components that the host application registers on top of the basic
+    catalog (for example a custom container component). Those examples declare the component
+    names in a top-level `customComponents` list. Each declared component is accepted with the
+    common component properties (`id`, `accessibility`, `weight`), a matching `component` name
+    and any additional properties, while every other component and message stays strictly
+    validated against the basic catalog.
+    """
+    with open(catalog_alias_path, "r") as f:
+        catalog = json.load(f)
+
+    components = catalog.setdefault("components", {})
+    any_component = catalog.setdefault("$defs", {}).setdefault(
+        "anyComponent", {"oneOf": []}
+    )
+    # Reuse the shared `$ref`s (ComponentCommon, CatalogComponentCommon) of an existing component
+    # so the custom definitions follow the catalog's own conventions.
+    common_refs = []
+    for existing in components.values():
+        common_refs = [item for item in existing.get("allOf", []) if "$ref" in item]
+        if common_refs:
+            break
+
+    for name in custom_components:
+        if name in components:
+            continue
+        components[name] = {
+            "type": "object",
+            "allOf": (
+                common_refs
+                + [{
+                    "type": "object",
+                    "properties": {"component": {"const": name}},
+                    "required": ["component"],
+                }]
+            ),
+        }
+        any_component.setdefault("oneOf", []).append({"$ref": f"#/components/{name}"})
+
+    with open(out_path, "w") as f:
+        json.dump(catalog, f)
+    return out_path
+
+
 def validate_messages(root_schema, example_files, refs=None, temp_dir="temp_val"):
-    """Validates a list of JSON files where each file contains a list of messages."""
+    """Validates a list of JSON files where each file contains a list of messages.
+
+    Examples are batched per set of declared `customComponents` (see
+    `extend_catalog_with_custom_components`), so canonical examples share one Ajv invocation
+    against the basic catalog and each custom set gets its own extended catalog.
+    """
     os.makedirs(temp_dir, exist_ok=True)
-    all_data_paths = []
+    refs = list(refs or [])
+    # example -> (list of message paths, tuple of custom component names)
     file_map = []
 
     for example_file in sorted(example_files):
@@ -90,11 +144,22 @@ def validate_messages(root_schema, example_files, refs=None, temp_dir="temp_val"
                 )
                 return False
 
+        custom_components = ()
         if (
             isinstance(messages, dict)
             and "messages" in messages
             and isinstance(messages["messages"], list)
         ):
+            declared = messages.get("customComponents", [])
+            if not isinstance(declared, list) or not all(
+                isinstance(name, str) for name in declared
+            ):
+                print(
+                    f"  Validating {os.path.basename(example_file)}...\n    [FAIL]"
+                    " `customComponents` must be a list of component names"
+                )
+                return False
+            custom_components = tuple(sorted(declared))
             messages = messages["messages"]
         elif not isinstance(messages, list):
             messages = [messages]
@@ -107,22 +172,54 @@ def validate_messages(root_schema, example_files, refs=None, temp_dir="temp_val"
             with open(temp_data_path, "w") as f:
                 json.dump(msg, f)
             msg_paths.append(temp_data_path)
-            all_data_paths.append(temp_data_path)
 
-        file_map.append((example_file, msg_paths))
+        file_map.append((example_file, msg_paths, custom_components))
 
-    if not all_data_paths:
+    if not file_map:
         return True
 
-    # Validate all example messages in a single batched Ajv invocation
-    is_valid, output = run_ajv(root_schema, all_data_paths, refs)
-    if not is_valid:
-        print(f"  [FAIL] Validation failed:")
-        print(output.strip())
-        return False
+    catalog_alias = next(
+        (ref for ref in refs if os.path.basename(ref) == "catalog.json"), None
+    )
 
-    for example_file, _ in file_map:
-        print(f"  Validating {os.path.basename(example_file)}... [PASS]")
+    # Validate all example messages of a group in a single batched Ajv invocation
+    groups = sorted({custom for _, _, custom in file_map})
+    for group_index, custom_components in enumerate(groups):
+        group_refs = refs
+        if custom_components:
+            if not catalog_alias:
+                print(
+                    "  [FAIL] `customComponents` is only supported for versions with a"
+                    " catalog"
+                )
+                return False
+            extended_path = os.path.join(temp_dir, f"catalog_custom_{group_index}.json")
+            extend_catalog_with_custom_components(
+                catalog_alias, custom_components, extended_path
+            )
+            group_refs = [
+                extended_path if ref == catalog_alias else ref for ref in refs
+            ]
+
+        data_paths = [
+            path
+            for _, msg_paths, custom in file_map
+            if custom == custom_components
+            for path in msg_paths
+        ]
+        if not data_paths:
+            continue
+        is_valid, output = run_ajv(root_schema, data_paths, group_refs)
+        if not is_valid:
+            print(f"  [FAIL] Validation failed:")
+            print(output.strip())
+            return False
+
+    for example_file, _, custom_components in file_map:
+        suffix = ""
+        if custom_components:
+            suffix = f" (custom components: {', '.join(custom_components)})"
+        print(f"  Validating {os.path.basename(example_file)}... [PASS]{suffix}")
 
     return True
 

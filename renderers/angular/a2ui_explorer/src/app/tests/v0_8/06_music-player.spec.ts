@@ -23,7 +23,7 @@ describe('Example: Music Player (basic) (v0.8)', () => {
   let fixture: ComponentFixture<DemoComponent>;
 
   beforeEach(async () => {
-    fixture = await loadExample('Music Player (basic)', Version.V0_8);
+    fixture = await loadExample({name: 'Music Player (basic)', version: Version.V0_8});
     textContent = getCanvas().textContent;
   });
 

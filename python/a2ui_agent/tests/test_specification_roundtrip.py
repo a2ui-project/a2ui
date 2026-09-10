@@ -130,6 +130,12 @@ class TestSpecificationRoundtripAllFormats:
         with open(json_file, "r", encoding="utf-8") as f:
             data = json.load(f)
 
+        if data.get("customComponents"):
+            pytest.skip(
+                f"{os.path.basename(json_file)} uses custom components not in the basic"
+                " catalog"
+            )
+
         messages = data.get("messages", [data])
 
         # Extract all components across updateComponents messages (deduping by ID)
