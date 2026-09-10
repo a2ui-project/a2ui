@@ -52,16 +52,6 @@ class Envelope(BaseModel):
 
 def test_clean_loc_part():
     """Tests unwrapping validator wrapper strings."""
-    assert _clean_loc_part("function-after[CreateSurfaceMessage]") == "CreateSurfaceMessage"
-    assert _clean_loc_part("function-before[UpdateComponentsMessage]") == "UpdateComponentsMessage"
-    assert (
-        _clean_loc_part("function-after[CreateSurfaceMessage]")
-        == "CreateSurfaceMessage"
-    )
-    assert (
-        _clean_loc_part("function-before[UpdateComponentsMessage]")
-        == "UpdateComponentsMessage"
-    )
     assert (
         _clean_loc_part("function-after[CreateSurfaceMessage]")
         == "CreateSurfaceMessage"
@@ -93,16 +83,12 @@ def test_format_pydantic_message_and_issue():
         "loc": ("user", "unknown_field"),
         "ctx": {"extra": "unknown_field"},
     }
-    assert "unrecognized key(s) in object: 'unknown_field'" in format_pydantic_message(err_extra)
-    assert "unrecognized key(s) in object: 'unknown_field'" in format_pydantic_message(
-        err_extra
-    )
     assert "unrecognized key(s) in object: 'unknown_field'" in format_pydantic_message(
         err_extra
     )
     assert format_pydantic_issue(err_extra) == (
-        "user.unknown_field: Additional properties are not allowed: "
-        "unrecognized key(s) in object: 'unknown_field' (extra inputs are not permitted)"
+        "user.unknown_field: Additional properties are not allowed: unrecognized key(s)"
+        " in object: 'unknown_field' (extra inputs are not permitted)"
     )
 
     # Missing field
@@ -114,7 +100,6 @@ def test_format_pydantic_message_and_issue():
     assert format_pydantic_message(err_missing) == "Field required"
     assert format_pydantic_issue(err_missing) == "name: Field required"
     assert (
-        format_pydantic_message(err_missing, path_str="name", match_jsonschema_missing=True)
         format_pydantic_message(
             err_missing, path_str="name", match_jsonschema_missing=True
         )

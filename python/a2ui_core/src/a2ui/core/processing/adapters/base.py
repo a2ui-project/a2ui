@@ -34,14 +34,12 @@ from ...common.semver import (
 from ..execution_context import ExecutionContext
 
 # Canonical protocol versions supported by the A2UI runtime.
-SUPPORTED_PROTOCOL_VERSIONS: frozenset[str] = frozenset(
-    {
-        "0.8",
-        "0.9",
-        "0.9.1",
-        "1.0",
-    }
-)
+SUPPORTED_PROTOCOL_VERSIONS: frozenset[str] = frozenset({
+    "0.8",
+    "0.9",
+    "0.9.1",
+    "1.0",
+})
 
 # Maps an incoming message or surface protocol version to the set of catalog
 # protocol specification versions that it can accommodate.

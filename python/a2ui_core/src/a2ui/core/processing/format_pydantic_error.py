@@ -20,6 +20,7 @@ messages and structured A2UI error details, congruent with A2UI's cross-language
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import re
 from typing import Any
 from pydantic import ValidationError
@@ -108,7 +109,7 @@ def map_pydantic_error_code(err_type: str) -> str:
 
 
 def format_pydantic_message(
-    err: dict[str, Any],
+    err: Mapping[str, Any],
     path_str: str = "",
     match_jsonschema_missing: bool = False,
 ) -> str:
@@ -134,8 +135,8 @@ def format_pydantic_message(
             extra_key = str(err["loc"][-1])
         key_str = f": '{extra_key}'" if extra_key else ""
         return (
-            f"Additional properties are not allowed: unrecognized key(s) in object{key_str}"
-            f" (extra inputs are not permitted)"
+            "Additional properties are not allowed: unrecognized key(s) in"
+            f" object{key_str} (extra inputs are not permitted)"
         )
 
     if err_type == "missing":
@@ -145,22 +146,21 @@ def format_pydantic_message(
                 if path_str
                 else "Missing required field"
             )
-        return err.get("msg", "Field required")
+        return str(err.get("msg", "Field required"))
 
     if err_type == "literal_error":
         expected = ctx.get("expected")
         received = err.get("input")
         if expected is not None:
             return f"Invalid enum value. Expected {expected}, received '{received}'"
-        return err.get("msg", "Invalid value")
+        return str(err.get("msg", "Invalid value"))
 
     if (
         err_type.endswith("_type")
         or err_type.endswith("_parsing")
         or "type" in err_type
     ):
-        return err.get("msg", "Type mismatch")
-        raw_msg = err.get("msg", "Type mismatch")
+        raw_msg = str(err.get("msg", "Type mismatch"))
         expected = _get_expected_type(err_type, raw_msg)
         pydantic_hint = raw_msg[0].lower() + raw_msg[1:] if raw_msg else ""
         hint_str = f" ({pydantic_hint})" if pydantic_hint else ""
@@ -169,10 +169,10 @@ def format_pydantic_message(
             return f"Expected {expected}, received {received}{hint_str}"
         return f"Expected {expected}{hint_str}"
 
-    return err.get("msg", "Validation failed")
+    return str(err.get("msg", "Validation failed"))
 
 
-def format_pydantic_issue(err: dict[str, Any], path: str | None = None) -> str:
+def format_pydantic_issue(err: Mapping[str, Any], path: str | None = None) -> str:
     """Formats a single Pydantic issue into a human-readable diagnostic message.
 
     Extracts issue details into a diagnostic string containing the target path and
@@ -249,19 +249,17 @@ def format_validation_error(
             msg_idx = loc[1]
             if msg_idx < len(messages) and isinstance(messages[msg_idx], dict):
                 m = messages[msg_idx]
-                present_actions = [k for k in (valid_actions or ()) if k in m]
+                present_actions = [k for k in valid_actions or () if k in m]
                 if present_actions:
                     branch = loc_parts[2]
                     if branch in all_branch_names:
                         expected_branches = {
                             action_to_branch[act] for act in present_actions
                         }
-                        expected_branches = set().union(
-                            *(
-                                action_to_branches.get(act, set())
-                                for act in present_actions
-                            )
-                        )
+                        expected_branches = set().union(*(
+                            action_to_branches.get(act, set())
+                            for act in present_actions
+                        ))
                         if branch not in expected_branches:
                             continue
 

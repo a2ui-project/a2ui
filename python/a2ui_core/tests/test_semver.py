@@ -122,12 +122,12 @@ def test_prerelease_precedence_chain():
         "1.0.0",
     ]
     for i in range(len(chain) - 1):
-        assert compare_semver(chain[i], chain[i + 1]) < 0, (
-            f"Expected {chain[i]} < {chain[i + 1]}"
-        )
-        assert compare_semver(chain[i + 1], chain[i]) > 0, (
-            f"Expected {chain[i + 1]} > {chain[i]}"
-        )
+        assert (
+            compare_semver(chain[i], chain[i + 1]) < 0
+        ), f"Expected {chain[i]} < {chain[i + 1]}"
+        assert (
+            compare_semver(chain[i + 1], chain[i]) > 0
+        ), f"Expected {chain[i + 1]} > {chain[i]}"
 
     # Rule 11.4.3: Numeric identifiers always have lower precedence than non-numeric identifiers
     assert compare_semver("1.0.0-1", "1.0.0-alpha") < 0
