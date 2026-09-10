@@ -26,12 +26,6 @@ import kotlinx.serialization.json.JsonObject
 
 private val logger = Logger.getLogger("com.google.a2ui.parser.Parser")
 
-internal val A2UI_BLOCK_REGEX =
-  Regex(
-    "<a2ui-json(?:\\s+[^>]*)?>(.*?)</a2ui-json>",
-    setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE),
-  )
-
 /** Represents a part of the LLM response. */
 data class ResponsePart(
   val text: String = "",
@@ -101,8 +95,8 @@ interface Parser {
 
 /** Checks if the given text contains A2UI delimiter tags. */
 fun hasA2uiParts(text: String): Boolean {
-  val openRegex = Regex("<a2ui-json\\b[^>]*>", RegexOption.IGNORE_CASE)
-  val closeRegex = Regex("</a2ui-json\\s*>", RegexOption.IGNORE_CASE)
+  val openRegex = Regex("<${A2uiConstants.A2UI_JSON_TAG_NAME}\\b[^>]*>", RegexOption.IGNORE_CASE)
+  val closeRegex = Regex("</${A2uiConstants.A2UI_JSON_TAG_NAME}\\s*>", RegexOption.IGNORE_CASE)
   return openRegex.containsMatchIn(text) && closeRegex.containsMatchIn(text)
 }
 
