@@ -43,7 +43,7 @@ def test_rpc_handler_initialization_and_disposal() -> None:
                 call_function=FunctionCall(call="someFunc"),
             ),
         ),
-        context=DataContext(surface=cast(Any, None)),
+        context=None,
     )
     assert resp["rendererFunctionResponse"]["error"]["code"] == "DISPOSED"
 
