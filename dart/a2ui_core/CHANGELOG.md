@@ -20,6 +20,13 @@
 - **Breaking:** Envelope parsing moved to `A2uiMessage.parseAll`, from
   `PayloadValidator.parseMessages`. Parsing needs no catalog, so it belongs to
   the message model rather than to a validator.
+- An invalid number literal in an expression, such as `${1.2.3}`, now throws
+  `A2uiExpressionError` instead of a `FormatException` from `num.parse` — an error
+  outside the `A2uiError` hierarchy that `avoid_catching_errors` discourages catching.
+  The accepted shape is stated in the parser rather than inherited from the platform's
+  number parser, so every implementation accepts the same literals.
+- The expression parser now runs the shared conformance suite at
+  `conformance/core/expressions.yaml`, alongside the TypeScript client.
 - **Breaking:** `MessageProcessor` checks each batch of components as a graph
   against the surface it joins, so duplicate ids, cycles and over-deep chains
   now throw. Whether a reference resolves is not checked there: a payload may
@@ -71,8 +78,8 @@
 - **Behaviour change:** `MessageProcessor` throws `A2uiCatalogError` rather
   than `A2uiStateError` for a `createSurface` naming a catalog it does not
   support, which is what the blueprint's validation matrix calls for.
-- `MessageProcessor.validatePayload` and `DataModel` are exercised by the
-  shared `conformance/core/validator.yaml` and `conformance/core/data_model.yaml`
+- `MessageProcessor` and `DataModel` are exercised by the shared
+  `conformance/core/validator.yaml` and `conformance/core/data_model.yaml`
   suites.
 
 ## 0.1.1
