@@ -29,7 +29,8 @@ from typing import (
     get_type_hints,
 )
 
-from a2ui.builder import (
+from a2ui.builder.v0_9 import (
+    A2uiExpression,
     AccessibilityAttributes,
     Action,
     CheckRule,
@@ -124,7 +125,8 @@ def _map_type_hint_to_schema(
             return _map_type_hint_to_schema(non_none_args[0], param_desc)
 
         has_binding = any(
-            a is DataBinding or (isinstance(a, type) and issubclass(a, DataBinding))
+            a in (A2uiExpression, DataBinding)
+            or (isinstance(a, type) and issubclass(a, (A2uiExpression, DataBinding)))
             for a in non_none_args
         )
         has_func = any(
@@ -132,18 +134,19 @@ def _map_type_hint_to_schema(
             for a in non_none_args
         )
         types_set = set(non_none_args)
+        expr_types = {A2uiExpression, DataBinding, FunctionCall}
 
         if has_binding or has_func:
             if (
                 str in types_set
-                and len(types_set - {str, DataBinding, FunctionCall}) == 0
+                and len(types_set - (expr_types | {str})) == 0
             ):
                 schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicString"}
                 if param_desc:
                     schema["description"] = param_desc
                 return schema
             elif (int in types_set or float in types_set) and len(
-                types_set - {int, float, DataBinding, FunctionCall}
+                types_set - (expr_types | {int, float})
             ) == 0:
                 schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicNumber"}
                 if param_desc:
@@ -151,7 +154,7 @@ def _map_type_hint_to_schema(
                 return schema
             elif (
                 bool in types_set
-                and len(types_set - {bool, DataBinding, FunctionCall}) == 0
+                and len(types_set - (expr_types | {bool})) == 0
             ):
                 schema = {"$ref": f"{COMMON_REF_PREFIX}DynamicBoolean"}
                 if param_desc:

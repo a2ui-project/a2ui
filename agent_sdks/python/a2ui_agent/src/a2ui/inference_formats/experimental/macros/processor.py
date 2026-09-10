@@ -16,7 +16,7 @@
 
 from typing import Any, Optional, Sequence, Union
 
-from a2ui.builder import (
+from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
     Action,
     ComponentBuilderNode,

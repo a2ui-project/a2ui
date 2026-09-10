@@ -14,7 +14,7 @@
 
 """A2UI Macros (Programmatic Components and Typesafe Builders)."""
 
-from a2ui.builder import (
+from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
     Action,
     CheckRule,
