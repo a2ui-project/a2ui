@@ -311,7 +311,7 @@ export class Catalog<
     protocolVersion?: ProtocolVersion | string,
   ) {
     this.id = id;
-    this.protocolVersion = protocolVersion;
+    this.protocolVersion = typeof protocolVersion === 'string' ? protocolVersion : undefined;
 
     const compMap = new Map<string, T>();
     for (const comp of components) {

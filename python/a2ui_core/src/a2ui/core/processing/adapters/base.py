@@ -12,32 +12,99 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Base classes, interfaces, and protocol compatibility helpers for version adapters."""
+
 from collections.abc import Mapping, Sequence
-import re
 from abc import ABC, abstractmethod
 from typing import Any
 from pydantic import ValidationError
 from ..operations import InternalOperation
-from ...exceptions import (
-    A2uiCatalogError,
-    A2uiErrorDetail,
-    A2uiIntegrityError,
-    A2uiValidationError,
-)
+from ..format_pydantic_error import format_validation_error_summary
+from ...exceptions import A2uiValidationError
 from ...state.validation_helpers import validate_recursion_and_paths
 from ...schema import AgentToRendererMessage, ProtocolVersion
+from ...common.semver import (
+    SemVer,
+    normalize_version_string,
+    to_canonical_version,
+    to_semver,
+)
 
 
 from ..execution_context import ExecutionContext
 
+# Canonical protocol versions supported by the A2UI runtime.
+SUPPORTED_PROTOCOL_VERSIONS: frozenset[str] = frozenset({
+    "0.8",
+    "0.9",
+    "0.9.1",
+    "1.0",
+})
 
-def _clean_loc_part(x: str) -> str:
-    """Extracts base message class names from Pydantic validator wrapper strings."""
-    if x.startswith("function-after[") or x.startswith("function-before["):
-        match = re.search(r"([A-Za-z0-9_]+Message)\]", x)
-        if match:
-            return match.group(1)
-    return x
+# Maps an incoming message or surface protocol version to the set of catalog
+# protocol specification versions that it can accommodate.
+DEFAULT_CATALOG_COMPATIBILITY: dict[str, frozenset[str]] = {
+    "0.8": frozenset({"0.8"}),
+    "0.9": frozenset({"0.9", "0.9.1"}),
+    "0.9.1": frozenset({"0.9.1", "0.9"}),
+    "1.0": frozenset({"1.0"}),
+}
+
+
+def is_catalog_version_compatible(
+    catalog_version: ProtocolVersion | str | SemVer | None,
+    message_version: ProtocolVersion | str | SemVer | None,
+    compatibility_map: dict[str, frozenset[str]] | None = None,
+) -> bool:
+    """Evaluates catalog protocol compatibility against a message version.
+
+    Compatibility is verified against explicit supported version sets.
+    Minor formatting differences ('v1.0', '1.0', '1.0.0', 'v1_0') normalize
+    to the same canonical version.
+
+    Args:
+        catalog_version: The catalog's declared protocol version.
+        message_version: The incoming message or surface declared protocol version.
+        compatibility_map: Optional explicit compatibility mapping. Defaults to DEFAULT_CATALOG_COMPATIBILITY.
+
+    Returns:
+        Whether the catalog version is compatible with the message version.
+    """
+    if not catalog_version or not message_version:
+        return False
+    catalog_canonical = to_canonical_version(catalog_version)
+    message_canonical = to_canonical_version(message_version)
+    if catalog_canonical and message_canonical:
+        if catalog_canonical == message_canonical:
+            return True
+        mapping = (
+            compatibility_map
+            if compatibility_map is not None
+            else DEFAULT_CATALOG_COMPATIBILITY
+        )
+        compatible = mapping.get(message_canonical)
+        if compatible and catalog_canonical in compatible:
+            return True
+
+        # For SemVer >= 1.0.0, releases within the same major version are compatible,
+        # ignoring pre-release identifiers.
+        catalog_semver = to_semver(catalog_version)
+        message_semver = to_semver(message_version)
+        if (
+            catalog_semver
+            and message_semver
+            and catalog_semver.major >= 1
+            and catalog_semver.major == message_semver.major
+        ):
+            return True
+        return False
+
+    # Fallback for non-semver custom identifiers (e.g. 'custom' vs 'Vcustom')
+    if not isinstance(catalog_version, str) or not isinstance(message_version, str):
+        return False
+    normalized_catalog = normalize_version_string(catalog_version)
+    normalized_message = normalize_version_string(message_version)
+    return bool(normalized_catalog and normalized_catalog == normalized_message)
 
 
 class VersionAdapter(ABC):
@@ -50,12 +117,33 @@ class VersionAdapter(ABC):
         pass
 
     @property
-    def supported_versions(self) -> set[str]:
-        """Set of version string literals accepted by this adapter."""
+    def valid_actions(self) -> set[str]:
+        """Set of action keys supported by this version adapter."""
+        return set()
+
+    @property
+    def compatible_catalog_versions(self) -> frozenset[str]:
+        """Set of canonical catalog protocol versions compatible with this adapter."""
         ver_str = (
             self.version.value if hasattr(self.version, "value") else str(self.version)
         )
-        return {ver_str}
+        canonical = to_canonical_version(ver_str)
+        return frozenset({canonical}) if canonical else frozenset()
+
+    def is_catalog_compatible(
+        self, catalog_version: ProtocolVersion | str | SemVer | None
+    ) -> bool:
+        """Checks if a catalog protocol version is compatible with this adapter.
+
+        Args:
+            catalog_version: The catalog's declared protocol version.
+
+        Returns:
+            Whether the catalog version is compatible with this adapter.
+        """
+        if not catalog_version:
+            return False
+        return is_catalog_version_compatible(catalog_version, self.version)
 
     @abstractmethod
     def extract_operations(
@@ -82,11 +170,6 @@ class BaseVersionAdapter(VersionAdapter, ABC):
         pass
 
     @property
-    def raise_on_empty_actions(self) -> bool:
-        """Whether to raise an error if no valid action keys are found."""
-        return False
-
-    @property
     @abstractmethod
     def schema(self) -> Any:
         """Returns the Pydantic wrapper model for envelope validation of this protocol version."""
@@ -96,70 +179,34 @@ class BaseVersionAdapter(VersionAdapter, ABC):
         """Normalizes the message object before running schema validation."""
         return msg_obj
 
-    def _format_validation_errors(
-        self, error: ValidationError, messages: list[dict[str, Any]]
-    ) -> list[A2uiErrorDetail]:
-        """Formats Pydantic validation errors while filtering out irrelevant union branches."""
-        details = []
-        branch_to_action = {}
-        action_to_branch = {}
-        for action in self.valid_actions:
-            branch = action[0].upper() + action[1:] + "Message"
-            branch_to_action[branch] = action
-            action_to_branch[action] = branch
-
-        all_branch_names = set(branch_to_action.keys())
-
-        for err in error.errors():
-            loc = err.get("loc", [])
-            loc_parts = [_clean_loc_part(str(x)) for x in loc]
-            if len(loc) >= 3 and loc[0] == "messages" and isinstance(loc[1], int):
-                msg_idx = loc[1]
-                if msg_idx < len(messages) and isinstance(messages[msg_idx], dict):
-                    m = messages[msg_idx]
-                    present_actions = [k for k in self.valid_actions if k in m]
-                    if present_actions:
-                        branch = loc_parts[2]
-                        if branch in all_branch_names:
-                            expected_branches = {
-                                action_to_branch[act] for act in present_actions
-                            }
-                            if branch not in expected_branches:
-                                continue
-
-            clean_loc_parts = [x for x in loc_parts if x not in all_branch_names]
-            path_str = ".".join(clean_loc_parts)
-            msg = err.get("msg", "Validation failed")
-            err_type = err.get("type", "")
-            if err_type == "missing":
-                code = "missing_field"
-            elif err_type == "extra_forbidden":
-                code = "extra_field"
-            elif (
-                err_type.endswith("_type")
-                or err_type.endswith("_parsing")
-                or "type" in err_type
-            ):
-                code = "type_mismatch"
-            else:
-                code = "invalid_value"
-            details.append(A2uiErrorDetail(path_str, code, msg))
-        return details
-
-    def _extract_single_action(self, message: dict[str, Any]) -> str | None:
+    def _extract_single_action(self, message: dict[str, Any]) -> str:
         """Validates presence of exactly one action key from valid_actions."""
-        update_types = [k for k in self.valid_actions if k in message]
+        update_types = sorted([k for k in self.valid_actions if k in message])
         if len(update_types) > 1:
             raise A2uiValidationError(
-                f"Message contains multiple conflicting update actions: {update_types}"
+                "Message contains multiple conflicting update actions:"
+                f" {', '.join(update_types)}."
             )
         if not update_types:
-            if self.raise_on_empty_actions:
+            ver_str = (
+                self.version.value
+                if hasattr(self.version, "value")
+                else str(self.version)
+            )
+            from .factory import VersionAdapterFactory
+
+            all_known = VersionAdapterFactory.all_known_actions()
+            other_actions = [k for k in message if k in all_known]
+            if other_actions:
                 raise A2uiValidationError(
-                    "A2UI Protocol message must contain exactly one update action: "
-                    f"{', '.join(sorted(self.valid_actions))}."
+                    f"Invalid {ver_str} message: action '{other_actions[0]}' is not"
+                    f" supported in protocol version {ver_str}. Allowed actions:"
+                    f" {', '.join(sorted(self.valid_actions))}."
                 )
-            return None
+            raise A2uiValidationError(
+                f"Invalid {ver_str} message: message must contain exactly one update"
+                f" action: {', '.join(sorted(self.valid_actions))}."
+            )
         action = update_types[0]
         if isinstance(message.get(action), dict):
             self._get_surface_id(message[action])
@@ -185,7 +232,9 @@ class BaseVersionAdapter(VersionAdapter, ABC):
         context: ExecutionContext | None = None,
     ) -> list[InternalOperation]:
         """Unwraps payloads and delegates validated action messages to action handlers."""
-        if not payload:
+        if payload is None:
+            return []
+        if isinstance(payload, list) and not payload:
             return []
 
         raw_payload: Any = payload
@@ -211,8 +260,6 @@ class BaseVersionAdapter(VersionAdapter, ABC):
                 )
 
             action = self._extract_single_action(raw_payload)
-            if not action:
-                return []
 
             if not isinstance(raw_payload[action], dict):
                 raise A2uiValidationError(
@@ -227,17 +274,29 @@ class BaseVersionAdapter(VersionAdapter, ABC):
             if ver_str != "v0.8":
                 if "version" not in raw_payload:
                     raise A2uiValidationError(
-                        f"Invalid {self.version} message: messages.0.version: 'version'"
+                        f"Invalid {self.version} message: version: 'version'"
                         " is a required property"
                     )
-                if raw_payload["version"] not in self.supported_versions:
+                raw_ver = raw_payload["version"]
+                canonical_ver = (
+                    to_canonical_version(raw_ver)
+                    if isinstance(raw_ver, (str, ProtocolVersion, SemVer))
+                    else None
+                )
+                if (
+                    not canonical_ver
+                    or canonical_ver not in self.compatible_catalog_versions
+                ):
                     expected = (
                         f"'{ver_str}'"
-                        if len(self.supported_versions) == 1
-                        else f"one of {sorted(self.supported_versions)}"
+                        if len(self.compatible_catalog_versions) == 1
+                        else (
+                            "one of"
+                            f" {sorted(f'v{v}' for v in self.compatible_catalog_versions)}"
+                        )
                     )
                     raise A2uiValidationError(
-                        f"Invalid {self.version} message: messages.0.version: Input"
+                        f"Invalid {self.version} message: version: Input"
                         f" should be {expected}"
                     )
 
@@ -245,8 +304,12 @@ class BaseVersionAdapter(VersionAdapter, ABC):
             try:
                 self.schema.model_validate({"messages": [prepared_msg]})
             except ValidationError as e:
-                details = self._format_validation_errors(e, [raw_payload])
-                summary = "; ".join(f"{d.path}: {d.message}" for d in details)
+                summary = format_validation_error_summary(
+                    e,
+                    messages=[raw_payload],
+                    valid_actions=self.valid_actions,
+                    strip_messages_prefix=True,
+                )
                 raise A2uiValidationError(f"Invalid {self.version} message: {summary}")
 
             return self._extract_operations_for_action(

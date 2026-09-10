@@ -15,6 +15,7 @@
 import asyncio
 import concurrent.futures
 import copy
+from dataclasses import dataclass
 import inspect
 import logging
 from collections.abc import Mapping, Sequence
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 from ..common.events import EventSource
+from .adapters import is_catalog_version_compatible
 from ..state import SurfaceGroupModel, SurfaceModel, ComponentModel
 from ..validation import (
     PayloadValidator,
@@ -54,6 +56,7 @@ from ..schema.v1_0 import (
 )
 from ..schema.v1_0.common_types import FunctionCall
 from .adapters import VersionAdapterFactory
+from .execution_context import ExecutionContext
 from .operations import (
     InternalAgentFunctionResponseOp,
     InternalCallRendererFunctionOp,
@@ -67,7 +70,17 @@ from .operations import (
 PendingAgentCallCallback = Callable[[Any, Optional[dict[str, Any]]], None]
 
 
-from .execution_context import ExecutionContext
+@dataclass
+class MessageProcessorOptions:
+    """Options for configuring a MessageProcessor instance.
+
+    Attributes:
+        validation_config: Validation configuration to enforce on messages, or None.
+        default_timeout_ms: Default timeout in milliseconds for async RPC calls.
+    """
+
+    validation_config: ValidationConfig | None = None
+    default_timeout_ms: float = 30000.0
 
 
 class MessageProcessor:
@@ -76,14 +89,25 @@ class MessageProcessor:
     def __init__(
         self,
         catalogs: Sequence[Catalog[TComponent, TFunction]] | None = None,
-        validation_config: ValidationConfig | None = None,
         action_handler: Callable[[dict[str, Any]], None] | None = None,
+        options: MessageProcessorOptions | None = None,
     ) -> None:
+        """Initializes a MessageProcessor with component catalogs and options.
+
+        Args:
+            catalogs: Sequence of component and function catalogs for resolution.
+            action_handler: Optional callback invoked when UI actions trigger.
+            options: Optional configuration options including validation rules.
+
+        Raises:
+            ValueError: If catalogs is empty or None.
+        """
         if not catalogs:
             raise ValueError("At least one catalog must be provided.")
         self.catalogs = catalogs
         self.model = SurfaceGroupModel()
-        self.validation_config = validation_config
+        opts = options or MessageProcessorOptions()
+        self.validation_config = opts.validation_config
         self.on_agent_function_response = EventSource()
         self._pending_agent_calls: dict[str, PendingAgentCallCallback] = {}
         if action_handler:
@@ -348,6 +372,17 @@ class MessageProcessor:
                 f"Catalog not found: {op.catalog_id}",
             )
 
+        cat_ver = getattr(matched_catalog, "protocol_version", None)
+        if cat_ver and version and not is_catalog_version_compatible(cat_ver, version):
+            cat_name = op.catalog_id or getattr(
+                matched_catalog, "catalog_id", "unknown"
+            )
+            return make_error(
+                RpcErrorCode.INVALID_FUNCTION_CALL,
+                f"Catalog '{cat_name}' specification version ({cat_ver}) does not"
+                f" match message protocol version ({version}).",
+            )
+
         fn = (
             matched_catalog.get_function(op.call)
             if hasattr(matched_catalog, "get_function")
@@ -368,7 +403,7 @@ class MessageProcessor:
             )
 
         requires_user_activation = getattr(fn, "requires_user_activation", False)
-        if requires_user_activation and not op.user_activation_present:
+        if requires_user_activation and not op.is_user_activated:
             return make_error(
                 RpcErrorCode.INVALID_FUNCTION_CALL,
                 f"Function '{op.call}' requires user activation context to execute.",
@@ -416,6 +451,7 @@ class MessageProcessor:
             )
 
     def _process_create_surface_op(self, op: InternalCreateSurfaceOp) -> None:
+        """Processes a createSurface operation, validating catalog and theme compatibility."""
         surface_id = op.surface_id
         catalog_id = op.catalog_id
         theme = op.theme or {}
@@ -441,11 +477,27 @@ class MessageProcessor:
                     f"Validation failed for theme on surface '{surface_id}': {e}"
                 ) from e
 
+        surface_proto_ver = getattr(surface_catalog, "protocol_version", None)
+        msg_version = op.version or getattr(self, "version", None)
+        if (
+            surface_proto_ver
+            and msg_version
+            and not is_catalog_version_compatible(surface_proto_ver, msg_version)
+        ):
+            cat_name = catalog_id or getattr(surface_catalog, "catalog_id", "unknown")
+            raise A2uiValidationError(
+                f"Surface '{surface_id}' catalog '{cat_name}' specification version"
+                f" ({surface_proto_ver}) does not match message protocol version"
+                f" ({msg_version})."
+            )
+
         matching_available_catalogs = {
             getattr(cat, "catalog_id", f"cat_{i}"): cat
             for i, cat in enumerate(self.catalogs)
-            if getattr(cat, "protocol_version", None)
-            == getattr(surface_catalog, "protocol_version", None)
+            if is_catalog_version_compatible(
+                getattr(cat, "protocol_version", None),
+                surface_proto_ver,
+            )
         }
         new_surface = SurfaceModel(
             surface_id=surface_id,
@@ -473,6 +525,7 @@ class MessageProcessor:
             )
 
     def _process_update_components_op(self, op: InternalUpdateComponentsOp) -> None:
+        """Processes an updateComponents operation, validating catalog and component consistency."""
         surface_id = op.surface_id
         surface = self.model.get_surface(surface_id)
         if not surface:
@@ -516,7 +569,11 @@ class MessageProcessor:
                     raise A2uiCatalogError(f"Catalog not found: {comp_cat_id}")
                 comp_ver = getattr(comp_catalog, "protocol_version", None)
                 surface_ver = getattr(surface.default_catalog, "protocol_version", None)
-                if comp_ver and surface_ver and comp_ver != surface_ver:
+                if (
+                    comp_ver
+                    and surface_ver
+                    and not is_catalog_version_compatible(comp_ver, surface_ver)
+                ):
                     raise A2uiCatalogError(
                         f"Component {c_id} catalog '{comp_cat_id}' has different"
                         f" protocol version {comp_ver} than default catalog"

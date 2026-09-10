@@ -23,8 +23,8 @@ import yaml
 from a2ui.core.catalog import Catalog
 from a2ui.core.basic_catalog import v0_8, v0_9, v1_0
 from a2ui.core.schema import ProtocolVersion
-from a2ui.core.processing import MessageProcessor
-from a2ui.core.validation import STRICT_VALIDATION, ValidationConfig
+from a2ui.core.processing import MessageProcessor, MessageProcessorOptions
+from a2ui.core.validation import STRICT_VALIDATION
 from a2ui.core.exceptions import (
     A2uiError,
     A2uiParseError,
@@ -272,6 +272,7 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
                             protocol_version=p_ver,
                             components=list(basic_catalog.components.values()),
                         )
+                    catalogs_map[c_id] = cat
                     specified_catalogs.append(cat)
     if "catalogPaths" in case and isinstance(case["catalogPaths"], list):
         for p in case["catalogPaths"]:
@@ -570,7 +571,9 @@ def _assert_expected_surface_state(
 def validate_pure_validation_case(case: dict[str, Any]) -> None:
     catalogs = get_catalogs_for_test_case(case)
     val_config = STRICT_VALIDATION
-    processor = MessageProcessor(catalogs, validation_config=val_config)
+    processor = MessageProcessor(
+        catalogs, options=MessageProcessorOptions(validation_config=val_config)
+    )
 
     steps = case.get("steps")
     if not steps:
@@ -612,7 +615,9 @@ def validate_process_messages_case(case: dict[str, Any]) -> None:
         or case.get("options", {}).get("strict_mode")
     )
     val_config = STRICT_VALIDATION if is_strict else None
-    processor = MessageProcessor(catalogs, validation_config=val_config)
+    processor = MessageProcessor(
+        catalogs, options=MessageProcessorOptions(validation_config=val_config)
+    )
 
     messages = case.get("messages") or (
         [case["payload"]] if "payload" in case else None
@@ -874,7 +879,7 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
             expect_resp = expect_dict["response"]
             responses = processor.process_messages(
                 message,
-                context=ExecutionContext(user_activation_present=user_activation),
+                context=ExecutionContext(is_user_activated=user_activation),
             )
             if expect_resp is None:
                 assert len(responses) == 0

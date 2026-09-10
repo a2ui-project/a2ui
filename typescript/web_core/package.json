@@ -70,6 +70,10 @@
       "types": "./dist/src/common/events.d.ts",
       "default": "./dist/src/common/events.js"
     },
+    "./semver": {
+      "types": "./dist/src/common/semver.d.ts",
+      "default": "./dist/src/common/semver.js"
+    },
     "./v0_8": {
       "types": "./dist/src/v0_8/index.d.ts",
       "default": "./dist/src/v0_8/index.js"

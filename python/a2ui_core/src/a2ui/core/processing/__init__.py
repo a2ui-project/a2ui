@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Message processing engine, execution contexts, and internal operation definitions."""
+
 from .execution_context import ExecutionContext
-from .message_processor import MessageProcessor
+from .message_processor import MessageProcessor, MessageProcessorOptions
 from .operations import (
     InternalCreateSurfaceOp,
     InternalDeleteSurfaceOp,
@@ -22,10 +24,16 @@ from .operations import (
     InternalUpdateDataModelOp,
 )
 from .adapters import VersionAdapter, VersionAdapterFactory
+from .format_pydantic_error import (
+    format_pydantic_issue,
+    format_validation_error,
+    format_validation_error_summary,
+)
 
 __all__ = [
     "ExecutionContext",
     "MessageProcessor",
+    "MessageProcessorOptions",
     "InternalOperation",
     "InternalCreateSurfaceOp",
     "InternalUpdateComponentsOp",
@@ -33,4 +41,7 @@ __all__ = [
     "InternalDeleteSurfaceOp",
     "VersionAdapter",
     "VersionAdapterFactory",
+    "format_pydantic_issue",
+    "format_validation_error",
+    "format_validation_error_summary",
 ]

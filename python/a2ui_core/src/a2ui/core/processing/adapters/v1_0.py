@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from typing import Any
-from ...exceptions import A2uiValidationError
 from .base import BaseVersionAdapter
 from ...schema import ProtocolVersion
 from ...schema.v1_0 import (
@@ -69,9 +68,7 @@ class V1Point0Adapter(BaseVersionAdapter):
         message: dict[str, Any],
         context: ExecutionContext | None = None,
     ) -> list[InternalOperation]:
-        user_activation = (
-            context.user_activation_present if context is not None else False
-        )
+        user_activation = context.is_user_activated if context is not None else False
         res: list[InternalOperation] = []
         if action == MSG_TYPE_CREATE_SURFACE:
             cs = message[MSG_TYPE_CREATE_SURFACE]
@@ -81,6 +78,12 @@ class V1Point0Adapter(BaseVersionAdapter):
                     catalog_id=cs.get("catalogId"),
                     theme=cs.get("theme"),
                     send_data_model=bool(cs.get("sendDataModel", False)),
+                    version=message.get("version")
+                    or (
+                        self.version.value
+                        if hasattr(self.version, "value")
+                        else str(self.version)
+                    ),
                 )
             )
             comps = cs.get("components")
@@ -141,7 +144,7 @@ class V1Point0Adapter(BaseVersionAdapter):
                     version=ver_str,
                     catalog_id=cf.catalog_id,
                     args=cf.args or {},
-                    user_activation_present=user_activation,
+                    is_user_activated=user_activation,
                 )
             )
         elif action == MSG_TYPE_AGENT_FUNCTION_RESPONSE:
@@ -150,6 +153,7 @@ class V1Point0Adapter(BaseVersionAdapter):
             res.append(
                 InternalAgentFunctionResponseOp(
                     function_call_id=resp_data.function_call_id,
+                    version=str(getattr(af_resp, "version", "v1.0")),
                     value=resp_data.value,
                     error=resp_data.error.model_dump(by_alias=True)
                     if resp_data.error

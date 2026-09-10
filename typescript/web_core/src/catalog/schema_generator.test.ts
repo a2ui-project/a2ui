@@ -348,18 +348,31 @@ describe('Catalog.catalogSchema & schema_generator', () => {
     };
 
     const catalog = new Catalog('guid-550e8400-e29b-41d4-a716-446655440000', [CustomWidget]);
-    const v10Schema = generateCatalogSchema(catalog, {
-      protocolVersion: 'v1.0',
-    });
-    const v10Defs = v10Schema['$defs'] as Record<string, any>;
-    assert.ok(v10Defs);
-    assert.ok(v10Defs['DynamicString']);
 
-    const v08Schema = generateCatalogSchema(catalog, {
-      protocolVersion: 'v0.8',
-    });
-    const v08Defs = v08Schema['$defs'] as Record<string, any>;
-    assert.ok(v08Defs);
+    for (const v10Ver of ['v1.0', '1.0', 'v1_0', '1.0.0', 'V1.0']) {
+      const v10Schema = generateCatalogSchema(catalog, {
+        protocolVersion: v10Ver,
+      });
+      const v10Defs = v10Schema['$defs'] as Record<string, any>;
+      assert.ok(v10Defs, `Expected $defs for version ${v10Ver}`);
+      assert.ok(v10Defs['DynamicString'], `Expected DynamicString for version ${v10Ver}`);
+    }
+
+    for (const v08Ver of ['v0.8', '0.8', 'v0_8', '0.8.0']) {
+      const v08Schema = generateCatalogSchema(catalog, {
+        protocolVersion: v08Ver,
+      });
+      const v08Defs = v08Schema['$defs'] as Record<string, any>;
+      assert.ok(v08Defs, `Expected $defs for version ${v08Ver}`);
+    }
+
+    for (const v09Ver of ['v0.9', '0.9', 'v0.9.1', '0.9.1', 'v0_9']) {
+      const v09Schema = generateCatalogSchema(catalog, {
+        protocolVersion: v09Ver,
+      });
+      const v09Defs = v09Schema['$defs'] as Record<string, any>;
+      assert.ok(v09Defs, `Expected $defs for version ${v09Ver}`);
+    }
   });
 
   it('respects explicit standardDefs in GenerateCatalogSchemaOptions', () => {

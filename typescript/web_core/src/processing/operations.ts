@@ -46,6 +46,8 @@ export interface InternalCreateSurfaceOp {
   readonly components?: InternalComponentPayload[];
   /** Initial key-value state tree for the surface data model. */
   readonly dataModel?: Record<string, unknown>;
+  /** Protocol version of the originating message envelope or adapter. */
+  readonly version?: string;
 }
 
 /**

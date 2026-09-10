@@ -22,10 +22,10 @@ import {ComponentModel} from '../state/component-model.js';
 import {SurfaceComponentsModel} from '../state/surface-components-model.js';
 import {DataModel} from '../state/data-model.js';
 import {Subscription} from '../common/events.js';
-import {z} from 'zod';
 
 import {A2uiStateError, A2uiValidationError} from '../errors.js';
 import {defaultVersionAdapterFactory} from './adapters/factory.js';
+import {toCanonicalVersion} from '../common/semver.js';
 import {
   InternalOperation,
   InternalCreateSurfaceOp,
@@ -35,7 +35,11 @@ import {
   isInternalOperation,
 } from './operations.js';
 
-import {ProtocolVersion, VersionAdapterResolver} from './adapters/base.js';
+import {
+  isCatalogVersionCompatible,
+  ProtocolVersion,
+  VersionAdapterResolver,
+} from './adapters/base.js';
 import {RendererCapabilities} from '../v1_0/schema/index.js';
 import type {ServerToClientMessage as V08ServerToClientMessage} from '../v0_8/types/types.js';
 import type {
@@ -128,54 +132,8 @@ export interface MessageProcessorOptions {
   defaultTimeoutMs?: number;
 }
 
-/**
- * Formats a Zod validation issue into a descriptive, human-readable string.
- *
- * Direct attribute extraction is used so that issue details (such as unrecognized
- * property keys or invalid enum options) are preserved even when running in
- * optimized/minified production builds where Zod's internal error map messages
- * may degrade into generic strings (e.g. "Expected undefined, received undefined").
-/**
- * Formats a Zod validation issue into a descriptive, human-readable error string.
- *
- * @param err Zod validation issue to format.
- * @returns Human-readable formatted error message.
- */
-export function formatZodIssue(err: z.ZodIssue): string {
-  const path = err.path.join('.') || 'root';
-
-  switch (err.code) {
-    case z.ZodIssueCode.invalid_union: {
-      const unionIssues = (err as z.ZodInvalidUnionIssue).unionErrors?.flatMap(uErr => uErr.issues);
-      if (unionIssues && unionIssues.length > 0) {
-        return unionIssues.map(formatZodIssue).join('; ');
-      }
-      return `${path}: Invalid union`;
-    }
-
-    case z.ZodIssueCode.unrecognized_keys: {
-      const keysStr = (err as z.ZodUnrecognizedKeysIssue).keys.map(k => `'${k}'`).join(', ');
-      return `${path}: Unrecognized key(s) in object: ${keysStr}`;
-    }
-
-    case z.ZodIssueCode.invalid_enum_value: {
-      const issue = err as z.ZodInvalidEnumValueIssue;
-      const optionsStr = issue.options.map(o => String(o)).join(' | ');
-      return `${path}: Invalid enum value. Expected ${optionsStr}, received '${String(issue.received)}'`;
-    }
-
-    case z.ZodIssueCode.invalid_type: {
-      const issue = err as z.ZodInvalidTypeIssue;
-      return `${path}: Expected ${issue.expected}, received ${issue.received}`;
-    }
-
-    case z.ZodIssueCode.custom:
-      return `${path}: ${err.message}`;
-
-    default:
-      return err.message ? `${path}: ${err.message}` : `${path}: Validation error (${err.code})`;
-  }
-}
+import {formatZodIssue} from './format-zod-issue.js';
+export {formatZodIssue};
 
 /**
  * Central processor for A2UI protocol messages and surface state management.
@@ -263,9 +221,10 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     const inlineCatalogs = options?.includeInlineCatalogs
       ? this.catalogs.map(c => {
-          if (version === 'v1.0') {
+          if (toCanonicalVersion(version) === '1.0') {
             return generateCatalogSchema(c, {
               componentEnvelopeRef: options?.componentEnvelopeRef,
+              protocolVersion: version,
             });
           }
           return this.generateLegacyInlineCatalog(
@@ -494,10 +453,14 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     const checkMsg = (msg: unknown) => {
       if (typeof msg === 'object' && msg !== null && 'version' in msg) {
         const msgVer = (msg as {version?: string}).version;
-        if (msgVer && msgVer !== expected) {
-          throw new A2uiValidationError(
-            `Message version '${msgVer}' does not match expected target version '${expected}'`,
-          );
+        if (msgVer) {
+          const normMsg = toCanonicalVersion(msgVer) ?? msgVer;
+          const normExpected = toCanonicalVersion(expected) ?? expected;
+          if (normMsg !== normExpected) {
+            throw new A2uiValidationError(
+              `Message version '${msgVer}' does not match expected target version '${expected}'`,
+            );
+          }
         }
       }
     };
@@ -615,6 +578,17 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       throw new A2uiStateError(`Catalog not found: ${catalogId}`);
     }
 
+    const msgVersion = op.version ?? this.version;
+    if (
+      catalog.protocolVersion &&
+      msgVersion &&
+      !isCatalogVersionCompatible(catalog.protocolVersion, msgVersion)
+    ) {
+      throw new A2uiValidationError(
+        `Surface '${surfaceId}' catalog '${catalogId ?? catalog.id}' specification version (${catalog.protocolVersion}) does not match message protocol version (${msgVersion}).`,
+      );
+    }
+
     if (this.model.getSurface(surfaceId)) {
       throw new A2uiStateError(`Surface ${surfaceId} already exists.`);
     }
@@ -677,6 +651,15 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         if (!found) {
           throw new A2uiValidationError(
             `Unknown catalog ID '${rawCatalogId}' for component '${id}'. Available catalogs: ${this.catalogs.map(c => c.id).join(', ')}`,
+          );
+        }
+        if (
+          found.protocolVersion &&
+          surface.catalog.protocolVersion &&
+          !isCatalogVersionCompatible(found.protocolVersion, surface.catalog.protocolVersion)
+        ) {
+          throw new A2uiValidationError(
+            `Component '${id}' catalog '${rawCatalogId}' specification version (${found.protocolVersion}) does not match surface default catalog version (${surface.catalog.protocolVersion}).`,
           );
         }
         targetCatalog = found;

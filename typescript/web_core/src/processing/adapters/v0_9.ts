@@ -25,6 +25,10 @@ export class V0Point9Adapter extends BaseVersionAdapter {
   readonly version: ProtocolVersion = 'v0.9';
   protected readonly schema = A2uiMessageSchema;
 
+  override get compatibleCatalogVersions(): ReadonlySet<string> {
+    return new Set(['0.9', '0.9.1']);
+  }
+
   protected getNativeActionKeys(): string[] {
     return ['createSurface', 'updateComponents', 'updateDataModel', 'deleteSurface'];
   }
@@ -46,6 +50,7 @@ export class V0Point9Adapter extends BaseVersionAdapter {
           cs?.dataModel && typeof cs.dataModel === 'object' && !Array.isArray(cs.dataModel)
             ? (cs.dataModel as Record<string, unknown>)
             : undefined,
+        version: typeof msgObj.version === 'string' ? msgObj.version : this.version,
       });
     }
     if ('updateComponents' in msgObj) {

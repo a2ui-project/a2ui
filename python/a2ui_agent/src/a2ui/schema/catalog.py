@@ -222,11 +222,12 @@ class A2uiCatalog:
 
     def validate(self, messages: Any) -> None:
         """Validates payload messages using MessageProcessor."""
-        from a2ui.core.processing import MessageProcessor
+        from a2ui.core.processing import MessageProcessor, MessageProcessorOptions
 
         msg_list = messages if isinstance(messages, list) else [messages]
         MessageProcessor(
-            [self.core_catalog], validation_config=STRICT_VALIDATION
+            [self.core_catalog],
+            options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
         ).process_messages(msg_list)
 
     def _with_pruned_components(self, allowed_components: Sequence[str]) -> A2uiCatalog:

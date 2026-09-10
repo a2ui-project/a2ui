@@ -54,10 +54,6 @@ class V0Point8Adapter(BaseVersionAdapter):
             MSG_TYPE_DELETE_SURFACE,
         }
 
-    @property
-    def raise_on_empty_actions(self) -> bool:
-        return False
-
     def _extract_operations_for_action(
         self,
         action: str,
@@ -76,6 +72,12 @@ class V0Point8Adapter(BaseVersionAdapter):
                     components=br.get("components"),
                     data_model=br.get("dataModel"),
                     root=br.get("root"),
+                    version=message.get("version")
+                    or (
+                        self.version.value
+                        if hasattr(self.version, "value")
+                        else str(self.version)
+                    ),
                 )
             )
         elif action == MSG_TYPE_SURFACE_UPDATE:

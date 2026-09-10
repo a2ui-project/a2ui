@@ -34,6 +34,7 @@ class InternalCreateSurfaceOp:
     components: list[dict[str, Any]] | None = None
     data_model: dict[str, Any] | None = None
     root: str | None = None
+    version: str | None = None
     type: str = MSG_TYPE_CREATE_SURFACE
 
 
@@ -60,18 +61,23 @@ class InternalDeleteSurfaceOp:
 
 @dataclass
 class InternalCallRendererFunctionOp:
+    """Internal operation representing an agent-to-renderer function call."""
+
     function_call_id: str
     call: str
     version: str
     catalog_id: str | None = None
     args: dict[str, Any] = field(default_factory=dict)
-    user_activation_present: bool = False
+    is_user_activated: bool = False
     type: str = MSG_TYPE_CALL_RENDERER_FUNCTION
 
 
 @dataclass
 class InternalAgentFunctionResponseOp:
+    """Internal operation representing a response to a renderer-to-agent function call."""
+
     function_call_id: str
+    version: str = "v1.0"
     value: Any | None = None
     error: dict[str, Any] | None = None
     type: str = MSG_TYPE_AGENT_FUNCTION_RESPONSE

@@ -30,3 +30,4 @@ export * from './reactivity/index.js';
 export * from './expressions/index.js';
 export * from './errors.js';
 export * from './common/events.js';
+export * from './common/semver.js';
