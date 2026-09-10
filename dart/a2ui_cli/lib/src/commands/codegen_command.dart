@@ -47,7 +47,6 @@ class CodegenCommand extends Command<int> {
       )
       ..addOption(
         'base-import',
-        defaultsTo: 'a2ui.builder.base',
         help: 'Base module from which ComponentBuilderNode, etc. are imported.',
       )
       ..addOption(
