@@ -112,13 +112,16 @@ def parse_semver(version: ProtocolVersion | str | None) -> Optional[SemVer]:
     )
 
 
-def _to_semver(v: ProtocolVersion | str | SemVer | None) -> Optional[SemVer]:
-    """Converts a version string or SemVer instance into a SemVer object."""
+def to_semver(v: ProtocolVersion | str | SemVer | None) -> Optional[SemVer]:
+    """Converts a version string, ProtocolVersion enum, or SemVer instance into a SemVer object."""
     if isinstance(v, SemVer):
         return v
     if v is None:
         return None
     return parse_semver(normalize_version_string(v))
+
+
+_to_semver = to_semver
 
 
 def to_canonical_version(

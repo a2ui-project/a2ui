@@ -21,6 +21,7 @@ from a2ui.core.common.semver import (
     normalize_version_string,
     parse_semver,
     to_canonical_version,
+    to_semver,
 )
 from a2ui.core.schema import ProtocolVersion
 
@@ -121,12 +122,12 @@ def test_prerelease_precedence_chain():
         "1.0.0",
     ]
     for i in range(len(chain) - 1):
-        assert (
-            compare_semver(chain[i], chain[i + 1]) < 0
-        ), f"Expected {chain[i]} < {chain[i + 1]}"
-        assert (
-            compare_semver(chain[i + 1], chain[i]) > 0
-        ), f"Expected {chain[i + 1]} > {chain[i]}"
+        assert compare_semver(chain[i], chain[i + 1]) < 0, (
+            f"Expected {chain[i]} < {chain[i + 1]}"
+        )
+        assert compare_semver(chain[i + 1], chain[i]) > 0, (
+            f"Expected {chain[i + 1]} > {chain[i]}"
+        )
 
     # Rule 11.4.3: Numeric identifiers always have lower precedence than non-numeric identifiers
     assert compare_semver("1.0.0-1", "1.0.0-alpha") < 0
@@ -216,3 +217,16 @@ def test_non_ascii_digits_rejected():
     v_sup = SemVer(1, 0, 0, prerelease=("²",))
     v_num = SemVer(1, 0, 0, prerelease=("1",))
     assert compare_semver(v_sup, v_num) > 0  # '²' treated as non-numeric identifier
+
+
+def test_to_semver():
+    """Tests converting strings, ProtocolVersion enums, and SemVer instances via to_semver."""
+    assert to_semver(None) is None
+    assert to_semver("") is None
+    assert to_semver("invalid") is None
+    assert to_semver(SemVer(1, 2, 3)) == SemVer(1, 2, 3)
+    assert to_semver("v1.0") == SemVer(1, 0, 0)
+    assert to_semver("v1_0") == SemVer(1, 0, 0)
+    assert to_semver(ProtocolVersion.V1_0) == SemVer(1, 0, 0)
+    assert to_semver(ProtocolVersion.V0_9_1) == SemVer(0, 9, 1)
+    assert to_semver("1.0.0-beta.1") == SemVer(1, 0, 0, prerelease=("beta", "1"))

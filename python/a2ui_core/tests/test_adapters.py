@@ -112,11 +112,14 @@ def test_is_catalog_version_compatible():
     assert is_catalog_version_compatible("1.0", SemVer(1, 0, 0)) is True
     assert is_catalog_version_compatible(SemVer(0, 9, 0), SemVer(0, 9, 1)) is True
 
-    # Patch version compatibility for SemVer >= 1.0.0
+    # Patch and pre-release version compatibility for SemVer >= 1.0.0
     assert is_catalog_version_compatible("v1.0.1", "v1.0") is True
     assert is_catalog_version_compatible("v1.0", "v1.0.1") is True
     assert is_catalog_version_compatible("1.0.2", "1.0.1") is True
-    assert is_catalog_version_compatible("v1.0.1-alpha", "v1.0") is False
+    assert is_catalog_version_compatible("v1.0.1-alpha", "v1.0") is True
+    assert is_catalog_version_compatible("v1.0.0-beta.1", "v1.0.0-rc.2") is True
+    assert is_catalog_version_compatible("v1.2.0-beta", "v1.0.0") is True
+    assert is_catalog_version_compatible("v1.0.0-alpha", "v2.0.0-alpha") is False
     assert is_catalog_version_compatible("v1.1.0", "v1.0.0") is True
 
     # Falsy / invalid inputs
@@ -272,26 +275,32 @@ def test_extract_v0_8_surface_update_and_data_model_update():
     """Verifies extracting surfaceUpdate and dataModelUpdate operations in v0.8 adapter."""
     adapter = VersionAdapterFactory.get_adapter("v0.8")
 
-    surface_ops = adapter.extract_operations({
-        "surfaceUpdate": {
-            "surfaceId": "s1",
-            "components": [{
-                "id": "txt1",
-                "component": {"Text": {"text": {"literalString": "Click"}}},
-            }],
+    surface_ops = adapter.extract_operations(
+        {
+            "surfaceUpdate": {
+                "surfaceId": "s1",
+                "components": [
+                    {
+                        "id": "txt1",
+                        "component": {"Text": {"text": {"literalString": "Click"}}},
+                    }
+                ],
+            }
         }
-    })
+    )
     assert len(surface_ops) == 1
     assert isinstance(surface_ops[0], InternalUpdateComponentsOp)
     assert surface_ops[0].surface_id == "s1"
 
-    data_ops = adapter.extract_operations({
-        "dataModelUpdate": {
-            "surfaceId": "s1",
-            "path": "/count",
-            "contents": [{"key": "count", "valueNumber": 42}],
+    data_ops = adapter.extract_operations(
+        {
+            "dataModelUpdate": {
+                "surfaceId": "s1",
+                "path": "/count",
+                "contents": [{"key": "count", "valueNumber": 42}],
+            }
         }
-    })
+    )
     assert len(data_ops) == 1
     assert isinstance(data_ops[0], InternalUpdateDataModelOp)
     assert data_ops[0].surface_id == "s1"
@@ -315,27 +324,30 @@ def test_extract_operations_invalid_version_raises_validation_error():
         A2uiValidationError,
         match=r"messages\.0\.version: Input should be one of \['v0\.9', 'v0\.9\.1'\]",
     ):
-        v09_adapter.extract_operations({
-            "version": "v1.0",
-            "createSurface": {"surfaceId": "s1", "catalogId": "c1"},
-        })
+        v09_adapter.extract_operations(
+            {
+                "version": "v1.0",
+                "createSurface": {"surfaceId": "s1", "catalogId": "c1"},
+            }
+        )
 
     v10_adapter = VersionAdapterFactory.get_adapter("v1.0")
     with pytest.raises(
         A2uiValidationError,
         match=r"messages\.0\.version: Input should be 'v1\.0'",
     ):
-        v10_adapter.extract_operations({
-            "version": "v0.9",
-            "createSurface": {"surfaceId": "s1", "catalogId": "c1"},
-        })
+        v10_adapter.extract_operations(
+            {
+                "version": "v0.9",
+                "createSurface": {"surfaceId": "s1", "catalogId": "c1"},
+            }
+        )
 
 
 def test_supports_dynamic_registration():
     """Verifies dynamic registration of custom version adapters."""
 
     class CustomAdapter(VersionAdapter):
-
         @property
         def version(self) -> str:
             return "v2.0"
@@ -435,38 +447,44 @@ def test_extract_operations_v1_0_actions():
     """Verifies extracting updateComponents, updateDataModel, and deleteSurface operations."""
     adapter = VersionAdapterFactory.get_adapter("v1.0")
 
-    uc_ops = adapter.extract_operations({
-        "version": "v1.0",
-        "updateComponents": {
-            "surfaceId": "s1",
-            "components": [{"id": "c1", "component": "Text", "text": "Hi"}],
-        },
-    })
+    uc_ops = adapter.extract_operations(
+        {
+            "version": "v1.0",
+            "updateComponents": {
+                "surfaceId": "s1",
+                "components": [{"id": "c1", "component": "Text", "text": "Hi"}],
+            },
+        }
+    )
     assert len(uc_ops) == 1
     assert isinstance(uc_ops[0], InternalUpdateComponentsOp)
     assert uc_ops[0].surface_id == "s1"
     assert uc_ops[0].components == [{"id": "c1", "component": "Text", "text": "Hi"}]
 
-    ud_ops = adapter.extract_operations({
-        "version": "v1.0",
-        "updateDataModel": {
-            "surfaceId": "s1",
-            "path": "/user/name",
-            "value": "Alice",
-        },
-    })
+    ud_ops = adapter.extract_operations(
+        {
+            "version": "v1.0",
+            "updateDataModel": {
+                "surfaceId": "s1",
+                "path": "/user/name",
+                "value": "Alice",
+            },
+        }
+    )
     assert len(ud_ops) == 1
     assert isinstance(ud_ops[0], InternalUpdateDataModelOp)
     assert ud_ops[0].surface_id == "s1"
     assert ud_ops[0].path == "/user/name"
     assert ud_ops[0].value == "Alice"
 
-    ds_ops = adapter.extract_operations({
-        "version": "v1.0",
-        "deleteSurface": {
-            "surfaceId": "s1",
-        },
-    })
+    ds_ops = adapter.extract_operations(
+        {
+            "version": "v1.0",
+            "deleteSurface": {
+                "surfaceId": "s1",
+            },
+        }
+    )
     assert len(ds_ops) == 1
     assert isinstance(ds_ops[0], InternalDeleteSurfaceOp)
     assert ds_ops[0].surface_id == "s1"
@@ -530,36 +548,44 @@ def test_extract_operations_cross_version_action_rejection():
         A2uiValidationError,
         match=r"action 'beginRendering' is not supported in protocol version v0.9",
     ):
-        v09_adapter.extract_operations({
-            "version": "v0.9",
-            "beginRendering": {"surfaceId": "s1"},
-        })
+        v09_adapter.extract_operations(
+            {
+                "version": "v0.9",
+                "beginRendering": {"surfaceId": "s1"},
+            }
+        )
 
     v10_adapter = VersionAdapterFactory.get_adapter("v1.0")
     with pytest.raises(
         A2uiValidationError,
         match=r"action 'beginRendering' is not supported in protocol version v1.0",
     ):
-        v10_adapter.extract_operations({
-            "version": "v1.0",
-            "beginRendering": {"surfaceId": "s1"},
-        })
+        v10_adapter.extract_operations(
+            {
+                "version": "v1.0",
+                "beginRendering": {"surfaceId": "s1"},
+            }
+        )
 
     v08_adapter = VersionAdapterFactory.get_adapter("v0.8")
     with pytest.raises(
         A2uiValidationError,
         match=r"action 'createSurface' is not supported in protocol version v0.8",
     ):
-        v08_adapter.extract_operations({
-            "createSurface": {"surfaceId": "s1"},
-        })
+        v08_adapter.extract_operations(
+            {
+                "createSurface": {"surfaceId": "s1"},
+            }
+        )
 
     # Completely unknown action (not in any known adapter)
     with pytest.raises(
         A2uiValidationError,
         match=r"message must contain exactly one update action",
     ):
-        v09_adapter.extract_operations({
-            "version": "v0.9",
-            "completelyUnknownAction": {"surfaceId": "s1"},
-        })
+        v09_adapter.extract_operations(
+            {
+                "version": "v0.9",
+                "completelyUnknownAction": {"surfaceId": "s1"},
+            }
+        )

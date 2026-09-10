@@ -67,26 +67,25 @@ export function isCatalogVersionCompatible(
   if (!catalogVersion || !messageVersion) {
     return false;
   }
-  const catCanonical = toCanonicalVersion(catalogVersion);
-  const msgCanonical = toCanonicalVersion(messageVersion);
-  if (catCanonical && msgCanonical) {
-    if (catCanonical === msgCanonical) {
+  const catalogCanonical = toCanonicalVersion(catalogVersion);
+  const messageCanonical = toCanonicalVersion(messageVersion);
+  if (catalogCanonical && messageCanonical) {
+    if (catalogCanonical === messageCanonical) {
       return true;
     }
-    const compatible = compatibilityMap[msgCanonical];
-    if (compatible && compatible.has(catCanonical)) {
+    const compatible = compatibilityMap[messageCanonical];
+    if (compatible && compatible.has(catalogCanonical)) {
       return true;
     }
-    // For SemVer >= 1.0.0, releases within the same major version are compatible
-    const catSv = toSemVer(catalogVersion);
-    const msgSv = toSemVer(messageVersion);
+    // For SemVer >= 1.0.0, releases within the same major version are compatible,
+    // ignoring pre-release identifiers.
+    const catalogSemver = toSemVer(catalogVersion);
+    const messageSemver = toSemVer(messageVersion);
     if (
-      catSv &&
-      msgSv &&
-      catSv.major >= 1 &&
-      catSv.major === msgSv.major &&
-      catSv.prerelease.length === 0 &&
-      msgSv.prerelease.length === 0
+      catalogSemver &&
+      messageSemver &&
+      catalogSemver.major >= 1 &&
+      catalogSemver.major === messageSemver.major
     ) {
       return true;
     }
@@ -96,9 +95,9 @@ export function isCatalogVersionCompatible(
   if (typeof catalogVersion !== 'string' || typeof messageVersion !== 'string') {
     return false;
   }
-  const normCat = normalizeVersionString(catalogVersion);
-  const normMsg = normalizeVersionString(messageVersion);
-  return normCat.length > 0 && normCat === normMsg;
+  const normalizedCatalog = normalizeVersionString(catalogVersion);
+  const normalizedMessage = normalizeVersionString(messageVersion);
+  return normalizedCatalog.length > 0 && normalizedCatalog === normalizedMessage;
 }
 
 /**

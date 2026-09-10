@@ -29,20 +29,22 @@ from ...schema import AgentToRendererMessage, ProtocolVersion
 from ...common.semver import (
     SemVer,
     normalize_version_string,
-    parse_semver,
     to_canonical_version,
+    to_semver,
 )
 
 
 from ..execution_context import ExecutionContext
 
 # Canonical protocol versions supported by the A2UI runtime.
-SUPPORTED_PROTOCOL_VERSIONS: frozenset[str] = frozenset({
-    "0.8",
-    "0.9",
-    "0.9.1",
-    "1.0",
-})
+SUPPORTED_PROTOCOL_VERSIONS: frozenset[str] = frozenset(
+    {
+        "0.8",
+        "0.9",
+        "0.9.1",
+        "1.0",
+    }
+)
 
 # Maps an incoming message or surface protocol version to the set of catalog
 # protocol specification versions that it can accommodate.
@@ -75,38 +77,29 @@ def is_catalog_version_compatible(
     """
     if not catalog_version or not message_version:
         return False
-    cat_canonical = to_canonical_version(catalog_version)
-    msg_canonical = to_canonical_version(message_version)
-    if cat_canonical and msg_canonical:
-        if cat_canonical == msg_canonical:
+    catalog_canonical = to_canonical_version(catalog_version)
+    message_canonical = to_canonical_version(message_version)
+    if catalog_canonical and message_canonical:
+        if catalog_canonical == message_canonical:
             return True
         mapping = (
             compatibility_map
             if compatibility_map is not None
             else DEFAULT_CATALOG_COMPATIBILITY
         )
-        compatible = mapping.get(msg_canonical)
-        if compatible and cat_canonical in compatible:
+        compatible = mapping.get(message_canonical)
+        if compatible and catalog_canonical in compatible:
             return True
 
-        # For SemVer >= 1.0.0, releases within the same major version are compatible
-        cat_sv = (
-            catalog_version
-            if isinstance(catalog_version, SemVer)
-            else parse_semver(catalog_version)
-        )
-        msg_sv = (
-            message_version
-            if isinstance(message_version, SemVer)
-            else parse_semver(message_version)
-        )
+        # For SemVer >= 1.0.0, releases within the same major version are compatible,
+        # ignoring pre-release identifiers.
+        catalog_semver = to_semver(catalog_version)
+        message_semver = to_semver(message_version)
         if (
-            cat_sv
-            and msg_sv
-            and cat_sv.major >= 1
-            and cat_sv.major == msg_sv.major
-            and not cat_sv.prerelease
-            and not msg_sv.prerelease
+            catalog_semver
+            and message_semver
+            and catalog_semver.major >= 1
+            and catalog_semver.major == message_semver.major
         ):
             return True
         return False
@@ -114,9 +107,9 @@ def is_catalog_version_compatible(
     # Fallback for non-semver custom identifiers (e.g. 'custom' vs 'Vcustom')
     if not isinstance(catalog_version, str) or not isinstance(message_version, str):
         return False
-    norm_cat = normalize_version_string(catalog_version)
-    norm_msg = normalize_version_string(message_version)
-    return bool(norm_cat and norm_cat == norm_msg)
+    normalized_catalog = normalize_version_string(catalog_version)
+    normalized_message = normalize_version_string(message_version)
+    return bool(normalized_catalog and normalized_catalog == normalized_message)
 
 
 def _clean_loc_part(x: str) -> str:

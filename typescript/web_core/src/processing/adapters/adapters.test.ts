@@ -476,11 +476,14 @@ describe('MessageProcessor Dependency Injection', () => {
     assert.strictEqual(isCatalogVersionCompatible('1.0', v10Obj), true);
     assert.strictEqual(isCatalogVersionCompatible(v09Obj, v091Obj), true);
 
-    // Patch version compatibility for SemVer >= 1.0.0
+    // Patch and pre-release version compatibility for SemVer >= 1.0.0
     assert.strictEqual(isCatalogVersionCompatible('v1.0.1', 'v1.0'), true);
     assert.strictEqual(isCatalogVersionCompatible('v1.0', 'v1.0.1'), true);
     assert.strictEqual(isCatalogVersionCompatible('1.0.2', '1.0.1'), true);
-    assert.strictEqual(isCatalogVersionCompatible('v1.0.1-alpha', 'v1.0'), false);
+    assert.strictEqual(isCatalogVersionCompatible('v1.0.1-alpha', 'v1.0'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v1.0.0-beta.1', 'v1.0.0-rc.2'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v1.2.0-beta', 'v1.0.0'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v1.0.0-alpha', 'v2.0.0-alpha'), false);
     assert.strictEqual(isCatalogVersionCompatible('v1.1.0', 'v1.0.0'), true);
 
     // Falsy / invalid inputs
