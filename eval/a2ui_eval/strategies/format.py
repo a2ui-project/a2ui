@@ -23,7 +23,7 @@ from inspect_ai.model import (
     ChatCompletionChoice,
     ChatMessageAssistant,
 )
-from a2ui.core.processing import MessageProcessor
+from a2ui.core.processing import MessageProcessor, MessageProcessorOptions
 from a2ui.core.validation import STRICT_VALIDATION
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.inference_formats.direct_json import DirectJsonFormat
@@ -158,7 +158,8 @@ def _parse_and_validate_in_process(
         )
 
     MessageProcessor(
-        [catalog.core_catalog], validation_config=STRICT_VALIDATION
+        [catalog.core_catalog],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
     ).process_messages(compiled_jsons)
     return {"compiled_jsons": compiled_jsons, "parts": serialized_parts}
 

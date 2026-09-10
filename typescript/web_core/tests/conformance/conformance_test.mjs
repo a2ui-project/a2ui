@@ -19,6 +19,8 @@ import assert from 'node:assert';
 import yaml from 'js-yaml';
 import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
 import {Catalog, createFunctionImplementation} from '../../dist/src/catalog/types.js';
+import {SUPPORTED_PROTOCOL_VERSIONS} from '../../dist/src/processing/adapters/base.js';
+import {toCanonicalVersion} from '../../dist/src/common/semver.js';
 import {
   BASIC_COMPONENTS as V0_8_BASIC_COMPONENTS,
   ThemeSchema as V0_8_ThemeSchema,
@@ -41,21 +43,14 @@ const v0_8Components = V0_8_BASIC_COMPONENTS;
 const v0_9Components = V0_9_BASIC_COMPONENTS;
 const v1_0Components = V1_0_BASIC_COMPONENTS;
 
-const basicCatalog = new Catalog(
-  'basic',
-  v0_9Components,
-  [],
-  undefined,
-  undefined,
-  V09_CHILD_REF_OPTIONS,
-);
+const basicCatalog = new Catalog('basic', v0_9Components, [], undefined, undefined, 'v0.9');
 const v0_8Catalog = new Catalog(
   'v0.8:basic',
   v0_8Components,
   [],
   V0_8_ThemeSchema,
   undefined,
-  V08_CHILD_REF_OPTIONS,
+  'v0.8',
 );
 const v0_9Catalog = new Catalog(
   'v0.9:basic',
@@ -63,7 +58,7 @@ const v0_9Catalog = new Catalog(
   V0_9_BASIC_FUNCTIONS,
   V0_9_ThemeSchema,
   undefined,
-  V09_CHILD_REF_OPTIONS,
+  'v0.9',
 );
 const v1_0Catalog = new Catalog(
   'v1.0:basic',
@@ -71,7 +66,7 @@ const v1_0Catalog = new Catalog(
   V1_0_BASIC_FUNCTIONS,
   undefined,
   undefined,
-  V10_CHILD_REF_OPTIONS,
+  'v1.0',
 );
 const allCatalogs = [basicCatalog, v0_8Catalog, v0_9Catalog, v1_0Catalog];
 
@@ -83,12 +78,6 @@ const CONFORMANCE_ROOT =
   process.env.CONFORMANCE_ROOT || path.resolve(__dirname, '../../../../conformance');
 const CORE_DIR = path.join(CONFORMANCE_ROOT, 'core');
 const AGENT_DIR = path.join(CONFORMANCE_ROOT, 'agent');
-
-/**
- * Set of A2UI protocol versions supported by this TypeScript conformance harness.
- * Test cases specifying protocol versions outside this set are skipped.
- */
-const SUPPORTED_PROTOCOL_VERSIONS = new Set(['v0.8', 'v0.9', 'v1.0']);
 
 /**
  * Transition skip list containing specific test case names to skip.
@@ -168,13 +157,13 @@ async function runConformanceHarness() {
 
     for (const testCase of testCases) {
       const {name, action, catalog, args} = testCase;
-      let version = catalog?.protocolVersion || args?.version || 'v0.8';
-      if (!version.startsWith('v')) version = `v${version}`;
+      const rawVersion = catalog?.protocolVersion || args?.version || '0.8';
+      const version = toCanonicalVersion(rawVersion) || rawVersion;
 
       if (!SUPPORTED_PROTOCOL_VERSIONS.has(version)) {
         totalSkipped++;
         console.log(
-          `  ⁃ [SKIPPED] ${name} (version ${version} not in SUPPORTED_PROTOCOL_VERSIONS)`,
+          `  ⁃ [SKIPPED] ${name} (version ${rawVersion} not in SUPPORTED_PROTOCOL_VERSIONS)`,
         );
         continue;
       }
@@ -319,7 +308,8 @@ async function validateRpcTestCase(testCase) {
     catId = 'basic';
   }
 
-  const cat = new Catalog(catId, [], funcs, undefined, undefined, V10_CHILD_REF_OPTIONS);
+  const catProto = testCase.catalog?.protocolVersion || 'v1.0';
+  const cat = new Catalog(catId, [], funcs, undefined, undefined, catProto);
   let sentOutboundMsg;
   const processor = new MessageProcessor([cat], undefined, {
     version: 'v1.0',
@@ -474,7 +464,8 @@ function validateGetRendererCapabilitiesTestCase(testCase) {
 }
 
 function getBasicCatalog(version) {
-  if (version === 'v1.0') {
+  const norm = toCanonicalVersion(version) || version;
+  if (norm === '1.0') {
     return new Catalog(
       'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
       v1_0Components,
@@ -484,7 +475,7 @@ function getBasicCatalog(version) {
       V10_CHILD_REF_OPTIONS,
     );
   }
-  if (version === 'v0.9') {
+  if (norm === '0.9' || norm === '0.9.1') {
     return new Catalog(
       'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
       v0_9Components,
@@ -494,7 +485,7 @@ function getBasicCatalog(version) {
       V09_CHILD_REF_OPTIONS,
     );
   }
-  if (version === 'v0.8') {
+  if (norm === '0.8') {
     return new Catalog(
       'https://a2ui.org/specification/v0_8/catalogs/basic/catalog.json',
       v0_8Components,
@@ -703,25 +694,31 @@ function jsonSchemaToZod(schemaDef) {
 }
 
 function getCatalogsForTestCase(testCase) {
-  const refOptions =
-    testCase.protocolVersion === 'v0.8'
-      ? V08_CHILD_REF_OPTIONS
-      : testCase.protocolVersion === 'v0.9'
-        ? V09_CHILD_REF_OPTIONS
-        : V10_CHILD_REF_OPTIONS;
+  const normProto = toCanonicalVersion(testCase.protocolVersion) || testCase.protocolVersion;
   const catalogsMap = new Map(allCatalogs.map(c => [c.id, c]));
-  const addCatalogId = id => {
+  if (normProto === '1.0') {
+    catalogsMap.set(
+      'basic',
+      new Catalog('basic', v1_0Components, V1_0_BASIC_FUNCTIONS, undefined, undefined, '1.0'),
+    );
+  } else if (normProto === '0.8') {
+    catalogsMap.set(
+      'basic',
+      new Catalog('basic', v0_8Components, [], V0_8_ThemeSchema, undefined, '0.8'),
+    );
+  }
+  const addCatalogId = (id, version = normProto) => {
     if (id && !catalogsMap.has(id)) {
-      catalogsMap.set(
-        id,
-        new Catalog(id, flexibleComponents, [], undefined, undefined, refOptions),
-      );
+      catalogsMap.set(id, new Catalog(id, flexibleComponents, [], undefined, undefined, version));
     }
   };
 
   if (testCase.catalogs) {
     for (const cat of testCase.catalogs) {
       if (cat.catalogId) {
+        const catProto = cat.protocolVersion
+          ? toCanonicalVersion(cat.protocolVersion) || cat.protocolVersion
+          : normProto;
         if (cat.components || cat.theme) {
           const compApis = cat.components
             ? Object.entries(cat.components).map(([name, def]) => ({
@@ -732,10 +729,10 @@ function getCatalogsForTestCase(testCase) {
           const themeSchema = cat.theme ? jsonSchemaToZod(cat.theme) : undefined;
           catalogsMap.set(
             cat.catalogId,
-            new Catalog(cat.catalogId, compApis, [], themeSchema, undefined, refOptions),
+            new Catalog(cat.catalogId, compApis, [], themeSchema, undefined, catProto),
           );
         } else {
-          addCatalogId(cat.catalogId);
+          addCatalogId(cat.catalogId, catProto);
         }
       }
     }

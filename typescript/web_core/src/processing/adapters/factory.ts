@@ -15,7 +15,13 @@
  */
 
 import {A2uiValidationError} from '../../errors.js';
-import {ProtocolVersion, VersionAdapter, VersionAdapterResolver} from './base.js';
+import {normalizeVersionString, toCanonicalVersion} from '../../common/semver.js';
+import {
+  ProtocolVersion,
+  VersionAdapter,
+  VersionAdapterResolver,
+  registerKnownActionsProvider,
+} from './base.js';
 import {V0Point8Adapter} from './v0_8.js';
 import {V0Point9Adapter} from './v0_9.js';
 import {V1Point0Adapter} from './v1_0.js';
@@ -25,11 +31,28 @@ import {V1Point0Adapter} from './v1_0.js';
  */
 export class VersionAdapterFactory implements VersionAdapterResolver {
   private readonly adapters = new Map<string, VersionAdapter>([
-    ['v0.8', new V0Point8Adapter()],
-    ['v0.9', new V0Point9Adapter()],
-    ['v0.9.1', new V0Point9Adapter()],
-    ['v1.0', new V1Point0Adapter()],
+    ['0.8', new V0Point8Adapter()],
+    ['0.9', new V0Point9Adapter()],
+    ['0.9.1', new V0Point9Adapter()],
+    ['1.0', new V1Point0Adapter()],
   ]);
+
+  /**
+   * Returns the aggregated set of all action keys supported by all registered adapters.
+   *
+   * @return A set of all supported action key strings.
+   */
+  getAllKnownActions(): ReadonlySet<string> {
+    const actions = new Set<string>();
+    for (const adapter of this.adapters.values()) {
+      if (adapter.validActions) {
+        for (const action of adapter.validActions) {
+          actions.add(action);
+        }
+      }
+    }
+    return actions;
+  }
 
   /**
    * Dynamically registers a version adapter on this factory instance.
@@ -37,20 +60,26 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
    * @param adapter The version adapter instance to register.
    */
   registerAdapter(adapter: VersionAdapter): void {
-    this.adapters.set(adapter.version, adapter);
+    const key = toCanonicalVersion(adapter.version) ?? normalizeVersionString(adapter.version);
+    this.adapters.set(key, adapter);
   }
 
   /**
    * Resolves the version adapter for the specified version string from this factory instance.
    *
    * @param version The protocol version string (e.g. 'v1.0').
-   * @returns The matching version adapter.
+   * @return The matching version adapter.
    * @throws A2uiValidationError if the version string is unsupported.
    */
   getAdapter(version: ProtocolVersion | string): VersionAdapter {
-    const adapter = this.adapters.get(version);
+    const key = toCanonicalVersion(version) ?? normalizeVersionString(version);
+    const adapter = this.adapters.get(key);
     if (!adapter) {
-      const supported = Array.from(this.adapters.keys()).join(', ');
+      const supported = Array.from(
+        new Set(Array.from(this.adapters.keys()).map(k => (k.startsWith('v') ? k : `v${k}`))),
+      )
+        .sort()
+        .join(', ');
       throw new A2uiValidationError(
         `[VersionAdapterFactory] Unsupported protocol version '${version}'. Supported versions: ${supported}.`,
       );
@@ -71,10 +100,21 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
       if ('messages' in item && Array.isArray((item as any).messages)) {
         return this.resolveFromPayload((item as any).messages);
       }
-      if ('version' in item && typeof (item as {version: unknown}).version === 'string') {
-        return this.getAdapter((item as {version: string}).version);
+      if ('version' in item) {
+        const ver = (item as {version: unknown}).version;
+        if (typeof ver !== 'string') {
+          throw new A2uiValidationError(
+            `[VersionAdapterFactory] Message payload is missing a valid 'version' string: 'version' property must be a string, got ${typeof ver}.`,
+          );
+        }
+        return this.getAdapter(ver);
       }
-      if ('beginRendering' in item || 'surfaceUpdate' in item || 'dataModelUpdate' in item) {
+      if (
+        'beginRendering' in item ||
+        'surfaceUpdate' in item ||
+        'dataModelUpdate' in item ||
+        'deleteSurface' in item
+      ) {
         return this.getAdapter('v0.8');
       }
     }
@@ -96,7 +136,7 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
    * Resolves a version adapter for the specified version from the default singleton factory instance.
    *
    * @param version Protocol version string.
-   * @returns Matching version adapter.
+   * @return Matching version adapter.
    */
   static getAdapter(version: ProtocolVersion | string): VersionAdapter {
     return defaultVersionAdapterFactory.getAdapter(version);
@@ -111,7 +151,18 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
   static resolveFromPayload(payload: unknown): VersionAdapter {
     return defaultVersionAdapterFactory.resolveFromPayload(payload);
   }
+
+  /**
+   * Returns the aggregated set of all action keys supported by all registered adapters
+   * from the default singleton factory instance.
+   *
+   * @return A set of all supported action key strings.
+   */
+  static getAllKnownActions(): ReadonlySet<string> {
+    return defaultVersionAdapterFactory.getAllKnownActions();
+  }
 }
 
 /** Default singleton version adapter factory instance. */
 export const defaultVersionAdapterFactory = new VersionAdapterFactory();
+registerKnownActionsProvider(() => defaultVersionAdapterFactory.getAllKnownActions());

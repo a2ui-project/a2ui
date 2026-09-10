@@ -12,11 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Execution context tracking user activation and message processing state."""
+
 from dataclasses import dataclass
 
 
 @dataclass
 class ExecutionContext:
-    """Execution context passed through message processing and operation extraction."""
+    """Execution context passed through message processing and operation extraction.
 
-    user_activation_present: bool = False
+    Attributes:
+        is_user_activated: Whether user activation is present in the context.
+    """
+
+    is_user_activated: bool = False

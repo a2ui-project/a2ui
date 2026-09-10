@@ -30,6 +30,10 @@ def load_module(project_root, rel_path, filename, module_name):
     if src_path not in sys.path:
         sys.path.insert(0, src_path)
 
+    core_src = os.path.abspath(os.path.join(project_root, "..", "a2ui_core", "src"))
+    if os.path.exists(core_src) and core_src not in sys.path:
+        sys.path.insert(0, core_src)
+
     spec = importlib.util.spec_from_file_location(module_name, path)
     if spec and spec.loader:
         module = importlib.util.module_from_spec(spec)

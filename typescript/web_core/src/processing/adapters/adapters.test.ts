@@ -25,7 +25,15 @@ import {
   InternalUpdateDataModelOp,
   InternalDeleteSurfaceOp,
 } from '../operations.js';
-import {VersionAdapter} from './base.js';
+import {
+  VersionAdapter,
+  SUPPORTED_PROTOCOL_VERSIONS,
+  DEFAULT_CATALOG_COMPATIBILITY,
+  isCatalogVersionCompatible,
+} from './base.js';
+import {V0Point8Adapter} from './v0_8.js';
+import {V0Point9Adapter} from './v0_9.js';
+import {V1Point0Adapter} from './v1_0.js';
 
 describe('VersionAdapterFactory', () => {
   it('resolves v1.0 adapter and extracts operations with initial state and surface properties', () => {
@@ -97,6 +105,22 @@ describe('VersionAdapterFactory', () => {
     assert.deepStrictEqual(op.theme, {primaryColor: '#FF0000'});
   });
 
+  it('resolves unversioned deleteSurface to v0.8 adapter', () => {
+    const payload = {
+      deleteSurface: {
+        surfaceId: 's1',
+      },
+    };
+
+    const adapter = VersionAdapterFactory.resolveFromPayload(payload);
+    assert.strictEqual(adapter.version, 'v0.8');
+
+    const ops = adapter.extractOperations(payload);
+    assert.strictEqual(ops.length, 1);
+    assert.strictEqual(ops[0].type, 'deleteSurface');
+    assert.strictEqual((ops[0] as InternalDeleteSurfaceOp).surfaceId, 's1');
+  });
+
   it('extracts surfaceUpdate and dataModelUpdate operations in v0.8 adapter', () => {
     const adapter = VersionAdapterFactory.getAdapter('v0.8');
 
@@ -136,6 +160,28 @@ describe('VersionAdapterFactory', () => {
     );
   });
 
+  it('throws A2uiValidationError in adapters when payload version is invalid', () => {
+    const v09Adapter = VersionAdapterFactory.getAdapter('v0.9');
+    assert.throws(
+      () =>
+        v09Adapter.extractOperations({
+          version: 'v1.0',
+          createSurface: {surfaceId: 's1', catalogId: 'c1'},
+        }),
+      err => err instanceof A2uiValidationError && /Invalid v0.9 message/.test(err.message),
+    );
+
+    const v10Adapter = VersionAdapterFactory.getAdapter('v1.0');
+    assert.throws(
+      () =>
+        v10Adapter.extractOperations({
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1', catalogId: 'c1'},
+        }),
+      err => err instanceof A2uiValidationError && /Invalid v1.0 message/.test(err.message),
+    );
+  });
+
   it('supports dynamic registration of custom version adapters', () => {
     const customAdapter: VersionAdapter = {
       version: 'v2.0',
@@ -151,6 +197,11 @@ describe('VersionAdapterFactory', () => {
     VersionAdapterFactory.registerAdapter(customAdapter);
     const resolved = VersionAdapterFactory.getAdapter('v2.0');
     assert.strictEqual(resolved.version, 'v2.0');
+    // Verify format-tolerant retrieval of dynamically registered adapters
+    assert.strictEqual(VersionAdapterFactory.getAdapter('2.0').version, 'v2.0');
+    assert.strictEqual(VersionAdapterFactory.getAdapter('2.0.0').version, 'v2.0');
+    assert.strictEqual(VersionAdapterFactory.getAdapter('v2.0.0').version, 'v2.0');
+    assert.strictEqual(VersionAdapterFactory.getAdapter('V2.0').version, 'v2.0');
 
     const ops = resolved.extractOperations({});
     assert.strictEqual(ops.length, 1);
@@ -163,12 +214,19 @@ describe('VersionAdapterFactory', () => {
       () => VersionAdapterFactory.getAdapter('v99.0'),
       err =>
         err instanceof A2uiValidationError &&
-        /Unsupported protocol version 'v99\.0'/.test(err.message),
+        /Unsupported protocol version 'v99\.0'/.test(err.message) &&
+        /Supported versions: .*v2\.0/.test(err.message),
     );
     assert.throws(
       () => VersionAdapterFactory.resolveFromPayload({}),
       err =>
         err instanceof A2uiValidationError && /missing a valid 'version' string/.test(err.message),
+    );
+    assert.throws(
+      () => VersionAdapterFactory.resolveFromPayload({version: 123}),
+      err =>
+        err instanceof A2uiValidationError &&
+        /'version' property must be a string, got number/.test(err.message),
     );
   });
 
@@ -355,5 +413,205 @@ describe('MessageProcessor Dependency Injection', () => {
     const comp = surface?.componentsModel.get('t1');
     assert.strictEqual(comp?.properties.text, 'Hello');
     assert.strictEqual(comp?.properties.color, 'blue');
+  });
+
+  it('validates SUPPORTED_PROTOCOL_VERSIONS and DEFAULT_CATALOG_COMPATIBILITY', () => {
+    assert.ok(SUPPORTED_PROTOCOL_VERSIONS.has('1.0'));
+    assert.ok(SUPPORTED_PROTOCOL_VERSIONS.has('0.9.1'));
+    assert.ok(SUPPORTED_PROTOCOL_VERSIONS.has('0.9'));
+    assert.ok(SUPPORTED_PROTOCOL_VERSIONS.has('0.8'));
+    assert.strictEqual(SUPPORTED_PROTOCOL_VERSIONS.has('1.1'), false);
+    assert.ok(DEFAULT_CATALOG_COMPATIBILITY['0.9.1']?.has('0.9'));
+  });
+
+  it('evaluates isCatalogVersionCompatible correctly with supported sets', () => {
+    // Exact canonical matches across formatting variations
+    assert.strictEqual(isCatalogVersionCompatible('v1.0', 'v1.0'), true);
+    assert.strictEqual(isCatalogVersionCompatible('V1.0', 'v1.0'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v1.0', 'V1.0'), true);
+    assert.strictEqual(isCatalogVersionCompatible('1.0', 'v1.0'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v1.0.0', '1.0'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v1_0', '1.0.0'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v0.9', 'v0.9'), true);
+    assert.strictEqual(isCatalogVersionCompatible('V0.9', '0.9'), true);
+    assert.strictEqual(isCatalogVersionCompatible('0.9', 'V0.9'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v0_9', '0.9'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v0.9.1', '0.9.1'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v0_9_1', '0.9.1'), true);
+
+    // Backward compatibility between 0.9 and 0.9.1
+    assert.strictEqual(isCatalogVersionCompatible('v0.9', 'v0.9.1'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v0.9.1', 'v0.9'), true);
+
+    // Unsupported future or cross-major versions are rejected
+    assert.strictEqual(isCatalogVersionCompatible('v1.0', 'v1.1'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v1.1', 'v1.0'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v1.0', 'v2.0'), false);
+    assert.strictEqual(isCatalogVersionCompatible('v0.9', 'v1.0'), false);
+    assert.strictEqual(isCatalogVersionCompatible('v1.0', 'v0.9'), false);
+
+    // Custom compatibility map override
+    const customMap = {
+      '1.1': new Set(['1.0', '1.1']),
+    };
+    assert.strictEqual(isCatalogVersionCompatible('v1.0', 'v1.1', customMap), true);
+    assert.strictEqual(isCatalogVersionCompatible('v0.9', 'v1.1', customMap), false);
+
+    // Custom non-semver fallback
+    assert.strictEqual(isCatalogVersionCompatible('Vcustom', 'vcustom'), true);
+    assert.strictEqual(isCatalogVersionCompatible('custom', 'Vcustom'), true);
+    assert.strictEqual(isCatalogVersionCompatible('custom', 'other'), false);
+
+    // v0.8 matches
+    assert.strictEqual(isCatalogVersionCompatible('v0.8', 'v0.8'), true);
+    assert.strictEqual(isCatalogVersionCompatible('0.8', 'v0.8'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v0.8', '0.8.0'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v0.8', 'v0.9'), false);
+
+    // SemVer object inputs
+    const v10Obj = {major: 1, minor: 0, patch: 0, prerelease: [], build: []};
+    const v09Obj = {major: 0, minor: 9, patch: 0, prerelease: [], build: []};
+    const v091Obj = {major: 0, minor: 9, patch: 1, prerelease: [], build: []};
+    assert.strictEqual(isCatalogVersionCompatible(v10Obj, '1.0'), true);
+    assert.strictEqual(isCatalogVersionCompatible('1.0', v10Obj), true);
+    assert.strictEqual(isCatalogVersionCompatible(v09Obj, v091Obj), true);
+
+    // Patch and pre-release version compatibility for SemVer >= 1.0.0
+    assert.strictEqual(isCatalogVersionCompatible('v1.0.1', 'v1.0'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v1.0', 'v1.0.1'), true);
+    assert.strictEqual(isCatalogVersionCompatible('1.0.2', '1.0.1'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v1.0.1-alpha', 'v1.0'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v1.0.0-beta.1', 'v1.0.0-rc.2'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v1.2.0-beta', 'v1.0.0'), true);
+    assert.strictEqual(isCatalogVersionCompatible('v1.0.0-alpha', 'v2.0.0-alpha'), false);
+    assert.strictEqual(isCatalogVersionCompatible('v1.1.0', 'v1.0.0'), true);
+
+    // Falsy / invalid inputs
+    assert.strictEqual(isCatalogVersionCompatible(undefined, 'v1.0'), false);
+    assert.strictEqual(isCatalogVersionCompatible('v1.0', undefined), false);
+    assert.strictEqual(isCatalogVersionCompatible(null, 'v1.0'), false);
+    assert.strictEqual(isCatalogVersionCompatible('v1.0', null), false);
+    assert.strictEqual(isCatalogVersionCompatible(null, null), false);
+    assert.strictEqual(isCatalogVersionCompatible('', ''), false);
+    assert.strictEqual(isCatalogVersionCompatible('', 'v1.0'), false);
+    assert.strictEqual(isCatalogVersionCompatible('v1.0', ''), false);
+    assert.strictEqual(isCatalogVersionCompatible(null, 'None'), false);
+    assert.strictEqual(isCatalogVersionCompatible('None', null), false);
+    assert.strictEqual(isCatalogVersionCompatible({} as any, {} as any), false);
+    assert.strictEqual(isCatalogVersionCompatible([] as any, [] as any), false);
+  });
+
+  it('evaluates compatibleCatalogVersions and isCatalogCompatible on adapter instances', () => {
+    const v08 = new V0Point8Adapter();
+    assert.ok(v08.compatibleCatalogVersions.has('0.8'));
+    assert.strictEqual(v08.isCatalogCompatible('v0.8'), true);
+    assert.strictEqual(v08.isCatalogCompatible('0.8'), true);
+    assert.strictEqual(v08.isCatalogCompatible('v0.9'), false);
+
+    const v09 = new V0Point9Adapter();
+    assert.ok(v09.compatibleCatalogVersions.has('0.9'));
+    assert.ok(v09.compatibleCatalogVersions.has('0.9.1'));
+    assert.strictEqual(v09.isCatalogCompatible('v0.9'), true);
+    assert.strictEqual(v09.isCatalogCompatible('v0.9.1'), true);
+    assert.strictEqual(v09.isCatalogCompatible('0.9'), true);
+    assert.strictEqual(v09.isCatalogCompatible('0.9.1'), true);
+    assert.strictEqual(v09.isCatalogCompatible('v1.0'), false);
+
+    const v10 = new V1Point0Adapter();
+    assert.ok(v10.compatibleCatalogVersions.has('1.0'));
+    assert.strictEqual(v10.isCatalogCompatible('v1.0'), true);
+    assert.strictEqual(v10.isCatalogCompatible('1.0.0'), true);
+    assert.strictEqual(v10.isCatalogCompatible('v1_0'), true);
+    assert.strictEqual(v10.isCatalogCompatible('v0.9'), false);
+    assert.strictEqual(v10.isCatalogCompatible('v1.1'), true);
+    assert.strictEqual(v10.isCatalogCompatible('v2.0'), false);
+    assert.strictEqual(v10.isCatalogCompatible(undefined), false);
+  });
+
+  it('resolves adapters by canonical and formatted version strings', () => {
+    const factory = new VersionAdapterFactory();
+    assert.strictEqual(factory.getAdapter('v1.0').version, 'v1.0');
+    assert.strictEqual(factory.getAdapter('1.0').version, 'v1.0');
+    assert.strictEqual(factory.getAdapter('1.0.0').version, 'v1.0');
+    assert.strictEqual(factory.getAdapter('v1_0').version, 'v1.0');
+    assert.strictEqual(factory.getAdapter('V1.0').version, 'v1.0');
+    assert.strictEqual(factory.getAdapter('v0.9.1').version, 'v0.9');
+    assert.strictEqual(factory.getAdapter('0.9.1').version, 'v0.9');
+    assert.strictEqual(factory.getAdapter('v0.9').version, 'v0.9');
+    assert.strictEqual(factory.getAdapter('0.9').version, 'v0.9');
+    assert.strictEqual(factory.getAdapter('v0.8').version, 'v0.8');
+    assert.strictEqual(factory.getAdapter('0.8').version, 'v0.8');
+
+    assert.throws(
+      () => factory.getAdapter('v1.1'),
+      (err: any) =>
+        err instanceof A2uiValidationError && err.message.includes('Unsupported protocol version'),
+    );
+  });
+
+  it('aggregates all known actions across registered adapters', () => {
+    const factory = new VersionAdapterFactory();
+    const actions = factory.getAllKnownActions();
+    assert.ok(actions instanceof Set);
+    assert.strictEqual(actions.has('beginRendering'), true);
+    assert.strictEqual(actions.has('surfaceUpdate'), true);
+    assert.strictEqual(actions.has('dataModelUpdate'), true);
+    assert.strictEqual(actions.has('createSurface'), true);
+    assert.strictEqual(actions.has('updateComponents'), true);
+    assert.strictEqual(actions.has('updateDataModel'), true);
+    assert.strictEqual(actions.has('deleteSurface'), true);
+
+    const staticActions = VersionAdapterFactory.getAllKnownActions();
+    assert.strictEqual(staticActions.has('createSurface'), true);
+    assert.strictEqual(staticActions.has('beginRendering'), true);
+  });
+
+  it('rejects cross-version actions with A2uiValidationError', () => {
+    const v09 = VersionAdapterFactory.getAdapter('v0.9');
+    assert.throws(
+      () =>
+        v09.extractOperations({
+          version: 'v0.9',
+          beginRendering: {surfaceId: 's1'},
+        }),
+      (err: any) =>
+        err instanceof A2uiValidationError &&
+        /action 'beginRendering' is not supported in protocol version v0.9/.test(err.message),
+    );
+
+    const v10 = VersionAdapterFactory.getAdapter('v1.0');
+    assert.throws(
+      () =>
+        v10.extractOperations({
+          version: 'v1.0',
+          beginRendering: {surfaceId: 's1'},
+        }),
+      (err: any) =>
+        err instanceof A2uiValidationError &&
+        /action 'beginRendering' is not supported in protocol version v1.0/.test(err.message),
+    );
+
+    const v08 = VersionAdapterFactory.getAdapter('v0.8');
+    assert.throws(
+      () =>
+        v08.extractOperations({
+          createSurface: {surfaceId: 's1'},
+        }),
+      (err: any) =>
+        err instanceof A2uiValidationError &&
+        /action 'createSurface' is not supported in protocol version v0.8/.test(err.message),
+    );
+
+    // Completely unknown action
+    assert.throws(
+      () =>
+        v09.extractOperations({
+          version: 'v0.9',
+          completelyUnknownAction: {surfaceId: 's1'},
+        }),
+      (err: any) =>
+        err instanceof A2uiValidationError &&
+        /message must contain exactly one update action/.test(err.message),
+    );
   });
 });

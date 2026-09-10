@@ -26,6 +26,7 @@ import {
   RendererFunctionResponseMessage,
   CallAgentFunctionMessage,
 } from '../v1_0/schema/renderer-to-agent.js';
+import {isCatalogVersionCompatible} from '../processing/adapters/base.js';
 
 /**
  * Standard error codes for A2UI RPC failures.
@@ -364,10 +365,12 @@ export class RpcHandler {
       return {error: 'No catalog available for function resolution.'};
     }
 
-    if (catalog.protocolVersion && expectedVersion && catalog.protocolVersion !== expectedVersion) {
-      return {
-        error: `Catalog '${catalog.id}' specification version (${catalog.protocolVersion}) does not match message protocol version (${expectedVersion}).`,
-      };
+    if (catalog.protocolVersion && expectedVersion) {
+      if (!isCatalogVersionCompatible(catalog.protocolVersion, expectedVersion)) {
+        return {
+          error: `Catalog '${catalog.id}' specification version (${catalog.protocolVersion}) does not match message protocol version (${expectedVersion}).`,
+        };
+      }
     }
 
     const funcImpl = catalog.functions?.get(call);
