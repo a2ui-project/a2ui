@@ -285,7 +285,7 @@ MCP is a stateful session protocol, so the most efficient approach is to declare
         "clientCapabilities": {
           "v0.9": {
             "supportedCatalogIds": [
-              "https://a2ui.org/specification/v0_9/basic_catalog.json"
+              "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
             ]
           }
         }
@@ -314,7 +314,7 @@ If your server must remain stateless, the client can pass A2UI capabilities in t
         "clientCapabilities": {
           "v0.9": {
             "supportedCatalogIds": [
-              "https://a2ui.org/specification/v0_9/basic_catalog.json"
+              "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
             ],
             "inlineCatalogs": []
           }

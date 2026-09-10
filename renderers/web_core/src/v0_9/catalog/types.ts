@@ -129,6 +129,7 @@ export declare interface CatalogInterface<
   F extends FunctionApi = FunctionImplementation,
 > {
   readonly id: string;
+  readonly aliases?: string[];
   readonly components: ReadonlyMap<string, T>;
   readonly functions: ReadonlyMap<string, F>;
   readonly themeSchema?: z.ZodObject<any>;
@@ -151,6 +152,7 @@ export class Catalog<
   F extends FunctionApi = FunctionImplementation,
 > implements CatalogInterface<T, F> {
   readonly id: string;
+  readonly aliases?: string[];
 
   /**
    * A map of available components.
@@ -174,8 +176,15 @@ export class Catalog<
    */
   readonly invoker: FunctionInvoker;
 
-  constructor(id: string, components: T[], functions: F[] = [], themeSchema?: z.ZodObject<any>) {
+  constructor(
+    id: string,
+    components: T[],
+    functions: F[] = [],
+    themeSchema?: z.ZodObject<any>,
+    aliases?: string[],
+  ) {
     this.id = id;
+    this.aliases = aliases;
 
     const compMap = new Map<string, T>();
     for (const comp of components) {

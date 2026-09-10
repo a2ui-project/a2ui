@@ -19,7 +19,7 @@ import {basicCatalog} from '@a2ui/lit/v0_9';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 
-export const BASIC_CATALOG_ID = 'https://a2ui.org/specification/v0_9/basic_catalog.json';
+export const BASIC_CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
 export const A2UI_MIME_TYPE = 'application/a2ui+json';
 
 export const MCP_CALL_TOOL_ACTION = 'callMcpTool';

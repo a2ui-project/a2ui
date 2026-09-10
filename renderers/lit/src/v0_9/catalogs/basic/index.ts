@@ -69,4 +69,6 @@ export const basicCatalog = new Catalog<LitComponentApi>(
     A2uiVideo,
   ],
   BASIC_FUNCTIONS,
+  undefined,
+  ['https://a2ui.org/specification/v0_9/basic_catalog.json'],
 );

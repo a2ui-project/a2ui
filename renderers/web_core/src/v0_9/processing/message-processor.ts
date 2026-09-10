@@ -320,7 +320,7 @@ export class MessageProcessor<T extends ComponentApi> {
     const {surfaceId, catalogId, theme, sendDataModel} = payload;
 
     // Find catalog
-    const catalog = this.catalogs.find(c => c.id === catalogId);
+    const catalog = this.catalogs.find(c => c.id === catalogId || c.aliases?.includes(catalogId));
     if (!catalog) {
       throw new A2uiStateError(`Catalog not found: ${catalogId}`);
     }
