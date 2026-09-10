@@ -2,6 +2,7 @@
 
 ## 0.2.0
 
+- Support non-ASCII data model keys in templates.
 - **Breaking:** `MessageProcessor` validates messages as it processes them.
   A message that does not match its catalog now throws instead of being
   applied. Added `processPayload` and an optional `validator` constructor

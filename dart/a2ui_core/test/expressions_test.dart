@@ -73,5 +73,22 @@ void main() {
     test('throws on unclosed interpolation', () {
       expect(() => parser.parse('hello \${world'), throwsException);
     });
+
+    test('parses non-ASCII identifiers and paths', () {
+      expect(parser.parse(r'${señor}'), [
+        {'path': 'señor'},
+      ]);
+      expect(parser.parse(r'${café/precio}'), [
+        {'path': 'café/precio'},
+      ]);
+      expect(parser.parse(r'${日本}'), [
+        {'path': '日本'},
+      ]);
+      expect(parser.parse(r'hola ${señor} qué tal'), [
+        'hola ',
+        {'path': 'señor'},
+        ' qué tal',
+      ]);
+    });
   });
 }

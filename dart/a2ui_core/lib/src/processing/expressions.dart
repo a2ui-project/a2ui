@@ -238,12 +238,21 @@ class ExpressionParser {
     return num.parse(scanner.input.substring(start, scanner.pos));
   }
 
-  bool _isAlnum(String c) {
+  static final RegExp _unicodeAlnum = RegExp(r'\p{L}|\p{N}', unicode: true);
+
+  static bool _isAlnum(String c) {
     if (c.isEmpty) return false;
     final int u = c.codeUnitAt(0);
-    return (u >= 0x30 && u <= 0x39) || // 0-9
+    if ((u >= 0x30 && u <= 0x39) || // 0-9
         (u >= 0x41 && u <= 0x5A) || // A-Z
-        (u >= 0x61 && u <= 0x7A); // a-z
+        (u >= 0x61 && u <= 0x7A)) {
+      // a-z
+      return true;
+    }
+    if (u < 128) {
+      return false;
+    }
+    return _unicodeAlnum.hasMatch(c);
   }
 
   bool _isDigit(String c) {
@@ -287,7 +296,7 @@ class _Scanner {
   bool matchesKeyword(String keyword) {
     if (input.startsWith(keyword, pos)) {
       final String next = peek(keyword.length);
-      if (next.isEmpty || !_isWordChar(next.codeUnitAt(0))) {
+      if (next.isEmpty || !_isWordChar(next)) {
         advance(keyword.length);
         return true;
       }
@@ -305,12 +314,7 @@ class _Scanner {
     return input.substring(start, end);
   }
 
-  static bool _isWordChar(int u) {
-    return (u >= 0x30 && u <= 0x39) || // 0-9
-        (u >= 0x41 && u <= 0x5A) || // A-Z
-        (u >= 0x61 && u <= 0x7A) || // a-z
-        u == 0x5F; // _
-  }
+  static bool _isWordChar(String c) => c == '_' || ExpressionParser._isAlnum(c);
 
   static bool _isWhitespace(int u) {
     return u == 0x20 || u == 0x09 || u == 0x0A || u == 0x0D; // space/tab/LF/CR
