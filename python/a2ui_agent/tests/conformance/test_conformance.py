@@ -381,17 +381,25 @@ def test_schema_manager_conformance(name, test_case):
         fmt_name = test_case.get("format", "direct_json")
         content = test_case["input"]
 
+        cat_config = test_case.get("catalog", {})
+        protocol_ver = cat_config.get("protocolVersion", "v1.0")
+        spec_ver_key = protocol_ver.replace(".", "_").removeprefix("v")
+        if not spec_ver_key.startswith("v"):
+            spec_ver_key = f"v{spec_ver_key}"
+
         from a2ui.core.catalog import Catalog
         from a2ui.schema.utils import get_basic_catalog_path
 
-        with open(get_basic_catalog_path("v1_0"), "r", encoding="utf-8") as f:
+        with open(get_basic_catalog_path(spec_ver_key), "r", encoding="utf-8") as f:
             catalog_dict = json.load(f)
-        core_cat = Catalog.from_json(catalog_dict, protocol_version="v1.0")
+        core_cat = Catalog.from_json(catalog_dict, protocol_version=protocol_ver)
 
         if fmt_name == "express":
             from a2ui.inference_formats.experimental.express import ExpressParser
 
-            parser = ExpressParser(catalog=core_cat, surface_id="main", version="v1.0")
+            parser = ExpressParser(
+                catalog=core_cat, surface_id="main", version=protocol_ver
+            )
         elif fmt_name == "elemental":
             from a2ui.inference_formats.experimental.elemental import ElementalParser
 
