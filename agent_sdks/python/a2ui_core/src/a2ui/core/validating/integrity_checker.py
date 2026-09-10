@@ -25,6 +25,11 @@ RELAXED_PATH_PATTERN = re.compile(
     r"^(?:(?:\/(?:[^~\/]|~[01])*)*|(?:[^~\/]|~[01])+(?:\/(?:[^~\/]|~[01])*)*)$"
 )
 FORBIDDEN_PATH_SEGMENTS = frozenset({"__proto__", "constructor", "prototype"})
+UNESCAPE_PATTERN = re.compile(r"~([01])")
+
+
+def _unescape_match(m: re.Match[str]) -> str:
+    return "/" if m.group(1) == "1" else "~"
 
 
 def get_component_references(
@@ -160,7 +165,7 @@ def validate_recursion_and_paths(data: Any) -> None:
                     path[1:].split("/") if path.startswith("/") else path.split("/")
                 )
                 for raw_seg in raw_segments:
-                    seg = raw_seg.replace("~1", "/").replace("~0", "~")
+                    seg = UNESCAPE_PATTERN.sub(_unescape_match, raw_seg)
                     if seg in FORBIDDEN_PATH_SEGMENTS:
                         raise A2uiValidationError(
                             f"Forbidden path segment '{seg}' in path '{path}'",

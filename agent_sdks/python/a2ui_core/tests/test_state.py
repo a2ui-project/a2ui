@@ -341,3 +341,14 @@ def test_data_model_allows_valid_similar_path_segments():
 
     assert dm.get("/user/prototype_name") == "test_proto"
     assert dm.get("/constructor_args/value") == 123
+
+
+def test_data_model_escaped_pointer_tokens():
+    dm = DataModel()
+    # RFC 6901: ~0 represents '~' and ~1 represents '/'
+    dm.set("/a~1b", "slash_key")
+    dm.set("/m~0n", "tilde_key")
+
+    assert dm.get("/a~1b") == "slash_key"
+    assert dm.get("/m~0n") == "tilde_key"
+    assert dm.get("/") == {"a/b": "slash_key", "m~n": "tilde_key"}

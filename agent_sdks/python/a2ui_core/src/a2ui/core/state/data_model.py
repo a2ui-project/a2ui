@@ -22,6 +22,11 @@ NUMERIC_PATTERN = re.compile(r"^(?:0|[1-9][0-9]*)$")
 
 # Keys forbidden in path resolution to prevent prototype pollution vulnerabilities.
 FORBIDDEN_KEYS = frozenset({"__proto__", "constructor", "prototype"})
+UNESCAPE_PATTERN = re.compile(r"~([01])")
+
+
+def _unescape_match(m: re.Match[str]) -> str:
+    return "/" if m.group(1) == "1" else "~"
 
 
 class DataModel:
@@ -46,7 +51,7 @@ class DataModel:
         else:
             raw_tokens = path[1:].split("/")
 
-        tokens = [t.replace("~1", "/").replace("~0", "~") for t in raw_tokens]
+        tokens = [UNESCAPE_PATTERN.sub(_unescape_match, t) for t in raw_tokens]
         for token in tokens:
             if token in FORBIDDEN_KEYS:
                 raise ValueError(f"Forbidden path segment '{token}' in path '{path}'.")
