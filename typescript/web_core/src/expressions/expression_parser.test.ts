@@ -161,4 +161,23 @@ describe('ExpressionParser', () => {
       parser.parseExpression('add(a 10, b: 20)');
     }, /Expected ':'/);
   });
+
+  it('parses valid numeric literals including trailing decimal point', () => {
+    assert.strictEqual(parser.parseExpression('42'), 42);
+    assert.strictEqual(parser.parseExpression('-42'), -42);
+    assert.strictEqual(parser.parseExpression('+42'), 42);
+    assert.strictEqual(parser.parseExpression('3.14'), 3.14);
+    assert.strictEqual(parser.parseExpression('-0.5'), -0.5);
+    assert.strictEqual(parser.parseExpression('1e5'), 100000);
+    assert.strictEqual(parser.parseExpression('-2.5e-3'), -0.0025);
+    assert.strictEqual(parser.parseExpression('1.'), 1);
+    assert.strictEqual(parser.parseExpression('-42.'), -42);
+    assert.strictEqual(parser.parseExpression('+0.'), 0);
+  });
+
+  it('rejects numbers with multiple decimal dots', () => {
+    assert.throws(() => {
+      parser.parseExpression('1.2.3');
+    }, /Invalid number literal/);
+  });
 });

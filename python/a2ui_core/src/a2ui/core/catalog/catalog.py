@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import deque
 from collections.abc import Mapping, Sequence
 import copy
 import re
@@ -658,9 +659,9 @@ class Catalog(Generic[TComponent, TFunction]):
                 referenced_dynamics.add("DataBinding")
                 referenced_dynamics.add("FunctionCall")
             dynamic_defs = _get_dynamic_types_defs()
-            queue = list(referenced_dynamics)
+            queue = deque(referenced_dynamics)
             while queue:
-                curr = queue.pop(0)
+                curr = queue.popleft()
                 if curr in dynamic_defs:
                     found_refs: set[str] = set()
                     _collect_defs_refs(dynamic_defs[curr], found_refs)
