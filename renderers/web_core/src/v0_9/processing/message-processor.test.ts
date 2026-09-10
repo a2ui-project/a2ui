@@ -999,12 +999,45 @@ describe('MessageProcessor', () => {
       );
     });
 
-    it('advertises only canonical ids in client capabilities', () => {
-      // Aliases exist to accept legacy traffic, not to invite it: the client
-      // tells the agent which id it wants surfaces created with.
+    it('advertises aliases in client capabilities, canonical id first', () => {
+      // `supportedCatalogIds` states what the client can render, and the client
+      // genuinely renders these aliases. Advertising them is what lets an agent
+      // that only knows a legacy id still match this client. The list is
+      // ordered by preference, so the canonical id must come first.
       const caps = aliasedProcessor.getClientCapabilities() as any;
 
-      assert.deepStrictEqual(caps['v0.9'].supportedCatalogIds, ['canonical-catalog']);
+      assert.deepStrictEqual(caps['v0.9'].supportedCatalogIds, [
+        'canonical-catalog',
+        'legacy-catalog',
+        'other-legacy-catalog',
+      ]);
+    });
+
+    it('advertises catalogs without aliases as a single id', () => {
+      const proc = new MessageProcessor<ComponentApi>([
+        new Catalog('plain-catalog', [TextComp]),
+        aliasedCatalog,
+      ]);
+
+      const caps = proc.getClientCapabilities() as any;
+
+      assert.deepStrictEqual(caps['v0.9'].supportedCatalogIds, [
+        'plain-catalog',
+        'canonical-catalog',
+        'legacy-catalog',
+        'other-legacy-catalog',
+      ]);
+    });
+
+    it('keeps inline catalogs keyed by canonical id only', () => {
+      // Aliases expand `supportedCatalogIds` but must not produce duplicate
+      // inline catalog definitions.
+      const caps = aliasedProcessor.getClientCapabilities({includeInlineCatalogs: true}) as any;
+
+      assert.deepStrictEqual(
+        caps['v0.9'].inlineCatalogs.map((c: any) => c.catalogId),
+        ['canonical-catalog'],
+      );
     });
 
     it('accepts the legacy basic catalog id used by existing Flutter clients', () => {

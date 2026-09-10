@@ -50,9 +50,11 @@ describe('basic catalog identity', () => {
     assert.strictEqual(surface?.componentsModel.get('root')?.type, 'Text');
   });
 
-  it('advertises only the canonical id to agents', () => {
+  it('advertises both ids to agents, canonical first', () => {
+    // Per the catalog migration guidance, a client announces the new and old
+    // ids together so agents built against either one still match it.
     const caps = new MessageProcessor([basicCatalog]).getClientCapabilities() as any;
 
-    assert.deepStrictEqual(caps['v0.9'].supportedCatalogIds, [CANONICAL_ID]);
+    assert.deepStrictEqual(caps['v0.9'].supportedCatalogIds, [CANONICAL_ID, LEGACY_ID]);
   });
 });

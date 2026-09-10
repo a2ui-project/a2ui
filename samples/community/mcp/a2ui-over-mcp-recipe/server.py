@@ -30,7 +30,7 @@ from recipes import RECIPES
 
 # Static MIME type for A2UI JSON payloads
 A2UI_MIME_TYPE = "application/a2ui+json"
-BASIC_CATALOG_ID = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+BASIC_CATALOG_ID = "https://a2ui.org/specification/v0_9/basic_catalog.json"
 
 
 @click.command()

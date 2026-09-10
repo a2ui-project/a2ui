@@ -1,6 +1,6 @@
 ## Unreleased
 
-- (v0_9) Add legacy non-canonical basic catalog URL as an alias to the standard basic catalog implementation for Angular.
+- (v0_9) Add legacy non-canonical basic catalog URL as an alias to the standard basic catalog implementation for Angular. The alias is keyed off the resolved catalog ID, so passing the canonical ID explicitly via `BasicCatalogOptions.id` keeps it. Exports `BASIC_CATALOG_ID` and `LEGACY_BASIC_CATALOG_ID`.
 
 - (v0_9) Fix `ChoicePicker` radio groups colliding across surfaces: the radio group `name` now combines the surface id, component id, and data context path instead of using the surface-scoped component id alone, and checkboxes no longer receive a `name`. [#2447](https://github.com/a2ui-project/a2ui/issues/2447)
 - (v0_9) Implement `createComponentImplementation` helper and deprecate `extraComponents` and `functions` in `BasicCatalogOptions` to align with the core API. [#2060](https://github.com/a2ui-project/a2ui/pull/2060)

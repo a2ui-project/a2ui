@@ -15,7 +15,13 @@
  */
 
 import {TestBed} from '@angular/core/testing';
-import {BasicCatalog, BasicCatalogBase, BASIC_CATALOG_OPTIONS} from './basic-catalog';
+import {
+  BasicCatalog,
+  BasicCatalogBase,
+  BASIC_CATALOG_ID,
+  BASIC_CATALOG_OPTIONS,
+  LEGACY_BASIC_CATALOG_ID,
+} from './basic-catalog';
 
 describe('BasicCatalog', () => {
   it('should be created with default options when no token is provided', () => {
@@ -47,7 +53,7 @@ describe('BasicCatalog', () => {
   });
 
   describe('legacy catalog id aliases', () => {
-    const LEGACY_ID = 'https://a2ui.org/specification/v0_9/basic_catalog.json';
+    const LEGACY_ID = LEGACY_BASIC_CATALOG_ID;
 
     it('aliases the legacy basic catalog id when using the default id', () => {
       TestBed.configureTestingModule({
@@ -91,8 +97,27 @@ describe('BasicCatalog', () => {
       expect(catalog.aliases).toBeUndefined();
     });
 
+    it('keeps the alias when the canonical id is passed explicitly', () => {
+      // Aliasing is keyed off the resolved id, so spelling out the canonical id
+      // must behave identically to omitting it.
+      TestBed.configureTestingModule({
+        providers: [
+          BasicCatalog,
+          {
+            provide: BASIC_CATALOG_OPTIONS,
+            useValue: {id: BASIC_CATALOG_ID},
+          },
+        ],
+      });
+
+      const catalog = TestBed.inject(BasicCatalog);
+      expect(catalog.id).toBe(BASIC_CATALOG_ID);
+      expect(catalog.aliases).toEqual([LEGACY_ID]);
+    });
+
     it('applies the same alias rules when constructed directly', () => {
       expect(new BasicCatalogBase().aliases).toEqual([LEGACY_ID]);
+      expect(new BasicCatalogBase({id: BASIC_CATALOG_ID}).aliases).toEqual([LEGACY_ID]);
       expect(new BasicCatalogBase({id: 'https://example.com/custom.json'}).aliases).toBeUndefined();
     });
   });

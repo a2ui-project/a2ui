@@ -140,11 +140,23 @@ export const BASIC_COMPONENTS: AngularComponentImplementation[] = Object.values(
 export {BASIC_FUNCTIONS};
 
 /**
+ * The canonical id of the v0.9 basic catalog, as defined by the specification.
+ */
+export const BASIC_CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
+
+/**
+ * The non-canonical basic catalog id emitted by earlier tooling, notably legacy
+ * Flutter genui deployments. Accepted as an alias of {@link BASIC_CATALOG_ID}
+ * so those clients keep rendering; new code should emit the canonical id.
+ */
+export const LEGACY_BASIC_CATALOG_ID = 'https://a2ui.org/specification/v0_9/basic_catalog.json';
+
+/**
  * A base class for basic catalogs, providing extensibility for non-DI use cases.
  */
 export class BasicCatalogBase extends AngularCatalog {
   constructor(options: BasicCatalogOptions = {}) {
-    const id = options.id ?? 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
+    const id = options.id ?? BASIC_CATALOG_ID;
     const functions = options.functions ?? createBasicCatalogFunctions({locale: options.locale});
 
     const overrides = options.components ?? {};
@@ -156,9 +168,10 @@ export class BasicCatalogBase extends AngularCatalog {
       ...(options.extraComponents ?? []),
     ];
 
-    const aliases = options.id
-      ? undefined
-      : ['https://a2ui.org/specification/v0_9/basic_catalog.json'];
+    // Keyed off the resolved id, not off whether `options.id` was supplied, so
+    // passing the canonical id explicitly keeps the legacy alias. Only a
+    // genuinely different catalog drops it.
+    const aliases = id === BASIC_CATALOG_ID ? [LEGACY_BASIC_CATALOG_ID] : undefined;
 
     super(id, components, functions, undefined, aliases);
   }
