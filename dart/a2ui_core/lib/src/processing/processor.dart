@@ -137,6 +137,17 @@ class MessageProcessor<T extends ComponentApi> {
 
   /// Processes a list of messages, applying each to the surface it names.
   ///
+  /// Each message is checked against the surface it joins as it is applied:
+  /// its components against the catalog they belong to, and the batch as a
+  /// graph for duplicate ids, cycles and over-deep chains.
+  ///
+  /// A reference to no component is not among those. Nothing here can tell one
+  /// apart from a reference whose target is still in flight, because a payload
+  /// may declare a parent before its child — the basic catalog's
+  /// `00_incremental` example does exactly that. So a payload carrying a
+  /// reference to nothing is not rejected as it arrives; it surfaces from
+  /// [checkSurfaceComplete], once a caller declares the surface finished.
+  ///
   /// A caller holding a raw payload parses it first, with
   /// `A2uiMessage.parseAll(payload, protocolVersion: ...)`. That is a separate
   /// step because envelope parsing needs no catalog and no surface: it is what
@@ -151,8 +162,9 @@ class MessageProcessor<T extends ComponentApi> {
   /// Checks that [surfaceId] holds a finished render.
   ///
   /// The process path cannot make this check as messages arrive: a surface is
-  /// built up over several messages, so a missing root or an unreachable
-  /// component may simply be waiting on the next one. Completeness is
+  /// built up over several messages, so a missing root, an unresolved
+  /// reference or an unreachable component may simply be waiting on the next
+  /// one. Completeness is
   /// therefore something the caller declares, and this is where it is checked
   /// — an agent runs it over the surfaces its turn built before sending the
   /// payload, and a renderer can run it once a stream ends.
