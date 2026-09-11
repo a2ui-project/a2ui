@@ -98,7 +98,7 @@ describe('CheckBoxComponent', () => {
       value: createBoundProperty(true),
     });
     mockRendererService.surfaceGroup.getSurface.and.returnValue({
-      theme: {primaryColor: 'rgb(255, 0, 0)'},
+      theme: {primaryColor: '#FF0000'},
       componentsModel: new Map(),
       catalog: {components: new Map()},
     });

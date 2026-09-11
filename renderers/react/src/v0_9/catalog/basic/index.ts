@@ -15,7 +15,7 @@
  */
 
 import {Catalog} from '@a2ui/web_core/v0_9';
-import {BASIC_FUNCTIONS} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BASIC_FUNCTIONS, BasicCatalogThemeSchema} from '@a2ui/web_core/v0_9/basic_catalog';
 import type {ReactComponentImplementation} from '../../adapter';
 
 import {Text} from './components/Text';
@@ -64,6 +64,7 @@ export const basicCatalog = new Catalog<ReactComponentImplementation>(
   'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
   basicComponents,
   BASIC_FUNCTIONS,
+  BasicCatalogThemeSchema,
 );
 
 export {

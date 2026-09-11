@@ -353,4 +353,21 @@ describe('v0.9.1 Angular Renderer Integration', () => {
     expect(textEl).toBeTruthy();
     expect(textEl.textContent).toContain('Hello from v0.9.1!');
   });
+
+  it('should validate theme on createSurface and reject CSS injection', () => {
+    const invalidThemeMessage: A2uiMessage = {
+      version: 'v0.9',
+      createSurface: {
+        surfaceId: 'malicious-surface',
+        catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+        theme: {
+          primaryColor: 'url(https://attacker.example/beacon)',
+        },
+      },
+    };
+
+    expect(() => {
+      rendererService.processMessages([invalidThemeMessage]);
+    }).toThrow();
+  });
 });
