@@ -20,7 +20,7 @@ import {
   basicCatalog,
   A2uiSurface,
   MarkdownContext,
-  type ReactComponentImplementation,
+  type ReactCatalogComponent,
 } from '@a2ui/react/v0_9';
 import {getDemoItems} from './examples';
 import {renderMarkdown} from '@a2ui/markdown-it';
@@ -28,7 +28,7 @@ import styles from './App.module.css';
 
 const demoItems = getDemoItems();
 
-const DataModelViewer = ({surface}: {surface: SurfaceModel<ReactComponentImplementation>}) => {
+const DataModelViewer = ({surface}: {surface: SurfaceModel<ReactCatalogComponent>}) => {
   const subscribeHook = useCallback(
     (callback: () => void) => {
       const bound = surface.dataModel.subscribe('/', callback);
@@ -82,9 +82,7 @@ export const App = ({initialExampleId, onAction}: AppProps) => {
   const selectedItem = demoItems.find(e => e.id === selectedExampleId);
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [processor, setProcessor] = useState<MessageProcessor<ReactComponentImplementation> | null>(
-    null,
-  );
+  const [processor, setProcessor] = useState<MessageProcessor<ReactCatalogComponent> | null>(null);
   const [surfaces, setSurfaces] = useState<string[]>([]);
   const [currentMessageIndex, setCurrentMessageIndex] = useState(-1);
 
@@ -200,7 +198,7 @@ export const App = ({initialExampleId, onAction}: AppProps) => {
         if (prevProcessor) {
           prevProcessor.model.dispose();
         }
-        const newProcessor = new MessageProcessor<ReactComponentImplementation>(
+        const newProcessor = new MessageProcessor<ReactCatalogComponent>(
           [basicCatalog],
           async (action: A2uiClientAction) => {
             setLogs(l => [...l, {time: new Date().toISOString(), action}]);
