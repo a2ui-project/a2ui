@@ -8953,6 +8953,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/js-yaml@npm:^4.0.9":
+  version: 4.0.9
+  resolution: "@types/js-yaml@npm:4.0.9"
+  checksum: 10c0/24de857aa8d61526bbfbbaa383aa538283ad17363fcd5bb5148e2c7f604547db36646440e739d78241ed008702a8920665d1add5618687b6743858fae00da211
+  languageName: node
+  linkType: hard
+
 "@types/jsdom@npm:^28.0.3":
   version: 28.0.3
   resolution: "@types/jsdom@npm:28.0.3"
