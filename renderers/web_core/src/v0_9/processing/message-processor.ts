@@ -127,8 +127,11 @@ export class MessageProcessor<T extends ComponentApi> {
   getClientCapabilities(options?: CapabilitiesOptions): A2uiClientCapabilities {
     // `version` can be used to fine-tune the returned capabilities.
     const version = options?.version ?? this.version;
+    // Aliases are advertised alongside canonical ids so that agents matching on
+    // a legacy id still recognize this client. The list is ordered by
+    // preference, so each catalog's canonical id precedes its aliases.
     const versionCaps: any = {
-      supportedCatalogIds: this.catalogs.map(c => c.id),
+      supportedCatalogIds: this.catalogs.flatMap(c => [c.id, ...(c.aliases ?? [])]),
     };
 
     if (options?.includeInlineCatalogs) {
@@ -319,8 +322,12 @@ export class MessageProcessor<T extends ComponentApi> {
     const payload = message.createSurface;
     const {surfaceId, catalogId, theme, sendDataModel} = payload;
 
-    // Find catalog
-    const catalog = this.catalogs.find(c => c.id === catalogId);
+    // Find catalog. An exact id match is resolved across every catalog before
+    // any alias is considered, so a catalog that merely aliases an id can never
+    // shadow the catalog that owns it outright.
+    const catalog =
+      this.catalogs.find(c => c.id === catalogId) ??
+      this.catalogs.find(c => c.aliases?.includes(catalogId));
     if (!catalog) {
       throw new A2uiStateError(`Catalog not found: ${catalogId}`);
     }

@@ -135,4 +135,43 @@ describe('InferredComponentApiSchemaType', () => {
     assert.strictEqual(inferredIsAny, false);
     assert.strictEqual(typesMatchExact, true);
   });
+
+  describe('aliases', () => {
+    const mockComponent = {
+      name: 'MockComp',
+      schema: z.object({}),
+    } satisfies ComponentApi;
+
+    it('leaves aliases undefined when none are supplied', () => {
+      const catalog = new Catalog('test-cat', [mockComponent]);
+
+      assert.strictEqual(catalog.aliases, undefined);
+    });
+
+    it('stores the aliases it was constructed with', () => {
+      const catalog = new Catalog('canonical-id', [mockComponent], [], undefined, [
+        'legacy-id-1',
+        'legacy-id-2',
+      ]);
+
+      assert.strictEqual(catalog.id, 'canonical-id');
+      assert.deepStrictEqual(catalog.aliases, ['legacy-id-1', 'legacy-id-2']);
+    });
+
+    it('keeps themeSchema and aliases distinct despite adjacent positions', () => {
+      // `aliases` was appended after `themeSchema`, so a caller passing both
+      // must land each value in its own field.
+      const themeSchema = z.object({primaryColor: z.string()});
+      const catalog = new Catalog('canonical-id', [mockComponent], [], themeSchema, ['legacy-id']);
+
+      assert.strictEqual(catalog.themeSchema, themeSchema);
+      assert.deepStrictEqual(catalog.aliases, ['legacy-id']);
+    });
+
+    it('does not treat the catalog id as one of its own aliases', () => {
+      const catalog = new Catalog('canonical-id', [mockComponent], [], undefined, ['legacy-id']);
+
+      assert.ok(!catalog.aliases?.includes('canonical-id'));
+    });
+  });
 });
