@@ -19,7 +19,7 @@
 
 ## 0.10.4
 
-*This version was withdrawn because it inadvertently introduced a breaking change in a patch release. The following change was re-released as part of `0.11.0`.*
+_This version was withdrawn because it inadvertently introduced a breaking change in a patch release. The following change was re-released as part of `0.11.0`._
 
 - **BREAKING CHANGE**: (v0_9) Migrate Basic Catalog components and surface rendering from Shadow DOM to Light DOM. Recommended migration: query component elements directly using Light DOM selectors (e.g. `element.querySelector()`) rather than `element.shadowRoot`, and ensure global stylesheets do not unintentionally conflict with component internal class names. [#2204](https://github.com/a2ui-project/a2ui/pull/2204)
 
