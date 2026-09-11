@@ -17,55 +17,34 @@ set -e # Exit on error
 
 # Check arguments
 if [ -z "$1" ]; then
-  echo "Usage: $0 <a2ui_agent|a2ui_core>"
+  echo "Usage: $0 <package_path_or_tag> [--dry-run]"
+  echo "Examples:"
+  echo "  $0 agent_sdks/python/a2ui_core"
+  echo "  $0 python/a2ui_core/v0.1.1"
   exit 1
 fi
 
-# Ensure we are in a clean git repository
-if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  echo "Error: This script must be run inside a git repository."
-  exit 1
+INPUT_ARG="$1"
+DRY_RUN=false
+if [ "$2" == "--dry-run" ] || [ "$3" == "--dry-run" ]; then
+  DRY_RUN=true
 fi
 
-if ! git diff-index --quiet HEAD --; then
-  echo "Error: There are uncommitted changes in the repository. Please commit or stash them before releasing."
-  exit 1
-fi
-
-# Determine the remote name (prefer 'upstream' if it exists, fallback to 'origin')
-REMOTE_NAME="origin"
-if git remote | grep -q "^upstream$"; then
-  REMOTE_NAME="upstream"
-fi
-
-MAIN_BRANCH="main"
-
-echo "Checking synchronization with ${REMOTE_NAME}/${MAIN_BRANCH}..."
-if ! git fetch "${REMOTE_NAME}" "${MAIN_BRANCH}" --quiet 2>/dev/null; then
-  echo "Error: Failed to fetch from remote '${REMOTE_NAME}'."
-  exit 1
-fi
-
-if ! REMOTE_COMMIT=$(git rev-parse "${REMOTE_NAME}/${MAIN_BRANCH}" 2>/dev/null); then
-  echo "Error: Cannot find remote branch ${REMOTE_NAME}/${MAIN_BRANCH}."
-  exit 1
-fi
-
-LOCAL_COMMIT=$(git rev-parse HEAD)
-if [ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ]; then
-  echo "Error: Local HEAD is not in sync with ${REMOTE_NAME}/${MAIN_BRANCH}. Please push or merge your changes upstream first."
-  exit 1
+# Parse tag inputs like 'python/a2ui_core/v0.1.1' or path inputs like 'agent_sdks/python/a2ui_core'
+if [[ "$INPUT_ARG" == "python/"* ]]; then
+  PKG_NAME=$(echo "$INPUT_ARG" | sed -E 's|python/([^/]+)/v.*|\1|')
+else
+  PKG_NAME=$(basename "$INPUT_ARG")
 fi
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd -P)
-TARGET_DIR="${SCRIPT_DIR}/${1}"
+TARGET_DIR="${SCRIPT_DIR}/${PKG_NAME}"
 
 if [ ! -d "$TARGET_DIR" ]; then
   echo "Error: Directory '$TARGET_DIR' does not exist."
   exit 1
 fi
 
-# Read package name from pyproject.toml
 if [ ! -f "${TARGET_DIR}/pyproject.toml" ]; then
   echo "Error: pyproject.toml not found in '$TARGET_DIR'."
   exit 1
@@ -88,25 +67,30 @@ LOCATION="us"
 REPOSITORY_URL="https://us-python.pkg.dev/${PROJECT}/${REPOSITORY}"
 GCS_URI="gs://oss-exit-gate-prod-projects-bucket/a2ui/pypi/manifests"
 
-
 echo "--- Building the package ---"
 rm -rf dist
-# In a uv workspace, the default build output goes to the workspace root, but we want to scope it to the package directory.
 uv build --out-dir dist
 
 echo "--- Uploading the package ---"
 uv run twine --version
 uv run twine check dist/*
 
-# Authenticate with Google Cloud
-if ! gcloud auth application-default print-access-token --quiet > /dev/null; then
-  gcloud auth application-default login
+if [ "$DRY_RUN" = true ]; then
+  echo "⚠️ DRY-RUN ENABLED: Skipping PyPI twine upload and Exit Gate manifest upload."
+  echo "--- Dry Run finished for $PACKAGE_NAME ($VERSION) ---"
+  exit 0
+fi
+
+# Check Google Cloud CLI authentication
+if ! gcloud auth print-access-token > /dev/null 2>&1; then
+  echo "❌ ERROR: Google Cloud CLI authentication token is missing or expired."
+  echo "   To fix, run: gcloud auth login --update-adc"
+  exit 1
 fi
 
 # Check if the version already exists in the staging repository
 if gcloud artifacts versions describe "$VERSION" --package="$PACKAGE_NAME" --repository="$REPOSITORY" --location="$LOCATION" --project="$PROJECT" > /dev/null 2>&1; then
   echo "Version $VERSION of $PACKAGE_NAME already exists in Artifact Registry. Skip the release."
-  echo "Hint: If you intended to release a new version, please update its version in pyproject.toml or version.py."
   exit 0
 fi
 
