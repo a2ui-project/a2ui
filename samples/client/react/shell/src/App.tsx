@@ -15,7 +15,8 @@
  */
 
 import {useState, useEffect, useCallback, useMemo, useRef, FormEvent} from 'react';
-import {A2uiSurface, basicCatalog, MarkdownContext, ReactCatalogComponent} from '@a2ui/react/v0_9';
+import {A2uiSurface, MarkdownContext, ReactCatalogComponent} from '@a2ui/react/v0_9';
+import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {A2uiClientMessage, A2uiMessage, MessageProcessor, SurfaceModel} from '@a2ui/web_core/v0_9';
 import {renderMarkdown} from '@a2ui/markdown-it';
 import {A2UIClient} from './client';
