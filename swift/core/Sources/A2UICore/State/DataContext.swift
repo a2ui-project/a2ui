@@ -17,7 +17,8 @@ import OrderedJSON
 
 /// Transient object created on-demand during rendering to solve "scope"
 /// and binding resolution.
-public final class DataContext: @unchecked Sendable {
+@MainActor
+public final class DataContext {
   public let path: String
   public let dataModel: DataModel
 

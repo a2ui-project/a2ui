@@ -191,6 +191,28 @@ describe('flagReason — issues', () => {
     assert.equal(flagReason(item, [], NOW), null);
   });
 
+  // Rule 1b: an assignee means a team member has it, so the issue leaves the
+  // triage queue no matter what the rules below would otherwise say.
+  it('does not flag an assigned issue, whatever else is wrong with it', () => {
+    const item = issue({
+      assignees: [{login: 'dev'}],
+      created_at: daysAgo(9999), // no priority, ancient, external last word
+      author_association: 'NONE',
+      user: {login: 'reporter', type: 'User'},
+    });
+    assert.equal(flagReason(item, [], NOW), null);
+  });
+
+  it('flags that same issue once its assignee is removed', () => {
+    const item = issue({
+      assignees: [],
+      created_at: daysAgo(9999),
+      author_association: 'NONE',
+      user: {login: 'reporter', type: 'User'},
+    });
+    assert.match(flagReason(item, [], NOW), /no priority label/);
+  });
+
   // Drive the assignee rule off ASSIGNEE_REQUIRED_PRIORITIES rather than
   // hardcoding P0/P1, so the test tracks the config constant.
   it('flags every assignee-required priority with no assignee', () => {
@@ -205,10 +227,25 @@ describe('flagReason — issues', () => {
     assert.match(flagReason(item, [], NOW), /no assignee/);
   });
 
-  // Drive the staleness rule off STALE_DAYS so the thresholds live in one place.
-  // An assignee is attached so the assignee rule can never mask the staleness one.
+  // Drive the staleness rule off STALE_DAYS so the thresholds live in one
+  // place. Staleness is only ever asked about an unassigned issue now: rule 1b
+  // takes assigned ones off the queue before any threshold is consulted.
   for (const [priority, threshold] of Object.entries(STALE_DAYS)) {
-    const base = {labels: [priority], assignees: [{login: 'dev'}]};
+    const base = {labels: [priority]};
+
+    // For a priority that also demands an assignee, the two skip/flag rules
+    // leave staleness nothing to decide: assigned is skipped by 1b, unassigned
+    // is claimed by 2b. Pin both halves, so that if the config ever pairs a
+    // threshold with a priority that needs no assignee, the loop below starts
+    // exercising the staleness branch for real.
+    if (ASSIGNEE_REQUIRED_PRIORITIES.has(priority)) {
+      it(`decides a stale ${priority} by assignment rather than by staleness`, () => {
+        const stale = {...base, created_at: daysAgo(threshold + 1)};
+        assert.equal(flagReason(issue({...stale, assignees: [{login: 'dev'}]}), [], NOW), null);
+        assert.match(flagReason(issue(stale), [], NOW), /no assignee/);
+      });
+      continue;
+    }
 
     it(`does not flag a fresh ${priority} (within ${threshold} day(s))`, () => {
       const item = issue({...base, created_at: daysAgo(threshold)});
@@ -222,13 +259,13 @@ describe('flagReason — issues', () => {
   }
 
   // The staleness rules cover P0 and P1 only; P2 used to be flagged after 90
-  // days (rule 1e) and deliberately no longer is.
+  // days and deliberately no longer is.
   it('watches staleness for P0 and P1 only', () => {
     assert.deepEqual(Object.keys(STALE_DAYS), ['P0', 'P1']);
   });
 
   it('never flags a P2 for staleness, however old', () => {
-    const item = issue({labels: ['P2'], assignees: [{login: 'dev'}], created_at: daysAgo(9999)});
+    const item = issue({labels: ['P2'], created_at: daysAgo(9999)});
     assert.equal(flagReason(item, [], NOW), null);
   });
 });
@@ -239,8 +276,9 @@ describe('flagReason — issues', () => {
 describe('flagReason — PRIORITY_LABELS contract', () => {
   it('treats every PRIORITY_LABELS entry as a real priority (never "no priority")', () => {
     for (const priority of PRIORITY_LABELS) {
-      // Assigned and fresh, so the only rule that could fire is 1a.
-      const item = issue({labels: [priority], assignees: [{login: 'dev'}]});
+      // Fresh and internally authored, and left unassigned so rule 1b does not
+      // skip it before the priority rules are reached.
+      const item = issue({labels: [priority]});
       const reason = flagReason(item, [], NOW);
       if (reason !== null) {
         assert.doesNotMatch(reason, /no priority label/, priority);
@@ -254,15 +292,13 @@ describe('flagReason — PRIORITY_LABELS contract', () => {
     assert.match(flagReason(issue({labels: [notAPriority]}), [], NOW), /no priority label/);
   });
 
-  it('never flags a priority that has no staleness threshold (when assigned)', () => {
-    const unThresholded = PRIORITY_LABELS.filter(p => STALE_DAYS[p] === undefined);
+  it('never flags a priority that has no staleness threshold', () => {
+    const unThresholded = PRIORITY_LABELS.filter(
+      p => STALE_DAYS[p] === undefined && !ASSIGNEE_REQUIRED_PRIORITIES.has(p),
+    );
     assert.ok(unThresholded.length > 0, 'expected at least one priority without a threshold');
     for (const priority of unThresholded) {
-      const item = issue({
-        labels: [priority],
-        assignees: [{login: 'dev'}],
-        created_at: daysAgo(9999),
-      });
+      const item = issue({labels: [priority], created_at: daysAgo(9999)});
       assert.equal(flagReason(item, [], NOW), null, priority);
     }
   });
@@ -295,19 +331,28 @@ describe('flagReason — PRs', () => {
       user: {login: 'maintainer', type: 'User'},
     });
 
-  it('flags a stale external PR with no maintainer response', () => {
+  it('flags an external PR with no maintainer response', () => {
     const item = pr({created_at: daysAgo(5), comments: 1});
     assert.match(flagReason(item, [externalComment(2)], NOW), /no maintainer/);
   });
 
-  it('flags a fresh external PR that has never been answered', () => {
+  it('flags an external PR that has never been answered', () => {
     // No comments: the opening post itself is the unanswered external word.
     const item = pr({created_at: daysAgo(2)});
     assert.match(flagReason(item, [], NOW), /no maintainer/);
   });
 
-  it('does not flag a fresh external PR (< 1 day old)', () => {
-    assert.equal(flagReason(pr({created_at: daysAgo(0)}), [], NOW), null);
+  // There is no grace period any more: a PR is triage work from the moment it
+  // is opened, not a day later.
+  it('flags an external PR opened moments ago', () => {
+    assert.match(flagReason(pr({created_at: daysAgo(0)}), [], NOW), /no maintainer/);
+  });
+
+  it('does not flag an assigned external PR — a PR assignee is its reviewer', () => {
+    // Rule 1b skips assigned issues; PRs stay in scope, since the reviewer
+    // going quiet is exactly what rule 3 watches for.
+    const item = pr({created_at: daysAgo(5), assignees: [{login: 'dev'}]});
+    assert.match(flagReason(item, [], NOW), /no maintainer/);
   });
 
   it('does not flag when a maintainer commented after the author', () => {
@@ -316,7 +361,7 @@ describe('flagReason — PRs', () => {
     assert.equal(flagReason(item, comments, NOW), null);
   });
 
-  it('never flags a maintainer-authored PR, even when stale', () => {
+  it('never flags a maintainer-authored PR, however old', () => {
     for (const association of ['OWNER', 'MEMBER', 'COLLABORATOR']) {
       const item = pr({created_at: daysAgo(30), author_association: association});
       assert.equal(flagReason(item, [], NOW), null, association);
@@ -337,6 +382,12 @@ describe('flagReason — external comment awaiting response', () => {
     assert.match(flagReason(item, [externalComment(2)], NOW), /external contributor/);
   });
 
+  // No grace period: the comment is triage work the moment it lands.
+  it('flags an external comment posted moments ago', () => {
+    const item = issue({labels: ['P3'], comments: 1, created_at: daysAgo(5)});
+    assert.match(flagReason(item, [externalComment(0)], NOW), /external contributor/);
+  });
+
   it('does not flag when a maintainer replied last', () => {
     const item = issue({labels: ['P3'], comments: 2, created_at: daysAgo(5)});
     const comments = [
@@ -350,9 +401,14 @@ describe('flagReason — external comment awaiting response', () => {
     assert.equal(flagReason(item, comments, NOW), null);
   });
 
-  it('does not flag a fresh external comment (< 1 day)', () => {
-    const item = issue({labels: ['P3'], comments: 1, created_at: daysAgo(5)});
-    assert.equal(flagReason(item, [externalComment(0)], NOW), null);
+  it('does not flag when the issue is assigned, however old the comment', () => {
+    const item = issue({
+      labels: ['P3'],
+      assignees: [{login: 'dev'}],
+      comments: 1,
+      created_at: daysAgo(5),
+    });
+    assert.equal(flagReason(item, [externalComment(2)], NOW), null);
   });
 });
 
@@ -420,11 +476,9 @@ describe('issueTriage reconciliation', () => {
   });
 
   it('removes the label when an item no longer matches any rule', async () => {
-    const item = issue({
-      number: 8,
-      labels: ['P3', FLAG_LABEL],
-      assignees: [{login: 'dev'}],
-    });
+    // Prioritized, answered and unassigned: it reaches the end of the rules
+    // rather than being skipped by rule 1b.
+    const item = issue({number: 8, labels: ['P3', FLAG_LABEL]});
     github = makeGithub([item]);
     await issueTriage({github, context});
 
@@ -433,7 +487,7 @@ describe('issueTriage reconciliation', () => {
   });
 
   it('is a no-op when the desired and actual state already agree', async () => {
-    const flagged = issue({number: 9, labels: [FLAG_LABEL]}); // matches rule 1a
+    const flagged = issue({number: 9, labels: [FLAG_LABEL]}); // matches rule 2a
     const clean = issue({number: 10, labels: ['P3']}); // matches no rule
     github = makeGithub([flagged, clean]);
     await issueTriage({github, context});
@@ -481,7 +535,7 @@ describe('issueTriage reconciliation', () => {
   });
 
   it('skips an item the listing reported as open but that is already closed', async () => {
-    // GitHub's index lags: the snapshot matches rule 1a, but the live re-read
+    // GitHub's index lags: the snapshot matches rule 2a, but the live re-read
     // shows the item closed, and a closed item is nobody's triage work.
     const item = issue({number: 25});
     item.__fresh = issue({number: 25, state: 'closed'});
@@ -558,7 +612,7 @@ describe('issueTriage reconciliation', () => {
     it('keeps the label, and the item out of triage, until someone replies', async () => {
       // With no replies the opening post is the last human contribution, and it
       // predates the label — it must not be mistaken for a response.
-      github = makeGithub([parked(15)]); // would otherwise match rule 1a
+      github = makeGithub([parked(15)]); // would otherwise match rule 2a
       await issueTriage({github, context});
 
       assert.equal(calls.get.length, 0); // nothing to change, so no live re-read
@@ -567,12 +621,27 @@ describe('issueTriage reconciliation', () => {
     });
 
     it('clears the label once the reporter has replied', async () => {
-      // P3, so no triage rule fires once the label is gone.
+      // The reply that unparks the item is itself an unanswered external
+      // contribution, so rule 2d puts it back on the triage queue at once.
       github = makeGithub([parked(16, {comments: 1, labels: [WAITING_LABEL, 'P3']})]);
       await issueTriage({github, context});
 
       assert.deepEqual(calls.listEvents, [16]);
       assert.deepEqual(calls.removeLabel, [{number: 16, name: WAITING_LABEL}]);
+      assert.deepEqual(calls.addLabels, [16]);
+    });
+
+    it('leaves an assigned issue off the queue when it unparks', async () => {
+      // Rule 1b outranks the reply: a team member already has this one.
+      const item = parked(29, {
+        comments: 1,
+        labels: [WAITING_LABEL, 'P3'],
+        assignees: [{login: 'dev'}],
+      });
+      github = makeGithub([item]);
+      await issueTriage({github, context});
+
+      assert.deepEqual(calls.removeLabel, [{number: 29, name: WAITING_LABEL}]);
       assert.equal(calls.addLabels.length, 0);
     });
 
@@ -661,7 +730,7 @@ describe('issueTriage reconciliation', () => {
     });
 
     it('flags in the same run in which it clears the label', async () => {
-      // Rule 1a matches once the label is gone; that must not wait a whole run.
+      // Rule 2a matches once the label is gone; that must not wait a whole run.
       github = makeGithub([parked(17, {comments: 1})]);
       await issueTriage({github, context});
 

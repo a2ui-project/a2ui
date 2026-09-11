@@ -15,6 +15,7 @@
 """Skill and SkillSet domain objects for A2UI skill packages."""
 
 import os
+import shutil
 from typing import Any, Iterator, Optional, Union
 import yaml
 
@@ -43,8 +44,8 @@ def _resolve_catalogs_list(
     fmt: InferenceFormat,
 ) -> list[A2uiCatalog]:
     """Resolves catalog instances from list of strings, configs, or format defaults."""
-    resolved: list[A2uiCatalog] = []
-    if catalogs:
+    if catalogs is not None:
+        resolved: list[A2uiCatalog] = []
         for c in catalogs:
             if isinstance(c, str):
                 resolved.append(A2uiCatalog.from_json_file(c))
@@ -52,14 +53,16 @@ def _resolve_catalogs_list(
                 resolved.append(A2uiCatalog.from_config(c))
             elif isinstance(c, A2uiCatalog):
                 resolved.append(c)
+        return resolved
 
-    if not resolved and hasattr(fmt, "_supported_catalogs") and fmt._supported_catalogs:
-        resolved.extend(fmt._supported_catalogs)
+    defaults: list[A2uiCatalog] = []
+    if hasattr(fmt, "_supported_catalogs") and fmt._supported_catalogs:
+        defaults.extend(fmt._supported_catalogs)
     if hasattr(fmt, "catalog") and fmt.catalog:
-        if fmt.catalog not in resolved:
-            resolved.append(fmt.catalog)
+        if fmt.catalog not in defaults:
+            defaults.append(fmt.catalog)
 
-    return resolved
+    return defaults
 
 
 class Skill:
@@ -116,10 +119,15 @@ class SkillSet:
         """Retrieves a Skill by filename or key."""
         if filename in self._skills:
             return self._skills[filename]
-        # Search by skill name
+        # Search by exact skill name first
         for sk in self._skills.values():
-            if sk.name == filename or filename in sk.filename:
+            if sk.name == filename:
                 return sk
+        # Search by partial filename with minimum length constraint
+        if len(filename) >= 3:
+            for sk in self._skills.values():
+                if filename in sk.filename:
+                    return sk
         return None
 
     def to_dict(self) -> dict[str, str]:
@@ -129,8 +137,41 @@ class SkillSet:
         }
 
     def export_to_directory(self, output_dir: str) -> dict[str, str]:
-        """Exports all skills in the set to the specified output directory on disk."""
+        """Exports all skills in the set to the specified output directory on disk.
+
+        Args:
+            output_dir: The root skills directory where skill packages should be written
+                (for example, the root skills path `.agents/skills` or `/path/to/skill-registry`).
+
+        What is wiped:
+            Any existing subdirectories matching skills in this set (for example,
+            `{output_dir}/a2ui-core` or `{output_dir}/a2ui-basic`) are completely wiped
+            before writing. This ensures no stale or orphaned files from prior exports
+            (such as old scripts, obsolete notes, or deleted sub-files) persist.
+
+        What is NOT wiped:
+            - Unrelated sibling skill directories located in `output_dir` (e.g.
+              `{output_dir}/git-workflow/` or `{output_dir}/custom-agent-skill/`) are
+              strictly preserved and never touched.
+            - The `output_dir` root directory itself is never wiped.
+
+        Returns:
+            A dictionary mapping skill filenames to generated markdown content.
+        """
         os.makedirs(output_dir, exist_ok=True)
+
+        # Identify unique top-level skill folders directly under output_dir
+        skill_dirs_to_clean: set[str] = set()
+        for filename in self._skills:
+            parts = os.path.normpath(filename).split(os.sep)
+            if len(parts) > 1 and parts[0] not in (".", "..", ""):
+                skill_dirs_to_clean.add(os.path.join(output_dir, parts[0]))
+
+        # Wipe only the specific matching skill subdirectories
+        for skill_folder in skill_dirs_to_clean:
+            if os.path.isdir(skill_folder):
+                shutil.rmtree(skill_folder)
+
         results = {}
         for filename, skill in self._skills.items():
             file_path = os.path.join(output_dir, filename)

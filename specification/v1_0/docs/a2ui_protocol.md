@@ -564,7 +564,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
    - All helper properties (such as common properties factored out of catalog items) MUST be inlined directly inside the properties block of each supporting component schema rather than referenced from a shared helper.
 3. **Restricted `$ref` Targets:**
    - Local `$ref` targets are restricted to referencing the catalog's top-level components or functions (e.g., `#/components/Text`, `#/functions/required`).
-   - External `$ref` targets MUST reference the standard types inside `common_types.json` (`https://a2ui.org/specification/v1_0/common_types.json#/$defs/...`), limited to the following allowed schemas:
+   - External `$ref` targets MUST reference the standard types inside `common_types.json` using the relative target format (`common_types.json#/$defs/...`). Allowed `$ref` targets are limited to the following schemas:
      - `ComponentId`
      - `ChildList`
      - `DynamicString`
@@ -576,6 +576,11 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `CheckRule`
      - `Checkable`
      - `Action`
+
+   > [!NOTE]
+   > **Catalog Evolution and Protocol Compatibility**
+   > While there are breaking changes to the catalog API between v0.9 and v1.0, v1.0 catalog definitions reference standard types using relative paths (`common_types.json#/$defs/<TypeName>`). This design allows v1.0 catalogs to potentially work against future protocol versions without requiring changes to catalog type paths.
+
 4. **Component Discriminator Rule:**
    - Every component schema defined inside the `components` map must have a required property named `component` whose value is a constant (`const`) matching the key under which it is defined.
    - Example: The component defined at `components.Text` must declare:
@@ -612,6 +617,9 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `$defs`
    - No other top-level keys are permitted.
 
+8. **Deprecation Annotations:**
+   - Components, functions, and individual properties may declare `deprecated: true` along with an optional human-readable `x-deprecated-reason` (string).
+
 ##### Example Schema Template
 
 Below is an annotated, fully compliant `catalog.json` schema template (written in JSONC format with comments) representing a visual, complete model of these rules in action:
@@ -638,8 +646,15 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
         },
         // Leaf properties can be standard JSON primitives or Dynamic wrappers
         "text": {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+          "$ref": "common_types.json#/$defs/DynamicString",
           "description": "Text content to display.",
+        },
+        // Deprecated property.
+        "rawContent": {
+          "type": "string",
+          "description": "Legacy unescaped text content.",
+          "deprecated": true,
+          "x-deprecated-reason": "Use 'text' property with Markdown formatting instead.",
         },
       },
       "required": ["component", "text"],
@@ -700,6 +715,11 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
   },
 }
 ```
+
+#### Deprecating Catalog Properties
+
+- **`deprecated`** (boolean, optional): Standard JSON Schema annotation indicating that a component, function, or property is deprecated.
+- **`x-deprecated-reason`** (string, optional): Human-readable explanation of why the entity is deprecated and what to use instead.
 
 ### UI composition: the adjacency list model
 

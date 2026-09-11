@@ -16,7 +16,7 @@ import A2UICore
 import OrderedJSON
 import Testing
 
-@Suite
+@MainActor
 struct DataContextTests {
 
   @Test func setUpdatesDataModelWithAbsolutePath() {
@@ -38,10 +38,11 @@ struct DataContextTests {
 
   @Test func nestedReturnsNilIfFunctionHandlerIsDeallocated() {
     let dataModel = DataModel()
-    var handler: MockFunctionHandler? = MockFunctionHandler()
-    let context = DataContext(dataModel: dataModel, path: "/foo", functionHandler: handler!)
-
-    handler = nil
+    let context: DataContext
+    do {
+      let handler = MockFunctionHandler()
+      context = DataContext(dataModel: dataModel, path: "/foo", functionHandler: handler)
+    }
     let nested = context.nested(relativePath: "baz")
     #expect(nested == nil)
   }
@@ -108,7 +109,8 @@ struct DataContextTests {
   }
 }
 
-private final class MockFunctionHandler: FunctionHandler, @unchecked Sendable {
+@MainActor
+private final class MockFunctionHandler: FunctionHandler {
   var functionToReturn: (any FunctionImplementation)? = nil
   var lastRequestedName: String? = nil
   var lastRequestedCatalogID: String? = nil

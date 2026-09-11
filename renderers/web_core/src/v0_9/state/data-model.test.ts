@@ -17,6 +17,7 @@
 import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
 import {DataModel} from './data-model.js';
+import {A2uiDataError} from '../errors.js';
 
 describe('DataModel', () => {
   let model: DataModel;
@@ -444,6 +445,22 @@ describe('DataModel', () => {
     assert.strictEqual(model.get('/items/99'), undefined);
     assert.strictEqual(model.get('/items/-1'), undefined);
     assert.strictEqual(model.get('/items/invalid'), undefined);
+  });
+
+  it('rejects writes when the root itself is a primitive', () => {
+    const primitiveRoot = new DataModel({});
+    primitiveRoot.set('/', 1);
+    assert.throws(() => primitiveRoot.set('/a', 2), A2uiDataError);
+    assert.strictEqual(primitiveRoot.get('/'), 1);
+  });
+
+  it('keeps a falsy primitive root instead of replacing it', () => {
+    for (const root of [false, 0, '']) {
+      const falsyRoot = new DataModel({});
+      falsyRoot.set('/', root);
+      assert.throws(() => falsyRoot.set('/a', 2), A2uiDataError);
+      assert.strictEqual(falsyRoot.get('/'), root);
+    }
   });
 
   it('rejects leading-zero array indices (RFC 6901)', () => {

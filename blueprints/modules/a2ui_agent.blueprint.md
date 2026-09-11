@@ -49,7 +49,7 @@ graph TD
    - **Parsers**: Response extraction engines performing tag unwrapping (`unwrap`), streaming chunk processing (`parse_chunk`), syntax compilation (`compile`) and decompilation (`decompile`).
    - **Validation Layer**: Leverages core `A2uiValidator` capabilities directly from `a2ui_core`, natively supporting protocol version branching (`v0_8`, `v0_9`, `v0_9_1`, `v1_0`).
 2. **Encapsulated Application Processor**:
-   - `CatalogConfig`: Configuration dataclass encapsulating catalog providers (`BundledCatalogProvider`, `FileSystemCatalogProvider`, `InMemoryCatalogProvider`), custom transformers, and examples.
+   - `CatalogConfig`: Configuration dataclass encapsulating catalog providers (`FileSystemCatalogProvider`, `InMemoryCatalogProvider`), custom transformers, and examples.
    - `A2uiGenerator`: Agent-level lifecycle manager holding supported `CatalogConfig`s, generating pre-negotiated `A2uiRequestProcessor` instances per renderer capability signature.
    - `A2uiRequestProcessor`: Central processor facade object unifying multi-catalog capability resolution (`resolve_catalogs`), system prompt snippet rendering, turn-scoped parser creation, and response validation.
 
@@ -399,21 +399,6 @@ class CatalogProvider(ABC):
     @abstractmethod
     def load(self) -> Catalog[TComponent, TFunction]:
         """Loads and returns a Catalog definition instance."""
-        pass
-
-class BundledCatalogProvider(CatalogProvider):
-    """Loads catalog schemas from bundled package resources for a specified protocol version."""
-
-    def __init__(self, protocol_version: ProtocolVersion):
-        """Initializes the bundled provider.
-
-        Args:
-            protocol_version: Protocol specification version string (e.g. 'v0.9.1', 'v1.0').
-        """
-        self.protocol_version = protocol_version
-
-    def load(self) -> Catalog[TComponent, TFunction]:
-        """Loads the bundled package catalog schema for protocol_version."""
         pass
 
 class FileSystemCatalogProvider(CatalogProvider):

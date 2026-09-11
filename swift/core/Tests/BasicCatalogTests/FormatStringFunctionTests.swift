@@ -19,7 +19,8 @@ import JSONSchema
 import OrderedJSON
 import Testing
 
-private final class MockFunctionHandler: FunctionHandler, @unchecked Sendable {
+@MainActor
+private final class MockFunctionHandler: FunctionHandler {
   func function(named: String, catalogID: String?) -> (any FunctionImplementation)? {
     if named == "upper" {
       return UpperFunction()
@@ -32,11 +33,13 @@ private struct UpperFunction: FunctionImplementation, Sendable {
   let api = FunctionAPI(
     name: "upper", returnType: .string, schema: try! JSONSchema.Schema(instance: "{}"))
 
+  @MainActor
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     return .string(arguments["text"]?.stringValue?.uppercased() ?? "")
   }
 }
 
+@MainActor
 struct FormatStringFunctionTests {
 
   let function = FormatStringFunction()

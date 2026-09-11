@@ -41,7 +41,7 @@ export * from './components/ChoicePicker.js';
 export * from './components/Tabs.js';
 export * from './components/Modal.js';
 
-export * from './catalog.js';
+export {basicCatalog} from './catalog.js';
 export {Context} from './context/context.js';
 export type {
   MarkdownRenderer,

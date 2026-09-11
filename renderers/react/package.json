@@ -81,6 +81,7 @@
     "test": "wireit",
     "test:unit": "wireit",
     "test:integration": "wireit",
+    "test:react18": "./scripts/test-react18.sh",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
@@ -90,15 +91,15 @@
     "clean": "wireit"
   },
   "dependencies": {
-    "@a2ui/markdown-it": "*",
+    "@a2ui/markdown-it": "workspace:*",
     "@a2ui/web_core": "workspace:*",
     "clsx": "^2.1.1",
     "markdown-it": "^14.2.0",
     "zod": "^3.25.76"
   },
   "peerDependencies": {
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {

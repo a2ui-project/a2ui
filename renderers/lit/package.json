@@ -121,7 +121,7 @@
     "wireit": "^0.15.0-pre.2"
   },
   "peerDependencies": {
-    "@a2ui/markdown-it": "*"
+    "@a2ui/markdown-it": "workspace:*"
   },
   "peerDependenciesMeta": {
     "@a2ui/markdown-it": {

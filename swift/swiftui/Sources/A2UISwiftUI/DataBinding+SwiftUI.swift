@@ -20,6 +20,7 @@ import SwiftUI
 /// This extension bridges A2UI's thread-safe `DataBinding` to
 /// SwiftUI's `Binding` for use in form controls and other two-way
 /// bound views.
+@MainActor
 extension DataBinding {
   /// A SwiftUI `Binding` backed by this `DataBinding`.
   public var swiftUIBinding: Binding<Value?> {
@@ -48,6 +49,7 @@ extension DataBinding {
   }
 }
 
+@MainActor
 extension DataBinding where Value == String {
   /// A non-optional SwiftUI `Binding<String>` defaulting to empty string if `value` is nil.
   public var stringBinding: Binding<String> {
@@ -55,6 +57,7 @@ extension DataBinding where Value == String {
   }
 }
 
+@MainActor
 extension DataBinding where Value == Bool {
   /// A non-optional SwiftUI `Binding<Bool>` defaulting to false if `value` is nil.
   public var boolBinding: Binding<Bool> {
@@ -62,6 +65,7 @@ extension DataBinding where Value == Bool {
   }
 }
 
+@MainActor
 extension DataBinding where Value == Double {
   /// A non-optional SwiftUI `Binding<Double>` defaulting to 0.0 if `value` is nil.
   public var doubleBinding: Binding<Double> {
@@ -71,6 +75,7 @@ extension DataBinding where Value == Double {
 
 // MARK: - Node SwiftUI Binding Accessors
 
+@MainActor
 extension Node {
   /// Returns a two-way SwiftUI `Binding<Value>` for the given property key,
   /// falling back to `defaultValue` if the binding is unset or missing.

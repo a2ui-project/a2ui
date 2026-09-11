@@ -152,9 +152,6 @@ class ElementalPromptGenerator(PromptGenerator):
         if not raw_examples:
             return ""
         return self.transform_examples(raw_examples)
-        if not raw_examples:
-            return ""
-        return self.transform_examples(raw_examples)
 
     def _map_schema_to_ts_type(
         self, component_name: str, prop_name: str, prop_schema: Any

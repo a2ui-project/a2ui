@@ -64,9 +64,9 @@ def test_check_threshold_fail() -> None:
 
 def test_build_main_command_default() -> None:
     args = argparse.Namespace(
-        model="google/gemini-3-flash-preview",
+        model="google/gemini-3.8-flash",
         max_samples=100,
-        grading_model="google/gemini-3.5-flash",
+        grading_model="google/gemini-3.8-flash",
     )
     seed = "20260507"
     cmd = build_main_command(args, seed)
@@ -76,7 +76,7 @@ def test_build_main_command_default() -> None:
         "python",
         "main.py",
         "--model",
-        "google/gemini-3-flash-preview",
+        "google/gemini-3.8-flash",
         "--sample-shuffle",
         seed,
         "--log-dir",
@@ -84,7 +84,7 @@ def test_build_main_command_default() -> None:
         "--max-retries",
         "10",
         "--grading-model",
-        "google/gemini-3.5-flash",
+        "google/gemini-3.8-flash",
         "--limit",
         "100",
     ]
@@ -92,9 +92,9 @@ def test_build_main_command_default() -> None:
 
 def test_build_main_command_no_limit() -> None:
     args = argparse.Namespace(
-        model="google/gemini-3-flash-preview",
+        model="google/gemini-3.8-flash",
         max_samples=0,
-        grading_model="google/gemini-3.5-flash",
+        grading_model="google/gemini-3.8-flash",
     )
     seed = "20260507"
     cmd = build_main_command(args, seed)

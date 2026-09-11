@@ -14,14 +14,9 @@
  * limitations under the License.
  */
 
-/**
- * Re-exported for backwards compatibility.
- */
-export {
-  basicCatalog,
-  BasicCatalogA2uiLitElement,
-  type ResolvedChildRef,
-  type ResolvedChildList,
+import {Catalog} from '@a2ui/web_core/v0_9';
+import {
+  BASIC_FUNCTIONS,
   A2uiAudioPlayer,
   A2uiButton,
   A2uiCard,
@@ -41,3 +36,37 @@ export {
   A2uiTextField,
   A2uiVideo,
 } from '@a2ui/web_core/v0_9/basic_catalog';
+import type {LitComponentApi} from '../../types.js';
+
+/**
+ * The basic catalog for A2UI components in Lit.
+ *
+ * This catalog includes a wide range of components such as text, button,
+ * text field, row, column, list, image, icon, video, audio player, card,
+ * divider, checkbox, slider, date-time input, choice picker, tabs, and modal.
+ * It also includes the basic functions.
+ */
+export const basicCatalog = new Catalog<LitComponentApi>(
+  'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+  [
+    A2uiAudioPlayer,
+    A2uiButton,
+    A2uiCard,
+    A2uiCheckBox,
+    A2uiChoicePicker,
+    A2uiColumn,
+    A2uiDateTimeInput,
+    A2uiDivider,
+    A2uiIcon,
+    A2uiImage,
+    A2uiList,
+    A2uiModal,
+    A2uiRow,
+    A2uiSlider,
+    A2uiTabs,
+    A2uiText,
+    A2uiTextField,
+    A2uiVideo,
+  ],
+  BASIC_FUNCTIONS,
+);

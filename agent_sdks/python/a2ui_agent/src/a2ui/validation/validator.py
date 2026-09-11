@@ -139,6 +139,9 @@ class A2uiValidatorWrapperV10:
             if schema and "$id" in schema:
                 resources.append((schema["$id"], Resource.from_contents(schema)))
 
+        if common:
+            resources.append(("common_types.json", Resource.from_contents(common)))
+
         if isinstance(cat, dict):
             cat_copy = dict(cat)
             if "$schema" not in cat_copy:

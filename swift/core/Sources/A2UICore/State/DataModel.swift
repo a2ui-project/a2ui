@@ -23,14 +23,14 @@ import OrderedJSON
 /// Mirrors `DataModel` in the core blueprint and `web_core`. The path
 /// subscripting logic delegates to `JSONValue`'s existing path utilities
 /// in ``JSONValue+Path``.
-public final class DataModel: @unchecked Sendable, ObservableObject {
+@MainActor
+public final class DataModel: ObservableObject {
 
-  private let lock = NSRecursiveLock()
   private let dataSubject: CurrentValueSubject<JSONValue, Never>
 
   /// The current data tree.
   public var data: JSONValue {
-    lock.withLock { dataSubject.value }
+    dataSubject.value
   }
 
   /// Emits the data tree after each update is stored, and replays the
@@ -54,12 +54,10 @@ public final class DataModel: @unchecked Sendable, ObservableObject {
   /// - Parameter path: The path (e.g., `/user/name`).
   /// - Returns: The value at the path, or `nil` if not found.
   public func get(_ path: String) -> JSONValue? {
-    lock.withLock {
-      if path.isEmpty || path == "/" {
-        return dataSubject.value
-      }
-      return dataSubject.value[path]
+    if path.isEmpty || path == "/" {
+      return dataSubject.value
     }
+    return dataSubject.value[path]
   }
 
   /// Sets a value at the given JSON Pointer path.
@@ -70,15 +68,13 @@ public final class DataModel: @unchecked Sendable, ObservableObject {
   ///   - path: The path (e.g., `/user/name`).
   ///   - value: The value to set, or `nil` to remove.
   public func set(_ path: String, value: JSONValue?) {
-    lock.withLock {
-      objectWillChange.send()
-      var current = dataSubject.value
-      if path.isEmpty || path == "/" {
-        current = value ?? .object([:])
-      } else {
-        current[path] = value
-      }
-      dataSubject.send(current)
+    objectWillChange.send()
+    var current = dataSubject.value
+    if path.isEmpty || path == "/" {
+      current = value ?? .object([:])
+    } else {
+      current[path] = value
     }
+    dataSubject.send(current)
   }
 }

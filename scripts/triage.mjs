@@ -18,32 +18,25 @@
 // waiting-for-author-response' labels across all open issues and PRs.
 //
 // For detailed rules and documentation on how the triage automation works, see:
-// docs/contributing/triage.md in the section "How the automated triage bot
-// works".
+// https://github.com/a2ui-project/a2ui/blob/main/docs/contributing/triage.md#how-the-automated-triage-bot-works
 //
 // Implementation notes:
 // - Items are selected by query, but the query alone is not trusted: GitHub's
 //   search index can lag behind reality. Before changing any label, the script
 //   re-reads the item and confirms it still matches.
-// - Only contributions from external contributors clear
-//   'status: waiting-for-author-response'; comments from maintainers never clear
-//   it.
-// - The job prints to the console what items are flagged or unflagged and why.
 
 export const WAITING_LABEL = 'status: waiting-for-author-response';
 export const FLAG_LABEL = 'status: needs-triage';
 export const PRIORITY_LABELS = ['P0', 'P1', 'P2', 'P3', 'P4'];
 
 // Priorities urgent enough that an unassigned issue is flagged immediately
-// (rule 1b). Every entry must be one of PRIORITY_LABELS.
+// (rule 2b). Every entry must be one of PRIORITY_LABELS.
 export const ASSIGNEE_REQUIRED_PRIORITIES = new Set(['P0', 'P1']);
 
-// Days of inactivity before a prioritized issue is considered stale (rules 1c
-// and 1d). Keys must be a subset of PRIORITY_LABELS; priorities absent here are
-// never flagged for staleness.
+// Days of inactivity before a prioritized issue is considered stale (rule 2c).
+// Keys must be a subset of PRIORITY_LABELS; priorities absent here are never
+// flagged for staleness.
 export const STALE_DAYS = {P0: 1, P1: 30};
-export const PR_STALE_DAYS = 1;
-export const EXTERNAL_RESPONSE_DAYS = 1;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -119,58 +112,67 @@ export function externalHasResponded(contributions, waitingSince) {
  */
 export function flagReason(item, contributions, now) {
   const labels = labelNames(item);
+  const isPR = Boolean(item.pull_request);
+  const assigneeCount = item.assignees?.length ?? 0;
 
-  // A parked item is off the triage queue entirely, whatever the rules below
-  // would say.
+  // Rule 1: items the automation stays out of altogether.
+
+  // 1a. A parked item is off the triage queue entirely, whatever the rules
+  // below would say.
   if (labels.includes(WAITING_LABEL)) {
     return null;
   }
 
-  const isPR = Boolean(item.pull_request);
+  // 1b. An assigned issue already has a team member on it, so there is nothing
+  // to triage. PRs are excluded: an assignee there is the reviewer, and rule 3
+  // is precisely about the reviewer having gone quiet on the author.
+  if (!isPR && assigneeCount > 0) {
+    return null;
+  }
+
   const latest = lastHumanContribution(item, contributions);
-  const staleDays = ageInDays(latest.createdAt, now);
 
   // True when the most recent human contribution is from outside the team — no
   // internal member has commented after the external author's last word.
   const awaitingMember = !MAINTAINER_ASSOCIATIONS.has(latest.association) && !isBot(latest.user);
 
-  // Rule 2: PRs. Only external contributors' PRs are watched; maintainers
-  // manage their own, so an internally-authored PR is never flagged. A PR is
-  // "stale" when no internal member has commented after the external author's
-  // last comment for more than a day.
+  // Rule 3: PRs. Only external contributors' PRs are watched; maintainers
+  // manage their own, so an internally-authored PR is never flagged. There is
+  // no grace period: a PR counts as needing triage from the moment the author
+  // has the last word, opening it included.
   if (isPR) {
     if (MAINTAINER_ASSOCIATIONS.has(item.author_association)) {
       return null;
     }
-    return awaitingMember && staleDays > PR_STALE_DAYS
-      ? `no maintainer has responded to the author for more than ${PR_STALE_DAYS} day.`
-      : null;
+    return awaitingMember ? 'no maintainer has responded to the author.' : null;
   }
 
-  // Rule 3: an external author's latest comment has gone unanswered too long.
-  if (awaitingMember && staleDays > EXTERNAL_RESPONSE_DAYS) {
-    return `the latest reply is from an external contributor and has gone unanswered for more than ${EXTERNAL_RESPONSE_DAYS} day.`;
-  }
-
-  // Rule 1: issues.
+  // Rule 2: issues. Rule 1b means every issue reaching here is unassigned; the
+  // rules below still state their own conditions rather than lean on that.
 
   const priority = PRIORITY_LABELS.find(p => labels.includes(p));
 
-  // 1a. No priority assigned yet.
+  // 2a. No priority assigned yet.
   if (!priority) {
     return 'this issue has no priority label yet.';
   }
 
-  // 1b. Urgent work with nobody on it.
-  if (ASSIGNEE_REQUIRED_PRIORITIES.has(priority) && (item.assignees?.length ?? 0) === 0) {
+  // 2b. Urgent work with nobody on it.
+  if (ASSIGNEE_REQUIRED_PRIORITIES.has(priority) && assigneeCount === 0) {
     return `this ${priority} issue has no assignee.`;
   }
 
-  // 1c-d. Prioritized but stale beyond its threshold.
+  // 2c. Prioritized but stale beyond its threshold.
   const threshold = STALE_DAYS[priority];
-  if (threshold !== undefined && staleDays > threshold) {
+  if (threshold !== undefined && ageInDays(latest.createdAt, now) > threshold) {
     const unit = threshold === 1 ? 'day' : 'days';
     return `this ${priority} issue has had no human activity for more than ${threshold} ${unit}.`;
+  }
+
+  // 2d. The last word on the issue is an external one. Like rule 3, this
+  // carries no grace period: it fires as soon as the comment lands.
+  if (awaitingMember) {
+    return 'the latest contribution is from an external contributor and has gone unanswered.';
   }
 
   return null;
