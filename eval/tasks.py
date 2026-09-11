@@ -91,7 +91,13 @@ def a2ui_v0_9_1_eval(
     active_version = "0.9.1"
     default_catalog_path = "specification/v0_9_1/catalogs/basic/catalog.json"
     format_name = (
-        strategy if strategy in ["express", "elemental", "atom"] else "direct_json"
+        strategy
+        if strategy in ["express", "elemental", "atom"]
+        else (
+            "express"
+            if strategy in ["skill_preloaded", "skill_interactive_tool"]
+            else "direct_json"
+        )
     )
 
     dataset_obj = load_a2ui_dataset(
