@@ -61,10 +61,7 @@
           {
             "id": "summary_column",
             "component": "Column",
-            "children": [
-              "summary_title",
-              "summary_stats"
-            ],
+            "children": ["summary_title", "summary_stats"],
             "align": "stretch"
           },
           {
@@ -114,10 +111,7 @@
           {
             "id": "action_row",
             "component": "Row",
-            "children": [
-              "accept_button",
-              "export_button"
-            ],
+            "children": ["accept_button", "export_button"],
             "justify": "start"
           },
           {
