@@ -16,6 +16,7 @@ from typing import Callable, List
 from inspect_ai.solver import Solver
 from .subagent_tool import subagent_tool_solver
 from .format import format_solver
+from .skill import skill_preloaded_solver, skill_interactive_tool_solver
 
 STRATEGIES: dict[str, Callable[[str], List[Solver]]] = {
     "direct": lambda version: format_solver("direct_json", version),
@@ -23,6 +24,10 @@ STRATEGIES: dict[str, Callable[[str], List[Solver]]] = {
     "express": lambda version: format_solver("express", version),
     "elemental": lambda version: format_solver("elemental", version),
     "atom": lambda version: format_solver("atom", version),
+    "skill_preloaded": lambda version: skill_preloaded_solver("express", version),
+    "skill_interactive_tool": lambda version: skill_interactive_tool_solver(
+        "express", version
+    ),
 }
 
 
