@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) **BREAKING CHANGE**: `@a2ui/react/v0_9` no longer ships a React implementation of the basic catalog. Import `basicCatalog` and the individual components from `@a2ui/web_core/v0_9/basic_catalog` instead; they render as W3C Custom Elements. [#2630](https://github.com/a2ui-project/a2ui/pull/2630)
+- (v0_9) **BREAKING CHANGE**: the basic catalog no longer server-renders, since custom elements produce no markup outside a browser. [#2630](https://github.com/a2ui-project/a2ui/pull/2630)
 - (v0_9) Render catalog entries that are W3C Custom Elements as elements, so a catalog can mix native React components and web components in either nesting order. [#2283](https://github.com/a2ui-project/a2ui/pull/2283)
 - (v0_9) `createComponentImplementation` and `createBinderlessComponentImplementation` now return a `tagName` and register a custom element wrapper, which makes native React components renderable beneath web component parents. [#2283](https://github.com/a2ui-project/a2ui/pull/2283)
 - (v0_9) Export the `ReactCatalogComponent` union type from `@a2ui/react/v0_9`. [#2283](https://github.com/a2ui-project/a2ui/pull/2283)

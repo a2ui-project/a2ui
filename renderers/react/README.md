@@ -24,7 +24,8 @@ A2UI supports multiple protocol versions to ensure backward compatibility. For n
 To use the v0.9 implementation, import from the versioned path:
 
 ```typescript
-import {A2uiSurface, basicCatalog} from '@a2ui/react/v0_9';
+import {A2uiSurface} from '@a2ui/react/v0_9';
+import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 ```
 
 ## Quick Start
@@ -35,12 +36,13 @@ The React renderer works alongside the `MessageProcessor` from `@a2ui/web_core`.
 - **Surface** — an independent rendering area, uniquely identified by a string ID, that the agent creates and populates with components.
 - **Catalog** — the set of components (e.g. `Text`, `Column`, `Button`) available for a surface to use.
 
-The example below creates a processor with the built-in `basicCatalog`, feeds it a sequence of hardcoded messages, and renders the resulting surface.
+The example below creates a processor with the `basicCatalog` from `@a2ui/web_core`, feeds it a sequence of hardcoded messages, and renders the resulting surface.
 
 ```tsx
 import {useState, useEffect} from 'react';
 import {MessageProcessor} from '@a2ui/web_core/v0_9';
-import {A2uiSurface, basicCatalog} from '@a2ui/react/v0_9';
+import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+import {A2uiSurface} from '@a2ui/react/v0_9';
 
 export default function App() {
   // 1. Create the processor and feed it messages.
@@ -232,7 +234,7 @@ export const myCatalog = new Catalog(
 
 ## Basic Catalog Components
 
-The `@a2ui/react/v0_9` package includes a `basicCatalog` with standard components:
+`@a2ui/web_core/v0_9/basic_catalog` provides a `basicCatalog` with the standard components. They are W3C Custom Elements, and the React renderer renders them as elements:
 
 - **Layout**: `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`
 - **Content**: `Text`, `Image`, `Icon`, `Video`, `AudioPlayer`
@@ -240,11 +242,9 @@ The `@a2ui/react/v0_9` package includes a `basicCatalog` with standard component
 
 ## Styling and CSS Modules
 
-The basic catalog components are designed to be self-contained and styled using CSS variables exposed from `@a2ui/web_core`.
+The basic catalog components are self-contained and styled using CSS variables exposed from `@a2ui/web_core`.
 
-Some components in this package (like `Text`) use **CSS Modules** for style encapsulation. Most modern React environments (like Vite, Next.js, and Create React App) support CSS Modules out of the box. If you are using a custom build setup, you must ensure it is configured to handle `.module.css` files (e.g., using `css-loader` with modules enabled in Webpack).
-
-You can also use CSS Modules for styling your custom components or extending the basic catalog:
+You can use CSS Modules for styling your custom components. Most modern React environments (like Vite, Next.js, and Create React App) support them out of the box. A custom build setup must be configured to handle `.module.css` files, for example with `css-loader` and modules enabled in Webpack.
 
 ```css
 /* MyComponent.module.css */
