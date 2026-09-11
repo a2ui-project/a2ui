@@ -367,9 +367,8 @@ describe('GenericBinder Checkable Trait', () => {
 
   describe('scrapeSchemaBehavior nested dynamic unions', () => {
     it('should classify a union containing a Dynamic* schema as DYNAMIC', () => {
-      // The basic catalog's DateTimeInput declares min/max exactly like this: the
-      // outer describe() replaces the REF: marker and DynamicStringSchema is a
-      // nested union, so neither detection path may rely on one level only.
+      // Matches DateTimeInput's min/max schema, where DynamicStringSchema
+      // is nested inside another union.
       const schema = z.object({
         min: z
           .union([DynamicStringSchema, z.string().date(), z.string().time(), z.string().datetime()])
