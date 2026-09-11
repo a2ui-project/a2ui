@@ -142,6 +142,17 @@ extension JSONValue {
   }
 
   /// Recursively updates a node at the given path components.
+  ///
+  /// Auto-vivification fills in absent and null nodes only. A path that runs
+  /// through a value which is neither an object nor an array — a string where
+  /// an object was expected, a non-numeric key on an array — leaves the tree
+  /// untouched rather than growing a container over what is already there.
+  ///
+  /// Note that the write is then dropped without a word, which is not what the
+  /// other clients do: Dart, `web_core` and the Python client all raise for
+  /// these paths, and `conformance/core/data_model.yaml` says they should.
+  /// `DataModel.set` cannot report a rejected write today, so this stops the
+  /// data loss and leaves the reporting to be settled separately.
   static func update(
     node: JSONValue?,
     components: ArraySlice<String>,
@@ -206,22 +217,18 @@ extension JSONValue {
         }
         return .array(array)
       } else {
-        if newValue == nil && isLastComponent { return node }
-        var dict: OrderedDictionary<String, JSONValue> = [:]
-        if isLastComponent {
-          if let newValue { dict[key] = newValue }
-        } else {
-          dict[key] = update(
-            node: nil,
-            components: remainingComponents,
-            newValue: newValue
-          )
-        }
-        return .object(dict)
+        // A non-numeric key does not address an element of an array. Building
+        // an object here would replace the whole array with it, so a single
+        // malformed path from the agent would delete every element. The array
+        // is left as it is; see the note on `update` about reporting.
+        return node
       }
 
     default:
       if newValue == nil { return node }
+      // Only an absent or null node is filled in. Anything else is a value
+      // someone put there, and growing a container over it would delete it.
+      if let node, node != .null { return node }
       if let index = Int(key), index >= 0 {
         // Auto-vivify an array for any numeric key, matching
         // web_core's isNumeric() auto-vivification rule.
