@@ -22,6 +22,7 @@ export * from './types/colors.js';
 export * from './types/primitives.js';
 export * from './types/types.js';
 export * from './errors.js';
+export {isSafeRegex, type SafeRegexOptions} from '../v0_9/basic_catalog/functions/safe_regex.js';
 export {A2uiMessageSchema} from './schema/server-to-client.js';
 export type {A2uiMessage} from './schema/server-to-client.js';
 
