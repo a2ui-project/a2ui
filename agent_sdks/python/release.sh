@@ -17,7 +17,10 @@ set -e # Exit on error
 
 # Check arguments
 if [ -z "$1" ]; then
-  echo "Usage: $0 <a2ui_agent|a2ui_core>"
+  echo "Usage: $0 <package_path_or_name>"
+  echo "Examples:"
+  echo "  $0 agent_sdks/python/a2ui_core"
+  echo "  $0 agent_sdks/python/a2ui_agent"
   exit 1
 fi
 
@@ -58,7 +61,8 @@ if [ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ]; then
 fi
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd -P)
-TARGET_DIR="${SCRIPT_DIR}/${1}"
+PKG_NAME=$(basename "$1")
+TARGET_DIR="${SCRIPT_DIR}/${PKG_NAME}"
 
 if [ ! -d "$TARGET_DIR" ]; then
   echo "Error: Directory '$TARGET_DIR' does not exist."
