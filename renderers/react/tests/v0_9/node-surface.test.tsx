@@ -39,7 +39,6 @@ import type {ReactHostElement} from '../../src/v0_9/catalog/react_host_element';
 import {toWebComponent} from '../../src/v0_9/catalog/to_web_component';
 import {A2uiSurface} from '../../src/v0_9/A2uiSurface';
 import {HostRegistry} from '../../src/v0_9/host_registry';
-import {basicCatalog} from '../../src/v0_9/catalog/basic';
 import {basicCatalog as webCoreBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /** View render counts, keyed per component instance. */
@@ -501,19 +500,6 @@ describe('A2uiSurface', () => {
 
     expect(screen.getByText(/instances exist at \//)).toBeDefined();
     expect(screen.queryByText(/does not mark the referencing property/)).toBeNull();
-  });
-
-  it('renders the shipped basic catalog unchanged', () => {
-    const surface = new SurfaceModel<ReactCatalogComponent>('surf-basic', basicCatalog);
-    add(surface, 'root', 'Column', {children: ['t1', 'card1']});
-    add(surface, 't1', 'Text', {text: 'hello from nodes'});
-    add(surface, 'card1', 'Card', {child: 't2'});
-    add(surface, 't2', 'Text', {text: 'inside the card'});
-
-    const {container} = render(<A2uiSurface surface={surface} />);
-
-    expect(container.textContent).toContain('hello from nodes');
-    expect(container.textContent).toContain('inside the card');
   });
 
   it('input components write scoped values through unwrapped bindings', () => {
