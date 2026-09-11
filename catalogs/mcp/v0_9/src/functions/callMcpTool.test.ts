@@ -354,6 +354,51 @@ describe('callMcpTool', () => {
         unit: 'metric',
       });
     });
+
+    it('treats "path" and "call" argument keys as literal tool arguments', async () => {
+      const caller = createRecordingCaller();
+      const catalog = createMcpCatalog(caller);
+      const context = createTestDataContext(new DataModel({path: 'SHOULD_NOT_RESOLVE'}), catalog);
+
+      await catalog.invoker(
+        'callMcpTool',
+        {
+          name: 'read_file',
+          arguments: {path: '/tmp/notes.txt', call: 'transcribe'},
+        },
+        context,
+      );
+
+      assert.deepStrictEqual(caller.calls[0].args, {
+        path: '/tmp/notes.txt',
+        call: 'transcribe',
+      });
+    });
+
+    it('passes literal objects that merely contain a path property through untouched', async () => {
+      const caller = createRecordingCaller();
+      const impl = createCallMcpToolImplementation(caller);
+      const customCatalog = new Catalog('test-literal-objects', [], [impl]);
+      const dataModel = new DataModel({docs: 'SHOULD_NOT_RESOLVE', city: 'Paris'});
+      const context = createTestDataContext(dataModel, customCatalog);
+
+      // Bypasses schema validation, which would strip the extra literal keys.
+      await impl.execute(
+        {
+          name: 'search',
+          arguments: {
+            filter: {path: '/docs', recursive: true},
+            city: {path: '/city'},
+          },
+        },
+        context,
+      );
+
+      assert.deepStrictEqual(caller.calls[0].args, {
+        filter: {path: '/docs', recursive: true},
+        city: 'Paris',
+      });
+    });
   });
 
   describe('mcp_catalog.json Schema Verification', () => {

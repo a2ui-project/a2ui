@@ -5,7 +5,7 @@
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --import tsx --test v0_9/src/functions/callMcpTool.test.ts",
+    "test": "node --import tsx --test 'v0_9/src/**/*.test.ts'",
     "lint": "echo \"Workspace has no lint configuration.\"",
     "lint:fix": "echo \"Workspace has no lint configuration.\""
   },

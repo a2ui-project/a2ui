@@ -17,10 +17,10 @@
 import {
   createFunctionImplementation,
   type FunctionImplementation,
-  type DataContext,
   A2uiExpressionError,
 } from '@a2ui/web_core/v0_9';
 import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
+import {resolveDynamicRecord} from '../dynamic-values.js';
 import {CallMcpToolApi} from './callMcpToolApi.js';
 
 export {CallMcpToolApi};
@@ -46,26 +46,6 @@ export type McpToolResultHandler = (
 ) => Promise<void> | void;
 
 /**
- * Recursively resolves dynamic values (data bindings and function calls) against a DataContext.
- */
-function resolveDynamicValue<T>(value: unknown, context?: DataContext): T {
-  if (value === null || typeof value !== 'object' || !context) {
-    return value as T;
-  }
-  if ('path' in value || 'call' in value) {
-    return context.resolveDynamicValue(value as any);
-  }
-  if (Array.isArray(value)) {
-    return value.map(item => resolveDynamicValue(item, context)) as unknown as T;
-  }
-  const result: Record<string, any> = {};
-  for (const [k, v] of Object.entries(value)) {
-    result[k] = resolveDynamicValue(v, context);
-  }
-  return result as T;
-}
-
-/**
  * Creates a `callMcpTool` FunctionImplementation bound to a host tool caller.
  *
  * @param callMcpTool Executes a named MCP tool and returns its raw result.
@@ -76,11 +56,8 @@ export function createCallMcpToolImplementation(
   onResult?: McpToolResultHandler,
 ): FunctionImplementation {
   return createFunctionImplementation(CallMcpToolApi, async (args, context) => {
-    const toolName = resolveDynamicValue<string>(args.name, context);
-    const resolvedArguments = resolveDynamicValue<Record<string, any>>(
-      args.arguments ?? {},
-      context,
-    );
+    const toolName = context.resolveDynamicValue<string>(args.name);
+    const resolvedArguments = resolveDynamicRecord(args.arguments ?? {}, context);
 
     try {
       console.debug(
