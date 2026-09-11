@@ -99,10 +99,15 @@ struct JSONValuePathTests {
     #expect(value == .string("hello"))
   }
 
-  @Test func subscriptSetAutoVivifiesArrayFromPrimitive() {
+  @Test func subscriptSetLeavesAPrimitiveAlone() {
     var value: JSONValue = "primitive"
     value["0/name"] = "Alice"
-    #expect(value.arrayValue?.count == 1)
-    #expect(value["0/name"]?.stringValue == "Alice")
+
+    // Was `subscriptSetAutoVivifiesArrayFromPrimitive`, which pinned the
+    // opposite: the string was replaced by `[{"name": "Alice"}]` and lost.
+    // `conformance/core/data_model.yaml` calls that write an error
+    // (`test_data_model_rejects_write_through_primitive`), and the Dart client,
+    // `web_core` and the Python client all reject it.
+    #expect(value == .string("primitive"))
   }
 }
