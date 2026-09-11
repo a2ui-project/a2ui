@@ -17,7 +17,12 @@
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
 import {z} from 'zod';
-import {GenericBinder, scrapeSchemaBehavior} from './generic-binder.js';
+import {
+  GenericBinder,
+  getSafeChildList,
+  MAX_DYNAMIC_CHILD_LIST_SIZE,
+  scrapeSchemaBehavior,
+} from './generic-binder.js';
 import {ComponentContext} from './component-context.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {Catalog} from '../catalog/types.js';
@@ -259,6 +264,43 @@ describe('GenericBinder Checkable Trait', () => {
     ]);
   });
 
+  it('should cap dynamic ChildList materialization to MAX_DYNAMIC_CHILD_LIST_SIZE (Issue #2387)', async () => {
+    const {surface} = setupSurfaceAndMocks();
+    const largeList = Array.from({length: 12_000}, (_, i) => ({title: `Item ${i}`}));
+    surface.dataModel.set('/largeItems', largeList);
+
+    const structuralSchema = z.object({
+      children: CommonSchemas.ChildList,
+    });
+
+    const compModel = new ComponentModel('c_large', 'Column', {
+      children: {
+        componentId: 'card-item',
+        path: '/largeItems',
+      },
+    });
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c_large');
+    const binder = new GenericBinder<any>(context, structuralSchema);
+    binder.subscribe(() => {});
+
+    assert.ok(Array.isArray(binder.snapshot.children));
+    assert.strictEqual(binder.snapshot.children.length, MAX_DYNAMIC_CHILD_LIST_SIZE);
+    assert.strictEqual(binder.snapshot.children[0].basePath, '/largeItems/0');
+    assert.strictEqual(
+      binder.snapshot.children[MAX_DYNAMIC_CHILD_LIST_SIZE - 1].basePath,
+      `/largeItems/${MAX_DYNAMIC_CHILD_LIST_SIZE - 1}`,
+    );
+
+    // Update dynamically with even larger array
+    const evenLargerList = Array.from({length: 15_000}, (_, i) => ({title: `Updated ${i}`}));
+    surface.dataModel.set('/largeItems', evenLargerList);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.strictEqual(binder.snapshot.children.length, MAX_DYNAMIC_CHILD_LIST_SIZE);
+  });
+
   it('should generate dynamic setters and update data model', () => {
     const {surface} = setupSurfaceAndMocks();
     surface.dataModel.set('/fieldVal', 'initial');
@@ -400,5 +442,28 @@ describe('GenericBinder Checkable Trait', () => {
         },
       });
     });
+  });
+});
+
+describe('getSafeChildList helper function', () => {
+  it('returns an empty array for non-array or nullish inputs', () => {
+    assert.deepStrictEqual(getSafeChildList(null), []);
+    assert.deepStrictEqual(getSafeChildList(undefined), []);
+    assert.deepStrictEqual(getSafeChildList('string'), []);
+    assert.deepStrictEqual(getSafeChildList(123), []);
+    assert.deepStrictEqual(getSafeChildList({}), []);
+  });
+
+  it('returns the same array if length is within MAX_DYNAMIC_CHILD_LIST_SIZE', () => {
+    const list = [1, 2, 3];
+    assert.deepStrictEqual(getSafeChildList(list), [1, 2, 3]);
+  });
+
+  it('slices array to MAX_DYNAMIC_CHILD_LIST_SIZE if length exceeds the limit', () => {
+    const largeList = Array.from({length: 15_000}, (_, i) => i);
+    const safe = getSafeChildList(largeList);
+    assert.strictEqual(safe.length, MAX_DYNAMIC_CHILD_LIST_SIZE);
+    assert.strictEqual(safe[0], 0);
+    assert.strictEqual(safe[MAX_DYNAMIC_CHILD_LIST_SIZE - 1], MAX_DYNAMIC_CHILD_LIST_SIZE - 1);
   });
 });

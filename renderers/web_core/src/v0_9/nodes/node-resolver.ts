@@ -19,7 +19,12 @@ import {ComponentModel} from '../state/component-model.js';
 import {Catalog, ComponentApi, FunctionImplementation} from '../catalog/types.js';
 import {ComponentContext} from '../rendering/component-context.js';
 import {DataContext} from '../rendering/data-context.js';
-import {BehaviorNode, GenericBinder, scrapeSchemaBehavior} from '../rendering/generic-binder.js';
+import {
+  BehaviorNode,
+  GenericBinder,
+  getSafeChildList,
+  scrapeSchemaBehavior,
+} from '../rendering/generic-binder.js';
 import {
   ComponentNode,
   isComponentNode,
@@ -558,7 +563,8 @@ export class NodeResolver<
           if (!Array.isArray(value)) {
             break;
           }
-          next[key] = value.map((item, index) => {
+          const safeValue = getSafeChildList(value);
+          next[key] = safeValue.map((item, index) => {
             if (typeof item === 'string' && item) {
               return resolveChild(`${escapeIdPart(key)}[${index}]`, item, record.node.dataPath);
             }
