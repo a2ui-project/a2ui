@@ -18,7 +18,7 @@ import traceback
 from typing import Any
 import uuid
 from google.adk.tools import ToolContext
-from google.genai import Client
+from google.genai import Client, types
 from file_resolution import resolve_files
 
 logger = logging.getLogger(__name__)
@@ -159,9 +159,7 @@ async def summarize_file_tool(
                 name = metadata.get("fileName") or f.get("fileName") or "document"
                 file_names.append(name)
 
-        lite_llm_model = os.getenv(
-            "LITELLM_MODEL", "gemini/gemini-3.1-flash-lite-preview"
-        )
+        lite_llm_model = os.getenv("LITELLM_MODEL", "gemini/gemini-3.8-flash")
         gemini_model = (
             lite_llm_model[len("gemini/") :]
             if lite_llm_model.startswith("gemini/")
@@ -186,9 +184,13 @@ async def summarize_file_tool(
 
         final_contents = [prompt, *(genai_parts or [])]
 
+        config = types.GenerateContentConfig(
+            thinking_config=types.ThinkingConfig(thinking_budget=0)
+        )
         llm_response = client.models.generate_content(
             model=gemini_model,
             contents=final_contents,
+            config=config,
         )
         summary_text = (
             llm_response.text.strip()

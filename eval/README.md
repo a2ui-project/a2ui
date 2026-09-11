@@ -96,7 +96,7 @@ uv run main.py --sanity
 Gemma models can be evaluated either through **Google AI Studio / Gemini API cloud services** (no local GPU required) or **locally via Ollama** on a machine with a dedicated GPU.
 
 > [!NOTE]
-> Gemma evaluations do not run by default or as part of CI workflows. CI evaluations continue to use `google/gemini-3.5-flash`.
+> Gemma evaluations do not run by default or as part of CI workflows. CI evaluations continue to use `google/gemini-3.8-flash`.
 
 #### Required API Keys
 
@@ -156,7 +156,7 @@ For smaller edge-optimized models that can run fully offline on standard or flag
    ```
 
 > [!IMPORTANT]
-> **LLM-as-a-Judge Rule**: Gemma models must **never** be used as the evaluation grader (`--grading-model`). The grading model defaults to and must remain a Gemini Flash model (e.g. `google/gemini-3.5-flash` or `google/gemini-3.1-flash-lite`) to ensure consistent, unbiased grading. Ensure `GEMINI_API_KEY` is set when running Ollama evaluations.
+> **LLM-as-a-Judge Rule**: Gemma models must **never** be used as the evaluation grader (`--grading-model`). The grading model defaults to and must remain a Gemini Flash model (e.g. `google/gemini-3.8-flash` or `google/gemini-3.1-flash-lite`) to ensure consistent, unbiased grading. Ensure `GEMINI_API_KEY` is set when running Ollama evaluations.
 
 ## Viewing Evaluation Results
 

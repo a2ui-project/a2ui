@@ -30,6 +30,7 @@ MODEL_ALIASES: dict[str, str] = {
     # Cloud models
     "gemma-4-26b": "google/gemma-4-26b-a4b-it",
     "gemma-4-31b": "google/gemma-4-31b-it",
+    "gemini-3.8-flash": "google/gemini-3.8-flash",
     "gemini-3.5-flash": "google/gemini-3.5-flash",
     "gemini-3.1-flash-lite": "google/gemini-3.1-flash-lite",
     # Ollama edge convenience aliases
@@ -83,15 +84,15 @@ def main() -> None:
     parser.add_argument(
         "--model",
         type=str,
-        default="google/gemini-3.5-flash",
+        default="google/gemini-3.8-flash",
         help="Model used to evaluate tasks (or alias like 'gemma', 'gemma-4-26b')",
     )
     parser.add_argument(
         "--grading-model",
         type=str,
-        default="google/gemini-3.5-flash",
+        default="google/gemini-3.8-flash",
         help=(
-            "Model used for grading (default: google/gemini-3.5-flash). Flash models"
+            "Model used for grading (default: google/gemini-3.8-flash). Flash models"
             " must always be used for judging; Gemma should never be used as judge."
         ),
     )
@@ -162,7 +163,7 @@ def main() -> None:
         raise ValueError(
             f"Invalid grading model '{grading_model}'. Gemma models must not be used"
             " as LLM-as-a-judge; please use a Gemini Flash model (e.g."
-            " 'google/gemini-3.5-flash' or 'google/gemini-3.1-flash-lite')."
+            " 'google/gemini-3.8-flash' or 'google/gemini-3.1-flash-lite')."
         )
 
     limit = 2 if args.sanity else args.limit

@@ -14,6 +14,12 @@
 
 import '../primitives/errors.dart';
 
+/// Digits, an optional decimal point, and optional further digits.
+///
+/// Every client implementation accepts a trailing point (`1.`) today and none
+/// accepts a second point (`1.2.3`), so the grammar is written to keep that.
+final RegExp _numberLiteral = RegExp(r'^\d+\.?\d*$');
+
 /// A parser for A2UI expressions, supporting string interpolation
 /// and function calls.
 class ExpressionParser {
@@ -235,7 +241,13 @@ class ExpressionParser {
         (_isDigit(scanner.peek()) || scanner.peek() == '.')) {
       scanner.advance();
     }
-    return num.parse(scanner.input.substring(start, scanner.pos));
+    final String text = scanner.input.substring(start, scanner.pos);
+    // The grammar is spelled out here rather than delegated to the platform's
+    // number parser, so that every implementation accepts the same literals.
+    if (!_numberLiteral.hasMatch(text)) {
+      throw A2uiExpressionError("Invalid number literal: '$text'");
+    }
+    return num.parse(text);
   }
 
   bool _isAlnum(String c) {
