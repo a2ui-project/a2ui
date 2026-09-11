@@ -646,8 +646,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     const {id, component, ...properties} = comp;
     const rawCatalogId = (comp as any).catalogId ?? (comp as any).catalogID;
 
-    if (!id) {
-      throw new A2uiValidationError(`Component '${component}' is missing an 'id'.`);
+    if (typeof id !== 'string' || !id) {
+      throw new A2uiValidationError(`Component '${component}' is missing a valid string 'id'.`);
     }
 
     let targetCatalog = surface.catalog;

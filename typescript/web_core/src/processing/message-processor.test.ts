@@ -292,7 +292,7 @@ describe('MessageProcessor', () => {
             components: [{component: 'Button'} as any],
           },
         });
-      }, /missing an 'id'/);
+      }, /missing a valid string 'id'/);
     });
 
     it('processes updateDataModel message at root and specific JSON pointer paths', () => {
@@ -1938,6 +1938,33 @@ describe('MessageProcessor', () => {
       assert.strictEqual(proc.resolvePath('relative', '/base'), '/base/relative');
       assert.strictEqual(proc.resolvePath('relative', '/base/'), '/base/relative');
       assert.strictEqual(proc.resolvePath('standalone'), '/standalone');
+    });
+
+    it('rejects component with non-string or empty id', () => {
+      const cat = new Catalog('test-cat', []);
+      const proc = new MessageProcessor([cat]);
+      proc.processMessages({
+        version: 'v0.9',
+        createSurface: {surfaceId: 's1', catalogId: 'test-cat'},
+      });
+
+      assert.throws(
+        () => {
+          proc.processMessages({
+            version: 'v0.9',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [{id: 123 as any, component: 'Text'}],
+            },
+          });
+        },
+        (err: any) => {
+          return (
+            err instanceof A2uiValidationError &&
+            err.message.includes("missing a valid string 'id'")
+          );
+        },
+      );
     });
   });
 });

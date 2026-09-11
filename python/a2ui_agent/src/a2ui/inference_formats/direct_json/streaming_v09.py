@@ -246,10 +246,11 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
         """Records inline components from createSurface as already yielded."""
         if not isinstance(components, list):
             return
+        seen_components = self._components_by_surface.setdefault(sid, {})
         for comp in components:
             if isinstance(comp, dict) and 'id' in comp:
                 cid = comp['id']
-                self._seen_components[cid] = comp
+                seen_components[cid] = comp
                 self._yielded_ids.setdefault(sid, set()).add(cid)
                 self._yielded_contents[(sid, cid)] = json.dumps(comp, sort_keys=True)
 

@@ -63,17 +63,17 @@ class BlockLexer(
 
     while (i < n) {
       if (state == LexerState.NORMAL) {
-        val match = openTagPattern.find(content, i)?.let { if (it.range.first == i) it else null }
+        val match = openTagPattern.find(content, i)
         if (match != null) {
+          currentText.append(content.substring(i, match.range.first))
           i = match.range.last + 1
           state = LexerState.IN_A2UI
           currentRaw.clear()
-          continue
         } else {
-          currentText.append(content[i])
-          i++
-          continue
+          currentText.append(content.substring(i))
+          i = n
         }
+        continue
       }
 
       if (state == LexerState.IN_A2UI) {
