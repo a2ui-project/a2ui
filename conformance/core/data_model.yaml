@@ -703,3 +703,18 @@
     - op: "get"
       path: "/user/settings/theme"
       expect_absent: true
+
+- name: test_data_model_delete_out_of_range_list_index_is_noop
+  description: >-
+    Deleting a list index past the end of the list leaves the list unchanged
+    rather than padding it out to that index.
+  catalog:
+    protocolVersion: "v0.9"
+  action: data_model
+  initial: {"items": ["a", "b", "c"]}
+  steps:
+    - op: "delete"
+      path: "/items/10"
+    - op: "get"
+      path: "/items"
+      expect: ["a", "b", "c"]

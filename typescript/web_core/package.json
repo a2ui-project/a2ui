@@ -125,6 +125,7 @@
     "build": "wireit",
     "build:tsc": "wireit",
     "test": "wireit",
+    "test:conformance": "wireit",
     "test:coverage": "c8 node --test \"dist/**/*.test.js\"",
     "generate-zod-schemas": "wireit",
     "compile": "tsc",
@@ -224,8 +225,20 @@
     "test": {
       "command": "node --test \"dist/**/*.test.js\"",
       "dependencies": [
-        "build"
+        "build",
+        "test:conformance"
       ]
+    },
+    "test:conformance": {
+      "command": "node tests/conformance/conformance_test.mjs",
+      "dependencies": [
+        "build"
+      ],
+      "files": [
+        "tests/conformance/**",
+        "../../conformance/**"
+      ],
+      "output": []
     },
     "clean": {
       "command": "rm -rf dist .tsbuildinfo .wireit"

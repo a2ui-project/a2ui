@@ -51,6 +51,7 @@ jobs:
             renderers:
               - 'renderers/**'
               - 'typescript/**'
+              - 'conformance/**'
               - 'package.json'
               - 'yarn.lock'
               - '.github/workflows/web_ci.yml'

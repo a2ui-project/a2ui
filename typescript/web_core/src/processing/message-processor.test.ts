@@ -292,7 +292,7 @@ describe('MessageProcessor', () => {
             components: [{component: 'Button'} as any],
           },
         });
-      }, /missing a valid string 'id'/);
+      }, /missing an 'id'/);
     });
 
     it('processes updateDataModel message at root and specific JSON pointer paths', () => {
@@ -1959,10 +1959,7 @@ describe('MessageProcessor', () => {
           });
         },
         (err: any) => {
-          return (
-            err instanceof A2uiValidationError &&
-            err.message.includes("missing a valid string 'id'")
-          );
+          return err instanceof A2uiValidationError && err.message.includes("missing an 'id'");
         },
       );
     });

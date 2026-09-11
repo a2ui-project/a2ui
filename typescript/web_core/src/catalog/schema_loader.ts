@@ -378,17 +378,50 @@ function convertFunctionArgsJsonSchemaToZod(
   return allowExtra ? obj.passthrough() : obj.strict();
 }
 
+/**
+ * Identifiers permitted by the v1.0 specification, per UAX #31.
+ *
+ * The optional leading `@` accommodates the reserved system-function prefix.
+ */
+const UAX31_IDENTIFIER = /^@?[\p{ID_Start}_][\p{ID_Continue}]*$/u;
+
+/**
+ * Throws when an identifier does not satisfy UAX #31.
+ *
+ * @param name Identifier to check.
+ * @param context Description of what the identifier names, used in the error.
+ * @throws {Error} If `name` is not a valid UAX #31 identifier.
+ */
+function assertUax31Identifier(name: string, context: string): void {
+  if (!UAX31_IDENTIFIER.test(name)) {
+    throw new Error(`Invalid UAX #31 ${context}`);
+  }
+}
+
 function parseFunctionDefinitions(
   rawFunctions: unknown,
   rootDoc?: Record<string, unknown>,
   permittedNames?: Set<string>,
+  isAtLeastV10 = false,
 ): FunctionApi[] {
   const result: FunctionApi[] = [];
   if (!rawFunctions) return result;
 
+  /** Validates a function's own name and its declared argument names. */
+  const assertFunctionIdentifiers = (name: string, args: unknown): void => {
+    if (!isAtLeastV10) return;
+    assertUax31Identifier(name, `function identifier: '${name}'`);
+    if (args && typeof args === 'object') {
+      for (const argName of Object.keys(args as Record<string, unknown>)) {
+        assertUax31Identifier(argName, `argument identifier: '${argName}' in function '${name}'`);
+      }
+    }
+  };
+
   if (Array.isArray(rawFunctions)) {
     for (const fn of rawFunctions) {
       if (fn && typeof fn === 'object' && typeof fn.name === 'string') {
+        assertFunctionIdentifiers(fn.name, fn.parameters);
         if (permittedNames && !permittedNames.has(fn.name)) {
           continue;
         }
@@ -411,6 +444,13 @@ function parseFunctionDefinitions(
 
   if (typeof rawFunctions === 'object' && rawFunctions !== null) {
     for (const [name, defn] of Object.entries(rawFunctions)) {
+      const rawDefn = defn && typeof defn === 'object' ? (defn as Record<string, unknown>) : {};
+      assertFunctionIdentifiers(
+        name,
+        rawDefn.properties && typeof rawDefn.properties === 'object'
+          ? rawDefn.properties
+          : rawDefn.parameters,
+      );
       if (permittedNames && !permittedNames.has(name)) {
         continue;
       }
@@ -483,16 +523,24 @@ function parseCatalogComponents(
   permittedNames?: Set<string>,
 ): ComponentApi[] {
   const components: ComponentApi[] = [];
-  const uax31Regex = /^@?[\p{ID_Start}_][\p{ID_Continue}]*$/u;
 
   for (const [name, rawCompSchema] of Object.entries(componentsMap)) {
-    if (isAtLeastV10 && !uax31Regex.test(name)) {
-      throw new Error(`Invalid UAX #31 component identifier: '${name}'`);
+    const rawComp = (rawCompSchema as Record<string, unknown>) || {};
+    if (isAtLeastV10) {
+      assertUax31Identifier(name, `component identifier: '${name}'`);
+      const props = rawComp.properties;
+      if (props && typeof props === 'object') {
+        for (const propName of Object.keys(props as Record<string, unknown>)) {
+          assertUax31Identifier(
+            propName,
+            `property identifier: '${propName}' in component '${name}'`,
+          );
+        }
+      }
     }
     if (permittedNames && !permittedNames.has(name)) {
       continue;
     }
-    const rawComp = (rawCompSchema as Record<string, unknown>) || {};
     const zodSchema = convertComponentJsonSchemaToZod(rawComp, catalogSchema);
     components.push({
       name,
@@ -578,6 +626,7 @@ export function loadCatalogFromSchema(
     catalogSchema.functions,
     catalogSchema,
     permittedFunctionNames,
+    isAtLeastV10,
   );
 
   const themeSchema = parseThemeSchema(catalogSchema, defs);

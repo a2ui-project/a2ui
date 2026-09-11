@@ -1676,7 +1676,8 @@
         {
           "$ref": "#/$defs/FunctionCall"
         }
-      ]
+      ],
+      "description": "A boolean value that can be a literal, a path, or a function call returning a boolean."
     },
     "DynamicNumber": {
       "oneOf": [
@@ -1689,7 +1690,8 @@
         {
           "$ref": "#/$defs/FunctionCall"
         }
-      ]
+      ],
+      "description": "Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number."
     },
     "DynamicString": {
       "oneOf": [
@@ -1702,7 +1704,8 @@
         {
           "$ref": "#/$defs/FunctionCall"
         }
-      ]
+      ],
+      "description": "Represents a string"
     },
     "DynamicValue": {
       "oneOf": [

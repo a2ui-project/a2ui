@@ -80,6 +80,18 @@ SKIP_TEST_NAMES: set[str] = set()
 # Transition skip list containing specific test suite files or basenames to skip entirely.
 SKIP_TEST_SUITES: set[str] = set()
 
+# Suites the core library cannot meaningfully execute, with the reason for each.
+# The core library has no access to the UI frameworks that apply accessibility
+# attributes, so running these here would only exercise mocks. The framework
+# renderers will run them once the v1.0 catalogs land for those renderers.
+UNRUNNABLE_SUITES: dict[str, str] = {
+    "core/accessibility.yaml": (
+        "Accessibility attributes are applied by the UI framework renderers"
+        " (Lit, React, Angular, Flutter, SwiftUI), which the core library does"
+        " not have access to. Pending v1.0 catalogs for those renderers."
+    ),
+}
+
 # Root core conformance directory resolution
 CONFORMANCE_ROOT = os.environ.get(
     "CONFORMANCE_ROOT",
@@ -147,9 +159,19 @@ def resolve_catalog_id(case: dict[str, Any]) -> str | None:
     )
 
 
+SUITE_LOAD_ERRORS: list[str] = []
+"""Problems encountered while loading suites, reported by `test_all_suites_load`.
+
+Collected rather than raised so that a single malformed suite does not abort
+collection of every other case.
+"""
+
+
 def load_conformance_cases() -> list[tuple[str, str, dict[str, Any]]]:
     cases = []
     yaml_files = find_yaml_files(CORE_DIR)
+    if not yaml_files:
+        SUITE_LOAD_ERRORS.append(f"No conformance suites found under {CORE_DIR}")
     for file_path in yaml_files:
         rel_path = os.path.relpath(file_path, CONFORMANCE_ROOT)
         base_name = os.path.basename(file_path)
@@ -158,17 +180,25 @@ def load_conformance_cases() -> list[tuple[str, str, dict[str, Any]]]:
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f)
-        except Exception:
+        except Exception as err:
+            SUITE_LOAD_ERRORS.append(f"{rel_path}: failed to parse: {err}")
             continue
 
         if not isinstance(data, list):
+            SUITE_LOAD_ERRORS.append(
+                f"{rel_path}: expected a list of test cases, got {type(data).__name__}"
+            )
             continue
 
-        for case in data:
+        for index, case in enumerate(data):
             if not isinstance(case, dict):
+                SUITE_LOAD_ERRORS.append(f"{rel_path}: entry {index} is not a mapping")
                 continue
             name = case.get("name")
-            if not name or name in SKIP_TEST_NAMES:
+            if not name:
+                SUITE_LOAD_ERRORS.append(f"{rel_path}: entry {index} has no 'name'")
+                continue
+            if name in SKIP_TEST_NAMES:
                 continue
 
             test_id = f"{rel_path}::{name}"
@@ -477,6 +507,13 @@ def assert_raises(expect_error: Any):
 CONFORMANCE_CASES = load_conformance_cases()
 
 
+def test_all_suites_load() -> None:
+    """Every conformance suite parses into a list of named test cases."""
+    assert not SUITE_LOAD_ERRORS, "Conformance suites failed to load:\n" + "\n".join(
+        SUITE_LOAD_ERRORS
+    )
+
+
 @pytest.mark.parametrize(
     "test_id, rel_path, case",
     CONFORMANCE_CASES,
@@ -491,7 +528,7 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
 
     action = case.get("action")
     if not action:
-        pytest.skip(f"Test case '{test_id}' missing required 'action' field.")
+        pytest.fail(f"Test case '{test_id}' missing required 'action' field.")
 
     if action == "from_json":
         validate_from_json_case(case)
@@ -521,7 +558,10 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
     elif action == "parse_expression_template":
         validate_parse_expression_template_case(case)
     else:
-        pytest.skip(f"Action '{action}' not implemented in core Python harness.")
+        pytest.fail(
+            f"Action '{action}' has no handler in the core Python harness."
+            " Add one, or add the suite to UNRUNNABLE_SUITES with a reason."
+        )
 
 
 def _assert_expected_surface_state(
@@ -1151,10 +1191,7 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
 
 
 def validate_accessibility_check_case(case: dict[str, Any]) -> None:
-    pytest.skip(
-        "Accessibility tree rendering is handled by UI framework renderers, not"
-        " headless core state engines."
-    )
+    pytest.skip(UNRUNNABLE_SUITES["core/accessibility.yaml"])
 
 
 def validate_select_catalog_case(case: dict[str, Any]) -> None:

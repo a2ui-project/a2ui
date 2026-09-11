@@ -193,7 +193,12 @@ export class DataModel {
 
     if (value === undefined || value === null) {
       if (Array.isArray(current)) {
-        current[parseInt(lastSegment, 10)] = undefined;
+        const idx = parseInt(lastSegment, 10);
+        // Deleting an index past the end of the array is a no-op. Assigning
+        // here would extend `length` and materialise entries never set.
+        if (idx < current.length) {
+          current[idx] = undefined;
+        }
       } else {
         delete current[lastSegment];
       }

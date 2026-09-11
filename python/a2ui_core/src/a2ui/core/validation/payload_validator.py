@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import functools
-import json
-from pathlib import Path
 from typing import (
     Any,
     Generic,
@@ -29,30 +26,6 @@ import referencing.exceptions
 from ..exceptions import A2uiValidationError, A2uiErrorDetail, A2uiCatalogError
 from ..catalog.catalog import Catalog, TComponent, TFunction
 from ..processing.format_pydantic_error import format_validation_error
-
-
-@functools.lru_cache(maxsize=32)
-def _load_spec_file_cached(rel_path: str) -> dict[str, Any] | None:
-    """Loads a JSON specification file from candidate parent directories.
-
-    Args:
-        rel_path: Relative file path to search for within parent directories.
-
-    Returns:
-        Parsed JSON dictionary if found and valid, or None otherwise.
-    """
-    cur = Path(__file__).resolve()
-    for parent in list(cur.parents):
-        cand = parent / rel_path
-        if cand.exists():
-            try:
-                with open(cand, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    if isinstance(data, dict):
-                        return cast(dict[str, Any], data)
-            except Exception:
-                pass
-    return None
 
 
 class A2uiValidatorError(A2uiValidationError):
@@ -284,12 +257,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
             **{k: v for k, v in comp_schema.items() if k != "$defs"},
         }
         try:
-            reg = self._get_registry(target_cat)
-            validator = (
-                Draft202012Validator(full_schema, registry=reg)
-                if reg is not None
-                else Draft202012Validator(full_schema)
-            )
+            validator = Draft202012Validator(full_schema)
             props = dict(comp)
             req_fields = (
                 validator.schema.get("required", [])
@@ -561,12 +529,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
 
         if param_schema:
             try:
-                reg = self._get_registry()
-                fn_validator = (
-                    Draft202012Validator(param_schema, registry=reg)
-                    if reg is not None
-                    else Draft202012Validator(param_schema)
-                )
+                fn_validator = Draft202012Validator(param_schema)
                 schema_errors = sorted(
                     fn_validator.iter_errors(args or {}), key=lambda e: e.path
                 )
@@ -628,12 +591,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                 **theme_schema,
             }
             try:
-                reg = self._get_registry()
-                theme_validator = (
-                    Draft202012Validator(full_theme_schema, registry=reg)
-                    if reg is not None
-                    else Draft202012Validator(full_theme_schema)
-                )
+                theme_validator = Draft202012Validator(full_theme_schema)
                 schema_errors = sorted(
                     theme_validator.iter_errors(theme), key=lambda e: e.path
                 )
@@ -668,92 +626,3 @@ class PayloadValidator(Generic[TComponent, TFunction]):
         if validator_name in ("type", "format", "pattern", "enum"):
             return "type_mismatch"
         return "invalid_value"
-
-    def _get_spec_file(self, rel_path: str) -> dict[str, Any] | None:
-        return _load_spec_file_cached(rel_path)
-
-    def _get_registry(self, target_cat: Any = None) -> Any:
-        cat = target_cat or self.catalog
-        if not cat:
-            return None
-        from referencing import Registry, Resource
-        import referencing.jsonschema
-
-        registry = Registry()
-        ver = f"v{getattr(cat, 'protocol_version', 'v0.9').removeprefix('v')}"
-
-        ct_1_0 = self._get_spec_file("specification/v1_0/json/common_types.json")
-        ct_0_9_1 = self._get_spec_file("specification/v0_9_1/json/common_types.json")
-        ct_0_9 = self._get_spec_file("specification/v0_9/json/common_types.json")
-        ct_0_8 = self._get_spec_file("specification/v0_8/json/common_types.json")
-
-        for spec_schema, spec_ver in [
-            (ct_1_0, "v1_0"),
-            (ct_0_9_1, "v0_9_1"),
-            (ct_0_9, "v0_9"),
-            (ct_0_8, "v0_8"),
-        ]:
-            if spec_schema:
-                res = Resource.from_contents(
-                    spec_schema,
-                    default_specification=referencing.jsonschema.DRAFT202012,
-                )
-                registry = registry.with_resource(
-                    f"https://a2ui.org/specification/{spec_ver}/common_types.json",
-                    res,
-                ).with_resource(f"specification/{spec_ver}/json/common_types.json", res)
-
-        ct_schema = getattr(cat, "common_types_schema", None)
-        cur_ct = ct_schema or (ct_1_0 if "1" in ver else ct_0_9) or ct_1_0 or ct_0_9
-        if not cur_ct:
-            from ..catalog.catalog import _get_dynamic_types_defs
-
-            cur_ct = {
-                "$schema": JSON_SCHEMA_DRAFT_2020_12,
-                "$defs": _get_dynamic_types_defs(),
-            }
-        res_ct = Resource.from_contents(
-            cur_ct,
-            default_specification=referencing.jsonschema.DRAFT202012,
-        )
-        registry = (
-            registry.with_resource("common_types.json", res_ct)
-            .with_resource(
-                f"https://a2ui.org/specification/{ver}/common_types.json", res_ct
-            )
-            .with_resource(
-                "https://a2ui.org/specification/v1_0/common_types.json", res_ct
-            )
-            .with_resource(
-                "https://a2ui.org/specification/v0_9/common_types.json", res_ct
-            )
-            .with_resource(
-                "https://a2ui.org/specification/v0_8/common_types.json", res_ct
-            )
-        )
-
-        cat_schema = getattr(cat, "catalog_schema", None)
-        cat_id = getattr(cat, "catalog_id", None) or getattr(cat, "id", None)
-        if cat_schema:
-            res_cat = Resource.from_contents(
-                cat_schema,
-                default_specification=referencing.jsonschema.DRAFT202012,
-            )
-            registry = (
-                registry.with_resource("catalog.json", res_cat)
-                .with_resource(
-                    f"https://a2ui.org/specification/{ver}/catalog.json", res_cat
-                )
-                .with_resource(
-                    "https://a2ui.org/specification/v1_0/catalog.json", res_cat
-                )
-                .with_resource(
-                    "https://a2ui.org/specification/v0_9/catalog.json", res_cat
-                )
-                .with_resource(
-                    "https://a2ui.org/specification/v0_8/catalog.json", res_cat
-                )
-            )
-            if cat_id and isinstance(cat_id, str):
-                registry = registry.with_resource(cat_id, res_cat)
-        return registry

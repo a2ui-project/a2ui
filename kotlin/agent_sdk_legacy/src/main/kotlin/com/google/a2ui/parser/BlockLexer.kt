@@ -77,7 +77,7 @@ class BlockLexer(
       }
 
       if (state == LexerState.IN_A2UI) {
-        val match = closeTagPattern.find(content, i)?.let { if (it.range.first == i) it else null }
+        val match = closeTagPattern.matchAt(content, i)
         if (match != null) {
           val rawContent = sanitizeJsonString(currentRaw.toString())
           val textPart = currentText.toString().trim()

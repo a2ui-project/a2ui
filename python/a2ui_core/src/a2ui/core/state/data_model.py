@@ -216,9 +216,15 @@ class DataModel:
                     f" '{path}'."
                 )
             idx = int(last_token)
-            while len(current) <= idx:
-                current.append(None)
-            current[idx] = copy.deepcopy(value)
+            if value is None:
+                # Deleting an index past the end of the list is a no-op.
+                # Padding here would materialise entries that were never set.
+                if idx < len(current):
+                    current[idx] = None
+            else:
+                while len(current) <= idx:
+                    current.append(None)
+                current[idx] = copy.deepcopy(value)
         else:
             raise A2uiDataError(
                 f"Cannot set path '{path}': segment '{last_token}' is a primitive"

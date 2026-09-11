@@ -1,5 +1,22 @@
 ## Unreleased
 
+- The shared conformance suite now runs as part of `yarn test`, via a new
+  `test:conformance` script, so a conformance regression fails CI. A change
+  under `conformance/` also triggers the web CI job.
+- (v1_0) Catalog loading validates component property names, function names and
+  function argument names against UAX #31, matching the Python SDK. Previously
+  only component names were checked.
+- `GenericBinder` resolves `event.userMessage` before dispatch. As a
+  `DynamicString` it may be a `{path}` or `{call}`, and the renderer-to-agent
+  schema states it is sent already resolved; those forms were previously
+  forwarded to the agent verbatim.
+- Deleting an array index past the end of the array is now a no-op. Assigning
+  `undefined` there previously extended the array's `length`, so deleting
+  `/items/10` from a three-element array produced an eleven-element array.
+- The error raised when an `updateComponents` entry has no `id` now reads
+  `Component 'X' is missing an 'id'; entries require a valid string 'id'.`,
+  matching the Python SDK and the phrase the shared conformance suite asserts
+  on.
 - (v0_9) Deprecate `injectBasicCatalogStyles`, `computeColorVariant`, `ColorVariantLightDarkOptions`, and `ColorVariantHoverOptions` exports from `@a2ui/web_core/v0_9`. Consumers should import them from `@a2ui/web_core/v0_9/basic_catalog` instead.
 - (v0_9) An invalid number literal in an expression, such as `${1.2.3}`, now throws `A2uiExpressionError` instead of being handed back as `NaN`. The accepted shape — digits, an optional decimal point and optional further digits — is stated in the parser rather than inherited from `Number()`, so every implementation accepts the same literals. ([#2497](https://github.com/a2ui-project/a2ui/pull/2497))
 - (v0_9) The expression parser now runs the shared conformance suite at `conformance/core/expressions.yaml`, alongside the Dart client. Adds `js-yaml` as a dev dependency to read it. ([#2497](https://github.com/a2ui-project/a2ui/pull/2497))

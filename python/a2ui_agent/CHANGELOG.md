@@ -1,5 +1,9 @@
 ## Unreleased
 
+- `A2uiCatalog.core_catalog` now passes its `common_types_schema` through to
+  `Catalog.from_json`, so a catalog that references the shared types across
+  documents resolves them from that document instead of leaving the references
+  unresolvable.
 - Add `SkillGenerator` API and `Skill` / `SkillSet` domain models to compile inference format rules and component catalog definitions into standardized agent skill packages (`SKILL.md`) (#2516).
 
 ## 0.6.0

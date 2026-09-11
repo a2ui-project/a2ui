@@ -446,14 +446,18 @@ export class GenericBinder<T> {
       }
       if ('event' in obj && typeof obj.event === 'object' && obj.event !== null) {
         const ev = obj.event as Record<string, unknown>;
-        return {
-          event: {
-            ...ev,
-            context: ev.context
-              ? (this.resolveDeepSync(ev.context, false) as Record<string, unknown>)
-              : undefined,
-          },
+        const resolvedEvent: Record<string, unknown> = {
+          ...ev,
+          context: ev.context
+            ? (this.resolveDeepSync(ev.context, false) as Record<string, unknown>)
+            : undefined,
         };
+        // `userMessage` is a DynamicString; the agent expects it already
+        // resolved to a plain string.
+        if (ev['userMessage'] !== undefined) {
+          resolvedEvent['userMessage'] = this.resolveDeepSync(ev['userMessage'], false);
+        }
+        return {event: resolvedEvent};
       }
       if ('call' in obj) {
         return {

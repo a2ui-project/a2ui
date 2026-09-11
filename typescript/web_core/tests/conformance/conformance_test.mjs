@@ -118,6 +118,16 @@ const SKIP_TEST_NAMES = new Set(['test_v09_basic_catalog_schema', 'test_v10_basi
  */
 const SKIP_TEST_SUITES = new Set(['accessibility.yaml']);
 
+/**
+ * Action types the web_core runner deliberately does not implement.
+ *
+ * The Express inference format is an agent-side concern implemented in the
+ * Python agent SDK; web_core is a renderer-side library and has no Express
+ * compiler or parser to exercise. Listing the actions by name keeps the
+ * default `throw` for genuinely unrecognised actions intact.
+ */
+const UNIMPLEMENTED_ACTIONS = new Set(['from_format', 'core_syntax', 'from_catalog', 'skill_set']);
+
 function findYamlFiles(dir) {
   let results = [];
   if (!fs.existsSync(dir)) return results;
@@ -197,6 +207,12 @@ async function runConformanceHarness() {
       if (SKIP_TEST_NAMES.has(name)) {
         totalSkipped++;
         console.log(`  ⁃ [SKIPPED] ${name}`);
+        continue;
+      }
+
+      if (UNIMPLEMENTED_ACTIONS.has(action)) {
+        totalSkipped++;
+        console.log(`  ⁃ [SKIPPED] ${name} (action '${action}' is not implemented in web_core)`);
         continue;
       }
 
@@ -1223,8 +1239,38 @@ function jsonSchemaToZod(schemaDef) {
   return z.any();
 }
 
+/**
+ * Resolves the protocol version a test case is written against.
+ *
+ * Mirrors `resolve_protocol_version` in the Python harness so both runners
+ * interpret the same YAML the same way.
+ *
+ * @param {object} testCase Conformance test case.
+ * @returns {string} Declared protocol version, or `'v0.9'` when undeclared.
+ */
+function resolveProtocolVersion(testCase) {
+  if (testCase.protocolVersion) return testCase.protocolVersion;
+  const catSpec = typeof testCase.catalog === 'object' && testCase.catalog ? testCase.catalog : {};
+  if (catSpec.protocolVersion) return catSpec.protocolVersion;
+  const caseSchema =
+    typeof testCase.catalogSchema === 'object' && testCase.catalogSchema
+      ? testCase.catalogSchema
+      : {};
+  if (caseSchema.protocolVersion) return caseSchema.protocolVersion;
+  if (Array.isArray(testCase.catalogs)) {
+    for (const cat of testCase.catalogs) {
+      if (cat && cat.protocolVersion) return cat.protocolVersion;
+    }
+  }
+  const catId = String(testCase.catalogId || catSpec.catalogId || caseSchema.catalogId || '');
+  if (catId.includes('v08') || catId.includes('v0_8')) return 'v0.8';
+  if (catId.includes('v09') || catId.includes('v0_9')) return 'v0.9';
+  if (catId.includes('v10') || catId.includes('v1_0') || catId.includes('v1.0')) return 'v1.0';
+  return 'v0.9';
+}
+
 function getCatalogsForTestCase(testCase) {
-  const rawVersion = testCase.protocolVersion || testCase.catalog?.protocolVersion || '1.0';
+  const rawVersion = resolveProtocolVersion(testCase);
   const version = toCanonicalVersion(rawVersion) || rawVersion;
   const catalogsMap = new Map();
   catalogsMap.set('v0.8:basic', v0_8Catalog);
@@ -1237,6 +1283,11 @@ function getCatalogsForTestCase(testCase) {
   } else {
     catalogsMap.set('basic', v0_9BasicCatalog);
   }
+
+  // Catalogs a case names explicitly. These are returned ahead of the built-in
+  // fixtures so that a surface created without a `catalogId` resolves to the
+  // catalog the case actually declared.
+  const specifiedCatalogs = [];
 
   const addCatalogId = (id, ver) => {
     if (id && !catalogsMap.has(id)) {
@@ -1285,39 +1336,60 @@ function getCatalogsForTestCase(testCase) {
   if (testCase.catalogPaths) {
     for (const p of testCase.catalogPaths) {
       const fullPath = path.resolve(__dirname, '../../../../', p);
-      if (fs.existsSync(fullPath)) {
-        try {
-          const json = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
-          if (json && json.id) {
-            addCatalogId(json.id);
-          }
-        } catch {
-          // ignore parsing error
-        }
+      if (!fs.existsSync(fullPath)) continue;
+      let json;
+      try {
+        json = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
+      } catch {
+        continue;
+      }
+      if (!json) continue;
+      const cId = json.catalogId || json.id || 'test-catalog';
+      // The published basic catalogs are represented by the built-in fixtures
+      // rather than being re-parsed from the specification tree.
+      if (p.includes('basic/catalog.json')) {
+        const matchingBasic =
+          version === '1.0' ? v1_0Catalog : version === '0.8' ? v0_8Catalog : v0_9Catalog;
+        catalogsMap.set(cId, matchingBasic);
+        specifiedCatalogs.push(matchingBasic);
+      } else if (json.components) {
+        const loadedCat = loadCatalogFromSchema({
+          catalogId: cId,
+          protocolVersion: version,
+          ...json,
+        });
+        catalogsMap.set(cId, loadedCat);
+        specifiedCatalogs.push(loadedCat);
+      } else {
+        addCatalogId(cId);
       }
     }
   }
 
   const msgs = testCase.messages || (testCase.payload ? [testCase.payload] : []);
+  // Messages carry their own `version`, which is the protocol version any
+  // catalog they name must be built against.
+  let scanVersion;
   const scan = item => {
     if (!item || typeof item !== 'object') return;
     if (Array.isArray(item)) {
       item.forEach(scan);
       return;
     }
+    if (typeof item.version === 'string') scanVersion = item.version;
     if (item.messages) scan(item.messages);
     if (
       item.createSurface &&
       item.createSurface.catalogId &&
       item.createSurface.catalogId !== 'unknown-catalog'
     )
-      addCatalogId(item.createSurface.catalogId);
+      addCatalogId(item.createSurface.catalogId, scanVersion);
     if (
       item.beginRendering &&
       item.beginRendering.catalogId &&
       item.beginRendering.catalogId !== 'unknown-catalog'
     )
-      addCatalogId(item.beginRendering.catalogId);
+      addCatalogId(item.beginRendering.catalogId, scanVersion);
   };
   scan(msgs);
   if (testCase.steps) {
@@ -1327,7 +1399,10 @@ function getCatalogsForTestCase(testCase) {
     }
   }
 
-  return Array.from(catalogsMap.values());
+  return [
+    ...specifiedCatalogs,
+    ...Array.from(catalogsMap.values()).filter(c => !specifiedCatalogs.includes(c)),
+  ];
 }
 
 function assertSurfacesMatch(processor, expect) {
