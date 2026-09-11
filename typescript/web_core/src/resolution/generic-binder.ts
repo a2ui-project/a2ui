@@ -305,7 +305,7 @@ export type ResolveA2uiProp<T> = [NonNullable<T>] extends [ActionLike]
  *
  * For example, a `value: DynamicString` property produces a `setValue(val: string)` setter.
  * A property declared as a binding with no literal branch has no such value type, so its setter
- * falls back to `unknown`, mirroring the fallback `ResolveA2uiProp` applies to the read side.
+ * falls back to `unknown`.
  */
 export type GenerateSetters<T> = {
   [K in keyof T as IsDynamic<T[K]> extends true ? `set${Capitalize<string & K>}` : never]-?: (
