@@ -33,6 +33,119 @@ import {A2uiExpressionError} from '../errors.js';
 import {FunctionInvoker} from '../catalog/function_invoker.js';
 import {SurfaceModel} from '../state/surface-model.js';
 
+import {CatalogInterface} from '../catalog/types.js';
+
+const schemaKeysCache = new WeakMap<z.ZodTypeAny, Set<string> | null>();
+
+/**
+ * Extracts declared property keys from a Zod schema if it represents an object schema
+ * with a known, fixed set of keys (e.g. z.ZodObject, z.ZodEffects wrapping z.ZodObject, etc.)
+ * that strips or rejects unknown keys.
+ *
+ * Returns a Set of allowed key names, or null if the schema allows arbitrary keys (e.g. passthrough)
+ * or if the keys cannot be statically determined.
+ */
+export function getKnownSchemaKeys(schema: z.ZodTypeAny): Set<string> | null {
+  if (schemaKeysCache.has(schema)) {
+    return schemaKeysCache.get(schema) as Set<string> | null;
+  }
+
+  const result = ((): Set<string> | null => {
+    let current: any = schema;
+    while (current) {
+      if (current instanceof z.ZodObject || current._def?.typeName === 'ZodObject') {
+        // If passthrough is enabled, arbitrary keys are allowed.
+        if (current._def?.unknownKeys === 'passthrough') {
+          return null;
+        }
+        const shape = typeof current.shape === 'function' ? current.shape() : current.shape;
+        if (shape && typeof shape === 'object') {
+          return new Set(Object.keys(shape));
+        }
+        return null;
+      }
+      if (current instanceof z.ZodEffects || current._def?.typeName === 'ZodEffects') {
+        current = current._def.schema;
+        continue;
+      }
+      if (
+        current instanceof z.ZodOptional ||
+        current instanceof z.ZodNullable ||
+        current._def?.typeName === 'ZodOptional' ||
+        current._def?.typeName === 'ZodNullable'
+      ) {
+        current = current._def.innerType;
+        continue;
+      }
+      if (current instanceof z.ZodDefault || current._def?.typeName === 'ZodDefault') {
+        current = current._def.innerType;
+        continue;
+      }
+      if (current instanceof z.ZodCatch || current._def?.typeName === 'ZodCatch') {
+        current = current._def.innerType;
+        continue;
+      }
+      if (current instanceof z.ZodIntersection || current._def?.typeName === 'ZodIntersection') {
+        const leftKeys = getKnownSchemaKeys(current._def.left);
+        const rightKeys = getKnownSchemaKeys(current._def.right);
+        if (!leftKeys || !rightKeys) {
+          return null;
+        }
+        return new Set([...leftKeys, ...rightKeys]);
+      }
+      if (current instanceof z.ZodUnion || current._def?.typeName === 'ZodUnion') {
+        const options: z.ZodTypeAny[] = current._def.options;
+        const allKeys = new Set<string>();
+        for (const opt of options) {
+          const k = getKnownSchemaKeys(opt);
+          if (!k) return null; // If any union branch allows arbitrary keys, do not filter.
+          for (const key of k) {
+            allKeys.add(key);
+          }
+        }
+        return allKeys;
+      }
+      return null;
+    }
+    return null;
+  })();
+
+  schemaKeysCache.set(schema, result);
+  return result;
+}
+
+/**
+ * Strips unknown arguments from a function call's args dictionary before creating reactive
+ * nodes (signals, computed values, effects) in DataContext.
+ *
+ * This prevents uncontrolled resource consumption (CWE-400) where malicious or bloated
+ * payloads attach thousands of unused arguments to a function call.
+ */
+export function filterFunctionArgs(
+  functionName: string,
+  rawArgs: Record<string, any> | undefined | null,
+  catalog?: CatalogInterface<any, any> | any,
+): Record<string, any> {
+  if (!rawArgs || typeof rawArgs !== 'object' || Array.isArray(rawArgs)) {
+    return {};
+  }
+  const fn = catalog?.functions?.get?.(functionName);
+  if (!fn?.schema) {
+    return rawArgs;
+  }
+  const knownKeys = getKnownSchemaKeys(fn.schema);
+  if (!knownKeys) {
+    return rawArgs;
+  }
+  const filtered: Record<string, any> = {};
+  for (const [key, value] of Object.entries(rawArgs)) {
+    if (knownKeys.has(key)) {
+      filtered[key] = value;
+    }
+  }
+  return filtered;
+}
+
 /**
  * A contextual view of the main DataModel, serving as the unified interface for resolving
  * DynamicValues (literals, data paths, function calls) within a specific scope.
@@ -124,9 +237,10 @@ export class DataContext {
     // 3. Function Call: { call: "...", args: ... }
     if ('call' in value) {
       const call = value as FunctionCall;
+      const filteredArgs = filterFunctionArgs(call.call, call.args, this.surface?.catalog);
       const args: Record<string, any> = {};
 
-      for (const [key, argVal] of Object.entries(call.args)) {
+      for (const [key, argVal] of Object.entries(filteredArgs)) {
         args[key] = this.resolveDynamicValue(argVal);
       }
 
@@ -226,9 +340,10 @@ export class DataContext {
     // 3. Function Call
     if ('call' in value) {
       const call = value as FunctionCall;
+      const filteredArgs = filterFunctionArgs(call.call, call.args, this.surface?.catalog);
       const argSignals: Record<string, Signal<any>> = {};
 
-      for (const [key, argVal] of Object.entries(call.args)) {
+      for (const [key, argVal] of Object.entries(filteredArgs)) {
         argSignals[key] = this.resolveSignal(argVal);
       }
 
