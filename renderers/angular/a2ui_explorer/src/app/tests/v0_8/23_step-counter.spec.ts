@@ -20,7 +20,7 @@ describe('Example: Step Counter (basic) (v0.8)', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('Step Counter (basic)', Version.V0_8);
+    await loadExample({name: 'Step Counter (basic)', version: Version.V0_8});
     textContent = getCanvas().textContent;
   });
 

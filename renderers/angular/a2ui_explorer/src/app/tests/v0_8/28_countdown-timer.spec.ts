@@ -20,7 +20,7 @@ describe('Example: Countdown Timer (basic) (v0.8)', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('Countdown Timer (basic)', Version.V0_8);
+    await loadExample({name: 'Countdown Timer (basic)', version: Version.V0_8});
     textContent = getCanvas().textContent;
   });
 

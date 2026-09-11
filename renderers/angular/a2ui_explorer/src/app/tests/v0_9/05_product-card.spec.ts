@@ -24,7 +24,7 @@ describe('Example: Product Card', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample('Product Card');
+    fixture = await loadExample({name: 'Product Card'});
     component = fixture.componentInstance;
     textContent = getCanvas().textContent;
   });

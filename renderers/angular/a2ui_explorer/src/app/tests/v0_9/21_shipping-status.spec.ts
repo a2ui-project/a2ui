@@ -20,7 +20,7 @@ describe('Example: Shipping Status', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('Shipping Status');
+    await loadExample({name: 'Shipping Status'});
     textContent = getCanvas().textContent;
   });
 

@@ -20,7 +20,7 @@ describe('Example: Row Layout', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample('Row Layout');
+    await loadExample({name: 'Row Layout'});
     textContent = getCanvas().textContent || '';
   });
 

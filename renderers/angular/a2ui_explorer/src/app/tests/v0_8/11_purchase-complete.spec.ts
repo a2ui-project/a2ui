@@ -23,7 +23,7 @@ describe('Example: Purchase Complete (basic) (v0.8)', () => {
   let fixture: ComponentFixture<DemoComponent>;
 
   beforeEach(async () => {
-    fixture = await loadExample('Purchase Complete (basic)', Version.V0_8);
+    fixture = await loadExample({name: 'Purchase Complete (basic)', version: Version.V0_8});
     textContent = getCanvas().textContent;
   });
 

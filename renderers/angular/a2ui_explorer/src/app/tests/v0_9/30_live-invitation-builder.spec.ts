@@ -23,7 +23,7 @@ describe('Example: Live Invitation Builder', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample('Live Invitation Builder');
+    fixture = await loadExample({name: 'Live Invitation Builder'});
     textContent = getCanvas().textContent;
   });
 

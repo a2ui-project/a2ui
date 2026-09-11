@@ -23,7 +23,7 @@ describe('Example: Movie Card', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample('Movie Card');
+    fixture = await loadExample({name: 'Movie Card'});
     textContent = getCanvas().textContent;
   });
 
