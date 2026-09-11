@@ -20,7 +20,7 @@ import {Context} from '@a2ui/lit/v0_9';
 import '@a2ui/lit/v0_9'; // Registers <a2ui-surface>
 import {provide} from '@lit/context';
 import {renderMarkdown} from '@a2ui/markdown-it';
-import {A2uiMcpEngine, ConnectionStatus, type CallToolResult} from './engine.js';
+import {A2uiMcpEngine, ConnectionStatus} from './engine.js';
 
 // Recipe Studio Surface IDs
 const RECIPE_FORM_SURFACE_ID = 'recipe-form';
@@ -264,19 +264,10 @@ export class A2uiRecipeApp extends LitElement {
       'http://127.0.0.1:8000/sse';
 
     try {
-      const serverName = await this.mcpEngine.connectServer(sseUrl);
+      await this.mcpEngine.connectServer(sseUrl);
       // Initialize app-specific entrypoint form tool via generic engine
-      const client = this.mcpEngine.getMcpClient(serverName);
-      const result = await client.callTool({
-        name: 'get_recipe_form_a2ui',
-        arguments: {},
-      });
-      await this.mcpEngine.handleToolResult(
-        result as CallToolResult,
-        client,
-        'get_recipe_form_a2ui',
-        serverName,
-      );
+      const result = await this.mcpEngine.callMcpTool('get_recipe_form_a2ui');
+      await this.mcpEngine.handleToolResult(result, 'get_recipe_form_a2ui');
     } catch (error) {
       console.error('Failed to initialize recipe app:', error);
     }

@@ -6,12 +6,12 @@ The **A2UI MCP Catalog** provides first-class support for executing [Model Conte
 
 ## 1. Overview
 
-A2UI separates UI layout from domain-specific backend logic through **Catalogs**. The MCP Catalog defines a client-side function—`callMcpTool`—that transparently routes UI interactions to connected MCP servers using the official MCP TypeScript SDK (`@modelcontextprotocol/sdk`).
+A2UI separates UI layout from domain-specific backend logic through **Catalogs**. The MCP Catalog defines a client-side function—`callMcpTool`—that routes UI interactions to MCP tools through a host-supplied tool caller.
 
 Key Capabilities:
 
 - **Client-Side MCP Tool Routing**: Execute server tools directly via standard A2UI function invocations.
-- **Direct MCP SDK Integration**: Pass an MCP `Client` instance (or getter `() => Client`) directly to `createMcpCatalog(client)`.
+- **Transport-Agnostic**: The catalog holds no MCP `Client`. The host implements a `McpToolCaller` that resolves which connected server owns a tool and issues the `tools/call` request.
 - **Renderer-Agnostic**: Compatible with all A2UI web renderers (Lit, Angular, React, etc.) and `MessageProcessor`.
 - **Two-Way Data Binding Integration**: Pass form parameters, dynamic expressions, and state directly into MCP tool arguments.
 
@@ -28,11 +28,12 @@ The catalog provides the `callMcpTool` function:
 
 | Parameter   | Type     | Required           | Description                                           |
 | :---------- | :------- | :----------------- | :---------------------------------------------------- |
-| `name`      | `string` | **Yes**            | The name of the MCP tool to execute on the server.    |
-| `server`    | `string` | No                 | Optional target MCP server name.                      |
+| `name`      | `string` | **Yes**            | The name of the MCP tool to execute.                  |
 | `arguments` | `object` | No (default: `{}`) | Key-value dictionary of arguments passed to the tool. |
 
-**Return Value**: Returns the raw MCP `CallToolResult` object (containing `content: Array<{type, text, ...}>`, `isError`, etc.).
+Tools are addressed by name only. A2UI payloads never name a server: multi-server routing is a host concern, resolved inside the `McpToolCaller`.
+
+**Return Value**: Returns the raw MCP `CallToolResult` object (containing `content: Array<{type, text, ...}>`, `isError`, etc.). The catalog function throws an `A2uiExpressionError` when the result is flagged with `isError`.
 
 ---
 
@@ -50,11 +51,12 @@ yarn add @modelcontextprotocol/sdk @a2ui/web_core
 
 ### Step 1: Initialize MCP Client & Create MCP Catalog
 
-Initialize your MCP client and transport (e.g. SSE, WebSocket, Stdio), connect to the server, and create the MCP catalog with a client getter:
+Initialize your MCP client and transport (e.g. SSE, WebSocket, Stdio), connect to the server, and create the MCP catalog with a tool caller:
 
 ```typescript
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
+import {CallToolResultSchema} from '@modelcontextprotocol/sdk/types.js';
 import {createMcpCatalog, MCP_CATALOG_ID} from './v0_9/src/catalog.js';
 
 // 1. Establish transport connection to MCP server
@@ -66,15 +68,24 @@ const client = new Client({
 
 await client.connect(transport);
 
-// 2. Create the MCP catalog bound to a client getter
-const mcpCatalog = createMcpCatalog((server?: string) => client);
+// 2. Create the MCP catalog bound to a tool caller
+const mcpCatalog = createMcpCatalog((toolName, args) =>
+  client.request(
+    {method: 'tools/call', params: {name: toolName, arguments: args}},
+    CallToolResultSchema,
+  ),
+);
 ```
 
-For multi-server setups, route based on `server`:
+For multi-server setups, keep a registry of which server advertises each tool (typically built from `listTools()` at connection time) and resolve it inside the caller:
 
 ```typescript
-const mcpCatalog = createMcpCatalog((server?: string) => {
-  return server ? mcpClients.get(server) : defaultClient;
+const mcpCatalog = createMcpCatalog((toolName, args) => {
+  const client = mcpClients.get(toolServers.get(toolName)) ?? defaultClient;
+  return client.request(
+    {method: 'tools/call', params: {name: toolName, arguments: args}},
+    CallToolResultSchema,
+  );
 });
 ```
 
@@ -87,9 +98,6 @@ Pass `mcpCatalog` alongside your UI component catalog (e.g. `basicCatalog`) to t
 ```typescript
 import {MessageProcessor} from '@a2ui/web_core/v0_9';
 import {basicCatalog} from '@a2ui/lit/v0_9';
-import {createMcpCatalog} from './v0_9/src/catalog.js';
-
-const mcpCatalog = createMcpCatalog(client);
 
 const processor = new MessageProcessor([basicCatalog, mcpCatalog], async action => {
   console.log('A2UI Action Triggered:', action);

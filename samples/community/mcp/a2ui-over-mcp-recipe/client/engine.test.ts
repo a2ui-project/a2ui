@@ -194,7 +194,7 @@ describe('A2uiMcpEngine', () => {
     });
   });
 
-  describe('getMcpClient', () => {
+  describe('getMcpClient and tool routing', () => {
     it('throws error when no MCP clients are connected', () => {
       const engine = new A2uiMcpEngine();
       expect(() => engine.getMcpClient()).toThrow('No MCP client connected');
@@ -237,7 +237,32 @@ describe('A2uiMcpEngine', () => {
       );
     });
 
-    it('routes callMcpTool on surface to target server specified in function args', async () => {
+    it('registers the owning server for each discovered tool', async () => {
+      const engine = new A2uiMcpEngine();
+      await engine.connectServer('http://127.0.0.1:8000/sse');
+
+      expect(engine.getServerForTool('get_sample_data')).toBe('test-server');
+      expect(engine.getServerForTool('unknown_tool')).toBeUndefined();
+    });
+
+    it('keeps the first registration when two servers advertise the same tool', async () => {
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const engine = new A2uiMcpEngine();
+
+      await engine.connectServer('http://127.0.0.1:8000/sse');
+      mockClient.getServerVersion.mockReturnValue({name: 'second-server', version: '1.0.0'});
+      await engine.connectServer('http://127.0.0.1:8001/sse');
+
+      expect(engine.getServerForTool('get_sample_data')).toBe('test-server');
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "Tool 'get_sample_data' is already provided by server 'test-server'",
+        ),
+      );
+      consoleWarnSpy.mockRestore();
+    });
+
+    it('routes callMcpTool on surface to the server that advertised the tool', async () => {
       const engine = new A2uiMcpEngine();
       const clientA = {
         request: vi.fn().mockResolvedValue({
@@ -252,6 +277,8 @@ describe('A2uiMcpEngine', () => {
 
       engine.mcpClients.set('server-a', clientA as any);
       engine.mcpClients.set('server-b', clientB as any);
+      // Simulate discovery having attributed 'tool_on_b' to server-b
+      (engine as any).toolServers.set('tool_on_b', 'server-b');
 
       engine.processor.processMessages([
         {
@@ -266,10 +293,9 @@ describe('A2uiMcpEngine', () => {
       const surface = engine.getSurface('routing-surface');
       expect(surface).toBeDefined();
 
-      // Tool call targeted to server-b
       await surface!.catalog.invoker(
         'callMcpTool',
-        {name: 'tool_on_b', server: 'server-b', arguments: {param: 1}},
+        {name: 'tool_on_b', arguments: {param: 1}},
         {} as any,
       );
       expect(clientB.request).toHaveBeenCalledWith(
@@ -279,7 +305,7 @@ describe('A2uiMcpEngine', () => {
       );
       expect(clientA.request).not.toHaveBeenCalled();
 
-      // Tool call without server falls back to first (server-a)
+      // Unregistered tools fall back to the first connected client (server-a)
       await surface!.catalog.invoker(
         'callMcpTool',
         {name: 'tool_on_default', arguments: {}},
@@ -484,7 +510,7 @@ describe('A2uiMcpEngine', () => {
       // Tool name matches 'get_sample_data' which has 'a2ui://sample-template' in toolUiResources
       await surface!.catalog.invoker(
         'callMcpTool',
-        {name: 'get_sample_data', server: 'test-server', arguments: {}},
+        {name: 'get_sample_data', arguments: {}},
         {} as any,
       );
 
@@ -529,7 +555,7 @@ describe('A2uiMcpEngine', () => {
         ],
       };
 
-      await engine.handleToolResult(result, mockClient as any, 'get_sample_data', 'test-server');
+      await engine.handleToolResult(result, 'get_sample_data');
 
       // Surface created and updated
       const surface = engine.getSurface('test-surface');
@@ -549,11 +575,11 @@ describe('A2uiMcpEngine', () => {
       };
 
       // First call fetches template
-      await engine.handleToolResult(result, mockClient as any, 'get_sample_data', 'test-server');
+      await engine.handleToolResult(result, 'get_sample_data');
       expect(mockClient.readResource).toHaveBeenCalledTimes(1);
 
       // Second call uses cached template
-      await engine.handleToolResult(result, mockClient as any, 'get_sample_data', 'test-server');
+      await engine.handleToolResult(result, 'get_sample_data');
       expect(mockClient.readResource).toHaveBeenCalledTimes(1);
     });
 
@@ -569,13 +595,13 @@ describe('A2uiMcpEngine', () => {
       };
 
       // First call processes template (2 messages)
-      await engine.handleToolResult(result, mockClient as any, 'get_sample_data', 'test-server');
+      await engine.handleToolResult(result, 'get_sample_data');
       expect(processMessagesSpy).toHaveBeenCalledWith(sampleTemplate);
 
       processMessagesSpy.mockClear();
 
       // Second call has existing surface so template should NOT be passed to processMessages
-      await engine.handleToolResult(result, mockClient as any, 'get_sample_data', 'test-server');
+      await engine.handleToolResult(result, 'get_sample_data');
       expect(processMessagesSpy).not.toHaveBeenCalledWith(sampleTemplate);
     });
 
@@ -599,7 +625,7 @@ describe('A2uiMcpEngine', () => {
         ],
       };
 
-      await engine.handleToolResult(result, mockClient as any, 'get_sample_data', 'test-server');
+      await engine.handleToolResult(result, 'get_sample_data');
       expect(onSurfaceChange).toHaveBeenCalled();
     });
 
@@ -618,7 +644,7 @@ describe('A2uiMcpEngine', () => {
         ],
       };
 
-      await engine.handleToolResult(result, mockClient as any, 'get_sample_data', 'test-server');
+      await engine.handleToolResult(result, 'get_sample_data');
       expect(onSurfaceChange).toHaveBeenCalled();
     });
 
@@ -644,9 +670,7 @@ describe('A2uiMcpEngine', () => {
         content: [],
       };
 
-      await expect(
-        engine.handleToolResult(result, mockClient as any, 'get_sample_data', 'test-server'),
-      ).rejects.toThrow(
+      await expect(engine.handleToolResult(result, 'get_sample_data')).rejects.toThrow(
         'Resource a2ui://sample-template does not contain valid A2UI JSON template data.',
       );
     });

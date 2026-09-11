@@ -20,28 +20,29 @@ import {
   type DataContext,
   A2uiExpressionError,
 } from '@a2ui/web_core/v0_9';
-import type {Client} from '@modelcontextprotocol/sdk/client/index.js';
-import {CallToolResultSchema} from '@modelcontextprotocol/sdk/types.js';
 import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
 import {CallMcpToolApi} from './callMcpToolApi.js';
 
 export {CallMcpToolApi};
 
 /**
- * Getter function returning an MCP Client for an optional server name.
+ * Executes an MCP tool by name and returns the raw `CallToolResult`.
+ *
+ * The host application owns transport concerns: it resolves which connected MCP
+ * server hosts the named tool, issues the `tools/call` request, and returns the
+ * result. Result inspection is handled by the catalog function itself.
  */
-export type McpClientGetter = (
-  server?: string,
-) => Client | Promise<Client> | undefined | Promise<Client | undefined>;
+export type McpToolCaller = (
+  toolName: string,
+  args: Record<string, any>,
+) => CallToolResult | Promise<CallToolResult>;
 
 /**
  * Callback hook invoked when an MCP tool executes successfully.
  */
 export type McpToolResultHandler = (
   result: CallToolResult,
-  client: Client,
-  name: string,
-  server?: string,
+  toolName: string,
 ) => Promise<void> | void;
 
 /**
@@ -65,63 +66,40 @@ function resolveDynamicValue<T>(value: unknown, context?: DataContext): T {
 }
 
 /**
- * Creates a `callMcpTool` FunctionImplementation bound to an MCP client getter.
+ * Creates a `callMcpTool` FunctionImplementation bound to a host tool caller.
  *
- * @param clientGetter A getter function returning a Client for an optional server name.
- * @param onResult Optional hook called with the tool result and active client upon successful execution.
+ * @param callMcpTool Executes a named MCP tool and returns its raw result.
+ * @param onResult Optional hook called with the tool result upon successful execution.
  */
 export function createCallMcpToolImplementation(
-  clientGetter: McpClientGetter,
+  callMcpTool: McpToolCaller,
   onResult?: McpToolResultHandler,
 ): FunctionImplementation {
-  return createFunctionImplementation(CallMcpToolApi, async (args, context, abortSignal) => {
-    const server = resolveDynamicValue<string | undefined>(args.server, context);
-    const name = resolveDynamicValue<string>(args.name, context);
+  return createFunctionImplementation(CallMcpToolApi, async (args, context) => {
+    const toolName = resolveDynamicValue<string>(args.name, context);
     const resolvedArguments = resolveDynamicValue<Record<string, any>>(
       args.arguments ?? {},
       context,
     );
 
     try {
-      const client = await clientGetter(server);
-
-      if (!client) {
-        throw new Error(
-          server
-            ? `MCP Client is not available for server '${server}'.`
-            : 'MCP Client is not available.',
-        );
-      }
-
       console.debug(
-        `Executing MCP tool '${name}' on server '${server || 'default'}' with arguments:`,
+        `Executing MCP tool '${toolName}' with arguments:`,
         JSON.stringify(resolvedArguments),
       );
 
-      const params = {
-        name,
-        arguments: resolvedArguments,
-      };
+      const result = await callMcpTool(toolName, resolvedArguments);
 
-      const result: CallToolResult = await client.request(
-        {method: 'tools/call', params},
-        CallToolResultSchema,
-        {
-          // Hosts may interpose long-running or user-interactive steps before the
-          // tool result arrives. Opting in here lets a host heartbeat keep the
-          // request alive past the default timeout; callers can still override.
-          onprogress: () => {},
-          resetTimeoutOnProgress: true,
-          ...(abortSignal ? {signal: abortSignal} : {}),
-        },
-      );
+      if (!result) {
+        throw new Error(`MCP tool '${toolName}' did not return a result.`);
+      }
 
       if (result.isError) {
-        throw new Error(`MCP tool '${name}' execution failed: ${JSON.stringify(result)}`);
+        throw new Error(`MCP tool '${toolName}' execution failed: ${JSON.stringify(result)}`);
       }
 
       if (onResult) {
-        await onResult(result, client, name, server);
+        await onResult(result, toolName);
       }
 
       return result;
@@ -131,7 +109,7 @@ export function createCallMcpToolImplementation(
       }
       const message = error instanceof Error ? error.message : String(error);
       throw new A2uiExpressionError(
-        `Failed to execute MCP tool '${name}': ${message}`,
+        `Failed to execute MCP tool '${toolName}': ${message}`,
         'callMcpTool',
         error,
       );

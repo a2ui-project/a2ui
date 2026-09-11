@@ -1255,16 +1255,12 @@
               "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
               "description": "The name of the MCP tool to execute."
             },
-            "server": {
-              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
-              "description": "The optional name of the MCP server to execute the tool on."
-            },
             "arguments": {
               "type": "object",
               "description": "The arguments to pass to the MCP tool.",
               "additionalProperties": {
                 "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicValue"
-              }               
+              }
             }
           },
           "required": ["name"],

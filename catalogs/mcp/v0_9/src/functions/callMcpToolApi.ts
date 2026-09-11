@@ -20,21 +20,18 @@ import {DynamicStringSchema, DynamicValueSchema} from '@a2ui/web_core/v0_9';
 /**
  * Function API definition for `callMcpTool`.
  *
+ * Tools are addressed by name only. Resolving which connected MCP server hosts a
+ * given tool is the responsibility of the host application.
+ *
  * Arguments:
  * - `name`: The name of the MCP tool to execute (literal string or dynamic binding).
- * - `server`: The optional name of the MCP server to execute the tool on (literal string or dynamic binding).
  * - `arguments`: Optional arguments object passed to the MCP tool with dynamic values.
  */
 export const CallMcpToolApi = {
   name: 'callMcpTool' as const,
   returnType: 'any' as const,
   schema: z.object({
-    name: DynamicStringSchema.describe(
-      'The name of the MCP tool to execute.',
-    ),
-    server: DynamicStringSchema.optional().describe(
-      'The optional name of the MCP server to execute the tool on.',
-    ),
+    name: DynamicStringSchema.describe('The name of the MCP tool to execute.'),
     arguments: z
       .record(DynamicValueSchema)
       .optional()

@@ -17,15 +17,16 @@
 import {Catalog, MessageProcessor} from '@a2ui/web_core/v0_9';
 import {basicCatalog} from '@a2ui/lit/v0_9';
 import {
-  type McpClientGetter,
+  type McpToolCaller,
   type McpToolResultHandler,
 } from '../../../../../catalogs/mcp/v0_9/src/catalog.js';
 import {createCallMcpToolImplementation} from '../../../../../catalogs/mcp/v0_9/src/functions/callMcpTool.js';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
+import {CallToolResultSchema} from '@modelcontextprotocol/sdk/types.js';
 import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
 
-export {type McpClientGetter, type McpToolResultHandler, type CallToolResult};
+export {type McpToolCaller, type McpToolResultHandler, type CallToolResult};
 export const BASIC_WITH_MCP_CATALOG_ID =
   'https://a2ui.org/specification/v0_9/catalogs/basic_with_mcp/catalog.json';
 export const A2UI_MIME_TYPE = 'application/a2ui+json';
@@ -45,14 +46,14 @@ export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'er
  * Creates an A2UI Catalog combining the standard Basic Catalog components and functions
  * with MCP tool execution (`callMcpTool`).
  *
- * @param clientGetter A getter function returning a Client for an optional server name.
- * @param onResult Optional hook called with the tool result and active client upon successful execution.
+ * @param callMcpTool Executes a named MCP tool and returns its raw result.
+ * @param onResult Optional hook called with the tool result upon successful execution.
  */
 export function createBasicWithMcpCatalog(
-  clientGetter: McpClientGetter,
+  callMcpTool: McpToolCaller,
   onResult?: McpToolResultHandler,
 ): Catalog<any> {
-  const mcpFn = createCallMcpToolImplementation(clientGetter, onResult);
+  const mcpFn = createCallMcpToolImplementation(callMcpTool, onResult);
   const allComponents = Array.from(basicCatalog.components.values());
   const allFunctions = [...Array.from(basicCatalog.functions.values()), mcpFn as any];
   return new Catalog<any>(BASIC_WITH_MCP_CATALOG_ID, allComponents, allFunctions);
@@ -73,7 +74,10 @@ export class A2uiMcpEngine {
   // Cache for loaded presentation templates keyed by resource URI
   private readonly templateCache = new Map<string, any[]>();
 
-  // Mapping of tool names (server:tool or tool) to declared UI template resource URIs
+  // Mapping of tool names to the server that advertised them during discovery
+  private readonly toolServers = new Map<string, string>();
+
+  // Mapping of tool names to declared UI template resource URIs
   private readonly toolUiResources = new Map<string, string>();
 
   getMcpClient(server?: string): Client {
@@ -90,6 +94,40 @@ export class A2uiMcpEngine {
     throw new Error('No MCP client connected');
   }
 
+  /**
+   * Resolves which connected server advertises a tool.
+   *
+   * Returns `undefined` for unknown tools, which falls back to the default (first) client.
+   */
+  getServerForTool(toolName: string): string | undefined {
+    return this.toolServers.get(toolName);
+  }
+
+  /**
+   * Resolves the server hosting a tool and executes it over MCP.
+   *
+   * This is the host-side implementation behind the `callMcpTool` catalog function:
+   * A2UI payloads address tools by name only, and the engine owns server routing.
+   *
+   * @param toolName The name of the tool to execute.
+   * @param args Arguments passed through to the tool.
+   */
+  async callMcpTool(toolName: string, args: Record<string, any> = {}): Promise<CallToolResult> {
+    const client = this.getMcpClient(this.getServerForTool(toolName));
+
+    return client.request(
+      {method: 'tools/call', params: {name: toolName, arguments: args}},
+      CallToolResultSchema,
+      {
+        // Hosts may interpose long-running or user-interactive steps before the
+        // tool result arrives. Opting in here lets a host heartbeat keep the
+        // request alive past the default timeout.
+        onprogress: () => {},
+        resetTimeoutOnProgress: true,
+      },
+    );
+  }
+
   constructor(
     private readonly events: {
       onAction?: (action: any) => Promise<void> | void;
@@ -98,10 +136,10 @@ export class A2uiMcpEngine {
       onSurfaceChange?: () => void;
     } = {},
   ) {
-    const clientGetter: McpClientGetter = (server?: string) => this.getMcpClient(server);
-    const onResult: McpToolResultHandler = (result, client, name, server) =>
-      this.handleToolResult(result, client, name, server);
-    const basicWithMcpCatalog = createBasicWithMcpCatalog(clientGetter, onResult);
+    const callMcpTool: McpToolCaller = (toolName, args) => this.callMcpTool(toolName, args);
+    const onResult: McpToolResultHandler = (result, toolName) =>
+      this.handleToolResult(result, toolName);
+    const basicWithMcpCatalog = createBasicWithMcpCatalog(callMcpTool, onResult);
 
     this.processor = new MessageProcessor<any>([basicWithMcpCatalog], action =>
       this.events.onAction?.(action),
@@ -167,13 +205,22 @@ export class A2uiMcpEngine {
       this.events.onConnectionChange?.('connected');
       this.events.onStatusChange?.(`Connected to MCP Server [${serverName}] (${sseUrl})`);
 
-      // Discover all tools and their declared UI templates ahead of invocation
+      // Discover all tools, their owning server, and declared UI templates ahead of invocation
       try {
         const toolsResult = await client.listTools();
         for (const tool of toolsResult.tools) {
+          const existingServer = this.toolServers.get(tool.name);
+          if (existingServer && existingServer !== serverName) {
+            console.warn(
+              `Tool '${tool.name}' is already provided by server '${existingServer}'; ` +
+                `ignoring the duplicate advertised by '${serverName}'.`,
+            );
+            continue;
+          }
+          this.toolServers.set(tool.name, serverName);
+
           const uiUri = (tool as any)._meta?.ui?.resourceUri;
           if (uiUri) {
-            this.toolUiResources.set(`${serverName}:${tool.name}`, uiUri);
             this.toolUiResources.set(tool.name, uiUri);
           }
         }
@@ -193,27 +240,24 @@ export class A2uiMcpEngine {
   /**
    * Processes a CallToolResult by discovering and fetching associated UI templates
    * and applying data model updates.
+   *
+   * @param result The raw tool result to process.
+   * @param toolName The name of the tool that produced the result.
+   * @param client Optional client to read templates from; resolved from the tool registry when omitted.
    */
-  async handleToolResult(
-    result: CallToolResult,
-    client: Client,
-    name: string,
-    server?: string,
-  ): Promise<void> {
+  async handleToolResult(result: CallToolResult, toolName: string, client?: Client): Promise<void> {
     const resourceUri =
-      (result._meta as any)?.ui?.resourceUri ||
-      (server ? this.toolUiResources.get(`${server}:${name}`) : undefined) ||
-      this.toolUiResources.get(name) ||
-      (name.includes(':') ? this.toolUiResources.get(name.split(':')[1]) : undefined);
+      (result._meta as any)?.ui?.resourceUri || this.toolUiResources.get(toolName);
 
     if (resourceUri) {
-      const template = await this.getOrFetchTemplate(client, resourceUri);
+      const templateClient = client ?? this.getMcpClient(this.getServerForTool(toolName));
+      const template = await this.getOrFetchTemplate(templateClient, resourceUri);
 
       const surfaceId = template.find((m: any) => m.createSurface)?.createSurface?.surfaceId;
       if (!surfaceId || !this.processor.model.getSurface(surfaceId)) {
         this.processor.processMessages(template);
       }
-      this.events.onStatusChange?.(`UI template processed for tool '${name}'`);
+      this.events.onStatusChange?.(`UI template processed for tool '${toolName}'`);
     }
 
     const dataMessages = this.extractA2uiMessages(result.content);
@@ -221,7 +265,7 @@ export class A2uiMcpEngine {
       this.processor.processMessages(dataMessages);
     }
 
-    this.events.onStatusChange?.(`Processed A2UI messages for tool '${name}'`);
+    this.events.onStatusChange?.(`Processed A2UI messages for tool '${toolName}'`);
     this.events.onSurfaceChange?.();
   }
 
