@@ -66,6 +66,18 @@ const ACTION_REF = 'REF:common_types.json#/$defs/Action';
 const DATA_BINDING_REF = 'REF:common_types.json#/$defs/DataBinding';
 const DYNAMIC_REF_PREFIX = '#/$defs/Dynamic';
 
+function unwrapModifiers(type: z.ZodTypeAny): z.ZodTypeAny {
+  let current = type;
+  while (
+    current._def.typeName === 'ZodOptional' ||
+    current._def.typeName === 'ZodNullable' ||
+    current._def.typeName === 'ZodDefault'
+  ) {
+    current = current._def.innerType;
+  }
+  return current;
+}
+
 function getFieldBehavior(type: z.ZodTypeAny, propertyName?: string): BehaviorNode {
   let current = type;
 
@@ -114,11 +126,18 @@ function getFieldBehavior(type: z.ZodTypeAny, propertyName?: string): BehaviorNo
     const isAction = options.some(o => o._def.typeName === 'ZodObject' && o._def.shape().event);
     if (isAction) return {type: 'ACTION'};
 
-    // Dynamic strings/values are unions containing DataBindingSchema { path: ... } but NOT { componentId: ... }
-    const isDynamic = options.some(
-      o => o._def.typeName === 'ZodObject' && o._def.shape().path && !o._def.shape().componentId,
-    );
-    if (isDynamic) return {type: 'DYNAMIC'};
+    // Dynamic strings/values are unions containing DataBindingSchema { path: ... } but NOT
+    // { componentId: ... }. The binding branch may sit inside a nested union, e.g. a Dynamic*
+    // schema composed into a wider union of literal formats, and each option may itself be
+    // wrapped in optional/nullable/default modifiers.
+    const hasDynamicBranch = (opts: z.ZodTypeAny[]): boolean =>
+      opts.some(rawOption => {
+        const o = unwrapModifiers(rawOption);
+        return o._def.typeName === 'ZodUnion'
+          ? hasDynamicBranch(o._def.options as z.ZodTypeAny[])
+          : o._def.typeName === 'ZodObject' && o._def.shape().path && !o._def.shape().componentId;
+      });
+    if (hasDynamicBranch(options)) return {type: 'DYNAMIC'};
 
     // ChildList is a union containing an array and an object with { componentId, path }
     const isChildList = options.some(
