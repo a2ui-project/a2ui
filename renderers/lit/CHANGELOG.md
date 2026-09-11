@@ -15,6 +15,7 @@
   - `Text`: Directly render semantic HTML tags for non-markdown variants (`h1`-`h5`, `caption` wrapped in `<em>`) and add flex weight styling.
   - `Video`: Wrap video in `.a2ui-video-container` with fallback message for unsupported browsers.
   - `ChoicePicker`: Align DOM structures and CSS classes with the Angular reference implementation (`.a2ui-choice-picker`, `.a2ui-option-label`, `.a2ui-option-text`, `.a2ui-chip`, `type="button"`), scope radio input `name` attributes to surface and data context path to prevent cross-surface radio collisions in Light DOM, and omit `name` attributes on checkbox inputs.
+- **BREAKING CHANGE**: (v0_9) Migrate Basic Catalog components and surface rendering from Shadow DOM to Light DOM. Recommended migration: query component elements directly using Light DOM selectors (e.g. `element.querySelector()`) rather than `element.shadowRoot`, and ensure global stylesheets do not unintentionally conflict with component internal class names. [#2204](https://github.com/a2ui-project/a2ui/pull/2204)
 
 ## 0.10.4
 
