@@ -1,0 +1,207 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Skill and SkillSet domain objects for A2UI skill packages."""
+
+import os
+import shutil
+from typing import Any, Iterator, Optional, Union
+import yaml
+
+from a2ui.inference_format import InferenceFormat
+from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
+
+
+def _clean_catalog_name(catalog: Any) -> str:
+    """Derives a clean, LLM-friendly catalog name from a catalog ID or URL."""
+    raw_id = getattr(catalog, "catalog_id", "basic")
+    if not raw_id:
+        return "basic"
+    if "/" in raw_id or "\\" in raw_id:
+        raw_id = raw_id.replace("\\", "/")
+        parts = [p for p in raw_id.split("/") if p and not p.endswith(".json")]
+        if parts:
+            cand = parts[-1]
+            if cand.startswith("v") and len(parts) > 1:
+                cand = parts[-2]
+            raw_id = cand
+    return raw_id.lower()
+
+
+def _resolve_catalogs_list(
+    catalogs: Optional[list[Union[str, Any]]],
+    fmt: InferenceFormat,
+) -> list[A2uiCatalog]:
+    """Resolves catalog instances from list of strings, configs, or format defaults."""
+    if catalogs is not None:
+        resolved: list[A2uiCatalog] = []
+        for c in catalogs:
+            if isinstance(c, str):
+                resolved.append(A2uiCatalog.from_json_file(c))
+            elif isinstance(c, CatalogConfig):
+                resolved.append(A2uiCatalog.from_config(c))
+            elif isinstance(c, A2uiCatalog):
+                resolved.append(c)
+        return resolved
+
+    defaults: list[A2uiCatalog] = []
+    if hasattr(fmt, "_supported_catalogs") and fmt._supported_catalogs:
+        defaults.extend(fmt._supported_catalogs)
+    if hasattr(fmt, "catalog") and fmt.catalog:
+        if fmt.catalog not in defaults:
+            defaults.append(fmt.catalog)
+
+    return defaults
+
+
+class Skill:
+    """Represents a single A2UI Skill package with YAML frontmatter metadata and markdown content.
+
+    Allows developers to inspect and mutate fields (name, description, metadata, content)
+    before serializing back to markdown format.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        content: str,
+        metadata: Optional[dict[str, Any]] = None,
+        filename: Optional[str] = None,
+    ):
+        self.name = name
+        self.description = description
+        self.content = content
+        self.metadata = metadata or {}
+        self.filename = filename or f"{name}/SKILL.md"
+
+    def to_markdown(self) -> str:
+        """Serializes skill object back to complete markdown string with YAML frontmatter."""
+        fm: dict[str, Any] = {
+            "name": self.name,
+            "description": self.description,
+        }
+        if self.metadata:
+            fm["metadata"] = self.metadata
+
+        yaml_str = yaml.dump(fm, sort_keys=False).strip()
+        return f"---\n{yaml_str}\n---\n\n{self.content.strip()}\n"
+
+    def __str__(self) -> str:
+        return self.to_markdown()
+
+    def __repr__(self) -> str:
+        return f"Skill(name={self.name!r}, filename={self.filename!r})"
+
+
+class SkillSet:
+    """Collection of Skill objects representing a modular or multi-skill package."""
+
+    def __init__(self, skills: Optional[dict[str, Skill]] = None):
+        self._skills: dict[str, Skill] = skills or {}
+
+    def add(self, skill: Skill) -> None:
+        """Adds a Skill to the collection."""
+        self._skills[skill.filename] = skill
+
+    def get(self, filename: str) -> Optional[Skill]:
+        """Retrieves a Skill by filename or key."""
+        if filename in self._skills:
+            return self._skills[filename]
+        # Search by exact skill name first
+        for sk in self._skills.values():
+            if sk.name == filename:
+                return sk
+        # Search by partial filename with minimum length constraint
+        if len(filename) >= 3:
+            for sk in self._skills.values():
+                if filename in sk.filename:
+                    return sk
+        return None
+
+    def to_dict(self) -> dict[str, str]:
+        """Serializes all skills to a dictionary mapping filename to markdown text."""
+        return {
+            filename: skill.to_markdown() for filename, skill in self._skills.items()
+        }
+
+    def export_to_directory(self, output_dir: str) -> dict[str, str]:
+        """Exports all skills in the set to the specified output directory on disk.
+
+        Args:
+            output_dir: The root skills directory where skill packages should be written
+                (for example, the root skills path `.agents/skills` or `/path/to/skill-registry`).
+
+        What is wiped:
+            Any existing subdirectories matching skills in this set (for example,
+            `{output_dir}/a2ui-core` or `{output_dir}/a2ui-basic`) are completely wiped
+            before writing. This ensures no stale or orphaned files from prior exports
+            (such as old scripts, obsolete notes, or deleted sub-files) persist.
+
+        What is NOT wiped:
+            - Unrelated sibling skill directories located in `output_dir` (e.g.
+              `{output_dir}/git-workflow/` or `{output_dir}/custom-agent-skill/`) are
+              strictly preserved and never touched.
+            - The `output_dir` root directory itself is never wiped.
+
+        Returns:
+            A dictionary mapping skill filenames to generated markdown content.
+        """
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Identify unique top-level skill folders directly under output_dir
+        skill_dirs_to_clean: set[str] = set()
+        for filename in self._skills:
+            parts = os.path.normpath(filename).split(os.sep)
+            if len(parts) > 1 and parts[0] not in (".", "..", ""):
+                skill_dirs_to_clean.add(os.path.join(output_dir, parts[0]))
+
+        # Wipe only the specific matching skill subdirectories
+        for skill_folder in skill_dirs_to_clean:
+            if os.path.isdir(skill_folder):
+                shutil.rmtree(skill_folder)
+
+        results = {}
+        for filename, skill in self._skills.items():
+            file_path = os.path.join(output_dir, filename)
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            markdown_text = skill.to_markdown()
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(markdown_text)
+            results[filename] = markdown_text
+        return results
+
+    def __getitem__(self, key: str) -> Skill:
+        item = self.get(key)
+        if item is None:
+            raise KeyError(key)
+        return item
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._skills)
+
+    def keys(self) -> Any:
+        return self._skills.keys()
+
+    def values(self) -> Any:
+        return self._skills.values()
+
+    def items(self) -> Any:
+        return self._skills.items()
+
+    def __len__(self) -> int:
+        return len(self._skills)
+
+    def __repr__(self) -> str:
+        return f"SkillSet({list(self._skills.keys())!r})"
