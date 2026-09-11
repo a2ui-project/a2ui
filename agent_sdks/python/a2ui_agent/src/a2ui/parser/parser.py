@@ -138,6 +138,8 @@ def has_a2ui_parts(content: str) -> bool:
     )
     from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
 
+    if not isinstance(content, str):
+      return False
     return A2UI_OPEN_TAG in content and A2UI_CLOSE_TAG in content
 
 
