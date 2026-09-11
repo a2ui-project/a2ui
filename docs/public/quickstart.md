@@ -262,7 +262,7 @@ Want to see what the code looks like? Check out:
 === "Flutter"
 
     - **Client Code**: `samples/client/flutter/` — The Flutter web client with A2UI renderer
-    - **A2UI Renderer**: `renderers/flutter/` (Flutter)
+    - **A2UI Renderer**: `dart/a2ui_flutter/` (Flutter)
 
 Each directory has its own README with detailed documentation.
 
