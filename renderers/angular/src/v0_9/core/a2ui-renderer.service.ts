@@ -31,6 +31,8 @@ import {
 import {AngularCatalog, CatalogComponentImplementation} from '../catalog/types';
 import {prepareUniversalCatalog} from '../catalog/prepare_universal_catalog';
 import {initializeAngularReactivity} from './reactivity';
+import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
+import {MarkdownRenderer} from './markdown';
 
 /**
  * Configuration for the A2UI renderer.
@@ -74,6 +76,10 @@ export class A2uiRendererService implements OnDestroy {
   constructor() {
     const injector = inject(Injector);
     initializeAngularReactivity(injector.get(EnvironmentInjector));
+    const markdownRenderer = injector.get(MarkdownRenderer, null);
+    if (markdownRenderer) {
+      setMarkdownRenderer((markdown, options) => markdownRenderer.render(markdown, options));
+    }
     this._catalogs = this._config?.catalogs ?? [];
     if (this._useUniversalComponents) {
       for (const catalog of this._catalogs) {

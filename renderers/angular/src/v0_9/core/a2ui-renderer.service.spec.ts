@@ -21,6 +21,8 @@ import {provideA2Ui} from './provide-a2ui';
 import {BasicCatalog} from '../catalog/basic/basic-catalog';
 import {isAngularComponentImplementation} from '../catalog/types';
 import {isWebComponentImplementation} from '@a2ui/web_core/v0_9';
+import {getMarkdownRenderer, setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
+import {MarkdownRenderer} from './markdown';
 
 describe('A2uiRendererService', () => {
   let service: A2uiRendererService;
@@ -58,8 +60,53 @@ describe('A2uiRendererService', () => {
   });
 
   describe('initialization', () => {
+    beforeEach(() => {
+      setMarkdownRenderer(undefined);
+    });
+
+    afterEach(() => {
+      setMarkdownRenderer(undefined);
+    });
+
     it('should create surfaceGroup', () => {
       expect(service.surfaceGroup).toBeDefined();
+    });
+
+    it('should configure web_core setMarkdownRenderer when MarkdownRenderer is in the injector', async () => {
+      const mockRenderer: MarkdownRenderer = {
+        render: jasmine.createSpy('render').and.resolveTo('<p>rendered</p>'),
+      };
+
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          A2uiRendererService,
+          {
+            provide: A2UI_RENDERER_CONFIG,
+            useValue: {catalogs: [mockCatalog]},
+          },
+          {
+            provide: MarkdownRenderer,
+            useValue: mockRenderer,
+          },
+        ],
+      });
+
+      const svc = TestBed.inject(A2uiRendererService);
+      expect(svc).toBeTruthy();
+
+      const registeredFn = getMarkdownRenderer();
+      expect(registeredFn).toBeDefined();
+
+      const result = await registeredFn!('# heading', {tagClassMap: {h1: ['custom-h1']}});
+      expect(result).toBe('<p>rendered</p>');
+      expect(mockRenderer.render).toHaveBeenCalledWith('# heading', {
+        tagClassMap: {h1: ['custom-h1']},
+      });
+    });
+
+    it('should do nothing to markdown renderer when MarkdownRenderer is not in the injector', () => {
+      expect(getMarkdownRenderer()).toBeUndefined();
     });
   });
 
