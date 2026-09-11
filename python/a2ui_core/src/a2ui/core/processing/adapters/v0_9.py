@@ -30,7 +30,6 @@ from ..operations import (
     InternalUpdateComponentsOp,
     InternalUpdateDataModelOp,
 )
-from ..execution_context import ExecutionContext
 
 
 class V0Point9Adapter(BaseVersionAdapter):
@@ -67,7 +66,6 @@ class V0Point9Adapter(BaseVersionAdapter):
         self,
         action: str,
         message: dict[str, Any],
-        context: ExecutionContext | None = None,
     ) -> list[InternalOperation]:
         res: list[InternalOperation] = []
         if action == MSG_TYPE_CREATE_SURFACE:

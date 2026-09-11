@@ -37,9 +37,6 @@ from ..operations import (
 )
 
 
-from ..execution_context import ExecutionContext
-
-
 class V1Point0Adapter(BaseVersionAdapter):
     """Protocol version adapter for specification v1.0."""
 
@@ -66,9 +63,7 @@ class V1Point0Adapter(BaseVersionAdapter):
         self,
         action: str,
         message: dict[str, Any],
-        context: ExecutionContext | None = None,
     ) -> list[InternalOperation]:
-        user_activation = context.is_user_activated if context is not None else False
         res: list[InternalOperation] = []
         if action == MSG_TYPE_CREATE_SURFACE:
             cs = message[MSG_TYPE_CREATE_SURFACE]
@@ -144,7 +139,6 @@ class V1Point0Adapter(BaseVersionAdapter):
                     version=ver_str,
                     catalog_id=cf.catalog_id,
                     args=cf.args or {},
-                    is_user_activated=user_activation,
                 )
             )
         elif action == MSG_TYPE_AGENT_FUNCTION_RESPONSE:

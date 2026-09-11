@@ -12,16 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 from typing import (
     Any,
     Callable,
-    Dict,
     Generic,
-    List,
     Literal,
-    Optional,
     Type,
-    Union,
     cast,
 )
 from typing_extensions import TypeVar
@@ -95,7 +92,19 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
             safe_args = self.schema.model_validate(args).model_dump(by_alias=True)
         else:
             safe_args = args
-        return self.execute_func(safe_args, context, abort_signal)
+        exec_fn = cast(Callable[..., TReturn], self.execute_func)
+        try:
+            sig = inspect.signature(exec_fn)
+            param_count = len(sig.parameters)
+        except (ValueError, TypeError):
+            param_count = 3
+
+        if param_count >= 3:
+            return exec_fn(safe_args, context, abort_signal)
+        elif param_count == 2:
+            return exec_fn(safe_args, context)
+        else:
+            return exec_fn(safe_args)
 
 
 def create_function_implementation(

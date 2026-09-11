@@ -16,6 +16,8 @@ import pytest
 import math
 from typing import Any
 from pydantic import ValidationError
+from a2ui.core.rpc import CallOptions
+from a2ui.core.schema.v1_0.common_types import FunctionCall
 
 from a2ui.core.basic_catalog.v0_9.function_impls import (
     BASIC_FUNCTION_IMPLEMENTATIONS,
@@ -451,27 +453,38 @@ def test_validation_return_types_v09_vs_v10():
 
 def test_call_agent_function_helper_and_response_event():
     from a2ui.core.catalog import Catalog
-    from a2ui.core.processing import MessageProcessor
-
+    from a2ui.core.processing import MessageProcessor, MessageProcessorOptions
     from a2ui.core.schema import ProtocolVersion
 
-    cat = Catalog("basic", protocol_version=ProtocolVersion.V1_0)
-    processor = MessageProcessor([cat])
-
-    # 1. Test helper method formatting outbound callAgentFunction message
-    outbound_msg = processor.create_call_agent_function_message(
-        surface_id="s1",
-        function_call_id="call-99",
-        call="verifyProvider",
-        version="v1.0",
-        catalog_id="basic",
-        args={"providerId": "PRV-102"},
+    outbound_msgs = []
+    options = MessageProcessorOptions(
+        outbound_listener=lambda msg: outbound_msgs.append(msg)
     )
-    assert outbound_msg == {
+    cat = Catalog("basic", protocol_version=ProtocolVersion.V1_0)
+    processor = MessageProcessor([cat], options=options)
+
+    from a2ui.core.rpc import CallOptions
+    from a2ui.core.schema.v1_0.common_types import FunctionCall
+
+    # 1. Test call_agent_function emitting outbound callAgentFunction message
+    _ = processor.call_agent_function(
+        surface_id="s1",
+        call=FunctionCall(
+            call="verifyProvider",
+            catalogId="basic",
+            args={"providerId": "PRV-102"},
+        ),
+        options=CallOptions(
+            function_call_id="call-98",
+            version="v1.0",
+        ),
+    )
+    assert len(outbound_msgs) == 1
+    assert outbound_msgs[0] == {
         "version": "v1.0",
         "callAgentFunction": {
             "surfaceId": "s1",
-            "functionCallId": "call-99",
+            "functionCallId": "call-98",
             "callFunction": {
                 "call": "verifyProvider",
                 "catalogId": "basic",
@@ -480,10 +493,18 @@ def test_call_agent_function_helper_and_response_event():
         },
     }
 
-    # 2. Test processing inbound agentFunctionResponse message and emitting event
-    received_responses = []
-    processor.on_agent_function_response.subscribe(
-        lambda payload: received_responses.append(payload)
+    # 2. Test processing inbound agentFunctionResponse message resolving future
+    fut = processor.call_agent_function(
+        surface_id="s1",
+        call=FunctionCall(
+            call="verifyProvider",
+            catalogId="basic",
+            args={"providerId": "PRV-102"},
+        ),
+        options=CallOptions(
+            function_call_id="call-99",
+            version="v1.0",
+        ),
     )
 
     processor.process_messages([{
@@ -494,27 +515,26 @@ def test_call_agent_function_helper_and_response_event():
         },
     }])
 
-    assert len(received_responses) == 1
-    assert received_responses[0] == {
-        "functionCallId": "call-99",
-        "value": {"status": "success"},
-    }
+    assert fut.done()
+    assert fut.result() == {"status": "success"}
 
 
 def test_call_agent_function_response_done_future():
     import asyncio
     from a2ui.core.catalog import Catalog
-    from a2ui.core.processing import MessageProcessor
+    from a2ui.core.processing import MessageProcessor, MessageProcessorOptions
     from a2ui.core.schema import ProtocolVersion
 
     cat = Catalog("basic", protocol_version=ProtocolVersion.V1_0)
-    processor = MessageProcessor([cat])
+    options = MessageProcessorOptions(outbound_listener=lambda msg: None)
+    processor = MessageProcessor([cat], options=options)
 
-    loop = asyncio.new_event_loop()
-    fut = loop.create_future()
+    fut = processor.call_agent_function(
+        surface_id="s1",
+        call=FunctionCall(call="someFunc"),
+        options=CallOptions(function_call_id="call-done"),
+    )
     fut.cancel()  # Mark future as done/cancelled
-
-    processor.register_pending_agent_call("call-done", fut)
 
     # Processing response for done/cancelled future should not crash with InvalidStateError
     processor.process_messages([{
@@ -526,4 +546,3 @@ def test_call_agent_function_response_done_future():
     }])
 
     assert fut.cancelled()
-    loop.close()

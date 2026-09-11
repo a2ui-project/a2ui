@@ -14,7 +14,7 @@
 
 """Message processing engine, execution contexts, and internal operation definitions."""
 
-from .execution_context import ExecutionContext
+from .execution_context import ExecutionContext as ExecutionContext
 from .message_processor import MessageProcessor, MessageProcessorOptions
 from .operations import (
     InternalCreateSurfaceOp,

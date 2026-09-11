@@ -148,7 +148,7 @@ class NodeGraph(Generic[TComponent, TFunction]):
 
                     new_props[k] = make_action_closure
 
-            cat = component_model.catalog or getattr(self.surface, "catalog", None)
+            cat = component_model.catalog or self.surface.default_catalog
             ref_spec = (
                 cat.get_component_ref_spec(component_model.type)
                 if cat is not None and hasattr(cat, "get_component_ref_spec")

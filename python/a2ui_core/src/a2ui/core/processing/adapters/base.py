@@ -22,16 +22,13 @@ from ..operations import InternalOperation
 from ..format_pydantic_error import format_validation_error_summary
 from ...exceptions import A2uiValidationError
 from ...state.validation_helpers import validate_recursion_and_paths
-from ...schema import AgentToRendererMessage, ProtocolVersion
+from ...schema import AgentToRendererMessage, AgentToRendererMessagePayload, ProtocolVersion
 from ...common.semver import (
     SemVer,
     normalize_version_string,
     to_canonical_version,
     to_semver,
 )
-
-
-from ..execution_context import ExecutionContext
 
 # Canonical protocol versions supported by the A2UI runtime.
 SUPPORTED_PROTOCOL_VERSIONS: frozenset[str] = frozenset({
@@ -148,13 +145,7 @@ class VersionAdapter(ABC):
     @abstractmethod
     def extract_operations(
         self,
-        payload: (
-            AgentToRendererMessage
-            | Sequence[AgentToRendererMessage]
-            | Mapping[str, Any]
-            | Sequence[Mapping[str, Any]]
-        ),
-        context: ExecutionContext | None = None,
+        payload: AgentToRendererMessagePayload,
     ) -> list[InternalOperation]:
         """Converts a raw message payload or payload list into canonical internal operations."""
         pass
@@ -223,13 +214,7 @@ class BaseVersionAdapter(VersionAdapter, ABC):
 
     def extract_operations(
         self,
-        payload: (
-            AgentToRendererMessage
-            | Sequence[AgentToRendererMessage]
-            | Mapping[str, Any]
-            | Sequence[Mapping[str, Any]]
-        ),
-        context: ExecutionContext | None = None,
+        payload: AgentToRendererMessagePayload,
     ) -> list[InternalOperation]:
         """Unwraps payloads and delegates validated action messages to action handlers."""
         if payload is None:
@@ -249,14 +234,13 @@ class BaseVersionAdapter(VersionAdapter, ABC):
                     self._extract_single_action(item)
             ops: list[InternalOperation] = []
             for item in raw_payload:
-                ops.extend(self.extract_operations(item, context=context))
+                ops.extend(self.extract_operations(item))
             return ops
 
         if isinstance(raw_payload, dict):
             if "messages" in raw_payload and isinstance(raw_payload["messages"], list):
                 return self.extract_operations(
                     raw_payload["messages"],
-                    context=context,
                 )
 
             action = self._extract_single_action(raw_payload)
@@ -315,7 +299,6 @@ class BaseVersionAdapter(VersionAdapter, ABC):
             return self._extract_operations_for_action(
                 action,
                 raw_payload,
-                context=context,
             )
 
         return []
@@ -325,7 +308,6 @@ class BaseVersionAdapter(VersionAdapter, ABC):
         self,
         action: str,
         message: dict[str, Any],
-        context: ExecutionContext | None = None,
     ) -> list[InternalOperation]:
         """Subclasses override this to extract version-specific internal operations."""
         pass

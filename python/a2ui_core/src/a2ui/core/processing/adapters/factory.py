@@ -21,7 +21,7 @@ from .v0_8 import V0Point8Adapter
 from .v0_9 import V0Point9Adapter
 from .v1_0 import V1Point0Adapter
 from ...exceptions import A2uiErrorDetail, A2uiValidationError
-from ...schema import AgentToRendererMessage, ProtocolVersion
+from ...schema import AgentToRendererMessagePayload, ProtocolVersion
 
 # Default fallback protocol version when no version header is present.
 DEFAULT_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion.V0_9
@@ -138,12 +138,7 @@ class VersionAdapterFactory:
     @classmethod
     def resolve_from_payload(
         cls,
-        payload: (
-            AgentToRendererMessage
-            | Sequence[AgentToRendererMessage]
-            | Mapping[str, Any]
-            | Sequence[Mapping[str, Any]]
-        ),
+        payload: AgentToRendererMessagePayload,
     ) -> VersionAdapter:
         """Resolves the version adapter directly from a message payload.
 
