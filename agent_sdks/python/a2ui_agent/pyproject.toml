@@ -50,9 +50,11 @@ path = "src/a2ui/version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/a2ui"]
 artifacts = ["src/a2ui/assets/**"]
+core-metadata-version = "2.4"
 
 [tool.hatch.build.targets.sdist]
 artifacts = ["src/a2ui/assets/**"]
+core-metadata-version = "2.4"
 
 [tool.hatch.build.hooks.custom]
 path = "pack_specs_hook.py"
