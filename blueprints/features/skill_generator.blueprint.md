@@ -88,6 +88,17 @@ interface PromptGenerator {
 }
 ```
 
+#### **Template Method Assembly (`generate`)**
+
+The base `generate()` method orchestrates prompt assembly across all inference formats:
+
+1. Appends `role_description` if non-empty.
+2. Combines `generate_base_rules()` and `workflow_description` under `## Workflow Description:` if present.
+3. Appends `ui_description` under `## UI Description:` if present.
+4. If `include_schema` is true, calls `generate_catalog_instructions(include_schema=true)` and appends the result if non-empty.
+5. If `include_examples` is true, calls `generate_examples(validate=validate_examples)` and appends the result under `### Examples:` if non-empty.
+6. Joins all non-empty sections with double newlines (`"\n\n"`).
+
 ### **2. `Skill` Domain Model**
 
 A pure format-agnostic document container representing a single skill package:

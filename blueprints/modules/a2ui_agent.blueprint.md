@@ -160,7 +160,7 @@ class FunctionPruningTransformer(CatalogTransformer):
 
 #### `PromptGenerator`
 
-Abstract base interface for constructing system prompt instruction snippets across inference formats. Prompt generation is decomposed into modular sub-methods to support both full agent system prompt assembly and targeted skill compilation (see [`SkillGenerator`](../features/skill_generator.blueprint.md)).
+Abstract base interface for constructing system prompt instruction snippets across inference formats.
 
 ```python
 class PromptGenerator(ABC):
@@ -181,61 +181,14 @@ class PromptGenerator(ABC):
         self.catalogs = catalogs
         self.examples = examples
 
-    def generate_base_rules(self) -> str:
-        """Returns the core syntax contract and grammar rules for the inference format.
-
-        This method MUST be catalog-agnostic, emitting base syntax specifications,
-        grammar definitions, and sentinel output tags (e.g. `<a2ui>`).
+    @abstractmethod
+    def generate(self) -> str:
         """
-        return ""
-
-    def generate_catalog_instructions(
-        self,
-        include_schema: bool = True,
-        catalog: Optional[Catalog[TComponent, TFunction]] = None,
-    ) -> str:
-        """Returns component and function signatures or JSON schemas for a catalog.
-
-        Args:
-            include_schema: Whether to include schema details.
-            catalog: Optional target catalog instance. When omitted, instructions are
-                rendered for all bound catalogs.
-        """
-        return ""
-
-    def generate_examples(
-        self,
-        catalog: Optional[Catalog[TComponent, TFunction]] = None,
-        validate: bool = False,
-    ) -> str:
-        """Returns formatted few-shot examples for a catalog.
-
-        Args:
-            catalog: Optional target catalog instance.
-            validate: Whether to validate examples against schemas.
-        """
-        return ""
-
-    def generate(
-        self,
-        role_description: str = "",
-        workflow_description: str = "",
-        ui_description: str = "",
-        include_schema: bool = True,
-        include_examples: bool = False,
-        validate_examples: bool = False,
-        **kwargs,
-    ) -> str:
-        """Template Method: Assembles format-specific system prompt instructions.
-
-        Composes output from generate_base_rules(), generate_catalog_instructions(),
-        and generate_examples() into a complete instruction string.
+        Renders format-specific system prompt instructions and catalog schemas.
+        The caller (Agent / Framework) prepends role/workflow preambles and appends suffixes.
         """
         pass
 ```
-
-> [!NOTE]
-> For compiling standalone agent skills or modular skill packages (such as `.agents/skills/`), prompt generators are consumed by the [`SkillGenerator`](../features/skill_generator.blueprint.md) feature layer.
 
 ---
 
