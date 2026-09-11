@@ -23,7 +23,8 @@ import {z} from 'zod';
 import {ComponentContext} from '../rendering/component-context.js';
 import {MessageProcessor} from '../processing/message-processor.js';
 import {renderA2uiNode} from './render-a2ui-node.js';
-import {Catalog, type WebComponentImplementation} from './types.js';
+import {Catalog} from '../catalog/types.js';
+import type {WebComponentImplementation} from './web_component_implementation.js';
 
 describe('renderA2uiNode', () => {
   before(setupTestDom);

@@ -34,6 +34,10 @@
       "types": "./dist/src/v0_9/index.d.ts",
       "default": "./dist/src/v0_9/index.js"
     },
+    "./v0_9/universal": {
+      "types": "./dist/src/v0_9/universal/index.d.ts",
+      "default": "./dist/src/v0_9/universal/index.js"
+    },
     "./v0_9/basic_catalog": {
       "types": "./dist/src/v0_9/basic_catalog/index.d.ts",
       "default": "./dist/src/v0_9/basic_catalog/index.js"

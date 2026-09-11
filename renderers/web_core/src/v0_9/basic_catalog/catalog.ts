@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import {Catalog, WebComponentImplementation} from '../catalog/types.js';
+import {Catalog} from '../catalog/types.js';
+import type {WebComponentImplementation} from '../universal/index.js';
 import {BASIC_FUNCTIONS} from './functions/basic_functions.js';
 
 import {A2uiText} from './components/Text.js';
