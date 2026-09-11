@@ -16,12 +16,8 @@
 
 import {useState, useEffect, useSyncExternalStore, useCallback, useRef} from 'react';
 import {MessageProcessor, type SurfaceModel, type A2uiClientAction} from '@a2ui/web_core/v0_9';
-import {
-  basicCatalog,
-  A2uiSurface,
-  MarkdownContext,
-  type ReactCatalogComponent,
-} from '@a2ui/react/v0_9';
+import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+import {A2uiSurface, MarkdownContext, type ReactCatalogComponent} from '@a2ui/react/v0_9';
 import {getDemoItems} from './examples';
 import {renderMarkdown} from '@a2ui/markdown-it';
 import styles from './App.module.css';

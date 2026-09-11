@@ -24,13 +24,15 @@
  * `node-view.tsx`.
  */
 
-import React, {useCallback, useMemo, useSyncExternalStore} from 'react';
+import React, {useCallback, useEffect, useMemo, useSyncExternalStore} from 'react';
 import {NodeResolver, effect, getValue, peekValue, type SurfaceModel} from '@a2ui/web_core/v0_9';
+import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
 import {
   isWebComponentImplementation,
   registerUniversalElement,
 } from '@a2ui/web_core/v0_9/universal';
 import type {ReactCatalogComponent} from './react_component_implementation';
+import {useMarkdownRenderer} from './markdown-context';
 import {LoadingPlaceholder, NodeSurfaceContext, NodeView} from './node-view';
 
 export const A2uiSurface: React.FC<{
@@ -47,6 +49,13 @@ export const A2uiSurface: React.FC<{
       }
     }
   }, [surface]);
+
+  // web_core's basic catalog reads its markdown renderer from a module-level
+  // slot, so hand it whatever the React context carries.
+  const markdownRenderer = useMarkdownRenderer();
+  useEffect(() => {
+    setMarkdownRenderer(markdownRenderer);
+  }, [markdownRenderer]);
 
   // The resolver is created inside subscribe, which React calls only for
   // committed renders: a render that is discarded (concurrent mode,
