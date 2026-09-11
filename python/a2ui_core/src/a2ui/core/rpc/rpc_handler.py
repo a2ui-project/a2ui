@@ -142,13 +142,24 @@ class RpcHandler(Generic[TComponent, TFunction]):
     def resolve_catalog(
         self, catalog_id: str | None = None
     ) -> Catalog[TComponent, TFunction] | None:
-        """Resolves a catalog by catalog_id, or returns primary catalog if catalog_id is None."""
-        if catalog_id is not None:
-            for cat in self.catalogs:
-                if getattr(cat, "catalog_id", None) == catalog_id:
-                    return cat
+        """Looks up a catalog by catalog_id, applying no default.
+
+        Args:
+            catalog_id: The catalog identifier to look up.
+
+        Returns:
+            The matching catalog, or None if catalog_id is None or unknown.
+        """
+        # Callers own the fallback policy for an absent catalog_id, because it
+        # differs by context: surface creation falls back to the first
+        # registered catalog, while function resolution falls back to the
+        # surface's own default catalog.
+        if catalog_id is None:
             return None
-        return self.catalogs[0] if self.catalogs else None
+        for cat in self.catalogs:
+            if getattr(cat, "catalog_id", None) == catalog_id:
+                return cat
+        return None
 
     def _create_response_error(
         self,
@@ -238,14 +249,12 @@ class RpcHandler(Generic[TComponent, TFunction]):
         Returns:
             A _ResolvedFunctionImplementation object containing fn, catalog, and error if resolution failed.
         """
-        matched_catalog = self.resolve_catalog(catalog_id)
-        if (
-            not matched_catalog
-            and context
-            and hasattr(context, "surface")
-            and context.surface
-        ):
-            matched_catalog = getattr(context.surface, "catalog", None)
+        surface = getattr(context, "surface", None) if context else None
+
+        if catalog_id:
+            matched_catalog = self.resolve_catalog(catalog_id)
+        else:
+            matched_catalog = getattr(surface, "default_catalog", None)
 
         if not matched_catalog:
             return _ResolvedFunctionImplementation(
