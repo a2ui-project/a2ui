@@ -13,3 +13,7 @@
 # limitations under the License.
 
 """A2UI Protocol v0.9 component catalogs."""
+
+from . import basic_catalog
+
+__all__ = ["basic_catalog"]

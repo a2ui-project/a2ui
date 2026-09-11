@@ -17,31 +17,26 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Optional, Sequence
+from typing import Any, Optional
 
 from .base_node import ComponentBuilderNode
 from .flattener import flatten_component_tree
 
 
 class ComponentTree:
-    """An in-memory hierarchy of components, containing a primary root and any unlinked subtrees."""
+    """An in-memory hierarchy of components rooted at a single ComponentBuilderNode."""
 
     def __init__(
         self,
         root: ComponentBuilderNode,
-        unlinked_roots: Sequence[ComponentBuilderNode] | None = None,
         surface_id: str | None = None,
     ):
         self.root = root
-        self.unlinked_roots = list(unlinked_roots or [])
         self.surface_id = surface_id
 
     def to_components(self) -> list[dict[str, Any]]:
-        """Serializes the primary tree and all unlinked subtrees into flat component dicts."""
-        comps = flatten_component_tree(self.root, root_id=self.root.id or "root")
-        for sub_tree in self.unlinked_roots:
-            comps.extend(flatten_component_tree(sub_tree, root_id=sub_tree.id or "sub"))
-        return comps
+        """Serializes the primary tree into flat component dicts."""
+        return flatten_component_tree(self.root, root_id=self.root.id or "root")
 
     def to_json(self, indent: Optional[int] = None) -> str:
         """Serializes the component list into a JSON string."""
@@ -80,7 +75,3 @@ class ComponentTree:
                     }
                 })
         return messages
-
-    def prune_unlinked(self) -> None:
-        """Clears all unlinked subtrees from the container."""
-        self.unlinked_roots.clear()

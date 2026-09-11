@@ -20,13 +20,24 @@ from typing import Optional
 class IdAllocator:
     """Deterministic allocator generating scoped component IDs."""
 
-    def __init__(self, scope_prefix: str = "c"):
+    def __init__(
+        self,
+        scope_prefix: str = "c",
+        existing_ids: Optional[set[str]] = None,
+    ):
         self.scope_prefix = scope_prefix
         self.counters: dict[str, int] = {}
+        self.existing_ids: set[str] = set(existing_ids) if existing_ids else set()
 
     def allocate(self, component_name: str, preferred_id: Optional[str] = None) -> str:
         if preferred_id:
-            return f"{self.scope_prefix}__{preferred_id}"
+            candidate = f"{self.scope_prefix}__{preferred_id}"
+            self.existing_ids.add(candidate)
+            return candidate
         prefix = component_name.lower()
-        self.counters[prefix] = self.counters.get(prefix, 0) + 1
-        return f"{self.scope_prefix}__{prefix}_{self.counters[prefix]}"
+        while True:
+            self.counters[prefix] = self.counters.get(prefix, 0) + 1
+            candidate = f"{self.scope_prefix}__{prefix}_{self.counters[prefix]}"
+            if candidate not in self.existing_ids:
+                self.existing_ids.add(candidate)
+                return candidate

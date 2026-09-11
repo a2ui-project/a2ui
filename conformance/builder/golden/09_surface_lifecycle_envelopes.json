@@ -1,12 +1,14 @@
 {
   "create_surface": [
     {
+      "version": "v0.9",
       "createSurface": {
         "surfaceId": "main_surface",
         "catalogId": "org.a2ui.basic"
       }
     },
     {
+      "version": "v0.9",
       "updateComponents": {
         "surfaceId": "main_surface",
         "components": [
@@ -27,6 +29,7 @@
   ],
   "update_components": [
     {
+      "version": "v0.9",
       "updateComponents": {
         "surfaceId": "main_surface",
         "components": [

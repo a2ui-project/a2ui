@@ -29,6 +29,7 @@ from .envelopes import (
     update_components,
 )
 from .models import (
+    A2uiExpression,
     AccessibilityAttributes,
     Action,
     CheckRule,
@@ -42,12 +43,11 @@ from .models import (
     DynamicStringList,
     DynamicValue,
     FunctionCall,
-    Slot,
-    SlotList,
     bind,
 )
 
 __all__ = [
+    "A2uiExpression",
     "AccessibilityAttributes",
     "Action",
     "CheckRule",
@@ -66,8 +66,6 @@ __all__ = [
     "ExternalComponentBuilderNode",
     "FunctionCall",
     "IdAllocator",
-    "Slot",
-    "SlotList",
     "bind",
     "create_surface",
     "flatten_component_tree",

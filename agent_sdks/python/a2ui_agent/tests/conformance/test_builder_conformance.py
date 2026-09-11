@@ -17,6 +17,8 @@
 import json
 import os
 from typing import Any
+import pytest
+import yaml
 
 from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
@@ -24,14 +26,15 @@ from a2ui.builder.v0_9 import (
     CheckRule,
     ComponentRef,
     ComponentTree,
-    DataBinding,
     DynamicChildList,
+    FunctionCall,
     bind,
     create_surface,
     flatten_component_tree,
     update_components,
 )
-from a2ui.builder.v0_9.catalogs.basic import (
+from a2ui.builder.v0_9.catalogs import basic_catalog
+from a2ui.builder.v0_9.catalogs.basic_catalog import (
     Button,
     Card,
     Column,
@@ -47,6 +50,12 @@ GOLDEN_DIR = os.path.abspath(
     os.path.join(
         os.path.dirname(__file__),
         "../../../../../conformance/builder/golden",
+    )
+)
+BUILDER_YAML_PATH = os.path.abspath(
+    os.path.join(
+        os.path.dirname(__file__),
+        "../../../../../conformance/builder/builder.yaml",
     )
 )
 
@@ -227,8 +236,18 @@ def test_conformance_09_surface_lifecycle_envelopes():
     )
 
     actual = {
-        "create_surface": create_msgs,
-        "update_components": update_msgs,
+        "create_surface": [
+            m.model_dump(by_alias=True, exclude_none=True)
+            if hasattr(m, "model_dump")
+            else m
+            for m in create_msgs
+        ],
+        "update_components": [
+            m.model_dump(by_alias=True, exclude_none=True)
+            if hasattr(m, "model_dump")
+            else m
+            for m in update_msgs
+        ],
         "full_surface": full_surface,
     }
     expected = _load_golden("09_surface_lifecycle_envelopes.json")
@@ -244,3 +263,118 @@ def test_conformance_10_validation_rules():
     actual = rule.to_dict()
     expected = _load_golden("10_validation_rules.json")
     assert actual == expected
+
+
+# =============================================================================
+# Declarative YAML Suite Loader (Thread 41)
+# =============================================================================
+
+
+def load_ast_from_yaml(val: Any) -> Any:
+    """Recursively constructs A2UI builder AST nodes from declarative YAML test structures."""
+    if isinstance(val, list):
+        return [load_ast_from_yaml(item) for item in val]
+    if isinstance(val, dict):
+        if "$bind" in val:
+            return bind(val["$bind"])
+        if "$componentRef" in val:
+            return ComponentRef(id=val["$componentRef"])
+        if "$dynamicChildList" in val:
+            d = val["$dynamicChildList"]
+            return DynamicChildList(
+                data_model_path=d["dataModelPath"],
+                template=load_ast_from_yaml(d["template"]),
+            )
+        if "component" in val:
+            comp_type = val["component"]
+            cls = getattr(basic_catalog, comp_type)
+            kwargs = {
+                k: load_ast_from_yaml(v)
+                for k, v in val.items()
+                if k != "component"
+            }
+            return cls(**kwargs)
+        if "call" in val:
+            call_name = val["call"]
+            args = {k: load_ast_from_yaml(v) for k, v in val.get("args", {}).items()}
+            return FunctionCall(call=call_name, args=args, call_id=val.get("callId"))
+        if "event" in val or "function" in val:
+            kwargs = {}
+            if "event" in val:
+                kwargs["event"] = val["event"]
+            if "function" in val:
+                kwargs["function"] = load_ast_from_yaml(val["function"])
+            if "context" in val:
+                kwargs["context"] = {k: load_ast_from_yaml(v) for k, v in val["context"].items()}
+            return Action(**kwargs)
+        if "label" in val and "value" in val and len(val) == 2:
+            return basic_catalog.ChoiceOption(label=load_ast_from_yaml(val["label"]), value=val["value"])
+        if "title" in val and "child" in val and len(val) == 2:
+            return basic_catalog.TabItem(title=load_ast_from_yaml(val["title"]), child=load_ast_from_yaml(val["child"]))
+        if "label" in val or "description" in val or "live" in val or "hidden" in val:
+            return AccessibilityAttributes(**{k: load_ast_from_yaml(v) for k, v in val.items()})
+        return {k: load_ast_from_yaml(v) for k, v in val.items()}
+    return val
+
+
+def _load_yaml_cases():
+    if not os.path.exists(BUILDER_YAML_PATH):
+        return []
+    with open(BUILDER_YAML_PATH, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return data.get("tests", [])
+
+
+@pytest.mark.parametrize(
+    "case",
+    _load_yaml_cases(),
+    ids=lambda c: c["id"],
+)
+def test_declarative_conformance_suite(case: dict[str, Any]):
+    """Verifies that the declarative builder.yaml suite executes identically across all SDKs."""
+    test_type = case.get("type", "tree")
+    golden = _load_golden(case["golden"])
+
+    if test_type == "tree":
+        ast = load_ast_from_yaml(case["input"])
+        root_id = case.get("root_id")
+        actual = flatten_component_tree(ast, root_id=root_id)
+        assert actual == golden
+    elif test_type == "envelopes":
+        root = load_ast_from_yaml(case["input"])
+        surface_id = case["surface_id"]
+        catalog_id = case["catalog_id"]
+        data_model = case.get("data_model")
+
+        create_msgs = create_surface(surface_id, root=root, catalog_id=catalog_id)
+        update_msgs = update_components(surface_id, root=root)
+        tree = ComponentTree(root=root, surface_id=surface_id)
+        full_surface = tree.to_surface(
+            surface_id=surface_id,
+            catalog_id=catalog_id,
+            data_model=data_model,
+        )
+
+        actual = {
+            "create_surface": [
+                m.model_dump(by_alias=True, exclude_none=True)
+                if hasattr(m, "model_dump")
+                else m
+                for m in create_msgs
+            ],
+            "update_components": [
+                m.model_dump(by_alias=True, exclude_none=True)
+                if hasattr(m, "model_dump")
+                else m
+                for m in update_msgs
+            ],
+            "full_surface": full_surface,
+        }
+        assert actual == golden
+    elif test_type == "rule":
+        cond_raw = case["input"]["condition"]
+        args = {k: load_ast_from_yaml(v) for k, v in cond_raw.get("args", {}).items()}
+        cond = FunctionCall(call=cond_raw["call"], args=args)
+        rule = CheckRule(condition=cond, message=case["input"]["message"])
+        assert rule.to_dict() == golden
+

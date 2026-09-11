@@ -17,20 +17,31 @@
 from __future__ import annotations
 
 from typing import Any, Optional
+from a2ui.core.schema.server_to_client import (
+    A2uiMessage,
+    CreateSurface,
+    CreateSurfaceMessage,
+    UpdateComponents,
+    UpdateComponentsMessage,
+    UpdateDataModel,
+    UpdateDataModelMessage,
+)
 from ..core.base_node import ComponentBuilderNode
 from ..core.flattener import flatten_component_tree
+
+DEFAULT_CATALOG_ID = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
 
 
 def to_update_message(
     root: ComponentBuilderNode, surface_id: str = "main"
-) -> dict[str, Any]:
+) -> UpdateComponentsMessage:
     """Packages a component hierarchy into a v0.9 updateComponents message."""
-    return {
-        "updateComponents": {
-            "surfaceId": surface_id,
-            "components": flatten_component_tree(root, root_id=root.id or "root"),
-        }
-    }
+    return UpdateComponentsMessage(
+        update_components=UpdateComponents(
+            surface_id=surface_id,
+            components=flatten_component_tree(root, root_id=root.id or "root"),
+        )
+    )
 
 
 def to_surface_messages(
@@ -38,25 +49,27 @@ def to_surface_messages(
     surface_id: str = "main",
     catalog_id: Optional[str] = None,
     data_model: Optional[dict[str, Any]] = None,
-) -> list[dict[str, Any]]:
+) -> list[A2uiMessage]:
     """Packages a component hierarchy into v0.9 createSurface, updateComponents, and optional updateDataModel messages."""
-    create_env: dict[str, Any] = {"createSurface": {"surfaceId": surface_id}}
-    if catalog_id:
-        create_env["createSurface"]["catalogId"] = catalog_id
-    messages: list[dict[str, Any]] = [
-        create_env,
+    cat_id = catalog_id or DEFAULT_CATALOG_ID
+    messages: list[A2uiMessage] = [
+        CreateSurfaceMessage(
+            create_surface=CreateSurface(surface_id=surface_id, catalog_id=cat_id)
+        ),
         to_update_message(root, surface_id=surface_id),
     ]
     if data_model:
         for path, val in data_model.items():
             norm_path = path if path.startswith("/") else f"/{path}"
-            messages.append({
-                "updateDataModel": {
-                    "surfaceId": surface_id,
-                    "path": norm_path,
-                    "value": val,
-                }
-            })
+            messages.append(
+                UpdateDataModelMessage(
+                    update_data_model=UpdateDataModel(
+                        surface_id=surface_id,
+                        path=norm_path,
+                        value=val,
+                    )
+                )
+            )
     return messages
 
 
@@ -66,7 +79,7 @@ def create_surface(
     *,
     catalog_id: str | None = None,
     data_model: Optional[dict[str, Any]] = None,
-) -> list[dict[str, Any]]:
+) -> list[A2uiMessage]:
     """Creates messages to establish a new surface (createSurface + updateComponents + optional updateDataModel)."""
     return to_surface_messages(
         root=root,
@@ -79,6 +92,6 @@ def create_surface(
 def update_components(
     surface_id: str,
     root: ComponentBuilderNode,
-) -> list[dict[str, Any]]:
+) -> list[A2uiMessage]:
     """Creates an incremental surface update message (updateComponents only)."""
     return [to_update_message(root=root, surface_id=surface_id)]
