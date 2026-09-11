@@ -738,7 +738,7 @@ agentProcessor.processMessages(parsedLlmPayloadMessages);
 Validation in `a2ui_core` is split into two complementary systems:
 
 1. **Payload & Catalog Schema Validation (`PayloadValidator`)**: Validates a single component payload, a function call, or a surface theme against a specific catalog's schema using strongly-typed models (Pydantic / Zod) or direct JSON Schema Draft 2020-12 validators. Because components on a surface may originate from different catalogs, `PayloadValidator` is strictly single-catalog scoped and exposes granular validation methods (`validateComponent`, `validateFunction`, `validateTheme`). Wire message envelope structure and action validation are handled by version adapters (`VersionAdapter`).
-2. **Graph Topology & Reference Integrity (`SurfaceComponentsModel` / `IntegrityChecker`)**: Validates relationship integrity across the surface component tree, detecting root presence (`id="root"`), missing/dangling child references, orphaned components, cycles/self-references, and recursion depth limits.
+2. **Graph Topology & Reference Integrity (`SurfaceComponentsModel`)**: Validates relationship integrity across the surface component tree, detecting root presence (`SurfaceModel.rootId`, default `"root"`), missing or dangling child references, orphaned components, cycles and self-references, composition constraints (`allowedParents` / `allowedChildren`), and recursion depth limits.
 
 ```typescript
 export interface ValidationConfig {
@@ -804,32 +804,51 @@ To prevent malformed identifiers, injection vectors, and subtle rendering ambigu
 - **Continue Characters**: Must satisfy `is_xid_continue(c)` (alphanumerics, connector punctuation, combining marks).
 - Non-compliant identifiers must be rejected during envelope and catalog property validation with an `A2uiValidationError`.
 
+##### Graph Validation Runs Before Mutation, Against a Candidate Graph
+
+State mutation is not a validation point. `SurfaceComponentsModel.addComponent()` enforces exactly one invariant, that the ID is not already present on the live surface, and raises `A2uiStateError` if it is. It runs no schema, composition, or topology checks. A caller that adds components directly, bypassing the processor, can therefore leave a surface in a state the protocol forbids.
+
+Graph validation is instead a distinct phase that `MessageProcessor` completes before it touches surface state. It builds a candidate graph by merging the inbound batch over the components already on the surface, then validates that candidate:
+
+1. Reject duplicate IDs within the batch itself.
+2. Validate each component's properties against the schema of its own catalog, which is not necessarily the surface default.
+3. Validate composition constraints (`allowedParents` / `allowedChildren`) over the merged parent and child maps.
+4. Validate topology over the merged graph: root presence, dangling references, cycles and depth, then reachability from the root.
+
+Only after all four pass does the processor apply the batch. Validating a merged candidate rather than the live model is what makes an update atomic: a batch that would introduce a cycle or an orphan is rejected whole, and the surface keeps its last valid graph. It also avoids false rejections. Validating incrementally as each component landed would fail any batch in which a parent arrives before the child it references, which under streaming is the normal arrival order.
+
+The entire phase is skipped when no `ValidationConfig` is supplied. Supplying no config is the explicit opt-out for renderers that trust their agent and want the lowest per-message cost.
+
+The non-throwing `validateReferences()` accessor sits outside this pipeline. It exists for consumers that want to inspect a committed surface and report problems rather than abort, and the processor never calls it.
+
 #### Validation Implementation Matrix
 
 The matrix below details the specific validation checks, their responsible component/method in `a2ui_core`, and the specific error class raised upon failure:
 
-| Validation Category      | Specific Validation Check                                                                         | Responsible Component / Implementation                                    | Raised Error Type     |
-| :----------------------- | :------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------ | :-------------------- |
-| **Protocol Envelope**    | Single update type per message (`createSurface`, `updateComponents`, etc.)                        | `VersionAdapter.extractOperations()`                                      | `A2uiValidationError` |
-| **Protocol Envelope**    | Valid `version` tag (`v0.8`, `v0.9`, `v1.0`) & required envelope keys                             | `VersionAdapter.extractOperations()`                                      | `A2uiValidationError` |
-| **Identifier Syntax**    | Component, property, and function names comply with UAX #31 identifier syntax                     | `PayloadValidator` (`common/uax31`)                                       | `A2uiValidationError` |
-| **Schema Referencing**   | In-memory `$ref` resolution against relative paths (`common_types.json`) without disk or network  | `PayloadValidator` (`referencing.Registry` / `Ajv`)                       | `A2uiValidationError` |
-| **Surface Lifecycle**    | Surface non-existence on `createSurface` (no duplicates)                                          | `MessageProcessor.processCreateSurface()` (`SurfaceGroupModel`)           | `A2uiIntegrityError`  |
-| **Surface Lifecycle**    | Surface existence on `updateComponents`, `updateDataModel`, `deleteSurface`                       | `MessageProcessor.processUpdateComponents()` / `processUpdateDataModel()` | `A2uiIntegrityError`  |
-| **Catalog Negotiation**  | `createSurface.catalogId` and component/function `catalogId` match negotiated renderer capability | `new MessageProcessor({ catalogs: [negotiatedCatalog] })`                 | `A2uiCatalogError`    |
-| **Catalog Resolution**   | `createSurface.catalogId` and component/function `catalogId` exist in supported catalogs list     | `MessageProcessor.processCreateSurface()`                                 | `A2uiCatalogError`    |
-| **Component Keys**       | Required `id` and `component` (type name) on creation                                             | `PayloadValidator.validateComponent()`                                    | `A2uiValidationError` |
-| **Component Properties** | Property schema validation against catalog definition                                             | `PayloadValidator.validateComponent()`                                    | `A2uiValidationError` |
-| **Theme**                | Surface theme validation against catalog theme schema (v0.8, v0.9 only)                           | `PayloadValidator.validateTheme()`                                        | `A2uiValidationError` |
-| **Function Signatures**  | Function call arguments and return payload validation against catalog function schema             | `PayloadValidator.validateFunction()` / `RpcHandler`                      | `A2uiValidationError` |
-| **Graph Integrity**      | Duplicate component IDs within surface                                                            | `SurfaceComponentsModel.upsertComponent()`                                | `A2uiIntegrityError`  |
-| **Graph Integrity**      | Missing root component (`SurfaceModel.rootId`, default `"root"`)                                  | `SurfaceComponentsModel.validateReferences()`                             | `A2uiIntegrityError`  |
-| **Graph Integrity**      | Dangling component references (pointers to missing IDs)                                           | `SurfaceComponentsModel.validateReferences()`                             | `A2uiIntegrityError`  |
-| **Graph Topology**       | Self-reference detection (`comp_id == ref_id`)                                                    | `SurfaceComponentsModel.upsertComponent()`                                | `A2uiIntegrityError`  |
-| **Graph Topology**       | Circular reference / cycle detection (DFS stack)                                                  | `SurfaceComponentsModel.detectCycles()` / `IntegrityChecker`              | `A2uiIntegrityError`  |
-| **Graph Topology**       | Unreachable / orphan component detection                                                          | `SurfaceComponentsModel.validateReferences()`                             | `A2uiIntegrityError`  |
-| **Depth & Syntax**       | Global recursion depth limit (>50) & function nesting (>5)                                        | `SurfaceComponentsModel.detectCycles()` / `IntegrityChecker`              | `A2uiRecursionError`  |
-| **Depth & Syntax**       | JSON Pointer path syntax validation                                                               | `PayloadValidator` / `IntegrityChecker`                                   | `A2uiValidationError` |
+| Validation Category      | Specific Validation Check                                                                         | Responsible Component / Implementation                                        | Raised Error Type     |
+| :----------------------- | :------------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------- | :-------------------- |
+| **Protocol Envelope**    | Single update type per message (`createSurface`, `updateComponents`, etc.)                        | `VersionAdapter.extractOperations()`                                          | `A2uiValidationError` |
+| **Protocol Envelope**    | Valid `version` tag (`v0.8`, `v0.9`, `v1.0`) & required envelope keys                             | `VersionAdapter.extractOperations()`                                          | `A2uiValidationError` |
+| **Identifier Syntax**    | Component, property, and function names comply with UAX #31 identifier syntax                     | `PayloadValidator` (`common/uax31`)                                           | `A2uiValidationError` |
+| **Schema Referencing**   | In-memory `$ref` resolution against relative paths (`common_types.json`) without disk or network  | `PayloadValidator` (`referencing.Registry` / `Ajv`)                           | `A2uiValidationError` |
+| **Surface Lifecycle**    | Surface non-existence on `createSurface` (no duplicates)                                          | `MessageProcessor.processCreateSurfaceOp()` (`SurfaceGroupModel`)             | `A2uiIntegrityError`  |
+| **Surface Lifecycle**    | Surface existence on `updateComponents`, `updateDataModel`, `deleteSurface`                       | `MessageProcessor.processUpdateComponentsOp()` / `processUpdateDataModelOp()` | `A2uiIntegrityError`  |
+| **Catalog Negotiation**  | `createSurface.catalogId` and component/function `catalogId` match negotiated renderer capability | `new MessageProcessor({ catalogs: [negotiatedCatalog] })`                     | `A2uiCatalogError`    |
+| **Catalog Resolution**   | `createSurface.catalogId` and component/function `catalogId` exist in supported catalogs list     | `MessageProcessor.processCreateSurfaceOp()`                                   | `A2uiCatalogError`    |
+| **Component Keys**       | Required `id` and `component` (type name) on creation                                             | `PayloadValidator.validateComponent()`                                        | `A2uiValidationError` |
+| **Component Properties** | Property schema validation against catalog definition                                             | `PayloadValidator.validateComponent()`                                        | `A2uiValidationError` |
+| **Theme**                | Surface theme validation against catalog theme schema (v0.8, v0.9 only)                           | `PayloadValidator.validateTheme()`                                            | `A2uiValidationError` |
+| **Function Signatures**  | Function call arguments and return payload validation against catalog function schema             | `PayloadValidator.validateFunction()` / `RpcHandler`                          | `A2uiValidationError` |
+| **Graph Integrity**      | Duplicate component ID within a single update payload                                             | `SurfaceComponentsModel.validateComponentsUpdate()`                           | `A2uiValidationError` |
+| **Graph Integrity**      | Missing root component (`SurfaceModel.rootId`, default `"root"`)                                  | `validateComponentsUpdate()` → `validateTopology()`                           | `A2uiIntegrityError`  |
+| **Graph Integrity**      | Dangling component references (pointers to missing IDs)                                           | `validateComponentsUpdate()` → `validateTopology()`                           | `A2uiIntegrityError`  |
+| **Graph Topology**       | Composition constraints (`allowedParents` / `allowedChildren`)                                    | `validateComponentsUpdate()`                                                  | `A2uiValidationError` |
+| **Graph Topology**       | Self-reference detection (`comp_id == ref_id`)                                                    | `validateTopology()` → `detectCycles()`                                       | `A2uiRecursionError`  |
+| **Graph Topology**       | Circular reference / cycle detection (DFS stack)                                                  | `validateTopology()` → `detectCycles()`                                       | `A2uiRecursionError`  |
+| **Graph Topology**       | Unreachable / orphan component detection                                                          | `validateComponentsUpdate()` → `validateTopology()`                           | `A2uiIntegrityError`  |
+| **State Invariant**      | Duplicate component ID against the live surface (mutation guard, not a validation pass)           | `SurfaceComponentsModel.addComponent()`                                       | `A2uiStateError`      |
+| **Depth & Syntax**       | Global recursion depth limit (>50) & function nesting (>5)                                        | `VersionAdapter.extractOperations()` / `detectCycles()`                       | `A2uiRecursionError`  |
+| **Depth & Syntax**       | JSON Pointer path syntax validation                                                               | `VersionAdapter.extractOperations()` / `PayloadValidator`                     | `A2uiValidationError` |
 
 ---
 
@@ -1091,14 +1110,48 @@ class SurfaceComponentsModel {
   /** Can be replaced by an ImmutableMap<string, ComponentModel> property in supporting languages. */
   getAll(): Map<string, ComponentModel>;
 
+  /**
+   * Mutation guard, not a validation entry point. Throws A2uiStateError if a component with
+   * the same ID is already on the surface, and performs no schema, composition, or topology
+   * checks. Callers are responsible for validating a candidate graph beforehand.
+   */
   addComponent(component: ComponentModel): void;
 
   removeComponent(componentId: string): void;
   dispose(): void;
 
+  /** Child component IDs referenced by a component, derived from the catalog's reference map. */
+  getChildIds(componentId: string): string[];
+
   /**
-   * Validates references across the component graph (root presence id='root', dangling references, orphan nodes).
-   * Returns a list of all validation errors found in a single pass so callers can inspect or fix them simultaneously.
+   * Validates an inbound batch against a prospective merge of the batch into the current
+   * surface, so a rejected update leaves state untouched. Checks payload-local duplicate IDs,
+   * per-component property schemas, composition constraints, then delegates to validateTopology.
+   */
+  validateComponentsUpdate(
+    newComponents: ComponentModel[],
+    rootId?: string,
+    config?: ValidationConfig,
+  ): void;
+
+  /**
+   * Validates the committed graph in order: root presence, dangling references, cycles and
+   * depth (via detectCycles), then reachability from the root. Each check is individually
+   * suppressible through ValidationConfig so partially streamed surfaces can be tolerated.
+   */
+  validateTopology(options?: ValidationConfig): void;
+
+  /**
+   * Walks the graph depth-first from the root, raising A2uiRecursionError on a self-reference,
+   * a back edge, or a traversal deeper than the global limit. Returns the reachable set, which
+   * validateTopology reuses for its orphan check.
+   */
+  detectCycles(options?: ValidationConfig): Set<string>;
+
+  /**
+   * Non-throwing wrapper over validateTopology for consumers that inspect a committed surface
+   * and report problems rather than abort. Returns the first error encountered, or an empty
+   * array when the graph is valid. Not part of the processing pipeline.
    */
   validateReferences(options?: ValidationConfig): A2uiValidationError[];
 
